@@ -30,6 +30,8 @@ jobs:
   # the Mac app when a file in macos/ or this workflow changed. A call from another workflow says which by its
   # inputs; missing inputs enable both (toJSON keeps a missing input from comparing loosely as false), and it never
   # tests the Mac app. A run by hand tests all three. A job left out is skipped, which a required check counts as passed.
+  # A called workflow sees its caller's github context: a release started by hand is a workflow_dispatch too, so
+  # "by hand" also checks that the workflow run is this one (Tests), not Images or Android.
   changes:
     runs-on: ubuntu-latest
     outputs:
@@ -47,7 +49,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           SERVER: ${{ toJSON(inputs.server) != 'false' }}
           ANDROID: ${{ toJSON(inputs.android) != 'false' }}
-          MAC: ${{ github.event_name == 'workflow_dispatch' }}
+          MAC: ${{ github.event_name == 'workflow_dispatch' && github.workflow == 'Tests' }}
         run: |
           if [ "$EVENT" = pull_request ]; then
             FILES="$(git diff --name-only HEAD^1 HEAD)"
