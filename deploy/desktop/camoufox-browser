@@ -1,0 +1,335 @@
+#!/opt/camoufox/bin/python
+"""Camoufox on the desktop with a persistent profile, and botdot's bridge into it.
+
+camoufox-browser --serve
+    botdot runs this as the browser user when the computer starts. It opens Camoufox when asked and types a
+    saved password, two-step code, card detail or identity detail into the page for botdot, after checking the
+    site and the focused field. {"op": "where"} returns the site the browser is on. Those requests come only
+    over BRIDGE_SOCKET, in a folder only the browser user can open, so no program of the bot can receive or
+    answer them (#311). 127.0.0.1:47111 (inside the container only) takes {"op": "open"} and nothing else.
+camoufox-browser [url]
+    Opens the url in that Camoufox, starting it if it is closed: the dock's browser icon, xdg-open, open_browser.
+
+What the bridge and Camoufox print goes to BRIDGE_LOG, at most LOG_CAP bytes of the latest, and the previous
+run's to BRIDGE_LOG.1 (#355).
+"""
+import atexit
+import json
+import os
+import queue
+import socket
+import socketserver
+import sys
+import threading
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlparse
+
+BRIDGE_SOCKET = "/run/botdot-browser/bridge.sock"
+BRIDGE_LOG = "/home/browser/bridge.log"  # as told in lib/computers.js, above startBrowserBridge
+LOG_CAP = 1024 * 1024
+OPEN_PORT = 47111
+NOT_OPEN = {"ok": False, "error": "Camoufox isn't open. Open the site with open_browser first."}
+requests = queue.Queue()  # (body, reply queue or None), served on the browser's thread
+
+
+class BridgeHandler(socketserver.StreamRequestHandler):
+    """botdot's helper (botdot-type-secret): one JSON request, read to its end, and one JSON answer."""
+
+    def handle(self):
+        try:
+            body = json.loads(self.rfile.read(1024 * 1024))
+        except ValueError:
+            body = None
+        if not isinstance(body, dict) or not body:  # e.g. bridge_running(), which sends nothing: not the browser's
+            result = {"ok": False, "error": "The bridge takes one JSON request."}
+        else:
+            reply = queue.Queue()
+            requests.put((body, reply))
+            try:
+                result = reply.get(timeout=30)
+            except queue.Empty:
+                result = {"ok": False, "error": "The browser did not respond."}
+        try:
+            self.wfile.write(json.dumps(result).encode())
+        except (BrokenPipeError, ConnectionResetError):  # the client has gone (#360): nothing to tell anyone
+            pass
+
+
+class OpenHandler(BaseHTTPRequestHandler):
+    """Any program on the computer: it may open a page, and learns nothing else."""
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length))
+        except ValueError:
+            body = {}
+        if isinstance(body, dict) and body.get("op") == "open":
+            requests.put(({"op": "open", "url": str(body.get("url") or "about:blank")}, None))
+            result = {"ok": True}
+        else:
+            result = {"ok": False, "error": "This only opens pages in Camoufox."}
+        data = json.dumps(result).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def log_message(self, *args):
+        pass
+
+
+def host_matches(url, site):
+    host = (urlparse(url).hostname or "").lower()
+    site = site.lower()
+    return host == site or host.endswith("." + site)
+
+
+# Runs in the page: is the focused element the right kind of box?
+FIELD_CHECK = """(field) => {
+  const el = document.activeElement;
+  if (!document.hasFocus() || !el || el.tagName !== 'INPUT') return 'none';
+  const t = (el.getAttribute('type') || 'text').toLowerCase();
+  if (field === 'password') return t === 'password' ? 'ok' : 'wrong';
+  if (field === 'card') return ['text', 'tel', 'number', 'password', ''].includes(t) ? 'ok' : 'wrong';
+  if (field === 'totp') return ['text', 'tel', 'number', 'password', ''].includes(t) ? 'ok' : 'wrong';
+  return ['text', 'email', 'tel', 'search', ''].includes(t) ? 'ok' : 'wrong';
+}"""
+
+
+def focused_page(context):
+    pages = [p for p in context.pages if not p.is_closed()]
+    for p in pages:
+        try:
+            if p.evaluate("document.hasFocus()"):
+                return p
+        except Exception:
+            pass
+    return pages[-1] if pages else None
+
+
+FIELD_KINDS = {"username", "password", "totp", "card", "text"}
+FIELD_NAMES = {"username": "username", "password": "password", "totp": "two-step code", "card": "card", "text": "form"}
+
+
+def type_secret(context, req):
+    if req.get("op") == "open":  # a second launch (e.g. the dock's browser icon) opens a tab here
+        page = context.new_page()
+        if req.get("url", "about:blank") != "about:blank":
+            page.goto(req["url"])
+        page.bring_to_front()
+        return {"ok": True}
+    page = focused_page(context)
+    if req.get("op") == "where":
+        return {"ok": True, "host": (urlparse(page.url).hostname or "") if page else ""}
+    field = req.get("field") if req.get("field") in FIELD_KINDS else "password"
+    if page is None:
+        return {"ok": False, "error": "Camoufox has no open page."}
+    if field != "text" and not host_matches(page.url, req.get("site", "")):  # identity details: any site
+        shown = urlparse(page.url).hostname or page.url
+        return {"ok": False, "error": f"The browser is on {shown}, not {req.get('site')}. Open the right site first."}
+    target = None
+    for frame in page.frames:  # login forms are sometimes inside iframes
+        try:
+            if frame.evaluate(FIELD_CHECK, field) == "ok":
+                target = frame
+                break
+        except Exception:
+            pass
+    if target is None:
+        return {"ok": False, "error": f"Click the {FIELD_NAMES[field]} box first, then try again."}
+    page.keyboard.type(req.get("value", ""), delay=35)
+    if req.get("submit"):
+        page.keyboard.press("Enter")
+    return {"ok": True}
+
+
+def ask_to_open(url):
+    """Ask the bridge, on its port, to open the URL in Camoufox."""
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{OPEN_PORT}", json.dumps({"op": "open", "url": url}).encode(),
+                                     {"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=40) as res:
+            return json.loads(res.read()).get("ok", False)
+    except (OSError, ValueError):
+        return False
+
+
+def bridge_running():
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        try:
+            probe.connect(BRIDGE_SOCKET)
+            return True
+        except OSError:
+            return False
+
+
+def keep_tail(f, size):
+    """Shrink the open file f to its last `size` bytes, from the start of a line."""
+    f.seek(max(0, os.fstat(f.fileno()).st_size - size))
+    tail = f.read()
+    cut = tail.find(b"\n")
+    if f.tell() > len(tail) and 0 <= cut < len(tail) - 1:
+        tail = tail[cut + 1:]
+    f.seek(0)
+    f.write(tail)
+    f.truncate()
+
+
+def bound_log():
+    """Point this process's stdout and stderr, which Camoufox's processes inherit, at BRIDGE_LOG through a pipe,
+    keeping the previous run as BRIDGE_LOG.1 and the live log under LOG_CAP. Called once this process is the
+    bridge. If the log cannot be set up, the bridge runs on without it."""
+    old = BRIDGE_LOG + ".1"
+    try:
+        os.replace(BRIDGE_LOG, old)
+        with open(old, "r+b") as f:  # a log from before #355 may be any size
+            if os.fstat(f.fileno()).st_size > LOG_CAP:
+                keep_tail(f, LOG_CAP)
+    except OSError:
+        pass
+    try:
+        read_end, write_end = os.pipe()
+    except OSError:
+        return
+    try:
+        log = open(BRIDGE_LOG, "w+b", buffering=0)
+    except OSError:
+        os.close(read_end)
+        os.close(write_end)
+        return
+    for stream in (sys.stdout, sys.stderr):
+        if stream:
+            stream.flush()
+    os.dup2(write_end, 1)
+    os.dup2(write_end, 2)
+    os.close(write_end)
+
+    def copy():
+        size = 0
+        while True:
+            try:
+                chunk = os.read(read_end, min(65536, LOG_CAP))
+            except OSError:
+                return
+            if not chunk:
+                return
+            try:  # a full disk loses lines, never blocks the writers: the pipe is read on regardless
+                if size + len(chunk) > LOG_CAP:  # trimmed to half, so the trimming is rare
+                    keep_tail(log, min(LOG_CAP // 2, LOG_CAP - len(chunk)))
+                log.write(chunk)
+                size = log.tell()
+            except Exception:
+                pass
+
+    copier = threading.Thread(target=copy, daemon=True)
+    copier.start()
+
+    def drain():
+        """At exit, as after a crash, let the copy reach the log: what the bridge printed last tells why."""
+        for stream in (sys.stdout, sys.stderr):
+            if stream:
+                stream.flush()
+        null = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(null, 1)
+        os.dup2(null, 2)
+        copier.join(2)  # a Camoufox process still holding the pipe keeps it open: do not wait for it
+
+    atexit.register(drain)
+
+
+def serve():
+    """Serve botdot and the desktop until the computer stops, with Camoufox open whenever a page was asked for."""
+    if bridge_running():  # botdot started it again while it runs
+        return
+    bound_log()
+    try:
+        os.unlink(BRIDGE_SOCKET)
+    except FileNotFoundError:
+        pass
+    bridge = socketserver.ThreadingUnixStreamServer(BRIDGE_SOCKET, BridgeHandler)
+    os.chmod(BRIDGE_SOCKET, 0o600)
+    threading.Thread(target=bridge.serve_forever, daemon=True).start()
+    try:
+        opener = ThreadingHTTPServer(("127.0.0.1", OPEN_PORT), OpenHandler)
+        threading.Thread(target=opener.serve_forever, daemon=True).start()
+    except OSError:  # taken by a program of the bot: it gets no secret, only no browser
+        print(f"camoufox-browser: 127.0.0.1:{OPEN_PORT} is taken, so the desktop cannot open pages", file=sys.stderr, flush=True)
+    while True:
+        body, reply = requests.get()
+        if body.get("op") == "open":
+            try:
+                run_browser(body.get("url") or "about:blank")
+            except Exception as exc:  # e.g. the desktop is not up yet: the next open tries again
+                print(f"camoufox-browser: Camoufox did not start: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        elif reply is not None:
+            reply.put(NOT_OPEN)
+        body.clear()
+
+
+def run_browser(url):
+    """Camoufox at url, serving the queued requests on this thread until its window is closed."""
+    # Imported here, so a broken Camoufox is told in the bridge's log instead of ending the bridge before it has one
+    from browserforge.fingerprints import Screen
+    from camoufox.sync_api import Camoufox
+
+    with Camoufox(
+        headless=False,
+        persistent_context=True,
+        user_data_dir=os.path.expanduser("~/.camoufox-profile"),
+        os="linux",                      # match the real machine so fonts and platform agree
+        screen=Screen(max_width=1024, max_height=768),
+        window=(1024, 740),
+        humanize=True,                   # human-like cursor movement
+        firefox_user_prefs={
+            "signon.rememberSignons": False,  # never store typed passwords in the profile
+            "signon.autofillForms": False,
+            # The bot's own folder, which the browser user may write into (deploy/desktop/Dockerfile): the bot
+            # reads what it downloads, and this user's home stays closed to it.
+            "browser.download.dir": "/home/bot/Downloads",
+            "browser.download.folderList": 2,
+        },
+    ) as context:
+        closed = threading.Event()
+        context.on("close", lambda *_: closed.set())
+        page = context.pages[0] if context.pages else context.new_page()
+        if url != "about:blank":  # the first page is already blank; going there again races and crashes
+            page.goto(url)
+        # Serve secret-typing requests on this thread (Playwright's sync API isn't thread-safe)
+        # until the window is closed.
+        while not closed.is_set():
+            try:
+                body, reply = requests.get_nowait()
+            except queue.Empty:
+                try:
+                    pages = context.pages
+                    if not pages:
+                        break
+                    pages[0].wait_for_timeout(200)  # also lets Playwright process events
+                except Exception:
+                    break
+                continue
+            try:
+                result = type_secret(context, body)
+            except Exception as exc:  # report the problem, never the value
+                result = {"ok": False, "error": f"Typing failed: {type(exc).__name__}"}
+            finally:
+                body.clear()
+            if reply is not None:
+                reply.put(result)
+
+
+def main():
+    if sys.argv[1:2] == ["--serve"]:
+        serve()
+        return
+    url = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else "about:blank"
+    if not ask_to_open(url):
+        print("botdot's browser is not running on this computer.", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,933 @@
+{
+  "about": "How a reply is read into blocks, the same on the web page (mdBlocks in public/app.js, test/markdown-web.test.js) and in the Android app (parseBlocks in Markdown.kt, MarkdownTest.kt). Each case is a source text and the flat list of blocks it becomes: heading (level, text), para (text), item (text, number or null, depth), quote (text), rule, code (text), table (rows). A rule changes here and in both apps together.",
+  "cases": [
+    {
+      "name": "depth: an item further right than an open item is its child",
+      "source": "- a\n  - b\n    - c\n- d",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "c",
+          "number": null,
+          "depth": 2
+        },
+        {
+          "type": "item",
+          "text": "d",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "depth: stops at 3",
+      "source": "- a\n  - b\n    - c\n      - d\n        - e\n          - f",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "c",
+          "number": null,
+          "depth": 2
+        },
+        {
+          "type": "item",
+          "text": "d",
+          "number": null,
+          "depth": 3
+        },
+        {
+          "type": "item",
+          "text": "e",
+          "number": null,
+          "depth": 3
+        },
+        {
+          "type": "item",
+          "text": "f",
+          "number": null,
+          "depth": 3
+        }
+      ]
+    },
+    {
+      "name": "depth: a sub-item less indented than its sibling is still a sub-item",
+      "source": "- a\n    - b\n  - c\n- d",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "c",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "d",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "depth: the first item of a list is at depth 0, however far right it starts",
+      "source": "  - a\n  - b",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "numbers: they go on after sub-bullets",
+      "source": "1. one\n   - a\n   - b\n   - c\n2. two",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "one",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "a",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "c",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "two",
+          "number": 2,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "numbers: every item written \"1.\" counts up",
+      "source": "1. a\n1. b\n1. c",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": 2,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "c",
+          "number": 3,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "numbers: a list starts at the number written, then counts up by one",
+      "source": "3. a\n4. b\n9. c",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": 3,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": 4,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "c",
+          "number": 5,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "numbers: a sub-list counts for itself, and starts again under the next item",
+      "source": "1. a\n   1. x\n   1. y\n2. b\n   1. z",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "x",
+          "number": 1,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "y",
+          "number": 2,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": 2,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "z",
+          "number": 1,
+          "depth": 1
+        }
+      ]
+    },
+    {
+      "name": "numbers: a bullet between two numbers starts a new numbered list",
+      "source": "1. a\n- b\n5. c",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "c",
+          "number": 5,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "numbers: both markers, \"1.\" and \"1)\"",
+      "source": "1) a\n2) b",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": 2,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "a list goes on across blank lines",
+      "source": "1. one\n\n2. two\n\n3. three",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "one",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "two",
+          "number": 2,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "three",
+          "number": 3,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "a list goes on across a continuation line",
+      "source": "1. one\n   more about one\n2. two",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "one\nmore about one",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "two",
+          "number": 2,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "continuation: a text line right under an item joins it, indented or not",
+      "source": "- a\nstill a\n- b",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a\nstill a",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "continuation: an indented line after a blank line joins the item",
+      "source": "- a\n\n  more\n- b",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a\nmore",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "a list ends at a text line that follows a blank line and is not indented",
+      "source": "1. a\n\nAfter.\n\n1. b",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "para",
+          "text": "After."
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": 1,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "a list ends at a heading, a rule, a quote, a table and a code block",
+      "source": "1. a\n## T\n1. b\n---\n1. c\n> q\n1. d\n| x |\n1. e\n```\nk\n```\n1. f",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "T"
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "rule"
+        },
+        {
+          "type": "item",
+          "text": "c",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "quote",
+          "text": "q"
+        },
+        {
+          "type": "item",
+          "text": "d",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "table",
+          "rows": [
+            [
+              "x"
+            ]
+          ]
+        },
+        {
+          "type": "item",
+          "text": "e",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "code",
+          "text": "k"
+        },
+        {
+          "type": "item",
+          "text": "f",
+          "number": 1,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "a paragraph is the lines up to a blank line, its line breaks kept",
+      "source": "One line\nand the next\n\nSecond.",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "One line\nand the next"
+        },
+        {
+          "type": "para",
+          "text": "Second."
+        }
+      ]
+    },
+    {
+      "name": "headings: levels 5 and 6 are level 4",
+      "source": "# a\n## b\n### c\n#### d\n##### e\n###### f",
+      "blocks": [
+        {
+          "type": "heading",
+          "level": 1,
+          "text": "a"
+        },
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "b"
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "c"
+        },
+        {
+          "type": "heading",
+          "level": 4,
+          "text": "d"
+        },
+        {
+          "type": "heading",
+          "level": 4,
+          "text": "e"
+        },
+        {
+          "type": "heading",
+          "level": 4,
+          "text": "f"
+        }
+      ]
+    },
+    {
+      "name": "a bold-only line is a level 3 title",
+      "source": "**Host (pve)**\n- a",
+      "blocks": [
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "Host (pve)"
+        },
+        {
+          "type": "item",
+          "text": "a",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "a bold-only title: the colon inside or outside the bold is left out",
+      "source": "**Summary:**\nOne.\n\n**Next**:\nTwo.",
+      "blocks": [
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "Summary"
+        },
+        {
+          "type": "para",
+          "text": "One."
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "Next"
+        },
+        {
+          "type": "para",
+          "text": "Two."
+        }
+      ]
+    },
+    {
+      "name": "a bold-only title right under a paragraph",
+      "source": "Intro.\n**Title**\n- a",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Intro."
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "Title"
+        },
+        {
+          "type": "item",
+          "text": "a",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "no title: a bold sentence",
+      "source": "**Do not restart the server.**\nIt is mid-backup.",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Do not restart the server.**\nIt is mid-backup."
+        }
+      ]
+    },
+    {
+      "name": "no title: it ends in a question mark or an exclamation mark",
+      "source": "**Ready?**\nYes.\n\n**Stop!**\nNow.",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Ready?**\nYes."
+        },
+        {
+          "type": "para",
+          "text": "**Stop!**\nNow."
+        }
+      ]
+    },
+    {
+      "name": "no title: a reply that is one bold line",
+      "source": "**Done**",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Done**"
+        }
+      ]
+    },
+    {
+      "name": "no title: nothing follows it",
+      "source": "All good.\n\n**Done**\n",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "All good."
+        },
+        {
+          "type": "para",
+          "text": "**Done**"
+        }
+      ]
+    },
+    {
+      "name": "no title: more than 60 characters",
+      "source": "**This line is bold from end to end and it runs on for longer than sixty characters**\nText.",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**This line is bold from end to end and it runs on for longer than sixty characters**\nText."
+        }
+      ]
+    },
+    {
+      "name": "a title of exactly 60 characters",
+      "source": "**aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa**\nText.",
+      "blocks": [
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        },
+        {
+          "type": "para",
+          "text": "Text."
+        }
+      ]
+    },
+    {
+      "name": "no title: indented",
+      "source": "  **Note**\nText.",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Note**\nText."
+        }
+      ]
+    },
+    {
+      "name": "no title: in a list, as an item, right under one or indented under one",
+      "source": "- **Bold item**\n  **Note**\n- b\n**Under b**\n- c\n\n  **After a blank line**\n- d",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "**Bold item**\n**Note**",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "b\n**Under b**",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "c\n**After a blank line**",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "d",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "no title: bold with more words on the line",
+      "source": "**Status:** all good\nText.",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "**Status:** all good\nText."
+        }
+      ]
+    },
+    {
+      "name": "a quote is the run of lines that start with >",
+      "source": "> one\n> two\nafter",
+      "blocks": [
+        {
+          "type": "quote",
+          "text": "one\ntwo"
+        },
+        {
+          "type": "para",
+          "text": "after"
+        }
+      ]
+    },
+    {
+      "name": "a rule is a line that is only ---, *** or ___",
+      "source": "above\n\n---\n***\n___\nbelow",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "above"
+        },
+        {
+          "type": "rule"
+        },
+        {
+          "type": "rule"
+        },
+        {
+          "type": "rule"
+        },
+        {
+          "type": "para",
+          "text": "below"
+        }
+      ]
+    },
+    {
+      "name": "a code block is kept as written; a table loses its separator row",
+      "source": "```\nval x = 1\n  # not a heading\n```\n\n| A | B |\n|---|:-:|\n| 1 | 2 |",
+      "blocks": [
+        {
+          "type": "code",
+          "text": "val x = 1\n  # not a heading"
+        },
+        {
+          "type": "table",
+          "rows": [
+            [
+              "A",
+              "B"
+            ],
+            [
+              "1",
+              "2"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "the owner's reply: titles and one numbered list 1 to 4 with its bullets under each item",
+      "source": "Here is what I found on the host and what I would fix first.\n\n**Host (pve)**\n- CPU load is low: 0.4 over 15 minutes\n- Memory: 41 of 64 GB in use\n- Storage: local-lvm is 83% full\n\n**Worth fixing, in order**\n1. Free space on local-lvm\n   - Three old backups take 120 GB\n   - Delete them or move them to the NAS\n1. Update the kernel\n   - 6.8.4 is installed, 6.8.12 is out\n   - Needs a restart\n1. Turn on backup verification\n   - No backup was verified this month\n1. Renew the certificate\n   - It expires in 12 days\n\nTell me which one to start with.",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Here is what I found on the host and what I would fix first."
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "Host (pve)"
+        },
+        {
+          "type": "item",
+          "text": "CPU load is low: 0.4 over 15 minutes",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "Memory: 41 of 64 GB in use",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "Storage: local-lvm is 83% full",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "Worth fixing, in order"
+        },
+        {
+          "type": "item",
+          "text": "Free space on local-lvm",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "Three old backups take 120 GB",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "Delete them or move them to the NAS",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "Update the kernel",
+          "number": 2,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "6.8.4 is installed, 6.8.12 is out",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "Needs a restart",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "Turn on backup verification",
+          "number": 3,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "No backup was verified this month",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "Renew the certificate",
+          "number": 4,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "It expires in 12 days",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "para",
+          "text": "Tell me which one to start with."
+        }
+      ]
+    },
+    {
+      "name": "the report: numbers with blank lines between them",
+      "source": "1. one\n\n2. two\n\n3. three",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "one",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "two",
+          "number": 2,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "three",
+          "number": 3,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "the report: an indented line under a number",
+      "source": "1. one\n   under one\n2. two",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "one\nunder one",
+          "number": 1,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "two",
+          "number": 2,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "the report: a quote, a rule and a deep heading",
+      "source": "> quoted\n---\n##### deep",
+      "blocks": [
+        {
+          "type": "quote",
+          "text": "quoted"
+        },
+        {
+          "type": "rule"
+        },
+        {
+          "type": "heading",
+          "level": 4,
+          "text": "deep"
+        }
+      ]
+    },
+    {
+      "name": "a bold-only title after a list: a blank line, then not indented",
+      "source": "- a\n\n**Next**\n- b",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "a",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "heading",
+          "level": 3,
+          "text": "Next"
+        },
+        {
+          "type": "item",
+          "text": "b",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    }
+  ]
+}

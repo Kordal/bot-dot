@@ -1,0 +1,63 @@
+# botdot installed end to end in a nested Docker daemon (`make install-real`, tests/integration/install-real.js),
+# on every change to what an install runs: the installer and the signature check it shares with the updater, the
+# compose files, the Dockerfile, the docker-helper, the updater and the image workflow, and the stage itself.
+#
+# Where it runs: on GitHub's own throwaway machines for every event (#528). The stage runs a privileged container,
+# and a fork's pull request may change this file, so no runner of the owner's may take it.
+name: Install
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - install.sh
+      - compose*.yaml
+      - Dockerfile
+      - lib/docker-helper.js
+      - front-door.js
+      - lib/front-door/**
+      - lib/updates.js
+      - lib/signed-image.js
+      - lib/registry.js
+      - lib/release-manifest.js
+      - lib/release-trust.js
+      - .github/workflows/images.yml
+      - .github/workflows/install.yml
+      - tests/integration/install-real.*
+      - tests/integration/test-install.js
+  pull_request:
+    paths:
+      - install.sh
+      - compose*.yaml
+      - Dockerfile
+      - lib/docker-helper.js
+      - front-door.js
+      - lib/front-door/**
+      - lib/updates.js
+      - lib/signed-image.js
+      - lib/registry.js
+      - lib/release-manifest.js
+      - lib/release-trust.js
+      - .github/workflows/images.yml
+      - .github/workflows/install.yml
+      - tests/integration/install-real.*
+      - tests/integration/test-install.js
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  install-real:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - run: make install-real

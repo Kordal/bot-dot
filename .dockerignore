@@ -1,0 +1,31 @@
+# Only what botdot needs to run goes into the image (an allowlist): never your data, local settings,
+# a .env with tokens, or anything else that happens to be in this folder.
+*
+!server.js
+!front-door.js
+!package.json
+!lib/
+!public/
+!chief-skills/
+!vendor/
+!deploy/desktop/
+# Read back out of the image by install.sh, the Mac app and the updater in Settings.
+!compose.yaml
+!compose.front-door.yaml
+!compose.mac.yaml
+# The Android app CI puts here for botdot to hand out (images.yml); no Mac app until it is released (ADR 022).
+!android-app/
+!mac-app/
+
+# …and never secrets or clutter, even inside those.
+**/.env
+**/.env.*
+**/*.env
+**/*.pem
+**/*.key
+**/*.p8
+**/*.p12
+**/*.jks
+**/*.keystore
+**/.DS_Store
+**/*.log

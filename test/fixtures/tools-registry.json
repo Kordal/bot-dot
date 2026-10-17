@@ -1,0 +1,41 @@
+{
+  "tools": {
+    "gh": {
+      "summary": "Github CLI.",
+      "latest": "2.101.0",
+      "platforms": ["linux-64", "linux-aarch64", "osx-arm64"],
+      "packages": {
+        "2.101.0": ["gh-2.101.0-h0_0"],
+        "2.102.0": ["gh-2.102.0-h0_0"]
+      }
+    },
+    "jq": {
+      "summary": "A command-line JSON processor.",
+      "latest": "1.8.2",
+      "platforms": ["linux-64", "linux-aarch64"],
+      "packages": { "1.8.2": ["jq-1.8.2-h80f16a2_1", "oniguruma-6.9.10-h86ecc28_0", "_openmp_mutex-4.5-2_gnu"] }
+    },
+    "tree": {
+      "summary": "Lists a folder as a tree.",
+      "latest": "2.2.1",
+      "platforms": ["linux-64", "linux-aarch64"],
+      "packages": { "2.2.1": ["tree-2.2.1-h1_0"] }
+    },
+    "badsum": {
+      "summary": "A tool whose file is not the one the registry lists.",
+      "latest": "1.0",
+      "platforms": ["linux-64", "linux-aarch64"],
+      "packages": { "1.0": ["badsum-1.0-h0_0"] }
+    },
+    "jq-web": { "summary": "jq for the browser.", "latest": "0.5.1", "platforms": ["osx-arm64", "win-64"], "packages": {} }
+  },
+  "packages": {
+    "gh-2.101.0-h0_0": { "subdir": "arch", "size": 13600000, "files": ["bin/gh"] },
+    "gh-2.102.0-h0_0": { "subdir": "arch", "size": 13700000, "files": ["bin/gh"] },
+    "jq-1.8.2-h80f16a2_1": { "subdir": "arch", "size": 400000, "files": ["bin/jq", "share/man/man1/jq.1"] },
+    "oniguruma-6.9.10-h86ecc28_0": { "subdir": "arch", "size": 250000, "files": ["bin/onig-config", "lib/libonig.so.5"] },
+    "_openmp_mutex-4.5-2_gnu": { "subdir": "arch", "ext": "tar.bz2", "size": 24000, "files": ["lib/libgomp.so.1"] },
+    "tree-2.2.1-h1_0": { "subdir": "noarch", "size": 51000, "files": ["bin/tree", "bin/ls", "bin/jq"], "links": { ".botdot-tool.json": "../../victim.txt" } },
+    "badsum-1.0-h0_0": { "subdir": "arch", "size": 1000, "files": ["bin/badsum"], "tampered": true }
+  }
+}

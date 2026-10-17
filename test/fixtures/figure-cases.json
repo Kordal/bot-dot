@@ -1,0 +1,29 @@
+{
+  "about": "Definitions every renderer must take alike (ADR 003): the web page (test/figure.test.js), Android (FigureTest.kt) and the Mac (FigureTests.swift) each put a case's state into lib/figure.json as the state \"extra\" and read it. accepted: the definition is used; moves: the state then has a movement. Written as text, not built in code, so that 0.0 and 1e0 reach each reader as they stand.",
+  "cases": [
+    { "what": "a movement given as false is no movement", "state": { "eyes": [], "pupils": [], "move": false }, "accepted": true, "moves": false },
+    { "what": "a movement given as 0 is no movement", "state": { "eyes": [], "pupils": [], "move": 0 }, "accepted": true, "moves": false },
+    { "what": "a movement given as 0.0 is no movement", "state": { "eyes": [], "pupils": [], "move": 0.0 }, "accepted": true, "moves": false },
+    { "what": "a movement given as -0 is no movement", "state": { "eyes": [], "pupils": [], "move": -0 }, "accepted": true, "moves": false },
+    { "what": "a movement given as \"\" is no movement", "state": { "eyes": [], "pupils": [], "move": "" }, "accepted": true, "moves": false },
+    { "what": "a movement given as null is no movement", "state": { "eyes": [], "pupils": [], "move": null }, "accepted": true, "moves": false },
+    { "what": "a movement given as true is refused", "state": { "eyes": [], "pupils": [], "move": true }, "accepted": false },
+    { "what": "a movement given as a word is refused", "state": { "eyes": [], "pupils": [], "move": "0" }, "accepted": false },
+    { "what": "a movement given as a number is refused", "state": { "eyes": [], "pupils": [], "move": 1 }, "accepted": false },
+    { "what": "a movement given as a list is refused", "state": { "eyes": [], "pupils": [], "move": [] }, "accepted": false },
+
+    { "what": "a pose given as an empty list says nothing", "state": { "eyes": [], "pupils": [], "pose": [] }, "accepted": true, "moves": false },
+    { "what": "a pose given as a list with something in it is refused", "state": { "eyes": [], "pupils": [], "pose": [{ "head": { "turn": 3 } }] }, "accepted": false },
+    { "what": "a pose given as null is refused", "state": { "eyes": [], "pupils": [], "pose": null }, "accepted": false },
+
+    { "what": "a layer given as an empty list is refused", "state": { "eyes": [], "pupils": [], "pose": { "head": [] } }, "accepted": false },
+    { "what": "a layer given as a list is refused", "state": { "eyes": [], "pupils": [], "pose": { "eyes": [1, 2] } }, "accepted": false },
+    { "what": "a layer given as a list in a key is refused", "state": { "eyes": [], "pupils": [], "move": { "seconds": 1, "easing": "linear", "keys": [{ "at": 0, "pupils": [] }, { "at": 1, "pupils": [] }] } }, "accepted": false },
+
+    { "what": "the first and last keys are compared as numbers: 0 and 0.0", "state": { "eyes": [], "pupils": [], "move": { "seconds": 1, "easing": "linear", "keys": [{ "at": 0, "head": { "move": [0, 1], "turn": 4 } }, { "at": 0.5, "head": { "turn": 8 } }, { "at": 1, "head": { "move": [0.0, 1.0], "turn": 4.0 } }] } }, "accepted": true, "moves": true },
+    { "what": "the first and last keys are compared as numbers: 1 and 1e0, 0.5 and 5e-1", "state": { "eyes": [], "pupils": [], "move": { "seconds": 1, "easing": "ease-in-out", "keys": [{ "at": 0, "eyes": { "scale": [1, 0.5] } }, { "at": 0.5, "eyes": { "scale": [1, 0.1] } }, { "at": 1e0, "eyes": { "scale": [1e0, 5e-1] } }] } }, "accepted": true, "moves": true },
+    { "what": "the first and last keys are compared as numbers: 0 and -0", "state": { "eyes": [], "pupils": [], "move": { "seconds": 1, "easing": "linear", "keys": [{ "at": 0, "head": { "move": [0, 1], "turn": 0 } }, { "at": 0.5, "head": { "turn": 3 } }, { "at": 1, "head": { "move": [-0.0, 1], "turn": -0 } }] } }, "accepted": true, "moves": true },
+    { "what": "the first and last keys may name a layer's values in another order", "state": { "eyes": [], "pupils": [], "move": { "seconds": 1, "easing": "linear", "keys": [{ "at": 0, "head": { "move": [0, 1], "turn": 4 } }, { "at": 0.5 }, { "at": 1, "head": { "turn": 4, "move": [0, 1] } }] } }, "accepted": true, "moves": true },
+    { "what": "first and last keys that differ as numbers are refused", "state": { "eyes": [], "pupils": [], "move": { "seconds": 1, "easing": "linear", "keys": [{ "at": 0, "head": { "move": [0, 1] } }, { "at": 1, "head": { "move": [0, 1.5] } }] } }, "accepted": false }
+  ]
+}

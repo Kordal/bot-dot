@@ -1,0 +1,241 @@
+{
+  "about": "The one head every app draws bots from (docs/adr/003-one-figure-definition-for-all-apps.md). The botdot server hands it out at GET /api/figure; the web page, Android and the Mac each have a renderer and no face data of their own beyond one built-in bare head. Units are those of 'box'. A bot is 'head' (a circle in the bot's colour), the face of its state and its hat. There are three layers, one inside the other: 'head' (everything), 'eyes' (the face) and 'pupils' (the part of the face that looks around). A state has 'eyes' and 'pupils', each a list of shapes in the box's units (the shapes of docs/adr/004-pieces-as-restricted-shape-lists.md, in the tones main, deep, white and ink; 'tones' gives white and ink), a 'pose' (the still face, shown with reduced motion) and maybe a 'move'. A pose places layers: head { move, turn }, eyes { move, scale }, pupils { move }; move is [x, y], turn is degrees clockwise about pivot.head, scale is [x, y] about pivot.eyes; what a pose leaves out is move [0, 0], turn 0, scale [1, 1]. 'move' loops for ever: each key overrides the pose, with the one easing between each pair of keys. 'attach.hat' puts the origin of the hat's box at 'at' and draws the box 'scale' times as large. 'kit' holds the hats a bot's outfit names: each a list of shapes in the hat's 'box', filled and/or stroked in 'main' (the bot's colour) or 'deep' (the colour mixed 45% towards black on a light background, towards white on a dark one). 'chief' is the Chief of Staff's fixed outfit. 'small' is the mark beside a bot's name in text and for each thing that waits in Needs you: the head with its hat, without eyes, still, with the part 'view' ([x, y, width, height] of the box) filling the mark.",
+  "version": 2,
+  "box": [24, 24],
+  "head": {"cx": 12, "cy": 16.5, "r": 7.5},
+  "tones": {"white": "#ffffff", "ink": "#24231f"},
+  "pivot": {"head": [12, 16.5], "eyes": [12, 17.1]},
+  "attach": {
+    "hat": {"at": [12, 9], "scale": 2.6}
+  },
+  "kit": {
+    "limits": {"shapes": 6, "commands": 16, "stroke": [0.8,2]},
+    "hat": {
+      "box": [10,6], "origin": [5,3.5],
+      "pieces": {
+        "cap": {"means": "A peaked cap: post, deliveries, a driver", "shapes": [
+          {"shape": "path", "d": [["M",2.7,4.4], ["Q",2.7,1.4,5,1.4], ["Q",7.3,1.4,7.3,4.4], ["Z"]], "fill": "deep"},
+          {"shape": "rect", "x": 6.4, "y": 3.6, "w": 3.4, "h": 0.9, "r": 0.45, "fill": "deep"},
+          {"shape": "circle", "cx": 5, "cy": 3, "r": 0.65, "fill": "main"}
+        ]},
+        "top-hat": {"means": "A top hat: the one in charge, a host", "shapes": [
+          {"shape": "rect", "x": 3.1, "y": 0.2, "w": 3.8, "h": 4, "r": 0.3, "fill": "deep"},
+          {"shape": "rect", "x": 1.4, "y": 3.7, "w": 7.2, "h": 0.9, "r": 0.45, "fill": "deep"},
+          {"shape": "rect", "x": 3.1, "y": 2.5, "w": 3.8, "h": 0.9, "fill": "main"}
+        ]},
+        "chef": {"means": "A chef's hat: cooking, recipes, food", "shapes": [
+          {"shape": "circle", "cx": 3.5, "cy": 1.9, "r": 1.5, "fill": "deep"},
+          {"shape": "circle", "cx": 5, "cy": 1.5, "r": 1.5, "fill": "deep"},
+          {"shape": "circle", "cx": 6.5, "cy": 1.9, "r": 1.5, "fill": "deep"},
+          {"shape": "rect", "x": 3, "y": 2.4, "w": 4, "h": 2.1, "fill": "deep"},
+          {"shape": "rect", "x": 3, "y": 3.6, "w": 4, "h": 0.9, "fill": "main"}
+        ]},
+        "party": {"means": "A party hat: fun, birthdays, events", "shapes": [
+          {"shape": "path", "d": [["M",5,0.2], ["L",7.6,4.4], ["L",2.4,4.4], ["Z"]], "fill": "deep"},
+          {"shape": "circle", "cx": 5, "cy": 0.9, "r": 0.9, "fill": "main"},
+          {"shape": "line", "x1": 3.5, "y1": 3.1, "x2": 6.5, "y2": 3.1, "stroke": "main", "width": 0.9}
+        ]},
+        "crown": {"means": "A crown: the best, a favourite, a winner", "shapes": [
+          {"shape": "path", "d": [["M",2.5,4.5], ["L",2.5,1.2], ["L",3.9,2.8], ["L",5,0.8], ["L",6.1,2.8], ["L",7.5,1.2], ["L",7.5,4.5], ["Z"]], "fill": "deep"},
+          {"shape": "circle", "cx": 5, "cy": 3.5, "r": 0.65, "fill": "main"}
+        ]},
+        "hard-hat": {"means": "A hard hat: building, repairs, servers", "shapes": [
+          {"shape": "path", "d": [["M",2.5,4.2], ["Q",2.5,1,5,1], ["Q",7.5,1,7.5,4.2], ["Z"]], "fill": "deep"},
+          {"shape": "rect", "x": 1.5, "y": 3.7, "w": 7, "h": 0.9, "r": 0.45, "fill": "deep"},
+          {"shape": "rect", "x": 4.4, "y": 0.6, "w": 1.2, "h": 2.4, "r": 0.5, "fill": "main"}
+        ]},
+        "wizard": {"means": "A wizard's hat: clever tricks, automation", "shapes": [
+          {"shape": "path", "d": [["M",6,0.2], ["L",7.6,4.2], ["L",2.8,4.2], ["Z"]], "fill": "deep"},
+          {"shape": "rect", "x": 0.9, "y": 3.8, "w": 8.2, "h": 0.9, "r": 0.45, "fill": "deep"},
+          {"shape": "circle", "cx": 5.5, "cy": 2.8, "r": 0.6, "fill": "main"}
+        ]},
+        "cowboy": {"means": "A cowboy hat: rounding things up, the outdoors", "shapes": [
+          {"shape": "path", "d": [["M",3.3,4], ["L",3.5,1.3], ["Q",5,2.3,6.5,1.3], ["L",6.7,4], ["Z"]], "fill": "deep"},
+          {"shape": "path", "d": [["M",0.8,3.2], ["Q",5,5.6,9.2,3.2]], "stroke": "deep", "width": 1.1},
+          {"shape": "line", "x1": 3.5, "y1": 3.3, "x2": 6.5, "y2": 3.3, "stroke": "main", "width": 0.8}
+        ]},
+        "beanie": {"means": "A woolly hat with a bobble: winter, casual, cosy", "shapes": [
+          {"shape": "path", "d": [["M",2.6,4.6], ["Q",2.6,1.6,5,1.6], ["Q",7.4,1.6,7.4,4.6], ["Z"]], "fill": "main"},
+          {"shape": "rect", "x": 2.4, "y": 3.7, "w": 5.2, "h": 1.1, "r": 0.4, "fill": "deep"},
+          {"shape": "circle", "cx": 5, "cy": 1.2, "r": 1, "fill": "deep"}
+        ]},
+        "headphones": {"means": "Headphones: music, calls, listening", "shapes": [
+          {"shape": "path", "d": [["M",2.3,5.4], ["Q",2.3,2.7,5,2.7], ["Q",7.7,2.7,7.7,5.4]], "stroke": "deep", "width": 0.9},
+          {"shape": "rect", "x": 1.4, "y": 4.4, "w": 1.6, "h": 1.6, "r": 0.5, "fill": "deep"},
+          {"shape": "rect", "x": 7, "y": 4.4, "w": 1.6, "h": 1.6, "r": 0.5, "fill": "deep"}
+        ]},
+        "graduate": {"means": "A graduate's cap: learning, study, research", "shapes": [
+          {"shape": "path", "d": [["M",0.8,2.6], ["L",5,1], ["L",9.2,2.6], ["L",5,4.2], ["Z"]], "fill": "deep"},
+          {"shape": "rect", "x": 3.2, "y": 3.2, "w": 3.6, "h": 1.4, "fill": "deep"},
+          {"shape": "line", "x1": 8.4, "y1": 2.8, "x2": 8.4, "y2": 4.8, "stroke": "main", "width": 0.8},
+          {"shape": "circle", "cx": 8.4, "cy": 5.2, "r": 0.6, "fill": "main"}
+        ]},
+        "nurse": {"means": "A nurse's cap with a cross: health, care, check-ups", "shapes": [
+          {"shape": "path", "d": [["M",2,4.4], ["L",2.6,0.8], ["L",7.4,0.8], ["L",8,4.4], ["Z"]], "fill": "deep"},
+          {"shape": "rect", "x": 4.4, "y": 1.3, "w": 1.2, "h": 2.6, "fill": "main"},
+          {"shape": "rect", "x": 3.7, "y": 2, "w": 2.6, "h": 1.2, "fill": "main"}
+        ]},
+        "bow": {"means": "A big bow: gifts, cute, tidy", "shapes": [
+          {"shape": "path", "d": [["M",5,2.6], ["L",1.8,0.9], ["L",1.8,4.3], ["Z"]], "fill": "deep"},
+          {"shape": "path", "d": [["M",5,2.6], ["L",8.2,0.9], ["L",8.2,4.3], ["Z"]], "fill": "deep"},
+          {"shape": "circle", "cx": 5, "cy": 2.6, "r": 0.9, "fill": "main"}
+        ]},
+        "sun-hat": {"means": "A wide straw hat: garden, holidays, weather", "shapes": [
+          {"shape": "path", "d": [["M",3.3,4], ["Q",3.3,1.8,5,1.8], ["Q",6.7,1.8,6.7,4], ["Z"]], "fill": "main"},
+          {"shape": "rect", "x": 0.6, "y": 3.7, "w": 8.8, "h": 0.9, "r": 0.45, "fill": "deep"},
+          {"shape": "rect", "x": 3.3, "y": 2.9, "w": 3.4, "h": 0.8, "fill": "deep"}
+        ]},
+        "viking": {"means": "A horned helmet: bold, a fighter, backups against disaster", "shapes": [
+          {"shape": "path", "d": [["M",2.7,4.4], ["Q",2.7,1.8,5,1.8], ["Q",7.3,1.8,7.3,4.4], ["Z"]], "fill": "deep"},
+          {"shape": "path", "d": [["M",3,3.2], ["Q",0.8,2.8,1,0.4], ["Q",2.4,1.6,3.6,2.2], ["Z"]], "fill": "main"},
+          {"shape": "path", "d": [["M",7,3.2], ["Q",9.2,2.8,9,0.4], ["Q",7.6,1.6,6.4,2.2], ["Z"]], "fill": "main"}
+        ]},
+        "cat-ears": {"means": "Cat ears: playful, curious, a pet", "shapes": [
+          {"shape": "path", "d": [["M",2.9,4.8], ["L",2.5,1.2], ["L",4.9,3.3], ["Z"]], "fill": "main"},
+          {"shape": "path", "d": [["M",7.1,4.8], ["L",7.5,1.2], ["L",5.1,3.3], ["Z"]], "fill": "main"},
+          {"shape": "path", "d": [["M",3.2,3.6], ["L",3,2.2], ["L",4,3.1], ["Z"]], "fill": "deep"},
+          {"shape": "path", "d": [["M",6.8,3.6], ["L",7,2.2], ["L",6,3.1], ["Z"]], "fill": "deep"}
+        ]},
+        "nightcap": {"means": "A nightcap: night work, sleep, quiet hours", "shapes": [
+          {"shape": "path", "d": [["M",2.7,4.4], ["Q",3.2,0.6,7,0.9], ["L",8.6,2.4], ["Q",6.6,2,7.3,4.4], ["Z"]], "fill": "deep"},
+          {"shape": "circle", "cx": 8.6, "cy": 3, "r": 0.9, "fill": "main"},
+          {"shape": "rect", "x": 2.4, "y": 3.8, "w": 5.2, "h": 0.9, "r": 0.4, "fill": "main"}
+        ]},
+        "beret": {"means": "A beret: art, writing, design", "shapes": [
+          {"shape": "path", "d": [["M",2.2,4.2], ["Q",1.4,2,4.6,1.8], ["Q",8.8,1.4,8.6,3.4], ["Q",8.4,4.5,5.8,4.3], ["Z"]], "fill": "deep"},
+          {"shape": "line", "x1": 5.2, "y1": 1.8, "x2": 5.6, "y2": 0.8, "stroke": "deep", "width": 0.8}
+        ]},
+        "antenna": {"means": "An aerial with a ball: a robot, signals, monitoring", "shapes": [
+          {"shape": "path", "d": [["M",3.2,4.4], ["Q",3.2,2.9,5,2.9], ["Q",6.8,2.9,6.8,4.4], ["Z"]], "fill": "deep"},
+          {"shape": "line", "x1": 5, "y1": 3.2, "x2": 5, "y2": 1.6, "stroke": "deep", "width": 1.3},
+          {"shape": "circle", "cx": 5, "cy": 1.4, "r": 1.4, "fill": "deep"},
+          {"shape": "circle", "cx": 5, "cy": 1.4, "r": 0.6, "fill": "main"}
+        ]},
+        "propeller": {"means": "A propeller cap: a beginner, play, experiments", "shapes": [
+          {"shape": "path", "d": [["M",2.9,4.4], ["Q",2.9,2.2,5,2.2], ["Q",7.1,2.2,7.1,4.4], ["Z"]], "fill": "deep"},
+          {"shape": "line", "x1": 5, "y1": 2.4, "x2": 5, "y2": 1.2, "stroke": "deep", "width": 1.1},
+          {"shape": "rect", "x": 1, "y": 0.3, "w": 8, "h": 1.5, "r": 0.75, "fill": "main"},
+          {"shape": "circle", "cx": 5, "cy": 1.05, "r": 0.9, "fill": "deep"}
+        ]}
+      }
+    }
+  },
+  "chief": {"outfit": {"hat": "top-hat"}},
+  "small": {"view": [0, 0, 24, 24]},
+  "default": "idle",
+  "states": {
+    "idle": {
+      "eyes": [
+        {"shape": "circle", "cx": 8.8, "cy": 17.1, "r": 2.2, "fill": "white"},
+        {"shape": "circle", "cx": 15.2, "cy": 17.1, "r": 2.2, "fill": "white"}
+      ],
+      "pupils": [
+        {"shape": "circle", "cx": 8.8, "cy": 17.1, "r": 1.2, "fill": "ink"},
+        {"shape": "circle", "cx": 15.2, "cy": 17.1, "r": 1.2, "fill": "ink"}
+      ],
+      "pose": {},
+      "move": {
+        "seconds": 5,
+        "easing": "ease-in-out",
+        "keys": [
+          {"at": 0},
+          {"at": 0.9},
+          {"at": 0.94, "eyes": {"scale": [1, 0.1]}},
+          {"at": 1}
+        ]
+      }
+    },
+    "working": {
+      "eyes": [
+        {"shape": "path", "d": [["M",6.1,16.3], ["L",11.3,16.3], ["Q",11.3,20.1,8.7,20.1], ["Q",6.1,20.1,6.1,16.3], ["Z"]], "fill": "white"},
+        {"shape": "path", "d": [["M",12.7,16.3], ["L",17.9,16.3], ["Q",17.9,20.1,15.3,20.1], ["Q",12.7,20.1,12.7,16.3], ["Z"]], "fill": "white"},
+        {"shape": "line", "x1": 5.8, "y1": 15.8, "x2": 11.2, "y2": 15.8, "stroke": "ink", "width": 1.4},
+        {"shape": "line", "x1": 12.8, "y1": 15.8, "x2": 18.2, "y2": 15.8, "stroke": "ink", "width": 1.4}
+      ],
+      "pupils": [
+        {"shape": "circle", "cx": 8.7, "cy": 18, "r": 1.2, "fill": "ink"},
+        {"shape": "circle", "cx": 15.3, "cy": 18, "r": 1.2, "fill": "ink"}
+      ],
+      "pose": {"pupils": {"move": [-1.1, 0]}},
+      "move": {
+        "seconds": 1.4,
+        "easing": "ease-in-out",
+        "keys": [
+          {"at": 0},
+          {"at": 0.5, "pupils": {"move": [1.1, 0]}},
+          {"at": 1}
+        ]
+      }
+    },
+    "waiting": {
+      "eyes": [
+        {"shape": "circle", "cx": 8.7, "cy": 17.1, "r": 2.4, "fill": "white"},
+        {"shape": "circle", "cx": 15.3, "cy": 17.1, "r": 2.4, "fill": "white"}
+      ],
+      "pupils": [
+        {"shape": "circle", "cx": 8.7, "cy": 17.1, "r": 1.3, "fill": "ink"},
+        {"shape": "circle", "cx": 15.3, "cy": 17.1, "r": 1.3, "fill": "ink"}
+      ],
+      "pose": {"head": {"turn": -6}, "eyes": {"move": [2, -0.5]}, "pupils": {"move": [1, -0.5]}},
+      "move": {
+        "seconds": 6,
+        "easing": "ease-in-out",
+        "keys": [
+          {"at": 0},
+          {"at": 0.8},
+          {"at": 0.88, "pupils": {"move": [1, 0.7]}},
+          {"at": 1}
+        ]
+      }
+    },
+    "needs_you": {
+      "eyes": [
+        {"shape": "circle", "cx": 8.4, "cy": 16.7, "r": 3.5, "fill": "white"},
+        {"shape": "circle", "cx": 15.6, "cy": 16.7, "r": 3.5, "fill": "white"}
+      ],
+      "pupils": [
+        {"shape": "circle", "cx": 8.4, "cy": 16.7, "r": 1.1, "fill": "ink"},
+        {"shape": "circle", "cx": 15.6, "cy": 16.7, "r": 1.1, "fill": "ink"}
+      ],
+      "pose": {},
+      "move": {
+        "seconds": 0.9,
+        "easing": "ease-in-out",
+        "keys": [
+          {"at": 0},
+          {"at": 0.35, "head": {"move": [0, -1.4]}},
+          {"at": 0.7},
+          {"at": 1}
+        ]
+      }
+    },
+    "failed": {
+      "eyes": [
+        {"shape": "line", "x1": 6.6, "y1": 15.1, "x2": 10.6, "y2": 19.1, "stroke": "ink", "width": 1.5},
+        {"shape": "line", "x1": 10.6, "y1": 15.1, "x2": 6.6, "y2": 19.1, "stroke": "ink", "width": 1.5},
+        {"shape": "line", "x1": 13.4, "y1": 15.1, "x2": 17.4, "y2": 19.1, "stroke": "ink", "width": 1.5},
+        {"shape": "line", "x1": 17.4, "y1": 15.1, "x2": 13.4, "y2": 19.1, "stroke": "ink", "width": 1.5}
+      ],
+      "pupils": [],
+      "pose": {"head": {"turn": 12}},
+      "move": {
+        "seconds": 4,
+        "easing": "ease-in-out",
+        "keys": [
+          {"at": 0},
+          {"at": 0.5, "head": {"turn": 16}},
+          {"at": 1}
+        ]
+      }
+    },
+    "paused": {
+      "eyes": [
+        {"shape": "path", "d": [["M",6.5,16.7], ["Q",8.7,19.1,10.9,16.7]], "stroke": "ink", "width": 1.4},
+        {"shape": "path", "d": [["M",13.1,16.7], ["Q",15.3,19.1,17.5,16.7]], "stroke": "ink", "width": 1.4}
+      ],
+      "pupils": [],
+      "pose": {},
+      "opacity": 0.4
+    }
+  }
+}

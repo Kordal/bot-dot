@@ -1,0 +1,128 @@
+# Builds the Android app, signs it with botdot's fixed release key (secrets BOTDOT_KEYSTORE_B64 and
+# BOTDOT_KEYSTORE_PASSWORD of the release environment), and attaches it to a GitHub Release ("botdot for Android
+# 0.1.<build>"). Download it from the repo's Releases page on the phone, and it installs as an update over the previous one. The server image
+# carries the app (android-app/), so the phone app can update itself from botdot (Settings → Updates).
+#
+# When (#512): once a night when android/ changed since the last android-v* release, and when the owner runs it by
+# hand (Actions → Android → Run workflow, on main). A merge to main releases nothing. The nightly image build
+# (images.yml, two hours later) sees the new release and carries it; a run by hand starts the image build itself.
+#
+# Where it runs: on GitHub's own machines (#528), whose ubuntu-latest has the Android SDK.
+name: Android
+
+on:
+  schedule:
+    - cron: '30 0 * * *' # 00:30 UTC, before the nightly images (images.yml, 02:30)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write # to start the image build
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Whether this run releases: a run by hand always; a nightly one when android/ or this workflow changed since the
+  # commit the last android-v* release was built from.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.which.outputs.release }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # the commits since the last release
+      - id: which
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          release() { echo "$1"; echo "release=$2" >> "$GITHUB_OUTPUT"; exit 0; }
+          [ "$EVENT" = schedule ] || release "Run by hand: releasing." true
+          TAG="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("android-v"))] | sort_by(.createdAt) | last | .tagName // empty')"
+          [ -n "$TAG" ] || release "No Android release yet: releasing." true
+          SHA="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq .targetCommitish)"
+          git cat-file -e "$SHA^{commit}" 2>/dev/null || release "$TAG's commit $SHA is not on main: releasing." true
+          CHANGED="$(git diff --name-only "$SHA" HEAD -- android .github/workflows/android.yml)"
+          [ -z "$CHANGED" ] || release "Changed since $TAG: $(printf '%s ' $CHANGED)" true
+          release "Nothing in android/ changed since $TAG: no release tonight." false
+
+  test:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    uses: ./.github/workflows/tests.yml
+    with: { server: false }
+
+  build:
+    environment: release
+    needs: test # nothing is published when a test fails
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.BOTDOT_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then echo "The BOTDOT_KEYSTORE_B64 secret is missing" >&2; exit 1; fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "BOTDOT_KEYSTORE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Build
+        env:
+          BOTDOT_KEYSTORE_PASSWORD: ${{ secrets.BOTDOT_KEYSTORE_PASSWORD }}
+        run: ./gradlew assembleRelease --console=plain
+
+      - name: Check the signature
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          SIGNER="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+          echo "Using $SIGNER"
+          OUT="$("$SIGNER" verify --print-certs "$APK" 2>&1)" || { echo "$OUT"; exit 1; }
+          echo "$OUT" | grep -v "^WARNING"
+          echo "$OUT" | grep -q "CN=bot-dot Android" || { echo "Not signed with botdot's release key" >&2; exit 1; }
+
+      - name: Publish a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The production private key exists only in the protected release environment.
+          BOTDOT_RELEASE_PRIVATE_KEY: ${{ secrets.BOTDOT_RELEASE_PRIVATE_KEY }}
+        run: |
+          VERSION="0.1.${{ github.run_number }}"
+          cp app/build/outputs/apk/release/app-release.apk "bot-dot-$VERSION.apk"
+          # What botdot tells the phone about it (server.js androidApp).
+          jq -n --arg name "$VERSION" --argjson code "${{ github.run_number }}" --arg file "bot-dot-$VERSION.apk" \
+            --arg sha "$(sha256sum "bot-dot-$VERSION.apk" | cut -d' ' -f1)" \
+            '{versionName: $name, versionCode: $code, file: $file, sha256: $sha}' > app.json
+          node "../deploy/sign-release.js" app.json android "$GITHUB_SHA"
+          gh release create "android-v$VERSION" "bot-dot-$VERSION.apk" app.json \
+            --title "botdot for Android $VERSION" \
+            --notes "Built from ${GITHUB_SHA::7}. Open this page on your phone, tap the .apk to download it, and install it; it updates the app you have." \
+            --target "$GITHUB_SHA" --latest
+
+      # By night the image build two hours later carries it (images.yml sees the newer release); a run by hand
+      # starts that build now. Either way the new app costs one image build.
+      - name: Put it in the server image
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run images.yml --ref "${GITHUB_REF_NAME}"
+
+      - name: Clean up
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"

@@ -1,0 +1,176 @@
+// Bots messaging bots (lib/messages.js, bots.js sendBotMessage): who may message whom, starting the
+// other bot or leaving a note, and every limit.
+const os = require('os');
+const { test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
+const { startServer, makeBot, heldRun, self, waitFor } = require('./helpers');
+const { cleanText, MAX_CHARS, MAX_HOPS } = require('../lib/messages');
+
+let srv, surfer, social, third;
+before(async () => {
+  srv = await startServer();
+  social = await makeBot(srv, { name: 'Social Watch', emoji: '📣', mayMessage: [] });
+  third = await makeBot(srv, { name: 'Mail Bot', emoji: '📬', mayMessage: [] });
+  surfer = await makeBot(srv, { name: 'Web Surfer', emoji: '🏄', mayMessage: [social.id, third.id] });
+});
+after(() => srv.stop());
+
+const runsOf = async (bot) => (await srv.api(`/runs?botId=${bot.id}`)).data;
+
+test('cleanText trims and caps a message', () => {
+  assert.equal(cleanText('  hi\r\nthere  '), 'hi\nthere');
+  assert.equal(cleanText('x'.repeat(MAX_CHARS + 50)).length, MAX_CHARS);
+});
+
+test('a bot only gets the tools when it has teammates', async () => {
+  const { rec, run } = await heldRun(srv, surfer);
+  assert.equal(rec.self.env.SELF_TEAM, '1');
+  srv.release(rec);
+  await srv.finished(run.id);
+  const alone = await makeBot(srv, { name: 'Loner', emoji: '🙂', mayMessage: [] });
+  const h = await heldRun(srv, alone);
+  assert.equal(h.rec.self.env.SELF_TEAM, '0');
+  srv.release(h.rec);
+  await srv.finished(h.run.id);
+});
+
+test('a new bot may message every other bot, bots made later too, until the owner limits it', async () => {
+  const open = await makeBot(srv, { name: 'Open Door', emoji: '🚪' });
+  assert.equal(open.mayMessageAll, true);
+  const later = await makeBot(srv, { name: 'Latecomer', emoji: '⏰', mayMessage: [] });
+  const h = await heldRun(srv, open);
+  assert.equal(h.rec.self.env.SELF_TEAM, '1');
+  const mates = (await self(srv, h.token, 'teammates')).data.teammates.map((b) => b.id);
+  for (const b of [surfer, social, third, later]) assert.ok(mates.includes(b.id), b.name);
+  assert.equal((await self(srv, h.token, 'message', { to: later.id, message: 'hi', priority: false })).data.ok, true);
+  srv.release(h.rec);
+  await srv.finished(h.run.id);
+  // A list limits it; mayMessageAll opens it again.
+  const limited = (await srv.api(`/bots/${open.id}`, { method: 'PUT', body: { mayMessage: [social.id] } })).data;
+  assert.equal(limited.mayMessageAll, false);
+  const h2 = await heldRun(srv, open);
+  assert.match((await self(srv, h2.token, 'message', { to: later.id, message: 'hi', priority: false })).data.error, /may not message/);
+  srv.release(h2.rec);
+  await srv.finished(h2.run.id);
+  assert.equal((await srv.api(`/bots/${open.id}`, { method: 'PUT', body: { mayMessageAll: true } })).data.mayMessageAll, true);
+  for (const b of [open, later]) await srv.api(`/bots/${b.id}`, { method: 'DELETE' });
+});
+
+test('bots saved before "everyone" existed may message everyone', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-test-'));
+  fs.mkdirSync(path.join(dir, 'data'), { recursive: true });
+  const old = (id, mayMessage) => ({ id, name: id, emoji: '🤖', prompt: 'Do it.', jobs: [], mayMessage });
+  fs.writeFileSync(path.join(dir, 'data', 'bots.json'), JSON.stringify([old('a', []), old('b', ['a'])]));
+  const s2 = await startServer({ dir });
+  try {
+    const list = (await s2.api('/bots')).data;
+    assert.deepEqual(list.map((b) => b.mayMessageAll), [true, true]);
+  } finally { s2.stop(); }
+});
+
+test('refused: itself, a bot not in its list, an empty message, no run token', async () => {
+  const { rec, run, token } = await heldRun(srv, surfer);
+  assert.match((await self(srv, token, 'message', { to: surfer.id, message: 'hi', priority: true })).data.error, /That's you/);
+  assert.match((await self(srv, token, 'message', { to: 'nobody', message: 'hi', priority: true })).data.error, /no bot/);
+  assert.match((await self(srv, token, 'message', { to: social.id, message: '   ', priority: true })).data.error, /empty/);
+  assert.equal((await self(srv, 'not-a-token', 'message', { to: social.id, message: 'hi', priority: true })).status, 403);
+  srv.release(rec);
+  await srv.finished(run.id);
+  const h = await heldRun(srv, social);
+  assert.match((await self(srv, h.token, 'message', { to: surfer.id, message: 'hi', priority: true })).data.error, /may not message/);
+  srv.release(h.rec);
+  await srv.finished(h.run.id);
+});
+
+test('priority starts the other bot, marked as from a bot; it may reply', async () => {
+  const { rec, run, token } = await heldRun(srv, surfer);
+  const r = await self(srv, token, 'message', { to: social.id, message: 'What did Tibo post today?', priority: true });
+  assert.equal(r.data.ok, true);
+  assert.equal(r.data.delivered, 'started');
+  const theirs = await srv.nextRun((x) => x.args.includes('📣 Social Watch'), 'Social Watch to start');
+  assert.match(theirs.stdin, /What did Tibo post today\?/);
+  assert.match(theirs.system + theirs.stdin, /another bot/);
+  const started = (await runsOf(social))[0];
+  assert.equal(started.trigger, 'bot');
+  assert.equal(started.fromBot.id, surfer.id);
+  assert.equal(started.readOutside, true);
+  // The sender's run shows who it messaged.
+  srv.release(rec);
+  const mine = await srv.finished(run.id);
+  assert.equal(mine.sentTo.id, social.id);
+  // Social Watch may answer Web Surfer, though Web Surfer isn't in its list.
+  const reply = await self(srv, theirs.self.env.RUN_TOKEN, 'message', { to: surfer.id, message: 'Nothing new.', priority: false });
+  assert.equal(reply.data.ok, true);
+  srv.release(theirs);
+  await srv.finished(started.id);
+  // The answer it waited for starts Web Surfer again (see awaits.test.js).
+  const follow = await srv.nextRun((x) => x.args.includes('🏄 Web Surfer') && x.stdin.includes('Nothing new.'), 'the follow-up');
+  srv.release(follow);
+  await waitFor(async () => (await runsOf(surfer)).every((x) => x.status !== 'running'), { what: 'Web Surfer to finish' });
+});
+
+test('one run may message several teammates, as often as it needs', async () => {
+  const { rec, run, token } = await heldRun(srv, surfer);
+  for (let i = 0; i < 5; i++) assert.equal((await self(srv, token, 'message', { to: social.id, message: `note ${i}`, priority: false })).data.ok, true);
+  assert.equal((await self(srv, token, 'message', { to: third.id, message: 'hi', priority: false })).data.ok, true);
+  srv.release(rec);
+  const done = await srv.finished(run.id);
+  // The chat names every bot it messaged, each once.
+  assert.deepEqual(done.sentToAll.map((t) => t.id), [social.id, third.id]);
+  assert.equal(done.sentTo.id, third.id);
+});
+
+test("a note waits in the inbox and is read on the next run, once", async () => {
+  fs.rmSync(path.join(srv.data, 'inbox'), { recursive: true, force: true });
+  const { rec, run, token } = await heldRun(srv, surfer);
+  const r = await self(srv, token, 'message', { to: third.id, message: 'Prefer sources from the last 24 hours.', priority: false });
+  assert.equal(r.data.delivered, 'inbox');
+  srv.release(rec);
+  await srv.finished(run.id);
+  assert.equal((await runsOf(third)).length, 0, 'a note starts nothing');
+  // The owner sees it waiting in that bot's chat, with who left it.
+  const waiting = (await srv.api(`/bots/${third.id}/inbox`)).data;
+  assert.equal(waiting.length, 1);
+  assert.equal(waiting[0].fromId, surfer.id);
+  assert.equal(waiting[0].color, surfer.color);
+  assert.match(waiting[0].text, /Prefer sources/);
+  const next = await heldRun(srv, third, 'Any news?');
+  assert.match(next.rec.stdin, /Prefer sources from the last 24 hours/);
+  srv.release(next.rec);
+  const done = await srv.finished(next.run.id);
+  assert.equal(done.inbox.length, 1);
+  assert.equal(done.inbox[0].fromId, surfer.id);
+  assert.deepEqual((await srv.api(`/bots/${third.id}/inbox`)).data, [], 'read notes no longer wait');
+  const again = await heldRun(srv, third, 'And now?');
+  assert.doesNotMatch(again.rec.stdin, /Prefer sources/);
+  srv.release(again.rec);
+  await srv.finished(again.run.id);
+});
+
+test('a chain of hand-offs stops after MAX_HOPS, a safety net against endless loops', async () => {
+  // A → B → A → …: the hop after MAX_HOPS is refused. Each message back is the answer the other waits for,
+  // so it starts once the sender's run ends.
+  await srv.api(`/bots/${social.id}`, { method: 'PUT', body: { mayMessage: [surfer.id] } });
+  const h = await heldRun(srv, surfer);
+  let cur = { rec: h.rec, runId: h.run.id };
+  let bot = social;
+  for (let hop = 1; hop <= MAX_HOPS; hop++) {
+    const r = await self(srv, cur.rec.self.env.RUN_TOKEN, 'message', { to: bot.id, message: `hop ${hop}.`, priority: true });
+    assert.equal(r.data.ok, true, `hop ${hop}: ${r.data.error}`);
+    // The sender finishes, so the next hand-off back to it starts it rather than queueing.
+    srv.release(cur.rec);
+    await srv.finished(cur.runId);
+    const next = await srv.nextRun((x) => x.args.includes(`${bot.emoji} ${bot.name}`) && x.stdin.includes(`hop ${hop}.`), `hop ${hop}`);
+    const runId = (await runsOf(bot)).find((x) => x.status === 'running').id;
+    cur = { rec: next, runId };
+    bot = bot.id === social.id ? surfer : social;
+  }
+  const r = await self(srv, cur.rec.self.env.RUN_TOKEN, 'message', { to: bot.id, message: 'one more.', priority: true });
+  assert.match(r.data.error, new RegExp(`already ${MAX_HOPS} messages long`));
+  srv.release(cur.rec);
+  await srv.finished(cur.runId);
+  await srv.api(`/bots/${social.id}`, { method: 'PUT', body: { mayMessage: [] } });
+});
+

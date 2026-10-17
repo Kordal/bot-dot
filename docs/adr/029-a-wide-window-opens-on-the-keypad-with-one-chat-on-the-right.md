@@ -1,0 +1,45 @@
+# ADR-029: A wide window opens on the keypad, with one chat on the right
+
+- **Status:** Accepted (2026-10-17, the owner's pick of option B in the keypad mockups)
+- **Owning task:** [#495](https://github.com/Kordal/bot-dot/issues/495), of the spec [#494](https://github.com/Kordal/bot-dot/issues/494)
+
+## Context
+
+On a wide screen the web page, the Android tablet layout and the Mac app show the team as the list: the Chief of Staff, the pinned bots, then every category with its bots and groups, one row under the other. A bot's state is a small head and one line of grey text, the Board is one thin strip above it, and nothing can be reached from the keyboard. With a dozen bots the list reads like an inbox, not like a team.
+
+The owner looked at three layouts in mockups and picked the keypad: the bots and groups of one page as keys in rows of three, numbered 1 to 9, with the chat on the right.
+
+Two facts constrain it:
+
+- **Read positions and presence assume one open chat** ([ADR 005](005-read-positions-on-the-server.md)). An app reports the one chat on screen; the server marks it read and announces it, and notifications follow. Two chats on screen would need a new report and a new rule for what "read" means.
+- **The list's order is the owner's** (pinned, categories A to Z, Other, and `order` within a category), set by drag and by the Chief. A second layout with an order of its own would show the team two ways.
+
+## Decision
+
+- **The keypad is the home of a wide window,** on the web page, Android and the Mac. A **page** is the pinned bots and groups, a category, or Other; its bots and groups are its **keys**, in rows of three, numbered 1 to 9, each with the bot's head, its name and the list's own state line. A group's key shows up to three of its members' heads and the group's line. The Board's tile values and Needs you stand above the keys; the pages are tabs, with a dot in the colour of a bot on that page that asks.
+- **The pages are the list's order, one rule per app.** Each app has one pure function from its bots and groups to pages, built on the ordering its list already uses, and its list draws its rows from the same pages, so the two never disagree. Empty pages are left out.
+- **One chat on the right.** The right column holds exactly one chat: the Chief's by default, or the opened key's, through the apps' existing "open this chat". Read positions, presence and notifications are untouched. Esc (⌘0 on the Mac) opens the Chief's chat again. A chat's settings panel opens in that column.
+- **Width decides.** The keypad shows where three keys and a chat column fit: wider than 1000 px on the web page (and the Mac), 840 dp on Android. Below that each app keeps today's list. There is no setting: the window switches by itself as it is resized. On the web the switch is the stylesheet's, and the page draws both.
+- **Keys, one rule per app:** a pure function from a press (key, modifiers, whether a text field has focus) and the keypad's state to an action. On the web and Android, 1–9 open a key, Tab and Shift+Tab move between pages and wrap, Esc opens the Chief and Ctrl+K goes to search; digits and Tab are ignored while a text field has focus or with a modifier. The Mac uses ⌘1–⌘9, ⌘] and ⌘[, ⌘0 and ⌘K. (Since #508, #516 and #517 every page is shown at once: the digits count across the pages, and no key moves between pages.)
+- **Search keeps today's results;** on the keypad they take the keys' place while there is a query.
+- **No server or API change.** The keypad reads what the list reads.
+- **Drag waits** for its own ticket, the spec's last: a key moved within a page sets its `order`, onto another page's tab its category or pin, through the updates the list's drag already sends. Until then the owner arranges the keypad from the list in a narrower window or by asking the Chief.
+- **Drag has landed** (2026-10-17, [#499](https://github.com/Kordal/bot-dot/issues/499)): on the keypad of all three apps a key dropped on another key of its page takes that key's place, and one dropped on another page's tab moves there (Pinned pins it last, a category puts it last there, Other takes it out of its category). One pure rule per app gives the place, counted among its own kind as the list counts it, and each app saves it through its list's own drag, so the updates sent are the list's.
+- **Every page at once on the web page** (2026-10-17, the owner's ask, [#508](https://github.com/Kordal/bot-dot/issues/508)): a wide web window draws every page one under the other, each its heading (name, count, dot) over its keys, in place of the tabs. 1–9 open the first nine keys counted across the pages, Tab is the browser's again, and a key dropped on a page's heading goes last there (in place of its tab). Android follows ([#516](https://github.com/Kordal/bot-dot/issues/516)): from 840 dp one scrolling grid holds every page's heading and keys, in place of the tabs and the sideways swipe. The Mac follows too ([#517](https://github.com/Kordal/bot-dot/issues/517)): every page under its heading in one scrolling view, ⌘1–⌘9 counted across the pages, and ⌘] and ⌘[ gone.
+- **The Chief and the pinned bots under the Board** (2026-10-17, the owner's ask, [#513](https://github.com/Kordal/bot-dot/issues/513)): on the web page Pinned is always the first page, right under the Board, also when nothing is pinned, and set apart from the categories on a panel of its own, and the Chief of Staff's key stands first on it (Esc where a bot's key has its digit; a key dropped on it is pinned first, as on its row in the list). The digits still count the bots and groups from 1. Android and the Mac follow in their own tickets.
+
+## Alternatives
+
+- **Two chats on screen** (a key opens its chat beside the Chief's). Refused: read positions and presence assume one open chat (ADR 005), and two would need a new report and a new rule for what is read.
+- **A setting to choose list or keypad.** Refused: width already says which fits, and AGENTS.md rule 5 asks for no control the window can decide.
+- **A keypad order of its own** (most used first, or the owner's own arrangement per page). Refused: the list's order is the owner's, and a second one would make the two disagree.
+- **Drag in the first ticket.** Deferred: it is the riskiest part (drop targets on tabs and between keys) and the keypad is useful without it, since the Chief can pin, move and reorder bots by chat.
+- **The keypad on phones in this ticket.** Deferred to its own tickets per app: a phone stacks the pages as sections and opens a chat full screen.
+
+## Consequences
+
+- A wide web window shows no list; the list's width handle exists only from 761 to 1000 px, where the list is shown.
+- The list and the keypad share one ordering module per app (on the web, `public/keypad.js`), so a change to the order changes both.
+- On the web page Tab moves between pages while no text field has focus, so Tab no longer walks the keypad's buttons; the keypad's own keys and the mouse reach everything it shows.
+- Pages other than a chat (the Board, Settings, Activity) open in the right column too, at its width.
+- A phone (below 480 px on the web page, below 600 dp on Android) draws the same pages one under the other as sections of keys, with the Board's values on top and the Chief's message box at the bottom, and opens a key's chat full screen as a row of the list did ([#498](https://github.com/Kordal/bot-dot/issues/498)); its keys have no digits and answer no keyboard.

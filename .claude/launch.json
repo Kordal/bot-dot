@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "bot-dot", "runtimeExecutable": "node", "runtimeArgs": ["server.js"], "port": 4747 },
+    { "name": "bot-dot-test", "runtimeExecutable": "node", "runtimeArgs": ["server.js"], "port": 4801, "env": { "PORT": "4801", "BOT_DOT_DATA": ".test-data", "BOT_DOT_ALLOWED_HOSTS": "10.0.2.2" } }
+  ]
+}

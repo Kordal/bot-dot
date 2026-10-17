@@ -1,0 +1,34 @@
+# Your bots, runs, chats, skills library and encrypted vault: never commit.
+/data/
+/front-door-data/
+# The scratch data of the one local test server (bot-dot-test in .claude/launch.json)
+/.test-data/
+node_modules/
+.DS_Store
+*.log
+.claude/settings.local.json
+
+# The Android and Mac apps CI puts into the server image (images.yml)
+/android-app/
+/mac-app/
+
+# The Mac app's build output
+/macos/build/
+/macos/BotDotKit/.build/
+xcuserdata/
+
+# Secrets: environment files, private keys and signing material. Templates (*.env.example) are fine.
+.env
+.env.*
+*.env
+!*.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.keystore
+*.mobileprovision
+
+# Marketing site and press kit, kept out of Git
+marketing/

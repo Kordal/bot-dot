@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="botdot" />
+  <title>botdot</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />
+  <link rel="icon" href="/icon.svg?v=2" /><!-- ?v: a new logo means a new address, or browsers keep showing the old one -->
+  <link rel="stylesheet" href="/style.css" />
+  <script src="/theme.js"></script>
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar">
+      <div class="side-head">
+        <div class="brand" id="brand" aria-label="botdot">bot<i class="brand-dot"></i></div>
+        <!-- Shown while botdot does not answer (app.js, setAway). -->
+        <span class="away hidden" id="away" role="status">Can't reach botdot</span>
+        <!-- Shown while Claude is signed out and botdot answers (app.js, setSignedOut). -->
+        <span class="away hidden" id="signed-out" role="status">Claude is signed out: bots can't work. <button type="button" data-sign-in>Sign in</button></span>
+      </div>
+      <div class="search"><input id="contact-search" type="search" placeholder="Search" autocomplete="off" /></div>
+      <!-- A wide window's home in place of the list (app.js, drawKeypad; ADR 029): the Board's values and Needs you,
+           then every page one under the other, its bots and groups as keys (#508). The stylesheet shows one or the
+           other. -->
+      <div class="keypad" id="keypad">
+        <div class="kp-head"><div class="kp-board" id="kp-board"></div><button type="button" class="kp-needs hidden" id="kp-needs"></button></div>
+        <div class="kp-keys" id="kp-keys"></div>
+        <div class="kp-hint">1–9 open · Esc Chief · Ctrl+K search</div>
+      </div>
+      <div class="contacts" id="contacts"></div>
+      <!-- A phone's home in place of the list (app.js, drawKeypadSections; #498): the Board's values, every page as a
+           section of keys and the Chief's message box. The stylesheet shows it below the list's phone width. -->
+      <div class="kp-phone" id="kp-phone">
+        <div class="kp-head"><div class="kp-board" id="kp-phone-board"></div></div>
+        <div class="kp-sections" id="kp-sections"></div>
+        <button type="button" class="kp-chief" id="kp-chief"></button>
+      </div>
+      <nav class="side-foot">
+        <!-- Settings; Activity, Skills, Connectors and Vault open from there. -->
+        <button class="more-btn" id="more-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><i id="more-badge" class="more-badge hidden"></i></button>
+      </nav>
+    </aside>
+    <!-- The list's right edge: dragged to make the list wider or narrower (app.js, initSideGrip). -->
+    <div class="side-grip" id="side-grip" role="separator" aria-orientation="vertical" aria-label="Width of the list" aria-valuemin="72" aria-valuemax="480" tabindex="0"></div>
+
+    <main class="main">
+      <div id="needs-banner" class="login-banner hidden"></div>
+      <section id="view-dashboard" class="view page hidden"></section>
+      <!-- The chat and, right of it, the panel with that chat's settings (panel.js). -->
+      <div class="chat-row" id="chat-row">
+        <section id="view-chief" class="view"></section>
+        <section id="view-bot" class="view hidden"></section>
+        <!-- A group's chat: one chat with two to six bots (groups.js). -->
+        <section id="view-group" class="view hidden"></section>
+        <aside id="panel" class="panel hidden" aria-label="Settings">
+          <div class="panel-head">
+            <button class="btn sm panel-back" id="panel-back"></button>
+            <button class="icon-btn panel-close" id="panel-close" title="Close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          </div>
+          <section id="view-botsettings" class="page panel-page hidden"></section>
+          <section id="view-chiefsettings" class="page panel-page hidden"></section>
+          <section id="view-botjobs" class="page panel-page hidden"></section>
+          <section id="view-groupsettings" class="page panel-page hidden"></section>
+        </aside>
+      </div>
+      <section id="view-runs" class="view page hidden"></section>
+      <section id="view-vault" class="view page hidden"></section>
+      <section id="view-connectors" class="view page hidden"></section>
+      <section id="view-skills" class="view page hidden"></section>
+      <section id="view-settings" class="view page hidden"></section>
+      <section id="view-setup" class="view page hidden"></section>
+      <section id="view-needs" class="view page hidden"></section>
+    </main>
+  </div>
+
+  <dialog id="modal"></dialog>
+  <div id="toast" class="toast hidden" popover="manual"></div>
+
+  <script src="/mentions.js"></script>
+  <script src="/unread.js"></script>
+  <script src="/opening-line.js"></script>
+  <script src="/ratings.js"></script>
+  <script src="/tool-card.js"></script>
+  <script src="/panel.js"></script>
+  <script src="/keypad.js"></script>
+  <script src="/figure.js"></script>
+  <script src="/app.js"></script>
+  <script src="/groups.js"></script>
+  <script src="/claude-card.js"></script>
+  <script src="/quiet-runs.js"></script>
+  <script src="/skills-search.js"></script>
+</body>
+</html>

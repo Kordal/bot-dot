@@ -1,0 +1,139 @@
+# Web/server, Android and Mac checks. Publishing workflows call this first, so a failed check blocks publication;
+# they skip the Mac checks, since no image carries the Mac app (ADR 022, ADR 030).
+#
+# Where they run: every job on GitHub's own throwaway machines, whoever opened the pull request (#528). The
+# repository is public, so a fork's pull request may change this file: test/workflows.test.js fails when any
+# workflow names another runner.
+name: Tests
+
+on:
+  pull_request:
+  workflow_call:
+    # Which parts to test: both by default.
+    inputs:
+      server: { type: boolean, default: true }
+      android: { type: boolean, default: true }
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A pull request's new push ends its run that is still going: only its latest commit is tested. Other runs (by
+# hand, called from a workflow) each have a group of their own, so any number run side by side.
+concurrency:
+  group: tests-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Which parts this run tests. A pull request tests what it changed: the server when a file outside android/
+  # changed (or any Markdown file, or Android's ui/Theme.kt, which tests/ compares), Android when a file in android/ or this workflow changed,
+  # the Mac app when a file in macos/ or this workflow changed. A call from another workflow says which by its
+  # inputs; missing inputs enable both (toJSON keeps a missing input from comparing loosely as false), and it never
+  # tests the Mac app. A run by hand tests all three. A job left out is skipped, which a required check counts as passed.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.which.outputs.server }}
+      android: ${{ steps.which.outputs.android }}
+      mac: ${{ steps.which.outputs.mac }}
+    steps:
+      # A pull request's checkout is its merge commit: the first parent is the base, so the diff is the change.
+      - if: github.event_name == 'pull_request'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 2
+      - id: which
+        env:
+          EVENT: ${{ github.event_name }}
+          SERVER: ${{ toJSON(inputs.server) != 'false' }}
+          ANDROID: ${{ toJSON(inputs.android) != 'false' }}
+          MAC: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            FILES="$(git diff --name-only HEAD^1 HEAD)"
+            printf '%s\n' "$FILES"
+            SERVER=false ANDROID=false MAC=false
+            if printf '%s\n' "$FILES" | grep -qvE '^android/' || printf '%s\n' "$FILES" | grep -qE '(\.md|/ui/Theme\.kt)$'; then SERVER=true; fi
+            if printf '%s\n' "$FILES" | grep -qE '^(android/|\.github/workflows/tests\.yml$)'; then ANDROID=true; fi
+            if printf '%s\n' "$FILES" | grep -qE '^(macos/|\.github/workflows/tests\.yml$)'; then MAC=true; fi
+          fi
+          echo "server=$SERVER" >> "$GITHUB_OUTPUT"
+          echo "android=$ANDROID" >> "$GITHUB_OUTPUT"
+          echo "mac=$MAC" >> "$GITHUB_OUTPUT"
+          echo "Testing: server $SERVER, Android $ANDROID, Mac $MAC"
+
+  server:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - run: npm test
+      # Every relative link in the Markdown files leads somewhere, and the checker's own tests.
+      - run: bash tests/integration/check-docs.sh
+      - run: node --test scripts/check-docs.test.mjs
+
+  # The bots' and the Chief's own Linux users (identity.js): real processes under their users try
+  # the owner's controls. Needs root, so in a container.
+  users:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    container:
+      image: node:24-bookworm-slim
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: apt-get update -qq && apt-get install -y --no-install-recommends git curl
+      - run: BOT_DOT_TEST_UIDS=1 node --test test/users.test.js test/nonroot.test.js test/principal-fs.test.js test/privilege-broker.test.js test/update-install.test.js
+
+  # No passwords, tokens or keys in the code or its history: on every run, whatever changed.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # the whole history
+      - name: Scan with gitleaks (rules in .gitleaks.toml)
+        run: >
+          docker run --rm -v "$PWD:/repo" -w /repo
+          -e GIT_CONFIG_COUNT=1 -e GIT_CONFIG_KEY_0=safe.directory -e GIT_CONFIG_VALUE_0=/repo
+          ghcr.io/gitleaks/gitleaks:v8.30.1 git --redact --verbose .
+
+  android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+      # No assembleDebug: the unit tests and lint compile the app, and android.yml's release build packages it.
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --console=plain
+      # New lint problems fail the build; the ones already there are listed in app/lint-baseline.xml.
+      - name: Lint
+        run: ./gradlew lintDebug --console=plain
+
+  # The Mac app's build and the tests of its data layer (ADR 030), on GitHub's macOS 26 with its default Xcode (the
+  # app and BotDotKit need macOS 26 and Xcode 26). The BotDotKit tests start real botdot test servers: Node too.
+  mac:
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - run: make mac-build
+      - run: make mac-test

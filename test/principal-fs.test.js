@@ -1,0 +1,99 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { executeFs } = require('../lib/principal-fs-worker');
+test('principal files retain binary data and reject another principal or escaping links', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'principal-files-'));
+  try {
+    const dir = path.join(root, 'workspaces', 'alice'); fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'private');
+    executeFs(root, 'alice', 'writeFileSync', [file, Buffer.from([0, 255]), { mode: 0o600 }]);
+    assert.deepEqual(executeFs(root, 'alice', 'readFileSync', [file]), Buffer.from([0, 255]));
+    fs.symlinkSync(os.tmpdir(), path.join(dir, 'escape'));
+    assert.throws(() => executeFs(root, 'alice', 'readFileSync', [path.join(dir, 'escape', 'secret')]), { code: 'EACCES' });
+    assert.throws(() => executeFs(root, 'alice', 'readFileSync', [path.join(root, 'workspaces', 'bob', 'secret')]), { code: 'EACCES' });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+const { spawn, spawnSync } = require('node:child_process');
+const { pipeline } = require('node:stream/promises');
+const { Readable } = require('node:stream');
+const { createPrincipalFs } = require('../lib/principal-fs');
+const worker = path.resolve(__dirname, '../lib/principal-fs-worker.js');
+function transport(root) {
+  // Exercise the real worker boundary. Root-run Linux CI deliberately drops to
+  // nobody; developer machines already have an unprivileged UID.
+  const identity = process.getuid?.() === 0 ? { uid: 65534, gid: 65534 } : {};
+  if (identity.uid) fs.chownSync(root, identity.uid, identity.gid);
+  return {
+    callSync(op, { principal, request }) {
+      const requestFile = path.join(os.tmpdir(), `principal-request-${process.pid}-${Math.random()}`);
+      fs.writeFileSync(requestFile, JSON.stringify({ root, principal, ...request }), { mode: 0o600, flag: 'wx' });
+      const fd = fs.openSync(requestFile, 'r');
+      fs.unlinkSync(requestFile);
+      let result;
+      try {
+        result = spawnSync(process.execPath, [worker], { ...identity, stdio: ['ignore', 'pipe', 'pipe', fd], encoding: 'utf8', maxBuffer: 80 * 1024 * 1024 });
+      } finally { fs.closeSync(fd); }
+      if (result.error) throw result.error;
+      return JSON.parse(result.stdout);
+    },
+    spawnFsStream({ principal, op, args }) {
+      const child = spawn(process.execPath, [worker], { ...identity, stdio: ['pipe','pipe','pipe','pipe'] });
+      child.stdio[3].end(JSON.stringify({ root, principal, op, args }));
+      return child;
+    },
+  };
+}
+test('filesystem facade preserves stat, dirent and binary semantics and streams files', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'principal-facade-'));
+  const api = createPrincipalFs({ dataDir: root, client: transport(root), enabled: true });
+  try {
+    const dir = path.join(root, 'homes', 'alice'); api.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, 'private');
+    api.writeFileSync(file, Buffer.from([0, 255]), { mode: 0o600 });
+    assert.equal(api.statSync(file).isFile(), true);
+    assert.equal(api.statSync(file).mode & 0o777, 0o600);
+    assert.equal(api.readdirSync(dir, { withFileTypes: true })[0].isFile(), true);
+    assert.deepEqual(api.readFileSync(file), Buffer.from([0, 255]));
+    assert.throws(() => api.chmodSync(file, 0o4755), { code: 'EACCES' });
+    const big = path.join(dir, 'streamed');
+    await pipeline(Readable.from((function* () { for (let i = 0; i < 64; i++) yield Buffer.alloc(65536, 42); })()), api.createWriteStream(big, { mode: 0o600 }));
+    let size = 0;
+    for await (const chunk of api.createReadStream(big)) { assert.equal(chunk[0], 42); size += chunk.length; }
+    assert.equal(size, 4194304);
+    await assert.rejects(async () => { for await (const chunk of api.createReadStream(path.join(dir, 'missing'))) void chunk; });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('Chief workspace and cross-principal attachments preserve identity scope and private modes', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'principal-copy-'));
+  const api = createPrincipalFs({ dataDir: root, client: transport(root), enabled: true });
+  try {
+    const from = path.join(root, 'workspaces', '_chief', 'proposal');
+    const to = path.join(root, 'workspaces', 'alice', 'proposal');
+    api.mkdirSync(path.dirname(from), { recursive: true });
+    api.mkdirSync(path.dirname(to), { recursive: true });
+    api.writeFileSync(from, 'private proposal', { mode: 0o600 });
+    assert.throws(() => api.readFileSync(path.dirname(from) + '/../../../server-secret'), { code: 'EACCES' });
+    api.copyFileSync(from, to);
+    assert.equal(api.readFileSync(to, 'utf8'), 'private proposal');
+    assert.equal(api.statSync(to).mode & 0o777, 0o600);
+    assert.throws(() => api.copyFileSync(from, to, fs.constants.COPYFILE_EXCL), { code: 'EEXIST' });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test('workspace initialization creates and preserves a Git repository as its principal', { skip: spawnSync('git', ['--version']).error?.code === 'ENOENT' }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'principal-git-'));
+  const api = createPrincipalFs({ dataDir: root, client: transport(root), enabled: true });
+  try {
+    const dir = path.join(root, 'workspaces', 'alice');
+    api.initWorkspace(dir);
+    assert.match(api.readFileSync(path.join(dir, '.git', 'HEAD'), 'utf8'), /^ref: refs\/heads\//);
+    assert.equal(api.statSync(path.join(dir, '.git')).uid, process.getuid() === 0 ? 65534 : process.getuid());
+    api.writeFileSync(path.join(dir, '.git', 'review-marker'), 'preserved');
+    api.initWorkspace(dir);
+    assert.equal(api.readFileSync(path.join(dir, '.git', 'review-marker'), 'utf8'), 'preserved');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

@@ -1,0 +1,364 @@
+# Builds botdot's two images for Intel (amd64) and ARM (arm64) and publishes them, private, to
+# GitHub's container registry:
+#   ghcr.io/<owner>/bot-dot          the app, with llama.cpp and the bge-m3 model
+#   ghcr.io/<owner>/bot-dot-desktop  the bots' computer (cua Ubuntu + Camoufox)
+# Each platform builds natively on GitHub's own machines (amd64 on ubuntu-latest, arm64 on ubuntu-24.04-arm) and
+# pushes its own tag, then one tag points at both. No job runs on a runner of the owner's (#528): what one job hands
+# the next (the scan evidence) goes as a workflow artifact, never on a runner's disk.
+# Before anything is signed or published, each platform's pushed digest is scanned: an SBOM, a gate on critical
+# vulnerabilities, and a secret scan of every layer, which also finds a file that a later layer deleted (it is gone
+# from the image's filesystem but still in the layer anyone with the image can download, #534).
+# The app image also carries the newest Android app (from the latest android-v* release), which the phone
+# updates from. It carries no Mac app: the Mac app is not released (ADR 022), so a Mac asking botdot for an
+# update hears that there is none.
+#
+# When (#512): once a night, and when the owner runs it by hand (Actions → Images → Run workflow, on main). A
+# merge to main publishes nothing. The nightly run builds only when main changed outside the docs since the last
+# published image, or an Android release came after it (android.yml runs two hours earlier); a run by hand always
+# builds. Either way the server tests run first on the commit built, and a failure publishes nothing.
+name: Images
+
+on:
+  schedule:
+    - cron: '30 2 * * *' # 02:30 UTC, after the nightly Android release (android.yml, 00:30)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  actions: read # the plan reads this workflow's last successful run
+
+# A build that has started finishes; of the pushes that come meanwhile only the newest waits, and it runs next.
+# Cancelling a running build left main with no image while merges came faster than a build takes.
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Whether this run builds: a run by hand always; a nightly one when main changed since this workflow's last
+  # successful run, outside the paths below, or a newer android-v* release exists (an android/ change counts only
+  # once it is released: the image carries the released app, not the source).
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.which.outputs.build }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # the commits since the last image
+      - id: which
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          build() { echo "$1"; echo "build=$2" >> "$GITHUB_OUTPUT"; exit 0; }
+          [ "$EVENT" = schedule ] || build "Run by hand: building." true
+          LAST="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow images.yml --branch main --status success --limit 1 --json headSha,createdAt --jq '.[0] // empty')"
+          [ -n "$LAST" ] || build "No image published yet: building." true
+          SHA="$(jq -r .headSha <<< "$LAST")" AT="$(jq -r .createdAt <<< "$LAST")"
+          git cat-file -e "$SHA^{commit}" 2>/dev/null || build "The last image's commit $SHA is not on main: building." true
+          CHANGED="$(git diff --name-only "$SHA" HEAD -- . ':!*.md' ':!docs/' ':!design/' ':!macos/' ':!android/')"
+          [ -z "$CHANGED" ] || build "Changed since ${SHA::7}: $(printf '%s ' $CHANGED)" true
+          APK="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName,createdAt --jq "[.[] | select(.tagName | startswith(\"android-v\")) | select(.createdAt > \"$AT\")] | length")"
+          [ "$APK" = 0 ] || build "A newer Android release: building." true
+          build "Nothing changed since ${SHA::7}: no build tonight." false
+
+  # The server tests on the commit built: a nightly build holds pull requests that were each tested on their own.
+  test:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    uses: ./.github/workflows/tests.yml
+    with: { android: false }
+
+  toolchain:
+    needs: plan
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      # imagetools --metadata-file was added in 0.32.0. The runner's image can
+      # otherwise carry an older buildx plugin even when this action succeeds.
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          version: v0.32.0
+          driver: docker
+      - name: Check the publication CLI before tests and image builds
+        run: |
+          docker buildx version
+          HELP="$(docker buildx imagetools create --help)"
+          grep -F -- '--metadata-file' <<< "$HELP"
+
+  # Nothing is published when a test fails (the test job above).
+  build:
+    needs: [test, toolchain]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [app, desktop]
+        platform: [linux/amd64, linux/arm64]
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+          - image: app
+            name: bot-dot
+            context: .
+          - image: desktop
+            name: bot-dot-desktop
+            context: deploy/desktop
+    steps:
+      # The app image carries llama.cpp and the bge-m3 model, the desktop a whole Ubuntu desktop: room for the build
+      # and its cache, from tools of the runner's image that no step here uses.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          docker system prune -af >/dev/null
+          df -h /
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.name }}" >> "$GITHUB_ENV"
+
+      - name: The Android app, for phones to update from
+        if: matrix.image == 'app'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # $1: release tag prefix, $2: folder, $3: the app's file pattern
+          fetch() {
+            mkdir -p "$2"
+            TAG="$(gh release list --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName,createdAt --jq "[.[] | select(.tagName | startswith(\"$1\"))] | sort_by(.createdAt) | last | .tagName // empty")"
+            if [ -n "$TAG" ] && gh release download "$TAG" --pattern 'app.json' --pattern "$3" --dir "$2"; then
+              ls -l "$2"
+            else
+              echo "No $1 release with app.json yet; this image has no app in $2 to hand out."
+              rm -rf "${2:?}/"*
+            fi
+          }
+          fetch android-v android-app '*.apk'
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          version: v0.32.0
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.IMAGE }}
+
+      # Each platform gets its own tag (sha-<commit>-amd64 / -arm64); the publish job joins them.
+      - name: Verify the critical vulnerability gate with fixture images
+        if: matrix.image == 'app' && matrix.arch == 'amd64'
+        run: sh deploy/test-critical-scan.sh
+
+      - name: Verify the layer secret scan with fixture images
+        if: matrix.image == 'app' && matrix.arch == 'amd64'
+        run: sh deploy/test-layer-secret-scan.sh
+
+      - id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: ${{ matrix.platform }}
+          labels: |
+            ${{ steps.meta.outputs.labels }}
+            dev.botdot.release.version=${{ github.run_number }}
+          provenance: false
+          push: true
+          tags: ${{ env.IMAGE }}:sha-${{ github.sha }}-${{ matrix.arch }}
+          cache-from: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.image }}-${{ matrix.arch }},mode=max
+
+      # Trivy's databases, kept between runs: today's copy if one was saved, else the newest. Trivy itself fetches a
+      # newer one when the copy is out of date.
+      - name: Today, for the Trivy cache
+        id: day
+        run: echo "day=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-${{ matrix.image }}-${{ matrix.arch }}-${{ steps.day.outputs.day }}
+          restore-keys: |
+            trivy-${{ matrix.image }}-${{ matrix.arch }}-
+            trivy-
+
+      - name: SBOM, critical vulnerability gate and layer secret scan for the pushed digest
+        id: scan
+        env:
+          TRIVY_USERNAME: ${{ github.actor }}
+          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          SCAN_ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p security-artifacts
+          SCANNER=aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+          # Use upstream for both databases: the default GCR mirror has returned stale blob URLs (404).
+          # Both scans share the cached copy of the databases (the step above). Trivy runs as the runner's user, so
+          # the cache can save what it wrote.
+          mkdir -p ~/.cache/trivy
+          scan() {
+            docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TRIVY_USERNAME -e TRIVY_PASSWORD -v "$HOME/.cache/trivy:/cache" -v "$PWD/security-artifacts:/out" -v "$PWD/deploy/trivy-secret.yaml:/secret.yaml:ro" "$SCANNER" image --cache-dir /cache --timeout 20m --db-repository ghcr.io/aquasecurity/trivy-db:2 --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1 --image-src remote "$@" "$IMAGE@$DIGEST"
+          }
+          scan --format cyclonedx --output /out/sbom.json
+          # Both gates run, so a failure shows the findings of each (the next step).
+          PASSED=true
+          scan --scanners vuln --pkg-types os,library --severity CRITICAL --exit-code 1 --format json --output /out/vulnerabilities.json || PASSED=false
+          # Trivy reads every layer and keeps a secret found in one even when a later layer deleted the file (#534).
+          # Its rules: deploy/trivy-secret.yaml, which turns off the folders Trivy skips by default.
+          scan --scanners secret --secret-config /secret.yaml --exit-code 1 --format json --output /out/secrets.json || PASSED=false
+          [ "$PASSED" = true ]
+          # Publication consumes this record only after every scan command succeeded.
+          jq -n --arg image "$IMAGE" --arg revision "$GITHUB_SHA" --arg runId "$GITHUB_RUN_ID" \
+            --arg runAttempt "$GITHUB_RUN_ATTEMPT" --arg arch "$SCAN_ARCH" --arg digest "$DIGEST" \
+            '{image: $image, revision: $revision, runId: $runId, runAttempt: $runAttempt, arch: $arch, digest: $digest}' \
+            > security-artifacts/release-input.json
+
+      # Print actionable findings when a scanner fails.
+      - name: Scanner findings
+        if: always() && steps.scan.outcome != 'skipped'
+        run: |
+          if [ -f security-artifacts/vulnerabilities.json ]; then
+            jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | [$target, .VulnerabilityID, .PkgName, .InstalledVersion, (.FixedVersion // "unfixed")] | @tsv' security-artifacts/vulnerabilities.json
+          fi
+          # Each secret with its file and the layer (and build step) that added it; never the secret itself.
+          if [ -f security-artifacts/secrets.json ]; then
+            node deploy/layer-secrets.js security-artifacts/secrets.json || true
+          fi
+
+      # Each attempt's scans are an artifact of this run, named for the image, platform, commit and attempt. The
+      # evidence job validates all four, then publishes checksummed GitHub Release assets.
+      - name: Hand the scanner evidence to the evidence job
+        if: always() && steps.scan.outcome != 'skipped'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: security-${{ matrix.image }}-${{ matrix.arch }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: security-artifacts/*.json
+          if-no-files-found: error
+
+  evidence:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha256: ${{ steps.stage.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      # This attempt's four scan artifacts, each in a folder of its own name.
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: security-*-${{ github.sha }}-${{ github.run_attempt }}
+          path: scanned-builds
+      - name: Validate and stage the four exact pushed-digest scans
+        id: stage
+        run: |
+          node deploy/image-evidence.js stage scanned-builds image-evidence "${GITHUB_REPOSITORY_OWNER,,}" \
+            "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - name: Publish checksummed SBOM and scan evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "image-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" image-evidence/*.json \
+            --repo "$GITHUB_REPOSITORY" --prerelease --latest=false --target "$GITHUB_SHA" \
+            --title "Image scan evidence $GITHUB_RUN_ID/$GITHUB_RUN_ATTEMPT" \
+            --notes "Four exact pushed-digest SBOMs, critical scans and layer secret scans for $GITHUB_SHA. Manifest SHA-256: ${{ steps.stage.outputs.sha256 }}. Scan evidence only; confirm signed image publication in the workflow run."
+
+  publish:
+    environment: release
+    needs: evidence
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: app
+            name: bot-dot
+          - image: desktop
+            name: bot-dot-desktop
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.name }}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        with:
+          version: v0.32.0
+
+      - name: Check the publication CLI on this signing runner
+        run: |
+          HELP="$(docker buildx imagetools create --help)"
+          grep -F -- '--metadata-file' <<< "$HELP"
+
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # :latest for main, plus :sha-<short> so any build can be pinned or rolled back to.
+      - id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      # The evidence job emits its manifest checksum as a same-run job output. Downloaded
+      # release assets and every embedded identity must match before any tag is moved.
+      - name: Download and verify the same-attempt scan evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MANIFEST_SHA256: ${{ needs.evidence.outputs.sha256 }}
+        run: |
+          gh release download "image-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --repo "$GITHUB_REPOSITORY" --pattern manifest.json \
+            --pattern 'security-${{ matrix.image }}-*.json' --dir scanned
+          node deploy/image-evidence.js verify scanned "${GITHUB_REPOSITORY_OWNER,,}" \
+            "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            '${{ matrix.image }}' "$MANIFEST_SHA256"
+
+      - name: Point the tags at the scanned platform digests
+        id: index
+        run: |
+          node deploy/create-image-index.js "$IMAGE" "$GITHUB_SHA" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" \
+            "scanned/security-${{ matrix.image }}-amd64-release-input.json" \
+            "scanned/security-${{ matrix.image }}-arm64-release-input.json" >> "$GITHUB_OUTPUT"
+
+      - name: Check the immutable index
+        env:
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: docker buildx imagetools inspect "$IMAGE@$DIGEST"
+
+      - name: Sign the immutable index and publish its detached manifest
+        env:
+          BOTDOT_RELEASE_PRIVATE_KEY: ${{ secrets.BOTDOT_RELEASE_PRIVATE_KEY }}
+          DIGEST: ${{ steps.index.outputs.digest }}
+        run: |
+          APP=desktop
+          if [ '${{ matrix.image }}' = app ]; then APP=server; fi
+          node deploy/sign-image.js "$APP" '${{ github.run_number }}' "$GITHUB_SHA" "$IMAGE" "$DIGEST"
+          # Under accounts-release, not release: a botdot from before accounts reads `release` and is never offered
+          # this version as an update (lib/registry.js RELEASE_TAG, ADR 028).
+          docker buildx imagetools create --annotation "index:dev.botdot.release=$(cat image-release.json)" -t "$IMAGE:accounts-release" "$IMAGE@$DIGEST"

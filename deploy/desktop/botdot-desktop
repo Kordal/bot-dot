@@ -1,0 +1,39 @@
+#!/bin/sh
+# The bot's desktop as the bot user (#311), in place of cua's /opt/desktop/start.sh, which keeps it in /root:
+# TigerVNC with an XFCE session on :1 (VNC port 5901), the browser user let onto that display to show Camoufox,
+# and cua's theme. It then follows the VNC log, so that supervisord sees it running.
+set -eu
+
+DISPLAY_NUM=:1
+# lint-ignore: error-masking
+rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
+
+mkdir -p "$HOME/.vnc"
+cp /opt/desktop/xstartup.sh "$HOME/.vnc/xstartup"
+chmod +x "$HOME/.vnc/xstartup"
+
+vncserver "$DISPLAY_NUM" -geometry 1024x768 -depth 24 -rfbport 5901 \
+    -SecurityTypes None --I-KNOW-THIS-IS-INSECURE -localhost no
+
+for _ in $(seq 1 40); do
+    [ -e /tmp/.X11-unix/X1 ] && break
+    sleep 0.5
+done
+
+export DISPLAY="$DISPLAY_NUM"
+export XAUTHORITY="$HOME/.Xauthority"
+# Camoufox runs as the browser user, which has no cookie for this display: let that user in by name.
+xhost +SI:localuser:browser
+
+sleep 6
+# lint-ignore: error-masking
+xfconf-query -c xsettings -p /Net/IconThemeName -s elementary-xfce-dark 2>/dev/null || true
+# lint-ignore: error-masking
+xfconf-query -c xsettings -p /Net/ThemeName -s Greybird 2>/dev/null || true
+# lint-ignore: error-masking
+xfconf-query -c xfce4-desktop -p '/backdrop/screen0/monitorVNC-0/workspace0/last-image' -s /usr/share/backgrounds/xfce/xfce-shapes.svg 2>/dev/null || true
+# lint-ignore: error-masking
+xfdesktop --reload 2>/dev/null || true
+
+VNC_LOG="$(ls -t "$HOME"/.vnc/*.log 2>/dev/null | head -1)"
+exec tail -F "${VNC_LOG:-/dev/null}"

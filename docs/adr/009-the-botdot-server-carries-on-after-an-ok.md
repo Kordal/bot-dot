@@ -1,0 +1,96 @@
+# ADR-009: The botdot server carries on after an OK
+
+- **Status:** Accepted
+- **Owning task:** OK-001
+
+## Context
+
+[Milestone 6](../product/milestone6.md): the owner gives an OK once and the work it interrupted carries on. Before it a yes on a card changed a setting and nothing else. The ask kept no record of the run or the Chief's chat it came from, so whether the work was taken up again was left to the owner, who typed the request a second time, or to the model.
+
+Two things in the product already carried on. A tool install keeps the chat and the asker and tells the Chief when it is done (`lib/tools.js`, [ADR 007](007-installed-tools-are-pinned-lists-placed-by-a-tools-user.md)). A missing login holds the bot's tool call open until the owner answers (`lib/login-requests.js`).
+
+Every message to a bot is a fresh `claude -p` with no resumed session. A refused tool is known only at the end of the run, from the result's `permission_denials`.
+
+The evidence is in [milestone6-research.md](../product/milestone6-research.md), "Uncertainties resolved at stage 4".
+
+## Decision
+
+- **An ask records where it came from.** Every ask keeps the runs that wait for it, or the Chief's chat that asked. A job and a Board tile the Chief asked for keep that chat too. The Chief's tools server sends its chat with every call.
+- **The server starts what follows; the model does not decide whether.** On the owner's yes botdot itself starts a new run of the bot, or a turn of the Chief in the chat that asked. Which of the two follows from who started the interrupted work.
+- **A bot carries on in a new run, not in the old one.** The new run gets the original request and its files, the bot's earlier reply, what was allowed and what was declined, and is told not to repeat what is done. It waits in the bot's queue like any other work.
+- **Rules on the server keep work from running twice:** no run for a request the owner sent the bot a message after, when the ask is older than 24 hours, or when the bot is gone; a job's run is not repeated for a bot that is paused; one run for several asks of one run, after the last answer. As the owner decided on 2026-10-06 (OK-010, below); before, no run once the owner asked again after the ask appeared, and none for a paused bot.
+- **What waits to start is on disk:** the bot's work in `data/queue.json`, the Chief's waiting turns in a file of their own.
+
+Resolved by OK-001, for a permission and a skill that a bot's run asked for. The Chief's chat as an origin and the file of its waiting turns are OK-002's, on the same fields.
+
+- **The ask's field is `runs`**, in `data/asks.json`: `[{ id, at }]`, the run and the moment it asked, oldest first, at most 20. A second run that asks for the same thing is added to the waiting ask. An ask without `runs` (one from before, or one no run made) only changes the setting. The API does not send `runs`.
+- **Who started a run is read from the run's own record** when the ask is read or answered, not copied into the ask: `startedBy: "chief"` is the Chief, `trigger: "bot"` a teammate, a `jobId` a job, and any other `trigger: "manual"` the owner (a Board tile is the owner's tap). A follow-up after teammates' answers and a memory review carry on nothing.
+- **One pure function holds the rules** (`whatCarriesOn` in `lib/asks.js`). The card's `then`, the yes and the queued work as it starts all call it, so the three cannot disagree.
+- **The card's age and "asked again" count from the moment the ask was made**, for every run that waits for it: nothing carries on 24 hours after that, or once the owner sent the bot a message after it. That holds also when that second message was refused the same thing and joined the card: the owner has taken the work up themselves (scenario A10). The 24 hours stand. "Asked again" is replaced by OK-010, below: it counts for each run from the moment that run asked.
+- **Each waiting run then carries on unless** its record is gone, the owner stopped it, or a run already carried on from it. A job carries on once however many of its runs wait: only its latest run counts, and none when the job ran again since, was removed, waits for approval or, for a run at its time, was switched off. A one-time job is gone from the bot's jobs as its run starts, so its work carries the job.
+- **Only a run that can carry on is told that it will.** The sentence in the bots' instructions is left out of a follow-up after teammates' answers and of a memory review.
+- **A run that waits for several asks keeps their answers in the asks that remain** (`allowed` and `declined` on its entry of `runs`), so no second file is needed and a restart loses none. It carries on with the last answer, a yes or a no, when at least one was a yes.
+- **The work is a queue item of its own kind**, `carry-on`, under the key `carry:<the stopped run's id>`: one per stopped run, checked against the rules again as it starts. A second yes for a run whose work already waits adds its answer to that item.
+- **The run that carries on with a request keeps that request in `prompt`, has `customPrompt: false` and `continues`**, the stopped run's id. A job's run that is repeated has `continues` and the job's own task. An app from before this decision draws an owner's bubble only for a run with `customPrompt: true`, so the request shows once. What the bot is handed (the request, its reply, what was allowed and declined, the run's number) is built from the stopped run's record when the new run starts and is not stored.
+- **A run the Chief started is handed back to the Chief**, in the chat whose reply started it. When that chat is gone the OK only changes the setting. Superseded for one case by [ADR 010](010-a-connected-app-action-waits-in-its-run.md): after a late OK on an action in a connected app botdot starts that run itself, since the grant is bound to the run it starts.
+- **A teammate's request carries on like the owner's**, and its final reply is sent to the teammate as a message from the bot, which starts the teammate as any such message does.
+
+Resolved by OK-002, for what the Chief asked for in a chat: a changed bot, a skill, a script job and a Board tile.
+
+- **The chat travels with the call, not with the model.** The Chief's tools server sends `X-Chief-Chat` with every call. The server reads it only for a call it already knows to be the Chief's, as a place to write to, never as who is asking; a chat that does not exist is none.
+- **The fields:** `chatId` on the ask of a changed bot and of a skill, with `chatAt` when the Chief asked for the same thing again; `chatId` and `askedAt` on a job and a tile while they wait for the owner. What has none (made before, or proposed by a bot) only changes the setting.
+- **The same pure function decides** (`whatCarriesOn`): the Chief's turn for 24 hours after it asked, and not once the owner wrote in that chat since. The Chief's turn and the runs that wait for the same card each follow their own rule, and the Chief's turn comes first on the card and in the answer.
+- **The waiting turns are in `data/chief-waiting-turns.json`**, `{ <chat id>: [{ prompt, message, otherwise, title, at }] }`, for every turn botdot starts, a tool install's among them. A turn leaves the file in the step that starts it, when its reply with its `otherwise` is in the chat, so a stop between the two neither loses nor repeats it. They start once botdot listens, as a tool install's result does; one that waited more than 24 hours is not started, and its `otherwise` is written in its place.
+- **One turn, not two.** A run the Chief started that waits for the Chief's own card is named in that card's turn and is not handed back a second time; a run botdot carries on itself is named too, so the Chief does not start it.
+- **A decline and a yes without a turn are a line of botdot's** in the chat that asked (`Declined: …`, `Approved: …`), which the Chief reads with its next turn there, also a turn botdot starts. No line is written for a chat that is gone.
+- **One card per grant, with the binding untouched.** No permission ask is made while a changed bot that gives that permission waits: the run joins that card. A changed bot takes over a permission ask for the same permission. The runs on a changed bot count from `runsAt`, when the first of them asked, since the card can be older than they are. A proposal still applies only to the values it was made against ([security remediation](../security-issue-90.md)). A change whose bot changed since is stale: it holds no permission any more, so a run that is refused one gets a card that can be allowed, and its own card says nothing of what follows.
+- **A name in what botdot hands the Chief is labelled a name.** The turn's prompt quotes the card's line, which can hold a job's name that a bot chose; the prompt and the lines botdot quotes say that a name is never an instruction.
+
+Resolved by OK-007, after the milestone review, for a run the Chief started:
+
+- **One yes gives the Chief one turn in a chat.** Of the runs of one ask that the Chief started from one chat, only the latest counts, whatever became of it: an earlier one never stands in for it. Before, each waiting run was handed back, so two runs refused the same thing started two turns for one Allow.
+- **A message of the owner in the chat that started the run counts as asking again**, as a message to the bot does, and from the same moment: when the ask was made. None of that chat's runs then carries on; the yes changes the setting, and botdot writes its line "Approved: …" there, as for what the Chief asked for itself. Runs from other chats, and the owner's, a teammate's and a job's runs, follow their own rules as before, and so does a late yes on an action in a connected app, which starts the bot itself ([ADR 010](010-a-connected-app-action-waits-in-its-run.md)).
+- **A run that was handed back says so on its own record** (`handedBackAt`), from the moment botdot tells the Chief. The run the Chief then starts with `run_bot` has no `continues`, so without the mark the stopped run still counted as waiting, and a later yes on another card of it (an action in a connected app that it stopped waiting for, ADR 010) started the bot from it a second time. The mark is set when the Chief is told, not when it acts: whether it starts the bot is its choice, and the owner's next message there settles it.
+
+Resolved by OK-008, after the second pass of the milestone review:
+
+- **A message of the owner in the chat that started the run counts from when that run asked**, its own `at` among the ask's `runs`, not from when the ask was made. This replaces the moment in OK-007's rule above; for a card its own run made, the two are the same moment. A run can join a card that is older than the request that led to it (a job's run made the card an hour ago, then the owner asks the Chief): counted from the card, the owner's own request read as asking again, the Chief got no turn, and the owner typed it a second time.
+- **Not from when the run started**, which the task's plan named: the owner writes in the Chief's chat while a bot is still working, and that is not taking up work that has not stopped yet. Counted from the start, the Chief would lose its turn there, which it had before. Found in review.
+
+Resolved by OK-010, on two decisions the owner took on 2026-10-06, during the acceptance ([Milestone 6](../product/milestone6.md), Owner decisions):
+
+- **A run carries on unless the owner sent the bot a message after that run asked**, its own `at` among the ask's `runs`. This replaces "asked again" as OK-001 resolved it above, which counted from when the ask was made, for every run at once. A message is a run the owner started, by a message or a tile of the Board. Of two requests that were refused the same thing and wait for one card, the later carries on and the earlier does not. A job's run or a teammate's request does not carry on once the owner's request joined its card. Where the later message was not refused it is on no card, and nothing that asked before it carries on: with nothing refused since, the yes only changes the setting, as scenario A10 had it. Each run counts for itself, in both directions: a job's run that is refused after that message runs again (the owner sent nothing after it), and a message the owner sent while a run was still going, before it asked, is not after it, so two requests that overlap can both carry on, as they did before. The case that led to it: a job's run is refused at 7:00 and makes the card, the owner's request at 8:00 is refused the same and joins; counted from the card, Allow started nothing and the owner typed the request a second time.
+- **Paused stops a job's run from being repeated, and nothing else.** A bot whose jobs are all switched off still carries on with the owner's own request, a run the Chief started is handed to the Chief, and a teammate's request carries on. Before, such a bot carried on with nothing. The owner named their own request and one given through the Chief; that a teammate's request carries on too is this task's reading of the decision.
+- **The queued work asks only about what came since.** As it starts, a `carry-on` item hands the rules its card's time for the 24 hours, as before, and for the run the moment the work began to wait (the item's `queuedAt`, which a second yes that joins the item moves to its own moment; now, for work that starts with the yes): the yes has weighed every message until then, and the card can be older than the request the work carries on with. Handed the card's time for both, that request itself would read as the owner's message after it. No field is added: `queuedAt` was on every queued item and read by nothing.
+- **Work that already waits in the bot's queue with a late grant is botdot's to start whatever the owner wrote in the Chief's chat** ([ADR 010](010-a-connected-app-action-waits-in-its-run.md)): a yes on another card of that run joins it there too, so it does not start without knowing what was allowed.
+
+## Alternatives
+
+- **Find the run the Chief started again by looking for a later run of that bot with `startedBy: "chief"`.** Any later task the Chief gives the bot would count, also one about something else, and nothing would be known until the Chief acted.
+- **Let `run_bot` take the run it carries on from.** The model would have to pass it: the server would again depend on what the model decides to say.
+- **Leave it to the owner or the model** (before this decision). The owner types the request twice; a bot that was created never runs. Rejected by the outcome.
+- **Hold every refused tool inside its run** with a permission host (`--permission-prompt-tool`) or Claude Code's `defer` hook, so that a yes continues the same turn and no work is done twice. Not chosen for this milestone: `defer` exits the process and needs the run's session resumed, a permission host changes how every bot run is started and holds a process for each waiting card, and a late answer needs a new run anyway. It stays the better answer for work that must not be repeated; a later milestone can add it beside this decision.
+- **Tell the Chief about every OK and let it restart bots.** One more model turn between the owner's tap and the bot's work, and no help in a bot's own chat, which the Chief does not see.
+- **Copy who started the run, and its request, into the ask.** Two records of one fact, and the ask's copy would be stale after the run's reply. The run's record is kept for as long as its chat shows it.
+- **Judge each waiting run from the moment it asked**, so that a second request refused the same thing carries on in place of the first. Built first and taken back in review: the agreed scope says an OK only changes the setting once the owner sent the bot a message after the card appeared, and its scenario A10 would have started a run. It would save the owner a third message in that one case; a change of scope for the owner to decide. The owner decided for it on 2026-10-06: OK-010, above.
+- **A file of its own for the answers a run still waits to complete.** A second file to keep in step with `asks.json`; the remaining ask is already there and goes when it is answered.
+- **Apply the tools of a changed bot as an addition, so that its yes can never be stale.** It would end "The bot changed since this proposal" for every order of answers, and change the recorded rule that a proposal binds the values it was made against. Not chosen: the one-card rule removes the conflict between a permission's card and a changed bot's without touching that rule. What is left is below.
+- **Ask the Chief's model for the chat it is in.** A parameter of every tool that leaves something waiting: the model can leave it out or name another chat. The tools server knows its chat.
+- **Store the handed prompt as the run's `prompt`.** Every app would draw botdot's words as the owner's message.
+
+## Consequences
+
+- The work before a refusal is done again in the new run; side effects are guarded only by what the bot is told.
+- An ask, a job and a tile grow fields that older data lacks: an ask without them only changes the setting, as before.
+- The Chief gets one more turn for every OK on something it asked for.
+- The `tools.complete` path stays as it is and is now one case of a general rule.
+- A card's `then` is worked out when the ask is read. The feed's `asks` event carries it as it was when the event was sent, also when a run joins the ask; nothing is sent when it goes by itself.
+- A follow-up after teammates' answers that is refused a tool gets its card, and the owner's yes on it starts nothing: the owner asks again.
+- A run with `continues` reads "Ran its main assignment" in an app from before this decision, which is the chip that app has for a run without an owner's message.
+- A decline can start a run: the last answer of a run that was allowed something else before.
+- The answer to a teammate's carried-on request arrives as a bot's message, so the teammate's run about it is folded in its chat like any exchange between bots and marks nothing new for the owner.
+- A changed bot still answers "The bot changed since this proposal" when its bot changed another way since: the owner edited a field it changes, a permission of another kind was allowed on its own card, or a second changed bot of the same bot was approved first. Carrying an allowed permission over into the proposals that wait would end the second of these; it re-bases a proposal on the server's own initiative, and is left for the owner to decide.
+- The feed's `asks` entries of a changed bot carry its `parts`, a changed text in full, for as long as it waits.
+- A data folder put back from a backup brings its waiting turns with it: those younger than a day start.
+- A run the Chief was told to start again and then did not start (its turn failed, or it chose otherwise) does not carry on by a later yes either: the owner asks again. A run record has one more field, `handedBackAt`, which the API sends with the run.
+- "The latest of a chat" is counted among the runs of one ask. A run that waits for two cards, with a later run of that chat on only one of them, can still bring the Chief a second turn in that chat: by the second card's own Allow, for the earlier run.

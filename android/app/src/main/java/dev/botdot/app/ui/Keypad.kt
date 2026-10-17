@@ -1,0 +1,136 @@
+package dev.botdot.app.ui
+
+import dev.botdot.app.data.Bot
+import dev.botdot.app.data.Group
+
+/**
+ * The keypad: the home of a window from 840 dp wide (#494). Its pages are the list's own order ([ListLayout.rows])
+ * cut where a category begins, so the list and the keypad never disagree: the pinned bots then the pinned groups,
+ * each category A to Z with its bots and then its groups, and Other last. Its keys answer a hardware keyboard. The
+ * web page and the Mac draw the same rule. Nothing here asks the botdot server anything.
+ */
+internal object Keypad {
+    /** The narrowest window, in dp, whose home is the keypad: three keys and a chat fit. Narrower ones keep the list. */
+    const val WIDE = 840
+    /** The narrowest window, in dp, that shows the list beside the chat. */
+    const val LIST = 600
+    /** The least and the most the chat beside the keypad takes, in dp; between them, two fifths of the window. */
+    const val CHAT_LEAST = 360
+    const val CHAT_MOST = 480
+
+    /** The name of the first page, of the pinned bots and groups, and of the last, of the bots in no category. */
+    const val PINNED = "Pinned"
+    const val OTHER = "Other"
+
+    /** What a window shows as its home: the list alone (a phone), the list beside the chat, or the keypad beside the chat. */
+    enum class Home { PHONE, LIST, KEYPAD }
+
+    /** The home of a window [width] dp wide. */
+    fun home(width: Int) = when {
+        width >= WIDE -> Home.KEYPAD
+        width >= LIST -> Home.LIST
+        else -> Home.PHONE
+    }
+
+    /** How wide the chat beside the keypad is in a window [window] dp wide. */
+    fun chatWidth(window: Int) = (window * 2 / 5).coerceIn(CHAT_LEAST, CHAT_MOST)
+
+    enum class Kind { PINNED, CATEGORY, OTHER }
+
+    /** One place on a page: a bot, or a group. */
+    sealed interface Key {
+        /** As the list's rows name it: a bot's id, or a group's row ("group:<id>"), which is also whose chat is open. */
+        val id: String
+        /** It is on the Pinned page. */
+        val pinned: Boolean
+
+        data class OfBot(val bot: Bot) : Key {
+            override val id: String get() = bot.id
+            override val pinned: Boolean get() = bot.pinned > 0
+        }
+
+        data class OfGroup(val group: Group) : Key {
+            override val id: String get() = ListLayout.groupRow(group.id)
+            override val pinned: Boolean get() = group.pinned > 0
+        }
+    }
+
+    data class Page(val name: String, val kind: Kind, val keys: List<Key>)
+
+    /** The pages, first to last, with their keys in the order of the list's rows. A page with no key is left out. */
+    fun pages(bots: List<Bot>, groups: List<Group>): List<Page> {
+        val rows = ListLayout.rows(bots, groups, folded = emptySet())
+        val botOf = bots.associateBy { it.id }
+        val groupOf = groups.associateBy { ListLayout.groupRow(it.id) }
+        fun key(row: String): Key? = botOf[row]?.let { Key.OfBot(it) } ?: groupOf[row]?.let { Key.OfGroup(it) }
+        val pages = mutableListOf(Page(PINNED, Kind.PINNED, rows.pins.mapNotNull(::key)))
+        // Rows under no heading are those of the one category there is: bots in none, Other.
+        var category = ""
+        val keys = mutableListOf<Key>()
+        fun close() {
+            pages += if (category.isEmpty()) Page(OTHER, Kind.OTHER, keys.toList()) else Page(category, Kind.CATEGORY, keys.toList())
+            keys.clear()
+        }
+        for (row in rows.layout) when {
+            row == ListLayout.PINS -> Unit
+            ListLayout.isHeading(row) -> { close(); category = ListLayout.categoryOf(row) }
+            else -> key(row)?.let { keys += it }
+        }
+        close()
+        return pages.filter { it.keys.isNotEmpty() }
+    }
+
+    /**
+     * Where a dragged key lands (#499): [key] dropped on the page at [to], on its key at [at] (it takes that one's
+     * place) or on its heading (no [at]: last there, on its own page too, #516). The place is the one the list's drag gives a row, counted among its
+     * own kind as the server counts it: pinned on Pinned, else in the page's category ("" for Other). The bots stand
+     * before the groups on a page, so a bot dropped on a group is the last bot and a group dropped on a bot the first
+     * group. null: it stays where it is, or there is no such key or page. The web page and the Mac have the same rule.
+     */
+    fun move(pages: List<Page>, key: Key, to: Int, at: Int? = null): ListLayout.Place? {
+        val target = pages.getOrNull(to) ?: return null
+        val from = pages.indexOfFirst { p -> p.keys.any { it.id == key.id } }
+        if (from < 0) return null
+        val kin = { k: Key -> (k is Key.OfGroup) == (key is Key.OfGroup) }
+        val rest = target.keys.filter { it.id != key.id }
+        val place = (if (at == null) rest else rest.take(at.coerceAtLeast(0))).count(kin) + 1
+        if (from == to && place == target.keys.filter(kin).indexOfFirst { it.id == key.id } + 1) return null
+        return when (target.kind) {
+            Kind.PINNED -> ListLayout.Place.Pinned(place)
+            Kind.CATEGORY -> ListLayout.Place.In(target.name, place)
+            Kind.OTHER -> ListLayout.Place.In("", place)
+        }
+    }
+
+    /** A press of a key of a hardware keyboard: its name ("1" to "9", "Tab", "Escape", "K") and what was held with it. */
+    data class Press(val key: String, val ctrl: Boolean = false, val shift: Boolean = false, val alt: Boolean = false, val meta: Boolean = false)
+
+    /** What a press does on the keypad. */
+    sealed interface Action {
+        /** Opens the key with this number (1 to 9), counted across the pages (#516). */
+        data class Open(val number: Int) : Action
+        /** Opens the Chief's chat again. */
+        data object Chief : Action
+        /** Puts the owner in the search box. */
+        data object Search : Action
+        /** Leaves the press to what has focus. */
+        data object None : Action
+    }
+
+    /**
+     * What [press] does while the keypad shows [keys] keys, on all its pages. [typing]: a text field has focus, and it
+     * keeps every press but Esc and Ctrl+K, so "3 pm" stays in a message. Tab is left alone: every page is on screen,
+     * so there is none to move to (#516).
+     */
+    fun action(press: Press, typing: Boolean, keys: Int): Action {
+        val plain = !press.ctrl && !press.shift && !press.alt && !press.meta
+        val digit = press.key.singleOrNull()?.digitToIntOrNull()?.takeIf { it in 1..9 }
+        return when {
+            press.key == "Escape" && plain -> Action.Chief
+            press.key.equals("K", ignoreCase = true) && press.ctrl && !press.shift && !press.alt && !press.meta -> Action.Search
+            typing -> Action.None
+            digit != null -> if (plain && digit <= keys) Action.Open(digit) else Action.None
+            else -> Action.None
+        }
+    }
+}

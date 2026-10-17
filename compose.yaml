@@ -1,0 +1,78 @@
+# One account's botdot server (ADR 028), in that account's own rootless Docker, whose every container runs under
+# gVisor. install.sh puts this file and a .env in the account's folder and starts it; people reach it only through
+# the front door (compose.front-door.yaml), on the socket in BOT_DOT_FRONT_DOOR_FOLDER.
+#
+#   DOCKER_HOST=unix://<the account's Docker socket> docker compose up -d     (install.sh does all of this for you)
+#
+# A self-built botdot server: `make images` in the source builds both images, named without a registry, and
+# `BOT_DOT_IMAGE=bot-dot/server:latest BOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest sudo sh install.sh` installs them.
+services:
+  bot-dot:
+    image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
+    restart: unless-stopped
+    # Only the local process/file supervisor remains root. server.js runs as 60000:60000.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID, KILL]
+    security_opt: [no-new-privileges:true]
+    # A network of its own, never the machine's: under gVisor host networking would hide whose each connection is
+    # (ADR 028). Its port is on its own 127.0.0.1, for the Chief's and the bots' tools in it; it reaches the bots'
+    # computers with `docker exec`, and they publish no ports. The account's Docker's default network, not one
+    # compose makes: under gVisor, Docker's own name server on a network compose makes (127.0.0.11) never answers,
+    # so nothing would resolve (Claude's sign-in, the web). On the default network the container asks the machine's
+    # name servers. The server and the helper talk through a socket, not by name.
+    network_mode: bridge
+    environment:
+      TZ: ${TZ:-UTC}                              # schedules use this time zone
+      HOST: 127.0.0.1
+      PORT: 4747
+      # The account this botdot server belongs to: the front door names it on every request.
+      BOT_DOT_ACCOUNT: ${BOT_DOT_ACCOUNT:-}
+      BOT_DOT_FRONT_DOOR_SOCKET: /run/front-door/botdot.sock
+      # Optional instead of /login: a token from `claude setup-token`
+      CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
+      # The bots' computer (install.sh sets it). On a registry it is downloaded the first time a bot needs
+      # one; without a registry, or when unset, it is a local image, built the first time if missing.
+      BOT_DOT_COMPUTER_IMAGE: ${BOT_DOT_COMPUTER_IMAGE:-}
+      BOT_DOT_HELPER_SOCKET: /run/botdot/helper.sock
+    volumes:
+      - ./data:/data                                # bots, runs, memory, skills, vault (encrypted)
+      - bot-dot-config:/config                      # the vault's encryption key, kept apart from the data
+      - bot-dot-home:/root                          # application sign-ins migrated; legacy Docker credentials stay root-only
+      - bot-dot-helper:/run/botdot:ro                # connect only; helper owns directory and socket
+      # The front door's way in: a folder only this server's user and the front door may enter (install.sh).
+      - ${BOT_DOT_FRONT_DOOR_FOLDER:-./front-door}:/run/front-door
+    depends_on:
+      - docker-helper
+
+  docker-helper:
+    image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
+    command: ["node", "lib/docker-helper.js"]
+    restart: unless-stopped
+    network_mode: bridge                            # as the server's: names resolve under gVisor
+    # Root with the account's Docker socket is as powerful as that account's Docker; only the operations that
+    # lib/docker-helper.js allows limit it. It runs without capabilities or new privileges, so a flaw in it gives as
+    # little else as possible (SECURITY.md).
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    # In the server's group (SERVER_GID in lib/docker-helper.js), so it can hand the server its socket
+    # without the capability CHOWN.
+    group_add: ["60000"]
+    healthcheck:
+      disable: true
+    environment:
+      TZ: ${TZ:-UTC}
+      BOT_DOT_PLATFORM: linux
+      BOT_DOT_COMPUTER_IMAGE: ${BOT_DOT_COMPUTER_IMAGE:-}
+      BOT_DOT_REGISTRY_TOKEN: ${BOT_DOT_REGISTRY_TOKEN:-}
+      # How many of the bots' computers run at once: the account's share, which only root writes (install.sh).
+      BOT_DOT_SHARE_FILE: /run/botdot-share/share.json
+    volumes:
+      - bot-dot-helper:/run/botdot
+      - ./share:/run/botdot-share:ro
+      # The account's own rootless Docker (install.sh sets DOCKER_SOCKET), never the machine's.
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+
+volumes:
+  bot-dot-config:
+  bot-dot-home:
+  bot-dot-helper:

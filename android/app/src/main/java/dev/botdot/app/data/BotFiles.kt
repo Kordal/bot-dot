@@ -1,0 +1,32 @@
+package dev.botdot.app.data
+
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.webkit.MimeTypeMap
+import androidx.core.content.FileProvider
+import java.io.File
+
+/**
+ * Files a bot attached to its reply (a PDF, a spreadsheet…): downloaded into the app's cache, then
+ * opened in whatever app on the phone handles them, where they can also be shared or saved.
+ */
+object BotFiles {
+    /** "file:<runId>/<name>": what a notification for a reply with one file opens. */
+    const val PREFIX = "file:"
+
+    suspend fun open(context: Context, api: Api, file: String, name: String = file.substringAfterLast('/')) {
+        val dest = File(File(context.cacheDir, "botfiles"), file)
+        if (!dest.exists() || dest.length() == 0L) api.downloadFile(file, dest)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", dest)
+        val ext = name.substringAfterLast('.', "").lowercase()
+        val type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
+        val view = Intent(Intent.ACTION_VIEW).setDataAndType(uri, type)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            context.startActivity(view)
+        } catch (e: ActivityNotFoundException) {
+            throw ApiException("No app on this phone opens ${if (ext.isBlank()) "this file" else ".$ext files"}.")
+        }
+    }
+}

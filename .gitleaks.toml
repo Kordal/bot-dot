@@ -1,0 +1,13 @@
+# Secret scanning (gitleaks, see tests.yml): its default rules, minus made-up test passwords.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Made-up test secrets, the exact public release verification key, and RFC 6455's sample WebSocket key"
+paths = ['''^test/backup\.test\.js$''', '''^test/owner-key\.test\.js$''', '''^test/fixtures/release-signing/private\.pem$''']
+# This SPKI public key is intentionally shipped to every client; it cannot sign releases.
+# Match its exact bytes rather than excluding production files or arbitrary key values.
+# The WebSocket handshake's Sec-WebSocket-Key in test/front-door-helpers.js is the sample nonce printed in RFC 6455
+# ("the sample nonce", base64): a public example, no key to anything.
+regexTarget = "secret"
+regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''', '''^MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdDU16CG2HWzALPBB5pDx5BQHKTrcfdHF4t90R++nTnsMvIQKGQq/o26wIF0w0o6OEt4RoPi+Sf2rJsZmz3vvng==$''']

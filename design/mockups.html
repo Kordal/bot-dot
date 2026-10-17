@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bot·dot mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600&family=Doto:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #0b0b0c; color: #e8e8ea; font: 14px/1.5 Geist, system-ui, sans-serif; padding: 40px 24px 80px; }
+  .page-head { max-width: 1180px; margin: 0 auto 36px; }
+  .page-head h1 { font-weight: 600; font-size: 26px; letter-spacing: -.02em; }
+  .page-head p { color: #8a8a90; margin-top: 6px; max-width: 760px; }
+  .option { max-width: 1180px; margin: 0 auto 56px; }
+  .option-label { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; }
+  .option-label .letter { font: 600 13px 'Geist Mono', monospace; border: 1px solid #333; border-radius: 6px; padding: 2px 8px; color: #bbb; }
+  .option-label h2 { font-weight: 600; font-size: 18px; }
+  .option-label p { color: #8a8a90; font-size: 13.5px; }
+  .frame { height: 640px; border-radius: 18px; overflow: hidden; display: flex; box-shadow: 0 30px 80px rgba(0,0,0,.5); }
+  .scroll { overflow: hidden; }
+  .row { display: flex; }
+  .grow { flex: 1; min-width: 0; }
+  .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* =============== A: VOID (pure black, one electric accent) =============== */
+  .va { background: #000; color: #f2f2f2; font-family: Geist; }
+  .va .rail { width: 64px; border-right: 1px solid #141414; display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 22px; }
+  .va .rail .logo { width: 10px; height: 10px; border-radius: 50%; background: #c6ff3d; box-shadow: 0 0 18px #c6ff3d; margin-bottom: 10px; }
+  .va .rail i { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid #3a3a3a; display: block; }
+  .va .rail i.on { border-color: #f2f2f2; }
+  .va .list { width: 300px; border-right: 1px solid #141414; padding: 22px 0; }
+  .va .list h3 { font-weight: 500; font-size: 13px; color: #6b6b6b; padding: 0 22px 14px; letter-spacing: .02em; }
+  .va .search { margin: 0 22px 14px; border: 1px solid #1c1c1c; border-radius: 10px; padding: 8px 12px; color: #555; font-size: 13px; }
+  .va .item { display: flex; gap: 12px; padding: 11px 22px; align-items: center; }
+  .va .item.sel { background: #0d0d0d; box-shadow: inset 2px 0 0 #c6ff3d; }
+  .va .av { width: 38px; height: 38px; border-radius: 50%; background: #111; border: 1px solid #222; display: grid; place-items: center; font-size: 17px; position: relative; flex: none; }
+  .va .av .dot { position: absolute; right: -1px; bottom: -1px; width: 10px; height: 10px; border-radius: 50%; background: #c6ff3d; border: 2px solid #000; }
+  .va .name { font-weight: 500; font-size: 14px; }
+  .va .prev { color: #6b6b6b; font-size: 12.5px; }
+  .va .time { color: #4a4a4a; font: 11px 'Geist Mono'; }
+  .va .chat { display: flex; flex-direction: column; }
+  .va .chat-head { padding: 18px 28px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #141414; }
+  .va .chat-head .sub { color: #6b6b6b; font-size: 12px; }
+  .va .msgs { flex: 1; padding: 28px; display: flex; flex-direction: column; gap: 14px; }
+  .va .me { align-self: flex-end; max-width: 60%; background: #f2f2f2; color: #000; padding: 10px 16px; border-radius: 20px 20px 6px 20px; }
+  .va .them { max-width: 64%; color: #e8e8e8; padding: 2px 0; line-height: 1.6; }
+  .va .them b { color: #fff; font-weight: 600; }
+  .va .chip { align-self: flex-start; font: 12px 'Geist Mono'; color: #c6ff3d; border: 1px solid #243300; background: #0a1000; padding: 4px 10px; border-radius: 99px; }
+  .va .status { color: #6b6b6b; font-size: 12.5px; display: flex; align-items: center; gap: 8px; }
+  .va .pulse { width: 6px; height: 6px; border-radius: 50%; background: #c6ff3d; box-shadow: 0 0 10px #c6ff3d; }
+  .va .composer { margin: 0 28px 24px; border: 1px solid #1f1f1f; border-radius: 16px; padding: 14px 16px; display: flex; align-items: center; color: #555; }
+  .va .send { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; background: #c6ff3d; color: #000; display: grid; place-items: center; font-weight: 700; }
+
+  /* =============== B: AURORA (frosted glass on soft gradient) =============== */
+  .vb { background: radial-gradient(1200px 600px at 10% 0%, #2a1b5a 0%, transparent 60%), radial-gradient(900px 600px at 100% 100%, #0b3b4a 0%, transparent 60%), #07070d; color: #eef; font-family: 'Space Grotesk', Geist; padding: 14px; gap: 14px; }
+  .vb .glass { background: rgba(255,255,255,.045); border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(24px); border-radius: 16px; }
+  .vb .list { width: 290px; padding: 18px 10px; }
+  .vb .brand { padding: 0 12px 16px; font-weight: 600; letter-spacing: -.02em; font-size: 17px; }
+  .vb .brand span { background: linear-gradient(90deg,#9d8bff,#5ee7ff); -webkit-background-clip: text; color: transparent; }
+  .vb .item { display: flex; gap: 12px; padding: 10px 12px; border-radius: 12px; align-items: center; }
+  .vb .item.sel { background: rgba(157,139,255,.14); }
+  .vb .av { width: 40px; height: 40px; border-radius: 14px; display: grid; place-items: center; font-size: 18px; background: linear-gradient(135deg, rgba(157,139,255,.35), rgba(94,231,255,.2)); flex: none; }
+  .vb .name { font-weight: 500; }
+  .vb .prev { color: #8f93b8; font-size: 12.5px; }
+  .vb .badge { background: linear-gradient(90deg,#9d8bff,#5ee7ff); color: #07070d; font-size: 11px; font-weight: 600; border-radius: 99px; padding: 0 7px; }
+  .vb .chat { display: flex; flex-direction: column; overflow: hidden; }
+  .vb .chat-head { padding: 16px 22px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,.06); }
+  .vb .chat-head .sub { color: #8f93b8; font-size: 12px; }
+  .vb .msgs { flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+  .vb .me { align-self: flex-end; max-width: 60%; background: linear-gradient(135deg,#7b68ff,#4fb8ff); color: #fff; padding: 10px 16px; border-radius: 18px 18px 4px 18px; box-shadow: 0 8px 30px rgba(123,104,255,.35); }
+  .vb .them { max-width: 64%; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.07); padding: 12px 16px; border-radius: 18px 18px 18px 4px; line-height: 1.6; }
+  .vb .card { max-width: 380px; padding: 14px 16px; border-radius: 16px; background: rgba(94,231,255,.07); border: 1px solid rgba(94,231,255,.25); }
+  .vb .card .site { font: 500 15px 'Geist Mono'; color: #5ee7ff; margin: 4px 0 10px; }
+  .vb .field { background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.1); border-radius: 10px; padding: 8px 12px; color: #6b6f92; margin-bottom: 8px; font-size: 13px; }
+  .vb .btn { display: inline-block; background: linear-gradient(90deg,#9d8bff,#5ee7ff); color: #07070d; font-weight: 600; font-size: 13px; padding: 7px 14px; border-radius: 10px; }
+  .vb .composer { margin: 0 18px 18px; padding: 12px 14px; display: flex; align-items: center; color: #6b6f92; border-radius: 14px; }
+  .vb .send { margin-left: auto; width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg,#9d8bff,#5ee7ff); display: grid; place-items: center; color: #07070d; font-weight: 700; }
+
+  /* =============== C: SIGNAL (grey monochrome, dot-matrix, one red dot) =============== */
+  .vc { background: #111112; color: #d8d8d8; font-family: Geist; }
+  .vc .list { width: 300px; background: #0c0c0d; padding: 22px 0; }
+  .vc .brand { font: 800 22px Doto, 'Geist Mono'; letter-spacing: .04em; padding: 0 22px 22px; color: #eaeaea; }
+  .vc .brand em { color: #ff3b30; font-style: normal; }
+  .vc .label { font: 500 10.5px 'Geist Mono'; letter-spacing: .14em; color: #555; padding: 12px 22px 8px; text-transform: uppercase; }
+  .vc .item { display: flex; gap: 12px; padding: 10px 22px; align-items: center; }
+  .vc .item.sel { background: #161618; }
+  .vc .av { width: 36px; height: 36px; border-radius: 10px; background: #1b1b1d; display: grid; place-items: center; font-size: 16px; filter: grayscale(1); flex: none; }
+  .vc .item.sel .av { filter: none; }
+  .vc .name { font-weight: 500; font-size: 13.5px; color: #eaeaea; }
+  .vc .prev { color: #666; font-size: 12px; }
+  .vc .led { width: 7px; height: 7px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 8px #ff3b30; }
+  .vc .chat { display: flex; flex-direction: column; }
+  .vc .chat-head { padding: 20px 30px; display: flex; align-items: baseline; gap: 14px; }
+  .vc .chat-head .t { font: 600 18px 'Geist'; letter-spacing: -.01em; color: #fafafa; }
+  .vc .chat-head .sub { font: 11px 'Geist Mono'; color: #666; letter-spacing: .08em; text-transform: uppercase; }
+  .vc .msgs { flex: 1; padding: 10px 30px 20px; display: flex; flex-direction: column; gap: 16px; }
+  .vc .me { align-self: flex-end; max-width: 58%; background: #e9e9e9; color: #111; padding: 10px 16px; border-radius: 16px; }
+  .vc .them { max-width: 64%; background: #1a1a1c; padding: 12px 16px; border-radius: 16px; line-height: 1.6; }
+  .vc .meta { font: 10.5px 'Geist Mono'; color: #555; letter-spacing: .08em; text-transform: uppercase; }
+  .vc .step { font: 12px 'Geist Mono'; color: #777; display: flex; gap: 10px; align-items: center; }
+  .vc .step .bar { width: 120px; height: 3px; background: #222; border-radius: 3px; overflow: hidden; }
+  .vc .step .bar i { display: block; width: 62%; height: 100%; background: #ff3b30; }
+  .vc .composer { margin: 0 30px 26px; background: #1a1a1c; border-radius: 99px; padding: 12px 20px; display: flex; align-items: center; color: #555; }
+  .vc .send { margin-left: auto; font: 11px 'Geist Mono'; letter-spacing: .12em; color: #ff3b30; }
+
+  /* =============== D: PAPER (light, airy, black ink) =============== */
+  .vd { background: #fafaf9; color: #111; font-family: Geist; }
+  .vd .list { width: 290px; padding: 26px 14px; border-right: 1px solid #eee; background: #fff; }
+  .vd .brand { font-weight: 700; font-size: 18px; letter-spacing: -.03em; padding: 0 10px 20px; }
+  .vd .brand span { color: #bbb; }
+  .vd .item { display: flex; gap: 12px; padding: 10px; border-radius: 14px; align-items: center; }
+  .vd .item.sel { background: #f3f3f1; }
+  .vd .av { width: 40px; height: 40px; border-radius: 50%; background: #f1f1ef; display: grid; place-items: center; font-size: 18px; flex: none; }
+  .vd .name { font-weight: 600; font-size: 14px; letter-spacing: -.01em; }
+  .vd .prev { color: #9a9a96; font-size: 12.5px; }
+  .vd .time { color: #bbb; font-size: 11.5px; }
+  .vd .chat { display: flex; flex-direction: column; }
+  .vd .chat-head { padding: 22px 34px; display: flex; align-items: center; gap: 12px; }
+  .vd .chat-head .sub { color: #9a9a96; font-size: 12.5px; }
+  .vd .msgs { flex: 1; padding: 10px 34px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .vd .me { align-self: flex-end; max-width: 58%; background: #111; color: #fff; padding: 11px 17px; border-radius: 22px 22px 6px 22px; }
+  .vd .them { max-width: 64%; background: #fff; border: 1px solid #ececea; padding: 13px 17px; border-radius: 22px 22px 22px 6px; line-height: 1.6; box-shadow: 0 1px 2px rgba(0,0,0,.03); }
+  .vd .chip { align-self: flex-start; font-size: 12.5px; color: #555; background: #f1f1ef; padding: 5px 12px; border-radius: 99px; }
+  .vd .composer { margin: 0 34px 28px; background: #fff; border: 1px solid #e6e6e3; border-radius: 99px; padding: 13px 20px; display: flex; align-items: center; color: #aaa; box-shadow: 0 6px 24px rgba(0,0,0,.05); }
+  .vd .send { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; background: #111; color: #fff; display: grid; place-items: center; }
+
+
+  /* =============== D2: PAPER DARK (warm charcoal, white ink) =============== */
+  .ve { background: #141413; color: #ecebe8; font-family: Geist; outline: 1px solid #262623; }
+  .ve .list { width: 290px; padding: 26px 14px; border-right: 1px solid #22221f; background: #1a1a18; }
+  .ve .brand { font-weight: 700; font-size: 18px; letter-spacing: -.03em; padding: 0 10px 20px; }
+  .ve .brand span { color: #5a5955; }
+  .ve .item { display: flex; gap: 12px; padding: 10px; border-radius: 14px; align-items: center; }
+  .ve .item.sel { background: #242421; }
+  .ve .av { width: 40px; height: 40px; border-radius: 50%; background: #262623; display: grid; place-items: center; font-size: 18px; flex: none; }
+  .ve .name { font-weight: 600; font-size: 14px; letter-spacing: -.01em; }
+  .ve .prev { color: #8a8984; font-size: 12.5px; }
+  .ve .time { color: #5a5955; font-size: 11.5px; }
+  .ve .chat { display: flex; flex-direction: column; }
+  .ve .chat-head { padding: 22px 34px; display: flex; align-items: center; gap: 12px; }
+  .ve .chat-head .sub { color: #8a8984; font-size: 12.5px; }
+  .ve .msgs { flex: 1; padding: 10px 34px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .ve .me { align-self: flex-end; max-width: 58%; background: #f2f1ee; color: #141413; padding: 11px 17px; border-radius: 22px 22px 6px 22px; }
+  .ve .them { max-width: 64%; background: #1d1d1b; border: 1px solid #2a2a27; padding: 13px 17px; border-radius: 22px 22px 22px 6px; line-height: 1.6; }
+  .ve .chip { align-self: flex-start; font-size: 12.5px; color: #a9a8a3; background: #22221f; padding: 5px 12px; border-radius: 99px; }
+  .ve .composer { margin: 0 34px 28px; background: #1d1d1b; border: 1px solid #2c2c29; border-radius: 99px; padding: 13px 20px; display: flex; align-items: center; color: #6c6b67; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .ve .send { margin-left: auto; width: 32px; height: 32px; border-radius: 50%; background: #f2f1ee; color: #141413; display: grid; place-items: center; }
+  .frame { width: 1180px; }
+  .fit { transform-origin: 0 0; }
+</style>
+</head>
+<body>
+  <div class="page-head">
+    <h1>bot·dot, messenger mockups</h1>
+    <p>Same layout in all four: bots are contacts, the Chief is pinned on top, and you talk to any bot directly.
+       Runs, Projects and the Vault sit in a slim menu. Each option is a different look; pick one, or mix parts.</p>
+  </div>
+
+  <!-- ================= A ================= -->
+  <section class="option">
+    <div class="option-label"><span class="letter">A</span><h2>Void</h2><p>Pure black, hairline lines, one electric-lime accent. Bot replies are plain text without bubbles, like reading a note.</p></div>
+    <div class="fit"><div class="frame va">
+      <nav class="rail"><div class="logo"></div><i class="on"></i><i></i><i></i><i></i></nav>
+      <aside class="list">
+        <h3>Messages</h3>
+        <div class="search">Search</div>
+        <div class="item sel"><div class="av">🧭</div><div class="grow"><div class="row"><span class="name grow">Chief of Staff</span><span class="time">18:32</span></div><div class="prev ell">Web Clicker got in on the first try…</div></div></div>
+        <div class="item"><div class="av">🖥<span class="dot"></span></div><div class="grow"><div class="row"><span class="name grow">Web Clicker</span><span class="time">18:31</span></div><div class="prev ell">Signing in…</div></div></div>
+        <div class="item"><div class="av">🎮</div><div class="grow"><div class="row"><span class="name grow">Game Scout</span><span class="time">Mon</span></div><div class="prev ell">5 indie trends this week</div></div></div>
+        <div class="item"><div class="av">🔍</div><div class="grow"><div class="row"><span class="name grow">Code Reviewer</span><span class="time">—</span></div><div class="prev ell">No messages yet</div></div></div>
+        <div class="item"><div class="av">📋</div><div class="grow"><div class="row"><span class="name grow">Standup Reporter</span><span class="time">—</span></div><div class="prev ell">No messages yet</div></div></div>
+      </aside>
+      <main class="chat grow">
+        <div class="chat-head"><div class="av" style="width:34px;height:34px;border-radius:50%;background:#111;border:1px solid #222;display:grid;place-items:center">🧭</div><div><div style="font-weight:500">Chief of Staff</div><div class="sub">manages 7 bots</div></div></div>
+        <div class="msgs">
+          <div class="me">Sign in to recipes.example.com and tell me today's menu</div>
+          <div class="chip">→ handed to 🖥 Web Clicker</div>
+          <div class="status"><span class="pulse"></span>Web Clicker is signing in…</div>
+          <div class="them">Here's <b>today's menu</b>:<br>• Tomato soup with basil<br>• Chicken schnitzel, potatoes, cucumber salad<br>• Apple crumble<br><span style="color:#6b6b6b">Want me to check it every morning?</span></div>
+        </div>
+        <div class="composer">Message the Chief…<div class="send">↑</div></div>
+      </main>
+    </div></div>
+  </section>
+
+  <!-- ================= B ================= -->
+  <section class="option">
+    <div class="option-label"><span class="letter">B</span><h2>Aurora</h2><p>Frosted-glass panels over a soft violet-to-teal glow. Gradient bubbles, rounded and friendly. Secure login requests appear as a card inside the chat.</p></div>
+    <div class="fit"><div class="frame vb">
+      <aside class="list glass">
+        <div class="brand">bot<span>·dot</span></div>
+        <div class="item sel"><div class="av">🧭</div><div class="grow"><div class="name">Chief of Staff</div><div class="prev ell">Needs your recipes.example.com login</div></div><span class="badge">1</span></div>
+        <div class="item"><div class="av">🖥</div><div class="grow"><div class="name">Web Clicker</div><div class="prev ell">Waiting for a login</div></div></div>
+        <div class="item"><div class="av">🎮</div><div class="grow"><div class="name">Game Scout</div><div class="prev ell">5 indie trends this week</div></div></div>
+        <div class="item"><div class="av">🐛</div><div class="grow"><div class="name">Bug Hunter</div><div class="prev ell">Fixed 2 bugs in last-c</div></div></div>
+        <div class="item"><div class="av">📝</div><div class="grow"><div class="name">Doc Writer</div><div class="prev ell">README updated</div></div></div>
+      </aside>
+      <main class="chat glass grow">
+        <div class="chat-head"><div class="av" style="width:36px;height:36px">🧭</div><div><div style="font-weight:500">Chief of Staff</div><div class="sub">online · 1 bot working</div></div></div>
+        <div class="msgs">
+          <div class="me">Sign in to recipes.example.com and tell me today's menu</div>
+          <div class="them">On it. I've asked 🖥 Web Clicker. It needs your login first:</div>
+          <div class="card">
+            <div style="font-size:12px;color:#8f93b8">🔐 Secure login · never seen by the AI</div>
+            <div class="site">recipes.example.com</div>
+            <div class="field">you@example.com</div>
+            <div class="field">••••••••••</div>
+            <span class="btn">Save & continue</span>
+          </div>
+        </div>
+        <div class="composer glass">Message the Chief…<div class="send">↑</div></div>
+      </main>
+    </div></div>
+  </section>
+
+  <!-- ================= C ================= -->
+  <section class="option">
+    <div class="option-label"><span class="letter">C</span><h2>Signal</h2><p>Graphite monochrome with dot-matrix type and a single red LED for "working". Icons stay grey until selected. Technical, but calm.</p></div>
+    <div class="fit"><div class="frame vc">
+      <aside class="list">
+        <div class="brand">BOT<em>.</em>DOT</div>
+        <div class="label">Pinned</div>
+        <div class="item sel"><div class="av">🧭</div><div class="grow"><div class="name">Chief of Staff</div><div class="prev ell">Handing it to Web Clicker</div></div></div>
+        <div class="label">Team</div>
+        <div class="item"><div class="av">🖥</div><div class="grow"><div class="name">Web Clicker</div><div class="prev ell">Signing in · step 4</div></div><span class="led"></span></div>
+        <div class="item"><div class="av">🎮</div><div class="grow"><div class="name">Game Scout</div><div class="prev ell">Next run Mon 09:00</div></div></div>
+        <div class="item"><div class="av">🔍</div><div class="grow"><div class="name">Code Reviewer</div><div class="prev ell">Idle</div></div></div>
+        <div class="item"><div class="av">💡</div><div class="grow"><div class="name">Idea Generator</div><div class="prev ell">Idle</div></div></div>
+      </aside>
+      <main class="chat grow">
+        <div class="chat-head"><span class="t">Chief of Staff</span><span class="sub">7 bots · 1 active</span></div>
+        <div class="msgs">
+          <div class="meta">Today 18:30</div>
+          <div class="me">Sign in to recipes.example.com and tell me today's menu</div>
+          <div class="them">Handing this to Web Clicker. It has its own browser and your saved login.</div>
+          <div class="step"><span class="led"></span>WEB CLICKER · SIGNING IN <span class="bar"><i></i></span></div>
+          <div class="them">Today's menu: tomato soup, chicken schnitzel with potatoes, apple crumble.</div>
+        </div>
+        <div class="composer">Message<div class="send">SEND ↵</div></div>
+      </main>
+    </div></div>
+  </section>
+
+  <!-- ================= D ================= -->
+  <section class="option">
+    <div class="option-label"><span class="letter">D</span><h2>Paper</h2><p>Light and airy: warm white, black ink, generous spacing. Futuristic through restraint, like a premium notes app.</p></div>
+    <div class="fit"><div class="frame vd">
+      <aside class="list">
+        <div class="brand">bot<span>·</span>dot</div>
+        <div class="item sel"><div class="av">🧭</div><div class="grow"><div class="row"><span class="name grow">Chief of Staff</span><span class="time">18:32</span></div><div class="prev ell">Here's today's menu…</div></div></div>
+        <div class="item"><div class="av">🖥</div><div class="grow"><div class="row"><span class="name grow">Web Clicker</span><span class="time">18:31</span></div><div class="prev ell">Signed in to recipes.example.com</div></div></div>
+        <div class="item"><div class="av">🎮</div><div class="grow"><div class="row"><span class="name grow">Game Scout</span><span class="time">Mon</span></div><div class="prev ell">5 indie trends this week</div></div></div>
+        <div class="item"><div class="av">🐛</div><div class="grow"><div class="row"><span class="name grow">Bug Hunter</span><span class="time">Sep 21</span></div><div class="prev ell">Fixed 2 bugs in last-c</div></div></div>
+        <div class="item"><div class="av">📋</div><div class="grow"><div class="row"><span class="name grow">Standup Reporter</span><span class="time">—</span></div><div class="prev ell">No messages yet</div></div></div>
+      </aside>
+      <main class="chat grow">
+        <div class="chat-head"><div class="av" style="width:36px;height:36px;border-radius:50%;background:#f1f1ef;display:grid;place-items:center">🧭</div><div><div style="font-weight:600">Chief of Staff</div><div class="sub">Your team of 7 bots</div></div></div>
+        <div class="msgs">
+          <div class="me">Sign in to recipes.example.com and tell me today's menu</div>
+          <div class="chip">🖥 Web Clicker did this · 24s</div>
+          <div class="them">Today's menu:<br>• Tomato soup with basil<br>• Chicken schnitzel, potatoes, cucumber salad<br>• Apple crumble</div>
+        </div>
+        <div class="composer">Message the Chief…<div class="send">↑</div></div>
+      </main>
+    </div></div>
+  </section>
+
+  <!-- ================= D2 ================= -->
+  <section class="option" id="paper-dark">
+    <div class="option-label"><span class="letter">D2</span><h2>Paper · Dark</h2><p>The same as Paper, at night: warm charcoal instead of pure black, soft white text, and your own messages in light "ink" bubbles.</p></div>
+    <div class="fit"><div class="frame ve">
+      <aside class="list">
+        <div class="brand">bot<span>·</span>dot</div>
+        <div class="item sel"><div class="av">🧭</div><div class="grow"><div class="row"><span class="name grow">Chief of Staff</span><span class="time">18:32</span></div><div class="prev ell">Here's today's menu…</div></div></div>
+        <div class="item"><div class="av">🖥</div><div class="grow"><div class="row"><span class="name grow">Web Clicker</span><span class="time">18:31</span></div><div class="prev ell">Signed in to recipes.example.com</div></div></div>
+        <div class="item"><div class="av">🎮</div><div class="grow"><div class="row"><span class="name grow">Game Scout</span><span class="time">Mon</span></div><div class="prev ell">5 indie trends this week</div></div></div>
+        <div class="item"><div class="av">🐛</div><div class="grow"><div class="row"><span class="name grow">Bug Hunter</span><span class="time">Sep 21</span></div><div class="prev ell">Fixed 2 bugs in last-c</div></div></div>
+        <div class="item"><div class="av">📋</div><div class="grow"><div class="row"><span class="name grow">Standup Reporter</span><span class="time">—</span></div><div class="prev ell">No messages yet</div></div></div>
+      </aside>
+      <main class="chat grow">
+        <div class="chat-head"><div class="av" style="width:36px;height:36px;border-radius:50%;background:#262623;display:grid;place-items:center">🧭</div><div><div style="font-weight:600">Chief of Staff</div><div class="sub">Your team of 7 bots</div></div></div>
+        <div class="msgs">
+          <div class="me">Sign in to recipes.example.com and tell me today's menu</div>
+          <div class="chip">🖥 Web Clicker did this · 24s</div>
+          <div class="them">Today's menu:<br>• Tomato soup with basil<br>• Chicken schnitzel, potatoes, cucumber salad<br>• Apple crumble</div>
+        </div>
+        <div class="composer">Message the Chief…<div class="send">↑</div></div>
+      </main>
+    </div></div>
+  </section>
+<script>
+  // Show every mockup at desktop size, scaled down to fit narrow windows.
+  function fit() {
+    const avail = Math.min(1180, document.querySelector('.option').clientWidth);
+    const k = avail / 1180;
+    document.querySelectorAll('.fit').forEach((el) => {
+      el.style.transform = `scale(${k})`;
+      el.style.height = `${640 * k}px`;
+    });
+  }
+  addEventListener('resize', fit);
+  fit();
+</script>
+</body>
+</html>

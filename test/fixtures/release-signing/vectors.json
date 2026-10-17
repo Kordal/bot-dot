@@ -1,0 +1,11 @@
+{
+  "publicKey": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEBxR7QDuyHEQP8+RjoQkb1P9V3okvUlloQOvKPDj8ldDZeTOP7RkZXMPo1FYBqx5Q1ToAHQGXviMgCr9sVKcD8w==",
+  "valid": {
+    "app": "mac",
+    "version": 42,
+    "revision": "1111111111111111111111111111111111111111",
+    "file": "botdot-1.0.42-mac.zip",
+    "sha256": "f16d05ec6b29248d2c61adb1e9263f78e4f7bace1b955014a2d17872cfe4064d",
+    "signature": "MEYCIQCByMNxM1q8hFILl069jOBLzSGaowSIMBqhmxcVEXUCegIhAPzsyy/ins6r+uI3od0ecNIOuSb7B+hE7xVW0+GPvffV"
+  }
+}

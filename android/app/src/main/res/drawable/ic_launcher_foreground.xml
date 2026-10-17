@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "botdot": a "b" and the coral dot, drawn like public/icon.svg, inside the adaptive icon's safe zone, centred on the round part of the "b" (it also shows, cropped tighter, in notifications). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group android:translateX="32.6" android:translateY="34.6" android:scaleX="0.115" android:scaleY="0.115">
+        <path android:fillColor="#FFFFFF" android:pathData="M23,0a23,23 0,0 1,23 23v234a23,23 0,0 1,-46 0v-234a23,23 0,0 1,23 -23z" />
+        <path android:strokeColor="#FFFFFF" android:strokeWidth="46" android:pathData="M112,186m-71,0a71,71 0,1 1,142 0a71,71 0,1 1,-142 0" />
+        <path android:fillColor="#D85A30" android:pathData="M297,186m-75,0a75,75 0,1 1,150 0a75,75 0,1 1,-150 0" />
+    </group>
+</vector>

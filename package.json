@@ -1,0 +1,17 @@
+{
+  "name": "bot-dot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "botdot server: a team of headless Claude Code bots, run by a Chief of Staff",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test/run.js",
+    "test:memory": "node --test --test-concurrency=4 'test/memory*.test.js'",
+    "test:live": "node --test 'test/live/*.test.js'"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

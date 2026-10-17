@@ -1,0 +1,60 @@
+# The front door of a machine botdot runs on (ADR 028): the one program people reach. It signs them in with a
+# passkey and passes each signed-in person to their own account's botdot server, over the socket in that account's
+# folder under BOT_DOT_SOCKETS. It runs in the machine's own Docker; every account's botdot server runs in that
+# account's rootless Docker (compose.yaml).
+#
+# People reach it in one of two ways, chosen at install (install.sh writes .env and, for a domain, the Caddyfile):
+#   a public domain: Caddy (the `public` profile) answers on ports 80 and 443 and fetches its own certificates
+#   a tailnet only:  Tailscale Serve gives the front door its HTTPS name, and nothing is on the internet
+services:
+  front-door:
+    image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
+    command: ["node", "front-door.js"]
+    restart: unless-stopped
+    # The front door's own user of the machine (botdot-door), whose group is let through each account's socket
+    # folder and nothing else of the account's.
+    user: ${FRONT_DOOR_USER:?install.sh sets FRONT_DOOR_USER}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    # On the machine's 127.0.0.1 only, where Caddy or Tailscale Serve reach it.
+    network_mode: host
+    # The image's own check asks botdot's port; install.sh checks the front door itself.
+    healthcheck:
+      disable: true
+    environment:
+      TZ: ${TZ:-UTC}
+      FRONT_DOOR_ORIGIN: ${FRONT_DOOR_ORIGIN:?install.sh sets FRONT_DOOR_ORIGIN}
+      FRONT_DOOR_ADMIN: ${FRONT_DOOR_ADMIN:-}
+      FRONT_DOOR_ANDROID_KEYS: ${FRONT_DOOR_ANDROID_KEYS:-}
+      FRONT_DOOR_HOST: 127.0.0.1
+      FRONT_DOOR_PORT: ${FRONT_DOOR_PORT:-4700}
+      FRONT_DOOR_SOCKETS: /sockets
+      FRONT_DOOR_DATA: /data
+      FRONT_DOOR_REQUESTS: /requests
+      FRONT_DOOR_STATUS: /status
+      FRONT_DOOR_LOAD: /load
+    volumes:
+      - ./data:/data                                 # accounts, passkeys, sessions, sign-up links
+      - ./requests:/requests                         # new accounts and updates it asks for; root's step does them (install.sh)
+      - ./status:/status:ro                          # the version installed and the last update, which root's step writes
+      - ./load:/load:ro                              # the machine's load and each account's use, root's step writes it
+      - ${BOT_DOT_SOCKETS:?install.sh sets BOT_DOT_SOCKETS}:/sockets:ro
+
+  caddy:
+    image: caddy:2.10.2@sha256:c3d7ee5d2b11f9dc54f947f68a734c84e9c9666c92c88a7f30b9cba5da182adb
+    profiles: [public]
+    restart: unless-stopped
+    # Ports 80 and 443 of the machine: HTTPS for the domain, and the challenge that fetches its certificate.
+    network_mode: host
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data                             # its certificates and keys
+      - caddy-config:/config
+
+volumes:
+  caddy-data:
+  caddy-config:
