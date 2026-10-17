@@ -10,4 +10,4 @@ paths = ['''^test/backup\.test\.js$''', '''^test/owner-key\.test\.js$''', '''^te
 # The WebSocket handshake's Sec-WebSocket-Key in test/front-door-helpers.js is the sample nonce printed in RFC 6455
 # ("the sample nonce", base64): a public example, no key to anything.
 regexTarget = "secret"
-regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''', '''^MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdDU16CG2HWzALPBB5pDx5BQHKTrcfdHF4t90R++nTnsMvIQKGQq/o26wIF0w0o6OEt4RoPi+Sf2rJsZmz3vvng==$''']
+regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''', '''^MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdDU16CG2HWzALPBB5pDx5BQHKTrcfdHF4t90R\+\+nTnsMvIQKGQq/o26wIF0w0o6OEt4RoPi\+Sf2rJsZmz3vvng==$''']
