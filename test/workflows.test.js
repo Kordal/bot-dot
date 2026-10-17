@@ -233,4 +233,6 @@ test("the Android release builds on GitHub's machines; the Mac app is built and 
   assert.match(runs, /make mac-build/);
   assert.match(runs, /make mac-test/);
   assert.match(tests.changes.steps.map((st) => st.run || '').join('\n'), /grep -qE '\^\(macos\/\|.*then MAC=true/);
+  // A release started by hand calls Tests as a workflow_dispatch too: only a run of Tests itself tests the Mac app.
+  assert.equal(tests.changes.steps.find((st) => st.id === 'which').env.MAC, "${{ github.event_name == 'workflow_dispatch' && github.workflow == 'Tests' }}");
 });
