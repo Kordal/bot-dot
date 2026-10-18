@@ -711,23 +711,32 @@ const plain = (t) => String(t || '').replace(/[#*_`>|\[\]()-]+/g, ' ').replace(/
 // a narrower window), and the handle is only there while the list has its full layout (style.css). A narrow
 // list leaves out the previews, and the narrowest shows figures only (style.css, @container side). The
 // stylesheet also keeps the chat's room in a narrow window, so what is kept is not cut down to this window.
-const SIDE = { min: 72, max: 480, step: 16, key: 'botdot.side.width' };
-// A width the list may have.
-const sideWidth = (w) => Math.round(Math.max(SIDE.min, Math.min(w, SIDE.max)));
-function initSideGrip() {
-  const app = $('#app'), grip = $('#side-grip'), side = $('.sidebar');
-  const now = () => Math.round(side.getBoundingClientRect().width);
+// Beside the keypad (a window wider than 1000) the same kind of handle (#chat-grip, #28) sets the chat's width
+// instead, measured from the window's right edge: the keypad takes what the chat leaves, and the stylesheet
+// keeps the keypad its room.
+const SIDE = { min: 72, max: 480, step: 16, key: 'botdot.side.width', prop: '--side-w', from: 'left' };
+const CHAT = { min: 400, max: 900, step: 16, key: 'botdot.chat.width', prop: '--chat-w', from: 'right' };
+// A width `o`'s box may have.
+const gripWidth = (o, w) => Math.round(Math.max(o.min, Math.min(w, o.max)));
+const sideWidth = (w) => gripWidth(SIDE, w);
+const chatWidth = (w) => gripWidth(CHAT, w);
+// grip: the handle; box: what it sizes; o: its limits, where they are kept, and the edge the width runs from.
+function initGrip(grip, box, o) {
+  const app = $('#app');
+  const now = () => Math.round(box.getBoundingClientRect().width);
   // w: the width the owner wants, or null for the stylesheet's.
   const show = (w) => {
-    if (w == null) app.style.removeProperty('--side-w'); else app.style.setProperty('--side-w', `${sideWidth(w)}px`);
+    if (w == null) app.style.removeProperty(o.prop); else app.style.setProperty(o.prop, `${gripWidth(o, w)}px`);
     grip.setAttribute('aria-valuenow', now());
   };
-  const keep = (w) => { try { if (w == null) localStorage.removeItem(SIDE.key); else localStorage.setItem(SIDE.key, String(w)); } catch { /* private mode */ } };
+  const keep = (w) => { try { if (w == null) localStorage.removeItem(o.key); else localStorage.setItem(o.key, String(w)); } catch { /* private mode */ } };
   const set = (w) => { show(w); keep(w == null ? null : now()); };
   let kept = 0;
-  try { kept = Number(localStorage.getItem(SIDE.key)); } catch { /* private mode */ }
+  try { kept = Number(localStorage.getItem(o.key)); } catch { /* private mode */ }
   show(kept > 0 ? kept : null);
   window.addEventListener('resize', () => grip.setAttribute('aria-valuenow', now()));
+  // The handle moved right: the list grows, the chat shrinks.
+  const right = o.from === 'left' ? 1 : -1;
 
   // moved: a click on the handle that drags nowhere keeps nothing.
   let dragging = false, moved = false;
@@ -742,7 +751,8 @@ function initSideGrip() {
   grip.addEventListener('pointermove', (e) => {
     if (!dragging) return;
     moved = true;
-    show(e.clientX - side.getBoundingClientRect().left);
+    const r = box.getBoundingClientRect();
+    show(o.from === 'left' ? e.clientX - r.left : r.right - e.clientX);
   });
   const drop = () => {
     if (!dragging) return;
@@ -754,12 +764,14 @@ function initSideGrip() {
   grip.addEventListener('pointercancel', drop);
   grip.addEventListener('dblclick', () => set(null));
   grip.addEventListener('keydown', (e) => {
-    const by = { ArrowLeft: -SIDE.step, ArrowRight: SIDE.step }[e.key];
+    const by = { ArrowLeft: -o.step, ArrowRight: o.step }[e.key];
     if (!by && e.key !== 'Home') return;
     e.preventDefault();
-    set(by ? now() + by : null);
+    set(by ? now() + by * right : null);
   });
 }
+const initSideGrip = () => initGrip($('#side-grip'), $('.sidebar'), SIDE);
+const initChatGrip = () => initGrip($('#chat-grip'), $('.main'), CHAT);
 
 // ---------- contacts (sidebar) ----------
 
@@ -6401,6 +6413,7 @@ function followFeed() {
 
 $('#more-btn').onclick = () => setView('settings');
 initSideGrip();
+initChatGrip();
 // The pages opened from Settings go back to it.
 document.addEventListener('click', (e) => { if (e.target.closest('[data-to-settings]')) setView('settings'); });
 document.addEventListener('click', (e) => { if (e.target.closest('[data-sign-in]')) setView('setup'); }); // the standing line's "Sign in"

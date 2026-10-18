@@ -53,11 +53,13 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .app { display: flex; height: 100dvh; }
 .sidebar { width: var(--side-w, 300px); container-type: inline-size; container-name: side; flex: none; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); padding-top: env(safe-area-inset-top); }
 /* The list's right edge, dragged to resize it (app.js, initSideGrip): no width of its own, a strip of 9px to catch
-   the pointer, and a line while it is touched. Only where the list has its full layout (see responsive). */
-.side-grip { display: none; position: relative; flex: none; width: 0; z-index: 3; outline: none; touch-action: none; }
-.side-grip::before { content: ""; position: absolute; top: 0; bottom: 0; left: -5px; width: 9px; cursor: col-resize; }
-.side-grip::after { content: ""; position: absolute; top: 0; bottom: 0; left: -2px; width: 2px; background: var(--faint); opacity: 0; transition: opacity .12s; pointer-events: none; }
-.side-grip:hover::after, .side-grip.dragging::after, .side-grip:focus-visible::after { opacity: 1; }
+   the pointer, and a line while it is touched. Only where the list has its full layout (see responsive). The
+   chat's left edge beside the keypad (initChatGrip, #28) is the same handle (see the keypad). */
+.side-grip, .chat-grip { display: none; position: relative; flex: none; width: 0; z-index: 3; outline: none; touch-action: none; }
+.side-grip::before, .chat-grip::before { content: ""; position: absolute; top: 0; bottom: 0; left: -5px; width: 9px; cursor: col-resize; }
+.side-grip::after, .chat-grip::after { content: ""; position: absolute; top: 0; bottom: 0; left: -2px; width: 2px; background: var(--faint); opacity: 0; transition: opacity .12s; pointer-events: none; }
+.side-grip:hover::after, .side-grip.dragging::after, .side-grip:focus-visible::after,
+.chat-grip:hover::after, .chat-grip.dragging::after, .chat-grip:focus-visible::after { opacity: 1; }
 .side-head { display: flex; align-items: center; justify-content: space-between; padding: 22px 18px 14px 24px; }
 /* The logo: "bot" and a big coral dot, which pulses softly while the Chief or a bot is working. */
 .brand { display: flex; align-items: center; font-weight: 600; font-size: 22px; line-height: 1; letter-spacing: -.04em; }
@@ -1138,7 +1140,9 @@ a.file-chip.link:hover { border-color: var(--faint); }
 @media (min-width: 1001px) {
   .sidebar { flex: 1; width: auto; max-width: none; min-width: 0; }
   .side-grip { display: none; }
-  .main { flex: none; width: clamp(400px, 38vw, 560px); }
+  /* The chat: the owner's width (--chat-w, set by its handle, #28), and the keypad keeps 560. */
+  .chat-grip { display: block; }
+  .main { flex: none; width: var(--chat-w, clamp(400px, 38vw, 560px)); max-width: calc(100vw - 560px); }
   #needs-banner { display: none; } /* Needs you is on the keypad */
   .search { padding: 0 24px 6px; max-width: 420px; }
   .keypad { display: flex; flex-direction: column; gap: 20px; flex: 1; min-height: 0; padding: 14px 24px 0; }
