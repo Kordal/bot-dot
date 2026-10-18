@@ -7,7 +7,8 @@
     "cases: { name, world, chat, text?, matches?, typed?, suggestions? }. chat is 'chief' or a bot id: skills in scope are the whole library in the Chief chat, the bot's picked skills in its own chat.",
     "matches: the mentions found in text, in order, as { kind: bot|job|skill, text, bot?, job?, skill? } (bot and job are ids, skill a name; text is the part of the message that is the mention).",
     "suggestions: the rows offered while the text before the cursor is typed, in order, as the text a pick inserts (followed by a space). [] means no list. Rows: bots, then jobs, then skills; a skill named like a bot is left out; after '@Bot/' only that bot's jobs; matching is a case-insensitive 'contains' on the short name.",
-    "picks: { name, world, chat, before, pick, after, jobsNext }. before and after are the whole message with '|' where the cursor is. pick is the text of the suggested row (for the text before the cursor) that is picked. Picking puts the row's text in place of the '@…' before the cursor and the rest of that word, then a space unless a space (not a line break) follows already; the cursor goes after the space. jobsNext: a bot was picked and the space is new, so a '/' typed next replaces the space and lists the bot's jobs."
+    "picks: { name, world, chat, before, pick, after, jobsNext }. before and after are the whole message with '|' where the cursor is. pick is the text of the suggested row (for the text before the cursor) that is picked. Picking puts the row's text in place of the '@…' before the cursor and the rest of that word, then a space unless a space (not a line break) follows already; the cursor goes after the space. jobsNext: a bot was picked and the space is new, so a '/' typed next replaces the space and lists the bot's jobs.",
+    "renamed: the team with the Chief named by the owner (#41). '@ChiefOfStaff' still means the Chief beside its name, and is not suggested."
   ],
   "maxRows": 6,
   "shortNames": [
@@ -40,6 +41,13 @@
         { "name": "tone", "description": "The owner's writing tone." },
         { "name": "weekly-report", "description": "How the weekly report is laid out." }
       ]
+    },
+    "renamed": {
+      "bots": [
+        { "id": "chief", "name": "Ada", "jobs": [] },
+        { "id": "fleet", "name": "Fleet Doctor", "skills": [], "jobs": [] }
+      ],
+      "library": []
     }
   },
   "cases": [
@@ -103,6 +111,12 @@
     { "name": "no list inside a word", "world": "team", "chat": "chief", "typed": "me@fle",
       "suggestions": [] },
     { "name": "no list once the word has ended", "world": "team", "chat": "chief", "typed": "@FleetDoctor ",
+      "suggestions": [] },
+    { "name": "a renamed Chief, by its name", "world": "renamed", "chat": "fleet", "text": "Ask @Ada for a new bot",
+      "matches": [{ "kind": "bot", "text": "@Ada", "bot": "chief" }] },
+    { "name": "a renamed Chief, by its role's mention still", "world": "renamed", "chat": "fleet", "text": "Ask @ChiefOfStaff and @chiefofstaff",
+      "matches": [{ "kind": "bot", "text": "@ChiefOfStaff", "bot": "chief" }, { "kind": "bot", "text": "@chiefofstaff", "bot": "chief" }] },
+    { "name": "a renamed Chief is suggested by its name only", "world": "renamed", "chat": "fleet", "typed": "Ask @Chief",
       "suggestions": [] }
   ],
   "picks": [

@@ -24,7 +24,7 @@ botdot looks like a messenger: every bot is a head in its own colour in the side
 
 ## What it does
 
-**Chief of Staff** (at the top of the sidebar) is a chat that manages your other bots. If you gave it a name in setup, the apps show that name instead, everywhere: the list, its chat, mentions (`@Ada`), cards and notifications. To change its name later, ask it ("call yourself Max from now on", or "go back to Chief of Staff"); there is no setting for it. A bot's name can't be its name. Describe what you need and it will:
+**Chief of Staff** (at the top of the sidebar) is a chat that manages your other bots. If you gave it a name in setup, the apps show that name instead, everywhere: the list, its chat, mentions (`@Ada`), cards and notifications. To change its name later, ask it ("call yourself Max from now on", or "go back to Chief of Staff"); there is no setting for it. `@ChiefOfStaff` still reaches it too. A bot can't be called by the Chief's name, nor "Chief of Staff". Describe what you need and it will:
 - create new bots from the conversation, choosing the task, tools, permissions and scheduled jobs
 - set **reminders** for you ("remind me Friday at 9 to renew the token"): at that time a ⏰ message appears in the chat, with a notification, and no bot runs for it. Ask it to list or cancel them
 - change existing bots, run them, wait for their results and summarise them. A bot that finishes after the Chief stopped waiting (a long task, or one you told it not to wait for) posts its reply in that Chief chat by itself, as **Message from Web Surfer** (with the bot's small head before its name), with a notification

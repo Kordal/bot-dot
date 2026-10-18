@@ -104,3 +104,39 @@ test('a look and a checkup, where the Chief writes unasked, know its name too', 
   assert.match(require('../lib/checkup').systemPrompt({ name: 'Ada' }), /A proposal for yourself still names "Chief of Staff" as its bot\./);
 });
 
+test("a bot can't be made or renamed to the Chief's name, nor to its role", async () => {
+  await srv.api('/settings', { method: 'PUT', body: { chiefName: 'Ada' } });
+  const make = (name, as = srv.api) => as('/bots', { method: 'POST', body: { name, prompt: 'Do the test task.' } });
+  for (const [name, said] of [['Ada', 'Ada is the name of your Chief of Staff. Give the bot another name.'], ['ada', 'Ada is the name of your Chief of Staff. Give the bot another name.'],
+    ['Chief of Staff', '"Chief of Staff" names the Chief of Staff. Give the bot another name.'], ['chief  of staff', '"chief  of staff" names the Chief of Staff. Give the bot another name.']]) {
+    const r = await make(name);
+    assert.equal(r.status, 400, name);
+    assert.equal(r.data.error, said);
+  }
+  assert.equal((await make('Ada', srv.asChief)).status, 400, 'the Chief is refused too');
+  assert.ok(!(await srv.api('/bots')).data.some((b) => /^(ada|chief of staff)$/i.test(b.name)), 'nothing was made');
+  // Renaming one: refused, and the bot keeps its name. A change that leaves its name as it is goes through.
+  const bot = (await srv.api('/bots')).data.find((b) => b.name === 'News Watcher');
+  for (const name of ['Ada', 'Chief of Staff']) {
+    const r = await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { name } });
+    assert.equal(r.status, 400, name);
+    assert.match(r.data.error, /Give the bot another name\./);
+  }
+  assert.equal((await srv.api(`/bots/${bot.id}`)).data.name, 'News Watcher');
+  assert.equal((await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { name: 'News Watcher', description: 'Watches the news' } })).status, 200);
+  // Once the Chief has another name, Ada is free for a bot again; its role never is.
+  await srv.api('/settings', { method: 'PUT', body: { chiefName: 'Max' } });
+  assert.equal((await make('Ada')).status, 201);
+  assert.equal((await make('Chief of Staff')).status, 400);
+});
+
+test('@ChiefOfStaff still means the Chief once it has a name, in the note its turn gets', async () => {
+  const c = (await srv.api('/chief/chats', { method: 'POST' })).data;
+  srv.reply('Yes.');
+  await srv.api(`/chief/chats/${c.id}/messages`, { method: 'POST', body: { text: '@ChiefOfStaff are you still there? And @Max?' } });
+  await replyDone(c.id);
+  const told = chiefRuns().at(-1);
+  assert.match(told.system, /- @ChiefOfStaff is you\./, 'one line for the Chief, by whichever of its mentions came first');
+  assert.doesNotMatch(told.system, /@Max is/);
+});
+

@@ -29,6 +29,9 @@ object Mentions {
 
     private fun same(a: String, b: String) = a.lowercase() == b.lowercase()
 
+    /** The Chief's mention by its role, which still means it after the owner named it (#41); never suggested. */
+    const val CHIEF_ALIAS = "ChiefOfStaff"
+
     /**
      * What can be mentioned in one chat. [chat] is [CHIEF] or the id of the bot whose chat it is; [bots] include the
      * Chief; [library] is the names of the whole skill library. Skills in scope: the whole library in the Chief chat,
@@ -55,7 +58,8 @@ object Mentions {
             val a = m.groupValues[1]
             val b = m.groups[2]?.value
             val start = m.range.first
-            val bot = w.bots.firstOrNull { same(shortName(it.name), a) }
+            // The Chief keeps its role's mention beside the name the owner gave it (CHIEF_ALIAS).
+            val bot = w.bots.firstOrNull { same(shortName(it.name), a) } ?: if (same(CHIEF_ALIAS, a)) w.bots.firstOrNull { it.id == CHIEF } else null
             if (bot != null) {
                 val job = b?.let { j -> bot.jobs.firstOrNull { same(shortName(it.name), j) } }
                 if (job != null) Found(Kind.JOB, m.value, start, m.range.last + 1, bot = bot.id, job = job.id)

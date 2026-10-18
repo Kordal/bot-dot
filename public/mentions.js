@@ -19,6 +19,9 @@
 
 const MAX_ROWS = 6; // suggestions shown at once
 const CHIEF = 'chief'; // the Chief's id, and its chat's (lib/chief.js CHIEF)
+// The Chief's mention by its role, which stays its mention beside the name the owner gave it (#41): habit and older
+// messages still mean it. No bot may be called so (server.js). It is not suggested: the list offers its name.
+const CHIEF_ALIAS = 'ChiefOfStaff';
 
 const NAME = '[\\p{L}\\p{N}_-]';
 const TOKEN = new RegExp(`(?<![\\p{L}\\p{N}_])@(${NAME}+)(?:/(${NAME}+))?`, 'gu');
@@ -43,7 +46,8 @@ function skillsInScope({ chat, bots = [], library = [] }) {
 
 // What "@a" or "@a/b" stands for, or null. Returns how much of the token it covers.
 function resolve(a, b, ctx, skills) {
-  const bot = (ctx.bots || []).find((x) => same(shortName(x.name), a));
+  const bots = ctx.bots || [];
+  const bot = bots.find((x) => same(shortName(x.name), a)) || (same(CHIEF_ALIAS, a) ? bots.find((x) => x.id === CHIEF) : null);
   if (bot) {
     const job = b ? (bot.jobs || []).find((j) => same(shortName(j.name), b)) : null;
     return job ? { kind: 'job', bot: bot.id, job: job.id, whole: true } : { kind: 'bot', bot: bot.id, whole: !b };
@@ -109,7 +113,7 @@ function pick(text, cursor, row) {
   };
 }
 
-const api = { shortName, findMentions, suggest, pick, skillsInScope, MAX_ROWS, CHIEF };
+const api = { shortName, findMentions, suggest, pick, skillsInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Mentions = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
