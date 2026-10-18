@@ -1,6 +1,6 @@
 // Every job runs on GitHub's own throwaway machines (#528): the repository is public, and a fork's pull request
 // can change a workflow, so a runner of the owner's would run anyone's code (audit S1). The image carries the
-// Android app and no Mac app (ADR 022).
+// Android app and no Mac app (ADR 031).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -224,15 +224,12 @@ test('every layer of both images is scanned for secrets before evidence, signing
   assert.equal(jobs.evidence.needs, 'build');
 });
 
-test("the Android release builds on GitHub's machines; the Mac app is built and tested on a Mac when macos/ changes", () => {
+test("the Android release builds on GitHub's machines, and no workflow builds or tests the Mac app (ADR 031)", () => {
   assert.equal(workflow('android.yml').jobs.build['runs-on'], 'ubuntu-latest');
   const tests = workflow('tests.yml').jobs;
-  assert.equal(tests.mac['runs-on'], 'macos-26', 'the app and BotDotKit need macOS 26');
-  assert.equal(tests.mac.if, "needs.changes.outputs.mac == 'true'");
-  const runs = tests.mac.steps.map((st) => st.run || '').join('\n');
-  assert.match(runs, /make mac-build/);
-  assert.match(runs, /make mac-test/);
-  assert.match(tests.changes.steps.map((st) => st.run || '').join('\n'), /grep -qE '\^\(macos\/\|.*then MAC=true/);
-  // A release started by hand calls Tests as a workflow_dispatch too: only a run of Tests itself tests the Mac app.
-  assert.equal(tests.changes.steps.find((st) => st.id === 'which').env.MAC, "${{ github.event_name == 'workflow_dispatch' && github.workflow == 'Tests' }}");
+  assert.equal(tests.mac, undefined);
+  assert.equal(tests.changes.outputs.mac, undefined);
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    assert.doesNotMatch(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'), /make mac-|runs-on: macos/, name);
+  }
 });

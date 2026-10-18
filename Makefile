@@ -17,10 +17,9 @@ test: ## Run the tests that need nothing running
 # The Android checks of .github/workflows/tests.yml, one target per step, with the
 # same commands; android-build is local only (CI's tests and lint compile the app).
 # A target whose tool is missing fails saying which one.
-# mac-build and mac-test are the Mac checks of .github/workflows/tests.yml, which
-# runs them when macos/ changes (ADR 030); run them on a Mac before a change to
-# what the server sends the apps is called done. Where the full Xcode is installed
-# and not selected, they use it from /Applications.
+# mac-build and mac-test build and test the stopped Mac app (ADR 031) on a Mac; no
+# workflow runs them. Where the full Xcode is installed and not selected, they use
+# it from /Applications.
 
 .PHONY: android-tools
 android-tools:
