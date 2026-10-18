@@ -498,7 +498,7 @@ test("a bot's tools: list_logins shows the type, request_login takes one and say
   assert.ok(!ask.inputSchema.required.includes('type'), 'optional');
   assert.match(ask.description, /ask for "api-token" when you need a token or key to call an API/);
   assert.match(listed.find((x) => x.name === 'list_logins').description, /type: "login", "api-token" or "other"/);
-  assert.deepEqual((await tools.json('list_logins')).map((l) => [l.name, l.type]), [['Proxmox', 'api-token'], ['Chosen', 'api-token'], ['Asked', 'api-token'], ['Just a secret', 'other']]);
+  assert.deepEqual((await tools.json('list_logins')).filter((l) => l.shared !== false).map((l) => [l.name, l.type]), [['Proxmox', 'api-token'], ['Chosen', 'api-token'], ['Asked', 'api-token'], ['Just a secret', 'other']], 'the ones shared with it; the rest are listed too (vault-see-all.test.js)');
   // The request it opens has the type; the tool answers once the owner has.
   const waiting = tools.text('request_login', { site: 'tool-bot.example.com', type: 'api-token', reason: 'To read the nodes.' });
   const r = await waitFor(async () => (await srv.api('/vault/requests')).data.find((x) => x.site === 'tool-bot.example.com'), { what: 'the request of the tool' });

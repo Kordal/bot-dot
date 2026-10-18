@@ -1554,7 +1554,7 @@ async function api(req, res, url) {
       }
       if (parts[2] === 'logins' && m === 'GET') {
         if (!(await readyForSecrets(session.botId))) return send(res, 200, { ok: false, error: "The owner's Bitwarden is locked, so saved logins aren't available yet. Ask them to unlock it in botdot." });
-        return send(res, 200, { logins: store().forBot(session.botId) });
+        return send(res, 200, { logins: store().forBot(session.botId), notShared: store().notSharedWith(session.botId) });
       }
       if (parts[2] === 'request' && !parts[3] && m === 'POST') {
         const { site, name, username, reason, type } = await readBody(req);
