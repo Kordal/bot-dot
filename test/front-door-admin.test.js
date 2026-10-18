@@ -146,6 +146,22 @@ test('no other session reaches /admin, and nothing of it is passed to a botdot s
   assert.equal(seen(), was, 'no botdot server saw any of it');
 });
 
+test("the front door tells the web page whether its session is the admin's, so that it shows the way to /admin", async () => {
+  const link = (await (await admin()).post('/admin/links', {})).data.url;
+  stands.fay = await standIn(door, 'fay');
+  const fay = await signUp('fay', { path: new URL(link).pathname });
+  const was = seen();
+  const mine = await (await admin()).get('/front-door/session');
+  assert.equal(mine.status, 200, mine.text);
+  assert.deepEqual(mine.data, { admin: true });
+  const hers = await fay.get('/front-door/session');
+  assert.equal(hers.status, 200, hers.text);
+  assert.deepEqual(hers.data, { admin: false });
+  const none = await door.browser().get('/front-door/session');
+  assert.equal(none.status, 401);
+  assert.equal(seen(), was, 'no botdot server saw it');
+});
+
 test("the admin's writes need the web page's header, as every write of the front door's", async () => {
   const b = await admin();
   const r = await b.post('/admin/links', {}, { 'X-Bot-Dot': '' });

@@ -4090,6 +4090,21 @@ async function signOutEverywhere() {
   toast(typeof data.error === 'string' && data.error.trim() ? data.error : `Couldn't sign out (${res.status}).`, true);
 }
 
+// ---------- the way to the admin page ----------
+
+// Beside Settings, for the admin's session only (ADR 028): an icon that opens the front door's admin page, /admin,
+// which is drawn on the web only. The front door says whose session this is; anything else (no front door, another
+// account, no answer) shows nothing.
+async function showAdminLink() {
+  if (!state.features.includes('accounts')) return;
+  let admin = false;
+  try {
+    const res = await fetch('/front-door/session');
+    admin = res.ok && (await res.json()).admin === true;
+  } catch { /* nothing to show */ }
+  $('#admin-link').classList.toggle('hidden', !admin);
+}
+
 // ---------- backups ----------
 
 // Settings → Backups (lib/backup.js): nightly, encrypted with your passphrase, the last few kept.
@@ -6702,6 +6717,7 @@ document.addEventListener('click', (e) => {
   const figure = loadFigure();
   state.status = await api('/status').catch(() => null);
   await loadFeatures();
+  showAdminLink();
   await figure;
   const [view, sub] = location.hash.slice(1).split('/');
   if (sub && view === 'runs') state.selectedRun = sub;

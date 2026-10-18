@@ -111,9 +111,10 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 mark.hl { background: color-mix(in srgb, #e8b83a 42%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
 .found > * { animation: found 2s ease-out; }
 @keyframes found { 0%, 40% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, var(--dot)) 45%, transparent); border-radius: 18px; } 100% { box-shadow: 0 0 0 3px transparent; } }
-/* The sidebar's foot: one "More" button, whose menu opens upwards with the rest of botdot. */
-.side-foot { min-width: 0; border-top: 1px solid var(--line); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
+/* The sidebar's foot: Settings, and for the admin's session the admin page, side by side. */
+.side-foot { min-width: 0; display: flex; flex-wrap: wrap; gap: 2px; border-top: 1px solid var(--line); padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); }
 .more-btn { position: relative; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 12px; cursor: pointer; }
+a.more-btn { text-decoration: none; }
 .more-btn:hover, .more-btn.open, .more-btn.here { color: var(--text); background: var(--sunk); }
 .more-btn .more-badge { position: absolute; top: 3px; right: 2px; }
 .more-badge { min-width: 8px; height: 8px; border-radius: 99px; background: var(--ok); font: 600 10px/16px var(--font); font-style: normal; color: var(--ink-text); text-align: center; }

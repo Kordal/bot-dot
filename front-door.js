@@ -373,6 +373,12 @@ async function signInRoutes(req, res, p) {
     console.log(`[front door] account ${account} signed out everywhere (${ended} session${ended === 1 ? '' : 's'})`);
     return send(res, 200, { ok: true, ended }, { 'Set-Cookie': sessionCookie(null) });
   }
+  // What the web page asks of its session: whether it is the admin's, which then shows the way to /admin.
+  if (p === '/front-door/session' && req.method === 'GET') {
+    const account = doors.sessionAccount(sessionOf(req));
+    if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
+    return send(res, 200, { admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN });
+  }
   const m = p.match(/^\/sign-up\/([A-Za-z0-9_-]{1,100})(\/options)?$/);
   if (!m) return false;
   const [, token, options] = m;
