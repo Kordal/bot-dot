@@ -4645,6 +4645,7 @@ function showNeeds() {
   }
   drawKeypadNeeds(state.view === 'needs' ? [] : items, review); // the same, on the keypad
   if (state.view === 'needs') renderNeeds();
+  drawChatCards(); // the cards at the end of the open bot's or Chief's chat
   if (state.view === 'group') drawGroupCards(); // the cards at the end of the open group (groups.js)
 }
 
@@ -4950,6 +4951,9 @@ function wireNeedCards(root, items) {
 // A tool is in both: the Chief asked for it, and it is installed for that bot. So is a change to a bot that the
 // Chief asked for (`by: "chief"`): the card stands where the owner asked, and in the chat of the bot it changes.
 const chatDecided = new Map(); // chat and key -> { scope, title, label }: decided here, shown as a faded line until you leave the chat
+// Answered on the Needs you page: the same line, for each chat the card stood in. It moves into chatDecided when
+// that chat is drawn, and goes with it when the chat is left.
+const answeredAway = new Map(); // chat and key -> { scope, title, label }
 const fromChief = (x) => (x.kind === 'job' ? (changeOf(x.job) ? changeOf(x.job).by : x.job.changedBy) === 'chief'
   : x.kind === 'tile' ? (changeOf(x.t) ? changeOf(x.t).by : x.t.changedBy) !== 'bot'
   : x.kind === 'ask' ? x.a.kind === 'skill' && !x.a.botId
@@ -4970,10 +4974,35 @@ function chatNeeds(scope) {
 // bot that suggested one in a run carries on after Add (docs/api.md, "What a bot proposed").
 const tileSuggestions = () => (state.dash?.suggestions || []).map((s) => ({ key: `tsug:${s.id}`, kind: 'tilesug', s, bot: botById(s.bot) || null, color: botById(s.bot)?.color || CHIEF_COLOR, then: s.then }));
 
+// The chats an ask's card stands in, besides the Needs you page: its bot's, the Chief's, a group's (chatNeeds).
+function chatsOfAsk(x) {
+  if (x.kind !== 'ask') return [];
+  return [...new Set([x.a.botId, 'chief', x.group && `group:${x.group.id}`])].filter((scope) => scope && chatNeeds(scope).some((c) => c.key === x.key));
+}
+
+// What waits for the owner is read after the chat was drawn (refresh): when it arrives, the cards at the end of
+// the open bot's chat and the open Chief chat follow at once, as the banner does (showNeeds). Without this a card
+// that came meanwhile stood only in Needs you, under a chat that said "Waiting for your OK", until the next refresh.
+function drawChatCards() {
+  if (state.view === 'bot' && state.botId && $('#view-bot')?.dataset.bot === state.botId) updateChatNeeds($('#bot-thread'), state.botId);
+  if (state.view === 'chief' && state.chatId) updateChatNeeds($('#chat-thread'), 'chief');
+}
+
+// The card a bot's run waits for, in its chat: "Waiting for your OK" scrolls to it (drawStatusLine). The run's
+// action in a connected app that is held (`held`): a bot has one run at a time, so it is that run's.
+function toHeldCard(thread, botId) {
+  const ask = (state.asks || []).find((a) => a?.kind === 'connector-action' && a.held === true && a.botId === botId && !a.groupId);
+  const card = ask ? $(`.need-card[data-need="${CSS.escape(`ask:${ask.id}`)}"]`, thread) : null;
+  if (!card) return false;
+  card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  return true;
+}
+
 // Put the cards (and what you decided here) at the end of a chat thread; scope: a bot's id, 'chief' or "group:<id>".
 function updateChatNeeds(thread, scope) {
   if (!thread) return;
   for (const [k, d] of chatDecided) if (d.scope !== scope) chatDecided.delete(k); // you left that chat
+  for (const [k, d] of answeredAway) if (d.scope === scope) { chatDecided.set(k, d); answeredAway.delete(k); } // answered on the Needs you page
   const items = chatNeeds(scope);
   // Whose messages these are: the Chief's chats share their cards, and one says "in this chat" only in its own;
   // a group's cards do not repeat the group's name.
@@ -5002,6 +5031,7 @@ const jobLine = (j) => `${j.when} · ${j.kind === 'script' ? 'a script, no AI' :
 // After a yes the server may say who carries on (`carriesOn` in its answer, docs/api.md "What follows a yes"):
 // its words follow the page's own, "Allowed · it carries on".
 async function decide(x, yes, redraw = true, always = false) {
+  const chats = chatsOfAsk(x); // where its card stands, read while it still waits
   let answer = null; // the server's: what a yes starts (a job, an ask, a tile, a suggested tile), and the words a card then reads
   try {
     if (x.kind === 'job') answer = await api(`/bots/${x.bot.id}/jobs/${x.job.id}/approve`, { method: 'POST', body: { approve: yes, always } });
@@ -5016,6 +5046,7 @@ async function decide(x, yes, redraw = true, always = false) {
   const carries = yes && typeof answer?.carriesOn?.text === 'string' ? answer.carriesOn.text.trim() : '';
   const label = carries ? `${word} · ${carries}` : word;
   // The same card can be on the Needs you page and in a chat.
+  let away = null; // the title of its card on the Needs you page, when it was answered there
   $$(`.need-card[data-need="${CSS.escape(x.key)}"]`).forEach((el) => {
     el.classList.add('done');
     $('.need-actions', el).innerHTML = `<span class="muted">${esc(label)}</span>`; // the server's words are text
@@ -5023,8 +5054,10 @@ async function decide(x, yes, redraw = true, always = false) {
     $('.need-until', el)?.remove(); // and so is "until you answer"
     const chat = el.closest('.chat-needs');
     if (chat) chatDecided.set(`${chat.dataset.scope} ${x.key}`, { scope: chat.dataset.scope, title: $('.need-title', el).textContent, label }); // a tool's card is in two chats
-    else needsDone.set(x.key, el.outerHTML);
+    else { needsDone.set(x.key, el.outerHTML); away = $('.need-title', el).textContent; }
   });
+  // Answered on the Needs you page: the chats the card stood in say so too, unless it was answered there.
+  if (away !== null) for (const scope of chats) if (!chatDecided.has(`${scope} ${x.key}`)) answeredAway.set(`${scope} ${x.key}`, { scope, title: away, label });
   if (redraw) refreshNeeds();
 }
 
@@ -6097,6 +6130,12 @@ function drawStatusLine(thread, chat, color, stop, held = false, doing = '') {
   if (stopRunBtn) stopRunBtn.onclick = () => stopRun(stopRunBtn.dataset.stopRun);
   const stopChiefBtn = $('[data-stop-chief]', thread);
   if (stopChiefBtn) stopChiefBtn.onclick = () => stopChief(stopChiefBtn.dataset.stopChief);
+  // "Waiting for your OK" in a bot's chat takes the owner to the card it waits for, else to Needs you.
+  const waits = held && String(chat).startsWith('bot:') ? (next ? next.previousElementSibling : thread.lastElementChild) : null;
+  if (waits) {
+    waits.title = 'Show what it waits for';
+    waits.onclick = (e) => { if (e.target.closest('button')) return; if (!toHeldCard(thread, chat.slice(4))) setView('needs'); };
+  }
   if (atBottom) thread.scrollTop = thread.scrollHeight;
 }
 

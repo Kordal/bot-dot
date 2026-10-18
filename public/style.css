@@ -202,6 +202,7 @@ mark.hl { background: color-mix(in srgb, #e8b83a 42%, transparent); color: inher
 /* A run that waits for your OK (its waitingFor): the dot stands still and the words end without the dots. Stop stays. */
 .status-line.held i { animation: none; opacity: .5; }
 .status-line.held span::after { content: ''; }
+.status-line.held { cursor: pointer; } /* it takes the owner to the card it waits for */
 [data-live]:empty { display: none; } /* a working bot's row holds only the files it attached so far */
 /* The Chief's reply while it is written: only its chips so far, the working line says the rest. */
 [data-pending]:not(:has(.action-chip)) { display: none; }

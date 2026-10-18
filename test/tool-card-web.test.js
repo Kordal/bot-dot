@@ -216,6 +216,7 @@ function decider({ fail = null, where = [null] } = {}) {
   let refreshed = 0;
   const box = vm.createContext({
     ToolCard, esc, CSS: { escape: (s) => s }, needsDone: new Map(), chatDecided: new Map(), PLAN_APPROVAL: '', loadDash() {},
+    answeredAway: new Map(), chatsOfAsk: () => [], // the chats a card answered on the page says so in: test/chat-approvals-web.test.js
     api: async (url, opts) => { calls.push([url, opts.method, opts.body]); if (fail) throw new Error(fail); return { ok: true, installing: true }; },
     toast: (text, bad) => toasts.push([text, !!bad]),
     $$: (sel) => (sel === '.need-card[data-need="ask:a1"]' ? els : []),
