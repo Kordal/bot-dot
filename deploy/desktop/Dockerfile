@@ -25,8 +25,11 @@ RUN dpkg-query -W -f='${binary:Package} ${db:Status-Status}\n' \
 
 # OpenSSH's client: ssh, and the ssh-agent and ssh-add through which run_with_ssh_key lends the bot a saved SSH key
 # without showing it (lib/computers.js runWithSshKey, #44). Installed whether or not the base already has it.
+# This step leaves SSH host keys in /etc/ssh (the image's secret scan found them): removed in this same step, so no
+# layer keeps private keys every computer would share. No computer runs an SSH server.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends openssh-client \
+ && rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub \
  && rm -rf /var/lib/apt/lists/*
 
 # Fix inherited tar, FastMCP and PyJWT vulnerabilities through their owning applications.
