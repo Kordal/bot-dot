@@ -95,8 +95,8 @@ jobs:
           echo "Using $SIGNER"
           OUT="$("$SIGNER" verify --print-certs "$APK" 2>&1)" || { echo "$OUT"; exit 1; }
           echo "$OUT" | grep -v "^WARNING"
-          # The release keystore's certificate (CN=botdot, made for the public repository, #530), by its SHA-256 digest.
-          echo "$OUT" | grep -qE "certificate SHA-256 digest: 0a8c22d1f2087743a355c624417a635658c5bdcd82eb9975935070212e13602f$" || { echo "Not signed with botdot's release key" >&2; exit 1; }
+          # The release keystore's certificate (CN=bot-dot Android, made for the public repository, #530), by its SHA-256 digest.
+          echo "$OUT" | grep -qE "certificate SHA-256 digest: cc05ce8b44373033bf3493347321fd0cc84be36b0ee5f15d23c6888fc7be6be3$" || { echo "Not signed with botdot's release key" >&2; exit 1; }
 
       - name: Publish a release
         env:
