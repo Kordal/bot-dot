@@ -160,6 +160,26 @@ jobs:
         with:
           images: ${{ env.IMAGE }}
 
+      # The desktop's base image comes from this owner's registry, not from Amazon's public one (#17): that one
+      # limits how much a machine without a login may download, and GitHub's machines share their addresses, so the
+      # build failed there at random. The first build of a new base copies this platform's part of it once, digest
+      # and all; every later build only reads the copy. The Dockerfile keeps Amazon's address for a build elsewhere.
+      - name: The desktop's base image, copied to this owner's registry
+        if: matrix.image == 'desktop'
+        run: |
+          SRC="$(sed -n 's/^ARG BASE=//p' deploy/desktop/Dockerfile)"
+          REPO="${SRC%%@*}"; REPO="${REPO%:*}"; INDEX="${SRC##*@}"
+          COPY="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${REPO##*/}:${INDEX:7:12}-${{ matrix.arch }}"
+          command -v skopeo >/dev/null || { sudo apt-get update -q && sudo apt-get install -yq skopeo; }
+          if ! skopeo inspect --raw "docker://$COPY" >/dev/null 2>&1; then
+            for wait in 0 60 120 240; do
+              sleep "$wait"
+              skopeo copy --override-arch ${{ matrix.arch }} --preserve-digests "docker://$REPO@$INDEX" "docker://$COPY" && break
+            done
+          fi
+          DIGEST="$(skopeo inspect --raw "docker://$COPY" | sha256sum | cut -d' ' -f1)"
+          echo "BASE=${COPY%:*}@sha256:$DIGEST" >> "$GITHUB_ENV"
+
       # Each platform gets its own tag (sha-<commit>-amd64 / -arm64); the publish job joins them.
       - name: Verify the critical vulnerability gate with fixture images
         if: matrix.image == 'app' && matrix.arch == 'amd64'
@@ -174,6 +194,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           platforms: ${{ matrix.platform }}
+          build-args: ${{ matrix.image == 'desktop' && format('BASE={0}', env.BASE) || '' }}
           labels: |
             ${{ steps.meta.outputs.labels }}
             dev.botdot.release.version=${{ github.run_number }}
