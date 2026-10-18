@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const { startServer, restartServer, makeBot, feed, waitFor, readData, sleep } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
+const { writeJson } = require('../lib/jsonfile');
 const { kit, fakeGithub, WEB } = require('./carry-on-helpers');
 
 let srv, github;
@@ -15,13 +16,22 @@ before(async () => {
   github = await fakeGithub(); // a skill from a link is read from it
   srv = await startServer({ env: github.env });
 });
-// The chat's last reply started this run of the bot (as its run_bot action records).
-function startedIn(chat, bot, run) {
+// The chat's last reply started this run of the bot (as its run_bot action records). Written whole at once, as
+// the server writes a chat, so that it never reads half of it; then read back through the server, so that the
+// test goes on only once the server knows which chat started the run.
+async function startedIn(chat, bot, run) {
   const file = path.join(srv.data, 'chief', `${chat.id}.json`);
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   const reply = saved.messages.findLast((m) => m.role === 'chief');
   reply.actions = [...(reply.actions || []), { kind: 'run', text: `Started ${bot.name}`, botId: bot.id, runId: run.id }];
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeJson(file, saved);
+  await waitFor(async () => (await chatNow(chat)).messages.some((m) => (m.actions || []).some((a) => a.runId === run.id)) || null, { what: `the chat to have started ${run.id}` });
+}
+// What a card's `then` is worked out from, for the message of an assertion on it that failed.
+async function carryFacts(chat, bot) {
+  const runs = (await srv.api(`/runs?botId=${bot.id}`)).data.map((r) => ({ id: r.id, status: r.status, startedBy: r.startedBy, handedBackAt: r.handedBackAt }));
+  const started = (await chatNow(chat)).messages.flatMap((m) => (m.actions || []).filter((a) => a.runId).map((a) => a.runId));
+  return JSON.stringify({ runs, startedInChat: started, busy: (await chatNow(chat)).busy });
 }
 after(async () => { await srv.stop(); github.close(); });
 // A run of the bot that the chat's last reply started, refused the web: the run as it ended. The run is in the
@@ -32,7 +42,7 @@ async function refusedIn(chat, bot, body) {
   srv.hold();
   const run = (await srv.asChief(`/bots/${bot.id}/run`, { method: 'POST', body })).data;
   const rec = await srv.nextRun((x) => x.args.includes(`${bot.emoji} ${bot.name}`) && x.stdin.startsWith(body.prompt), `${bot.name} to start`);
-  startedIn(chat, bot, run);
+  await startedIn(chat, bot, run);
   refuse([WEB]);
   srv.unhold();
   srv.release(rec);
@@ -270,7 +280,7 @@ test('two runs the Chief started from one chat wait for one card: one Allow, one
   const first = await refusedIn(chat, bot, { prompt: 'Look around' });
   const second = await refusedIn(chat, bot, { prompt: 'Look around again' });
   const [card, ...more] = await asksOf(bot);
-  assert.deepEqual([more.length, card.kind, card.then], [0, 'permission', thenIn(chat)]);
+  assert.deepEqual([more.length, card.kind, card.then], [0, 'permission', thenIn(chat)], await carryFacts(chat, bot));
 
   const yes = await allow(card, true);
   assert.deepEqual([yes.status, yes.data.carriesOn], [200, CARRIES]);
