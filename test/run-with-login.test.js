@@ -141,8 +141,16 @@ test('the built-in vault: "Usable in its computer" is off by default, saved, ret
 
 // ---------- the route: who may run what ----------
 
+// A docker that always fails, first on PATH: the computer never starts, here and on a machine with a real Docker.
+function noDocker(t) {
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-no-docker-'));
+  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\necho "no docker in this test" >&2\nexit 1\n', { mode: 0o755 });
+  t.after(() => fs.rmSync(bin, { recursive: true, force: true }));
+  return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+}
+
 test('run_with_login: refused without a computer, for a login not shared with the bot, and without "Usable in its computer"', async (t) => {
-  const srv = await startServer();
+  const srv = await startServer({ env: noDocker(t) });
   t.after(() => srv.stop());
   const run = (token, body) => srv.api('/vault/session/computer/run-with-login', { method: 'POST', headers: { 'X-Vault-Token': token }, body });
   assert.equal((await run('made-up', { login: 'Bridge', command: 'true' })).status, 403);
