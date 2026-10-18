@@ -1134,6 +1134,8 @@ data class VaultItem(
     val allowedBots: List<String> = emptyList(),
     val allowedHosts: List<String> = emptyList(),
     val insecureTls: Boolean = false,
+    // "Usable in its computer" (docs/api.md, `vault-in-computer`): a bot may use it in a command on its own computer.
+    val inComputer: Boolean = false,
     val hasTotp: Boolean = false,
     val reprompt: Boolean = false,
     val brand: String? = null,

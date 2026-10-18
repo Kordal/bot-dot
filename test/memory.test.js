@@ -377,6 +377,7 @@ test('snapshot includes current notes, versions, settings and pending approvals 
 test('step summaries omit typed passwords and raw tool content', () => {
   assert.equal(describeStep('mcp__computer__type_login', { field: 'password', login: 'mail', password: 'SECRET' }), 'signed in with the saved login mail');
   assert.equal(describeStep('mcp__computer__type_text', { text: 'SECRET' }), null);
+  assert.equal(describeStep('mcp__computer__run_with_login', { login: 'Bridge', command: 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/' }), 'ran a command with the saved login Bridge: curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/');
   assert.equal(describeStep('WebFetch', { url: 'https://example.com', result: 'SECRET' }), 'read https://example.com');
   assert.equal(describeStep('unrecognized_tool', { output: 'SECRET' }), null);
 });

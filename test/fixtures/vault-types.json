@@ -18,6 +18,7 @@
     { "item": { "id": "4", "name": "Home", "type": "api-token", "site": "ha.example.net", "username": "" }, "rows": ["API token · ha.example.net", "🆔 (no token ID) · 🔒 token saved"] },
     { "item": { "id": "5", "name": "NAS key", "type": "other", "site": "nas.example.net", "username": "kept", "hasTotp": true }, "rows": ["Other · nas.example.net", "🔒 secret saved · two-step code"] },
     { "item": { "id": "6", "name": "Old", "site": "old.example.org", "username": "bart" }, "rows": ["Login · old.example.org", "👤 bart · 🔒 secret saved"] },
-    { "item": { "id": "7", "name": "Odd", "type": "ssh-key", "site": "odd.example.org", "username": "" }, "rows": ["Login · odd.example.org", "👤 (no username) · 🔒 secret saved"] }
+    { "item": { "id": "7", "name": "Odd", "type": "ssh-key", "site": "odd.example.org", "username": "" }, "rows": ["Login · odd.example.org", "👤 (no username) · 🔒 secret saved"] },
+    { "item": { "id": "8", "name": "Proton Bridge", "type": "login", "site": "127.0.0.1", "username": "bart@proton.me", "insecureTls": true, "inComputer": true }, "rows": ["Login · 127.0.0.1", "👤 bart@proton.me · 🔒 secret saved · self-signed certificate OK · usable in its computer"] }
   ]
 }

@@ -251,12 +251,14 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /**
      * Adds a login-kind item (id null) or changes one. An empty password keeps the saved one. [type] and
      * [username] are sent when given (VaultTypes.sent): without a type a new item is a login and a saved one
-     * keeps its type; without a username a saved item keeps its own.
+     * keeps its type; without a username a saved item keeps its own. [inComputer] ("Usable in its computer") is sent
+     * when given: only to a server with `vault-in-computer` (VaultTypes.showsInComputer).
      */
-    suspend fun saveVaultLogin(id: String?, name: String, site: String, username: String?, password: String, insecureTls: Boolean, bots: List<String>, allowedHosts: List<String>, type: String? = null) {
+    suspend fun saveVaultLogin(id: String?, name: String, site: String, username: String?, password: String, insecureTls: Boolean, bots: List<String>, allowedHosts: List<String>, type: String? = null, inComputer: Boolean? = null) {
         val body = buildJsonObject {
             if (type != null) put("type", type)
             put("name", name); put("site", site); if (username != null) put("username", username); put("insecureTls", insecureTls)
+            if (inComputer != null) put("inComputer", inComputer)
             put("allowedBots", strings(bots)); put("allowedHosts", strings(allowedHosts))
             if (password.isNotEmpty()) put("password", password)
         }

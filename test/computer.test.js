@@ -49,6 +49,7 @@ test('a bot with a computer is told the desktop is its own and that the owner ca
   const { rec, run } = await heldRun(srv, bot);
   assert.match(rec.system, /You have your own computer: an Ubuntu Linux desktop \(XFCE, 1024x768\)\. The desktop is your own, and the owner can watch it and take the mouse and keyboard at any time: when the screen changed in a way you did not cause, the owner did it, and you carry on from what you see\./);
   assert.doesNotMatch(rec.system, /that only you use/);
+  assert.match(rec.system, /use run_with_login with a command that reads "\$BOTDOT_USERNAME" and "\$BOTDOT_PASSWORD"\. It works only for a login with inComputer in list_logins/);
   srv.release(rec);
   await srv.finished(run.id);
   srv.unhold();

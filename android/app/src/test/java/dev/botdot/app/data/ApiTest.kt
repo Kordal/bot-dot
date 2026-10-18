@@ -135,6 +135,16 @@ class ApiTest {
         server.enqueue(json("{}"))
         VaultTypes.sent("api-token", "me", listOf("unread")).let { api.saveVaultLogin("login1", "Example", "example.com", it.username, "", false, emptyList(), emptyList(), it.type) }
         assertEquals("a server from before the types gets none", """{"name":"Example","site":"example.com","username":"me","insecureTls":false,"allowedBots":[],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
+        // "Usable in its computer": sent when the app has it to send (a server with vault-in-computer), read on an item.
+        server.enqueue(json("{}"))
+        api.saveVaultLogin("login1", "Bridge", "127.0.0.1", "bart@proton.me", "", false, listOf("b1"), emptyList(), inComputer = true)
+        assertEquals("""{"name":"Bridge","site":"127.0.0.1","username":"bart@proton.me","insecureTls":false,"inComputer":true,"allowedBots":["b1"],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
+        server.enqueue(json("{}"))
+        api.saveVaultLogin("login1", "Bridge", "127.0.0.1", "bart@proton.me", "", false, listOf("b1"), emptyList(), inComputer = false)
+        assertTrue(server.takeRequest().body!!.utf8().contains(""""inComputer":false"""))
+        server.enqueue(json("""[{"id":"l1","name":"Bridge","site":"127.0.0.1","inComputer":true},{"id":"l2","name":"Old","site":"old.example.org"}]"""))
+        assertEquals(listOf(true, false), api.vault().map { it.inComputer })
+        server.takeRequest()
         server.enqueue(json("{}"))
         api.setVaultBots("c1", listOf("b1"))
         assertEquals("""{"allowedBots":["b1"]}""", server.takeRequest().body!!.utf8())
