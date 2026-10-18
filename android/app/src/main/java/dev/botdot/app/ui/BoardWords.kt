@@ -27,3 +27,20 @@ fun stripTiles(dash: Dashboard?): List<Tile>? = dash?.tiles?.filter { it.parent 
  */
 fun tileAsked(bot: String?, queued: Boolean): String =
     if (queued) "${bot ?: "Its bot"} will do it when it is free" else "Asked ${bot ?: "its bot"}"
+
+/**
+ * How often a tile refreshes, in words, for its pop-up (#42), as the web page says it: [Tile.every] as the owner
+ * chose it, 0 for only when tapped; null for a tile that reads nothing, or from a server that doesn't say.
+ */
+fun refreshLine(t: Tile): String? {
+    val n = t.every ?: return null
+    fun unit(k: Int, one: String) = if (k == 1) "every $one" else "every $k ${one}s"
+    val now = when {
+        n == 0 -> "only when tapped"
+        n % 86400 == 0 -> "${unit(n / 86400, "day")} while the Board is open"
+        n % 3600 == 0 -> "${unit(n / 3600, "hour")} while the Board is open"
+        n % 60 == 0 -> "${unit(n / 60, "minute")} while the Board is open"
+        else -> "${unit(n, "second")} while the Board is open"
+    }
+    return "Refreshes $now. Ask the Chief of Staff to change it."
+}

@@ -5504,6 +5504,16 @@ async function dropTile(e) {
 // A tile's panel: its pop-up in the middle (the Board stays as it is). A note or list shows all of it
 // there, with a way into its bot's chat; a light its on/off, brightness and colour wheel. It follows the tile's new values.
 let panelOpen = null; // { id, m, sig }
+// How often a tile refreshes, in words, for its pop-up (#42): `every` as the owner chose it, 0 for only when
+// tapped; nothing for a tile that reads nothing, or from a server that doesn't say. The Chief changes it.
+function refreshLine(t) {
+  const n = t.every;
+  if (typeof n !== 'number') return '';
+  const unit = (k, one) => (k === 1 ? `every ${one}` : `every ${k} ${one}s`);
+  const when = n === 0 ? 'only when tapped'
+    : `${n % 86400 === 0 ? unit(n / 86400, 'day') : n % 3600 === 0 ? unit(n / 3600, 'hour') : n % 60 === 0 ? unit(n / 60, 'minute') : unit(n, 'second')} while the Board is open`;
+  return `Refreshes ${when}. Ask the Chief of Staff to change it.`;
+}
 function openTilePanel(t, only = null) {
   const m = openModal(`
     <div class="modal-head"><h2>${esc(t.title)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
@@ -5525,11 +5535,12 @@ function renderPanel() {
   const t = state.dash?.tiles.find((x) => x.id === panelOpen.id);
   if (!t) { panelOpen.m.close(); return; }
   const list = panelOpen.only ? [findBlock(t.look?.face, panelOpen.only)].filter(Boolean) : t.look?.panel;
-  const sig = JSON.stringify(list);
+  const sig = JSON.stringify([list, t.every]);
   if (sig === panelOpen.sig) return;
   panelOpen.sig = sig;
   const body = $('.tile-panel', panelOpen.m);
-  body.innerHTML = blocksHTML(list, t, 'panel') || '<div class="faint">·</div>';
+  const every = panelOpen.only ? '' : refreshLine(t);
+  body.innerHTML = (blocksHTML(list, t, 'panel') || '<div class="faint">·</div>') + (every ? `<div class="faint tile-every">${esc(every)}</div>` : '');
   wireControls(body, t);
   const link = $('[data-tile-chat]', body);
   if (link) link.onclick = () => { panelOpen?.m.close(); setView('bot', t.bot); };

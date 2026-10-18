@@ -164,8 +164,12 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             onDismissRequest = { panel = null },
             title = { Text(t.title) },
             text = {
-                Blocks(list, parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint), "panel", controlsFor(t),
-                    Modifier.heightIn(max = 520.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()))
+                Column {
+                    Blocks(list, parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint), "panel", controlsFor(t),
+                        Modifier.heightIn(max = 520.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()))
+                    // How often it refreshes, and who changes it (#42); not under one block's own pop-up.
+                    refreshLine(t)?.takeIf { only == null }?.let { Text(it, color = p.faint, fontSize = 12.5.sp, modifier = Modifier.padding(top = 14.dp)) }
+                }
             },
             confirmButton = {},
         )
