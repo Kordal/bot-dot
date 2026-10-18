@@ -18,7 +18,7 @@ One machine serves several **accounts**, each walled off from the others ([ADR 0
 - **A way in**, one of the two, chosen when you install:
   - **a public domain** whose DNS points at the machine, with ports 80 and 443 free: Caddy answers there over HTTPS and fetches its own certificate;
   - **a tailnet only**, with a Tailscale account (free for personal use): Tailscale Serve gives botdot an HTTPS name on your tailnet, and nothing is on the internet.
-- **A Claude subscription** (Pro or Max) for each account. The Chief of Staff and the bots run as Claude Code, signed in with it.
+- **A Claude subscription** (Pro or Max), or an Anthropic API key, for each account. The Chief of Staff and the bots run as Claude Code, signed in with it or on the key.
 - **Disk space:** about 1.5 GB for botdot and a few GB for the bots' computer, for each account.
 
 ## Install
@@ -89,6 +89,8 @@ To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`),
 ## Sign in to Claude
 
 After your passkey, botdot opens on its **setup page**. Choose **Sign in to Claude**, sign in with your Claude subscription on the page it opens, and paste the code back. Each account signs in with its own subscription.
+
+No subscription? Choose **Use an API key instead** and paste an Anthropic API key from the [Claude Console](https://console.anthropic.com) (API keys): bots and the Chief of Staff then run on it, paid as you go to Anthropic. botdot checks the key with Anthropic, keeps it encrypted, and never shows it again. With both set up, Settings → Claude says which one bots run on and switches between them.
 
 Your bots run unattended under that sign-in: scheduled jobs run while you sleep, and bots hand work to each other. Before you rely on that, read what Anthropic's terms say about automated use of a subscription: [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms).
 

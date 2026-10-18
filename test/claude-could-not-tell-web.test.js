@@ -43,7 +43,7 @@ test('web: Setup shows the sentence of a check that could not tell, not the step
   assert.match(ctx.claudeSetupItem(NONE, false), /Claude Code isn&#39;t installed|Claude Code isn't installed/);
   assert.doesNotMatch(ctx.claudeSetupItem(NONE, false), /id="claude-login"/);
   const draw = cut('function drawSetup()', "onClick('#restore-open'");
-  assert.match(draw, /const unknown = !!claudeUnknown\(c\);\n {2}const claude = claudeSetupItem\(c, signingIn\);/);
+  assert.match(draw, /const unknown = !!claudeUnknown\(c\);\n {2}const keyOpen = !!state\.setupKey && !signingIn;\n {2}const claude = claudeSetupItem\(c, signingIn, keyOpen\)/);
   assert.match(draw, /id="setup-done" \$\{c\.loggedIn \|\| unknown \? '' : 'disabled'\}/, 'the way back to the bots is open');
   assert.match(draw, /<h1>Setup<\/h1>\$\{unknown \? '' : `<p>\$\{c\.loggedIn \? 'botdot is ready\. The rest is up to you\.' : 'One step and botdot is ready\.'\}<\/p>`\}/, 'and no "one step" is asked for');
 });

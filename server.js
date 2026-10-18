@@ -1134,6 +1134,8 @@ async function api(req, res, url) {
       if (process.env.CLAUDE_CODE_OAUTH_TOKEN) return send(res, 409, { error: "Claude is signed in with a token from the server's settings, so it can't be signed out here." });
       // Nothing to sign out of: nothing is held or stopped for it (a hold would stand for good, with no check that can tell).
       if (!B.CLAUDE_BIN) return send(res, 409, { error: "Claude Code isn't installed on this machine." });
+      // On the API key, runs don't use the subscription: signing it out stops and holds nothing.
+      if (setup.usesApiKey()) return send(res, 200, { claude: sawClaude(await setup.logout()), stopped: 0 });
       B.claudeIs(false); // before the runs end: what waits for a bot stays waiting, where its turn would fail as not signed in
       const stopped = B.stopAllRuns('signout') + chief.stopAll('signout'); // each keeps who ended it (ADR 012)
       try {
@@ -1147,6 +1149,10 @@ async function api(req, res, url) {
         throw e;
       }
     }
+    // An Anthropic API key instead of the subscription (#35): saved (and picked), which one runs use, removed.
+    if (parts[1] === 'claude' && parts[2] === 'key' && m === 'PUT') return send(res, 200, { claude: sawClaude(await setup.saveApiKey((await readBody(req)).key)) });
+    if (parts[1] === 'claude' && parts[2] === 'key' && m === 'DELETE') return send(res, 200, { claude: sawClaude(await setup.removeApiKey()) });
+    if (parts[1] === 'claude' && parts[2] === 'use' && m === 'PUT') return send(res, 200, { claude: sawClaude(await setup.useClaude((await readBody(req)).use)) });
     if (parts[1] === 'claude' && parts[2] === 'code' && m === 'POST') {
       const { code } = await readBody(req);
       return send(res, 200, { claude: sawClaude(await setup.submitCode(code)) });
@@ -2627,7 +2633,7 @@ async function api(req, res, url) {
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key'];
 const FIGURE = require('./lib/figure.json');
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();

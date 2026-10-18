@@ -81,6 +81,8 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
       // Never reach the real Composio (it would create an account); tests pass a stand-in.
       COMPOSIO_API_URL: 'http://127.0.0.1:9',
       COMPOSIO_AGENTS_URL: 'http://127.0.0.1:9',
+      // Nor Anthropic, to check an API key (lib/claude-key.js); its tests pass a stand-in.
+      BOT_DOT_ANTHROPIC_API_URL: 'http://127.0.0.1:9',
       // The background dresser (lib/dresser.js) would start the stand-in Claude in every test; its own tests switch it on.
       BOT_DOT_DRESS_WAITS: 'off',
       // A new bot's first message (lib/hello.js) would be a run in every test that makes a bot; its own tests switch it on.
