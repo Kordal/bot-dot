@@ -133,7 +133,8 @@ test("one account: no sign-up link, the setup key makes the account's one passke
     const page = await sheet.get(`/sign-up/${SETUP_KEY}?app=mac&handoff=${h.challenge}`);
     assert.equal(page.status, 200);
     assert.match(page.text, /admin of this machine can technically reach everything/i);
-    assert.match(page.text, /name="name" value="owner" readonly/);
+    assert.match(page.text, /Your account's name: <b>owner<\/b>/);
+    assert.match(page.text, /<input id="name" name="name" type="hidden" value="owner">/, 'shown, not a field to type in');
     const key = passkey.create({ rpId: mac.rpId, origin: mac.origin });
     const options = await sheet.post(`/sign-up/${SETUP_KEY}/options`, { name: 'someone-else' });
     assert.equal(options.status, 200, options.text);

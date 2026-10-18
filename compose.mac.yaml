@@ -27,8 +27,8 @@ services:
       BOT_DOT_COMPUTER_IMAGE: ${BOT_DOT_COMPUTER_IMAGE:-}
       BOT_DOT_HELPER_SOCKET: /run/botdot/helper.sock
       # The one account, and the socket its front door reaches it on (the supervisor gives the folder to botdot's user)
-      BOT_DOT_ACCOUNT: owner
-      BOT_DOT_FRONT_DOOR_SOCKET: /run/front-door/owner/botdot.sock
+      BOT_DOT_ACCOUNT: ${FRONT_DOOR_ACCOUNT:-owner}
+      BOT_DOT_FRONT_DOOR_SOCKET: /run/front-door/${FRONT_DOOR_ACCOUNT:-owner}/botdot.sock
     volumes:
       - ./data:/data                                # bots, runs, memory, skills, vault (encrypted)
       - bot-dot-config:/config                      # the vault's encryption key, kept apart from the data
@@ -82,7 +82,7 @@ services:
       FRONT_DOOR_PORT: 4700
       FRONT_DOOR_SOCKETS: /run/front-door
       FRONT_DOOR_DATA: /front-door
-      FRONT_DOOR_ONE_ACCOUNT: owner
+      FRONT_DOOR_ONE_ACCOUNT: ${FRONT_DOOR_ACCOUNT:-owner}
       # Makes the account's one passkey, until it has one (the app keeps it in a file only you can read)
       FRONT_DOOR_SETUP_KEY: ${FRONT_DOOR_SETUP_KEY:-}
     volumes:

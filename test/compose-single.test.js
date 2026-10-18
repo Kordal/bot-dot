@@ -17,11 +17,22 @@ test('nothing publishes a port or uses the host network: the host\'s proxy reach
   assert.equal(services['front-door'].environment.FRONT_DOOR_PORT, 4700);
 });
 
+// A value as Compose fills it in from the app's environment: ${NAME:-default}.
+const filled = (value, vars) => String(value).replace(/\$\{(\w+):-([^}]*)\}/g, (_, name, def) => vars[name] || def);
+
+test("the one account's name is FRONT_DOOR_ACCOUNT, owner by default, the same in the front door and botdot", () => {
+  for (const file of ['compose.single.yaml', 'compose.mac.yaml']) {
+    const s = parseYaml(fs.readFileSync(path.join(__dirname, '..', file), 'utf8')).services;
+    for (const [vars, name] of [[{}, 'owner'], [{ FRONT_DOOR_ACCOUNT: 'ann-2' }, 'ann-2']]) {
+      assert.equal(filled(s['front-door'].environment.FRONT_DOOR_ONE_ACCOUNT, vars), name, file);
+      assert.equal(filled(s['bot-dot'].environment.BOT_DOT_ACCOUNT, vars), name, file);
+      assert.equal(filled(s['bot-dot'].environment.BOT_DOT_FRONT_DOOR_SOCKET, vars), `/run/front-door/${name}/botdot.sock`, file);
+    }
+  }
+});
+
 test('one account, made with the setup key, and the client is the address the proxy added', () => {
   const env = services['front-door'].environment;
-  assert.equal(env.FRONT_DOOR_ONE_ACCOUNT, 'owner');
-  assert.equal(services['bot-dot'].environment.BOT_DOT_ACCOUNT, 'owner');
-  assert.equal(services['bot-dot'].environment.BOT_DOT_FRONT_DOOR_SOCKET, '/run/front-door/owner/botdot.sock');
   assert.equal(String(env.FRONT_DOOR_BEHIND_PROXY), '1');
   assert.match(env.FRONT_DOOR_ORIGIN, /^\$\{FRONT_DOOR_ORIGIN:\?/, 'required');
   assert.match(env.FRONT_DOOR_SETUP_KEY, /^\$\{FRONT_DOOR_SETUP_KEY:\?/, 'required');
