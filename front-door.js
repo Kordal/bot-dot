@@ -106,6 +106,10 @@ const ASSET_LINKS = [{
   relation: ['delegate_permission/common.get_login_creds'],
   target: { namespace: 'android_app', package_name: ANDROID_PACKAGE, sha256_cert_fingerprints: ANDROID_KEYS },
 }];
+// Read once at start: a missing file is no font, and the page falls back to the system's.
+const FONTS = Object.fromEntries(['Geist.ttf', 'GeistMono.ttf'].flatMap((f) => {
+  try { return [[`/front-door/fonts/${f}`, fs.readFileSync(path.join(__dirname, 'public', 'fonts', f))]]; } catch { return []; }
+}));
 const NOT_RUNNING = "Your account's botdot server isn't running. Try again in a moment, or ask the admin of this machine.";
 const CALL_NOT_RUNNING = "This account's botdot server isn't running. Try the call again later.";
 const PAUSED = 'Your account is paused by the admin.';
@@ -228,7 +232,7 @@ function html(res, status, text) {
   res.writeHead(status, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-store',
-    'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     'X-Frame-Options': 'DENY',
   });
   res.end(text);
@@ -586,6 +590,11 @@ const server = http.createServer(async (req, res) => {
     if (p === '/front-door/admin.js' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(pages.ADMIN_SCRIPT);
+    }
+    // The admin page's fonts, the web page's own (#22): Geist and Geist Mono from public/fonts, under its OFL.txt.
+    if (FONTS[p] && req.method === 'GET') {
+      res.writeHead(200, { 'Content-Type': 'font/ttf', 'Cache-Control': 'max-age=86400' });
+      return res.end(FONTS[p]);
     }
     if (p === '/.well-known/assetlinks.json' && req.method === 'GET') {
       if (!ANDROID_KEYS.length) return send(res, 404, { error: 'No app signs in here.' });

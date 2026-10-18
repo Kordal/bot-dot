@@ -54,6 +54,27 @@ test("the admin's session gets the admin page, web only, from the front door its
   assert.equal(seen(), was, 'no botdot server saw it');
 });
 
+test("the admin page has the web page's look: its colours, its fonts from the front door, a rail and account cards (#22)", async () => {
+  const b = await admin();
+  const was = seen();
+  const page = await b.get('/admin');
+  assert.match(page.text, /--bg: #000000;/);
+  assert.match(page.text, /--dot: #d85a30;/);
+  assert.match(page.text, /url\("\/front-door\/fonts\/Geist\.ttf"\)/);
+  assert.match(page.text, /<nav class="nav" aria-label="Admin sections">/);
+  assert.match(page.text, /<a class="back" href="\/">/);
+  assert.match(page.text, /<ul id="account-list" class="cards">/);
+  assert.match(page.headers['content-security-policy'], /font-src 'self'/);
+  for (const f of ['Geist.ttf', 'GeistMono.ttf']) {
+    const font = await b.get(`/front-door/fonts/${f}`);
+    assert.equal(font.status, 200, f);
+    assert.equal(font.headers['content-type'], 'font/ttf');
+  }
+  assert.equal(seen(), was, 'no botdot server saw the page or its fonts');
+  // The sign-in page keeps its own look.
+  assert.doesNotMatch(require('../lib/front-door/pages').signIn(), /Geist/);
+});
+
 test('the admin makes a sign-up link, sees it open, and it makes an account once', async () => {
   const b = await admin();
   const made = await b.post('/admin/links', {});
