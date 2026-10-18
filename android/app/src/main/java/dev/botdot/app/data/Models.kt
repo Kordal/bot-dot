@@ -1025,6 +1025,7 @@ data class Tile(
     val color: String? = null,
     val bot: String? = null,
     val unit: String = "",
+    val every: Int? = null, // how often it reads again while the Board is open, in seconds; 0: only when tapped; null: it reads nothing
     val look: TileLook? = null,
     val approved: Boolean = true,
     val createdBy: String? = null,

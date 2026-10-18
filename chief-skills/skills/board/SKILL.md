@@ -125,8 +125,9 @@ You need a saved login holding a long-lived access token (list_vault; if there i
 
 1. **Look first:** call `get_board`. Reuse the user's headings, and don't add a tile that's already there.
 2. **Test the read** with `test_tile` until `shows` is what the user expects (a switch shows true or false). With blocks, pass them too and check `looks`: every block filled in as the user should see it (no empty values, the right colour). Never add a tile you haven't seen work, except scripts, which can only run once approved.
-3. **Add it** with `add_tile`. Keep the title short and plain ("Living room light", not "Living Room Light Switch Control"). Put it under the heading that fits (`section`). Make lists and notes `wide`.
-4. **Say what you did** in one line: "It's on your Board, under Home."
+3. **Ask how often it refreshes** when the tile reads its value itself, unless the user said: one question, with [[choices: Every minute (default) | Every 15 minutes | Hourly | Only when I tap]] or the four that fit it, your default first. Say that it refreshes only while the Board is open, and that more often means more reads, and more runs of its script for a tile whose read is a script. Put the answer in `every` (seconds; 0 for only when tapped).
+4. **Add it** with `add_tile`. Keep the title short and plain ("Living room light", not "Living Room Light Switch Control"). Put it under the heading that fits (`section`). Make lists and notes `wide`.
+5. **Say what you did** in one line: "It's on your Board, under Home."
 
 ## Changing the layout
 
@@ -134,6 +135,7 @@ You need a saved login holding a long-lived access token (list_vault; if there i
 - Order headings or tiles: `arrange_board` with `sections` or `tiles` (ids in order).
 - Rename a heading: `arrange_board` with `rename`.
 - Bigger or smaller: `update_tile` with `size` (small, wide, big, row).
+- How often it refreshes: `update_tile` with `every`.
 - Change what it shows or what its pop-up holds: `update_tile` with `face`, `panel` or `dot` (the whole list; `null` goes back to its kind's own look).
 - Into or out of a group: `update_tile` with `parent` (a group's id, or "").
 - Remove: `remove_tile`. Only remove what the user asked to remove. They can also long-press a tile to remove it.

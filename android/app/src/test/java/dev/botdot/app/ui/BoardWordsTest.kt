@@ -33,4 +33,17 @@ class BoardWordsTest {
         assertEquals("Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.", BoardWords.WHAT_FOR)
         assertEquals("Nothing is on it yet. Tell the Chief or any bot, for example: “Put a shopping list on my board.”", BoardWords.TELL + BoardWords.EXAMPLE)
     }
+
+    /** A tile's pop-up says how often it refreshes, as the web page says it (#42); nothing when it reads nothing. */
+    @Test fun howOftenATileRefreshes() {
+        val change = " Ask the Chief of Staff to change it."
+        assertEquals("Refreshes every minute while the Board is open.$change", refreshLine(Tile(id = "t", every = 60)))
+        assertEquals("Refreshes every 15 minutes while the Board is open.$change", refreshLine(Tile(id = "t", every = 900)))
+        assertEquals("Refreshes every hour while the Board is open.$change", refreshLine(Tile(id = "t", every = 3600)))
+        assertEquals("Refreshes every 2 hours while the Board is open.$change", refreshLine(Tile(id = "t", every = 7200)))
+        assertEquals("Refreshes every day while the Board is open.$change", refreshLine(Tile(id = "t", every = 86400)))
+        assertEquals("Refreshes every 30 seconds while the Board is open.$change", refreshLine(Tile(id = "t", every = 30)))
+        assertEquals("Refreshes only when tapped.$change", refreshLine(Tile(id = "t", every = 0)))
+        assertNull(refreshLine(Tile(id = "t")))
+    }
 }

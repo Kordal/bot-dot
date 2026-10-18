@@ -712,6 +712,7 @@ legend { font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 0 6p
 .b-choice .seg button { font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 99px; border: 1px solid var(--line-2); background: transparent; color: var(--text); cursor: pointer; }
 .b-choice .seg button.on { background: var(--ink); border-color: var(--ink); color: var(--ink-text); }
 .tile-panel { display: flex; flex-direction: column; gap: 18px; }
+.tile-every { font-size: 12.5px; }
 .tile-note.folded.more { -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
 .tile-note p { margin: 0 0 4px; }
 .tile-chat { font-size: 13px; color: var(--muted); margin-right: auto; }
