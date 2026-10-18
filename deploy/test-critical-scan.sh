@@ -7,9 +7,10 @@ trap 'rm -rf "$work"' EXIT
 scanner=aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
 mkdir -p "$work/context" "$work/cache"
 printf '%s\n' 'FROM scratch' 'COPY package.json /usr/local/lib/node_modules/jsonpath-plus/package.json' > "$work/context/Dockerfile"
-# Use Trivy's upstream database; the default GCR mirror can return stale blob URLs (404).
+# Use Trivy's upstream database; the default GCR mirror can return stale blob URLs (404). Trivy runs as this user,
+# as in images.yml, so the trap can delete the cache it wrote.
 scan() {
-  docker run --rm -v "$work:/work" "$scanner" image --db-repository ghcr.io/aquasecurity/trivy-db:2 --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1 --input "/work/$archive" --cache-dir /work/cache --scanners vuln --pkg-types os,library --severity CRITICAL --exit-code 1 --format json --output /work/result.json
+  docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$work:/work" "$scanner" image --db-repository ghcr.io/aquasecurity/trivy-db:2 --java-db-repository ghcr.io/aquasecurity/trivy-java-db:1 --input "/work/$archive" --cache-dir /work/cache --scanners vuln --pkg-types os,library --severity CRITICAL --exit-code 1 --format json --output /work/result.json
 }
 build() {
   image=$(docker build -q "$work/context")
