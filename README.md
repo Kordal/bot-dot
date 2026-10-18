@@ -110,7 +110,7 @@ The web page works on any phone. The [Android app](android/README.md) adds notif
 
 | | |
 | --- | --- |
-| **A server** | A Linux server or VM of its own (Ubuntu 24.04, Intel/AMD or ARM) where you can use `sudo`, or any Docker host |
+| **A server** | A Linux server or VM of its own (Ubuntu 24.04, Intel/AMD or ARM) where you can use `sudo` |
 | **Docker** | The installer offers to install it when it's missing |
 | **Claude** | A Claude subscription (Pro or Max) for each account |
 | **A way in** | [Tailscale](https://tailscale.com) (a private tailnet) or a public domain that points at the server |
@@ -131,7 +131,6 @@ The installer asks a few questions and ends with your address and a sign-up link
 | Where | Guide |
 | --- | --- |
 | A Linux server or VM, one or more accounts | [Install on Linux](docs/install-linux.md): accounts, updates, backups, uninstalling |
-| Any Docker host (plain Docker, Dokploy, Coolify, Portainer) | [Install with Docker Compose](docs/install-docker.md): one account as a Compose app |
 
 ## Development
 
@@ -151,7 +150,6 @@ make lint            # the documentation links
 | --- | --- |
 | [User guide](docs/user-guide.md) | The app and every feature |
 | [Install on Linux](docs/install-linux.md) | Accounts, shares, updates, backups, uninstall, platforms |
-| [Install with Docker Compose](docs/install-docker.md) | One account on plain Docker, Dokploy, Coolify or Portainer |
 | [What bots can reach](docs/what-bots-can-reach.md) | What each bot, the Chief and botdot may see on a Docker install |
 | [Development](docs/development.md) | Running from source, tests, code layout |
 | [The API](docs/api.md) | The contract the apps use |

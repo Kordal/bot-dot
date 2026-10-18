@@ -26,8 +26,6 @@
 // FRONT_DOOR_LOAD     the folder where root's step writes the machine's load and each account's use of its share
 //                     (install.sh --load), which the admin page shows (lib/front-door/load.js)
 // FRONT_DOOR_HOST, FRONT_DOOR_PORT   where it listens (default 127.0.0.1:4700), behind Caddy or Tailscale Serve
-// FRONT_DOOR_BEHIND_PROXY  1 when a reverse proxy on its Docker network reaches it and it publishes no port
-//                     (compose.single.yaml): the client is the address that proxy added last to X-Forwarded-For
 // FRONT_DOOR_ANDROID_KEYS  the SHA-256 fingerprints of the Android app's signing certificates (AA:BB:…, comma
 //                     separated): the app's passkey sign-in is taken from those, and /.well-known/assetlinks.json names them
 // FRONT_DOOR_ONE_ACCOUNT  a machine of exactly this one account (the Mac app's local botdot server, ADR 028): no

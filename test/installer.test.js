@@ -586,7 +586,7 @@ test('botdot takes the machine\'s time zone, or UTC when it has none', (t) => {
 });
 
 test('compose gives the server, the helper and the front door the time zone of .env, or UTC', () => {
-  for (const [name, services] of [['compose.yaml', ['bot-dot', 'docker-helper']], ['compose.mac.yaml', ['bot-dot', 'docker-helper']], ['compose.front-door.yaml', ['front-door']], ['compose.single.yaml', ['bot-dot', 'docker-helper', 'front-door']]]) {
+  for (const [name, services] of [['compose.yaml', ['bot-dot', 'docker-helper']], ['compose.mac.yaml', ['bot-dot', 'docker-helper']], ['compose.front-door.yaml', ['front-door']]]) {
     const compose = fs.readFileSync(path.join(ROOT, name), 'utf8');
     for (const service of services) {
       const block = compose.slice(compose.indexOf(`\n  ${service}:\n`) + 1).split(/\n {2}(?=\S)/)[0];
@@ -603,7 +603,7 @@ test('an account\'s botdot server keeps a network of its own, and its helper the
   assert.match(compose, /- \$\{DOCKER_SOCKET:-\/var\/run\/docker\.sock\}:\/var\/run\/docker\.sock/);
   assert.match(compose, /- \$\{BOT_DOT_FRONT_DOOR_FOLDER:-\.\/front-door\}:\/run\/front-door/);
   assert.match(compose, /BOT_DOT_FRONT_DOOR_SOCKET: \/run\/front-door\/botdot\.sock/);
-  for (const name of ['compose.yaml', 'compose.mac.yaml', 'compose.front-door.yaml', 'compose.single.yaml', 'install.sh', 'README.md', 'docs/install-linux.md']) {
+  for (const name of ['compose.yaml', 'compose.mac.yaml', 'compose.front-door.yaml', 'install.sh', 'README.md', 'docs/install-linux.md']) {
     assert.doesNotMatch(fs.readFileSync(path.join(ROOT, name), 'utf8'), /BOT_DOT_ALLOWED_USERS/, `${name}: the variable does nothing since the front door`);
   }
 });
