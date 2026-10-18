@@ -76,7 +76,7 @@ The [user guide](docs/user-guide.md#board) has the details.
 </tr>
 </table>
 
-Every screenshot here is in dark mode; botdot follows your system's light or dark setting. A bot's head shows its state: it blinks when idle, looks around while it works, bobs when it needs you and closes its eyes when paused. Dots after its name count new replies. A wide window shows the keypad: <kbd>1</kbd>–<kbd>9</kbd> open a bot, <kbd>Esc</kbd> brings back the Chief, <kbd>Ctrl</kbd>+<kbd>K</kbd> searches every chat.
+botdot has one look, dark, on the web and on Android. A bot's head shows its state: it blinks when idle, looks around while it works, bobs when it needs you and closes its eyes when paused. Dots after its name count new replies. A wide window shows the keypad: <kbd>1</kbd>–<kbd>9</kbd> open a bot, <kbd>Esc</kbd> brings back the Chief, <kbd>Ctrl</kbd>+<kbd>K</kbd> searches every chat.
 
 ## On your phone
 
