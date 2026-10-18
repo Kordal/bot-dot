@@ -38,7 +38,7 @@ const computers = require('../lib/computers');
 childProcess.execFile = realExecFile;
 
 // A Docker with the image and the given runtime, and a computer in the given state.
-function docker({ state = 'none', network = '2', runtime = 'runsc', fail = () => false } = {}) {
+function docker({ state = 'none', network = '2', runtime = 'runsc', restart = 'no', fail = () => false } = {}) {
   return (args) => {
     if (fail(args)) throw new Error('iptables: Failed to initialize');
     const [cmd] = args;
@@ -50,6 +50,7 @@ function docker({ state = 'none', network = '2', runtime = 'runsc', fail = () =>
     }
     if (cmd === 'inspect' && args[3]?.includes('user-version')) return `${network}|1`;
     if (cmd === 'inspect' && args[3]?.includes('.HostConfig.Runtime')) return runtime;
+    if (cmd === 'inspect' && args[3]?.includes('RestartPolicy')) return restart;
     if (cmd === 'exec' && args.includes('python3')) return '{}';
     return '';
   };
@@ -140,6 +141,23 @@ test('a running computer gets its new firewall and keeps its desktop', async () 
   await computers.reconfigure('pc', 'lan');
   assert.doesNotMatch(firewallScript(), /REJECT/);
   assert.equal(index(isDesktop), -1, 'the desktop is not started a second time');
+});
+
+// gVisor fails `docker update` on a running computer (runsc panics): a computer the owner had started, or that
+// stayed on, then failed every run's start while it ran fine.
+const isUpdate = (a) => a[0] === 'update';
+test('a running computer whose restart policy is already off is not updated, so gVisor cannot fail its start', async () => {
+  answer = docker({ state: 'running', fail: isUpdate });
+  await computers.ensure('pc');
+  assert.ok(!calls.some((c) => isUpdate(c.args)));
+  assert.ok(index(isBridge) >= 0, 'it is ready for the run');
+});
+
+test('a computer that would still come back by itself is set not to, and a failure of that does not stop its start', async () => {
+  answer = docker({ state: 'running', restart: 'unless-stopped', fail: isUpdate });
+  await computers.ensure('pc');
+  assert.ok(calls.some((c) => isUpdate(c.args)));
+  assert.ok(index(isBridge) >= 0);
 });
 
 test('a computer whose firewall cannot be set is stopped and its desktop never starts', async () => {
