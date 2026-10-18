@@ -172,12 +172,15 @@ jobs:
           COPY="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${REPO##*/}:${INDEX:7:12}-${{ matrix.arch }}"
           command -v skopeo >/dev/null || { sudo apt-get update -q && sudo apt-get install -yq skopeo; }
           if ! skopeo inspect --raw "docker://$COPY" >/dev/null 2>&1; then
-            for wait in 0 60 120 240; do
+            for wait in 0 60 120 240 480; do
               sleep "$wait"
               skopeo copy --override-arch ${{ matrix.arch }} --preserve-digests "docker://$REPO@$INDEX" "docker://$COPY" && break
             done
           fi
-          DIGEST="$(skopeo inspect --raw "docker://$COPY" | sha256sum | cut -d' ' -f1)"
+          # No copy (public.ecr.aws refuses with "toomanyrequests" now and then): stop here, not build on an empty digest.
+          skopeo inspect --raw "docker://$COPY" > "$RUNNER_TEMP/base.json" && [ -s "$RUNNER_TEMP/base.json" ] \
+            || { echo "::error::No copy of $REPO@$INDEX in $COPY; public.ecr.aws refused it. Run again later."; exit 1; }
+          DIGEST="$(sha256sum < "$RUNNER_TEMP/base.json" | cut -d' ' -f1)"
           echo "BASE=${COPY%:*}@sha256:$DIGEST" >> "$GITHUB_ENV"
 
       # Each platform gets its own tag (sha-<commit>-amd64 / -arm64); the publish job joins them.
