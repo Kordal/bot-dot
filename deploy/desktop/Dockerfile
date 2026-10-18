@@ -23,6 +23,12 @@ RUN dpkg-query -W -f='${binary:Package} ${db:Status-Status}\n' \
     | xargs -r apt-get purge -y \
  && rm -rf /var/lib/apt/lists/*
 
+# OpenSSH's client: ssh, and the ssh-agent and ssh-add through which run_with_ssh_key lends the bot a saved SSH key
+# without showing it (lib/computers.js runWithSshKey, #44). Installed whether or not the base already has it.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends openssh-client \
+ && rm -rf /var/lib/apt/lists/*
+
 # Fix inherited tar, FastMCP and PyJWT vulnerabilities through their owning applications.
 # cua-computer-server 0.3.46 supports FastMCP 3.2; older releases require vulnerable 2.x.
 # PyJWT 2.14.0 fixes CVE-2026-102268; it arrives there as a dependency, at 2.13.0.

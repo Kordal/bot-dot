@@ -4366,6 +4366,8 @@ function vaultItemLine(l) {
   const t = VAULT_TYPES[vaultType(l.type)];
   return `${t.username ? `${t.icon} ${esc(l.username || t.none)} · ` : ''}🔒 ${t.saved}${l.hasTotp ? ' · two-step code' : ''}${l.insecureTls ? ' · self-signed certificate OK' : ''}${l.inComputer ? ' · usable in its computer' : ''}`;
 }
+// An SSH key of Bitwarden (kind `ssh-key`, docs/api.md): its fingerprint, and that bots use it without seeing it.
+const vaultSshKeyLine = (l) => `${l.fingerprint ? `${esc(l.fingerprint)} · ` : ''}🔒 for SSH on a bot's computer, never shown to it`;
 
 // The Type control, and the fields that hold the secret of a type, in the editor and in the "needs a login"
 // dialog. username: what the username field starts with. isNew: a new item needs its secret; a saved one
@@ -4409,7 +4411,7 @@ async function renderVault() {
   root.innerHTML = `
     ${SUB_BACK}
     <div class="section-head">
-      <div><h1>Vault</h1><p>${bw.configured ? `Your Bitwarden's <b>bot-dot</b> folder: logins, cards and identities your bots can use without ever seeing them.` : 'Saved logins your bots can use without ever seeing the password.'}</p></div>
+      <div><h1>Vault</h1><p>${bw.configured ? `Your Bitwarden's <b>bot-dot</b> folder: logins, cards, identities and SSH keys your bots can use without ever seeing them.` : 'Saved logins your bots can use without ever seeing the password.'}</p></div>
       ${locked ? '' : '<button class="btn primary" id="add-login">＋ Add</button>'}
     </div>
     ${!bw.configured ? (bw.installed === false ? '<div class="req-note">To use Bitwarden, install its command-line tool first: <span class="mono">brew install bitwarden-cli</span>, then reload.</div>' : bitwardenSetupHTML()) : `
@@ -4424,11 +4426,12 @@ async function renderVault() {
       const kind = l.kind || 'login';
       const line = kind === 'card' ? `💳 ${esc(l.brand || 'Card')} •••• ${esc(l.last4)}${l.expiry ? ` · expires ${esc(l.expiry)}` : ''} · you approve each payment`
         : kind === 'identity' ? `🪪 ${esc(l.holder || '')}${l.email ? ` · ${esc(l.email)}` : ''}`
+        : kind === 'ssh-key' ? vaultSshKeyLine(l)
         : vaultItemLine(l);
       return `
       <article class="card vault-item">
         <div class="bot-head"><div class="avatar" style="--bot-color:#6c7cff">${KIND_ICON[kind] || '🔑'}</div>
-          <div style="flex:1;min-width:0"><div class="bot-name">${esc(l.name)}</div><div class="addr">${kind === 'login' ? vaultItemAddr(l) : kind === 'card' ? 'Payment card' : 'Identity'}</div></div></div>
+          <div style="flex:1;min-width:0"><div class="bot-name">${esc(l.name)}</div><div class="addr">${kind === 'login' ? vaultItemAddr(l) : kind === 'card' ? 'Payment card' : kind === 'ssh-key' ? 'SSH key' : 'Identity'}</div></div></div>
         <div class="bot-meta">
           <div>${line}</div>
           ${l.reprompt ? '<div class="faint">Asks for the master password again in Bitwarden, so bots can\'t use it.</div>' : ''}
@@ -4520,7 +4523,13 @@ function openLoginEditor(login) {
 // ---------- Bitwarden ----------
 
 const bwUi = { prompted: false, snoozed: new Set() };
-const KIND_ICON = { login: '🔑', card: '💳', identity: '🪪' };
+const KIND_ICON = { login: '🔑', card: '💳', identity: '🪪', 'ssh-key': '🗝️' };
+// What sharing a card, an identity or an SSH key lets a bot do, above its bots.
+const ITEM_BOTS_HINT = {
+  card: 'Bots that may pay with this card. You still approve every payment in a pop-up.',
+  identity: 'Bots that may type these details into forms.',
+  'ssh-key': 'Bots that may use this key for SSH from their own computer. botdot loads it into an ssh-agent there: a bot never sees the private key.',
+};
 
 function bitwardenSetupHTML() {
   return `
@@ -4670,7 +4679,7 @@ function openItemBots(item) {
     <form id="item-bots">
       <div class="modal-head"><h2>${KIND_ICON[item.kind] || '🔑'} ${esc(item.name)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <p class="muted" style="margin:0">${item.kind === 'card' ? 'Bots that may pay with this card. You still approve every payment in a pop-up.' : 'Bots that may type these details into forms.'} Change the details themselves in Bitwarden.</p>
+        <p class="muted" style="margin:0">${ITEM_BOTS_HINT[item.kind] || ITEM_BOTS_HINT.identity} Change the details themselves in Bitwarden.</p>
         ${botCheckboxes(item.allowedBots).replaceAll(' disabled title="Skills are turned off for this bot"', '')}
       </div>
       <div class="modal-foot"><button type="button" class="btn" data-dismiss>Cancel</button><button class="btn primary">Save</button></div>
