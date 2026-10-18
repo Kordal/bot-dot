@@ -75,7 +75,7 @@ test('web: the address and the username of an item are escaped', () => {
 
 test('web: the list draws a login-kind item with these two lines, and a card and an identity as before', () => {
   assert.match(list, /: vaultItemLine\(l\);/);
-  assert.match(list, /<div class="addr">\$\{kind === 'login' \? vaultItemAddr\(l\) : kind === 'card' \? 'Payment card' : 'Identity'\}<\/div>/);
+  assert.match(list, /<div class="addr">\$\{kind === 'login' \? vaultItemAddr\(l\) : kind === 'card' \? 'Payment card' : kind === 'ssh-key' \? 'SSH key' : 'Identity'\}<\/div>/);
   assert.match(list, /const line = kind === 'card' \? `💳 /, 'a card keeps its line');
   assert.match(list, /: kind === 'identity' \? `🪪 /, 'an identity keeps its line');
   assert.match(list, /<button class="btn primary" id="add-login">＋ Add<\/button>/, 'the button is "＋ Add"');

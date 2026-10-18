@@ -151,6 +151,7 @@ private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>
         when (i.kind) {
             "card" -> listOf("${i.brand ?: "Card"} •••• ${i.last4.orEmpty()}${i.expiry?.let { " · expires $it" } ?: ""} · you approve each payment")
             "identity" -> listOf(listOfNotNull(i.holder, i.email).joinToString(" · "))
+            VaultTypes.SSH_KEY -> VaultTypes.sshKeyRows(i)
             else -> VaultTypes.rows(i, features) // its type before its address, then the line of that type
         }.forEach { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
         if (i.reprompt) Text("Asks for the master password again in Bitwarden, so bots can't use it.", color = p.faint, fontSize = 12.sp)
@@ -158,7 +159,7 @@ private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>
     }
 }
 
-private val KIND_ICON = mapOf("login" to "🔑", "card" to "💳", "identity" to "🪪")
+private val KIND_ICON = mapOf("login" to "🔑", "card" to "💳", "identity" to "🪪", VaultTypes.SSH_KEY to "🗝️")
 
 @Composable
 private fun BitwardenSetup(onConnect: (server: String, serverUrl: String, clientId: String, clientSecret: String) -> Unit) {
@@ -266,8 +267,7 @@ private fun ItemBots(item: VaultItem, bots: List<Bot>, api: dev.botdot.app.data.
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(onDismissRequest = close, title = { Text("${KIND_ICON[item.kind] ?: ""} ${item.name}") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Hint((if (item.kind == "card") "Bots that may pay with this card. You still approve every payment." else "Bots that may type these details into forms.") +
-                " Change the details themselves in Bitwarden.")
+            Hint(VaultTypes.itemBotsHint(item.kind) + " Change the details themselves in Bitwarden.")
             bots.forEach { b -> CheckRow("${b.emoji} ${b.name}", null, b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id } }
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
         }

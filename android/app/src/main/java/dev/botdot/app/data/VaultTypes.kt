@@ -60,6 +60,18 @@ object VaultTypes {
         return listOf("${t.label} · ${i.site}", "$who🔒 ${t.saved}$extras")
     }
 
+    /** An SSH key of Bitwarden (kind `ssh-key`, docs/api.md): "SSH key", then its fingerprint and that a bot never sees it. */
+    const val SSH_KEY = "ssh-key"
+    fun sshKeyRows(i: VaultItem): List<String> =
+        listOf("SSH key", (i.fingerprint?.takeIf { it.isNotBlank() }?.let { "$it · " } ?: "") + "🔒 for SSH on a bot's computer, never shown to it")
+
+    /** Above the bots of a card, an identity or an SSH key: what sharing it lets a bot do. */
+    fun itemBotsHint(kind: String): String = when (kind) {
+        "card" -> "Bots that may pay with this card. You still approve every payment."
+        SSH_KEY -> "Bots that may use this key for SSH from their own computer. botdot loads it into an ssh-agent there: a bot never sees the private key."
+        else -> "Bots that may type these details into forms."
+    }
+
     /** The two fields that hold the secret of a type. [username] null: the form shows the secret alone. */
     data class Fields(val username: String?, val secret: String)
 

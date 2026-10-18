@@ -1,0 +1,122 @@
+#!/usr/bin/python3 -I
+"""Loads one SSH private key, read on stdin, into the ssh-agent botdot just started for the bot (run_with_ssh_key).
+Arguments: the agent's socket, the agent's pid, the key's lifetime in seconds, and the bot user's name.
+
+botdot sends this file's own copy with every call and runs it as root, from /, in Python's isolated mode
+(lib/computers.js runWithSshKey), so nothing in the computer can change it, and the key never appears in a
+command line, a file or an environment. Root's processes are closed to the bot (--cap-drop ALL, another user), and
+the agent makes itself untraceable, so the bot can use the key through the agent's socket and never read it.
+
+The agent's socket is in a folder of the bot's, so the bot could put a socket of its own there: the key goes only
+to the program that is the agent botdot started (its pid, and the bot user's, by SO_PEERCRED). ssh-add reaches it
+through a socket of root's own, which this relays to that one checked connection. Prints one line of JSON:
+{"ok": true} or {"ok": false, "error": "..."}, never anything of the key."""
+import json
+import os
+import pwd
+import select
+import shutil
+import socket
+import struct
+import subprocess
+import sys
+import tempfile
+import threading
+
+SSH_ADD = "/usr/bin/ssh-add"
+
+
+def answer(ok, error=None):
+    print(json.dumps({"ok": True} if ok else {"ok": False, "error": error}))
+    sys.exit(0)
+
+
+def main():
+    try:
+        agent_socket, agent_pid, lifetime, user = sys.argv[1], int(sys.argv[2]), int(sys.argv[3]), sys.argv[4]
+    except (IndexError, ValueError):
+        answer(False, "botdot called the key loader wrongly")
+    key = sys.stdin.buffer.read()
+    if not key.strip():
+        answer(False, "the SSH key has no private key")
+    try:
+        bot_uid = pwd.getpwnam(user).pw_uid
+    except KeyError:
+        answer(False, "this computer has no bot user")
+
+    agent = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    agent.settimeout(20)
+    try:
+        agent.connect(agent_socket)
+        pid, uid, _gid = struct.unpack("3i", agent.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")))
+    except OSError:
+        answer(False, "couldn't reach the ssh-agent")
+    if pid != agent_pid or uid != bot_uid:
+        agent.close()
+        answer(False, "the ssh-agent's socket was not the agent botdot started")
+    if not os.access(SSH_ADD, os.X_OK):
+        agent.close()
+        answer(False, "this computer has no ssh-add: its desktop is older than SSH keys in botdot")
+
+    # A folder only root can open, for the socket ssh-add talks to.
+    own = tempfile.mkdtemp(prefix="botdot-ssh-add-", dir="/tmp")
+    try:
+        relay = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        relay.bind(os.path.join(own, "agent"))
+        relay.listen(1)
+        relay.settimeout(20)
+        env = {"PATH": "/usr/bin:/bin", "SSH_AUTH_SOCK": os.path.join(own, "agent"), "SSH_ASKPASS_REQUIRE": "never", "DISPLAY": ""}
+        add = subprocess.Popen([SSH_ADD, "-q", "-t", str(lifetime), "-"], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, env=env, cwd="/", start_new_session=True)
+
+        def feed():
+            try:
+                add.stdin.write(key)
+            except OSError:
+                pass
+            finally:
+                try:
+                    add.stdin.close()
+                except OSError:
+                    pass
+
+        threading.Thread(target=feed, daemon=True).start()
+        try:
+            conn, _ = relay.accept()
+        except OSError:
+            add.kill()
+            answer(False, "ssh-add did not start")
+        conn.setblocking(True)
+        agent.setblocking(True)
+        ends = {conn: agent, agent: conn}
+        open_ = True
+        while open_:
+            ready, _, _ = select.select(list(ends), [], [], 30)
+            if not ready:
+                break
+            for s in ready:
+                data = s.recv(65536)
+                if not data:
+                    open_ = False
+                    break
+                ends[s].sendall(data)
+        conn.close()
+        try:
+            code = add.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            add.kill()
+            code = None
+        if code != 0:
+            answer(False, "the SSH key could not be loaded: it may have a passphrase, or not be a private key OpenSSH reads")
+        answer(True)
+    finally:
+        agent.close()
+        shutil.rmtree(own, ignore_errors=True)
+
+
+try:
+    main()
+except SystemExit:
+    raise
+except Exception:
+    answer(False, "the SSH key could not be loaded")

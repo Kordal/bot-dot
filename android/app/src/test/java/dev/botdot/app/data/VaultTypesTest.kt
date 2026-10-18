@@ -167,4 +167,16 @@ class VaultTypesTest {
         assertEquals(VaultTypes.Sent(null, "bart"), VaultTypes.sent("other", "bart", before))
         assertEquals(VaultTypes.Sent(null, ""), VaultTypes.sent("api-token", "", null))
     }
+
+    // An SSH key of Bitwarden (#44, `vault-ssh-keys`); test/vault-ssh-keys-web.test.js holds the web page's words.
+    @Test fun anSshKeyReadsAsOneWithItsFingerprintAndItsBotsSayWhatSharingDoes() {
+        val key = Json { ignoreUnknownKeys = true }.decodeFromString(VaultItem.serializer(),
+            """{"id":"i-ssh","name":"Tailnet servers","kind":"ssh-key","type":"ssh-key","fingerprint":"SHA256:abc","publicKey":"ssh-ed25519 AAAA","allowedBots":["b1"]}""")
+        assertEquals("SHA256:abc", key.fingerprint)
+        assertEquals(listOf("SSH key", "SHA256:abc · 🔒 for SSH on a bot's computer, never shown to it"), VaultTypes.sshKeyRows(key))
+        assertEquals(listOf("SSH key", "🔒 for SSH on a bot's computer, never shown to it"), VaultTypes.sshKeyRows(key.copy(fingerprint = null)))
+        assertTrue(VaultTypes.itemBotsHint("ssh-key").contains("never sees the private key"))
+        assertEquals("Bots that may pay with this card. You still approve every payment.", VaultTypes.itemBotsHint("card"))
+        assertEquals("Bots that may type these details into forms.", VaultTypes.itemBotsHint("identity"))
+    }
 }

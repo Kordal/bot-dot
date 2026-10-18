@@ -234,7 +234,7 @@ The **Connectors** page is a marketplace of apps your bots can use: Gmail, Googl
 
 ## 🛡 Bitwarden: your logins, cards and identities
 
-Connect your Bitwarden account on the **Vault** page, and bots use what's in a folder called **bot-dot** in it: logins (with two-step codes), payment cards and identities. Nothing else in your vault is read.
+Connect your Bitwarden account on the **Vault** page, and bots use what's in a folder called **bot-dot** in it: logins (with two-step codes), payment cards, identities and SSH keys. Nothing else in your vault is read.
 
 - **Setup, once:** botdot's image has the Bitwarden CLI. In the Bitwarden web vault, open **Settings → Security → Keys → View API key** and paste the client_id and client_secret into botdot. Pick bitwarden.com, bitwarden.eu or your own server. The client_secret is stored encrypted with the Vault key. botdot keeps its own CLI data in `data/bitwarden-cli/`, separate from yours.
 - **Unlocking:** after each restart of botdot a pop-up asks for your master password. It's used once and dropped; only the unlocked session stays, in memory. A banner shows while it's locked. A bot that needs a login meanwhile waits briefly, and the pop-up names it. **Lock** locks it at any time.
@@ -242,6 +242,7 @@ Connect your Bitwarden account on the **Vault** page, and bots use what's in a f
 - **Logins** work as before (`type_login`, `api_request`), plus `type_login` with field `totp` for two-step codes. Logins a bot asks for in the pop-up are saved straight into the bot-dot folder. Deleting one moves it to Bitwarden's trash.
 - **Cards:** `type_card` types a card detail into the checkout box the bot selected. **Every payment asks you first:** a pop-up shows the bot, the site, the card's last 4 digits, the amount and the reason. Your OK covers that run on that site for 15 minutes. The bot never sees the card.
 - **Identities:** `type_identity` fills name, email, phone or address into forms.
+- **SSH keys:** an SSH key item (Bitwarden's own type) shows on the Vault page as **SSH key** with its fingerprint. Under **Bots…** choose which bots may use it. Such a bot runs a command on its own computer with `run_with_ssh_key`, e.g. `ssh admin@server.example.ts.net uptime`: botdot loads the key into an ssh-agent there for that one command and ends the agent afterwards, so the bot uses the key and never sees it. The key needs no passphrase in Bitwarden. A computer made before SSH keys may have no ssh-agent: export its files and reset it.
 - **Moving over:** the first time you unlock, the logins saved in botdot's own Vault are copied into the bot-dot folder, with the same bots allowed and the same types, and removed from botdot.
 - **Limits:** while unlocked, a bot allowed to run shell commands on this Mac could in principle read the session of a running `bw` command. Give shell access only to bots you trust.
 

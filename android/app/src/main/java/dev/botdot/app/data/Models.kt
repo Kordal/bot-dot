@@ -1146,6 +1146,9 @@ data class VaultItem(
     val expiry: String? = null,
     val holder: String? = null,
     val email: String? = null,
+    // An SSH key of Bitwarden (kind "ssh-key", `vault-ssh-keys`): its fingerprint and public key, never the private key.
+    val fingerprint: String? = null,
+    val publicKey: String? = null,
 )
 
 /**

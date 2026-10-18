@@ -42,6 +42,14 @@ async function readyForSecrets(botId) {
   return bitwarden.waitUnlocked(45_000);
 }
 
+// What a command run in a bot's computer with a saved secret answers (run-with-login, run-with-ssh-key): its output,
+// each part cut at 20000 characters, with `hide` blanking the secret out of everything.
+function ranWithSecret(r, hide) {
+  if (r.code == null && !r.stdout && !r.stderr) return { ok: false, error: hide(`Couldn't run it: ${r.error || 'no answer from the computer'}`) };
+  const cut = (t) => { t = hide(t || ''); return t.length > 20000 ? `${t.slice(0, 20000)}\n…(cut off)` : t; };
+  return { ok: true, stdout: cut(r.stdout), stderr: cut(r.stderr), exitCode: r.code ?? null, ...(r.timedOut ? { timedOut: true } : {}), ...(r.error ? { note: hide(r.error) } : {}) };
+}
+
 // Copy the built-in vault's logins into Bitwarden (once), then empty it.
 async function moveOldVault() {
   const old = vault.exportAll();
@@ -1547,9 +1555,29 @@ async function api(req, res, url) {
         } catch (e) { r = { error: e.message }; }
         creds.password = null;
         console.log(`[vault] ${session.botId} ran a command in its computer with "${creds.name}": ${r.code ?? 'failed'}`);
-        if (r.code == null && !r.stdout && !r.stderr) return send(res, 200, { ok: false, error: hide(`Couldn't run it: ${r.error || 'no answer from the computer'}`) });
-        const cut = (t) => { t = hide(t || ''); return t.length > 20000 ? `${t.slice(0, 20000)}\n…(cut off)` : t; };
-        return send(res, 200, { ok: true, stdout: cut(r.stdout), stderr: cut(r.stderr), exitCode: r.code ?? null, ...(r.timedOut ? { timedOut: true } : {}), ...(r.error ? { note: hide(r.error) } : {}) });
+        return send(res, 200, ranWithSecret(r, hide));
+      }
+      // run_with_ssh_key: one command in the bot's computer with SSH_AUTH_SOCK set to an ssh-agent that holds an SSH key
+      // of the owner's Bitwarden shared with this bot. The private key goes into the agent there (computers.js
+      // runWithSshKey) and never to the bot: not in its environment, a file, the answer or the log (docs/DECISIONS.md).
+      if (parts[2] === 'computer' && parts[3] === 'run-with-ssh-key' && m === 'POST') {
+        if (!session.container) return send(res, 200, { ok: false, error: "This bot doesn't have a computer" });
+        const { key, command, timeoutSeconds } = await readBody(req);
+        if (!command || typeof command !== 'string' || command.length > 4000) return send(res, 400, { ok: false, error: 'Say which command to run (at most 4000 characters)' });
+        if (!bitwarden.configured()) return send(res, 200, { ok: false, error: "SSH keys come from the owner's Bitwarden (its SSH key items), and botdot isn't connected to Bitwarden." });
+        await readyForSecrets(session.botId);
+        let ssh;
+        try { ssh = bitwarden.sshKey(session.botId, key); } catch (e) { return send(res, 200, { ok: false, error: e.message }); }
+        const hide = vaultHttp.hideSshKey(ssh.privateKey);
+        const seconds = Math.min(Math.max(Number(timeoutSeconds) || 120, 1), 600);
+        let r;
+        try {
+          await B.computerForRun(session.runId);
+          r = await B.computers.runWithSshKey(session.botId, { command, privateKey: ssh.privateKey, timeoutSeconds: seconds });
+        } catch (e) { r = { error: e.message }; }
+        ssh.privateKey = null;
+        console.log(`[vault] ${session.botId} ran a command in its computer with the SSH key "${ssh.name}": ${r.code ?? 'failed'}`);
+        return send(res, 200, ranWithSecret(r, hide));
       }
       // A screenshot of the bot's computer for the owner, attached like a file: a QR code to scan, a 2FA screen…
       if (parts[2] === 'computer' && parts[3] === 'share' && m === 'POST') {
@@ -2572,7 +2600,7 @@ async function api(req, res, url) {
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys'];
 const FIGURE = require('./lib/figure.json');
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();

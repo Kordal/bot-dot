@@ -32,6 +32,7 @@ test('a step in, one short plain line out', () => {
   assert.equal(tool('mcp__computer__screenshot', {}), 'Using its computer');
   assert.equal(tool('mcp__computer__run_shell', { command: 'ls' }), 'Running a command on its computer');
   assert.equal(tool('mcp__computer__run_with_login', { login: 'Bridge', command: 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/' }), 'Running a command with a saved login');
+  assert.equal(tool('mcp__computer__run_with_ssh_key', { key: 'Tailnet servers', command: 'ssh admin@host uptime' }), 'Running a command with a saved SSH key');
   assert.equal(tool('mcp__vault__api_request', { url: 'https://api.github.com/user', login: 'GitHub' }), 'Calling api.github.com');
   assert.equal(tool('mcp__vault__request_login', { site: 'github.com' }), 'Asking you for a login');
   assert.equal(tool('mcp__connectors__connector_run', { app: 'gmail', action: 'GMAIL_SEND_EMAIL' }), 'Using gmail');
