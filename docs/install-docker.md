@@ -86,6 +86,10 @@ docker compose -f compose.single.yaml [-f compose.single.caddy.yaml] up -d
 - **Coolify:** create a Docker Compose resource from the repository with `compose.single.yaml`. Set the settings in its environment, and give the `front-door` service your domain on port 4700.
 - **Portainer:** create a stack from the repository with `compose.single.yaml` and the settings as its environment variables. Then route your proxy to `front-door:4700`, or add `compose.single.caddy.yaml` as a second file.
 
+## Two botdot apps on one host
+
+Two Compose apps on one host work: create the app twice under different names, each with its own domain and setup key. Their data stays apart because the volumes take each app's project name. The bots' computers do too: each app names and labels them with its project, and lists, counts, stops and erases only its own. They still share the host's one Docker, so a flaw in one app's docker-helper reaches the other. For two people, use [Install on Linux](install-linux.md), where each account has a Docker of its own.
+
 ## First sign-in
 
 1. Open `https://botdot.example.com/sign-up/<your setup key>` and make your passkey. The key opens nothing once the passkey exists.

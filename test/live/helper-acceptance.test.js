@@ -53,10 +53,13 @@ test('isolated server and helper preserve legacy files and restore an isolated c
   const created = await s.api('/bots', 'POST', { name: 'Helper acceptance', emoji: '🧪', prompt: 'Synthetic acceptance only', computer: 'linux' });
   assert.equal(created.status, 201, JSON.stringify(created));
   const id = created.data.id;
-  const computer = `botdot-${id}`;
+  let computer = `botdot-${id}`;
   await s.inner('run', '-d', '--name', computer, '--label', `botdot.bot=${id}`, '--restart', 'always', '--entrypoint', 'sh', 'bot-dot/desktop:latest', '-c', 'echo legacy-file-survived > /tmp/acceptance.txt; exec sleep infinity');
   await s.composeRun('restart', 'docker-helper');
   await waitFor(() => s.helper('listAll', []).then(() => true).catch(() => false), { timeout: 30000, what: 'helper migration restart' });
+  // The helper took the computer from before over under its project's name (#19); its files stay.
+  computer = await s.inner('ps', '-a', '--filter', `label=botdot.bot=${id}`, '--format', '{{.Names}}');
+  assert.match(computer, new RegExp(`^botdot-[a-z0-9_-]+\\.${id}$`));
   await waitFor(() => s.inner('inspect', computer, '--format', '{{.State.Running}}|{{.HostConfig.RestartPolicy.Name}}').then(v => v === 'false|no'), { timeout: 30000, what: 'legacy stop and restart-policy migration' });
   await s.inner('cp', `${computer}:/tmp/acceptance.txt`, '/tmp/acceptance-export.txt');
   assert.equal(await s.docker('exec', s.name, 'cat', '/tmp/acceptance-export.txt'), 'legacy-file-survived');
