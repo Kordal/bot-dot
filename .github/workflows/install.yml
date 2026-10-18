@@ -1,30 +1,14 @@
 # botdot installed end to end in a nested Docker daemon (`make install-real`, tests/integration/install-real.js),
 # on every change to what an install runs: the installer and the signature check it shares with the updater, the
 # compose files, the Dockerfile, the docker-helper, the updater and the image workflow, and the stage itself.
+# Pull requests only: a second run on main after the merge repeats the same check, and the nightly image build
+# catches a merge that was not up to date with main.
 #
 # Where it runs: on GitHub's own throwaway machines for every event (#528). The stage runs a privileged container,
 # and a fork's pull request may change this file, so no runner of the owner's may take it.
 name: Install
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - install.sh
-      - compose*.yaml
-      - Dockerfile
-      - lib/docker-helper.js
-      - front-door.js
-      - lib/front-door/**
-      - lib/updates.js
-      - lib/signed-image.js
-      - lib/registry.js
-      - lib/release-manifest.js
-      - lib/release-trust.js
-      - .github/workflows/images.yml
-      - .github/workflows/install.yml
-      - tests/integration/install-real.*
-      - tests/integration/test-install.js
   pull_request:
     paths:
       - install.sh
