@@ -18,6 +18,8 @@ after(() => srv.stop());
 const OLD = /dashboard/i;
 const source = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 const times = (text, re) => (text.match(new RegExp(re.source, 'gi')) || []).length;
+// How often a tile reads again, as the owner chose it (#42), described once for the Chief's tools and a bot's suggest_tile.
+const EVERY = 'How often it reads again while the Board is open, in seconds, as the owner chose it when asked: 60 every minute (the default), 900 every 15 minutes, 3600 hourly, 86400 daily, or 0 only when tapped (read once, then again on a tap on a value or a switch, or with tap "refresh"). At least 10.';
 const EARLIER_NAME = 'The Board was called the dashboard before, so a user who still uses that word means the Board.';
 
 // ---------- the Chief ----------
@@ -60,7 +62,7 @@ test("the Chief's tools: get_board and arrange_board, and no name, description o
   assert.equal(tool('add_tile').description, "Put a tile on the user's Board. Load your skill chief:board first.");
   assert.equal(tool('update_tile').description, 'Change a tile (id from get_board). Only pass the fields to change; null removes a source.');
   assert.equal(tool('remove_tile').description, 'Take a tile off the Board. A group: its tiles come out of it and stay, unless withTiles is true.');
-  assert.equal(tool('add_tile').inputSchema.properties.every.description, 'Refresh every this many seconds while the Board is open (default 60, at least 10)');
+  assert.equal(tool('add_tile').inputSchema.properties.every.description, EVERY);
   assert.match(tool('request_login').description, /^Open a secure pop-up in botdot asking the user to add a login for a website /);
   assert.match(tool('request_login').description, /\(Home Assistant, Proxmox, a tile on the Board\)/);
 });
@@ -72,6 +74,9 @@ test("the Chief's skill is chief:board, without the earlier name and without the
   assert.match(skill, /^---\nname: board\ndescription: "Build and change the user's Board: [^\n]+"\n---\n\n# The user's Board\n/);
   assert.doesNotMatch(skill, OLD);
   assert.doesNotMatch(skill, /`place`|\brow in the app's list\b|drag it there/, 'the row of the list has no place to set');
+  // It asks how often the tile refreshes before adding it (#42), with buttons and a default, and how to change it.
+  assert.match(skill, /\n3\. \*\*Ask how often it refreshes\*\* when the tile reads its value itself, unless the user said: one question, with \[\[choices: Every minute \(default\) \| Every 15 minutes \| Hourly \| Only when I tap\]\] or the four that fit it, your default first\. Say that it refreshes only while the Board is open, and that more often means more reads, and more runs of its script for a tile whose read is a script\. Put the answer in `every` \(seconds; 0 for only when tapped\)\.\n4\. \*\*Add it\*\*/);
+  assert.ok(skill.includes('- How often it refreshes: `update_tile` with `every`.'), 'changing it later');
   for (const text of ['Your tools: `get_board`, `test_tile`, `add_tile`, `update_tile`, `remove_tile`, `arrange_board`.', '**Look first:** call `get_board`.', '"It\'s on your Board, under Home."', '`arrange_board` with `sections` or `tiles`', '`arrange_board` with `rename`']) {
     assert.ok(skill.includes(text), text);
   }
@@ -94,6 +99,7 @@ test("a bot reads of the owner's Board: in its run, in its weekly review, and in
   assert.match(described('set_tile'), /^Put a new value on one of your tiles on the owner's Board \(they're listed in your instructions\)\. /);
   assert.match(described('suggest_tile'), /^Suggest a tile for the owner's Board: when they ask you to put something there, .+ It waits faded on their Board and as a card in your chat, /);
   assert.match(described('suggest_tile'), / When the owner asked for it, call this only after they answered your one question about what they want \(or their request left no doubt\)\. /);
+  assert.equal(offered.find((x) => x.name === 'suggest_tile').inputSchema.properties.every.description, EVERY, "the refresh the owner chose, as the Chief's tools say it");
   assert.equal(await tools.text('suggest_tile', { kind: 'note', title: 'Shopping', reason: 'You asked me for a shopping list.' }),
     "Suggested. It waits on the owner's Board and in your chat until they tap Add. Tell them in one short sentence.");
   assert.equal(await tools.text('set_tile', { tile: 'Today', value: 'Rain at 3.' }), 'Done. The Board shows it now.');
@@ -106,11 +112,13 @@ test("a bot reads of the owner's Board: in its run, in its weekly review, and in
   const { system } = second.rec;
   assert.match(system, /You fill these tiles on the owner's Board: "Today" \(note\)\. When your task or the owner says so, update them with set_tile/);
   assert.match(system, /The owner's Board is their one page of tiles \(switches, buttons, values, lists, notes, or tiles built from blocks with sliders, a colour wheel, charts and more\)\. When the owner asks you to put something on it, first ask /);
-  assert.match(system, /Skip the question when their request already leaves no doubt\. Then, or when you notice they keep asking you for the same action or the same value \(3 times or more\), suggest a tile with suggest_tile/);
+  assert.match(system, /Put their answer in every\. Then, or when you notice they keep asking you for the same action or the same value \(3 times or more\), suggest a tile with suggest_tile/);
   assert.match(system, /Tell them in one short sentence that it waits on their Board\. Your tiles already there: "Today"\. Your suggestions still waiting: "Shopping"\./);
   // Asked for a tile, it first asks one question (#31): short, about this request, with buttons for short options.
   assert.match(system, /When the owner asks you to put something on it, first ask them exactly one short question that checks what they want, specific to that request \(for a light: an on\/off switch, a brightness slider or its state as a value\), with the options as \[\[choices: …\]\] when they are a few short ones, and suggest the tile only after they answer\. Skip the question when their request already leaves no doubt\./);
   assert.ok(system.indexOf('first ask them exactly one short question') < system.indexOf('suggest a tile with suggest_tile'), 'the question comes before the suggestion');
+  // Then how often it refreshes (#42), for a tile that reads its value itself: with buttons and a default, and what more often costs.
+  assert.match(system, /Skip the question when their request already leaves no doubt\. Once that is clear, and the tile reads its value itself, ask how often it should refresh, unless they said: offer the four choices that fit it, your default first, e\.g\. \[\[choices: Every minute \(default\) \| Every 15 minutes \| Hourly \| Only when I tap\]\], and say that it refreshes only while the Board is open, and that more often means more reads, and more runs of its script for a tile whose read is a script\. Put their answer in every\. Then, or when you notice/);
   assert.doesNotMatch(system, OLD);
   assert.doesNotMatch(second.rec.stdin, OLD);
   srv.unhold(); srv.release(second.rec);
