@@ -113,10 +113,9 @@ fun NeedsFigures(who: List<Named>, max: Int = 8) {
     val def = figure()
     val clock = movingClock(who.isNotEmpty())
     val shown = who.take(max)
-    val dark = LocalPaper.current == DarkPaper
-    val marks = remember(def, shown, dark) {
+    val marks = remember(def, shown) {
         shown.map { b ->
-            tonesOf(b.color, dark, def) to def.hat(b.outfit)
+            tonesOf(b.color, dark = true, def) to def.hat(b.outfit)
         }
     }
     val tall = 20.dp

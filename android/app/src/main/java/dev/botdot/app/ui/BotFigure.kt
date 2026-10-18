@@ -64,8 +64,8 @@ internal class Tones(val main: Color, val deep: Color, val white: Color, val ink
 
 @Composable
 private fun tones(color: String?, def: FigureDef): Tones {
-    val dark = LocalPaper.current == DarkPaper
-    return remember(color, dark, def) { tonesOf(color, dark, def) }
+    // The app is dark only (#14).
+    return remember(color, def) { tonesOf(color, dark = true, def) }
 }
 
 /** A bot without a colour, or with one that isn't a colour, is grey. */
