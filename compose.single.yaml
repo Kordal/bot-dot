@@ -11,6 +11,8 @@
 # Settings, in the app's environment (.env):
 #   FRONT_DOOR_ORIGIN      the address you open, https://botdot.example.com (a passkey belongs to its name)
 #   FRONT_DOOR_SETUP_KEY   32 to 100 base64url characters that open the one sign-up page, until your passkey exists
+#   FRONT_DOOR_ACCOUNT     your account's name (default owner): 2 to 31 lowercase letters, digits and dashes, starting
+#                          with a letter. It can't be changed once your passkey is made.
 #   TZ                     the time zone schedules use (default UTC)
 services:
   bot-dot:
@@ -31,8 +33,8 @@ services:
       BOT_DOT_COMPUTER_IMAGE: ${BOT_DOT_COMPUTER_IMAGE:-ghcr.io/kordal/bot-dot-desktop:latest}
       BOT_DOT_HELPER_SOCKET: /run/botdot/helper.sock
       # The one account, and the socket its front door reaches it on (the supervisor gives the folder to botdot's user)
-      BOT_DOT_ACCOUNT: owner
-      BOT_DOT_FRONT_DOOR_SOCKET: /run/front-door/owner/botdot.sock
+      BOT_DOT_ACCOUNT: ${FRONT_DOOR_ACCOUNT:-owner}
+      BOT_DOT_FRONT_DOOR_SOCKET: /run/front-door/${FRONT_DOOR_ACCOUNT:-owner}/botdot.sock
     volumes:
       - bot-dot-data:/data                          # bots, runs, memory, skills, vault (encrypted)
       - bot-dot-config:/config                      # the vault's encryption key, kept apart from the data
@@ -104,7 +106,7 @@ services:
       FRONT_DOOR_BEHIND_PROXY: "1"
       FRONT_DOOR_SOCKETS: /run/front-door
       FRONT_DOOR_DATA: /front-door
-      FRONT_DOOR_ONE_ACCOUNT: owner
+      FRONT_DOOR_ONE_ACCOUNT: ${FRONT_DOOR_ACCOUNT:-owner}
       # Opens the one account's sign-up page, at <origin>/sign-up/<key>, until the account has its passkey
       FRONT_DOOR_SETUP_KEY: ${FRONT_DOOR_SETUP_KEY:?32 to 100 base64url characters, e.g. openssl rand -base64 48 | tr '+/' '-_' | tr -d '='}
       # botdot's Android app, by its release certificate (docs/release-signing.md), so it signs in with the passkey

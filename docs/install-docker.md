@@ -29,6 +29,7 @@ TZ=Europe/Warsaw
 |---|---|
 | `FRONT_DOOR_ORIGIN` | The address you open. A passkey belongs to its host name, so pick it once. Required. |
 | `FRONT_DOOR_SETUP_KEY` | 32 to 100 base64url characters that open the one sign-up page until your passkey exists. Required. |
+| `FRONT_DOOR_ACCOUNT` | Your account's name: 2 to 31 lowercase letters, digits and dashes, starting with a letter. Default `owner`. It can't be changed once your passkey is made. |
 | `TZ` | The time zone schedules use. Default `UTC`. |
 | `BOT_DOT_DOMAIN` | The host name in `FRONT_DOOR_ORIGIN`, for Caddy only. |
 | `BOT_DOT_REGISTRY_TOKEN` | Only while botdot's images on ghcr.io are private: a GitHub token that may read packages, so bots' computers can be downloaded. Run `docker login ghcr.io` on the host too. |
@@ -77,7 +78,7 @@ docker compose -f compose.single.yaml [-f compose.single.caddy.yaml] up -d
 1. In a project, create a **Compose** service.
    - Provider **Git**: `https://github.com/Kordal/bot-dot.git`, branch `main`, compose path `./compose.single.yaml`.
    - Or provider **Raw**, with the file's contents pasted in.
-2. Put the settings in the **Environment** tab. If the images are private, also add ghcr.io under **Registry**.
+2. Put the settings in the **Environment** tab. If the images are private, also add ghcr.io under **Registry**. To pick your account's name, add `FRONT_DOOR_ACCOUNT` before the first deploy: 2 to 31 lowercase letters, digits and dashes, starting with a letter (default `owner`). It can't be changed once your passkey is made.
 3. Point the domain's DNS at the server. Then, in the **Domains** tab, add the host, service `front-door`, port `4700`, with HTTPS and Let's Encrypt.
 4. Deploy. **To update,** press **Redeploy**: every image is pulled again (`pull_policy: always`), and the volumes stay.
 
