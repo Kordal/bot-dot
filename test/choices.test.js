@@ -14,6 +14,17 @@ test('split takes the last line off and returns its choices', () => {
   assert.deepEqual(split(null), { text: null, choices: null, questions: null });
 });
 
+test('a choices line with text after it still becomes buttons (#38)', () => {
+  assert.deepEqual(
+    split('Mam zaproponować więcej?\n\n[[choices: Tak, zaproponuj | Nie, na razie wystarczy]]\n\nZapamiętałem: Bart chce przypomnień o otwartych sprawach.'),
+    { text: 'Mam zaproponować więcej?\n\nZapamiętałem: Bart chce przypomnień o otwartych sprawach.', choices: ['Tak, zaproponuj', 'Nie, na razie wystarczy'], questions: null },
+  );
+  assert.deepEqual(split('Send it?\n[[choices: Yes | No]]\nNoted.'), { text: 'Send it?\n\nNoted.', choices: ['Yes', 'No'], questions: null });
+  assert.deepEqual(split('Pick\n[[choices: Only one]]\nNoted.'), { text: 'Pick\n\nNoted.', choices: null, questions: null }, 'one choice: no buttons, and the marker is still hidden');
+  const two = split('A?\n[[choices: Yes | No]]\nB?\n[[choices: Now | Later]]');
+  assert.deepEqual(two, { text: 'A?\n\nB?', choices: ['Now', 'Later'], questions: null }, 'the last one wins and every marker line leaves the text');
+});
+
 test('split takes several [[ask: …]] lines off as questions', () => {
   assert.deepEqual(split('A few things first.\n\n[[ask: Which account?]]\n[[ask: Who is in copy? [cc]]]\n'), { text: 'A few things first.', choices: null, questions: ['Which account?', 'Who is in copy? [cc]'] });
   assert.deepEqual(split('[[ask: A?]] [[ask: B?]]').questions, ['A?', 'B?'], 'two on one line');
