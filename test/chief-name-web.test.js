@@ -1,0 +1,113 @@
+// The Chief's name on the web page (#41): the page's own code, cut out of public/app.js and run against stand-in
+// elements and a stand-in server. The name comes from `GET /api/chief` and the feed's `chief_name`, a server from
+// before it leaves "Chief of Staff"; the first-run setup asks for it once, and Done sends it with `done`; a name the
+// server refuses keeps the page on Setup with the server's sentence.
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const vm = require('vm');
+const { app, cut, esc, element, finders } = require('./web-page');
+
+// The name's own part of the page, with the Chief's row in the list and its chat's head.
+function names() {
+  const head = element();
+  const ctx = vm.createContext({ ...finders(element({ '#view-chief .chat-head h2': head })), esc, Mentions: { CHIEF: 'chief' }, CHIEF_COLOR: '#d85a30' });
+  vm.runInContext(`${cut('const CHIEF_BOT = {', '\n')}
+    ${cut('// ---------- the Chief\'s name', '// ---------- end of the Chief\'s name')}
+    this.CHIEF_BOT = CHIEF_BOT; this.takeChiefName = takeChiefName; this.drawChiefName = drawChiefName; this.chiefName = chiefName; this.chiefMatches = chiefMatches;`, ctx);
+  return { ctx, head };
+}
+
+test('the page calls the Chief what the server says, and Chief of Staff when it says nothing', () => {
+  const { ctx, head } = names();
+  assert.equal(ctx.chiefName(), 'Chief of Staff');
+  assert.equal(ctx.takeChiefName('Ada'), true);
+  assert.equal(ctx.chiefName(), 'Ada');
+  assert.equal(ctx.CHIEF_BOT.name, 'Ada', 'the mentions and the chips use the same name');
+  assert.equal(ctx.takeChiefName('Ada'), false, 'no change, nothing to redraw');
+  ctx.drawChiefName();
+  assert.equal(head.textContent, 'Ada');
+  for (const none of [undefined, '', '  ', null, 7]) {
+    ctx.takeChiefName('Ada');
+    ctx.takeChiefName(none);
+    assert.equal(ctx.chiefName(), 'Chief of Staff', String(none));
+  }
+});
+
+test('a search finds the Chief by its name and by its role', () => {
+  const { ctx } = names();
+  ctx.takeChiefName('Ada');
+  for (const q of ['ada', 'chief', 'staff']) assert.ok(ctx.chiefMatches(q), q);
+  assert.ok(!ctx.chiefMatches('news'));
+});
+
+test('the list, the keys, the panel and the chat head say the name, never a fixed "Chief of Staff"', () => {
+  for (const [from, to] of [['function drawContacts', '\n}\n'], ['function chiefKeyHTML', '\n}\n'], ['function drawPanelHead', '\n}\n'], ['function renderChief()', "wireComposer($('form', root)"]]) {
+    const part = cut(from, to);
+    assert.doesNotMatch(part, /Chief of Staff/, from);
+    assert.match(part, /chiefName\(\)/, from);
+  }
+});
+
+// The setup page's question and its Done, with a stand-in server.
+function setup({ s, answers = [] }) {
+  const input = element({}, { value: '' });
+  const root = element({ '#chief-name': input });
+  const calls = [], toasts = [], views = [];
+  const state = { setup: s };
+  const ctx = vm.createContext({
+    ...finders(root), esc, state, JSON,
+    toast: (...a) => toasts.push(a),
+    setView: (v) => views.push(v),
+    setupItem: ({ state: st, icon, title, body, action }) => `<item ${st} ${icon} ${title}>${body}|${action}</item>`,
+    api: async (path, opts = {}) => {
+      calls.push([opts.method || 'GET', path, opts.body && JSON.parse(JSON.stringify(opts.body))]);
+      const a = answers.shift();
+      if (a instanceof Error) throw a;
+      return a;
+    },
+  });
+  vm.runInContext(`${cut('// The question for the Chief\'s name', '// ---------- end of the setup question')}
+    this.chiefNameSetupItem = chiefNameSetupItem; this.finishSetup = finishSetup;`, ctx);
+  return { ctx, input, calls, toasts, views, state };
+}
+
+test('setup asks for the name until it is done, with the name kept as its value', () => {
+  const { ctx } = setup({ s: {} });
+  assert.match(ctx.chiefNameSetupItem({ done: false, chiefName: 'Chief of Staff' }), /<input[^>]*id="chief-name"[^>]*maxlength="40"[^>]*value=""/);
+  assert.match(ctx.chiefNameSetupItem({ done: false, chiefName: 'Ada "A" <b>' }), /value="Ada &quot;A&quot; &lt;b&gt;"/);
+  assert.match(ctx.chiefNameSetupItem({ done: false, chiefName: 'Chief of Staff' }), /Chief of Staff/, 'says what an empty name keeps');
+  assert.equal(ctx.chiefNameSetupItem({ done: true, chiefName: 'Ada' }), '', 'not asked again once setup is done');
+});
+
+test('Done sends the name with done, and goes to the Chief', async () => {
+  const t = setup({ s: { done: false }, answers: [{ done: true, chiefName: 'Ada', chiefNameAsked: true }] });
+  t.input.value = ' Ada ';
+  await t.ctx.finishSetup();
+  assert.deepEqual(t.calls, [['PUT', '/setup', { done: true, chiefName: ' Ada ' }]]);
+  assert.deepEqual(t.views, ['chief']);
+  assert.equal(t.state.setup.chiefName, 'Ada');
+});
+
+test('a name the server refuses keeps Setup open, with its sentence', async () => {
+  const t = setup({ s: { done: false }, answers: [Object.assign(new Error('A bot is called Ada already. Give the Chief of Staff another name.'), { status: 400 })] });
+  t.input.value = 'Ada';
+  await t.ctx.finishSetup();
+  assert.deepEqual(t.views, []);
+  assert.deepEqual(t.toasts, [['A bot is called Ada already. Give the Chief of Staff another name.', true]]);
+});
+
+test('Done without the question (setup done before) sends done alone, and goes on when the server cannot be reached', async () => {
+  const t = setup({ s: { done: true }, answers: [new Error('offline')] });
+  t.ctx.$ = () => null; // no name field on the page
+  await t.ctx.finishSetup();
+  assert.deepEqual(t.calls, [['PUT', '/setup', { done: true }]]);
+  assert.deepEqual(t.views, ['chief'], 'as before: it still goes');
+});
+
+test('the feed\'s chief_name renames the Chief on the page at once', () => {
+  const part = cut("es.addEventListener('chief_name'", '});');
+  assert.match(part, /takeChiefName\(/);
+  assert.match(part, /renderContacts\(\)/);
+  assert.match(part, /drawChiefName\(\)/);
+  assert.match(app, /takeChiefName\(chief\.chief\?\.name\)/, 'and from GET /api/chief');
+});

@@ -232,7 +232,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onBack: () -> 
                     else BitwardenCard(bw, bw.wantedBy?.let { w -> whoOf(w.id, w.name) }, unlockError) { pw -> api?.let { app.unlockBitwarden(it, pw) } }
                 }
                 items(requests, key = { "r:${it.id}" }) { r ->
-                    val who = inGroup(if (r.bot == null && r.from == "chief") CHIEF_NAMED else whoOf(r.bot?.id, r.bot?.name ?: "A bot"), r.group)
+                    val who = inGroup(if (r.bot == null && r.from == "chief") chiefNamed() else whoOf(r.bot?.id, r.bot?.name ?: "A bot"), r.group)
                     if (r.kind == "card") CardRequest(r, who,
                         onAllow = { act("Allowed for this task") { api!!.answerRequest(r.id, buildJsonObject { put("action", "approve") }) } },
                         onDecline = { act("Declined") { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
@@ -267,14 +267,14 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onBack: () -> 
                 // A tile of the Board with a script, or a change to one: it runs on your botdot, so it waits for you.
                 items(tilesLeft(tiles, decided.map { it.key }), key = { tileKey(it) }) { t ->
                     val b = bots.firstOrNull { it.id == t.bot }
-                    val who = inGroup(b?.named() ?: CHIEF_NAMED, cardGroups[CardGroups.tileKey(t.id)])
+                    val who = inGroup(b?.named() ?: chiefNamed(), cardGroups[CardGroups.tileKey(t.id)])
                     TileApproval(who, t, t.then?.line(),
                         onApprove = { decide(tileKey(t), who, tileCard(t).title, true) { api!!.approveTile(t.id, true) } },
                         onDecline = { decide(tileKey(t), who, tileCard(t).title, false) { api!!.approveTile(t.id, false) } })
                 }
                 // A permission or a skill a bot (or the Chief) asked for, and a tool the Chief asks to install for a bot.
                 items(asks.filter { a -> decided.none { it.key == "a:${a.id}" } }, key = { "a:${it.id}" }) { a ->
-                    val who = inGroup(a.bot?.let { whoOf(it.id, it.name) } ?: CHIEF_NAMED, a.group)
+                    val who = inGroup(a.bot?.let { whoOf(it.id, it.name) } ?: chiefNamed(), a.group)
                     AskApproval(a, who) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
                 }
                 // A bot's plan for the Chief: nothing happens until you approve it, here or in its chat.

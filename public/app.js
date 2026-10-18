@@ -97,6 +97,23 @@ function esc(s) {
 const CHIEF_COLOR = '#d85a30';
 // The Chief where it's shown like a bot: a sender, a mention.
 const CHIEF_BOT = { id: Mentions.CHIEF, name: 'Chief of Staff', color: CHIEF_COLOR, jobs: [] };
+// ---------- the Chief's name
+// The name the owner gave the Chief (#41): `chief.name` of GET /api/chief and the feed's `chief_name`. Without one
+// (also from a server from before it) it is the role's own. CHIEF_BOT carries it, so mentions and chips say it too.
+const CHIEF_ROLE = 'Chief of Staff';
+const chiefName = () => CHIEF_BOT.name;
+// Takes the name the server said: true when it changed, and what shows it is to be drawn again.
+function takeChiefName(name) {
+  const n = typeof name === 'string' && name.trim() ? name.trim() : CHIEF_ROLE;
+  if (n === CHIEF_BOT.name) return false;
+  CHIEF_BOT.name = n;
+  return true;
+}
+// The head of the Chief's chat, which is drawn once.
+function drawChiefName() { const h = $('#view-chief .chat-head h2'); if (h) h.textContent = chiefName(); }
+// A search in the list finds the Chief by its name and by its role.
+const chiefMatches = (q) => CHIEF_ROLE.toLowerCase().includes(q) || chiefName().toLowerCase().includes(q);
+// ---------- end of the Chief's name
 const BOT_COLORS = [['#1d9e75', 'Teal'], ['#378add', 'Blue'], ['#7f77dd', 'Purple'], ['#d4537e', 'Pink'], ['#e24b4a', 'Red'], ['#ef9f27', 'Amber'], ['#639922', 'Green'], ['#888780', 'Grey']];
 // outfit: its hat ({ hat }: the name of one in the server's kit, or one the Chief drew), when it has one.
 // bot: its id, for a head that stays on the page while nothing draws it again (a run's): redrawMarks then finds it.
@@ -513,6 +530,7 @@ async function refresh() {
     const [bots, runs, chief, computers, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/chief'), api('/computers').catch(() => ({})), api('/settings').catch(() => null)]);
     if (!state.skillLib) await skillLib; // the first time, the chats wait for it
     Object.assign(state, { bots, runs, chats: chief.chats, chiefBusy: chief.busy, chiefUnread: Unread.count(chief), computers, groups: await groupsRead });
+    if (takeChiefName(chief.chief?.name)) drawChiefName();
     if (state.view === 'group' && state.groupId) loadGroupChat(state.groupId);
     // The lines: those of runs and replies that are still going on stay, the rest go. A run's is its working line
     // from a server that has one (opening-line.js ofRun).
@@ -657,7 +675,7 @@ function drawPanelHead() {
   if (!page) return;
   const bot = state.view === 'bot' ? botById(state.botId) : null;
   const fromSettings = state.panel === 'jobs' && state.via;
-  const to = fromSettings ? 'Settings' : bot ? bot.name : state.view === 'group' ? groupById(state.groupId)?.name || 'Group' : 'Chief of Staff';
+  const to = fromSettings ? 'Settings' : bot ? bot.name : state.view === 'group' ? groupById(state.groupId)?.name || 'Group' : chiefName();
   const panel = $('#panel');
   panel.dataset.kind = fromSettings ? 'jobs' : 'settings'; // the style shows Back beside the chat for 'jobs'
   const back = $('#panel-back');
@@ -820,11 +838,11 @@ function drawContacts() {
   const items = [];
   const top = []; // the Chief and the pinned bots
   if (!q) items.push(dashStrip());
-  if (!q || 'chief of staff'.includes(q)) {
+  if (!q || chiefMatches(q)) {
     top.push(`
-      <button class="contact ${state.view === 'chief' ? 'active' : ''}" data-contact="chief" title="Chief of Staff">
+      <button class="contact ${state.view === 'chief' ? 'active' : ''}" data-contact="chief" title="${esc(chiefName())}">
         ${chiefFigure()}
-        <div class="grow"><div class="top"><span class="name">Chief of Staff</span><span class="time">${esc(shortTime(chat?.updatedAt))}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}</div>
+        <div class="grow"><div class="top"><span class="name">${esc(chiefName())}</span><span class="time">${esc(shortTime(chat?.updatedAt))}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}</div>
         <div class="prev">${esc(plain(chat?.preview) || 'Your team of bots. Ask for anything.')}</div></div>
       </button>`);
   }
@@ -930,7 +948,7 @@ function drawBoardLine(el) {
 // The Chief of Staff's key, first on Pinned: its row in the list as a key, with Esc where a bot's key has its digit.
 function chiefKeyHTML() {
   const chat = state.chats[0];
-  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}" data-key-chief title="Chief of Staff"><span class="key-n">Esc</span>${chiefFigure()}<div class="grow"><div class="top"><span class="name">Chief of Staff</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}</div><div class="prev">${esc(plain(chat?.preview) || 'Your team of bots. Ask for anything.')}</div></div></button>`;
+  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}" data-key-chief title="${esc(chiefName())}"><span class="key-n">Esc</span>${chiefFigure()}<div class="grow"><div class="top"><span class="name">${esc(chiefName())}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}</div><div class="prev">${esc(plain(chat?.preview) || 'Your team of bots. Ask for anything.')}</div></div></button>`;
 }
 // Every page as a section: its heading (name, count, dot) over its keys in rows of three. Pinned is always first, right
 // under the Board, set apart from the categories on a panel of its own, with the Chief's key before the pinned bots,
@@ -2438,7 +2456,7 @@ function renderChief() {
         ${BACK_BTN}
         <button class="chat-title" id="chief-settings" title="Its settings">
           <div id="chief-avatar">${chiefFigure('sm')}</div>
-          <div class="grow"><h2>Chief of Staff</h2><div class="sub" id="chief-sub"></div></div>
+          <div class="grow"><h2>${esc(chiefName())}</h2><div class="sub" id="chief-sub"></div></div>
         </button>
         <div class="actions-right">
           <button class="icon-btn" id="chief-new" title="New chat">${ICON.compose}</button>
@@ -4260,6 +4278,7 @@ function drawSetup() {
     ${PAGE_BACK}
     <div class="section-head"><div><h1>Setup</h1>${unknown ? '' : `<p>${c.loggedIn ? 'botdot is ready. The rest is up to you.' : 'One step and botdot is ready.'}</p>`}</div></div>
     ${claude}${loginBox}
+    ${chiefNameSetupItem(s)}
     ${computers}${phone}${tz}
     <h3 class="page-sub">Extras</h3>
     ${extras.join('')}
@@ -4322,11 +4341,32 @@ function drawSetup() {
     renderSetup(true);
   });
   $$('[data-setup-go]', root).forEach((b) => (b.onclick = () => setView(b.dataset.setupGo)));
-  onClick('#setup-done', async () => {
-    try { state.setup = { ...state.setup, ...(await api('/setup', { method: 'PUT', body: { done: true } })) }; } catch { /* still go */ }
-    setView('chief');
+  onClick('#setup-done', finishSetup);
+}
+
+// The question for the Chief's name in the first-run setup (#41), until setup is done. Its value is the name the
+// Chief has, empty for "Chief of Staff"; Done sends it. Later the owner asks the Chief for another name.
+function chiefNameSetupItem(s) {
+  if (s.done) return '';
+  const name = s.chiefName && s.chiefName !== 'Chief of Staff' ? s.chiefName : '';
+  return setupItem({
+    state: s.chiefNameAsked ? 'ok' : 'todo', icon: '🧭', title: 'Name your Chief of Staff',
+    body: 'It runs your team of bots and talks with you. Leave it empty to keep “Chief of Staff”. You can ask it for another name any time.',
+    action: `<input type="text" id="chief-name" class="setup-name" maxlength="40" placeholder="Chief of Staff" autocomplete="off" value="${esc(name)}">`,
   });
 }
+// Done: setup is done, with the name asked above. A name the server refuses (a bot's) keeps Setup open with its
+// sentence; a server that could not be reached does not hold the owner up.
+async function finishSetup() {
+  const field = $('#chief-name');
+  try {
+    state.setup = { ...state.setup, ...(await api('/setup', { method: 'PUT', body: { done: true, ...(field ? { chiefName: field.value } : {}) } })) };
+  } catch (err) {
+    if (err.status === 400) { toast(err.message, true); return; }
+  }
+  setView('chief');
+}
+// ---------- end of the setup question
 
 // ---------- vault ----------
 
@@ -5982,7 +6022,7 @@ function unreadNow(chat) {
   return kind === 'bot' ? api(`/bots/${encodeURIComponent(id)}`) : kind === 'group' ? api(`/group-chats/${encodeURIComponent(id)}`) : api(`/chief/chats/${encodeURIComponent(id)}?limit=1`);
 }
 const loadFeatures = () => api('/version').then((v) => { state.features = v.features || []; }).catch(() => {});
-const loadChief = () => api('/chief').then((c) => { Object.assign(state, { chats: c.chats, chiefBusy: c.busy, chiefUnread: Unread.count(c) }); renderContacts(); }).catch(() => {});
+const loadChief = () => api('/chief').then((c) => { Object.assign(state, { chats: c.chats, chiefBusy: c.busy, chiefUnread: Unread.count(c) }); if (takeChiefName(c.chief?.name)) drawChiefName(); renderContacts(); }).catch(() => {});
 
 let readChat = null; // the chat last seen on screen and in front
 function syncRead() {
@@ -6500,6 +6540,10 @@ function followFeed() {
   // The Chief began a reply this page may not have asked for: after an OK, for a message that waited, for a late
   // result. Its working line shows, and the chat is read again so that the turn and its reply are followed.
   // While this page is sending there, or follows the reply before it, that is done when that ends.
+  // The Chief was given another name (#41), in setup, in an app or by asking it.
+  es.addEventListener('chief_name', (e) => {
+    if (takeChiefName(JSON.parse(e.data).name)) { renderContacts(); drawChiefName(); drawPanelHead(); }
+  });
   es.addEventListener('chief_started', (e) => {
     let d = {};
     try { d = JSON.parse(e.data); } catch { /* not ours */ }

@@ -61,6 +61,7 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
   });
   said.modal = () => element();
   vm.runInContext(`${cut('const botById = ', 'const colorOf = ')}
+    ${cut("// ---------- the Chief's name", "// ---------- end of the Chief's name")}
     ${cut('const mentionCtx = ', '// What mentions match against')}
     ${cut('const plain = (t) =>', '// ---------- contacts (sidebar) ----------')}
     ${cut('const fmtSize = ', '// Files a bot attached to its reply')}

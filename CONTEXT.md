@@ -15,7 +15,7 @@ A bot's standing task, the `prompt` field: what it does when a run brings no tas
 _Avoid_: usual task, task, prompt
 
 **Chief of Staff**:
-The one special chat that creates, changes and runs the other bots for the user. It counts as a bot when bots message each other.
+The one special chat that creates, changes and runs the other bots for the user. It counts as a bot when bots message each other. The user may give it a name of its own (asked once in the first-run setup, changed later by asking it); the apps then show that name where they name it, and "Chief of Staff" stays the name of its role.
 _Avoid_: Chief bot, manager, admin
 
 **Bot's computer**:

@@ -96,8 +96,12 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     /** Whether Claude is signed out, as the feed says: no bot can work until the owner signs in. */
     val claude = ClaudeState()
 
+    private val _chiefName = MutableStateFlow(ChiefName.ROLE)
+    /** The Chief's name (ChiefName): from the Chief's list, and at once from the feed's `chief_name`. */
+    val chiefName: StateFlow<String> = _chiefName.asStateFlow()
+
     // The lines are read from the lists of the botdot the app is on now: not from an answer of the one before.
-    val chief = Part { a -> a.chief().also { c -> if (api.value === a) lines.sync(OpeningLine.live(c)) { it.startsWith("chief:") } } }
+    val chief = Part { a -> a.chief().also { c -> if (api.value === a) { lines.sync(OpeningLine.live(c)) { it.startsWith("chief:") }; _chiefName.value = ChiefName.of(c) } } }
     /** The latest runs of every bot, newest first: what the list shows under a bot's name. */
     val recent = Part { a -> a.recentRuns(100).also { runs -> if (api.value === a) lines.sync(OpeningLine.live(runs, lines.features)) { it.startsWith("bot:") } } }
     val dashboard = Part { it.dashboard(quiet = true) }
@@ -143,7 +147,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         // The botdot is known (right after the app starts) or another one was chosen: what's looked at loads (again).
         scope.launch {
             var had: String? = null
-            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); turnLines.clear(); cardGroups.clear(); answeredAway.clear(); parts.forEach { it.clear() }; had = a?.baseUrl } }
+            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); _chiefName.value = ChiefName.ROLE; turnLines.clear(); cardGroups.clear(); answeredAway.clear(); parts.forEach { it.clear() }; had = a?.baseUrl } }
         }
     }
 
@@ -165,6 +169,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
             "hello" -> {
                 // It carries botdot's version: no need to ask.
                 runCatching { Api.JSON.decodeFromJsonElement(VersionInfo.serializer(), ev.data) }.getOrNull()?.takeIf { it.version.isNotEmpty() }?.let { version.set(it) }
+                ev.data.str("chiefName").ifEmpty { null }?.let { _chiefName.value = ChiefName.named(it) } // where it stands, also with no screen open
                 listOf(bots, chief, recent, dashboard, needs, skills, groups).forEach { it.changedIfOld() } // what happened while the phone was away
             }
             "reset" -> parts.forEach { it.changed() }
@@ -173,6 +178,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
             "groups" -> groups.changed() // a group was made, changed or deleted, or a deleted bot left one
             "approvals" -> { bots.changed(); needs.changed(); dashboard.changed() }
             "chief_started", "chief_reply", "chief_suggestion", "plan_closed" -> chief.changed()
+            "chief_name" -> { _chiefName.value = ChiefName.named(ev.data.str("name")); chief.changed() } // the owner gave the Chief another name
             "login_request", "login_request_closed", "asks", "bitwarden" -> { needs.changed(); bots.changed() } // a bot's figure says it needs you
             "update_available" -> version.changed()
             // The owner's messages that wait for a bot changed: one was taken, started, or was taken back. The list

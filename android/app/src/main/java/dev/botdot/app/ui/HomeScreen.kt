@@ -121,7 +121,9 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val context = androidx.compose.ui.platform.LocalContext.current
     // One small head per thing that waits, in the colour of the bot it's about (the Chief's for the rest).
     val waiting by store.waiting.collectAsState(initial = emptyList())
-    val needsWho = remember(waiting) { waiting.map { if (it.color == null) CHIEF_NAMED else Named("", it.color, it.outfit) } }
+    val chiefWho = chiefNamed()
+    val chiefName = chiefWho.name
+    val needsWho = remember(waiting, chiefWho) { waiting.map { if (it.color == null) chiefWho else Named("", it.color, it.outfit) } }
     val needs = needsWho.size
     val chief by store.chief.value.collectAsState()
     val chiefBusy = chief?.busy == true // the logo's dot pulses while it works
@@ -364,7 +366,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 val list = bots.orEmpty()
                 if (q.isNotEmpty()) {
                     // Searching: the bots that match, then the messages, instead of the usual list.
-                    if ("chief of staff".contains(q)) item(key = "chief") { Contact(CHIEF_COLOR, if (chiefBusy) "working" else "idle", "Chief of Staff", "Your team of bots. Ask for anything.", outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
+                    if ("chief of staff".contains(q) || chiefName.lowercase().contains(q)) item(key = "chief") { Contact(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, "Your team of bots. Ask for anything.", outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
                     items(list.filter { "${it.name} ${it.description} ${it.group}".lowercase().contains(q) }, key = { it.id }) { b ->
                         Contact(b.color, b.state, b.name, sub(b), listTime(lastRun[b.id]?.startedAt), outfit = b.outfit, unread = b.unread, asks = asks(b)) { onBot(b.id) }
                     }
@@ -387,7 +389,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                             val ground by animateColorAsState(if (dragRow) p.sunk else p.bg, tween(200), label = "pins")
                             // A list of figures has no room for a row of them: one under the other, in the order they have.
                             if (figures) Column(Modifier.fillMaxWidth().padding(vertical = 2.dp).background(ground), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Pin(CHIEF_COLOR, if (chiefBusy) "working" else "idle", "Chief of Staff", active = active == CHIEF, outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief)
+                                Pin(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, active = active == CHIEF, outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief)
                                 for (id in pins) {
                                     val g = groupById[id]
                                     val b = byId[id]
@@ -398,7 +400,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                                 }
                             }
                             else LazyRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp).clip(RoundedCornerShape(16.dp)).background(ground), state = pinState) {
-                                item(key = CHIEF) { Pin(CHIEF_COLOR, if (chiefBusy) "working" else "idle", "Chief of Staff", active = active == CHIEF, outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
+                                item(key = CHIEF) { Pin(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, active = active == CHIEF, outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
                                 items(pins, key = { it }) { id ->
                                     // A pinned group: its picture as a big figure, after the pinned bots.
                                     groupById[id]?.let { g ->
@@ -478,9 +480,10 @@ private fun Hit(h: ChatHit, bots: List<Bot>, onClick: () -> Unit) {
     val p = LocalPaper.current
     // Whose chat: each bot named has its small mark before its name.
     val mark = { b: dev.botdot.app.data.BotRef? -> named(bots.firstOrNull { it.id == b?.id }, b?.name.orEmpty(), b?.color) }
+    val chief = chiefNamed()
     val who = androidx.compose.ui.text.buildAnnotatedString {
         when {
-            h.chatId != null -> { bot(CHIEF_NAMED); append(" · ${h.title.orEmpty()}") }
+            h.chatId != null -> { bot(chief); append(" · ${h.title.orEmpty()}") }
             h.fromBot != null -> { bot(mark(h.fromBot)); append(" → "); bot(mark(h.bot)) }
             else -> bot(mark(h.bot))
         }

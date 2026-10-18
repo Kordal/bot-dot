@@ -979,6 +979,7 @@ div.field .hint { font-weight: 400; color: var(--faint); }
 .setup-login li > .muted { display: block; margin-top: 6px; font-size: 12.5px; }
 .setup-login a.btn { text-decoration: none; display: inline-flex; }
 .setup-code { display: flex; gap: 8px; }
+.setup-name { max-width: 320px; }
 .setup-code input { flex: 1; min-width: 0; font-family: var(--mono); }
 .setup-login > .link-btn { justify-self: start; font-size: 12.5px; }
 @media (max-width: 600px) { .setup-code { flex-direction: column; } }

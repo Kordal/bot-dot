@@ -977,7 +977,12 @@ fun claudeOfAnswer(body: String): ClaudeStatus? = runCatching { Api.JSON.decodeF
 fun claudeCouldNotTell(claude: ClaudeStatus?): String? = claude?.error?.takeIf { it.isNotBlank() }
 
 @Serializable
-data class SetupInfo(val done: Boolean = false, val timezone: String = "", val claude: ClaudeStatus = ClaudeStatus(), val running: Int = 0)
+data class SetupInfo(
+    val done: Boolean = false, val timezone: String = "", val claude: ClaudeStatus = ClaudeStatus(), val running: Int = 0,
+    // The Chief's name, and whether the owner answered the question for it (ChiefName). A botdot from before the name
+    // sends neither: nothing is asked.
+    val chiefName: String = ChiefName.ROLE, val chiefNameAsked: Boolean = true,
+)
 
 @Serializable
 data class LoginLink(val url: String)

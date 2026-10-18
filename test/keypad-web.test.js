@@ -60,7 +60,9 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
     getComputedStyle: (el) => ({ display: el.display }), requestAnimationFrame: (f) => f(), setTimeout: (f) => f(),
     $: (sel) => doc[sel] ?? null, $$: (sel, root) => (root ? root.querySelectorAll(sel) : []),
   });
-  vm.runInContext(`${cut('const plain = (t) =>', '// ---------- the list\'s width ----------')}
+  vm.runInContext(`const CHIEF_BOT = { id: 'chief', name: 'Chief of Staff' };
+    ${cut("// ---------- the Chief's name", "// ---------- end of the Chief's name")}
+    ${cut('const plain = (t) =>', '// ---------- the list\'s width ----------')}
     ${cut('function contactLine(b, r, working)', 'function drawContacts() {')}
     ${cut('// ---------- the keypad', '// ---------- search in every chat ----------')}
     ${cut('// The order you gave the bots: pinned ones', '// Drag a bot or a group anywhere')}
