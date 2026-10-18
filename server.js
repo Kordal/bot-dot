@@ -1788,7 +1788,13 @@ async function api(req, res, url) {
     const usedBy = (name) => B.bots.list().filter((b) => b.skills.includes(name)).map((b) => b.id);
     if (parts[1] === 'import' && m === 'POST') {
       const body = await readBody(req);
-      if (parts[2] === 'preview') return send(res, 200, await S.previewImport(String(body.url || '')));
+      // A link to several skills lists them all here (#30); what a bot or the Chief asks for stays one skill.
+      if (parts[2] === 'preview') return send(res, 200, await S.previewImport(String(body.url || ''), { many: true }));
+      if (parts[2] === 'confirm' && Array.isArray(body.skills)) {
+        const done = await S.confirmImportMany(body.id, { folders: body.skills, overwrite: body.overwrite === true });
+        if (Array.isArray(body.bots)) for (const name of done.imported) attachSkill(name, body.bots);
+        return send(res, 201, done);
+      }
       if (parts[2] === 'confirm') {
         const skill = S.confirmImport(body.id, { name: body.name });
         if (Array.isArray(body.bots)) attachSkill(skill.name, body.bots);

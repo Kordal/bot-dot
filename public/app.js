@@ -3154,12 +3154,35 @@ function openSkillEditor(skill, opts = {}) {
   };
 }
 
+// The skills a link to several holds (#30): each with a box, ticked unless it can't be imported; the ones the
+// library has are flagged, and are skipped unless "Replace the ones I have" is ticked.
+function skillPickHTML(p) {
+  const row = (k) => `
+    <label class="skill-pick-row${k.problem ? ' off' : ''}">
+      <input type="checkbox" name="pick" value="${esc(k.folder)}" ${k.problem ? 'disabled' : 'checked'}${k.exists ? ' data-exists' : ''}>
+      <span class="skill-pick-text">
+        <span class="skill-name">${esc(k.name || k.folder)}</span>${k.exists ? ' <span class="pill warn">You already have it</span>' : ''}
+        <span class="skill-pick-desc">${esc(k.problem || k.description || '(no description)')}</span>
+        ${k.scripts.length ? `<span class="skill-pick-desc">⚠︎ Scripts a bot may run: ${esc(k.scripts.join(', '))}</span>` : ''}
+        ${k.allowedTools.length ? `<span class="skill-pick-desc">⚠︎ Used without asking: ${esc(k.allowedTools.join(', '))}</span>` : ''}
+      </span>
+    </label>`;
+  return `
+    <div class="skill-pick-head">
+      <span class="muted">${p.skills.length} skills found</span>
+      <span><button type="button" class="btn ghost" data-pick="all">Select all</button><button type="button" class="btn ghost" data-pick="none">Deselect all</button></span>
+    </div>
+    <div class="skill-pick">${p.skills.map(row).join('')}</div>
+    ${p.skills.some((k) => k.exists) ? '<label class="skill-pick-over"><input type="checkbox" name="overwrite"> Replace the ones I have</label>' : ''}
+    ${p.skills.some((k) => k.scripts.length) ? '<div class="skill-warn">⚠︎ Some include scripts a bot may run. Only import skills from people you trust.</div>' : ''}`;
+}
+
 function openSkillImport(opts = {}) {
   const m = openModal(`
     <form id="import-form" autocomplete="off">
       <div class="modal-head"><h2>Import a skill</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <label class="field">Link to the skill <span class="hint">on skills.sh, or its folder on GitHub</span>
+        <label class="field">Link to the skill <span class="hint">on skills.sh, or its folder on GitHub; a repository of several lists them all</span>
           <input type="text" name="url" placeholder="https://skills.sh/vercel-labs/skills/find-skills" required></label>
         <div id="import-preview"></div>
       </div>
@@ -3187,6 +3210,21 @@ function openSkillImport(opts = {}) {
         return;
       }
       form.url.readOnly = true;
+      if (preview.many) {
+        $('#import-preview', m).innerHTML = `${skillPickHTML(preview)}
+          <fieldset><legend>Give them to</legend>${botCheckboxes(opts.forBot ? [opts.forBot] : [])}</fieldset>`;
+        const picks = () => $$('input[name=pick]:not(:disabled)', form);
+        // The count is what goes in: a ticked one the library has goes in only when it is replaced.
+        const count = () => {
+          const n = picks().filter((c) => c.checked && (!('exists' in c.dataset) || form.overwrite?.checked)).length;
+          go.textContent = `Import selected (${n})`;
+          go.disabled = !n;
+        };
+        for (const b of $$('[data-pick]', form)) b.onclick = () => { for (const c of picks()) c.checked = b.dataset.pick === 'all'; count(); };
+        for (const c of [...picks(), ...$$('input[name=overwrite]', form)]) c.onchange = count;
+        count();
+        return;
+      }
       $('#import-preview', m).innerHTML = `
         <div class="row">
           <label class="field">Name<input type="text" name="name" value="${esc(preview.name)}" pattern="[a-z0-9][a-z0-9-]*"></label>
@@ -3202,8 +3240,26 @@ function openSkillImport(opts = {}) {
       go.textContent = 'Import skill';
       return;
     }
+    const bots = $$('input[name=bot]:checked', form).map((c) => c.value);
+    if (preview.many) {
+      go.disabled = true;
+      go.textContent = 'Importing…';
+      try {
+        const done = await api('/skills/import/confirm', { method: 'POST', body: { id: preview.id, skills: $$('input[name=pick]:checked', form).map((c) => c.value), overwrite: !!form.overwrite?.checked, bots } });
+        doneName = done.imported[0] || null;
+        m.close();
+        toast(done.text, done.failed.length > 0);
+        await refresh();
+        if (state.view === 'skills') renderSkills();
+      } catch (err) {
+        // A used or expired preview can't be sent again: paste the link again.
+        toast(err.message, true);
+        m.close();
+      }
+      return;
+    }
     try {
-      const saved = await api('/skills/import/confirm', { method: 'POST', body: { id: preview.id, name: form.name.value.trim().toLowerCase(), bots: $$('input[name=bot]:checked', form).map((c) => c.value) } });
+      const saved = await api('/skills/import/confirm', { method: 'POST', body: { id: preview.id, name: form.name.value.trim().toLowerCase(), bots } });
       doneName = saved.name;
       m.close();
       toast('Skill imported');
