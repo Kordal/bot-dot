@@ -76,6 +76,8 @@ import dev.botdot.app.ui.BotDotTheme
 import dev.botdot.app.ui.ChiefScreen
 import dev.botdot.app.ui.ConnectScreen
 import dev.botdot.app.ui.HomeScreen
+import dev.botdot.app.ui.ChiefNameQuestion
+import dev.botdot.app.ui.LocalChiefName
 import dev.botdot.app.ui.JobsScreen
 import dev.botdot.app.ui.NeedsYouScreen
 import dev.botdot.app.ui.LocalChatCovered
@@ -244,8 +246,12 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
+                // The name the owner gave the Chief (ChiefName), for every screen that shows it.
+                val chiefName by app.store.chiefName.collectAsState()
                 // Beside the keypad there is no list to hide.
-                CompositionLocalProvider(LocalListToggle provides toggleList.takeIf { panes && !keypad }) {
+                CompositionLocalProvider(LocalListToggle provides toggleList.takeIf { panes && !keypad }, LocalChiefName provides chiefName) {
+                // The first-run question for that name, once the phone is in (not while it connects or signs in).
+                if (route != null && route != "connect" && route != "sign-in") ChiefNameQuestion(app)
                 Row(Modifier.fillMaxSize().background(p.bg).then(if (wide) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
                 HomePanes(home, width.value.toInt(), listShown,
                     keypad = { m -> Home(m) },

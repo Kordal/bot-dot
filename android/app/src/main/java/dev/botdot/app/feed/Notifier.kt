@@ -25,6 +25,7 @@ import dev.botdot.app.R
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.BotFiles
 import dev.botdot.app.data.FeedEvent
+import dev.botdot.app.data.ChiefName
 import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.GroupRef
 import dev.botdot.app.data.groupKey
@@ -79,6 +80,7 @@ class Notifier(
     private val outfitOf: (botId: String) -> JsonElement? = { null },
     private val newChats: suspend () -> List<NewChat>? = { null },
     private val groupNameOf: (groupId: String) -> String? = { null },
+    private val chiefName: () -> String = { ChiefName.ROLE },
 ) {
     companion object {
         const val CH_UPDATES = "updates"
@@ -249,7 +251,7 @@ class Notifier(
                 if (!replyNotifies(ev, chat, standing())) return
                 val body = chiefReplyText(d.str("status"), d.str("text"), d.str("error"))
                 val from = d["from"] as? JsonObject // a bot's reply posted in the chat
-                val sender = from?.let { Sender(it.str("id"), it.str("name").ifBlank { "A bot" }, it.str("color")) } ?: Sender(CHIEF_ID, CHIEF, CHIEF_COLOR)
+                val sender = from?.let { Sender(it.str("id"), it.str("name").ifBlank { "A bot" }, it.str("color")) } ?: Sender(CHIEF_ID, chiefName(), CHIEF_COLOR)
                 message(chat, sender, body, at, d.str("title"), open = oneFile(d) ?: chat)
             }
             "chief_suggestion" -> {
@@ -317,7 +319,7 @@ class Notifier(
 
     private fun tileNeed(o: JsonObject): Need {
         val words = tileWords(o)
-        val place = cardPlace(o, o.str("botName").ifBlank { CHIEF }, groupNameOf)
+        val place = cardPlace(o, o.str("botName").ifBlank { chiefName() }, groupNameOf)
         return Need("tile:${o.str("tileId")}", place.title, o.str("botColor").ifBlank { CHIEF_COLOR }, words.text, yes = words.yes, bot = o.str("botId"), no = words.decline, noLabel = words.no, open = place.open)
     }
 
@@ -329,7 +331,7 @@ class Notifier(
 
     private fun askNeed(o: JsonObject): Need {
         val words = askWords(o)
-        val place = cardPlace(o, o.str("botName").ifBlank { CHIEF }, groupNameOf)
+        val place = cardPlace(o, o.str("botName").ifBlank { chiefName() }, groupNameOf)
         return Need("ask:${o.str("id")}", place.title, o.str("botColor"), words.text, at = time(o.str("at")), yes = words.yes, bot = o.str("botId"), no = words.decline, open = place.open)
     }
 
@@ -434,7 +436,7 @@ class Notifier(
         style.addMessage(plain(markdown).take(1000), at, person(from))
         val chief = chat.startsWith("chief:")
         // A Chief chat is named by its title, and a group by its name: who said it stands under that.
-        if (chief || groupOfChat(chat) != null) style.setConversationTitle(title?.ifBlank { null } ?: old?.conversationTitle ?: if (chief) CHIEF else "A group").setGroupConversation(true)
+        if (chief || groupOfChat(chat) != null) style.setConversationTitle(title?.ifBlank { null } ?: old?.conversationTitle ?: if (chief) chiefName() else "A group").setGroupConversation(true)
         notify(chat, chatBuilder(chat, style, at, quiet).setContentIntent(openApp(open)).setLargeIcon(if (chief) head(CHIEF_ID, CHIEF_COLOR) else head(from.id, from.color, from.outfit)))
     }
 
@@ -725,7 +727,6 @@ internal fun chiefReplyText(status: String, text: String, error: String): String
 
 // ---------- following the botdot server's unread state (ADR 005) ----------
 
-private const val CHIEF = "Chief of Staff"
 private const val CHIEF_ID = "chief" // in place of a bot's id: the Chief of Staff
 
 private fun timeOf(iso: String?): Long? = iso?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }
@@ -756,7 +757,7 @@ suspend fun newChats(api: Api): List<NewChat> = coroutineScope {
             c.firstUnread?.let { api.chiefChat(c.id, offset = it, limit = 1) }?.messages?.firstOrNull()?.let { m ->
                 val text = m.text.ifBlank { m.error?.ifBlank { null } ?: "Replied." }
                 val from = m.from?.takeIf { m.role == "report" } // a bot's reply posted in the chat
-                if (from == null) NewReply(CHIEF_ID, CHIEF, CHIEF_COLOR, text, timeOf(m.endedAt ?: m.at), c.title)
+                if (from == null) NewReply(CHIEF_ID, ChiefName.of(chief.await()), CHIEF_COLOR, text, timeOf(m.endedAt ?: m.at), c.title)
                 else all.firstOrNull { it.id == from.id }.let { now -> // the bot as it looks now
                     NewReply(from.id, from.name.ifBlank { "A bot" }, now?.color ?: from.color, text, timeOf(m.endedAt ?: m.at), c.title, now?.outfit)
                 }

@@ -149,7 +149,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },
             topBar = {
-                ChatBar(CHIEF_COLOR, if (busy) "working" else "idle", "Chief of Staff", onName = onSettings, onBack = onBack, outfit = FigureDef.CHIEF) {
+                ChatBar(CHIEF_COLOR, if (busy) "working" else "idle", LocalChiefName.current, onName = onSettings, onBack = onBack, outfit = FigureDef.CHIEF) {
                     RoundButton(Icons.Filled.Add, "New chat") { vm.open(null) }
                 }
             },

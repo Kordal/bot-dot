@@ -76,7 +76,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
-        topBar = { TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("Chief of Staff", style = MaterialTheme.typography.titleMedium) }, actions = { PanelClose() }) },
+        topBar = { TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(LocalChiefName.current, style = MaterialTheme.typography.titleMedium) }, actions = { PanelClose() }) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Section("Model and reasoning", "What the Chief uses to plan, create and manage your bots.") {

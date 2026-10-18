@@ -204,7 +204,7 @@ function askBrief(a) {
   const card = () => asksLib.proposalView(a, b?.name, { appName: B.appName, short: true });
   const change = a.kind === 'bot-change' ? (({ title, parts, yes }) => ({ by: a.by, ...(a.chatId ? { chatId: a.chatId } : {}), title, parts, ...(yes ? { yes } : {}) }))(card())
     : a.kind === 'connector-action' ? (({ title, rows, held, more }) => ({ title, rows, held, ...(more ? { more } : {}), ...(a.stoppedAt ? { stoppedAt: a.stoppedAt } : {}) }))(card()) : {};
-  return { id: a.id, kind: a.kind, botId: a.botId || null, botName: b ? b.name : 'Chief of Staff', botColor: b ? b.color : null, what: a.kind === 'permission' ? asksLib.PERMISSIONS[a.permission]?.label || a.permission : null, skill: a.skill?.name || null, ...(a.kind === 'tool' ? { tool: a.tool.name } : {}), ...change, text: askText(a), ...yesOn(a), ...thenField(a), ...groupOfCard(runOfAsk(a)), at: a.at };
+  return { id: a.id, kind: a.kind, botId: a.botId || null, botName: b ? b.name : chief.named().name, botColor: b ? b.color : null, what: a.kind === 'permission' ? asksLib.PERMISSIONS[a.permission]?.label || a.permission : null, skill: a.skill?.name || null, ...(a.kind === 'tool' ? { tool: a.tool.name } : {}), ...change, text: askText(a), ...yesOn(a), ...thenField(a), ...groupOfCard(runOfAsk(a)), at: a.at };
 }
 // A tool a run was refused: ask the owner for that permission, unless they said no to it lately. The ask keeps the
 // run. While a changed bot that gives the permission waits, the run joins that card, whatever was declined before.
@@ -234,6 +234,17 @@ function attachSkill(name, botIds, exact = false, by = 'you') {
   if (exact && !want && has) setChiefSkills(B.settings.get().chiefSkills.filter((x) => x !== name));
 }
 const chiefHas = (name) => B.settings.get().chiefSkills.includes(name);
+// The Chief's new name (#41), from setup, Settings or the Chief's own tool: '' is "Chief of Staff" again. A bot's
+// name is refused, so that a name in a list and an "@" mention point to one of them only. The apps hear it on the feed.
+function nameChief(name) {
+  const clean = require('./lib/settings').cleanChiefName(name);
+  const short = (n) => require('./lib/mentions').shortName(n).toLowerCase();
+  const bot = clean && B.bots.list().find((b) => short(b.name) === short(clean));
+  if (bot) throw new Error(`A bot is called ${bot.name} already. Give the Chief of Staff another name.`);
+  const before = B.settings.chiefName();
+  B.settings.update({ chiefName: clean });
+  if (B.settings.chiefName() !== before) feed.emit('chief_name', { name: B.settings.chiefName() });
+}
 const setChiefSkills = (names) => B.settings.update({ chiefSkills: names });
 // The library skills of a list, in its order (what the owner may give the Chief).
 const librarySkills = (names) => (Array.isArray(names) ? names.map((n) => String(n).trim().toLowerCase()).filter((n) => B.skills.NAME_RE.test(n) && B.skills.read(n)) : names);
@@ -1092,6 +1103,7 @@ async function api(req, res, url) {
       const meaning = await B.memory.semanticStatus().catch(() => null);
       return send(res, 200, {
         ...setup.get(),
+        chiefName: B.settings.chiefName(),
         claude: await claudeStatus(url.searchParams.has('fresh')),
         running: B.activeCount() + chief.activeCount(),
         docker: { ok: docker.ok, error: docker.error, image: docker.image },
@@ -1109,7 +1121,11 @@ async function api(req, res, url) {
     }
     if (!parts[1] && m === 'PUT') {
       const b = await readBody(req);
-      return send(res, 200, setup.update({ done: b.done, timezone: b.timezone }));
+      // The answer to the question for the Chief's name (#41): '' keeps "Chief of Staff". It counts as asked either way.
+      if (b.chiefName !== undefined) {
+        try { nameChief(b.chiefName); } catch (e) { return send(res, 400, { error: e.message }); }
+      }
+      return send(res, 200, { ...setup.update({ done: b.done, timezone: b.timezone, ...(b.chiefName !== undefined ? { chiefNameAsked: true } : {}) }), chiefName: B.settings.chiefName() });
     }
     if (parts[1] === 'claude' && parts[2] === 'login' && m === 'POST') return send(res, 200, await setup.startLogin());
     if (parts[1] === 'claude' && parts[2] === 'login' && m === 'DELETE') { setup.cancelLogin(); return send(res, 200, { ok: true }); }
@@ -1202,7 +1218,7 @@ async function api(req, res, url) {
       // "Approve all" (docs/api.md, Memory, "The contract").
       if (!parts[2] && m === 'GET') {
         const guarded = url.searchParams.get('guarded') === '1';
-        return send(res, 200, M.pending().filter((p) => guarded || !p.guarded).map((p) => ({ ...p, ...learningWords.cardOf(p), ...groupOfCard(p.runId), bot: (() => { const b = B.bots.get(p.botId); return b ? { id: b.id, name: b.name, emoji: b.emoji, color: b.color } : p.by === CHIEF_NOTES ? chief.CHIEF : null; })() }))); // one the Chief asked for is the Chief's
+        return send(res, 200, M.pending().filter((p) => guarded || !p.guarded).map((p) => ({ ...p, ...learningWords.cardOf(p), ...groupOfCard(p.runId), bot: (() => { const b = B.bots.get(p.botId); return b ? { id: b.id, name: b.name, emoji: b.emoji, color: b.color } : p.by === CHIEF_NOTES ? chief.named() : null; })() }))); // one the Chief asked for is the Chief's
       }
       if (parts[2] && m === 'POST') {
         const body = await readBody(req);
@@ -1453,6 +1469,15 @@ async function api(req, res, url) {
       if (m === 'PUT') B.settings.update({ unaskedPerDay: (await readBody(req)).perDay ?? null });
       return send(res, 200, { writingFirst: chief.looks.status() });
     }
+    // The Chief's name (#41). The owner names it in setup; later they ask the Chief, whose set_your_name tool changes
+    // it here, only in a turn the owner started: a bot's reply or a page must not rename it.
+    if (parts[1] === 'chief-name') {
+      if (m === 'PUT') {
+        if (by === 'chief' && chief.standing(chiefChat)?.startedBy !== 'owner') return send(res, 403, { error: 'Not done: you change your name only in a turn the user started by writing to you. Nothing was changed.' });
+        try { nameChief((await readBody(req)).name); } catch (e) { return send(res, 400, { error: e.message }); }
+      }
+      return send(res, 200, { name: B.settings.chiefName() });
+    }
     // The checkup (ADR 023): whether it runs, on which days and at what time, and whether it may search the web.
     // The owner's switches and the Chief's checkup_settings tool both change it here; a change is announced.
     if (parts[1] === 'checkup') {
@@ -1473,7 +1498,9 @@ async function api(req, res, url) {
     if (m === 'PUT') { // the checkup has its own route, which announces a change
       const { checkup: _ownRoute, ...body } = await readBody(req);
       if (body.chiefSkills !== undefined) body.chiefSkills = librarySkills(body.chiefSkills); // only skills of the library
-      return send(res, 200, { settings: B.settings.update(body), ...B.settings.choices() });
+      const { chiefName, ...rest } = body;
+      try { if (chiefName !== undefined) nameChief(chiefName); } catch (e) { return send(res, 400, { error: e.message }); }
+      return send(res, 200, { settings: B.settings.update(rest), ...B.settings.choices() });
     }
   }
 
@@ -2197,7 +2224,7 @@ async function api(req, res, url) {
   }
 
   if (parts[0] === 'chief') {
-    if (!parts[1] && m === 'GET') { const chats = chief.listChats(); return send(res, 200, { chief: chief.CHIEF, chats, busy: chief.activeCount() > 0, unread: chats.reduce((n, c) => n + c.unread, 0) }); }
+    if (!parts[1] && m === 'GET') { const chats = chief.listChats(); return send(res, 200, { chief: chief.named(), chats, busy: chief.activeCount() > 0, unread: chats.reduce((n, c) => n + c.unread, 0) }); }
     // Reminders the Chief set for the owner (it passes the chat it was asked in).
     if (parts[1] === 'reminders') {
       if (!parts[2] && m === 'GET') return send(res, 200, chief.listReminders());
@@ -2600,7 +2627,7 @@ async function api(req, res, url) {
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name'];
 const FIGURE = require('./lib/figure.json');
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
@@ -2652,7 +2679,7 @@ async function attention() {
   return {
     loginRequests: loginRequests.pending().map((r) => {
       const b = B.bots.get(r.botId);
-      return { id: r.id, kind: r.kind, botId: r.botId, botName: b ? b.name : r.from === 'chief' ? 'Chief of Staff' : null, botColor: b ? b.color : null, site: r.site, name: r.name, from: r.from, amount: r.amount || null, ...groupOfCard(r.runId), createdAt: r.createdAt };
+      return { id: r.id, kind: r.kind, botId: r.botId, botName: b ? b.name : r.from === 'chief' ? chief.named().name : null, botColor: b ? b.color : null, site: r.site, name: r.name, from: r.from, amount: r.amount || null, ...groupOfCard(r.runId), createdAt: r.createdAt };
     }),
     bitwarden: { configured: !!bw.configured, unlocked: !!bw.unlocked, wantedBy: wanted ? { id: wanted.id, name: wanted.name, color: wanted.color } : null },
     approvals: {
@@ -2661,7 +2688,7 @@ async function attention() {
       // Every waiting change, guarded ones too, each with its card's words: a connection that did not ask for
       // guarded changes is sent the list without them (unguarded, below).
       memory: memory.length,
-      memoryChanges: memory.map((p) => ({ id: p.id, action: p.action, botId: p.botId || null, botName: botOf(p.botId)?.name || (p.by === CHIEF_NOTES ? chief.CHIEF.name : null), botColor: botOf(p.botId)?.color || (p.by === CHIEF_NOTES ? chief.CHIEF.color : null), text: feed.clip(p.action === 'remove' ? p.current?.text : p.text, 200), ...learningWords.cardOf(p), ...(p.guarded ? { guarded: true } : {}), ...groupOfCard(p.runId), at: p.at })),
+      memoryChanges: memory.map((p) => ({ id: p.id, action: p.action, botId: p.botId || null, botName: botOf(p.botId)?.name || (p.by === CHIEF_NOTES ? chief.named().name : null), botColor: botOf(p.botId)?.color || (p.by === CHIEF_NOTES ? chief.CHIEF.color : null), text: feed.clip(p.action === 'remove' ? p.current?.text : p.text, 200), ...learningWords.cardOf(p), ...(p.guarded ? { guarded: true } : {}), ...groupOfCard(p.runId), at: p.at })),
     },
     asks: asks.list().map(askBrief),
     update: { available: !!updates.lastStatus().available },
@@ -2750,7 +2777,7 @@ async function streamEvents(req, res, url) {
   // this hello was put together would reach nobody here, and would take helloUnchecked with it.
   const claude = signedIn(await claudeStatus().catch(() => null)); // null: it could not tell
   if (claude === null) helloUnchecked = true;
-  const hello = { ...version, lastEventId: feed.lastId(), running, chiefBusy: chief.activeCount() > 0, webActive: feed.webActive(), claude: helloClaude(claude), plans: chief.listChats().filter((c) => c.waiting).map((c) => c.id), ...waits };
+  const hello = { ...version, lastEventId: feed.lastId(), running, chiefBusy: chief.activeCount() > 0, chiefName: B.settings.chiefName(), webActive: feed.webActive(), claude: helloClaude(claude), plans: chief.listChats().filter((c) => c.waiting).map((c) => c.id), ...waits };
   res.write(`event: hello\ndata: ${JSON.stringify(hello)}\n\n`);
   for (const ev of missed || []) write(ev);
   const unsub = feed.subscribe(write);
@@ -2785,7 +2812,7 @@ const CHIEF_ROUTES = [
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
   ['POST', /^(bots|skills|asks|chief\/memory|memory\/semantic\/pull|chief\/reminders|vault\/requests|dashboard\/tiles|dashboard\/test|group-chats)$/],
   ['POST', /^(bots\/[^/]+\/(run|jobs)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
-  ['PUT', /^(bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
+  ['PUT', /^(bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
   ['DELETE', /^(bots\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/call\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
 const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method && re.test(parts.join('/')));

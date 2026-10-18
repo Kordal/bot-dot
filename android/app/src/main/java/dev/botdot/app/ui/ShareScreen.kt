@@ -62,7 +62,7 @@ fun ShareScreen(app: BotDotApp, count: Int, text: String, onPick: (String) -> Un
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             }
             if (error != null) item { Text(error!!, color = p.err, modifier = Modifier.padding(20.dp)) }
-            item { Pick(CHIEF_COLOR, "Chief of Staff", "It can pass it on to the right bot", FigureDef.CHIEF) { onPick("chief") } }
+            item { Pick(CHIEF_COLOR, LocalChiefName.current, "It can pass it on to the right bot", FigureDef.CHIEF) { onPick("chief") } }
             items(bots.sortedBy { it.name.lowercase() }, key = { it.id }) { b -> Pick(b.color, b.name, b.description, b.outfit) { onPick(b.id) } }
         }
     }

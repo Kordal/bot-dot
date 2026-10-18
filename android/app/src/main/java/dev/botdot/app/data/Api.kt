@@ -314,6 +314,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** Switches one of the checkup's two switches ([field]: "on" or "webSearch"); a refusal throws the server's words. */
     suspend fun setCheckup(field: String, value: Boolean): Checkup? = Checkup.answer(send("PUT", "/settings/checkup", buildJsonObject { put(field, value) }))
     suspend fun setup(): SetupInfo = json.decodeFromString(get("/setup?fresh"))
+    /** The owner's answer to the question for the Chief's name (ChiefName): "" keeps "Chief of Staff". A refusal throws the server's words. */
+    suspend fun nameChief(name: String): SetupInfo = json.decodeFromString(send("PUT", "/setup", buildJsonObject { put("chiefName", name) }))
     suspend fun claudeLogin(): LoginLink = json.decodeFromString(send("POST", "/setup/claude/login"))
     suspend fun claudeLogout() { send("DELETE", "/setup/claude") }
     /** Signs in with the code. The status after it, which may be a check that could not tell (claudeCouldNotTell); null when the server sent none. */

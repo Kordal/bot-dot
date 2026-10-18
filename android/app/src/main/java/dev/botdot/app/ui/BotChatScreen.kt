@@ -318,10 +318,11 @@ private fun ExchangeFold(r: Run, to: List<SentTo>, startOpen: Boolean = false) {
     var open by remember(r.id, startOpen) { mutableStateOf(startOpen) }
     val w = LocalMentions.current
     val messages = to.filter { !it.text.isNullOrBlank() }
+    val chief = chiefNamed()
     // Each bot named has its small head beside its name.
     val label = buildAnnotatedString {
         when {
-            to.isEmpty() -> if (r.startedBy == "chief") { append("Replied to "); bot(CHIEF_NAMED) } else append("Replied") // the Chief reads the reply itself
+            to.isEmpty() -> if (r.startedBy == "chief") { append("Replied to "); bot(chief) } else append("Replied") // the Chief reads the reply itself
             to.all { it.id == r.fromBot?.id } -> { append("Replied to "); bot(named(w?.bot(r.fromBot?.id), r.fromBot?.name.orEmpty(), r.fromBot?.color)) }
             else -> { append("Messaged "); bots(to.map { named(w?.bot(it.id), it.name, it.color) }) }
         }
@@ -370,11 +371,12 @@ private fun FromBotBubble(r: Run, startOpen: Boolean = false) {
     var open by remember(r.id, startOpen) { mutableStateOf(startOpen) }
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val w = LocalMentions.current
+        val chief = chiefNamed()
         val line = buildAnnotatedString {
             append("Message from ")
             when {
                 r.fromBot != null -> bot(named(w?.bot(r.fromBot.id), r.fromBot.name, r.fromBot.color))
-                r.startedBy == "chief" -> bot(CHIEF_NAMED)
+                r.startedBy == "chief" -> bot(chief)
                 else -> append("a bot")
             }
             append(if (open) " ⌄" else " ›")

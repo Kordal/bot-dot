@@ -162,6 +162,7 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
             outfitOf = { id -> store.bots.value.value?.firstOrNull { it.id == id }?.outfit },
             newChats = { api.value?.let { a -> try { newChats(a) } catch (e: CancellationException) { throw e } catch (e: Exception) { null } } },
             groupNameOf = { id -> store.groups.value.value?.firstOrNull { it.id == id }?.name },
+            chiefName = { store.chiefName.value },
         ).also { it.createChannels() }
         scope.launch {
             settings.server.collect { url ->

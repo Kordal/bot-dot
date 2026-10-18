@@ -300,7 +300,7 @@ internal fun KeypadSections(
         val shape = RoundedCornerShape(16.dp)
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(shape).border(1.dp, p.line2, shape)
-                .clickable(onClickLabel = "Chief of Staff", onClick = onChief).padding(horizontal = 16.dp, vertical = 13.dp),
+                .clickable(onClickLabel = LocalChiefName.current, onClick = onChief).padding(horizontal = 16.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(ASK_THE_CHIEF, color = p.faint, fontSize = 15.sp, maxLines = 1, modifier = Modifier.weight(1f))

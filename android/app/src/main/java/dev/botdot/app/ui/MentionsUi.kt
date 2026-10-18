@@ -33,15 +33,16 @@ import dev.botdot.app.data.Mentions
 /** What can be mentioned in the chat on screen (null: nothing, or not loaded yet). Read by the composer and your bubbles. */
 val LocalMentions = compositionLocalOf<Mentions.World?> { null }
 
-/** The Chief, as a bot that can be mentioned. */
-private val CHIEF_BOT = ChiefInfo().let { Bot(id = it.id, name = it.name, color = CHIEF_COLOR, outfit = FigureDef.CHIEF) }
+/** The Chief, as a bot that can be mentioned: by the name the owner gave it (ChiefName), as on the botdot server. */
+private fun chiefBot(name: String) = Bot(id = ChiefInfo().id, name = name, color = CHIEF_COLOR, outfit = FigureDef.CHIEF)
 
 /** The bots (the Chief too) and skills a chat's mentions are matched against: [Mentions.CHIEF] or the bot's id. */
 @Composable
 fun rememberMentions(app: BotDotApp, chat: String): Mentions.World? {
     val bots by app.store.bots.value.collectAsState()
     val skills by app.store.skills.value.collectAsState()
-    return remember(bots, skills, chat) { bots?.let { Mentions.World(chat, listOf(CHIEF_BOT) + it, skills.orEmpty()) } }
+    val name by app.store.chiefName.collectAsState()
+    return remember(bots, skills, chat, name) { bots?.let { Mentions.World(chat, listOf(chiefBot(name)) + it, skills.orEmpty()) } }
 }
 
 /**

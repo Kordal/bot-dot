@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
+import dev.botdot.app.data.ChiefName
 import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.Mark
 import dev.botdot.app.data.Bot
@@ -156,8 +157,12 @@ fun AnnotatedString.Builder.bots(all: List<Named>) = all.forEachIndexed { i, b -
 /** A bot as text names it: its name, and the colour and outfit of its small mark. */
 data class Named(val name: String, val color: String?, val outfit: JsonElement?)
 
-/** The Chief of Staff, named in text: coral, in the outfit the definition gives it. */
-val CHIEF_NAMED = Named("Chief of Staff", CHIEF_COLOR, FigureDef.CHIEF)
+/** The Chief's name (ChiefName), as the app last heard it: provided at the root (MainActivity), from the Store. */
+val LocalChiefName = compositionLocalOf { ChiefName.ROLE }
+
+/** The Chief of Staff, named in text: coral, in the outfit the definition gives it, with the name the owner gave it. */
+@Composable
+fun chiefNamed() = Named(LocalChiefName.current, CHIEF_COLOR, FigureDef.CHIEF)
 
 fun Bot.named() = Named(name, color, outfit)
 

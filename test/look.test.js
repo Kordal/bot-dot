@@ -297,6 +297,17 @@ test('the Chief has one tool to read and change writing first', async (t) => {
   assert.match(s.requests.at(-1).url, /seen=chief/);
 });
 
+test('the Chief has a tool to change its own name (#41), which a look has not', async (t) => {
+  const s = await toolsServer(t, false);
+  const tool = (await s.call('tools/list')).result.tools.find((x) => x.name === 'set_your_name');
+  assert.ok(tool);
+  assert.match(tool.description, /"" gives you back "Chief of Staff"/);
+  await s.call('tools/call', { name: 'set_your_name', arguments: { name: 'Ada' } });
+  assert.deepEqual(s.requests.map((q) => [q.method, q.url, q.body]), [['PUT', '/api/settings/chief-name', '{"name":"Ada"}']]);
+  const reading = await toolsServer(t, true);
+  assert.match((await reading.call('tools/call', { name: 'set_your_name', arguments: { name: 'x' } })).error?.message || '', /Unknown tool/);
+});
+
 test('the Chief has one tool for the checkup\'s setting and one for a checkup the owner asks for; a look and a checkup have neither', async (t) => {
   const s = await toolsServer(t, false);
   const tools = (await s.call('tools/list')).result.tools;
