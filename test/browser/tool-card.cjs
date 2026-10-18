@@ -54,7 +54,7 @@ const WARNING = 'Not from the approved list. Make sure you trust the source.';
 
     browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
     const context = await browser.newContext({ viewport: PHONE, deviceScaleFactor: 2 });
-    await context.route('**/api/asks', (r) => (r.request().method() === 'GET' ? r.fulfill({ json: waiting }) : r.fallback()));
+    await context.route((url) => url.pathname === '/api/asks', (r) => (r.request().method() === 'GET' ? r.fulfill({ json: waiting }) : r.fallback()));
     await context.route('**/api/asks/*', (r) => {
       const id = decodeURIComponent(new URL(r.request().url()).pathname.split('/').pop());
       const body = r.request().postDataJSON();

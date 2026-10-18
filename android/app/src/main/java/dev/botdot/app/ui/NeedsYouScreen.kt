@@ -1000,7 +1000,7 @@ private fun ChangedParts(parts: List<ChangedPart>) {
 
 /**
  * A permission or a skill a bot (or the Chief) asked for, a tool the Chief asks to install for a bot, a changed bot,
- * or an action in a connected app. answer(title, yes, label, always). [chiefChat]: the Chief chat the card stands in,
+ * an action in a connected app, or a switch of a saved login. answer(title, yes, label, always). [chiefChat]: the Chief chat the card stands in,
  * if it stands in one: its line then says "in this chat" for that chat ([dev.botdot.app.data.Then.line]).
  */
 @Composable
@@ -1051,6 +1051,16 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             if (t.facts.isNotEmpty() && LocalCardOpen.current) Facts(t.facts)
             ThenLine(then)
             Buttons(ToolCard.INSTALL, { decide(t.title, true, ToolCard.answered(true)) }, ToolCard.DECLINE, { decide(t.title, false, ToolCard.answered(false)) })
+        }
+    } else if (a.kind == "vault-switch") {
+        // A switch of a saved login a bot asks for: the server's title, the bot's reason, the login and the switch as
+        // rows, the warning of "Usable in its computer", and the server's word on the yes. As on the web page.
+        val warning = ToolCard.text(a.warning)
+        Card(who, a.title, a.reason, expandable = true) {
+            if (a.parts.isNotEmpty()) ChangedParts(a.parts)
+            if (warning.isNotEmpty()) Warning(warning)
+            ThenLine(then)
+            Buttons(a.yes ?: "Allow", { decide(a.title, true, "Allowed") }, "Decline", { decide(a.title, false, null) })
         }
     } else if (a.kind == "permission") {
         val title = "Let it ${a.what?.label ?: a.permission}?"

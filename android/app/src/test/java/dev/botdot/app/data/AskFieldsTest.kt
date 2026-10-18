@@ -235,4 +235,17 @@ class AskFieldsTest {
             assertNull(answer, CarriesOn.of(answer))
         }
     }
+
+    @Test fun aVaultSwitchHasItsTitlePartsWarningAndYes() {
+        // A bot asks to turn on "Usable in its computer" for a login (docs/api.md, "A switch of a saved login").
+        val ask = asks("""[{"id":"v2","kind":"vault-switch","botId":"pve","bot":{"id":"pve","name":"Proxmox Admin","color":"#4a7fd8"},"reason":"To read mail through Proton Bridge.",
+            "loginId":"l2","loginName":"Proton Bridge","site":"127.0.0.1","vaultSwitch":"inComputer","title":"Let Proxmox Admin use “Proton Bridge” in its computer?",
+            "parts":[{"label":"Login","now":"Proton Bridge (127.0.0.1)"},{"label":"Switch","now":"Usable in its computer"},{"label":"Only for","now":"this login, for every bot it is shared with"}],
+            "warning":"Proxmox Admin's commands will be able to read this secret. Only for a secret that guards something on its own computer.","yes":"Allow","yesOn":"card","at":"2026-10-18T19:31:00.000Z"}]""").single()
+        assertEquals("vault-switch", ask.kind)
+        assertEquals("Let Proxmox Admin use “Proton Bridge” in its computer?", ask.title)
+        assertEquals(listOf(ChangedPart("Login", null, "Proton Bridge (127.0.0.1)"), ChangedPart("Switch", null, "Usable in its computer"), ChangedPart("Only for", null, "this login, for every bot it is shared with")), ask.parts)
+        assertEquals("Proxmox Admin's commands will be able to read this secret. Only for a secret that guards something on its own computer.", ToolCard.text(ask.warning))
+        assertEquals("Allow", ask.yes)
+    }
 }

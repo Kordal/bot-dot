@@ -124,8 +124,9 @@ B.onRunEnded((meta) => connectorApprovals.runEnded(meta));
 const fromLink = (a) => a.kind === 'tool' && a.tool.source?.type === 'link';
 // yesOn 'card': the owner's yes to this ask is given on its card and nowhere else, so its notification has no yes
 // button: a tool from a link (the owner's decision of 2026-10-03), a changed bot, a connected-app action and a skill
-// a bot wrote (MEM-010), whose card shows what the notification's one line cannot. An ask without it is answered from either.
-const yesOn = (a) => (fromLink(a) || a.kind === 'bot-change' || a.kind === 'connector-action' || (a.kind === 'skill' && a.written) ? { yesOn: 'card' } : {});
+// a bot wrote (MEM-010), whose card shows what the notification's one line cannot, and a switch of a saved login a bot
+// asks for, whose card names the login and says what the switch lets the bot do. An ask without it is answered from either.
+const yesOn = (a) => (fromLink(a) || a.kind === 'bot-change' || a.kind === 'connector-action' || a.kind === 'vault-switch' || (a.kind === 'skill' && a.written) ? { yesOn: 'card' } : {});
 // text: the one line a notification of this ask says under the bot's name (lib/asks.js); the apps only show it.
 const askText = (a) => asksLib.askText(a, { appName: B.appName });
 // then: what a yes on this ask would start, as one sentence for its card (lib/asks.js thenOf, ADR 009). Worked out
@@ -397,6 +398,22 @@ function allowPermission(a) {
   if (a.permission === 'files' && bot.permissionMode === 'dontAsk') change.permissionMode = 'acceptEdits'; // as ticking "Can change files" does
   const updated = B.bots.update(bot.id, change, { by: 'you' });
   return { ok: true, bot: withJobViews(updated), ...carryOnAfter(taken, true) };
+}
+// A switch of a saved login a bot asked for (ask_vault_switch): turned on for that login, and nothing else of it
+// changes. The login must still be there and still be shared with that bot; otherwise nothing changes and the
+// card goes. Bitwarden that is locked refuses the change, and the card stays.
+async function allowVaultSwitch(a) {
+  const bot = B.bots.get(a.botId);
+  if (!bot) { asks.take(a.id); throw httpError(404, 'That bot is gone.'); }
+  if (bitwarden.configured() && !bitwarden.unlocked()) throw httpError(409, 'Your Bitwarden is locked. Unlock it, then allow this again.');
+  const login = store().list().find((e) => e.id === a.loginId);
+  if (!login || !(login.allowedBots || []).includes(bot.id)) {
+    asks.take(a.id);
+    throw httpError(409, `The login “${a.loginName}” is no longer shared with ${bot.name}, so nothing was changed.`);
+  }
+  await store().update(login.id, { [a.vaultSwitch]: true });
+  console.log(`[vault] the owner turned on ${a.vaultSwitch} for "${login.name}", asked by ${bot.id}`);
+  return { ok: true, ...carryOnAfter(asks.take(a.id), true) };
 }
 // A skill a bot wrote for itself goes in: saved as that bot's, given to it, and kept in the history of what it
 // learned, where the owner can undo it. From its own run at once, or on the owner's yes when it waited.
@@ -1577,7 +1594,7 @@ async function api(req, res, url) {
         try { creds = await store().credentials(session.botId, login); } catch (e) { return send(res, 200, { ok: false, error: e.message }); }
         if (!creds.inComputer) {
           creds.password = null;
-          return send(res, 200, { ok: false, error: `The "${creds.name}" login isn't usable in your computer. Ask the owner to turn on "Usable in its computer" for that login in the Vault, then try again.` });
+          return send(res, 200, { ok: false, error: `The "${creds.name}" login isn't usable in your computer. Ask the owner for it with ask_vault_switch (switch "inComputer"); don't tell them to change it in the Vault themselves.` });
         }
         const hide = vaultHttp.hideLogin(creds);
         const seconds = Math.min(Math.max(Number(timeoutSeconds) || 120, 1), 600);
@@ -1648,6 +1665,21 @@ async function api(req, res, url) {
         if (!r || r.botId !== session.botId) return send(res, 404, { ok: false, error: 'Request not found' });
         return waitAnswer(res, r.id);
       }
+      // ask_vault_switch: the bot asks the owner to turn on a switch of a login shared with it. It waits on a card in
+      // its chat and in Needs you; only the owner's yes there (POST /api/asks/:id) turns it on.
+      if (parts[2] === 'switch' && !parts[3] && m === 'POST') {
+        const body = await readBody(req);
+        const field = String(body.switch || '');
+        if (!Object.hasOwn(asksLib.VAULT_SWITCHES, field)) return send(res, 200, { ok: false, error: 'Ask for one of the switches insecureTls or inComputer.' });
+        if (!(await readyForSecrets(session.botId))) return send(res, 200, { ok: false, error: "The owner's Bitwarden is locked. Ask them to unlock it in botdot, then try again." });
+        let login;
+        try { login = store().sharedLogin(session.botId, body.login); } catch (e) { return send(res, 200, { ok: false, error: e.message }); }
+        const name = asksLib.VAULT_SWITCHES[field].name;
+        if (login[field]) return send(res, 200, { ok: false, error: `“${name}” is already on for "${login.name}".` });
+        if (asks.switchDeclined(session.botId, login.id, field)) return send(res, 200, { ok: false, error: "The owner said no to this recently. Don't ask again; do what you can without it." });
+        asks.add({ kind: 'vault-switch', botId: session.botId, loginId: login.id, loginName: login.name, site: login.site, vaultSwitch: field, reason: body.reason }, { runId: session.runId });
+        return send(res, 200, { ok: true, name, login: login.name });
+      }
       if (parts[2] === 'http' && m === 'POST') {
         const body = await readBody(req);
         let creds;
@@ -1655,6 +1687,10 @@ async function api(req, res, url) {
         try { creds = store().credentials(session.botId, body.login); } catch (e) { return send(res, 200, { ok: false, error: e.message }); }
         let result;
         try { result = await vaultHttp.apiRequest(creds, body); } catch (e) { result = { ok: false, text: e.message }; }
+        // A certificate the login does not accept: the bot asks for the switch on a card, the owner does not go to the Vault.
+        if (!result.ok && result.text === vaultHttp.CERT_UNTRUSTED && !creds.insecureTls) {
+          result.text = `The server's certificate isn't trusted. If it is the owner's own server with a self-signed certificate, ask the owner to accept it for the "${creds.name}" login with ask_vault_switch (switch "insecureTls"), then try again once they allow it. Don't tell them to change it in the Vault themselves.`;
+        }
         creds.password = null;
         let where = '';
         try { const u = new URL(String(body.url)); where = `${u.hostname}${u.pathname}`; } catch { /* invalid */ }
@@ -1823,7 +1859,13 @@ async function api(req, res, url) {
     const view = (a) => { const b = a.botId && B.bots.get(a.botId); return { ...shown(a), runs: undefined, runsAt: undefined, chatAt: undefined, ...asksLib.proposalView(a, b?.name, { appName: B.appName }), text: askText(a), ...yesOn(a), ...thenField(a), ...groupOfCard(runOfAsk(a)), bot: b ? { id: b.id, name: b.name, color: b.color } : null, forBots: (a.forBots || []).map((id) => B.bots.get(id)).filter(Boolean).map((b) => ({ id: b.id, name: b.name, color: b.color })), ...(a.kind === 'permission' ? { what: asksLib.PERMISSIONS[a.permission] } : {}) }; };
     // Read for the cards: an action in a connected app that nobody waits for, and whose yes could start nothing
     // any more, goes now and is not drawn (ADR 010).
-    if (!parts[1] && m === 'GET') { connectorApprovals.look(); return send(res, 200, asks.list().map(view)); }
+    // A switch of a saved login (`vault-switch`) is listed only for an app that asks with vault-switch=1: one from
+    // before it would draw it as a skill to install, with a yes that turns the switch on.
+    if (!parts[1] && m === 'GET') {
+      connectorApprovals.look();
+      const switches = url.searchParams.get('vault-switch') === '1';
+      return send(res, 200, asks.list().filter((a) => switches || a.kind !== 'vault-switch').map(view));
+    }
     const body = await readBody(req);
     if (!parts[1] && m === 'POST') {
       // A tool for one bot: resolved into a pinned list now (or, from a link, downloaded for its checksum), installed only on the owner's Install.
@@ -1848,6 +1890,7 @@ async function api(req, res, url) {
       if (a.kind === 'connector-action') return send(res, 200, allowAction(a, body.always === true));
       if (a.kind === 'bot-change') return send(res, 200, await approveChange(a));
       if (a.kind === 'permission') return send(res, 200, allowPermission(a));
+      if (a.kind === 'vault-switch') return send(res, 200, await allowVaultSwitch(a));
       return send(res, 200, await installSkill(a));
     }
   }
@@ -2633,7 +2676,7 @@ async function api(req, res, url) {
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch'];
 const FIGURE = require('./lib/figure.json');
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();

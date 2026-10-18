@@ -164,7 +164,7 @@ test('run_with_login: refused without a computer, for a login not shared with th
   // Not usable in its computer yet: the owner is asked to turn it on.
   let r = await run(held.token, { login: 'Bridge', command: 'echo "$BOTDOT_PASSWORD" | wc -c' });
   assert.equal(r.data.ok, false);
-  assert.match(r.data.error, /"Bridge".*Ask the owner to turn on "Usable in its computer" for that login in the Vault/);
+  assert.match(r.data.error, /"Bridge".*Ask the owner for it with ask_vault_switch \(switch "inComputer"\); don't tell them to change it in the Vault themselves/);
   assert.doesNotMatch(JSON.stringify(r.data), new RegExp(SECRET.replace(/[/+]/g, '\\$&')));
   // Shared with another bot only: refused as any other use of it is.
   r = await run(held.token, { login: 'Bank', command: 'true' });
