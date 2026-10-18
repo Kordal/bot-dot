@@ -41,6 +41,8 @@ The installer asks a few questions and ends with your address and a sign-up link
 
 More accounts, updates, backups and uninstalling are in [Install on Linux](docs/install-linux.md).
 
+**On a Docker host with its own proxy** (Dokploy, Coolify, Portainer), run one account as a Compose app instead: see [Install with Docker Compose](docs/install-docker.md).
+
 ## Development
 
 botdot's server needs nothing but Node 22.13 or newer.
@@ -56,6 +58,7 @@ npm test             # the tests, with a stand-in for Claude
 
 - [User guide](docs/user-guide.md): the app and every feature
 - [Install on Linux](docs/install-linux.md): accounts, shares, updates, backups, uninstall, platforms
+- [Install with Docker Compose](docs/install-docker.md): one account on Dokploy or another Docker host
 - [What bots can reach](docs/what-bots-can-reach.md): what each bot, the Chief and botdot may see on a Docker install
 - [Development](docs/development.md): running from source, tests, code layout
 - [The API](docs/api.md), for the apps
