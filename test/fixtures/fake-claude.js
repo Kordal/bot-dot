@@ -60,15 +60,17 @@ rec.env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.start
 rec.uid = process.getuid?.();
 rec.cwd = process.cwd();
 rec.path = process.env.PATH; // where its commands are looked for (a bot's installed tools come first)
-// The skills of the plugin it was given, as Claude Code lists them when it starts: "<plugin>:<skill>".
+// The skills of the plugins it was given (each --plugin-dir), as Claude Code lists them when it starts: "<plugin>:<skill>".
 let skills = [];
-if (val('--plugin-dir')) {
+const pluginDirs = args.flatMap((a, i) => (a === '--plugin-dir' ? [args[i + 1]] : []));
+for (const dir of pluginDirs) {
   try {
-    const plugin = JSON.parse(fs.readFileSync(path.join(val('--plugin-dir'), '.claude-plugin', 'plugin.json'), 'utf8'));
-    rec.pluginReadable = true;
-    skills = fs.readdirSync(path.join(val('--plugin-dir'), 'skills')).filter((name) => fs.existsSync(path.join(val('--plugin-dir'), 'skills', name, 'SKILL.md'))).sort().map((name) => `${plugin.name}:${name}`);
-  } catch { rec.pluginReadable = rec.pluginReadable || false; }
+    const plugin = JSON.parse(fs.readFileSync(path.join(dir, '.claude-plugin', 'plugin.json'), 'utf8'));
+    rec.pluginReadable = rec.pluginReadable !== false;
+    skills.push(...fs.readdirSync(path.join(dir, 'skills')).filter((name) => fs.existsSync(path.join(dir, 'skills', name, 'SKILL.md'))).map((name) => `${plugin.name}:${name}`));
+  } catch { rec.pluginReadable = false; }
 }
+skills.sort();
 rec.skills = skills;
 rec.keyNames = Object.keys(process.env).filter((k) => /_KEY$/i.test(k));
 rec.procKeyNames = process.platform === 'linux' ? fs.readFileSync('/proc/self/environ', 'utf8').split('\0').map((v) => v.split('=')[0]).filter((k) => /_KEY$/i.test(k)) : [];

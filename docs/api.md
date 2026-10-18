@@ -82,7 +82,7 @@ The one program on a machine that people reach (`front-door.js`, [ADR 028](adr/0
 ```json
 { "app": "bot-dot", "version": "0.1.0", "revision": "659cb5e…", "short": "659cb5e",
   "apiVersion": 1, "features": ["events", "uploads", "setup", "updates", "jobs-pause", "chief",
-  "vault-requests", "bitwarden", "memory", "bot-messages", "chief-suggestions", "backups", "android-app", "inbox", "mac-app", "figure", "outfits", "unread", "opening-line", "working-line", "ratings", "tools", "vault-types", "needs-text", "message-key", "ask-continues", "connector-waits", "message-waits", "ended-by", "job-line", "asks-you", "decline-words", "staged-changes", "proposal-carries-on", "memory-chips", "memory-cards", "memory-forget", "change-summary", "groups", "checkup", "job-calls", "self-built", "accounts", "passkeys", "vault-in-computer"], "docker": true }
+  "vault-requests", "bitwarden", "memory", "bot-messages", "chief-suggestions", "backups", "android-app", "inbox", "mac-app", "figure", "outfits", "unread", "opening-line", "working-line", "ratings", "tools", "vault-types", "needs-text", "message-key", "ask-continues", "connector-waits", "message-waits", "ended-by", "job-line", "asks-you", "decline-words", "staged-changes", "proposal-carries-on", "memory-chips", "memory-cards", "memory-forget", "change-summary", "groups", "checkup", "job-calls", "self-built", "accounts", "passkeys", "vault-in-computer", "chief-skills"], "docker": true }
 ```
 
 `accounts` and `passkeys`: this botdot server is one account on its machine, reached through a front door that signs in with passkeys (see [The front door](#the-front-door)). Without a session the front door answers this route itself, with both.
@@ -671,6 +671,15 @@ The key is never in a job, and no route hands it out or its hash.
   - The `chief_reply` event has `status: "error"` whenever the message has `error` and the owner did not stop it, and `"stopped"` when the owner did; its `text` and `error` are the message's. A server without `needs-text` may store the text of an error result as the message's `text`, gives a stopped message `error` only when it has no `text`, and sends `status: "error"` only for a message without `text`.
 - **What waits after the Chief's change**, when `features` has `needs-text`. The chip of a bot the Chief created reads "Created <name>", of one it changed "Updated <name>", or only "<name>" when everything of that change waits for the owner, and of one it deleted "Deleted <name>", with the name the bot had. When part of a creation or change was held back for the owner, the action has `waits`: one line in the server's words, "web access waits for your OK" or "web access and commands wait for your OK", from the `waiting` of the bot's answer (see Bots). Show it with the chip as it is; an action without `waits` has nothing waiting.
 - A chat can start with a bot's suggestion: a message `{ role: "suggestion", from, text, status: "pending" | "answered" | "dismissed" }`. The Chief does nothing until you answer. Sending `"Approved. Go ahead."` (what the Approve button sends; older apps send `"Build it."`) answers it, and the Chief gets the bot's text with your answer. Any other message is your own, with the plan as background, and the plan keeps waiting. `POST /api/chief/chats/:chatId/dismiss` turns it down.
+
+### The Chief's skills
+
+When `features` has `chief-skills`, the owner gives library skills to the Chief as to a bot, and its turns load them beside its own `chief:*` skills, as `botdot:<name>` (issue #34).
+
+- **Its list** is `chiefSkills` in `GET /api/settings` (`settings.chiefSkills`: skill names, `[]` to start with). `PUT /api/settings` with `{ chiefSkills: [names] }` replaces it; names that are not in the library are dropped, and the answer has the list as kept. Each change is a change of the Chief's instructions: its next turn in every chat is told them again.
+- **On the Skills page**, the Chief is one of the bots by its id `"chief"`: a library skill's `usedBy` (`GET /api/skills`, `GET /api/skills/:name`) has `"chief"` when the Chief has it, and `bots` in `POST /api/skills`, `PUT /api/skills/:name` and `POST /api/skills/import/confirm` takes `"chief"` to give it (with `PUT`, leaving it out takes it away). A renamed skill stays with the Chief; a deleted one leaves it.
+- **Only the owner** gives the Chief a skill or takes one away. The Chief's own tools: `"chief"` in their `bots` is ignored and their `bots` never takes a skill from the Chief, a `PUT /api/skills/:name` of a skill the Chief has is refused with `403 { error }`, and `PUT /api/settings` stays the owner's. A bot's `update_skill` of a skill it wrote answers `{ ok: false, error }` once the Chief has that skill too.
+- A server without `chief-skills` keeps no list: an app shows no choice for the Chief there.
 
 ### The Chief's memory
 

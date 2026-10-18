@@ -209,15 +209,26 @@ const backups = require('./lib/backup').create({ dataDir: B.DATA_DIR, memory: B.
 const connectedApps = connectedAppsLib.create({ tellChief: (turn) => chief.tell(turn) });
 const tools = toolsLib.create({ dataDir: B.DATA_DIR, bots: B.bots, asks, audit, starts: B.toolStarts, tellChief: (turn) => chief.tell(turn), notify: (text) => chief.post(text), ownerWrote: (chatId) => chief.ownerWrote(chatId) });
 
-// Give these bots a skill (and, with exact=true, take it away from the others).
-function attachSkill(name, botIds, exact = false) {
+// Give these bots a skill (and, with exact=true, take it away from the others). The Chief of Staff is one of them
+// by its id, "chief": its list is chiefSkills in the settings. Only the owner gives the Chief a skill or takes one
+// away: a list from the Chief's own tools (by 'chief') leaves the Chief's as it is.
+function attachSkill(name, botIds, exact = false, by = 'you') {
   for (const b of B.bots.list()) {
     const has = b.skills.includes(name);
     const want = botIds.includes(b.id);
     if (want && !has) B.bots.update(b.id, { skills: [...b.skills, name] });
     if (exact && !want && has) B.bots.update(b.id, { skills: b.skills.filter((x) => x !== name) });
   }
+  if (by === 'chief') return;
+  const has = chiefHas(name);
+  const want = botIds.includes(chief.CHIEF.id);
+  if (want && !has) setChiefSkills([...B.settings.get().chiefSkills, name]);
+  if (exact && !want && has) setChiefSkills(B.settings.get().chiefSkills.filter((x) => x !== name));
 }
+const chiefHas = (name) => B.settings.get().chiefSkills.includes(name);
+const setChiefSkills = (names) => B.settings.update({ chiefSkills: names });
+// The library skills of a list, in its order (what the owner may give the Chief).
+const librarySkills = (names) => (Array.isArray(names) ? names.map((n) => String(n).trim().toLowerCase()).filter((n) => B.skills.NAME_RE.test(n) && B.skills.read(n)) : names);
 
 // A skill someone asked to install from a link: read it now (so the card can say what it is), install only on the owner's yes.
 // runId: the bot's run that asked, which waits for the answer. chatId: the Chief chat that asked.
@@ -1451,7 +1462,11 @@ async function api(req, res, url) {
       return send(res, 200, { checkup: chief.checkups.status() });
     }
     if (m === 'GET') return send(res, 200, { settings: B.settings.get(), ...B.settings.choices() });
-    if (m === 'PUT') { const { checkup: _ownRoute, ...body } = await readBody(req); return send(res, 200, { settings: B.settings.update(body), ...B.settings.choices() }); } // the checkup has its own route, which announces a change
+    if (m === 'PUT') { // the checkup has its own route, which announces a change
+      const { checkup: _ownRoute, ...body } = await readBody(req);
+      if (body.chiefSkills !== undefined) body.chiefSkills = librarySkills(body.chiefSkills); // only skills of the library
+      return send(res, 200, { settings: B.settings.update(body), ...B.settings.choices() });
+    }
   }
 
   // A schedule the owner is typing: its words and its next three runs, or why it is not one.
@@ -1785,7 +1800,7 @@ async function api(req, res, url) {
 
   if (parts[0] === 'skills') {
     const S = B.skills;
-    const usedBy = (name) => B.bots.list().filter((b) => b.skills.includes(name)).map((b) => b.id);
+    const usedBy = (name) => [...B.bots.list().filter((b) => b.skills.includes(name)).map((b) => b.id), ...(chiefHas(name) ? [chief.CHIEF.id] : [])];
     if (parts[1] === 'import' && m === 'POST') {
       const body = await readBody(req);
       // A link to several skills lists them all here (#30); what a bot or the Chief asks for stays one skill.
@@ -1807,21 +1822,27 @@ async function api(req, res, url) {
       const body = await readBody(req);
       if (S.read(String(body.name || '').toLowerCase())) return send(res, 409, { error: `There's already a skill called "${body.name}"` });
       const skill = S.save(body, { createdBy: by });
-      if (Array.isArray(body.bots)) attachSkill(skill.name, body.bots);
+      if (Array.isArray(body.bots)) attachSkill(skill.name, body.bots, false, by);
       return send(res, 201, skill);
     }
     const skill = name && S.read(name);
     if (!skill) return send(res, 404, { error: 'Skill not found' });
     if (m === 'GET') return send(res, 200, { ...skill, usedBy: usedBy(name) });
     if (m === 'PUT') {
+      // A skill the Chief has is part of its instructions, which only the owner changes.
+      if (by === 'chief' && chiefHas(name)) return send(res, 403, { error: `The user gave you "${name}" as one of your own skills, so only they change it. Nothing was changed.` });
       const body = await readBody(req);
       const next = S.rename(name, { ...skill, ...body });
-      if (next.name !== name) for (const b of B.bots.list()) if (b.skills.includes(name)) B.bots.update(b.id, { skills: b.skills.map((x) => (x === name ? next.name : x)) });
-      if (Array.isArray(body.bots)) attachSkill(next.name, body.bots, true);
+      if (next.name !== name) {
+        for (const b of B.bots.list()) if (b.skills.includes(name)) B.bots.update(b.id, { skills: b.skills.map((x) => (x === name ? next.name : x)) });
+        if (chiefHas(name)) setChiefSkills(B.settings.get().chiefSkills.map((x) => (x === name ? next.name : x)));
+      }
+      if (Array.isArray(body.bots)) attachSkill(next.name, body.bots, true, by);
       return send(res, 200, next);
     }
     if (m === 'DELETE') {
       for (const b of B.bots.list()) if (b.skills.includes(name)) B.bots.update(b.id, { skills: b.skills.filter((x) => x !== name) });
+      if (chiefHas(name)) setChiefSkills(B.settings.get().chiefSkills.filter((x) => x !== name));
       return send(res, 200, { ok: S.remove(name) });
     }
   }
@@ -2044,6 +2065,8 @@ async function api(req, res, url) {
         if (body.action === 'create' && existing) return send(res, 200, { ok: false, error: `You already wrote a skill called "${name}". Use update_skill to improve it.` });
         if (body.action === 'update' && !existing) return send(res, 200, { ok: false, error: `You have no skill called "${name}". Use create_skill.` });
         if (existing && !bot.skills.includes(name)) return send(res, 200, { ok: false, error: `The owner took "${name}" away from you, so leave it as it is.` });
+        // The Chief's skills are part of its instructions, which only the owner changes.
+        if (existing && chiefHas(name)) return send(res, 200, { ok: false, error: `The owner gave "${name}" to the Chief of Staff too, so leave it as it is.` });
         if (!existing && S.list().filter((k) => k.createdBy === mine).length >= 20) return send(res, 200, { ok: false, error: 'You already wrote 20 skills. Improve or merge existing ones instead.' });
         if (String(body.instructions || '').length > 20000) return send(res, 200, { ok: false, error: 'Keep the instructions under 20,000 characters.' });
         // After the run read content from others (the web, a connected app, its computer, a teammate's message
@@ -2549,7 +2572,7 @@ async function api(req, res, url) {
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills'];
 const FIGURE = require('./lib/figure.json');
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();

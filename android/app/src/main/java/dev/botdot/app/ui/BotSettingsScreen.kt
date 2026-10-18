@@ -318,12 +318,12 @@ private fun ColorPicker(selected: String, onPick: (String) -> Unit) {
 fun scriptWarningText(name: String) = "It's a script: it runs as commands on botdot's computer with your permissions, without AI and without the bot's tool limits. If a web page or email ever tricks $name into changing it, the new version would run on its schedule without you seeing it first.\n\nYou can take this back in $name's settings."
 
 @Composable
-private fun GroupHead(text: String) = Text(text, color = LocalPaper.current.muted, fontSize = 12.5.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+internal fun GroupHead(text: String) = Text(text, color = LocalPaper.current.muted, fontSize = 12.5.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
     modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
 
 /** A skill: the box switches it, a tap on its name shows more about it. */
 @Composable
-private fun SkillRow(name: String, desc: String, more: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SkillRow(name: String, desc: String, more: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     val p = LocalPaper.current
     var open by remember { mutableStateOf(false) }
     androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
