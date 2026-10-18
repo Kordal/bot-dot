@@ -415,7 +415,8 @@ test('a run of the group that is left out is in no member\'s block, with the mes
   // Since GRP-007 the Chief lists the groups: their names and members, and nothing of a group's chat.
   const forChief = (await srv.asChief('/group-chats')).data;
   assert.deepEqual(forChief.map((g) => Object.keys(g)), forChief.map(() => ['id', 'name', 'members', 'category']));
-  assert.ok(!/4471|noon|Fine\./.test(JSON.stringify(forChief)), 'no reply of the group, left out or not');
+  // Without the ids: a group's or a bot's random hex id may hold "4471" itself.
+  assert.ok(!/4471|noon|Fine\./.test(JSON.stringify(forChief, (k, v) => (k === 'id' ? undefined : v))), 'no reply of the group, left out or not');
   assert.ok(!JSON.stringify((await srv.asChief('/memory/search?q=door+code+4471')).data).includes(w1.id), 'and its search finds none of it');
   // Coder's own reply to that message was not left out, and stands without the message it answered.
   assert.ok(between(ranOf(srv, coder).at(-1).system, 'group-chat').includes(` · your reply, run ${c1.id} · `));
