@@ -19,6 +19,14 @@ object VaultTypes {
     /** The label of the control that picks the type. */
     const val CONTROL = "Type"
 
+    /** "Usable in its computer" (docs/api.md, The Vault's items): a server that keeps it says so in its features. */
+    const val IN_COMPUTER_FEATURE = "vault-in-computer"
+    const val IN_COMPUTER = "Usable in its computer"
+    const val IN_COMPUTER_HINT = "Bots may use it in a command on their own computer, e.g. for Proton Bridge there. A bot could then read it: only for secrets that guard something on that computer."
+
+    /** Whether the server keeps "Usable in its computer": only then is there a switch for it, and a value to send. */
+    fun showsInComputer(features: Collection<String>?): Boolean = features != null && IN_COMPUTER_FEATURE in features
+
     /**
      * What a type is called and asks for. [username]: the label of its first field, null where the form has the
      * secret alone. [none]: what the list shows for an item without a username.
@@ -45,7 +53,7 @@ object VaultTypes {
      * type. From a server before the types it is the one line the list always had.
      */
     fun rows(i: VaultItem, features: Collection<String>?): List<String> {
-        val extras = (if (i.hasTotp) " · two-step code" else "") + (if (i.insecureTls) " · self-signed certificate OK" else "")
+        val extras = (if (i.hasTotp) " · two-step code" else "") + (if (i.insecureTls) " · self-signed certificate OK" else "") + (if (i.inComputer) " · usable in its computer" else "")
         if (!shows(features)) return listOf("${i.site} · ${i.username.ifBlank { "(no username)" }}$extras")
         val t = of(i.type)
         val who = if (t.username == null) "" else "${t.icon} ${i.username.ifBlank { t.none }} · "

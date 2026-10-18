@@ -197,6 +197,8 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
     val fields = VaultTypes.editorFields(type, features, isNew = item == null)
     var hosts by remember { mutableStateOf(item?.allowedHosts.orEmpty().joinToString(", ")) }
     var insecure by remember { mutableStateOf(item?.insecureTls ?: false) }
+    var inComputer by remember { mutableStateOf(item?.inComputer ?: false) }
+    val showsInComputer = VaultTypes.showsInComputer(features)
     var chosen by remember { mutableStateOf(item?.allowedBots.orEmpty().toSet()) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -217,6 +219,7 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
             Hint("Only these hosts may also receive it. Subdomains are not included automatically.")
             SwitchRow("Accept a self-signed certificate", "For your own servers, e.g. Proxmox or a NAS", insecure) { insecure = it }
+            if (showsInComputer) SwitchRow(VaultTypes.IN_COMPUTER, VaultTypes.IN_COMPUTER_HINT, inComputer) { inComputer = it }
             Text("Bots that may use it", color = p.text, style = MaterialTheme.typography.titleSmall)
             bots.forEach { b ->
                 CheckRow("${b.emoji} ${b.name}", if (b.computer == "linux") null else "No computer, so it can't sign in to websites", b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id }
@@ -231,7 +234,7 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
                 runCatching {
                     val sent = VaultTypes.sent(type, user, features, saved = item?.type)
                     api!!.saveVaultLogin(item?.id, name.trim(), site, sent.username, pw, insecure, chosen.toList(),
-                        hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type)
+                        hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type, if (showsInComputer) inComputer else null)
                 }.onSuccess { pw = ""; done(if (bitwarden) "Saved in Bitwarden" else "Saved") }
                     // A refused save: the server's sentence, the form as it was typed, the secret cleared (docs/api.md).
                     .onError { pw = ""; error = it.message ?: "Couldn't save" }

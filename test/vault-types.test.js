@@ -109,7 +109,7 @@ test('the built-in vault: a type change alone changes nothing else of the item',
   assert.equal(changed.type, 'other');
   assert.deepEqual(rest, before, 'address, username, bots, additional hosts, the certificate: as they were');
   // A login changed to Other keeps its username, and its secret.
-  assert.deepEqual(store.credentials('bot1', 'Portal'), { name: 'Portal', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true });
+  assert.deepEqual(store.credentials('bot1', 'Portal'), { name: 'Portal', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true, inComputer: false });
 });
 
 test('the built-in vault: a bot sees the type of each login, and a save from a pop-up carries it', () => {
@@ -216,6 +216,29 @@ test('Bitwarden: add keeps the type beside the bots in bitwarden-access.json, an
   assert.ok(kept().every((it) => it.type === 1), 'each a Bitwarden login');
 });
 
+test('Bitwarden: "Usable in its computer" (inComputer) is kept beside the bots, off by default, and never edits the item', async (t) => {
+  const { bw, access, kept, writes } = await bitwarden(t, [PORTAL], { 'i-portal': { bots: ['bot1'], insecureTls: false } });
+  assert.equal(bw.list()[0].inComputer, false, 'off for an item from before');
+  assert.equal(bw.credentials('bot1', 'Portal').inComputer, false);
+  assert.equal(Object.hasOwn(bw.forBot('bot1')[0], 'inComputer'), false, 'a bot sees it only where it is on');
+  assert.equal((await bw.update('i-portal', { inComputer: true })).inComputer, true);
+  assert.deepEqual(access()['i-portal'], { bots: ['bot1'], insecureTls: false, inComputer: true });
+  assert.deepEqual(writes(), [], 'Bitwarden was not asked to edit anything');
+  assert.deepEqual(kept(), [PORTAL]);
+  assert.equal(bw.credentials('bot1', 'Portal').inComputer, true);
+  assert.equal(bw.forBot('bot1')[0].inComputer, true);
+  assert.equal((await bw.update('i-portal', { name: 'Portal', allowedBots: ['bot1'] })).inComputer, true, 'a change that leaves it out keeps it');
+  assert.equal((await bw.update('i-portal', { inComputer: false })).inComputer, false);
+  // A new item: off unless asked, and kept beside its bots when on.
+  const off = await bw.add({ name: 'NAS', site: 'nas.example.net', password: 'p', allowedBots: ['bot1'] });
+  assert.equal(off.inComputer, false);
+  assert.equal(Object.hasOwn(access()[off.id], 'inComputer'), false);
+  const on = await bw.add({ name: 'Bridge', site: '127.0.0.1', username: 'bart@proton.me', password: 'bridge-secret', allowedBots: ['bot1'], inComputer: true });
+  assert.equal(on.inComputer, true);
+  assert.equal(access()[on.id].inComputer, true);
+  assert.doesNotMatch(JSON.stringify(kept()), /inComputer/, 'botdot\'s own, not in Bitwarden');
+});
+
 test('Bitwarden: an unknown type is refused, and nothing is created, edited or kept', async (t) => {
   const { bw, access, kept, writes } = await bitwarden(t, [PORTAL], { 'i-portal': { bots: ['bot1'], insecureTls: false, type: 'api-token' } });
   await assert.rejects(bw.add({ site: 'new.example.com', password: 'p', type: 'password' }), { message: REFUSED });
@@ -238,7 +261,7 @@ test('Bitwarden: a type change alone leaves the item unedited, with its address,
   assert.deepEqual(access(), { 'i-portal': { bots: ['bot1', 'bot2'], insecureTls: true, allowedHosts: ['app.example.org'], type: 'api-token' } }, 'the type beside the bots');
   assert.deepEqual(writes(), [], 'Bitwarden was not asked to edit anything');
   assert.deepEqual(kept(), [PORTAL], 'the item as it was, with every address of it');
-  assert.deepEqual(bw.credentials('bot1', 'Portal'), { name: 'Portal', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true });
+  assert.deepEqual(bw.credentials('bot1', 'Portal'), { name: 'Portal', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true, inComputer: false });
 
   // The editor sends the whole form. With the name, the address and the username as they are, the item is
   // still not edited: to Other (no username sent, the stored one stays) and back.

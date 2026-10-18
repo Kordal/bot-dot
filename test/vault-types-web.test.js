@@ -187,6 +187,16 @@ test('web: the editor is "Add to the Vault", Type is its first control, and the 
   assert.match(editor, /const l = login \|\| \{ name: '', site: '', username: '', allowedBots: \[\] \};/);
 });
 
+test('web: the editor has "Usable in its computer", off for a new item, and sends it; the dialog of a bot\'s request has none', () => {
+  const body = editor.slice(at(editor, '<div class="modal-body">'));
+  assert.match(body, /<label class="toggle"><input type="checkbox" name="inComputer" \$\{l\.inComputer \? 'checked' : ''\}> Usable in its computer /);
+  assert.ok(at(body, 'name="insecureTls"') < at(body, 'name="inComputer"'), 'right under the certificate');
+  const submit = editor.slice(at(editor, 'form.onsubmit = async (e) => {'));
+  assert.match(submit, /insecureTls: form\.insecureTls\.checked,\s*inComputer: form\.inComputer\.checked,/);
+  assert.doesNotMatch(dialog, /inComputer/, 'a bot asking for a login cannot have it marked from there');
+  assert.equal(page.vaultItemLine({ type: 'login', username: 'bart', inComputer: true }), '👤 bart · 🔒 secret saved · usable in its computer');
+});
+
 test('web: the note of the editor no longer explains where a token ID goes', () => {
   const note = editor.slice(at(editor, '<div class="req-note">'), at(editor, '<fieldset>'));
   assert.match(note, /so they never see the secret\.<\/div>/);

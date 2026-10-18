@@ -47,7 +47,7 @@ async function moveOldVault() {
   const old = vault.exportAll();
   let moved = 0;
   for (const e of old) {
-    await bitwarden.upsert({ name: e.name, site: e.site, username: e.username, password: e.password, insecureTls: e.insecureTls, allowedBots: e.allowedBots, allowedHosts: e.allowedHosts, type: e.type });
+    await bitwarden.upsert({ name: e.name, site: e.site, username: e.username, password: e.password, insecureTls: e.insecureTls, inComputer: e.inComputer, allowedBots: e.allowedBots, allowedHosts: e.allowedHosts, type: e.type });
     e.password = null;
     vault.remove(e.id);
     moved++;
@@ -1508,6 +1508,34 @@ async function api(req, res, url) {
           return send(res, 200, r.ok ? { ok: true, text: r.text } : { ok: false, error: `${command} failed: ${r.text.slice(0, 300)}` });
         } catch (e) { return send(res, 200, { ok: false, error: `${command} failed: ${e.message}` }); }
       }
+      // run_with_login: one command in the bot's computer with a saved login in BOTDOT_USERNAME and BOTDOT_PASSWORD,
+      // for a login shared with this bot that the owner marked "Usable in its computer". What comes back has every
+      // form of the secret blanked out. The bot controls the command, so this guards against leaks by accident only
+      // (docs/DECISIONS.md, 2026-10-18).
+      if (parts[2] === 'computer' && parts[3] === 'run-with-login' && m === 'POST') {
+        if (!session.container) return send(res, 200, { ok: false, error: "This bot doesn't have a computer" });
+        const { login, command, timeoutSeconds } = await readBody(req);
+        if (!command || typeof command !== 'string' || command.length > 4000) return send(res, 400, { ok: false, error: 'Say which command to run (at most 4000 characters)' });
+        await readyForSecrets(session.botId);
+        let creds;
+        try { creds = await store().credentials(session.botId, login); } catch (e) { return send(res, 200, { ok: false, error: e.message }); }
+        if (!creds.inComputer) {
+          creds.password = null;
+          return send(res, 200, { ok: false, error: `The "${creds.name}" login isn't usable in your computer. Ask the owner to turn on "Usable in its computer" for that login in the Vault, then try again.` });
+        }
+        const hide = vaultHttp.hideLogin(creds);
+        const seconds = Math.min(Math.max(Number(timeoutSeconds) || 120, 1), 600);
+        let r;
+        try {
+          await B.computerForRun(session.runId);
+          r = await B.computers.runWithLogin(session.botId, { command, username: creds.username || '', password: creds.password || '', timeoutSeconds: seconds });
+        } catch (e) { r = { error: e.message }; }
+        creds.password = null;
+        console.log(`[vault] ${session.botId} ran a command in its computer with "${creds.name}": ${r.code ?? 'failed'}`);
+        if (r.code == null && !r.stdout && !r.stderr) return send(res, 200, { ok: false, error: hide(`Couldn't run it: ${r.error || 'no answer from the computer'}`) });
+        const cut = (t) => { t = hide(t || ''); return t.length > 20000 ? `${t.slice(0, 20000)}\n…(cut off)` : t; };
+        return send(res, 200, { ok: true, stdout: cut(r.stdout), stderr: cut(r.stderr), exitCode: r.code ?? null, ...(r.timedOut ? { timedOut: true } : {}), ...(r.error ? { note: hide(r.error) } : {}) });
+      }
       // A screenshot of the bot's computer for the owner, attached like a file: a QR code to scan, a 2FA screen…
       if (parts[2] === 'computer' && parts[3] === 'share' && m === 'POST') {
         if (!session.container) return send(res, 200, { ok: false, error: "This bot doesn't have a computer" });
@@ -2515,7 +2543,7 @@ async function api(req, res, url) {
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer'];
 const FIGURE = require('./lib/figure.json');
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
