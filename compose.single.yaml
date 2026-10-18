@@ -1,5 +1,5 @@
-# botdot as one Compose app on any Docker host with its own reverse proxy: Dokploy, Coolify, Portainer
-# (docs/install-docker.md). A machine of one account, as the Mac's was (ADR 028): its front door, its botdot
+# botdot as one Compose app on any Docker host: plain Docker (with compose.single.caddy.yaml when it has no
+# reverse proxy of its own), Dokploy, Coolify, Portainer (docs/install-docker.md). A machine of one account, as the Mac's was (ADR 028): its front door, its botdot
 # server and the docker-helper. Nothing publishes a port: the host's proxy (Traefik in Dokploy) routes your domain
 # to the front-door service on port 4700 and terminates HTTPS. Data lives in named volumes, which a redeploy keeps.
 #

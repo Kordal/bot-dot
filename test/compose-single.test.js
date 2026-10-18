@@ -48,3 +48,11 @@ test('every service drops its capabilities and new privileges', () => {
     assert.deepEqual(s.security_opt, ['no-new-privileges:true'], name);
   }
 });
+
+test('Caddy, for a host without a proxy, takes 80 and 443 and passes everything to the front door', () => {
+  const caddy = parseYaml(fs.readFileSync(path.join(__dirname, '..', 'compose.single.caddy.yaml'), 'utf8')).services.caddy;
+  assert.match(caddy.image, /^caddy:\d+\.\d+/, 'a pinned version');
+  assert.deepEqual(caddy.command.slice(0, 2), ['caddy', 'reverse-proxy']);
+  assert.equal(caddy.command.at(-1), 'front-door:4700');
+  assert.deepEqual(caddy.ports, ['80:80', '443:443', '443:443/udp']);
+});
