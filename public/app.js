@@ -1897,6 +1897,17 @@ function computerLabel(botId) {
   return st === 'running' ? 'on' : st === 'stopped' ? 'off (files kept)' : 'not created yet';
 }
 
+// The screen as large as the window lets it be, at the desktop's 4:3, with all of the dialog in the window and no
+// scrollbar of its own (#43): the screen is made as narrow as the height left for it asks. What is under it keeps
+// the dialog's width, so its height does not change with the screen's.
+function fitScreen(m) {
+  const f = $('#screen-frame', m);
+  if (!f || !m.open) return;
+  // The dialog's height may be the window's less 40 (the stylesheet's max-height), its 1px border included.
+  const room = window.innerHeight - 42 - (m.scrollHeight - f.offsetHeight);
+  m.style.setProperty('--screen-w', `${Math.max(240, Math.floor((room * 4) / 3))}px`);
+}
+
 function openScreen(botId) {
   const bot = state.bots.find((b) => b.id === botId);
   if (!bot) return;
@@ -1921,7 +1932,9 @@ function openScreen(botId) {
     if (d.diskBytes != null) $('#screen-state', m).dataset.disk = ` Uses ${d.diskBytes > 1e9 ? (d.diskBytes / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(d.diskBytes / 1e6)) + ' MB'} of disk.`;
     frame();
   }).catch(() => {});
-  m.classList.add('wide');
+  m.classList.add('wide', 'screen');
+  const fit = () => fitScreen(m);
+  window.addEventListener('resize', fit);
   const frame = () => {
     const on = state.computers?.[botId] === 'running';
     $('#screen-state', m).textContent = `Computer is ${computerLabel(botId)}.${bot.running ? ' The bot is using it right now.' : ''}${$('#screen-state', m).dataset.disk || ''}`;
@@ -1935,6 +1948,7 @@ function openScreen(botId) {
       ? `<iframe src="${screenUrl(botId, control)}" title="Live screen"></iframe>`
       : `<div class="screen-off"><div class="big">🖥</div>${bot.computerAlwaysOn ? 'Starting its computer… It stays on all the time.' : 'The computer is off. It turns on by itself when the bot runs.'}</div>`;
     keepScreenConnected($('#screen-frame iframe', m));
+    fit();
   };
   const act = async (action, label) => {
     try {
@@ -1955,8 +1969,14 @@ function openScreen(botId) {
     if (!box || !OpeningLine.text(line)) return;
     box.classList.remove('hidden');
     $('#screen-now', m).textContent = OpeningLine.text(line);
+    fit();
   });
-  m.addEventListener('close', () => { m.classList.remove('wide'); stepsEs?.close(); }, { once: true });
+  m.addEventListener('close', () => {
+    m.classList.remove('wide', 'screen');
+    m.style.removeProperty('--screen-w');
+    window.removeEventListener('resize', fit);
+    stepsEs?.close();
+  }, { once: true });
   frame();
 }
 
