@@ -69,10 +69,11 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   # Gives the front door's data volume to the front door's user once, before it starts: a new named volume is root's.
+  # A volume it already has is left alone: without CAP_FOWNER root may not chmod a folder that is no longer its own.
   front-door-data:
     image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
     pull_policy: always                             # a redeploy takes the newest release
-    entrypoint: ["sh", "-c", "chmod 700 /front-door && chown 60000:60000 /front-door"]
+    entrypoint: ["sh", "-c", "if [ \"$$(stat -c %u:%g:%a /front-door)\" != 60000:60000:700 ]; then chmod 700 /front-door && chown 60000:60000 /front-door; fi"]
     user: "0:0"
     restart: "no"
     cap_drop: [ALL]

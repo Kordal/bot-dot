@@ -53,6 +53,29 @@ test('data is kept in named volumes, which a redeploy keeps, and the front door\
   assert.deepEqual(services['front-door-data'].cap_add, ['CHOWN']);
 });
 
+// The front door's data folder as the init step leaves it, run with stand-ins for stat, chmod and chown. Like the real
+// step (root with only CAP_CHOWN), the chmod is refused on a folder that is no longer root's.
+const initStep = (owner) => {
+  const { spawnSync } = require('child_process');
+  const bin = fs.mkdtempSync(path.join(require('os').tmpdir(), 'front-door-data-'));
+  const log = path.join(bin, 'calls');
+  const stub = (name, body) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\necho "${name} $*" >> "${log}"\n${body}\n`, { mode: 0o755 });
+  stub('stat', `echo "$FOLDER"`);
+  stub('chmod', `case "$FOLDER" in 0:*) ;; *) echo "chmod: changing permissions of '/front-door': Operation not permitted" >&2; exit 1;; esac`);
+  stub('chown', '');
+  // Compose reads $$ as one $.
+  const script = services['front-door-data'].entrypoint.at(-1).replace(/\$\$/g, '$');
+  const run = spawnSync('sh', ['-c', script], { env: { PATH: `${bin}:/usr/bin:/bin`, FOLDER: owner }, encoding: 'utf8' });
+  const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n').filter((l) => !l.startsWith('stat ')) : [];
+  fs.rmSync(bin, { recursive: true, force: true });
+  return { status: run.status, calls };
+};
+
+test("the front door's data step gives a new volume to its user, and leaves one it already has as it is, so a redeploy starts", () => {
+  assert.deepEqual(initStep('0:0:755'), { status: 0, calls: ['chmod 700 /front-door', 'chown 60000:60000 /front-door'] }, 'a new volume');
+  assert.deepEqual(initStep('60000:60000:700'), { status: 0, calls: [] }, 'a redeploy');
+});
+
 test('every service drops its capabilities and new privileges', () => {
   for (const [name, s] of Object.entries(services)) {
     assert.deepEqual(s.cap_drop, ['ALL'], name);
