@@ -66,7 +66,7 @@ test('changed instructions are given once, on the next turn, and not on the turn
   assert.doesNotMatch(given, /will show up in this chat by itself|appears in this chat by itself/);
   assert.match(given, /\[\[choices:/, 'the note on choices');
   assert.match(given, /save it with remember, place "me"/);
-  assert.match(given, /Your skills \(load one with the Skill tool when it fits\):\n- chief:board: [^\n]+\n- chief:memory-setup: /);
+  assert.match(given, /Your skills \(load one with the Skill tool when it fits\):\n- chief:board: [^\n]+\n- chief:bot-designer: [^\n]+\n- chief:memory-setup: /);
   assert.doesNotMatch(given, /<shared-memory>|Now: /, 'what changes every turn is outside them');
   assert.match(told, NOW);
   assert.match(told, /WALLABY/);
