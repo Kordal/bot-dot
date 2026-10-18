@@ -19,7 +19,7 @@
 
 A messenger-style app for a team of **bots**. Each bot is a Claude Code agent with its own job, and a **Chief of Staff** creates and runs them when you ask it in a chat. botdot runs on your own server, and you use it on the web and on Android.
 
-![botdot on the web in a wide window: the Board's values and the team as keys (the Chief of Staff and pinned bots, then the Daily, Home and Tech categories, each bot a coloured head with a hat and dots for new replies) on the left, and News Monitor's chat with its morning headlines on the right](docs/screenshots/web-home.png)
+![botdot on the web in a wide window: the Board's values and the team as keys (the Chief of Staff and pinned bots, then the Daily, Home and Tech categories, each bot a coloured head with a hat and dots for new replies) on the left, and News Monitor's chat with its morning headlines on the right, in dark mode](docs/screenshots/web-home.png)
 
 ## Features
 
@@ -40,7 +40,7 @@ A messenger-style app for a team of **bots**. Each bot is a Claude Code agent wi
 
 The Board is your page of tiles: the temperature, a light switch, a shopping list, your next meeting, a server's disk, a morning summary. Its values sit at the top of the keypad, so the numbers you check every day are the first thing you see.
 
-![The Board on the web: tiles under the headings Home, Today and Server, with the living room temperature, the heating, a shopping list, a wide morning summary, unread mail, the next meeting, backups, disk use and updates](docs/screenshots/web-board.png)
+![The Board on the web: tiles under the headings Home, Today and Server, with the living room temperature, the heating, a shopping list, a wide morning summary, unread mail, the next meeting, backups, disk use and updates, in dark mode](docs/screenshots/web-board.png)
 
 **You build it by chat.** There are no edit buttons: ask the Chief to "add a switch for the living room light", "move Server to the top" or "make the summary wide", and it does. You drag tiles to rearrange them.
 
@@ -68,15 +68,15 @@ The [user guide](docs/user-guide.md#board) has the details.
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/web-chief.png" alt="The Chief of Staff's empty chat on the right of the keypad: 'What should the team work on?' with four example requests"></td>
-<td width="50%"><img src="docs/screenshots/web-home-dark.png" alt="The same keypad and News Monitor's chat in dark mode"></td>
+<td width="50%"><img src="docs/screenshots/web-needs-you.png" alt="Needs you on the right of the keypad: Server Watch asks to put 'Router uptime' on the Board, with its script and the buttons Decline and remove, and Approve"></td>
 </tr>
 <tr>
 <td><b>Ask the Chief.</b> It hands the task to the right bot, or builds a new one with the tools, permissions and jobs it needs.</td>
-<td><b>Light or dark.</b> The theme follows your system. A wide window shows the keypad: <kbd>1</kbd>–<kbd>9</kbd> open a bot, <kbd>Esc</kbd> brings back the Chief, <kbd>Ctrl</kbd>+<kbd>K</kbd> searches every chat.</td>
+<td><b>Your OK first.</b> A script, a login or anything risky waits in <b>Needs you</b>, with what it would run.</td>
 </tr>
 </table>
 
-A bot's head shows its state: it blinks when idle, looks around while it works, bobs when it needs you and closes its eyes when paused. Dots after its name count new replies.
+Every screenshot here is in dark mode; botdot follows your system's light or dark setting. A bot's head shows its state: it blinks when idle, looks around while it works, bobs when it needs you and closes its eyes when paused. Dots after its name count new replies. A wide window shows the keypad: <kbd>1</kbd>–<kbd>9</kbd> open a bot, <kbd>Esc</kbd> brings back the Chief, <kbd>Ctrl</kbd>+<kbd>K</kbd> searches every chat.
 
 ## On your phone
 
@@ -84,7 +84,7 @@ A bot's head shows its state: it blinks when idle, looks around while it works, 
 <tr>
 <td width="25%"><img src="docs/screenshots/phone-list.png" alt="The list on a phone: the Board's values on top, then pinned bots and the Daily, Home and Tech categories"></td>
 <td width="25%"><img src="docs/screenshots/phone-chat.png" alt="News Monitor's chat on a phone, with a 'Waiting for your OK' banner on top"></td>
-<td width="25%"><img src="docs/screenshots/phone-board-dark.png" alt="The Board on a phone in dark mode"></td>
+<td width="25%"><img src="docs/screenshots/phone-board.png" alt="The Board on a phone"></td>
 <td width="25%"><img src="docs/screenshots/phone-needs-you.png" alt="Needs you on a phone: Server Watch asks to put 'Router uptime' on the Board, with its script and the buttons Decline and remove, and Approve"></td>
 </tr>
 <tr>
