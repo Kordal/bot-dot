@@ -15,7 +15,7 @@ A messenger-style app for a team of **bots**. Each bot is a Claude Code agent th
 - **Bots' own computers.** A bot can get a private desktop with a browser, which you can watch live.
 - **Vault and connectors.** Bots use your logins without seeing them, and your apps (Gmail, Slack, GitHub and more) through Composio.
 - **Your OK first.** Anything risky waits for you in **Needs you**.
-- **Web, Android and Mac apps.** The web page works everywhere; Android and Mac have their own apps.
+- **Web and Android apps.** The web page works everywhere; Android has its own app.
 
 The [user guide](docs/user-guide.md) explains each of these.
 
@@ -39,8 +39,6 @@ sudo sh bot-dot-source/install.sh
 
 The installer asks a few questions and ends with your address and a sign-up link. Open the link, make your passkey, and sign in to Claude on the setup page. Then ask the Chief of Staff for your first bot.
 
-**On a Mac,** use the Mac app instead: it sets botdot up for you in Docker (see [macos/](macos/README.md)).
-
 More accounts, updates, backups and uninstalling are in [Install on Linux](docs/install-linux.md).
 
 ## Development
@@ -61,6 +59,6 @@ npm test             # the tests, with a stand-in for Claude
 - [What bots can reach](docs/what-bots-can-reach.md): what each bot, the Chief and botdot may see on a Docker install
 - [Development](docs/development.md): running from source, tests, code layout
 - [The API](docs/api.md), for the apps
-- [botdot for Android](android/README.md) and [botdot for Mac](macos/README.md)
+- [botdot for Android](android/README.md)
 - [Security](SECURITY.md): what botdot protects, and how to report a problem
 - [Licence](LICENSE)

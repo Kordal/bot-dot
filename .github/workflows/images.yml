@@ -9,7 +9,7 @@
 # vulnerabilities, and a secret scan of every layer, which also finds a file that a later layer deleted (it is gone
 # from the image's filesystem but still in the layer anyone with the image can download, #534).
 # The app image also carries the newest Android app (from the latest android-v* release), which the phone
-# updates from. It carries no Mac app: the Mac app is not released (ADR 022), so a Mac asking botdot for an
+# updates from. It carries no Mac app: the Mac app is stopped (ADR 031), so a Mac asking botdot for an
 # update hears that there is none.
 #
 # When (#512): once a night, and when the owner runs it by hand (Actions → Images → Run workflow, on main). A

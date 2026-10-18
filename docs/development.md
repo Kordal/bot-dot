@@ -21,7 +21,7 @@ npm start            # → http://localhost:4747
 
 `npm test` runs them, in about 2 minutes (two tests wait out a real one-minute schedule). Each test file starts real botdot servers on free ports with scratch data folders and their own vault keys, and a stand-in for Claude (`test/fixtures/fake-claude.js`), so they never touch your data or cost anything. When they are done, `npm test` checks that no stand-in Claude of this checkout was left running, and fails if one was (`test/run.js`). They cover bots and runs, bots messaging each other, the Chief's suggestions and answer buttons, the quiet phone, backups and restoring, memory, attached files, jobs, quiet scheduled runs, the bots' computers, the vault, who may use botdot, and the apps' updates (phone and Mac).
 
-On GitHub, the **Tests** workflow runs them and builds the Android app, on every pull request and before the **Images** and **Android** workflows publish, and builds and tests the Mac app when `macos/` changes. When a test fails, nothing is published, and the VM and phones keep the last good version. Every workflow runs on GitHub's own throwaway machines, and `test/workflows.test.js` fails when one names any other runner. It also runs the separate-users test as root (`test/users.test.js`) and scans the history for secrets (gitleaks).
+On GitHub, the **Tests** workflow runs them and builds the Android app, on every pull request and before the **Images** and **Android** workflows publish. When a test fails, nothing is published, and the VM and phones keep the last good version. Every workflow runs on GitHub's own throwaway machines, and `test/workflows.test.js` fails when one names any other runner. It also runs the separate-users test as root (`test/users.test.js`) and scans the history for secrets (gitleaks).
 
 ## Layout
 
@@ -73,5 +73,5 @@ lib/tools-worker.js  the installer itself, run as the tools user: micromamba wit
 lib/problems.js      a failed run, said in plain words (web and phone)
 public/              the UI (vanilla HTML/CSS/JS)
 vendor/novnc/        botdot's own copy of noVNC, the live-screen viewer
-macos/               the native Mac app: see macos/README.md
+macos/               the stopped Mac app (ADR 031): see macos/README.md
 ```

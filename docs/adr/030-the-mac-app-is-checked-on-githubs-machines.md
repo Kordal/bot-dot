@@ -1,6 +1,6 @@
 # ADR-030: The Mac app is checked on GitHub's machines
 
-- **Status:** Accepted (2026-10-17, the owner's decision)
+- **Status:** Superseded by [ADR 031](031-the-mac-app-is-stopped-again.md) (2026-10-18); accepted 2026-10-17, the owner's decision
 - **Owning task:** [#528](https://github.com/Kordal/bot-dot/issues/528)
 
 ## Context

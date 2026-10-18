@@ -1,5 +1,5 @@
-# Web/server, Android and Mac checks. Publishing workflows call this first, so a failed check blocks publication;
-# they skip the Mac checks, since no image carries the Mac app (ADR 022, ADR 030).
+# Web/server and Android checks. Publishing workflows call this first, so a failed check blocks publication.
+# The Mac app is stopped and has no checks (ADR 031).
 #
 # Where they run: every job on GitHub's own throwaway machines, whoever opened the pull request (#528). The
 # repository is public, so a fork's pull request may change this file: test/workflows.test.js fails when any
@@ -26,18 +26,14 @@ concurrency:
 
 jobs:
   # Which parts this run tests. A pull request tests what it changed: the server when a file outside android/
-  # changed (or any Markdown file, or Android's ui/Theme.kt, which tests/ compares), Android when a file in android/ or this workflow changed,
-  # the Mac app when a file in macos/ or this workflow changed. A call from another workflow says which by its
-  # inputs; missing inputs enable both (toJSON keeps a missing input from comparing loosely as false), and it never
-  # tests the Mac app. A run by hand tests all three. A job left out is skipped, which a required check counts as passed.
-  # A called workflow sees its caller's github context: a release started by hand is a workflow_dispatch too, so
-  # "by hand" also checks that the workflow run is this one (Tests), not Images or Android.
+  # changed (or any Markdown file, or Android's ui/Theme.kt, which tests/ compares), Android when a file in android/ or this workflow changed.
+  # A call from another workflow says which by its inputs; missing inputs enable both (toJSON keeps a missing input
+  # from comparing loosely as false). A run by hand tests both. A job left out is skipped, which a required check counts as passed.
   changes:
     runs-on: ubuntu-latest
     outputs:
       server: ${{ steps.which.outputs.server }}
       android: ${{ steps.which.outputs.android }}
-      mac: ${{ steps.which.outputs.mac }}
     steps:
       # A pull request's checkout is its merge commit: the first parent is the base, so the diff is the change.
       - if: github.event_name == 'pull_request'
@@ -49,20 +45,17 @@ jobs:
           EVENT: ${{ github.event_name }}
           SERVER: ${{ toJSON(inputs.server) != 'false' }}
           ANDROID: ${{ toJSON(inputs.android) != 'false' }}
-          MAC: ${{ github.event_name == 'workflow_dispatch' && github.workflow == 'Tests' }}
         run: |
           if [ "$EVENT" = pull_request ]; then
             FILES="$(git diff --name-only HEAD^1 HEAD)"
             printf '%s\n' "$FILES"
-            SERVER=false ANDROID=false MAC=false
+            SERVER=false ANDROID=false
             if printf '%s\n' "$FILES" | grep -qvE '^android/' || printf '%s\n' "$FILES" | grep -qE '(\.md|/ui/Theme\.kt)$'; then SERVER=true; fi
             if printf '%s\n' "$FILES" | grep -qE '^(android/|\.github/workflows/tests\.yml$)'; then ANDROID=true; fi
-            if printf '%s\n' "$FILES" | grep -qE '^(macos/|\.github/workflows/tests\.yml$)'; then MAC=true; fi
           fi
           echo "server=$SERVER" >> "$GITHUB_OUTPUT"
           echo "android=$ANDROID" >> "$GITHUB_OUTPUT"
-          echo "mac=$MAC" >> "$GITHUB_OUTPUT"
-          echo "Testing: server $SERVER, Android $ANDROID, Mac $MAC"
+          echo "Testing: server $SERVER, Android $ANDROID"
 
   server:
     needs: changes
@@ -124,18 +117,3 @@ jobs:
       # New lint problems fail the build; the ones already there are listed in app/lint-baseline.xml.
       - name: Lint
         run: ./gradlew lintDebug --console=plain
-
-  # The Mac app's build and the tests of its data layer (ADR 030), on GitHub's macOS 26 with its default Xcode (the
-  # app and BotDotKit need macOS 26 and Xcode 26). The BotDotKit tests start real botdot test servers: Node too.
-  mac:
-    needs: changes
-    if: needs.changes.outputs.mac == 'true'
-    runs-on: macos-26
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-      - run: make mac-build
-      - run: make mac-test
