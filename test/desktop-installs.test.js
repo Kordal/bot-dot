@@ -143,3 +143,12 @@ test('the desktop image carries botdot-install and a pinned micromamba', () => {
   assert.equal((dockerfile.match(/^ADD --checksum=sha256:[0-9a-f]{64} \\$/gm) || []).length >= 2, true);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'lib', 'bots.js'), 'utf8'), /botdot-install NAME/);
 });
+
+// Installing OpenSSH's client left SSH host keys in /etc/ssh: the same private keys in every bot's computer, and the
+// image's secret scan refused them. They go in the same step, so no
+// layer keeps them. Nothing in a computer runs an SSH server.
+test("the desktop image keeps no SSH host keys from installing OpenSSH's client", () => {
+  const dockerfile = fs.readFileSync(path.join(__dirname, '..', 'deploy', 'desktop', 'Dockerfile'), 'utf8');
+  const step = dockerfile.split(/\n(?=RUN |COPY |ADD |FROM |USER |ENV )/).find((s) => s.includes('openssh-client'));
+  assert.match(step, /rm -f \/etc\/ssh\/ssh_host_\*/);
+});
