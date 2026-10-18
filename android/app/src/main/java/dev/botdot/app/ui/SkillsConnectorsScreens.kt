@@ -54,6 +54,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.BuiltinSkill
 import dev.botdot.app.data.CatalogApp
+import dev.botdot.app.data.ChiefSkills
 import dev.botdot.app.data.ConnectorsInfo
 import dev.botdot.app.data.Skill
 import kotlinx.coroutines.launch
@@ -86,7 +87,7 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
         if (o != null) {
             Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Hint(o.description)
-                val users = o.usedBy.mapNotNull { botNames[it] }
+                val users = ChiefSkills.usedBy(o.usedBy, botNames)
                 Hint(if (users.isEmpty()) "No bot uses it yet. Turn it on in a bot's settings." else "Used by ${users.joinToString(", ")}")
                 o.createdBy?.let { Hint("Made by ${if (it.startsWith("bot:")) botNames[it.removePrefix("bot:")] ?: "a bot" else if (it == "chief") "the Chief" else "you"}") }
                 Section("What it tells the bot") { MarkdownText(o.instructions.ifBlank { "(empty)" }) }
@@ -95,14 +96,16 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
         }
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (error != null) item { Text(error!!, color = p.err) }
-            item { Hint("Instructions a bot loads when a task needs them. Choose which bots get which in each bot's settings.") }
+            item { Hint("Instructions a bot loads when a task needs them. Choose which bots get which in each bot's settings, and the Chief's in its settings.") }
             if (library.isEmpty()) item { Hint("Your library is empty. Ask the Chief to make or import one.") }
             items(library, key = { it.name }) { k ->
                 Column(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).clickable { open = k }.padding(12.dp)) {
                     Text(k.name, color = p.text, style = MaterialTheme.typography.titleMedium)
                     Text(k.description, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
-                    val n = k.usedBy.size
-                    Text(if (n == 0) "Not used yet" else "Used by $n bot${if (n == 1) "" else "s"}", color = p.faint, fontSize = 12.sp)
+                    val chief = ChiefSkills.CHIEF_ID in k.usedBy
+                    val n = k.usedBy.size - if (chief) 1 else 0
+                    val bots = if (n == 0) "" else "$n bot${if (n == 1) "" else "s"}"
+                    Text(if (n == 0 && !chief) "Not used yet" else "Used by ${listOf(if (chief) "the Chief" else "", bots).filter { it.isNotEmpty() }.joinToString(" and ")}", color = p.faint, fontSize = 12.sp)
                 }
             }
             if (builtin.isNotEmpty()) {

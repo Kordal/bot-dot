@@ -916,7 +916,9 @@ private fun guardedWords(action: String): CardWords = when (action) {
 // ---------- phase 3: settings, skills, connectors ----------
 
 @Serializable
-data class AppSettings(val defaultModel: String = "", val defaultEffort: String = "", val chiefModel: String = "", val chiefEffort: String = "", val chiefRules: String = "")
+data class AppSettings(val defaultModel: String = "", val defaultEffort: String = "", val chiefModel: String = "", val chiefEffort: String = "", val chiefRules: String = "",
+                       /** The library skills the owner gave the Chief (ChiefSkills); null from a server without them, and not sent. */
+                       val chiefSkills: List<String>? = null)
 
 @Serializable
 data class ModelChoice(val id: String, val label: String = "", val group: String? = null, val note: String? = null, val effort: Boolean = true)

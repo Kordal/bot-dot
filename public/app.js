@@ -1425,7 +1425,7 @@ function readDisabledSkills(form) {
 // action: { label, run(id) } puts a button on each item instead of a checkbox (e.g. Revoke); it's taken off the list once run() succeeds.
 // More about a library skill, for when its name is clicked: where it came from, what it has, who uses it.
 function skillMoreHTML(k) {
-  const bot = (id) => botById(id)?.name || 'a deleted bot';
+  const bot = (id) => (isChief({ id }) ? 'the Chief' : botById(id)?.name || 'a deleted bot');
   const from = k.source === 'github' ? `Installed by you from ${k.sourceUrl || 'GitHub'}` : k.createdBy?.startsWith('bot:') ? `Written by ${bot(k.createdBy.slice(4))}` : k.createdBy === 'chief' ? 'Written by the Chief' : 'Written by you';
   const lines = [
     from,
@@ -3062,7 +3062,7 @@ async function renderSkills() {
   let data = { library: [], machine: [] };
   try { data = await api('/skills'); } catch (e) { toast(e.message, true); }
   if (state.view !== 'skills') return;
-  const botChip = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `<span class="chip" title="${esc(b.name)}">${botLabel(b)}</span>` : ''; };
+  const botChip = (id) => { const b = isChief({ id }) ? CHIEF_BOT : state.bots.find((x) => x.id === id); return b ? `<span class="chip" title="${esc(b.name)}">${botLabel(b)}</span>` : ''; };
   root.innerHTML = `
     ${SUB_BACK}
     <div class="section-head">
@@ -3095,8 +3095,9 @@ async function renderSkills() {
   }));
 }
 
+// The Chief comes first: you give it a skill as you give one to a bot (its turns load it beside its own).
 function botCheckboxes(selected = []) {
-  return `<div class="tool-toggles">${state.bots.map((b) => `<label><input type="checkbox" name="bot" value="${esc(b.id)}" ${selected.includes(b.id) ? 'checked' : ''}${b.useSkills === false ? ' disabled title="Skills are turned off for this bot"' : ''}>${botLabel(b)}</label>`).join('')}</div>`;
+  return `<div class="tool-toggles">${[CHIEF_BOT, ...state.bots].map((b) => `<label><input type="checkbox" name="bot" value="${esc(b.id)}" ${selected.includes(b.id) ? 'checked' : ''}${b.useSkills === false ? ' disabled title="Skills are turned off for this bot"' : ''}>${botLabel(b)}</label>`).join('')}</div>`;
 }
 
 // opts.forBot: pre-tick this bot. opts.onDone(name|null): called when the dialog closes (used by a bot's settings).
@@ -3916,10 +3917,19 @@ function renderChiefSettings() {
       ${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort }, 'Same as the default')}
       <h3 class="page-sub">Your rules for it</h3>
       <textarea name="chiefRules" rows="4" maxlength="4000" placeholder="e.g. Always ask me before creating a bot. Talk to me like a colleague: short and direct.">${esc(s.chiefRules || '')}</textarea>
-    </form>${CHECKUP_HTML}
+    </form>
+    <h3 class="page-sub">Skills</h3>
+    <div class="card settings-card bs-rows">
+      <div class="bs-row" id="chief-skills">
+        <span class="bs-icon">✦</span>
+        <div class="grow"><b>Your skills for it</b><div class="faint">From your library, beside its own. Only you change them.</div><div id="chief-skill-picks"><span class="faint">Loading…</span></div></div>
+        <span class="faint bs-chev">›</span>
+      </div>
+    </div>${CHECKUP_HTML}
     <h3 class="page-sub">Previous chats</h3>
     <div class="card settings-card settings-links" id="chief-chats"></div>`;
   renderChatList();
+  drawChiefSkills(root);
   $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
   loadCheckup();
   const form = $('#chief-form', root);
@@ -3933,6 +3943,23 @@ function renderChiefSettings() {
       toast('Saved. The Chief uses it from its next reply.');
     } catch (err) { toast(err.message, true); }
   };
+}
+
+// The library skills you gave the Chief (settings.chiefSkills): ticked as a bot's are in its settings, saved at once.
+function drawChiefSkills(root) {
+  const box = $('#chief-skill-picks', root);
+  api('/skills').then(({ library }) => {
+    const has = new Set(state.settings.chiefSkills || []);
+    const items = [...library.filter((k) => has.has(k.name)), ...library.filter((k) => !has.has(k.name))]
+      .map((k) => ({ id: k.name, label: k.name, desc: k.description, more: skillMoreHTML(k) }));
+    foldPicker(box, items, has, async () => {
+      try {
+        const r = await api('/settings', { method: 'PUT', body: { chiefSkills: [...has] } });
+        state.settings = r.settings;
+        toast('Saved. The Chief uses it from its next reply.');
+      } catch (err) { toast(err.message, true); }
+    }, { empty: 'No skills in your library yet.' });
+  }).catch(() => { box.innerHTML = '<span class="faint">Couldn\'t load skills.</span>'; });
 }
 
 // The pages that open from Settings.

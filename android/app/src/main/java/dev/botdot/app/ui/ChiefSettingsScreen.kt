@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,10 +36,12 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.AppSettings
 import dev.botdot.app.data.Checkup
+import dev.botdot.app.data.ChiefSkills
+import dev.botdot.app.data.Skill
 import dev.botdot.app.data.SettingsInfo
 import kotlinx.coroutines.launch
 
-/** The Chief's settings (its figure and name in its chat): its model and reasoning, your rules for it and its earlier chats. */
+/** The Chief's settings (its figure and name in its chat): its model and reasoning, your rules for it, your skills for it and its earlier chats. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> Unit) {
@@ -60,6 +63,10 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
     var checkup by remember { mutableStateOf<Checkup?>(null) }
     LaunchedEffect(api, hasCheckup) { if (hasCheckup) runCatching { api?.checkup() }.onSuccess { checkup = it }.onError { tell(it.message ?: "Couldn't load") } else checkup = null }
     LaunchedEffect(Unit) { app.feed.events.collect { ev -> Checkup.event(ev)?.let { checkup = it } } }
+    // Your library skills for it, ticked as a bot's are, only from a server that keeps them; saved with Save.
+    val hasSkills = ChiefSkills.shows(server?.features)
+    var library by remember { mutableStateOf<List<Skill>>(emptyList()) }
+    LaunchedEffect(api, hasSkills) { if (hasSkills) runCatching { api?.skills() }.onSuccess { if (it != null) library = it.library }.onError { tell(it.message ?: "Couldn't load") } }
     // A refused or failed change puts the switch back and says why.
     fun switch(before: Checkup, field: String, now: Checkup) {
         checkup = now
@@ -79,6 +86,18 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
             Section("Your rules for it", "Added to its own instructions, for the Chief only.") {
                 OutlinedTextField(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("e.g. Always ask me before creating a bot. Talk to me like a colleague: short and direct.") })
+            }
+            if (hasSkills) {
+                val picked = edit.chiefSkills.orEmpty()
+                FoldSection(ChiefSkills.TITLE, picked.sorted().joinToString(", ").ifBlank { "None" }) {
+                    Hint(ChiefSkills.HINT)
+                    if (library.isEmpty()) Hint(ChiefSkills.EMPTY)
+                    // The ones it has come first (as saved, so rows don't jump while you tick them).
+                    library.sortedBy { it.name !in info.settings.chiefSkills.orEmpty() }.forEach { k ->
+                        val more = k.instructions.take(600) + if (k.instructions.length > 600) "…" else ""
+                        key(k.name) { SkillRow(k.name, k.description, more, k.name in picked) { on -> edit = edit.copy(chiefSkills = ChiefSkills.toggle(picked, k.name, on)) } }
+                    }
+                }
             }
             Button(
                 onClick = { scope.launch { runCatching { api!!.saveSettings(edit) }.onSuccess { info = it; edit = it.settings; tell("Saved. The Chief uses it from its next reply.") }.onError { tell(it.message ?: "Couldn't save") } } },
