@@ -2,6 +2,16 @@
 # Built automatically by botdot the first time a bot needs a computer.
 # Reviewed 2026-09-29; the index contains both amd64 and arm64.
 ARG BASE=public.ecr.aws/k5j5w0x5/cua-ubuntu-24.04:docker-latest@sha256:c67f330f287b0e5124f57c64bcf06a7e4b90208186c3036e1312b15d854f6d13
+# micromamba 2.9.0, as in botdot's own image: the bot installs programs from conda-forge into its home with it,
+# without root (botdot-install, ADR 032). One program per architecture, pinned by the sha256 its release publishes.
+FROM scratch AS micromamba-amd64
+ADD --checksum=sha256:366cd9cd8be14df1ab8ed50352a82111082a36686b2d389fdb79a92c3fafb3e3 \
+    https://github.com/mamba-org/micromamba-releases/releases/download/2.9.0-0/micromamba-linux-64 /micromamba
+FROM scratch AS micromamba-arm64
+ADD --checksum=sha256:9f93b974adcb4d166996af969b6cd371287d1a3e52733704727884d9b74cb7a7 \
+    https://github.com/mamba-org/micromamba-releases/releases/download/2.9.0-0/micromamba-linux-aarch64 /micromamba
+FROM micromamba-${TARGETARCH} AS micromamba
+
 FROM ${BASE}
 USER root
 
@@ -59,9 +69,13 @@ COPY botdot-desktop /usr/local/bin/botdot-desktop
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY camoufox.desktop /usr/share/applications/camoufox.desktop
 COPY camoufox-helper.desktop /usr/share/xfce4/helpers/camoufox.desktop
+# The bot's own installs, into its home without root, and its way onto the owner's tailnet in userspace (ADR 032).
+COPY --from=micromamba --chmod=0755 /micromamba /usr/local/bin/micromamba
+COPY botdot-install /usr/local/bin/botdot-install
+COPY botdot-tailscale /usr/local/bin/botdot-tailscale
 
 # Make it the default browser everywhere: XFCE's web-browser launcher, xdg-open and x-www-browser.
-RUN chmod 755 /usr/local/bin/camoufox-browser /usr/local/bin/botdot-desktop \
+RUN chmod 755 /usr/local/bin/camoufox-browser /usr/local/bin/botdot-desktop /usr/local/bin/botdot-install /usr/local/bin/botdot-tailscale \
  && mkdir -p /etc/xdg/xfce4 && printf 'WebBrowser=camoufox\n' > /etc/xdg/xfce4/helpers.rc \
  && mkdir -p /home/bot/.config/xfce4 && printf 'WebBrowser=camoufox\n' > /home/bot/.config/xfce4/helpers.rc \
  && update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/local/bin/camoufox-browser 300 \

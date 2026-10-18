@@ -1,0 +1,73 @@
+#!/usr/bin/python3 -I
+"""Installs programs on this computer for the bot, into its home, without root (ADR 032).
+
+  botdot-install NAME...           install packages from conda-forge (ffmpeg, rclone, nodejs, git-lfs, jq, …)
+  botdot-install --pip NAME...     install Python packages
+  botdot-install --npm NAME...     install Node.js packages that have commands
+  botdot-install --remove NAME...  remove conda-forge packages
+  botdot-install --list            what is installed from conda-forge
+
+Everything goes into ~/.local/env, whose bin folder is on the PATH of every new shell (~/.profile and ~/.bashrc).
+There is no root here, so apt packages and system services can't be installed; most programs are on conda-forge.
+"""
+import os, subprocess, sys
+
+HOME = os.path.expanduser('~')
+ENV = os.path.join(HOME, '.local', 'env')
+BIN = os.path.join(ENV, 'bin')
+MAMBA = '/usr/local/bin/micromamba'
+LINE = 'export PATH="$HOME/.local/env/bin:$HOME/.local/bin:$PATH"  # botdot-install\n'
+
+
+def on_path():
+    for rc in ('.profile', '.bashrc'):
+        path = os.path.join(HOME, rc)
+        text = open(path).read() if os.path.exists(path) else ''
+        if LINE not in text:
+            with open(path, 'a') as f:
+                f.write(('\n' if text and not text.endswith('\n') else '') + LINE)
+
+
+def mamba(*args):
+    env = {**os.environ, 'MAMBA_ROOT_PREFIX': os.path.join(HOME, '.local', 'mamba')}
+    return subprocess.run([MAMBA, *args], env=env).returncode
+
+
+def ensure_env():
+    if not os.path.isdir(os.path.join(ENV, 'conda-meta')):
+        code = mamba('create', '-y', '-p', ENV, '-c', 'conda-forge', '--override-channels')
+        if code:
+            sys.exit(code)
+    on_path()
+
+
+def run(argv):
+    if not argv or argv[0] in ('-h', '--help'):
+        sys.exit(__doc__)
+    flag, names = (argv[0], argv[1:]) if argv[0].startswith('--') else (None, argv)
+    if flag == '--list':
+        return mamba('list', '-p', ENV) if os.path.isdir(ENV) else print('Nothing installed yet.')
+    if not names or any(n.startswith('-') for n in names):
+        sys.exit(__doc__)
+    ensure_env()
+    if flag is None:
+        code = mamba('install', '-y', '-p', ENV, '-c', 'conda-forge', '--override-channels', *names)
+    elif flag == '--remove':
+        code = mamba('remove', '-y', '-p', ENV, *names)
+    elif flag == '--pip':
+        if not os.path.exists(os.path.join(BIN, 'pip')):
+            mamba('install', '-y', '-p', ENV, '-c', 'conda-forge', '--override-channels', 'python', 'pip')
+        code = subprocess.run([os.path.join(BIN, 'pip'), 'install', *names]).returncode
+    elif flag == '--npm':
+        if not os.path.exists(os.path.join(BIN, 'npm')):
+            mamba('install', '-y', '-p', ENV, '-c', 'conda-forge', '--override-channels', 'nodejs')
+        code = subprocess.run([os.path.join(BIN, 'npm'), 'install', '-g', '--prefix', ENV, *names]).returncode
+    else:
+        sys.exit(__doc__)
+    if code == 0 and flag != '--remove':
+        print(f'Installed. Commands are in {BIN}, on the PATH of new shells.')
+    return code
+
+
+if __name__ == '__main__':
+    sys.exit(run(sys.argv[1:]) or 0)

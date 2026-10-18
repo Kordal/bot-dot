@@ -1,0 +1,128 @@
+#!/usr/bin/python3 -I
+"""Puts this computer on the owner's tailnet, as the bot, without root (ADR 032).
+
+  botdot-tailscale up [NAME]   install Tailscale in ~/.local/tailscale if missing, start it, and print the login
+                               link for the owner, or this computer's tailnet address once it is signed in
+  botdot-tailscale status      the tailnet as this computer sees it
+  botdot-tailscale down        stop Tailscale on this computer (it stays signed in)
+
+Tailscale runs in userspace (--tun=userspace-networking): the computer has no root, no network rights and no TUN
+device, and its firewall stays botdot's. Programs reach the tailnet through its proxy on localhost:1055 (SOCKS5 and
+HTTP): ALL_PROXY=socks5h://localhost:1055. Incoming connections are refused (--shields-up), so no tailnet device
+reaches the computer's control or screen on its loopback. No auth key: the owner opens the login link and approves
+the computer in their own Tailscale admin console, so no secret passes through the bot.
+"""
+import hashlib, json, os, platform, shutil, socket, subprocess, sys, tarfile, tempfile, time, urllib.request
+
+PKGS = 'https://pkgs.tailscale.com/stable/'
+HOME = os.path.expanduser('~')
+DIR = os.path.join(HOME, '.local', 'tailscale')
+BIN = os.path.join(DIR, 'bin')
+SOCKET = os.path.join(DIR, 'tailscaled.sock')
+PROXY = 'localhost:1055'
+ARCH = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}
+
+
+def fetch(url):
+    with urllib.request.urlopen(url, timeout=60) as r:
+        return r.read()
+
+
+def install():
+    if all(os.access(os.path.join(BIN, n), os.X_OK) for n in ('tailscale', 'tailscaled')):
+        return
+    arch = ARCH.get(platform.machine())
+    if not arch:
+        sys.exit(f'Tailscale has no build here for {platform.machine()}.')
+    name = json.loads(fetch(PKGS + '?mode=json'))['Tarballs'][arch]
+    print(f'Installing {name}…', flush=True)
+    data = fetch(PKGS + name)
+    want = fetch(PKGS + name + '.sha256').decode().split()[0].lower()
+    if hashlib.sha256(data).hexdigest() != want:
+        sys.exit(f'{name} does not match its published SHA-256: not installed.')
+    os.makedirs(BIN, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=DIR) as tmp:
+        path = os.path.join(tmp, name)
+        with open(path, 'wb') as f:
+            f.write(data)
+        with tarfile.open(path) as t:
+            t.extractall(tmp, filter='data')
+        for root, _, files in os.walk(tmp):
+            for n in ('tailscale', 'tailscaled'):
+                if n in files:
+                    shutil.move(os.path.join(root, n), os.path.join(BIN, n))
+                    os.chmod(os.path.join(BIN, n), 0o755)
+    if not os.access(os.path.join(BIN, 'tailscaled'), os.X_OK):
+        sys.exit(f'{name} held no tailscaled: not installed.')
+
+
+def cli(*args, check=False):
+    return subprocess.run([os.path.join(BIN, 'tailscale'), f'--socket={SOCKET}', *args], capture_output=True, text=True, check=check)
+
+
+def running():
+    with socket.socket(socket.AF_UNIX) as s:
+        try:
+            s.connect(SOCKET)
+            return True
+        except OSError:
+            return False
+
+
+def start():
+    if running():
+        return
+    os.makedirs(os.path.join(DIR, 'state'), exist_ok=True)
+    log = open(os.path.join(DIR, 'tailscaled.log'), 'ab')
+    subprocess.Popen([os.path.join(BIN, 'tailscaled'), '--tun=userspace-networking', f'--statedir={os.path.join(DIR, "state")}',
+                      f'--socket={SOCKET}', f'--socks5-server={PROXY}', f'--outbound-http-proxy-listen={PROXY}'],
+                     stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+    for _ in range(50):
+        if running():
+            return
+        time.sleep(0.2)
+    sys.exit(f'Tailscale did not start: see {os.path.join(DIR, "tailscaled.log")}')
+
+
+def status():
+    return json.loads(cli('status', '--json').stdout or '{}')
+
+
+def up(name=None):
+    install()
+    start()
+    args = ['up', '--shields-up', '--timeout=20s']
+    if name:
+        args.append(f'--hostname={name}')
+    cli(*args)
+    s = status()
+    if s.get('BackendState') == 'Running':
+        ips = ', '.join(s.get('Self', {}).get('TailscaleIPs', []))
+        print(f'On the tailnet as {s.get("Self", {}).get("DNSName", "").rstrip(".")} ({ips}). '
+              f'Programs reach it through ALL_PROXY=socks5h://{PROXY}.')
+    elif s.get('AuthURL'):
+        print(f'Ask the owner to open this link and approve this computer: {s["AuthURL"]}\n'
+              'Then run botdot-tailscale up again.')
+    else:
+        sys.exit(f'Tailscale is {s.get("BackendState", "not answering")}: see {os.path.join(DIR, "tailscaled.log")}')
+
+
+def main(argv):
+    cmd = argv[1] if len(argv) > 1 else ''
+    if cmd == 'up':
+        up(argv[2] if len(argv) > 2 else None)
+    elif cmd == 'status':
+        if not running():
+            sys.exit('Tailscale is not running here: botdot-tailscale up starts it.')
+        print(cli('status').stdout, end='')
+    elif cmd == 'down':
+        if running():
+            cli('down')
+            subprocess.run(['pkill', '-u', str(os.getuid()), '-x', 'tailscaled'])
+        print('Tailscale is stopped on this computer.')
+    else:
+        sys.exit(__doc__)
+
+
+if __name__ == '__main__':
+    main(sys.argv)
