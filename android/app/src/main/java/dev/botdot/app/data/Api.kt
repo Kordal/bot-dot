@@ -135,8 +135,11 @@ class Api(val baseUrl: String, val session: Session? = null) {
         json.decodeFromString(get("/runs?botId=${enc(botId)}&limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
     /** Notes other bots left for this bot, waiting for its next run. */
     suspend fun inbox(botId: String): List<InboxNote> = json.decodeFromString(get("/bots/${enc(botId)}/inbox"))
-    /** What waits for the owner's yes, a switch of a saved login a bot asks for too (`vault-switch=1`): this app draws that card. */
-    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1"))
+    /**
+     * What waits for the owner's yes, a switch of a saved login a bot asks for (`vault-switch=1`) and what the Chief
+     * asked to do after it read the web (`chief-action=1`) too: this app draws both cards.
+     */
+    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&chief-action=1"))
     /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
     suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false): Answered =
         Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); put("always", always) }))

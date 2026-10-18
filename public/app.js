@@ -547,7 +547,7 @@ async function refresh() {
     redrawMarks();
     showJobApprovals();
     api(MEMORY_WAITS).then((p) => { state.memPending = p; showNeeds(); }).catch(() => {});
-    api('/asks?vault-switch=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
+    api('/asks?vault-switch=1&chief-action=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
     if (state.view === 'bot' && state.botId) loadInbox(state.botId);
@@ -4952,6 +4952,15 @@ function needCardHTML(x, here = null) {
     return card(esc(x.a.title), esc(heldLine(x.a) || x.a.reason || ''), body,
       `<button class="btn sm" data-need-no>Decline</button>${cut ? '' : `<button class="btn sm" data-need-always>Always allow this action</button>${long ? '' : '<button class="btn sm primary" data-need-yes>Allow once</button>'}`}`, rows ? 'need-rows' : '');
   }
+  // What the Chief asked to do after it read the web in a chat (docs/api.md, "The Chief reads the web"): the server's
+  // title, why it waits (`meta`), and what it sent as `rows`, drawn as an action in a connected app's are. Rows cut
+  // short (the feed's entry) or a request too long to show in full offer no yes: the yes does exactly what was sent.
+  if (x.kind === 'ask' && x.a.kind === 'chief-action') {
+    const rows = ToolCard.rows(x.a.rows);
+    const shut = rowsCut(x.a) || tooLong(x.a);
+    return card(esc(x.a.title), esc(said(x.a.meta)), `${rows}${tooLong(x.a) ? '<div class="need-meta">Too long to show in full.</div>' : ''}`,
+      `<button class="btn sm" data-need-no>Decline</button>${shut ? '' : '<button class="btn sm primary" data-need-yes>Approve</button>'}`, rows ? 'need-rows' : '');
+  }
   // A tool the Chief asks to install for a bot: the server's own fields (tool-card.js), no wording from here.
   if (x.kind === 'ask' && ToolCard.is(x.a)) {
     const t = ToolCard.parts(x.a);
@@ -5188,7 +5197,7 @@ const chatDecided = new Map(); // chat and key -> { scope, title, label }: decid
 const answeredAway = new Map(); // chat and key -> { scope, title, label }
 const fromChief = (x) => (x.kind === 'job' ? (changeOf(x.job) ? changeOf(x.job).by : x.job.changedBy) === 'chief'
   : x.kind === 'tile' ? (changeOf(x.t) ? changeOf(x.t).by : x.t.changedBy) !== 'bot'
-  : x.kind === 'ask' ? x.a.kind === 'skill' && !x.a.botId
+  : x.kind === 'ask' ? (x.a.kind === 'skill' && !x.a.botId) || x.a.kind === 'chief-action'
   : x.kind === 'login' || x.kind === 'pay' ? x.r.from === 'chief' : false);
 const inBothChats = (x) => x.kind === 'ask' && (ToolCard.is(x.a) || (x.a.kind === 'bot-change' && x.a.by === 'chief'));
 function chatNeeds(scope) {
@@ -5309,7 +5318,7 @@ function answeredWord(x, yes, always, answer) {
 
 async function refreshNeeds() {
   state.memPending = await api(MEMORY_WAITS).catch(() => state.memPending);
-  state.asks = await api('/asks?vault-switch=1').catch(() => state.asks);
+  state.asks = await api('/asks?vault-switch=1&chief-action=1').catch(() => state.asks);
   await refresh();
 }
 

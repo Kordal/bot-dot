@@ -1034,6 +1034,19 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
                 OutlinedButton(onClick = { decide(a.title, false, null) }) { Text("Decline", color = LocalPaper.current.text) }
             }
         }
+    } else if (a.kind == "chief-action") {
+        // What the Chief asked to do after it read the web in a chat: the server's title and line, and what it sent
+        // as rows, drawn as an action's are. The yes does exactly that, so a card that cannot show it all offers
+        // Decline alone.
+        Card(who, a.title, a.chiefActionLine, expandable = true) {
+            if (a.rows.isNotEmpty()) Facts(a.rows, whole = LocalCardOpen.current)
+            if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
+            ThenLine(then)
+            if (a.chiefActionYes) Buttons("Approve", { decide(a.title, true, "Approved") }, "Decline", { decide(a.title, false, null) })
+            else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text("Decline", color = LocalPaper.current.text) }
+            }
+        }
     } else if (a.kind == "bot-change") {
         val parts = a.parts
         Card(who, a.title, a.reason, expandable = true) {
