@@ -547,7 +547,7 @@ async function refresh() {
     redrawMarks();
     showJobApprovals();
     api(MEMORY_WAITS).then((p) => { state.memPending = p; showNeeds(); }).catch(() => {});
-    api('/asks').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
+    api('/asks?vault-switch=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
     if (state.view === 'bot' && state.botId) loadInbox(state.botId);
@@ -4928,6 +4928,14 @@ function needCardHTML(x, here = null) {
     return card(esc(x.a.title), esc(x.a.reason || ''), parts || `<div class="need-body"><pre class="nb">${esc(x.a.details)}</pre></div>`,
       `<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || 'Approve')}</button>`, parts ? 'need-rows' : '');
   }
+  // A switch of a saved login a bot asks for (`vault-switch`): the server's title, the bot's reason, the login and the
+  // switch as rows, the warning of "Usable in its computer", and the server's word on the yes.
+  if (x.kind === 'ask' && x.a.kind === 'vault-switch') {
+    const warning = said(x.a.warning);
+    return card(esc(said(x.a.title)), esc(said(x.a.reason)),
+      `${partsHTML(x.a.parts)}${warning ? `<div class="need-body need-warn" role="note"><div class="nb">⚠️ ${esc(warning)}</div></div>` : ''}`,
+      `<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || 'Allow')}</button>`, 'need-rows');
+  }
   // An action in a connected app: the server's title, whether its run still waits for the answer, and the action's
   // `rows`, drawn as a tool's facts: every row, and every value in full on an opened card. Without them, the
   // details as they were written. Rows that were cut short (the feed's entry) are not all a yes approves: the card
@@ -5301,7 +5309,7 @@ function answeredWord(x, yes, always, answer) {
 
 async function refreshNeeds() {
   state.memPending = await api(MEMORY_WAITS).catch(() => state.memPending);
-  state.asks = await api('/asks').catch(() => state.asks);
+  state.asks = await api('/asks?vault-switch=1').catch(() => state.asks);
   await refresh();
 }
 

@@ -80,4 +80,11 @@ class AskWordsTest {
         assertEquals(listOf("Decline"), buttons(permission))
         assertEquals(listOf("Decline"), buttons("""{"id":"s1","kind":"skill","skill":"pdf","yesOn":"card"}"""))
     }
+
+    @Test fun aVaultSwitchIsAnsweredOnItsCardOnly() {
+        // A bot asks to turn on a switch of a saved login: the server's line, and Decline alone (`yesOn: "card"`).
+        val tls = """{"id":"v1","kind":"vault-switch","botId":"pve","botName":"Proxmox Admin","text":"Asks to turn on “Accept self-signed certificate” for “Proxmox read-only API token”","yesOn":"card"}"""
+        assertEquals("Asks to turn on “Accept self-signed certificate” for “Proxmox read-only API token”", words(tls).first)
+        assertEquals(listOf("Decline"), buttons(tls))
+    }
 }
