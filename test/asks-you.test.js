@@ -265,6 +265,7 @@ test("a run the Chief started gets no note for answer buttons; a question it wri
     const run = (await srv.asChief(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Send the digest' } })).data;
     const rec = await srv.nextRun(isRunOf(bot, 'Send the digest'));
     assert.ok(!rec.system.includes(choices.NOTE) && !/\[\[choices|\[\[ask/.test(rec.system), 'no note that asks for the lines');
+    assert.ok(rec.system.includes('When they ask you to put something on it, or you notice') && !rec.system.includes('first ask them exactly one short question'), 'its Board note asks no question of the owner, who sees none of this run (#31)');
     const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
     const file = path.join(srv.data, 'chief', `${chat.id}.json`);
     const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
