@@ -2533,6 +2533,7 @@ async function api(req, res, url) {
     // Off and on again, for a computer that is stuck or didn't start (#59). It keeps everything on it, so the Chief may
     // do it without an OK; erasing one stays the owner's. A start that fails is the answer, not an error: the Chief says why.
     if (parts[2] === 'computer' && parts[3] === 'restart' && m === 'POST') {
+      if (bot.computer !== 'linux') return send(res, 409, { error: 'This bot has no computer' });
       if (B.isBotRunning(id)) return send(res, 409, { error: 'Wait until the bot finishes its run' });
       await B.computers.stop(id);
       try { await B.computers.ensure(id, bot.computerEgress || 'internet'); } catch (e) { return send(res, 200, { ok: false, state: (await B.computers.inspect(id)).state, error: e.message }); }

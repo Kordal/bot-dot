@@ -33,7 +33,7 @@ function docker({ state = 'running', failStart = false } = {}) {
     if (cmd === 'image') return '1';
     if (cmd === 'inspect' && state === 'none') throw new Error('No such object');
     if (cmd === 'inspect' && format.includes('.State.Status')) return `"${state}"|"bot-dot/desktop:latest"|"sha256:image"`;
-    if (cmd === 'inspect' && format.startsWith('{{json .State}}')) return `${JSON.stringify({ ...STATE, Status: state })}|3`;
+    if (cmd === 'inspect' && format.includes('{{json .State}}')) return `3|${JSON.stringify({ ...STATE, Status: state, Error: state === 'stopped' ? 'a | in its error' : '' })}`;
     if (cmd === 'inspect' && format.includes('user-version')) return '2|1';
     if (cmd === 'inspect' && format.includes('.HostConfig.Runtime')) return 'runsc';
     if (cmd === 'inspect' && format.includes('RestartPolicy')) return 'no';
@@ -51,7 +51,7 @@ test("health is Docker's state of the computer, and why its last start failed un
   await assert.rejects(computers.ensure('pc'), /Could not secure the computer: iptables/);
   const h = await computers.health('pc');
   assert.deepEqual({ ...h, lastStartError: undefined }, {
-    state: 'stopped', status: 'stopped', exitCode: 137, error: '', oomKilled: true,
+    state: 'stopped', status: 'stopped', exitCode: 137, error: 'a | in its error', oomKilled: true,
     startedAt: STATE.StartedAt, finishedAt: STATE.FinishedAt, restartCount: 3, waiting: false, lastStartError: undefined,
   });
   assert.match(h.lastStartError.message, /Could not secure the computer: iptables: Failed to initialize/);
@@ -61,9 +61,19 @@ test("health is Docker's state of the computer, and why its last start failed un
   assert.equal((await computers.health('pc')).lastStartError, null, 'a start that succeeds clears it');
 });
 
-test('health of a computer that was never made says so', async () => {
+test('health of a computer that was never made says so, and Docker that does not answer is not that', async () => {
   answer = docker({ state: 'none' });
   assert.deepEqual(await computers.health('nobody'), { state: 'none', waiting: false, lastStartError: null });
+  answer = () => { throw new Error('Cannot connect to the Docker daemon'); };
+  await assert.rejects(computers.health('pc'), /Cannot connect to the Docker daemon/);
+});
+
+test('erasing a computer forgets why its last start failed', async () => {
+  answer = docker({ state: 'stopped', failStart: true });
+  await assert.rejects(computers.ensure('gone'));
+  assert.ok((await computers.health('gone')).lastStartError);
+  await computers.reset('gone');
+  assert.equal((await computers.health('gone')).lastStartError, null);
 });
 
 test("logs are the container's own and the desktop's, the last lines of each", async () => {
