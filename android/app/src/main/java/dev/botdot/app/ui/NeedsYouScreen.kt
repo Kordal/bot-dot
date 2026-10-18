@@ -171,10 +171,14 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onBack: () -> 
     // Approved or declined here: they stay, faded, until you leave the screen.
     var decided by remember { mutableStateOf(listOf<Decided>()) }
     // [block] sends the answer and returns what the server says of it, if anything: its words for the answered card,
-    // and what the yes started. The label says both.
-    fun decide(key: String, who: Named?, title: String, yes: Boolean, label: String? = null, block: suspend () -> Answered?) = scope.launch {
+    // and what the yes started. The label says both. [ask]: the ask answered, whose chat then says so too.
+    fun decide(key: String, who: Named?, title: String, yes: Boolean, label: String? = null, ask: Ask? = null, block: suspend () -> Answered?) = scope.launch {
         runCatching { block() }
-            .onSuccess { said -> decided = decided + Decided(key, who, title, answeredLabel(answeredWord(label, said, yes), said?.carriesOn.takeIf { yes })) }
+            .onSuccess { said ->
+                val d = Decided(key, who, title, answeredLabel(answeredWord(label, said, yes), said?.carriesOn.takeIf { yes }))
+                decided = decided + d
+                ask?.let { store.answeredAway.add(it, d.title, d.label) } // the chat the card stood in says what you answered
+            }
             .onError { tell(it.message ?: "That didn't work") }
         load()
     }
@@ -271,7 +275,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onBack: () -> 
                 // A permission or a skill a bot (or the Chief) asked for, and a tool the Chief asks to install for a bot.
                 items(asks.filter { a -> decided.none { it.key == "a:${a.id}" } }, key = { "a:${it.id}" }) { a ->
                     val who = inGroup(a.bot?.let { whoOf(it.id, it.name) } ?: CHIEF_NAMED, a.group)
-                    AskApproval(a, who) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label) { api!!.answerAsk(a.id, yes, always) } }
+                    AskApproval(a, who) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
                 }
                 // A bot's plan for the Chief: nothing happens until you approve it, here or in its chat.
                 items(plans.filter { c -> decided.none { it.key == "p:${c.id}" } }, key = { "p:${it.id}" }) { c ->
@@ -328,6 +332,12 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
     var error by remember { mutableStateOf<String?>(null) }
     // Decided here: a faded line each, until you leave the chat.
     var decided by remember(scope) { mutableStateOf(listOf<Decided>()) }
+    // And what was answered on the Needs you screen for this chat: the same line, taken once (AnsweredAway).
+    val answeredAway by store.answeredAway.value.collectAsState()
+    LaunchedEffect(scope, answeredAway) {
+        val mine = store.answeredAway.take(scope).filter { a -> decided.none { it.key == a.key } }
+        if (mine.isNotEmpty()) decided = decided + mine.map { Decided(it.key, null, it.title, it.label) }
+    }
 
     suspend fun load() = coroutineScope { listOf(store.needs, store.bots, store.dashboard).forEach { launch { it.refresh() } } }
     // [block] sends the answer and returns what the server says of it, if anything: the label says it too.

@@ -116,6 +116,8 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     val turnLines = TurnLines { lines.features }
     /** The groups that waiting jobs and tiles were asked in: the feed's words, per card (CardGroups). */
     val cardGroups = CardGroups()
+    /** Asks answered on the Needs you screen, for the chats their cards stood in to say so (AnsweredAway). */
+    val answeredAway = AnsweredAway()
     /** The names of the skills in the library (for mentions: see Mentions). */
     val skills = Part { a -> a.skills().library.map { it.name } }
     /** Logins and payments, Bitwarden, memory changes, permissions, skills and tools asked for. (Jobs waiting for your OK
@@ -141,7 +143,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         // The botdot is known (right after the app starts) or another one was chosen: what's looked at loads (again).
         scope.launch {
             var had: String? = null
-            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); turnLines.clear(); cardGroups.clear(); parts.forEach { it.clear() }; had = a?.baseUrl } }
+            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); turnLines.clear(); cardGroups.clear(); answeredAway.clear(); parts.forEach { it.clear() }; had = a?.baseUrl } }
         }
     }
 

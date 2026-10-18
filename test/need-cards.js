@@ -20,12 +20,13 @@ const CODE = [
   cut('const needsDone = new Map();', '// The buttons on need cards'),
   cut('const chatDecided = new Map();', '// "Always approve" a script job'),
   cut('async function decide(x, yes', 'async function refreshNeeds() {'),
-  'this.page = { needsItems, needCardHTML, renderNeeds, chatNeeds, updateChatNeeds, decide, thenLine, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
+  'this.page = { needsItems, needCardHTML, renderNeeds, chatNeeds, updateChatNeeds, decide, thenLine, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, answeredAway, drawChatCards, toHeldCard, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
 ].join('\n');
 
 // The page with what the server sent. state: asks, bots (with their jobs), dash, approvals.
 // answer(url, body): what the server answers a yes or a no with; an Error is a request that failed.
-function page({ state = {}, answer = () => ({ ok: true }) } = {}) {
+// screen: the page's elements the code finds by their selector ('#view-bot', '#bot-thread', '#chat-thread').
+function page({ state = {}, answer = () => ({ ok: true }), screen = {} } = {}) {
   const calls = [], toasts = [], onScreen = [];
   let refreshed = 0;
   const st = { bw: null, asks: [], memPending: [], dash: null, chats: [], bots: [], approvals: null, view: 'chief', ...state };
@@ -39,7 +40,7 @@ function page({ state = {}, answer = () => ({ ok: true }) } = {}) {
     toast: (text, bad) => toasts.push([text, !!bad]),
     refreshNeeds: () => { refreshed++; },
     document: { createElement: () => element() },
-    $: (sel, root) => (root ? root.querySelector(sel) : sel === '#view-needs' ? needsPage : null),
+    $: (sel, root) => (root ? root.querySelector(sel) : sel === '#view-needs' ? needsPage : screen[sel] || null),
     $$: (sel) => onScreen.filter((c) => sel === `.need-card[data-need="${c.key}"]`),
   });
   vm.runInContext(read('tool-card.js'), ctx);
