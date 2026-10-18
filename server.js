@@ -2408,7 +2408,13 @@ async function api(req, res, url) {
       for (const k of own) B.skills.remove(k.name);
       return send(res, 200, { ok, name: bot.name, computer, skillsRemoved: own.length }); // name: what it was called, for whoever says it is gone
     }
-    if (parts[2] === 'computer' && m === 'GET') return send(res, 200, await B.computers.details(id));
+    // What the Chief reads to debug it (#59): Docker's state and the last failed start, and its recent logs.
+    if (parts[2] === 'computer' && parts[3] === 'status' && m === 'GET') return send(res, 200, await B.computers.health(id));
+    if (parts[2] === 'computer' && parts[3] === 'logs' && m === 'GET') {
+      const lines = Math.max(1, Math.min(500, Math.floor(Number(url.searchParams.get('lines'))) || 100));
+      return send(res, 200, await B.computers.logs(id, lines));
+    }
+    if (parts[2] === 'computer' && !parts[3] && m === 'GET') return send(res, 200, await B.computers.details(id));
     // Notes other bots left for it, waiting for its next run.
     if (parts[2] === 'inbox' && m === 'GET') return send(res, 200, B.inboxNotes(id));
     // Scheduled jobs: the apps and the Chief (the bot itself uses /api/self/session/jobs).
@@ -2524,7 +2530,16 @@ async function api(req, res, url) {
         return send(res, 200, { ...d, relatedNotes });
       }
     }
-    if (parts[2] === 'computer' && m === 'POST') {
+    // Off and on again, for a computer that is stuck or didn't start (#59). It keeps everything on it, so the Chief may
+    // do it without an OK; erasing one stays the owner's. A start that fails is the answer, not an error: the Chief says why.
+    if (parts[2] === 'computer' && parts[3] === 'restart' && m === 'POST') {
+      if (bot.computer !== 'linux') return send(res, 409, { error: 'This bot has no computer' });
+      if (B.isBotRunning(id)) return send(res, 409, { error: 'Wait until the bot finishes its run' });
+      await B.computers.stop(id);
+      try { await B.computers.ensure(id, bot.computerEgress || 'internet'); } catch (e) { return send(res, 200, { ok: false, state: (await B.computers.inspect(id)).state, error: e.message }); }
+      return send(res, 200, { ok: true, state: 'running' });
+    }
+    if (parts[2] === 'computer' && !parts[3] && m === 'POST') {
       const { action } = await readBody(req);
       if (action === 'start') { await B.computers.ensure(id, bot.computerEgress || 'internet'); return send(res, 200, { state: 'running' }); }
       if (B.isBotRunning(id)) return send(res, 409, { error: 'Wait until the bot finishes its run' });
@@ -2858,9 +2873,10 @@ const CHIEF_ROUTES = [
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
   ['GET', /^runs\/[^/]+\/wait$/],
   ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/call\/setup$/],
+  ['GET', /^bots\/[^/]+\/computer\/(status|logs)$/],
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
   ['POST', /^(bots|skills|asks|chief\/memory|memory\/semantic\/pull|chief\/reminders|vault\/requests|dashboard\/tiles|dashboard\/test|group-chats)$/],
-  ['POST', /^(bots\/[^/]+\/(run|jobs)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
+  ['POST', /^(bots\/[^/]+\/(run|jobs|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['PUT', /^(bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
   ['DELETE', /^(bots\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/call\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
