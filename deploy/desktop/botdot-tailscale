@@ -5,6 +5,8 @@
                                link for the owner, or this computer's tailnet address once it is signed in
   botdot-tailscale status      the tailnet as this computer sees it
   botdot-tailscale down        stop Tailscale on this computer (it stays signed in)
+  botdot-tailscale resume      start Tailscale again if this computer is signed in, with no new login: botdot runs it
+                               as the bot each time the computer starts (#68)
 
 Tailscale runs in userspace (--tun=userspace-networking): the computer has no root, no network rights and no TUN
 device, and its firewall stays botdot's. Programs reach the tailnet through its proxy on localhost:1055 (SOCKS5 and
@@ -12,12 +14,13 @@ HTTP): ALL_PROXY=socks5h://localhost:1055. Incoming connections are refused (--s
 reaches the computer's control or screen on its loopback. No auth key: the owner opens the login link and approves
 the computer in their own Tailscale admin console, so no secret passes through the bot.
 """
-import hashlib, json, os, platform, shutil, socket, subprocess, sys, tarfile, tempfile, time, urllib.request
+import base64, hashlib, json, os, platform, shutil, socket, subprocess, sys, tarfile, tempfile, time, urllib.request
 
 PKGS = 'https://pkgs.tailscale.com/stable/'
 HOME = os.path.expanduser('~')
 DIR = os.path.join(HOME, '.local', 'tailscale')
 BIN = os.path.join(DIR, 'bin')
+STATE = os.path.join(DIR, 'state')
 SOCKET = os.path.join(DIR, 'tailscaled.sock')
 PROXY = 'localhost:1055'
 ARCH = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64', 'arm64': 'arm64'}
@@ -72,9 +75,9 @@ def running():
 def start():
     if running():
         return
-    os.makedirs(os.path.join(DIR, 'state'), exist_ok=True)
+    os.makedirs(STATE, exist_ok=True)
     log = open(os.path.join(DIR, 'tailscaled.log'), 'ab')
-    subprocess.Popen([os.path.join(BIN, 'tailscaled'), '--tun=userspace-networking', f'--statedir={os.path.join(DIR, "state")}',
+    subprocess.Popen([os.path.join(BIN, 'tailscaled'), '--tun=userspace-networking', f'--statedir={STATE}',
                       f'--socket={SOCKET}', f'--socks5-server={PROXY}', f'--outbound-http-proxy-listen={PROXY}'],
                      stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
     for _ in range(50):
@@ -82,6 +85,20 @@ def start():
             return
         time.sleep(0.2)
     sys.exit(f'Tailscale did not start: see {os.path.join(DIR, "tailscaled.log")}')
+
+
+def signed_in():
+    """Whether tailscaled's state holds a login: its _profiles, base64 JSON, names one once the owner approved it."""
+    try:
+        with open(os.path.join(STATE, 'tailscaled.state')) as f:
+            return bool(json.loads(base64.b64decode(json.load(f).get('_profiles', ''))))
+    except (OSError, ValueError, AttributeError):
+        return False
+
+
+def resume():
+    if signed_in() and all(os.access(os.path.join(BIN, n), os.X_OK) for n in ('tailscale', 'tailscaled')):
+        start()
 
 
 def status():
@@ -111,6 +128,8 @@ def main(argv):
     cmd = argv[1] if len(argv) > 1 else ''
     if cmd == 'up':
         up(argv[2] if len(argv) > 2 else None)
+    elif cmd == 'resume':
+        resume()
     elif cmd == 'status':
         if not running():
             sys.exit('Tailscale is not running here: botdot-tailscale up starts it.')

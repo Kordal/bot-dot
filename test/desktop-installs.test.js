@@ -88,6 +88,43 @@ test('a build that does not match its published SHA-256 is not installed', { ski
   assert.equal(fs.existsSync(path.join(home, '.local', 'tailscale', 'bin', 'tailscaled')), false);
 });
 
+// Runs `botdot-tailscale resume`, as botdot does when the computer starts (#68), with Tailscale installed from dir.
+function resume(dir, home) {
+  const bin = path.join(home, '.local', 'tailscale', 'bin');
+  fs.mkdirSync(bin, { recursive: true });
+  for (const n of ['tailscale', 'tailscaled']) fs.copyFileSync(path.join(dir, 'pkg', 'tailscale_9_amd64', n), path.join(bin, n));
+  return spawnSync('python3', ['-I', '-B', SCRIPT, 'resume'], { env: { ...process.env, HOME: home }, encoding: 'utf8' });
+}
+// tailscaled's state file as it keeps it: each value base64; _profiles holds the logins it has.
+function state(home, profiles) {
+  const dir = path.join(home, '.local', 'tailscale', 'state');
+  fs.mkdirSync(dir, { recursive: true });
+  const b64 = (v) => Buffer.from(v).toString('base64');
+  fs.writeFileSync(path.join(dir, 'tailscaled.state'), JSON.stringify({ _machinekey: b64('privkey:00'), ...(profiles && { _profiles: b64(JSON.stringify(profiles)) }) }));
+}
+
+test('resume starts Tailscale again on a computer that is signed in, with no new login (#68)', { skip: !python }, (t) => {
+  const { dir, home } = scratch(t);
+  state(home, { a1b2: { ID: 'a1b2', Name: 'owner@example.com' } });
+  const out = resume(dir, home);
+  assert.equal(out.status, 0, out.stderr);
+  const daemon = JSON.parse(fs.readFileSync(path.join(home, 'tailscaled.args'), 'utf8'));
+  assert.ok(daemon.includes(`--statedir=${path.join(home, '.local', 'tailscale', 'state')}`), 'with the login it keeps');
+  assert.ok(daemon.includes('--tun=userspace-networking'));
+  assert.equal(fs.existsSync(path.join(home, 'up.args')), false, 'no up, so no login link');
+  assert.doesNotMatch(out.stdout, /login|approve/i);
+});
+
+test('resume starts nothing on a computer that never signed in, or was never approved (#68)', { skip: !python }, (t) => {
+  const { dir, home } = scratch(t);
+  for (const profiles of [undefined, null, {}]) {
+    if (profiles !== undefined) state(home, profiles);
+    const out = resume(dir, home);
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(fs.existsSync(path.join(home, 'tailscaled.args')), false, `nothing started with ${JSON.stringify(profiles)}`);
+  }
+});
+
 test('the desktop image carries it, and a bot with a computer is told how to use it', () => {
   const dockerfile = fs.readFileSync(path.join(__dirname, '..', 'deploy', 'desktop', 'Dockerfile'), 'utf8');
   assert.match(dockerfile, /^COPY botdot-tailscale \/usr\/local\/bin\/botdot-tailscale$/m);
