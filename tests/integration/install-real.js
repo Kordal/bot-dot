@@ -41,13 +41,15 @@ function startAndStopComputer(machine, image) {
   const created = machine.api('POST', '/api/bots', { name: 'Acceptance', prompt: 'Check that the install works.', computer: 'linux' });
   assert.equal(created.status, 201, `the bot is made: ${JSON.stringify(created.body)}`);
   const { id } = created.body;
-  const container = `botdot-${id}`;
 
   stage.step(`starting the computer of bot ${id}`);
   const started = machine.api('POST', `/api/bots/${id}/computer`, { action: 'start' });
   assert.equal(started.status, 200, `the computer starts: ${JSON.stringify(started.body)}`);
   assert.equal(started.body.state, 'running');
   assert.equal(machine.api('GET', `/api/bots/${id}/computer`).body.state, 'running');
+  // Named after the account's Compose project (#19): botdot-<project>.<bot id>.
+  const container = machine.account(ADMIN, 'ps', '-a', '--filter', `label=botdot.bot=${id}`, '--format', '{{.Names}}');
+  assert.match(container, new RegExp(`^botdot-[a-z0-9_-]+\\.${id}$`), 'one computer, named after its project');
   const made = JSON.parse(machine.account(ADMIN, 'inspect', container))[0];
   assert.equal(made.State.Status, 'running');
   assert.equal(made.Config.Image, image, 'from the configured computer image');

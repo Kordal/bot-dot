@@ -22,7 +22,7 @@ function docker(args) {
   if (cmd === 'image') return '1';
   if (cmd === 'info') return '28';
   if (cmd === 'network' && args[1] === 'inspect') throw new Error('No such network');
-  if (cmd === 'ps') return [...running].join('\n');
+  if (cmd === 'ps') return [...running].map((id) => `botdot-${id}|${id}`).join('\n');
   if (cmd === 'inspect' && args[3]?.includes('.State.Status')) {
     const id = bot(args);
     if (!made.has(id)) throw new Error('No such object');
