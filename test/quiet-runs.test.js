@@ -86,7 +86,8 @@ test('a scheduled job with a reply, and runs you start, are not quiet', { timeou
   srv.reply('Found one ready issue.');
   const every = (await srv.api(`/bots/${bot.id}/jobs`, { method: 'POST', body: { name: 'Every minute', kind: 'ai', notify: 'always', cron: '* * * * *', prompt: 'Check for news' } })).data;
   await srv.tick();
-  const run = await waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.find((r) => r.trigger === 'schedule' && r.status !== 'running'), { timeout: 30_000, every: 200, what: 'the scheduled run' });
+  // The tick is the next minute: at 08:59 that is 09:00, and "Run now" (0 9 * * *) runs on it too.
+  const run = await waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.find((r) => r.trigger === 'schedule' && r.jobName === 'Every minute' && r.status !== 'running'), { timeout: 30_000, every: 200, what: 'the scheduled run' });
   await srv.api(`/bots/${bot.id}/jobs/${every.id}`, { method: 'PUT', body: { enabled: false } });
   assert.equal(run.result, 'Found one ready issue.');
   assert.ok(!run.quiet);
