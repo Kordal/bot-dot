@@ -38,6 +38,6 @@ test('web: what a bot or the owner wrote on the card is text', () => {
 });
 
 test('web: the page asks for these cards wherever it reads the asks', () => {
-  assert.match(app, /api\('\/asks\?vault-switch=1'\)/);
+  assert.match(app, /api\('\/asks\?vault-switch=1&chief-action=1'\)/);
   assert.doesNotMatch(app, /api\('\/asks'\)/, 'every list of asks the page reads has them');
 });

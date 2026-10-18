@@ -80,7 +80,8 @@ const names = async (client) => (await client.request('tools/list')).tools.map((
 test('every tool of the Chief is said to hold others\' text or not, and one nobody named counts as read', () => {
   for (const tool of TOOLS) assert.ok(CLEAN.includes(tool.name) !== Object.hasOwn(READS, tool.name), `${tool.name} is in exactly one of the two lists (lib/chief-tools.js)`);
   for (const name of MEMORY_WRITES) assert.ok(TOOLS.some((x) => x.name === name), name);
-  assert.deepEqual(['mcp__botdot__get_run', 'mcp__botdot__remember', 'mcp__botdot__list_bots', 'Read', 'Skill', 'mcp__botdot__some_new_tool', 'WebFetch'].map(readKind), ['bot', null, null, 'file', null, 'unknown', 'unknown']);
+  assert.deepEqual(['mcp__botdot__get_run', 'mcp__botdot__remember', 'mcp__botdot__list_bots', 'Read', 'Skill', 'mcp__botdot__some_new_tool', 'Bash'].map(readKind), ['bot', null, null, 'file', null, 'unknown', 'unknown']);
+  assert.deepEqual(['WebSearch', 'WebFetch'].map(readKind), ['web', 'web'], "a search and a page the Chief read are the web's");
   assert.equal(readKind('mcp__botdot__get_bot'), 'bot', 'a bot in full holds the question of its last reply');
   assert.equal(readKind('ToolSearch'), null, "Claude Code looks a tool's schema up before it calls it: that reads nothing");
   for (const old of ['remember_shared', 'update_shared', 'forget_shared']) assert.ok(!TOOLS.some((x) => x.name === old), `${old} is gone`);

@@ -579,7 +579,7 @@ data class ChatHit(
 @Serializable
 data class Ask(
     val id: String,
-    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch"
+    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "chief-action"
     val permission: String? = null,
     val reason: String = "",
     val bot: BotRef? = null,
@@ -679,6 +679,15 @@ data class Ask(
      */
     val tooLong: Boolean get() = isTrue(moreValue)
 
+    /**
+     * What the Chief asked to do after it read the web in a chat (kind "chief-action", docs/api.md "The Chief reads
+     * the web"): why it waits, in the server's words (`meta`), or "".
+     */
+    val chiefActionLine: String get() = meta.textOrNull().orEmpty()
+
+    /** Whether such a card takes a yes: it shows all the yes does, no row clipped and nothing too long to show. */
+    val chiefActionYes: Boolean get() = kind == "chief-action" && !rowsCut && !tooLong
+
     companion object {
         /** A value the card can show: text (also empty: an email without a subject) or a number. */
         private fun said(v: JsonElement?): Boolean = v is JsonPrimitive && (v.isString || ToolCard.text(v).isNotEmpty())
@@ -700,14 +709,15 @@ data class Ask(
  * Whether the ask's card stands at the end of the chat [scope]: a bot's id, or "chief" for the Chief's chats. A bot's
  * chat has what that bot asked for; the Chief's, the skills the Chief asked for. A tool to install is in both, as on
  * the web page: the Chief asked for it, and it is installed for that bot. So is a changed bot that the Chief asked
- * for: the card is where the owner asked, and in the chat of the bot it changes. A card asked in a group
+ * for: the card is where the owner asked, and in the chat of the bot it changes. What the Chief asked to do after it
+ * read the web stands in the Chief's chats. A card asked in a group
  * (`groupId`) stands in that group's chat ([scope] "group:<id>") and nowhere else.
  */
 fun Ask.standsInChat(scope: String): Boolean = when {
     group != null -> groupOfChat(scope) == group?.id // asked in a group: at the end of that group's chat, and in no other
     groupOfChat(scope) != null -> false
     ToolCard.isTool(this) || (kind == "bot-change" && byChief) -> scope == "chief" || bot?.id == scope
-    scope == "chief" -> kind == "skill" && bot == null
+    scope == "chief" -> (kind == "skill" && bot == null) || kind == "chief-action"
     else -> bot?.id == scope
 }
 
