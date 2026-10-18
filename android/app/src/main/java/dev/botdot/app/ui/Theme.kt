@@ -1,10 +1,8 @@
 package dev.botdot.app.ui
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
@@ -17,7 +15,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-/** botdot's "Mono" look, the same colors as the web page (public/style.css). */
+/** botdot's "Mono" look, the same colors as the web page (public/style.css). Dark only, whatever the system says (#14). */
 @Immutable
 data class Paper(
     val bg: Color, val panel: Color, val sunk: Color, val line: Color, val line2: Color,
@@ -26,17 +24,8 @@ data class Paper(
     /** `ok` and `warn` colour dots, fills and switches; words take `okText` and `warnText`, which pass 4.5:1. */
     val ok: Color, val okSoft: Color, val err: Color, val errSoft: Color, val warn: Color, val warnSoft: Color,
     val okText: Color, val warnText: Color,
-    /** The logo's dot, the blue of jobs and skills mentioned in your bubbles, and the border of a warning on a card: one value in light and dark. */
+    /** The logo's dot, the blue of jobs and skills mentioned in your bubbles, and the border of a warning on a card: one value each. */
     val dot: Color, val mention: Color, val warnLine: Color,
-)
-
-val LightPaper = Paper(
-    bg = Color(0xFFFFFFFF), panel = Color(0xFFFFFFFF), sunk = Color(0xFFF2F2F2), line = Color(0xFFEBEBEB), line2 = Color(0xFFDEDEDE),
-    text = Color(0xFF000000), muted = Color(0xFF525252), faint = Color(0xFF6E6E6E),
-    ink = Color(0xFF000000), inkText = Color(0xFFFFFFFF),
-    ok = Color(0xFF1D9A68), okSoft = Color(0xFFE4F5EC), err = Color(0xFFCA3636), errSoft = Color(0xFFFBEAEA), warn = Color(0xFFB27A12), warnSoft = Color(0xFFFBF1DC),
-    okText = Color(0xFF167A52), warnText = Color(0xFF8A5D0A),
-    dot = Color(0xFFD85A30), mention = Color(0xFF378ADD), warnLine = Color(0xFFEF9F27),
 )
 
 val DarkPaper = Paper(
@@ -48,13 +37,12 @@ val DarkPaper = Paper(
     dot = Color(0xFFD85A30), mention = Color(0xFF378ADD), warnLine = Color(0xFFEF9F27),
 )
 
-val LocalPaper = staticCompositionLocalOf { LightPaper }
+val LocalPaper = staticCompositionLocalOf { DarkPaper }
 
 @Composable
 fun BotDotTheme(content: @Composable () -> Unit) {
-    val p = if (isSystemInDarkTheme()) DarkPaper else LightPaper
-    val base = if (p == DarkPaper) darkColorScheme() else lightColorScheme()
-    val scheme = base.copy(
+    val p = DarkPaper
+    val scheme = darkColorScheme().copy(
         primary = p.ink, onPrimary = p.inkText,
         background = p.bg, onBackground = p.text,
         surface = p.bg, onSurface = p.text, surfaceVariant = p.sunk, onSurfaceVariant = p.muted,

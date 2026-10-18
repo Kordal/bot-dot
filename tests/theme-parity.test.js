@@ -1,6 +1,7 @@
 // One look on every app (#447): the colour tokens of the web page (public/style.css), Android (Paper in Theme.kt)
-// and the Mac (Theme.swift) are the same set, with the same light and the same dark value. A token one app has
-// alone is named below with its reason; any other token missing in an app, or with another value there, fails.
+// and the Mac (Theme.swift) are the same set, with the same value. The web page and Android are dark only (#14), so
+// the value is the dark one; the stopped Mac app (ADR 031) still has both, and its dark one is compared. A token one
+// app has alone is named below with its reason; any other token missing in an app, or with another value there, fails.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -33,33 +34,25 @@ function block(text, head, open = '{', close = '}') {
   assert.fail(`${head} is closed`);
 }
 
-// { name: { light: '#rrggbb', dark: '#rrggbb' } } of each app.
+// { name: '#rrggbb' } of each app: its dark value.
 function web(css) {
-  const hexes = (b) => Object.fromEntries([...b.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6}|#[0-9a-f]{3})\b/gi)]
+  assert.doesNotMatch(css, /prefers-color-scheme|data-theme/, 'style.css: one theme, no light one');
+  return Object.fromEntries([...block(css, ':root {').matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6}|#[0-9a-f]{3})\b/gi)]
     .map(([, k, v]) => [camel(k), long(v)]));
-  const light = hexes(block(css, ':root {'));
-  const dark = { ...light, ...hexes(block(css, ':root[data-theme="dark"] {')) };
-  const bySystem = { ...light, ...hexes(block(css, ':root:not([data-theme="light"]) {')) };
-  assert.deepEqual(bySystem, dark, 'style.css: the system\'s dark and the chosen dark are the same');
-  const names = new Set([...Object.keys(light), ...Object.keys(dark)]);
-  return Object.fromEntries([...names].map((k) => [k, { light: light[k], dark: dark[k] }]));
 }
 
 function android(kt) {
+  assert.doesNotMatch(kt, /LightPaper|isSystemInDarkTheme|lightColorScheme/, 'Theme.kt: one Paper, no light one');
   // 0xAARRGGBB → '#rrggbb', or '#rrggbbaa' when it is not opaque.
-  const paper = (head) => Object.fromEntries([...block(kt, head, '(', ')').matchAll(/(\w+)\s*=\s*Color\(0x([0-9a-f]{2})([0-9a-f]{6})\)/gi)]
+  return Object.fromEntries([...block(kt, 'val DarkPaper = Paper(', '(', ')').matchAll(/(\w+)\s*=\s*Color\(0x([0-9a-f]{2})([0-9a-f]{6})\)/gi)]
     .map(([, k, a, v]) => [k, `#${v}${a.toLowerCase() === 'ff' ? '' : a}`.toLowerCase()]));
-  const light = paper('val LightPaper = Paper(');
-  const dark = paper('val DarkPaper = Paper(');
-  assert.deepEqual(Object.keys(dark).sort(), Object.keys(light).sort(), 'Theme.kt: LightPaper and DarkPaper set the same fields');
-  return Object.fromEntries(Object.keys(light).map((k) => [k, { light: light[k], dark: dark[k] }]));
 }
 
 function mac(swift) {
   const theme = block(swift, 'enum Theme {');
   const out = {};
-  for (const [, k, l, d] of theme.matchAll(/static let (\w+) = dynamic\(0x([0-9a-f]{6}), 0x([0-9a-f]{6})\)/gi)) out[k] = { light: `#${l.toLowerCase()}`, dark: `#${d.toLowerCase()}` };
-  for (const [, k, v] of theme.matchAll(/static let (\w+) = Color\(hex: "#([0-9a-f]{6})"\)/gi)) out[k] = { light: `#${v.toLowerCase()}`, dark: `#${v.toLowerCase()}` };
+  for (const [, k, , d] of theme.matchAll(/static let (\w+) = dynamic\(0x([0-9a-f]{6}), 0x([0-9a-f]{6})\)/gi)) out[k] = `#${d.toLowerCase()}`;
+  for (const [, k, v] of theme.matchAll(/static let (\w+) = Color\(hex: "#([0-9a-f]{6})"\)/gi)) out[k] = `#${v.toLowerCase()}`;
   return out;
 }
 
@@ -83,32 +76,30 @@ function differences(t) {
       continue;
     }
     for (const app of Object.keys(t).filter((a) => !has.includes(a))) out.push(`${name}: missing in ${app} (${FILES[app]})`);
-    for (const mode of ['light', 'dark']) {
-      const values = new Set(has.map((app) => t[app][name][mode]));
-      if (values.size > 1) out.push(`${name} (${mode}): ${has.map((app) => `${app} ${t[app][name][mode]}`).join(', ')}`);
-    }
+    const values = new Set(has.map((app) => t[app][name]));
+    if (values.size > 1) out.push(`${name}: ${has.map((app) => `${app} ${t[app][name]}`).join(', ')}`);
   }
   return out;
 }
 
-test('the web page, Android and the Mac have the same colour tokens with the same light and dark values', () => {
+test('the web page, Android and the Mac have the same colour tokens with the same values', () => {
   assert.deepEqual(differences(themes()), []);
 });
 
 test('the accents are tokens of every app: the dot, the mention blue and the warning line', () => {
   const t = themes();
   for (const app of Object.keys(t)) {
-    assert.deepEqual(t[app].dot, { light: '#d85a30', dark: '#d85a30' }, `${app}: dot`);
-    assert.deepEqual(t[app].mention, { light: '#378add', dark: '#378add' }, `${app}: mention`);
-    assert.deepEqual(t[app].warnLine, { light: '#ef9f27', dark: '#ef9f27' }, `${app}: warnLine`);
+    assert.equal(t[app].dot, '#d85a30', `${app}: dot`);
+    assert.equal(t[app].mention, '#378add', `${app}: mention`);
+    assert.equal(t[app].warnLine, '#ef9f27', `${app}: warnLine`);
   }
 });
 
 test('a token changed in one app alone, or missing there, is found', () => {
   const t = themes();
   const changed = structuredClone(t);
-  changed.mac.mention.dark = '#000000';
-  assert.deepEqual(differences(changed), ['mention (dark): web #378add, android #378add, mac #000000']);
+  changed.mac.mention = '#000000';
+  assert.deepEqual(differences(changed), ['mention: web #378add, android #378add, mac #000000']);
   const missing = structuredClone(t);
   delete missing.android.warnLine;
   assert.deepEqual(differences(missing), [`warnLine: missing in android (${FILES.android})`]);

@@ -3,12 +3,14 @@ package dev.botdot.app
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -98,7 +100,8 @@ class MainActivity : ComponentActivity() {
     private val keysUsed = mutableSetOf<Int>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        enableEdgeToEdge()
+        // Dark only (#14): light icons on the bars, whatever the system says.
+        enableEdgeToEdge(SystemBarStyle.dark(Color.TRANSPARENT), SystemBarStyle.dark(Color.TRANSPARENT))
         super.onCreate(savedInstanceState)
         // Only the first time: when the phone turns, the same intent would share its files (or open its chat) again.
         if (savedInstanceState == null) handle(intent)

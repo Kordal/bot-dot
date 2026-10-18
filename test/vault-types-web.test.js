@@ -236,7 +236,7 @@ test('web: Save in the dialog sends the chosen type, and for Other no username',
 });
 
 test('web: a save that failed opens the dialog again with the chosen type and the typed username', () => {
-  const saving = cut('async function saveLoginInBackground(r, body)', '// ---------- theme ----------');
+  const saving = cut('async function saveLoginInBackground(r, body)', '// ---------- presence ----------');
   assert.match(saving, /openLoginRequest\(\{ \.\.\.x, type: body\.type, username: body\.username \?\? x\.username \}\)/, 'Other sent no username: the one of the request stays');
   assert.match(saving, /body\.password = body\.unlockPassword = null;/, 'never the secret');
 });

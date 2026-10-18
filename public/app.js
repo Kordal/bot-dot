@@ -3902,10 +3902,6 @@ function renderSettings() {
         ? custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')
         : '<p class="muted settings-hint" style="margin:0">None: every bot uses the default. Change a bot in its settings (⚙ in its chat).</p>'}
     </div>
-    <div class="card settings-card">
-      <h3 class="page-sub" style="margin-top:0">Appearance</h3>
-      <div class="group-picker" id="theme-picker">${THEMES.map((t) => `<button type="button" class="gchip ${(document.documentElement.dataset.theme || 'auto') === t ? 'on' : ''}" data-theme-pick="${t}">${t === 'auto' ? 'Auto (follow the system)' : t[0].toUpperCase() + t.slice(1)}</button>`).join('')}</div>
-    </div>
     <div class="card settings-card" id="backups-card">
       <h3 class="page-sub" style="margin-top:0">Backups</h3>
       <p class="muted settings-hint" style="margin:0">Checking…</p>
@@ -3913,7 +3909,6 @@ function renderSettings() {
     ${signOutCardHTML()}`;
   const signOut = $('#sign-out-everywhere', root);
   if (signOut) signOut.onclick = signOutEverywhere;
-  $$('[data-theme-pick]', root).forEach((b) => (b.onclick = () => { applyTheme(b.dataset.themePick); $$('[data-theme-pick]', root).forEach((x) => x.classList.toggle('on', x === b)); }));
   $$('[data-go]', root).forEach((b) => (b.onclick = () => setView(b.dataset.go)));
   loadBackupsCard();
   const form = $('#settings-form', root);
@@ -5748,17 +5743,6 @@ async function saveLoginInBackground(r, body) {
   }
 }
 
-// ---------- theme ----------
-
-const THEMES = ['auto', 'light', 'dark'];
-function applyTheme(t) {
-  if (t === 'auto') delete document.documentElement.dataset.theme;
-  else document.documentElement.dataset.theme = t;
-  try { t === 'auto' ? localStorage.removeItem('botdot.theme') : localStorage.setItem('botdot.theme', t); } catch { /* private mode */ }
-  const label = $('#theme-label');
-  if (label) label.textContent = t[0].toUpperCase() + t.slice(1);
-}
-
 // ---------- presence ----------
 
 // While you use this page (visible, and touched in the last 5 minutes), tell botdot every 30 s, so
@@ -6420,7 +6404,6 @@ document.addEventListener('click', (e) => { if (e.target.closest('[data-to-setti
 document.addEventListener('click', (e) => { if (e.target.closest('[data-sign-in]')) setView('setup'); }); // the standing line's "Sign in"
 $('#contact-search').oninput = () => { searchChats(); renderContacts(); markSearch(); };
 addEventListener('keydown', onKeypadKey); // the keypad's keys, where it is shown
-applyTheme(document.documentElement.dataset.theme || 'auto');
 document.addEventListener('click', (e) => { if (e.target.closest('[data-back]')) showList(); });
 // A picture in a chat opens big on this page (served as a download, a plain link would save it).
 document.addEventListener('click', (e) => {
