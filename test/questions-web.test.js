@@ -38,8 +38,9 @@ test('web: still asked, unchanged', () => {
     ['deleting a saved login', /confirm\(state\.bw\?\.configured \? `Delete "\$\{l\.name\}"\? It moves to Bitwarden's trash/],
     ['the password hint', /confirm\('This looks like it contains a password\./],
     ['signing out everywhere (#468)', /confirm\('Sign out everywhere\? Every browser and app signed in to your account/],
+    ['removing the Anthropic API key (#35)', /confirm\(c\.subscription === true \? 'Remove the API key\? Bots will run on your Claude subscription\.'/],
   ]) assert.match(app, re, what);
-  assert.equal((app.match(/\bconfirm\(/g) || []).length, 15, 'six questions fewer, none about a note, and no undo (#305); one more to sign out everywhere (#468); none to update botdot, which the admin does (#473)');
+  assert.equal((app.match(/\bconfirm\(/g) || []).length, 16, 'six questions fewer, none about a note, and no undo (#305); one more to sign out everywhere (#468); none to update botdot, which the admin does (#473); one more to remove the API key (#35)');
 });
 
 // A bot's settings form, as far as the permission mode goes, wired by the page's own lines.

@@ -4201,22 +4201,77 @@ function setupItem({ state: st, icon, title, body, action = '' }) {
 // The setup checklist's `claude` when the server could not ask Claude Code or could not read its answer: its
 // `error`, a sentence. The sign-in is unknown then, never "not signed in" (docs/api.md, GET /api/setup).
 const claudeUnknown = (c) => (c && c.error ? String(c.error) : '');
+// Claude on an Anthropic API key as well as the subscription (#35; docs/api.md, Setup and updates). `using` says
+// which one bots run on; a server that does not say has no key, and nothing of one is drawn.
+const claudeHasKeys = (c) => !!c && c.installed !== false && (c.using === 'api-key' || c.using === 'subscription');
+// On the key: the sentence that says so, and names a subscription that is signed in too as not used.
+const claudeOnKey = (c) => `Bots run on your Anthropic API key <b>${esc(c.apiKey || '')}</b>.${c.subscription === true ? ` Your Claude subscription${c.email ? ` (<b>${esc(c.email)}</b>)` : ''} is signed in too; bots don't use it.` : ''}`;
+// On the subscription: a saved key, named as not used.
+const claudeKeyNote = (c) => (claudeHasKeys(c) && c.apiKey ? ` An Anthropic API key (<b>${esc(c.apiKey)}</b>) is saved too; bots don't use it.` : '');
+// The key's links, none while signing in or while the key box is open (busy).
+function claudeKeyActions(c, busy) {
+  if (busy || !claudeHasKeys(c)) return [];
+  if (c.using === 'api-key') return [...(c.subscription === true ? ['<button class="link-btn" id="claude-use-sub">Use the subscription instead</button>'] : []), '<button class="link-btn" id="claude-key-remove">Remove the key</button>'];
+  return [c.apiKey ? '<button class="link-btn" id="claude-use-key">Use the API key instead</button>' : '<button class="link-btn" id="claude-key-new">Use an API key instead</button>'];
+}
+// Where the key is pasted: a password field, so it is never shown. inCard: in Settings → Claude.
+const claudeKeyBox = (inCard) => `<div class="${inCard ? 'setup-login" style="padding:0;margin:12px 0 0' : 'card setup-login'}">
+      <form id="claude-key-form" class="setup-code"><input type="password" name="key" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false" required><button class="btn primary" type="submit">Save</button></form>
+      <p class="muted settings-hint">Make one in the Claude Console (console.anthropic.com → API keys). botdot checks it with Anthropic, keeps it encrypted and never shows it again.</p>
+      <button class="link-btn muted" id="claude-key-cancel">Cancel</button>
+    </div>`;
+// The key's links and box in root, for Setup and Settings → Claude; redraw draws root again from state.setup.
+function wireClaudeKey(root, c, redraw) {
+  const on = (sel, fn) => { const el = $(sel, root); if (el) el.onclick = fn; };
+  const ask = async (call, said) => {
+    try {
+      const r = await call();
+      state.setupKey = false;
+      state.setup.claude = r.claude;
+      toastClaude(r.claude, said);
+    } catch (err) { toast(err.message, true); }
+    redraw();
+  };
+  on('#claude-key-new', () => { state.setupKey = true; redraw(); });
+  on('#claude-key-cancel', () => { state.setupKey = false; redraw(); });
+  on('#claude-use-key', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'api-key' } }), 'Bots now run on your API key'));
+  on('#claude-use-sub', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } }), 'Bots now run on your Claude subscription'));
+  on('#claude-key-remove', () => {
+    if (!confirm(c.subscription === true ? 'Remove the API key? Bots will run on your Claude subscription.' : "Remove the API key? Bots can't run until you sign in to Claude or save a key again.")) return;
+    ask(() => api('/setup/claude/key', { method: 'DELETE' }), 'API key removed');
+  });
+  const form = $('#claude-key-form', root);
+  if (form) {
+    form.key.focus();
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const btn = form.querySelector('button');
+      btn.disabled = true;
+      btn.textContent = 'Checking…';
+      ask(() => api('/setup/claude/key', { method: 'PUT', body: { key: form.key.value } }), 'Saved. Bots now run on your API key');
+    };
+  }
+}
 // First start, or Claude is known not to be signed in: the page opens on Setup. Not for a check that could not tell.
 const opensSetup = (s) => !!s && (!s.done || (!s.claude?.loggedIn && !claudeUnknown(s.claude)));
 // Setup's Claude item: signed in, a check that could not tell (its sentence, and the way to sign in stays), or the step to do.
-function claudeSetupItem(c, signingIn) {
+// keyOpen: the API key's box is open.
+function claudeSetupItem(c, signingIn, keyOpen = false) {
   const signIn = c.installed === false || signingIn ? '' : '<button class="btn primary" id="claude-login">Sign in to Claude</button>';
-  if (claudeUnknown(c)) return setupItem({ state: 'todo', icon: '✳︎', title: 'Claude', body: esc(claudeUnknown(c)), action: signIn });
+  const keys = claudeKeyActions(c, signingIn || keyOpen);
+  const links = (list) => list.join(' · ');
+  if (claudeUnknown(c)) return setupItem({ state: 'todo', icon: '✳︎', title: 'Claude', body: esc(claudeUnknown(c)), action: [signIn, links(keys)].filter(Boolean).join(' ') });
+  if (c.using === 'api-key') return setupItem({ state: 'ok', icon: '✳︎', title: 'Claude', body: claudeOnKey(c), action: links(keys) });
   return c.loggedIn
     ? setupItem({
       state: 'ok', icon: '✳︎', title: 'Claude',
-      body: c.fromEnv ? "Signed in with a token from the server's settings." : c.email ? `Signed in with <b>${esc(c.email)}</b>.` : 'Signed in.',
-      action: c.fromEnv ? '' : '<button class="link-btn" id="claude-switch">Use another account</button> · <button class="link-btn" id="claude-logout">Sign out</button>',
+      body: (c.fromEnv ? "Signed in with a token from the server's settings." : c.email ? `Signed in with <b>${esc(c.email)}</b>.` : 'Signed in.') + claudeKeyNote(c),
+      action: links([...(c.fromEnv ? [] : ['<button class="link-btn" id="claude-switch">Use another account</button>', '<button class="link-btn" id="claude-logout">Sign out</button>']), ...keys]),
     })
     : setupItem({
       state: 'todo', icon: '✳︎', title: 'Sign in to Claude',
-      body: c.installed === false ? "Claude Code isn't installed on this machine, so bots can't run." : 'Your bots run on your Claude subscription. Sign in once; it stays signed in.',
-      action: signIn,
+      body: c.installed === false ? "Claude Code isn't installed on this machine, so bots can't run." : `Your bots run on your Claude subscription. Sign in once; it stays signed in.${claudeHasKeys(c) ? ' Or run them on an Anthropic API key.' : ''}${claudeKeyNote(c)}`,
+      action: [signIn, links(keys)].filter(Boolean).join(' '),
     });
 }
 // What the page says after a sign-in or a sign-out, from the status the server answered: its own sentence when
@@ -4235,7 +4290,8 @@ function drawSetup() {
   const signingIn = !!state.setupLogin;
 
   const unknown = !!claudeUnknown(c);
-  const claude = claudeSetupItem(c, signingIn);
+  const keyOpen = !!state.setupKey && !signingIn;
+  const claude = claudeSetupItem(c, signingIn, keyOpen) + (keyOpen ? claudeKeyBox(false) : '');
   const loginBox = signingIn ? `<div class="card setup-login">
       <ol>
         <li><a class="btn primary" href="${esc(state.setupLogin.url)}" target="_blank" rel="noopener">Open the sign-in page</a><span class="muted">Sign in, allow access, and copy the code it shows.</span></li>
@@ -4287,6 +4343,7 @@ function drawSetup() {
 
   const redraw = () => drawSetup();
   const onClick = (sel, fn) => { const el = $(sel, root); if (el) el.onclick = fn; };
+  wireClaudeKey(root, c, redraw);
   onClick('#restore-open', openRestoreDialog);
   onClick('#claude-login', async (e) => {
     e.target.disabled = true;

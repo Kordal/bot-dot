@@ -1,5 +1,5 @@
 // Settings → Claude: which account botdot uses, with sign out, use another account, and sign in
-// when it isn't signed in, same as the phone app. Loaded after app.js and uses its helpers ($, api,
+// when it isn't signed in, or the Anthropic API key bots run on instead (#35), same as the phone app. Loaded after app.js and uses its helpers ($, api,
 // esc, toast, state, claudeUnknown, toastClaude). Adds its card under Appearance each time the Settings page is drawn.
 
 (() => {
@@ -25,16 +25,20 @@ async function loadClaudeCard(fresh = true) {
   }
   const c = state.setup.claude || {};
   const signingIn = !!state.setupLogin;
+  const keyOpen = !!state.setupKey && !signingIn; // the API key's box (#35)
   // A check that could not tell says its own sentence, never "Not signed in"; the way to sign in stays.
   const unknown = claudeUnknown(c);
   const body = c.installed === false ? "Claude Code isn't installed on this machine, so bots can't run."
     : unknown ? esc(unknown)
-    : !c.loggedIn ? "Not signed in, so bots can't run."
-    : c.fromEnv ? "Signed in with a token from the server's settings."
-    : c.email ? `Signed in with <b>${esc(c.email)}</b>.` : 'Signed in.';
+    : c.using === 'api-key' ? claudeOnKey(c)
+    : (!c.loggedIn ? "Not signed in, so bots can't run."
+      : c.fromEnv ? "Signed in with a token from the server's settings."
+      : c.email ? `Signed in with <b>${esc(c.email)}</b>.` : 'Signed in.') + claudeKeyNote(c);
+  const keys = claudeKeyActions(c, signingIn || keyOpen).join(' · ');
   const action = signingIn || c.installed === false ? ''
-    : unknown || !c.loggedIn ? '<button class="btn primary" id="claude-login">Sign in to Claude</button>'
-    : c.fromEnv ? '' : '<button class="link-btn" id="claude-switch">Use another account</button> · <button class="link-btn" id="claude-logout">Sign out</button>';
+    : c.using === 'api-key' ? keys
+    : unknown || !c.loggedIn ? ['<button class="btn primary" id="claude-login">Sign in to Claude</button>', keys].filter(Boolean).join(' ')
+    : [...(c.fromEnv ? [] : ['<button class="link-btn" id="claude-switch">Use another account</button>', '<button class="link-btn" id="claude-logout">Sign out</button>']), ...(keys ? [keys] : [])].join(' · ');
   const steps = signingIn ? `<div class="setup-login" style="padding:0;margin:12px 0 0">
       <ol>
         <li><a class="btn primary" href="${esc(state.setupLogin.url)}" target="_blank" rel="noopener">Open the sign-in page</a><span class="muted">Sign in, allow access, and copy the code it shows.</span></li>
@@ -46,9 +50,10 @@ async function loadClaudeCard(fresh = true) {
     <h3 class="page-sub" style="margin-top:0">✳︎ Claude</h3>
     <p class="muted settings-hint" style="margin:0">${body}</p>
     ${action ? `<div class="setup-actions">${action}</div>` : ''}
-    ${steps}`;
+    ${steps}${keyOpen ? claudeKeyBox(true) : ''}`;
 
   const onClick = (sel, fn) => { const el = $(sel, card); if (el) el.onclick = fn; };
+  wireClaudeKey(card, c, () => loadClaudeCard(false));
   onClick('#claude-login', async (e) => {
     e.target.disabled = true;
     e.target.textContent = 'Starting…';

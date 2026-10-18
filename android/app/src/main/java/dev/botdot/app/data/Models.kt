@@ -963,8 +963,33 @@ data class Catalog(val items: List<CatalogApp> = emptyList())
 @Serializable
 data class ConnectLink(val redirectUrl: String? = null, val noAuth: Boolean = false)
 
+/**
+ * Claude's sign-in (docs/api.md, `GET /api/setup`). With an Anthropic API key as well as the subscription (#35):
+ * [using] says which one bots run on ("api-key" or "subscription"), [apiKey] the saved key's last four ("…wxyz"),
+ * never the key, and [subscription] what the check said of the subscription. On the key, [loggedIn] is true.
+ */
 @Serializable
-data class ClaudeStatus(val installed: Boolean = true, val loggedIn: Boolean = false, val email: String? = null, val method: String? = null, val fromEnv: Boolean = false, val error: String? = null)
+data class ClaudeStatus(
+    val installed: Boolean = true, val loggedIn: Boolean = false, val email: String? = null, val method: String? = null, val fromEnv: Boolean = false, val error: String? = null,
+    val using: String? = null, val apiKey: String? = null, val subscription: Boolean? = null,
+) {
+    /** Bots run on the owner's Anthropic API key. */
+    val onApiKey get() = using == "api-key"
+    /** The server says which one bots run on, so it takes a key; one that does not is drawn as before. */
+    val knowsKeys get() = using == "api-key" || using == "subscription"
+}
+
+/** What Settings → Claude says of a sign-in that is known: which one bots run on, and the other, when it is there too, as not used. */
+fun claudeSays(c: ClaudeStatus): String {
+    if (c.onApiKey) return "Bots run on your Anthropic API key ${c.apiKey.orEmpty()}." +
+        if (c.subscription == true) " Your Claude subscription${c.email?.let { " ($it)" }.orEmpty()} is signed in too; bots don't use it." else ""
+    val key = if (c.knowsKeys && c.apiKey != null) " An Anthropic API key (${c.apiKey}) is saved too; bots don't use it." else ""
+    return when {
+        !c.loggedIn -> "Not signed in, so bots can't run."
+        c.fromEnv -> "Signed in with a token from the server's settings."
+        else -> c.email?.let { "Signed in with $it." } ?: "Signed in."
+    } + key
+}
 
 /** What a sign-in answers (docs/api.md, `POST /api/setup/claude/code`): `claude`, the status after it. */
 @Serializable

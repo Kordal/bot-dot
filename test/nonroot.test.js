@@ -105,6 +105,21 @@ test('a prompt file a stopped botdot left in a home is removed when botdot start
  }finally{await srv.stop()}
 });
 
+test('brokered Claude on the owner\'s Anthropic API key gets it, as its own user, and no subscription token (#35)',{skip:!CAN&&'needs isolated Linux root',timeout:30000},async()=>{
+ const {makeBot,heldRun}=require('./helpers');const KEY='sk-ant-api03-nonroot-test-key-0123456789-abcd';
+ const anthropic=require('node:http').createServer((req,res)=>{res.writeHead(req.headers['x-api-key']===KEY?200:401,{'Content-Type':'application/json'});res.end('{}');});
+ await new Promise((ok)=>anthropic.listen(0,'127.0.0.1',ok));
+ const srv=await startServer({broker:true,env:{BOT_DOT_SEPARATE_USERS:'1',BOT_DOT_ANTHROPIC_API_URL:`http://127.0.0.1:${anthropic.address().port}`}});
+ try{
+  const saved=await srv.api('/setup/claude/key',{method:'PUT',body:{key:KEY}});
+  assert.equal(saved.status,200,JSON.stringify(saved.data));assert.equal(saved.data.claude.using,'api-key');
+  const bot=await makeBot(srv,{name:'Keyed'});
+  const {run,rec}=await heldRun(srv,bot);
+  assert.equal(rec.uid,61000);assert.equal(rec.apiKey,KEY);assert.equal(rec.env.CLAUDE_CODE_OAUTH_TOKEN,undefined);
+  srv.release(rec);assert.equal((await srv.finished(run.id)).status,'success');
+ }finally{await srv.stop();anthropic.closeAllConnections();anthropic.close()}
+});
+
 test('the Chief also runs separately and a timed-out script loses its child processes', {skip:!CAN&&'needs isolated Linux root',timeout:30000},async()=>{
  const {makeBot,waitFor}=require('./helpers');const srv=await startServer({broker:true,env:{BOT_DOT_SEPARATE_USERS:'1'}});
  try{

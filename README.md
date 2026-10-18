@@ -112,7 +112,7 @@ The web page works on any phone. The [Android app](android/README.md) adds notif
 | --- | --- |
 | **A server** | A Linux server or VM of its own (Ubuntu 24.04, Intel/AMD or ARM) where you can use `sudo` |
 | **Docker** | The installer offers to install it when it's missing |
-| **Claude** | A Claude subscription (Pro or Max) for each account |
+| **Claude** | A Claude subscription (Pro or Max), or an Anthropic API key, for each account |
 | **A way in** | [Tailscale](https://tailscale.com) (a private tailnet) or a public domain that points at the server |
 
 The full list, and whom botdot trusts, is in [Install on Linux](docs/install-linux.md#what-botdot-needs-and-whom-it-trusts).

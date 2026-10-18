@@ -40,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
@@ -51,6 +52,7 @@ import dev.botdot.app.data.AppSettings
 import dev.botdot.app.data.SettingsInfo
 import dev.botdot.app.data.SetupInfo
 import dev.botdot.app.data.claudeCouldNotTell
+import dev.botdot.app.data.claudeSays
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
@@ -90,6 +92,9 @@ fun SettingsScreen(
     var code by remember { mutableStateOf("") }
     var confirmLogout by remember { mutableStateOf<Int?>(null) } // how many bots are working, while asking
     var confirmSignOut by remember { mutableStateOf(false) }
+    var keyOpen by remember { mutableStateOf(false) } // the box for an Anthropic API key (#35)
+    var apiKey by remember { mutableStateOf("") }
+    var confirmRemoveKey by remember { mutableStateOf(false) }
 
     // All at once: over Tailscale, one after another would take a round trip each.
     suspend fun load() {
@@ -125,11 +130,36 @@ fun SettingsScreen(
 
             // Claude's sign-in (the setup page's first step), for when it has to be done again.
             setup?.let { s ->
+                // An Anthropic API key as well as the subscription (#35): only from a server that takes one.
+                val keys = s.claude.knowsKeys && server?.features?.contains("claude-api-key") == true
+                fun keyChange(said: String, call: suspend () -> dev.botdot.app.data.ClaudeStatus?) {
+                    scope.launch {
+                        runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = "" }.onError { tell(it.message ?: "Couldn't change it") }
+                        load()
+                    }
+                }
                 Section("✳︎ Claude") {
-                    if (s.claude.loggedIn && loginUrl == null) {
-                        if (s.claude.fromEnv) Hint("Signed in with a token from the server's settings.")
+                    if (keys && keyOpen && loginUrl == null) {
+                        Hint("Paste an Anthropic API key. Make one in the Claude Console (console.anthropic.com → API keys). botdot checks it with Anthropic, keeps it encrypted and never shows it again.")
+                        OutlinedTextField(apiKey, { apiKey = it.trim() }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Button(onClick = { val key = apiKey; keyChange("Saved. Bots now run on your API key") { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
+                                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Save") }
+                            TextButton(onClick = { keyOpen = false; apiKey = "" }) { Text("Cancel", color = p.text) }
+                        }
+                    } else if (s.claude.onApiKey && loginUrl == null) {
+                        Hint(claudeSays(s.claude))
+                        Row {
+                            if (s.claude.subscription == true) TextButton(onClick = { keyChange("Bots now run on your Claude subscription") { api!!.claudeUse("subscription") } }) {
+                                Text("Use the subscription instead", color = p.text)
+                            }
+                            TextButton(onClick = { confirmRemoveKey = true }) { Text("Remove the key", color = p.text) }
+                        }
+                    } else if (s.claude.loggedIn && loginUrl == null) {
+                        if (s.claude.fromEnv) Hint(claudeSays(s.claude))
                         else {
-                            Hint(s.claude.email?.let { "Signed in with $it." } ?: "Signed in.")
+                            Hint(claudeSays(s.claude))
                             Row {
                                 TextButton(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: "Couldn't start") } } }) {
                                     Text("Use another account", color = p.text)
@@ -140,10 +170,12 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                        if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange("Bots now run on your API key") { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
                     } else if (loginUrl == null) {
-                        Hint("Not signed in, so bots can't run.")
+                        Hint(claudeSays(s.claude))
                         Button(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: "Couldn't start") } } },
                             colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Sign in to Claude") }
+                        if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange("Bots now run on your API key") { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
                     } else {
                         Hint("1. Open the sign-in page, sign in, allow access, and copy the code it shows.")
                         OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text("Open the sign-in page", color = p.text) }
@@ -233,6 +265,21 @@ fun SettingsScreen(
             dismissButton = { TextButton(onClick = { confirmLogout = null }) { Text("Cancel", color = p.text) } },
         )
     }
+    if (confirmRemoveKey) AlertDialog(
+        onDismissRequest = { confirmRemoveKey = false },
+        title = { Text("Remove the API key?") },
+        text = { Text(if (setup?.claude?.subscription == true) "Bots will run on your Claude subscription." else "Bots can't run until you sign in to Claude or save a key again.") },
+        confirmButton = {
+            TextButton(onClick = {
+                confirmRemoveKey = false
+                scope.launch {
+                    runCatching { api!!.claudeRemoveKey() }.onSuccess { tell(claudeCouldNotTell(it) ?: "API key removed") }.onError { tell(it.message ?: "Couldn't remove it") }
+                    load()
+                }
+            }) { Text("Remove", color = p.text) }
+        },
+        dismissButton = { TextButton(onClick = { confirmRemoveKey = false }) { Text("Cancel", color = p.text) } },
+    )
     if (confirmSignOut) AlertDialog(
         onDismissRequest = { confirmSignOut = false },
         title = { Text("Sign out everywhere?") },
@@ -246,6 +293,13 @@ fun SettingsScreen(
         },
         dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel", color = p.text) } },
     )
+}
+
+/** On the subscription, the API key as the other way to run (#35): the saved one ([saved]), or a new one. */
+@Composable
+private fun KeyOffer(saved: Boolean, onUse: () -> Unit, onNew: () -> Unit) {
+    val p = LocalPaper.current
+    TextButton(onClick = if (saved) onUse else onNew) { Text(if (saved) "Use the API key instead" else "Use an API key instead", color = p.text) }
 }
 
 @Composable

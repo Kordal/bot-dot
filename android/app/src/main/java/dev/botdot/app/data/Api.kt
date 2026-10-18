@@ -320,6 +320,11 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun claudeLogout() { send("DELETE", "/setup/claude") }
     /** Signs in with the code. The status after it, which may be a check that could not tell (claudeCouldNotTell); null when the server sent none. */
     suspend fun claudeCode(code: String): ClaudeStatus? = claudeOfAnswer(send("POST", "/setup/claude/code", buildJsonObject { put("code", code) }))
+    /** Saves an Anthropic API key, which bots then run on (#35); a key Anthropic refuses throws the server's words. Only with `claude-api-key` in its features. */
+    suspend fun claudeSaveKey(key: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/key", buildJsonObject { put("key", key) }))
+    /** Which one bots run on: "api-key" or "subscription". */
+    suspend fun claudeUse(use: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/use", buildJsonObject { put("use", use) }))
+    suspend fun claudeRemoveKey(): ClaudeStatus? = claudeOfAnswer(send("DELETE", "/setup/claude/key"))
     suspend fun backups(): BackupInfo = json.decodeFromString(get("/backups"))
     suspend fun backupNow(): BackupInfo = json.decodeFromString(send("POST", "/backups/now"))
     fun backupUrl(name: String) = url("/backups/${enc(name)}")
