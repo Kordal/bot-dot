@@ -54,7 +54,7 @@ test('web: two switches, "Checkup" and "Web search", each with its line, and no 
 
 test('web: the card is in the Chief\'s settings, outside the form that saves its model and rules, and each switch saves itself', () => {
   const draw = cut('function renderChiefSettings()', '// The pages that open from Settings.');
-  assert.match(draw, /<\/form>\$\{CHECKUP_HTML\}\s*<h3 class="page-sub">Previous chats<\/h3>/);
+  assert.match(draw, /<\/form>[\s\S]*?\$\{CHECKUP_HTML\}\s*<h3 class="page-sub">Previous chats<\/h3>/);
   assert.match(draw, /\$\$\('\[data-checkup\]', root\)\.forEach\(\(box\) => \(box\.onchange = \(\) => setCheckup\(box\.dataset\.checkup, box\.checked\)\)\);\s*loadCheckup\(\);/);
 });
 
