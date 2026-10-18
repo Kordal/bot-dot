@@ -2,7 +2,9 @@
 # Black-box check of the release scanner: a known critical npm package, then an empty image.
 set -eu
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
+# Trivy may leave its cache unwritable (seen on GitHub's runners): open it up, fall back to sudo, and never let the
+# cleanup change the result of the check.
+trap 'chmod -R u+w "$work" 2>/dev/null; rm -rf "$work" 2>/dev/null || sudo -n rm -rf "$work" 2>/dev/null || true' EXIT
 # Keep this identical to the pinned scanner used by images.yml.
 scanner=aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
 mkdir -p "$work/context" "$work/cache"
