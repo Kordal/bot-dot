@@ -93,6 +93,7 @@ test("a bot reads of the owner's Board: in its run, in its weekly review, and in
   const described = (name) => offered.find((x) => x.name === name)?.description || '';
   assert.match(described('set_tile'), /^Put a new value on one of your tiles on the owner's Board \(they're listed in your instructions\)\. /);
   assert.match(described('suggest_tile'), /^Suggest a tile for the owner's Board: when they ask you to put something there, .+ It waits faded on their Board and as a card in your chat, /);
+  assert.match(described('suggest_tile'), / When the owner asked for it, call this only after they answered your one question about what they want \(or their request left no doubt\)\. /);
   assert.equal(await tools.text('suggest_tile', { kind: 'note', title: 'Shopping', reason: 'You asked me for a shopping list.' }),
     "Suggested. It waits on the owner's Board and in your chat until they tap Add. Tell them in one short sentence.");
   assert.equal(await tools.text('set_tile', { tile: 'Today', value: 'Rain at 3.' }), 'Done. The Board shows it now.');
@@ -104,8 +105,12 @@ test("a bot reads of the owner's Board: in its run, in its weekly review, and in
   t.after(() => { srv.unhold(); srv.release(second.rec); });
   const { system } = second.rec;
   assert.match(system, /You fill these tiles on the owner's Board: "Today" \(note\)\. When your task or the owner says so, update them with set_tile/);
-  assert.match(system, /The owner's Board is their one page of tiles \(switches, buttons, values, lists, notes, or tiles built from blocks with sliders, a colour wheel, charts and more\)\. When they ask you to put something on it, or you notice they keep asking you for the same action or the same value \(3 times or more\), suggest a tile with suggest_tile/);
+  assert.match(system, /The owner's Board is their one page of tiles \(switches, buttons, values, lists, notes, or tiles built from blocks with sliders, a colour wheel, charts and more\)\. When the owner asks you to put something on it, first ask /);
+  assert.match(system, /Skip the question when their request already leaves no doubt\. Then, or when you notice they keep asking you for the same action or the same value \(3 times or more\), suggest a tile with suggest_tile/);
   assert.match(system, /Tell them in one short sentence that it waits on their Board\. Your tiles already there: "Today"\. Your suggestions still waiting: "Shopping"\./);
+  // Asked for a tile, it first asks one question (#31): short, about this request, with buttons for short options.
+  assert.match(system, /When the owner asks you to put something on it, first ask them exactly one short question that checks what they want, specific to that request \(for a light: an on\/off switch, a brightness slider or its state as a value\), with the options as \[\[choices: …\]\] when they are a few short ones, and suggest the tile only after they answer\. Skip the question when their request already leaves no doubt\./);
+  assert.ok(system.indexOf('first ask them exactly one short question') < system.indexOf('suggest a tile with suggest_tile'), 'the question comes before the suggestion');
   assert.doesNotMatch(system, OLD);
   assert.doesNotMatch(second.rec.stdin, OLD);
   srv.unhold(); srv.release(second.rec);
