@@ -79,7 +79,10 @@ DOOR_PORT=4700
 SOURCE="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
 # runsc's flags in a rootless Docker (ADR 028, "Spike result"): it cannot make cgroups there, botdot's services meet
 # through Unix sockets in their mounts, and a computer's firewall needs gVisor's iptables, which need raw sockets.
-RUNSC_FLAGS='"--ignore-cgroups", "--host-uds=all", "--net-raw"'
+# --overlay2=none: what a container writes goes to its own layer on the account's disk. runsc's default
+# (root:self) keeps it in an overlay of the sandbox, dropped when the container stops, so a bot's computer lost its
+# home, its SSH keys, its Tailscale login and what it installed on every stop (#68).
+RUNSC_FLAGS='"--ignore-cgroups", "--host-uds=all", "--net-raw", "--overlay2=none"'
 # Where the front door asks for new accounts, and root's copy of this installer that makes them.
 REQUESTS="$DOOR/requests"
 BIN="$DIR/bin"

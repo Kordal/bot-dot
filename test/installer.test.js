@@ -275,7 +275,8 @@ test("the admin's account gets its own Linux user, rootless Docker under gVisor,
   assert.ok(done.system.indexOf(`mount -o loop ${done.dir}/disks/ann.img ${home}`) < done.system.indexOf('useradd --no-create-home'), 'its disk is its home before anything is in it');
   const daemon = JSON.parse(fs.readFileSync(path.join(home, '.config', 'docker', 'daemon.json'), 'utf8'));
   assert.equal(daemon['default-runtime'], 'runsc');
-  assert.deepEqual(daemon.runtimes.runsc.runtimeArgs, ['--ignore-cgroups', '--host-uds=all', '--net-raw'], 'the spike\'s flags (ADR 028)');
+  assert.deepEqual(daemon.runtimes.runsc.runtimeArgs, ['--ignore-cgroups', '--host-uds=all', '--net-raw', '--overlay2=none'],
+    'the spike\'s flags (ADR 028), and a computer\'s files are written to its disk, so they outlive a stop (#68)');
   assert.deepEqual(daemon['exec-opts'], ['native.cgroupdriver=cgroupfs']);
 
   // Started by systemd as the account's own user.
@@ -316,6 +317,16 @@ test('a rerun keeps its Docker running when nothing of its settings changed', (t
   assert.doesNotMatch(after, /^useradd .*botdot-ann$/m, 'its user is there already');
   assert.match(first.system, /^chown \d+:\d+ \S+\/accounts\/ann\/data$/m, 'its data folder is the account\'s when it is made');
   assert.doesNotMatch(after, /\/accounts\/ann\/data$/m, 'and then the server\'s: its running server keeps writing it');
+});
+
+test('an account installed before computers kept their files gets --overlay2=none, and its Docker restarts with it (#68)', (t) => {
+  const first = rerun(t);
+  const file = path.join(first.dir, 'accounts', 'ann', '.config', 'docker', 'daemon.json');
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(', "--overlay2=none"', ''));
+  const again = installer(t, { again: first });
+  assert.equal(again.status, 0, again.stderr);
+  assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).runtimes.runsc.runtimeArgs.includes('--overlay2=none'));
+  assert.match(again.system.slice(first.system.length), /^systemctl restart botdot-account@ann$/m, 'its computers keep their files from their next start');
 });
 
 test('without systemd the account\'s Docker is started now, as its own user, and the installer says it won\'t come back by itself', (t) => {

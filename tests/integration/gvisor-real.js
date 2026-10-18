@@ -34,8 +34,9 @@ const ACCOUNT = '/home/rootless/account';
 // runsc's flags in a rootless Docker: it may not make cgroups there (--ignore-cgroups), botdot's services meet
 // through Unix sockets in their mounts: the docker-helper's and the Docker socket (--host-uds=all), and a
 // computer's firewall needs gVisor's iptables, which come with raw sockets (--net-raw; only a process with
-// CAP_NET_RAW gets one, and no container of botdot's has it).
-const RUNSC_FLAGS = ['--ignore-cgroups', '--host-uds=all', '--net-raw'];
+// CAP_NET_RAW gets one, and no container of botdot's has it), and a container's writes go to its disk, so a bot's
+// computer keeps its files when it stops (--overlay2=none, #68), as install.sh gives an account.
+const RUNSC_FLAGS = ['--ignore-cgroups', '--host-uds=all', '--net-raw', '--overlay2=none'];
 // What the account changes in compose.yaml. Under gVisor host networking hands a container the host's network,
 // whose sockets gVisor's /proc/net/tcp does not list, so botdot could tell nobody apart: botdot keeps a network
 // of its own, as it will behind ADR 028's front door. The docker-helper gets the account's rootless Docker.

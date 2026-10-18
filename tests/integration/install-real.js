@@ -67,6 +67,38 @@ function startAndStopComputer(machine, image) {
   return { id, container };
 }
 
+// A stand-in tailscaled for the bot's home: it notes its arguments and listens on its socket, as botdot-tailscale
+// waits for (deploy/desktop/botdot-tailscale), and a state that holds a login, as tailscaled keeps it once approved.
+const TAILSCALED = `#!/usr/bin/python3
+import json, os, socket, sys, time
+open(os.path.join(os.environ['HOME'], 'tailscaled.args'), 'w').write(json.dumps(sys.argv[1:]))
+s = socket.socket(socket.AF_UNIX); s.bind([a.split('=', 1)[1] for a in sys.argv if a.startswith('--socket=')][0]); s.listen(); time.sleep(600)
+`;
+const SIGNED_IN = JSON.stringify({ _machinekey: Buffer.from('privkey:00').toString('base64'), _profiles: Buffer.from(JSON.stringify({ a1b2: { ID: 'a1b2' } })).toString('base64') });
+
+// What the bot keeps on its computer outlives a stop under gVisor (#68): a file in its home, its SSH folder and its
+// Tailscale login, which botdot starts again as the computer starts. A reset still erases it all.
+function computerKeepsItsFiles(machine, id, container) {
+  const computer = (action) => machine.api('POST', `/api/bots/${id}/computer`, { action });
+  const asBot = (script, ...args) => machine.account(ADMIN, 'exec', '-u', 'bot', '-e', 'HOME=/home/bot', container, 'sh', '-c', script, 'sh', ...args);
+  stage.step(`writing into the home of bot ${id}'s computer, then stopping and starting it`);
+  assert.equal(computer('start').status, 200);
+  asBot('set -e; echo kept > ~/kept.txt; mkdir -p ~/.ssh ~/.local/tailscale/bin ~/.local/tailscale/state; echo key > ~/.ssh/id_test'
+    + '; printf %s "$1" > ~/.local/tailscale/bin/tailscaled; printf "#!/bin/sh\\n" > ~/.local/tailscale/bin/tailscale'
+    + '; chmod 755 ~/.local/tailscale/bin/*; printf %s "$2" > ~/.local/tailscale/state/tailscaled.state', TAILSCALED, SIGNED_IN);
+  assert.equal(computer('stop').body.state, 'stopped');
+  assert.equal(computer('start').body.state, 'running');
+  assert.equal(asBot('cat ~/kept.txt ~/.ssh/id_test'), 'kept\nkey', 'the home is there after a stop and a start under gVisor');
+  const tailscaled = JSON.parse(asBot('cat ~/tailscaled.args'));
+  assert.ok(tailscaled.includes('--statedir=/home/bot/.local/tailscale/state'), 'Tailscale is started again from its saved login');
+
+  stage.step(`resetting the computer of bot ${id}`);
+  assert.equal(computer('reset').body.state, 'none');
+  assert.equal(computer('start').body.state, 'running');
+  assert.equal(asBot('ls -A ~/kept.txt ~/.ssh ~/.local/tailscale 2>/dev/null || true'), '', 'a reset erases everything');
+  assert.equal(computer('stop').body.state, 'stopped');
+}
+
 // The admin's account: its own Linux user, its rootless Docker under gVisor, its botdot server in it, its socket.
 function accountIsWalledOff(machine) {
   assert.equal(machine.exec('stat', '-c', '%U', HOME), `botdot-${ADMIN}`, 'the account\'s own Linux user');
@@ -150,7 +182,8 @@ const cases = [
       machine.signUp(said);
       const status = answers(machine);
       assert.equal(status.docker.image, true, 'botdot sees the bots\' computer image');
-      startAndStopComputer(machine, computer);
+      const { id, container } = startAndStopComputer(machine, computer);
+      computerKeepsItsFiles(machine, id, container);
 
       stage.step('install.sh again');
       const again = machine.install({ BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` });
