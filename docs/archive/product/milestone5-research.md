@@ -6,7 +6,7 @@ Date: 2026-10-05. Revision inspected: `main` at `ee27a02` (the features "Vault i
 
 ## Why this milestone
 
-On 2026-10-04 the owner asked for an audit of how the bots interact with the user. It is recorded as [How the bots interact with the user: an audit](improvements/2026-10-05-bot-interaction-audit.md): 168 findings, each re-checked against the code. On 2026-10-05 the owner asked to plan "all" of its section 8, the quick wins: ten numbered changes and five more under "Also small".
+On 2026-10-04 the owner asked for an audit of how the bots interact with the user. It is recorded as [How the bots interact with the user: an audit](../../product/improvements/2026-10-05-bot-interaction-audit.md): 168 findings, each re-checked against the code. On 2026-10-05 the owner asked to plan "all" of its section 8, the quick wins: ten numbered changes and five more under "Also small".
 
 ## What the product delivers today
 
@@ -56,8 +56,8 @@ What changed between the two revisions and matters here:
 
 ## Carried forward
 
-- Milestone 3: real use (A14) on the owner's own botdot server and the follow-up list of [milestone3-test.md](milestone3-test.md) are open and for the owner to decide.
-- Milestone 4: the low findings under Follow-up of [milestone4-test.md](milestone4-test.md). Two belong to this subject: Android builds the summary line of an ask itself, and `yesOn` is sent for a link tool only.
+- Milestone 3: real use (A14) on the owner's own botdot server and the follow-up list of [milestone3-test.md](../../product/milestone3-test.md) are open and for the owner to decide.
+- Milestone 4: the low findings under Follow-up of [milestone4-test.md](../../product/milestone4-test.md). Two belong to this subject: Android builds the summary line of an ask itself, and `yesOn` is sent for a link tool only.
 - Improvement reports: "Board" proposal 4 (the word at the start of the strip) and proposal 5 (rename the API paths) are marked later; neither is part of this.
 - The audit's sections 9 and 10 (structural changes: asks that resume, one rule for a busy chat, a connector action that waits, a bot's conversation context) are not this milestone. Quick wins 3 and 4 touch the same code as two of them and must not close off those designs.
 - Issue 9 (security findings before an open-source release) is open and blocked on the release scan.
@@ -68,7 +68,7 @@ What changed between the two revisions and matters here:
 
 In: the ten quick wins on the botdot server, the web page and the Android app. Whether the five under "Also small" join is the owner's decision at stage 3.
 
-Out: every structural change of the audit's section 9; the Mac app ([ADR 008](../adr/008-the-mac-app-is-no-longer-developed.md)); new controls (AGENTS.md rule 5); anything that shows costs.
+Out: every structural change of the audit's section 9; the Mac app ([ADR 008](../../adr/008-the-mac-app-is-no-longer-developed.md)); new controls (AGENTS.md rule 5); anything that shows costs.
 
 ## Existing solutions
 

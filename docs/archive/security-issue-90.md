@@ -27,7 +27,7 @@ approval bypasses (#94) and queued LAN grants overriding revocation (#98).
   owner's answer, inside the run, for ten minutes. A one-use grant binds one run, the action
   and the exact arguments: the run that waits for the answer or, when the owner answers after
   it stopped waiting, the run that answer starts
-  ([ADR 010](adr/010-a-connected-app-action-waits-in-its-run.md), which changes the earlier
+  ([ADR 010](../adr/010-a-connected-app-action-waits-in-its-run.md), which changes the earlier
   rule that it binds the current run). Such a late grant is kept with the queued work, bound
   to the new run's id as that run is made, used by one call, and gone when that run ends, used
   or not; other arguments ask again. Only the token of the run that asked can wait for an
@@ -40,7 +40,7 @@ approval bypasses (#94) and queued LAN grants overriding revocation (#98).
   answers "That run has ended".
 - Release verification uses the same canonical P-256 manifest in Swift, Kotlin, Rust and Node.
   Download hashes, app identity and rollback checks precede installation. Remote addresses
-  require HTTPS. See [release signing](release-signing.md).
+  require HTTPS. See [release signing](../release-signing.md).
 - Compose gives the Docker socket and registry token only to `docker-helper`. The server uses
   a private Unix socket with fixed methods; no caller-supplied Docker argv, mounts, images or
   Compose projects are accepted. Root is retained in the server for distinct-UID process and

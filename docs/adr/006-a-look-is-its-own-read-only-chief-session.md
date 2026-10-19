@@ -10,7 +10,7 @@
 
 A look differs from such a turn in three ways. Its content includes fresh finds from the web, so it reads search results nobody vetted. Nobody is watching when it runs. And most looks end with nothing, which must leave no trace in the chat or in the chat's session.
 
-The stage 4 trial ([milestone3-research.md](../product/milestone3-research.md)) showed that one prompt with the owner's recent chats, the bots and the topics already raised is enough for a model to pick a relevant message or answer "nothing".
+The stage 4 trial ([milestone3-research.md](../archive/product/milestone3-research.md)) showed that one prompt with the owner's recent chats, the bots and the topics already raised is enough for a model to pick a relevant message or answer "nothing".
 
 ## Decision
 

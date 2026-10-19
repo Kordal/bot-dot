@@ -5,7 +5,7 @@
 
 ## Context
 
-[Milestone 10](../product/milestone10.md). The owner wants one chat with several bots. Today there are two kinds of chat and the server, the web page and the Android app each know exactly those two ([research note](../product/milestone10-research.md), "A chat is one bot"):
+[Milestone 10](../product/milestone10.md). The owner wants one chat with several bots. Today there are two kinds of chat and the server, the web page and the Android app each know exactly those two ([research note](../archive/product/milestone10-research.md), "A chat is one bot"):
 
 - A bot's chat is not stored: it is every run with that `botId`. The readers that build it all go by `botId`: `GET /api/runs`, the list's preview, `unreadByBot`, `asksByBot`, `recentConversation`, `announceFinished`, the search hits (`lib/bots.js:527-661`, `server.js:2181`).
 - A Chief chat is a file of messages with a role.

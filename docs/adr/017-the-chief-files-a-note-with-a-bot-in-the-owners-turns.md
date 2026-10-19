@@ -13,7 +13,7 @@ With Milestone 9 the apps show no memory screen, so the Chief is also where the 
 
 On 2026-10-06 the owner decided: the Chief may write a bot's notes directly, in a turn they started and in no other; a work preference that fits several bots is filed with each of them, not as one shared note.
 
-No product surveyed documents an orchestrator that writes into another agent's memory; the documented shape is one shared read-only store and one private store per agent ([research note](../product/milestone9-research.md), section 5).
+No product surveyed documents an orchestrator that writes into another agent's memory; the documented shape is one shared read-only store and one private store per agent ([research note](../archive/product/milestone9-research.md), section 5).
 
 ## Decision
 

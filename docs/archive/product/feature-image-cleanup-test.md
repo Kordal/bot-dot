@@ -1,6 +1,6 @@
 # Feature test: updates stop filling the disk
 
-Test document of the feature "updates stop filling the disk" ([its record](milestone9.md#added-features), issue #254), delivered by IMG-001 and IMG-002. Nothing changes on the web page or in the Android app: what changes is which Docker images are left on the Linux machine after an update, and one line in the audit log.
+Test document of the feature "updates stop filling the disk" ([its record](../../product/milestone9.md#added-features), issue #254), delivered by IMG-001 and IMG-002. Nothing changes on the web page or in the Android app: what changes is which Docker images are left on the Linux machine after an update, and one line in the audit log.
 
 ## Review
 

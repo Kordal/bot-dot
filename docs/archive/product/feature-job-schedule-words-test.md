@@ -1,6 +1,6 @@
 # Feature test: a job's schedule in plain words
 
-Test document of the feature "job schedule in words" ([its record](milestone4.md#added-features)), written by its last task, SCHED-003. The tasks: SCHED-001 (server and web page), SCHED-002 (Android), SCHED-003 (the Mac and this acceptance). It comes from the improvement report [Job schedules in plain words](improvements/2026-10-04-job-schedule-in-plain-words.md).
+Test document of the feature "job schedule in words" ([its record](../../product/milestone4.md#added-features)), written by its last task, SCHED-003. The tasks: SCHED-001 (server and web page), SCHED-002 (Android), SCHED-003 (the Mac and this acceptance). It comes from the improvement report [Job schedules in plain words](../../product/improvements/2026-10-04-job-schedule-in-plain-words.md).
 
 ## Review
 

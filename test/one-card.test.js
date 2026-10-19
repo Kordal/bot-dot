@@ -1,7 +1,7 @@
 // One card per grant (ADR 009, OK-002): while a changed bot that gives a permission waits, a run that lacks that
 // permission joins its card, and a changed bot takes over the permission's own card. A yes on the one card
 // carries the run on and tells the Chief. A proposal still binds the values it was made against
-// (docs/security-issue-90.md): a bot that changed since is not overwritten. Against the stand-in for Claude.
+// (docs/archive/security-issue-90.md): a bot that changed since is not overwritten. Against the stand-in for Claude.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

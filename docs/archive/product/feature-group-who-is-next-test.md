@@ -1,6 +1,6 @@
 # Feature test: a group shows who is next
 
-The owner's test list for the third change of "Bots that feel alive" (spec Kordal/bot-dot#329, report [2026-10-09](improvements/2026-10-09-bots-that-feel-alive.md)), ALV-007 (Kordal/bot-dot#336): in a group's chat the members whose turn has not come stand under the working lines as small still heads, in their colours and hats, in the order they will answer. Between two turns the place is not blank. The heads carry no words and no digits, and never move. They are gone when the last turn ended or you pressed "Stop all".
+The owner's test list for the third change of "Bots that feel alive" (spec Kordal/bot-dot#329, report [2026-10-09](../../product/improvements/2026-10-09-bots-that-feel-alive.md)), ALV-007 (Kordal/bot-dot#336): in a group's chat the members whose turn has not come stand under the working lines as small still heads, in their colours and hats, in the order they will answer. Between two turns the place is not blank. The heads carry no words and no digits, and never move. They are gone when the last turn ended or you pressed "Stop all".
 
 The botdot server already sent who is next with each of your messages in a group; the apps now draw it. One row of heads is shown: that of the message whose turns are running, and when none runs but turns remain, that of your newest message that still has members to come.
 

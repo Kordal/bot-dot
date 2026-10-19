@@ -9,7 +9,7 @@ use a separate Docker helper with a fixed operation set. Only that helper mounts
 the Docker socket. The HTTP server runs as UID 60000; a small root supervisor
 launches bot processes under their assigned UIDs. This preserves the Docker
 hosting decision while removing host Docker authority from the HTTP process.
-See [server privilege separation](../security-nonroot-acceptance.md).
+See [server privilege separation](../archive/security-nonroot-acceptance.md).
 
 The Linux `compose.yaml` uses host networking, which Docker Desktop on a Mac doesn't provide the same way. So a Mac-hosted botdot needs its own compose file that publishes port 4747 on 127.0.0.1 only, and the server's self-update must refresh that file rather than the Linux one.
 

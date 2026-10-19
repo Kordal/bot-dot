@@ -7,7 +7,7 @@
 
 [Milestone 6](../product/milestone6.md). A write through a connected app needs the owner's OK. Before this decision `connector_run` answered the bot at once with an error and added a card; the run ended before the owner saw it, and "Allow once" then failed with "That run has ended", because a one-use grant was bound to the run that asked (`lib/connector-approvals.js`). The safe answer could not be given, which pushed the owner to "Always allow this action".
 
-`docs/security-issue-90.md` recorded the rule: "A one-use grant binds the current run, action and exact arguments." On 2026-10-05 the owner decided that a late "Allow once" starts the bot again, and that the grant then counts once for the run it starts.
+`docs/archive/security-issue-90.md` recorded the rule: "A one-use grant binds the current run, action and exact arguments." On 2026-10-05 the owner decided that a late "Allow once" starts the bot again, and that the grant then counts once for the run it starts.
 
 A missing login already waits inside its run: the bot's tools server leaves the call unanswered and asks the server in slices of 25 seconds (`lib/vault-mcp.js`, `lib/login-requests.js`). Claude Code allows a bot's tool call 15 minutes.
 
@@ -17,7 +17,7 @@ A missing login already waits inside its run: the bot's tools server leaves the 
 - **The card stays when the wait ends**, marked as no longer waited for. It goes when the owner stopped that run, sends the bot a new message, or after 24 hours.
 - **A late "Allow once" starts the bot again** by [ADR 009](009-the-botdot-server-carries-on-after-an-ok.md). The new run is handed the ask's stored arguments word for word.
 - **The late grant binds the run the OK starts, the action and the exact arguments.** It is kept with the queued work, bound to the run's id when the run starts, used once, and gone when that run ends, used or not. Other arguments make a new card and a new wait.
-- `docs/security-issue-90.md` is reworded to this rule in the owning task.
+- `docs/archive/security-issue-90.md` is reworded to this rule in the owning task.
 
 Resolved by OK-003:
 

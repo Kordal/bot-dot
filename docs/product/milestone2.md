@@ -8,7 +8,7 @@ The owner can see at a glance which bots have something new, read each chat from
 
 - **Target user:** the owner, the one person who runs a botdot server and talks to its bots.
 - **Priority, chosen by the owner on 2026-10-02:** all three parts, with unread state first. When effort runs short, the opening line and the Chief's way of writing a bot are trimmed before unread state is.
-- **Why it matters:** the owner compared botdot with Grok Bot and named two things to match: how easy it feels and how alive the bots feel. botdot records nothing about what the owner has read, so every visit starts with checking each bot by hand; a bot's own words while it works are dropped; and the Chief has one sentence of guidance on what a bot's task should contain. The evidence is in [milestone2-research.md](milestone2-research.md).
+- **Why it matters:** the owner compared botdot with Grok Bot and named two things to match: how easy it feels and how alive the bots feel. botdot records nothing about what the owner has read, so every visit starts with checking each bot by hand; a bot's own words while it works are dropped; and the Chief has one sentence of guidance on what a bot's task should contain. The evidence is in [milestone2-research.md](../archive/product/milestone2-research.md).
 
 ## Journey
 

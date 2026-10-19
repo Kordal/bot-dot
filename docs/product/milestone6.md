@@ -8,7 +8,7 @@ The owner gives an OK once and the work it interrupted carries on, demonstrated 
 
 - **Target user:** the owner, answering what waits for them: a card in a chat, in Needs you, or a notification on the phone.
 - **Priority, chosen by the owner on 2026-10-05:** nothing typed twice. After any OK (a permission, a changed bot, a skill, a job) the interrupted request carries on by itself. Where the card is shown and how it is worded give way first.
-- **Why it matters:** [the interaction audit](improvements/2026-10-05-bot-interaction-audit.md) found that an approval ends the work instead of pausing it, and that "Allow once" on a connected-app action cannot work once its run has ended. These are the two findings it calls critical that Milestone 5 left open. Nine of its readers met the first one independently. The evidence, read again at `6547da9`, is in [milestone6-research.md](milestone6-research.md).
+- **Why it matters:** [the interaction audit](improvements/2026-10-05-bot-interaction-audit.md) found that an approval ends the work instead of pausing it, and that "Allow once" on a connected-app action cannot work once its run has ended. These are the two findings it calls critical that Milestone 5 left open. Nine of its readers met the first one independently. The evidence, read again at `6547da9`, is in [milestone6-research.md](../archive/product/milestone6-research.md).
 
 ## Journey
 
@@ -43,14 +43,14 @@ Give way first:
 10. **Cards in plain words.** A connected-app action shows its fields as rows, not policy text and JSON. A changed text shows the old lines struck and the new text, as a shared-memory change does. The title of a bot change names what changes ("Let News Watcher browse the web?").
 11. **The same on Android:** the cards in the Chief's chat, the rows of a connected-app action, the line "Waiting for your OK", the words after an answer.
 
-With them: `docs/api.md` and `features` for what an ask newly carries and what an answer returns, `docs/security-issue-90.md` for the one-use grant, README where it describes approvals, and the Chief's and the bots' instructions.
+With them: `docs/api.md` and `features` for what an ask newly carries and what an answer returns, `docs/archive/security-issue-90.md` for the one-use grant, README where it describes approvals, and the Chief's and the bots' instructions.
 
 ## Owner decisions
 
 Taken on 2026-10-05, on the prototype in the browser pane at phone and desktop width:
 
 - **The button stays "Allow".** On a permission a bot asked for in the middle of a request, one line on the card says what follows: "It carries on with … when you allow it." A button reading "Allow and carry on" was shown and not chosen.
-- **A late OK starts the bot again.** "Allow once" on a connected-app card, given after the bot stopped waiting, starts the bot again and counts once: for the run it starts, this action and these exact arguments. This changes the rule of `docs/security-issue-90.md`, "A one-use grant binds the current run, action and exact arguments": the run the OK starts takes the place of the current run. Keeping the rule, with a late OK refused, was not chosen.
+- **A late OK starts the bot again.** "Allow once" on a connected-app card, given after the bot stopped waiting, starts the bot again and counts once: for the run it starts, this action and these exact arguments. This changes the rule of `docs/archive/security-issue-90.md`, "A one-use grant binds the current run, action and exact arguments": the run the OK starts takes the place of the current run. Keeping the rule, with a late OK refused, was not chosen.
 - **The Chief gets a turn after every OK on something it asked for:** a changed bot, a skill, a script job, a Board tile. A turn only after a changed bot and a skill was not chosen.
 - **The seven scenes are approved as drawn:** the card under the Chief's reply, the line that says who carries on, "Waiting for your OK" on a held run, the rows of a connected-app action, the cards that only change the setting, Needs you, and the notifications.
 - **The scope, the exclusions and the test budget** are agreed as written here, the give-way capabilities 8 to 11 included.

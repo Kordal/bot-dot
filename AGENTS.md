@@ -105,11 +105,11 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 
 | Path | Contents |
 | --- | --- |
-| `docs/product/` | Vision, milestone scope, research notes, the owner's test lists and, under `improvements/`, improvement reports |
+| `docs/product/` | Vision, milestone scope, the owner's test lists and, under `improvements/`, improvement reports |
 | `docs/adr/` | Architecture Decision Records |
 | `docs/DECISIONS.md` | One dated line per small, non-obvious choice that is not architecture |
 | `docs/agents/` | What the skills read: the issue tracker (`issue-tracker.md`), the triage labels (`triage-labels.md`) and the domain documents (`domain.md`) |
-| `docs/evidence/` | Screenshots of the tasks completed in Milestone 1; later work records none |
+| `docs/archive/` | Past working notes, kept for history: reviews, audits, acceptance and memory reports, research notes, feature test lists and the Milestone 1 screenshots (`evidence/`) |
 | `docs/screenshots/` | The README's picture of the web page |
 | `scripts/` | `dev.js`, what `npm start` runs (the server behind the front door, on this machine), and the tests of the documentation link check |
 | `tests/` | Cross-component checks |

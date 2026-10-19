@@ -1,6 +1,6 @@
 # Feature test: the sent message is there at once
 
-The owner's test list for the first change of "Bots that feel alive" (spec Kordal/bot-dot#329, report [2026-10-09](improvements/2026-10-09-bots-that-feel-alive.md)): your message is in the chat the moment you press Send, drawn as a waiting message is, with "Working…" under it, in a bot's chat, a Chief chat and a group. When the botdot server answers, its version takes the place of yours. A message that did not go is back in the message box, as before.
+The owner's test list for the first change of "Bots that feel alive" (spec Kordal/bot-dot#329, report [2026-10-09](../../product/improvements/2026-10-09-bots-that-feel-alive.md)): your message is in the chat the moment you press Send, drawn as a waiting message is, with "Working…" under it, in a bot's chat, a Chief chat and a group. When the botdot server answers, its version takes the place of yours. A message that did not go is back in the message box, as before.
 
 The Android steps are ALV-006 (Kordal/bot-dot#335). The web page's steps are ALV-005 (Kordal/bot-dot#334), which adds them below.
 

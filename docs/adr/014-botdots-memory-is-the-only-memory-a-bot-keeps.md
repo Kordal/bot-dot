@@ -13,7 +13,7 @@ Note text was printed into the prompt as it is: a note that contains `</memory>`
 
 On 2026-10-06 the owner decided: `CLAUDE.md` loading is off for bots, also for a cloned repository's own file.
 
-Claude Code documents the switches ([research note](../product/milestone9-research.md), section 7). At planning the pinned version 2.1.284 was known to carry them in its binary; none had been run.
+Claude Code documents the switches ([research note](../archive/product/milestone9-research.md), section 7). At planning the pinned version 2.1.284 was known to carry them in its binary; none had been run.
 
 ### What the pinned Claude Code does, run by hand
 

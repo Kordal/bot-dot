@@ -33,7 +33,7 @@ test('kit: hats only; every hat passes the check a drawn hat will, and has a nam
   assert.deepEqual(Object.keys(KIT), ['limits', 'hat']);
   assert.deepEqual(KIT.limits, { shapes: 6, commands: 16, stroke: [0.8, 2] });
   assert.deepEqual([KIT.hat.box, KIT.hat.origin], [[10, 6], [5, 3.5]]);
-  assert.equal(names('hat').length, 20, 'the hats that could be recognised on a head in the list on a phone (docs/evidence/FIG-012)');
+  assert.equal(names('hat').length, 20, 'the hats that could be recognised on a head in the list on a phone (docs/archive/evidence/FIG-012)');
   for (const [name, piece] of Object.entries(KIT.hat.pieces)) {
     assert.match(name, NAME);
     assert.equal(pieceProblem('hat', piece), null, name);

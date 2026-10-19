@@ -35,7 +35,7 @@ This was a source review with targeted exploit validation, not an exhaustive pen
 
 ### S1 — Public pull requests can compromise the build machines
 
-**Locations:** [tests.yml](../.github/workflows/tests.yml), lines 9–10, 24–64; [runner setup](https://github.com/Kordal/bot-dot/blob/f86dacaa249b307ecbb6f162ee8cf09df003c76b/deploy/runners/setup.sh), lines 19 onward; [Linux releases](https://github.com/Kordal/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/.github/workflows/linux.yml).
+**Locations:** [tests.yml](../../.github/workflows/tests.yml), lines 9–10, 24–64; [runner setup](https://github.com/Kordal/bot-dot/blob/f86dacaa249b307ecbb6f162ee8cf09df003c76b/deploy/runners/setup.sh), lines 19 onward; [Linux releases](https://github.com/Kordal/bot-dot/blob/ae691277d0657da233646c1385a4b92c0a4c5150/.github/workflows/linux.yml).
 
 The `pull_request` workflow checks out contributor-controlled code and runs `npm test`, Gradle, Xcode, and Flatpak builds on `botdot-mac` and `botdot-linux`. The Mac runners run under the owner's account. The Linux runners are privileged containers with persistent state, their own Docker engines, and a shared release-artifact directory. The release workflows use the same runner labels.
 
@@ -49,7 +49,7 @@ GitHub explicitly warns against running public-repository PR code on self-hosted
 
 ### S2 — Alternate loopback source address becomes the owner
 
-**Locations:** [identity.js](../lib/identity.js), lines 171–200; [server.js](../server.js), lines 1329–1348.
+**Locations:** [identity.js](../../lib/identity.js), lines 171–200; [server.js](../../server.js), lines 1329–1348.
 
 `identify()` begins with `who = 'owner'` and looks up the connection UID only for three exact source addresses: `127.0.0.1`, `::1`, and `::ffff:127.0.0.1`. Linux permits an unprivileged client to bind a connection to another address in `127.0.0.0/8`, such as `127.0.0.2`. That connection skips the UID lookup and retains owner privileges.
 
@@ -70,7 +70,7 @@ There are related fail-open behaviors: a missing UID lookup also leaves the call
 
 ### S3 — Chief tool arguments bypass script approval
 
-**Locations:** [mcp-server.js](../lib/mcp-server.js), lines 317–320 and 447–452; [server.js](../server.js), lines 1052–1055 and 1085–1100; [bots.js](../lib/bots.js), line 193; [jobs.js](../lib/jobs.js), `autoApproved()` and `normalizeJob()`.
+**Locations:** [mcp-server.js](../../lib/mcp-server.js), lines 317–320 and 447–452; [server.js](../../server.js), lines 1052–1055 and 1085–1100; [bots.js](../../lib/bots.js), line 193; [jobs.js](../../lib/jobs.js), `autoApproved()` and `normalizeJob()`.
 
 The MCP dispatcher does not validate arguments against its schemas. `create_bot` forwards the entire argument object to `/api/bots`, including fields absent from `BOT_FIELDS`. Unlike `update_bot`, it does not add `_by: 'chief'`. The API determines the actor from this optional body field and otherwise assumes `you`.
 
@@ -98,7 +98,7 @@ The returned job had **`approved: true`**. The probe kept it disabled and did no
 
 ### S4 — Local credentials can enter Git and public images
 
-**Locations:** [.gitignore](../.gitignore); [.dockerignore](../.dockerignore); [Dockerfile](../Dockerfile), `COPY . .`; README Docker setup instructions.
+**Locations:** [.gitignore](../../.gitignore); [.dockerignore](../../.dockerignore); [Dockerfile](../../Dockerfile), `COPY . .`; README Docker setup instructions.
 
 The documented setup writes the registry token and optional Claude token into a root `.env`. Neither ignore file excludes `.env`. A normal `git add .` can commit it; a Docker build from that folder copies it into `/opt/bot-dot/.env` regardless of whether Git tracks it. Clearing tokens from the process environment does not remove a file baked into an image.
 
@@ -112,7 +112,7 @@ No actual credential file was built or published, and the source/history scan di
 
 ### S5 — One malformed static URL crashes the server
 
-**Locations:** [server.js](../server.js), lines 152–160 and 1380–1401.
+**Locations:** [server.js](../../server.js), lines 152–160 and 1380–1401.
 
 Static serving calls `decodeURIComponent()` outside the request handler's `try/catch`. A request such as `GET /%zz` throws `URIError`; because the HTTP callback is async, it becomes an unhandled rejection and terminates Node under its default behavior.
 
@@ -136,7 +136,7 @@ A compromised update server can provide matching malicious bytes and a matching 
 
 ### S7 — Sensitive Android notification actions lack an unlock requirement
 
-**Locations:** [Notifier.kt](../android/app/src/main/java/dev/botdot/app/feed/Notifier.kt), lines 223–242; [Receivers.kt](../android/app/src/main/java/dev/botdot/app/feed/Receivers.kt), `answer()`.
+**Locations:** [Notifier.kt](../../android/app/src/main/java/dev/botdot/app/feed/Notifier.kt), lines 223–242; [Receivers.kt](../../android/app/src/main/java/dev/botdot/app/feed/Receivers.kt), `answer()`.
 
 Approve buttons send broadcast PendingIntents directly to the API handlers for jobs, permissions/skills, shared-memory changes, and Chief plans. They do not set `setAuthenticationRequired(true)`, and the receiver does not check whether the device is unlocked. The receiver is correctly non-exported, but that does not enforce lock-screen authentication for its notification action.
 

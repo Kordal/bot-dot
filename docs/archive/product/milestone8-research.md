@@ -6,7 +6,7 @@ Date: 2026-10-06. Revision inspected: `main` at `57336cb` (Milestone 7 is merged
 
 ## Why this milestone
 
-On 2026-10-06 the owner asked what [the interaction audit](improvements/2026-10-05-bot-interaction-audit.md) still leaves open. [Milestone 5](milestone5.md) delivered its quick wins, [Milestone 6](milestone6.md) its two critical findings (an OK continues the work, a connected-app action waits), [Milestone 7](milestone7.md) its finding 4 and its failure hygiene (busy and stopped), and CHAT-001 its finding 5 (a bot remembers its chat). Of the audit's ten findings, 1 to 9 are delivered. Finding 10, a shared voice, is open, and so are three of its nine structural changes and a list of smaller points from its sections 4 to 6.
+On 2026-10-06 the owner asked what [the interaction audit](../../product/improvements/2026-10-05-bot-interaction-audit.md) still leaves open. [Milestone 5](../../product/milestone5.md) delivered its quick wins, [Milestone 6](../../product/milestone6.md) its two critical findings (an OK continues the work, a connected-app action waits), [Milestone 7](../../product/milestone7.md) its finding 4 and its failure hygiene (busy and stopped), and CHAT-001 its finding 5 (a bot remembers its chat). Of the audit's ten findings, 1 to 9 are delivered. Finding 10, a shared voice, is open, and so are three of its nine structural changes and a list of smaller points from its sections 4 to 6.
 
 ## What the product delivers today
 
@@ -68,7 +68,7 @@ Each claim below is one the audit made and no milestone has delivered. Each was 
 | A bug report | `runSummary` hands the Chief no job name and no problem sentence (`lib/mcp-server.js:48-55`). No tool lists the asks, the login requests or the tile suggestions that wait. It does see a job's `approved: false`, the job's line, pending tiles and a count of memory changes |
 | "This bot" | The Chief's per-turn note has shared memory, the time and mentions (`lib/chief.js:185`). Which bot's chat the owner had open last is not in it; the server keeps read times per chat (`lib/read.js:60-84`) and would have to derive it (inferred) |
 | "Improve this bot" | The prompt has a rule for a new bot, at most two questions (`lib/chief.js:102`), and none for an existing one. Bots have no rule on when to ask |
-| The look | The owner's next message in that chat counts as the answer to the look's unasked message, whatever it says (`lib/chief.js:514-516`). Changing it needs an update of [ADR 006](../adr/006-a-look-is-its-own-read-only-chief-session.md) |
+| The look | The owner's next message in that chat counts as the answer to the look's unasked message, whatever it says (`lib/chief.js:514-516`). Changing it needs an update of [ADR 006](../../adr/006-a-look-is-its-own-read-only-chief-session.md) |
 
 ### Settings
 
@@ -101,8 +101,8 @@ The web page's bot and job panels still let the owner edit by hand what the Chie
 
 ## Carried forward
 
-- Milestone 7: real use (B23) on the owner's server; the low findings under Follow-up of [milestone7-test.md](milestone7-test.md). Those that touch the candidates: a job that fails and works in turn through the night gets one morning line per row of failures; times on a job's line are in the server's time zone; deleting a bot with messages waiting takes several steps.
-- Milestone 6: real use (A20); the low findings of [milestone6-test.md](milestone6-test.md). Its exclusions still open: a bot's own proposal that interrupted nothing, taking back an ask, staged changes.
+- Milestone 7: real use (B23) on the owner's server; the low findings under Follow-up of [milestone7-test.md](../../product/milestone7-test.md). Those that touch the candidates: a job that fails and works in turn through the night gets one morning line per row of failures; times on a job's line are in the server's time zone; deleting a bot with messages waiting takes several steps.
+- Milestone 6: real use (A20); the low findings of [milestone6-test.md](../../product/milestone6-test.md). Its exclusions still open: a bot's own proposal that interrupted nothing, taking back an ask, staged changes.
 - Milestone 5: real use (A20); its exclusions still open: a "Can't reach botdot" line inside Android's chats, a retry by botdot of a failed message.
 - Milestone 3: real use (A14); the look's "answered" rule and ADR 006.
 - Browser tests run in no gate: the repository does not carry Playwright.
@@ -119,7 +119,7 @@ Four groups, for the owner's choice at stage 2. Each stands alone.
 3. **One voice.** A shared style block; the Chief's progress words and the end-state words written on the server; a shared Markdown fixture; cost out of the API.
 4. **The Chief as helper.** What waits and what failed, readable by the Chief; "this bot"; a rule for improving a bot.
 
-Out, whatever is chosen: a message that steers a turn already going; a shorter wait of the Chief; trimming the settings panels (it removes controls the owner may use, and needs its own decision); the first run, updates and backups; new settings; anything that shows costs; the Mac app ([ADR 008](../adr/008-the-mac-app-is-no-longer-developed.md)).
+Out, whatever is chosen: a message that steers a turn already going; a shorter wait of the Chief; trimming the settings panels (it removes controls the owner may use, and needs its own decision); the first run, updates and backups; new settings; anything that shows costs; the Mac app ([ADR 008](../../adr/008-the-mac-app-is-no-longer-developed.md)).
 
 Three things a plan would get wrong by trusting the audit: re-approval covers far more than a script's time, so "staged" has to say for each field whether it asks at all; the bots' progress words are also what recall stores, so rewording them is not free; and removing cost is a change of the API, not of a screen.
 
@@ -430,11 +430,11 @@ None. No product read has a bot that proposes a change to its own schedule and w
 
 ## Decisions of stage 2 and 3
 
-On 2026-10-06 the owner chose the outcome (groups 1 and the open question of group 2: "OK do it") and, on the prototype in the browser pane, the scope as written in [milestone8.md](milestone8.md).
+On 2026-10-06 the owner chose the outcome (groups 1 and the open question of group 2: "OK do it") and, on the prototype in the browser pane, the scope as written in [milestone8.md](../../product/milestone8.md).
 
 ## Uncertainties resolved at stage 4
 
-All by reading the code at `57336cb` on 2026-10-06; nothing was run. One architecture decision is proposed: [ADR 013](../adr/013-a-change-to-an-approved-job-waits-beside-it.md). None of the findings changes the agreed outcome; one changed the scope's wording before the owner's later look is needed.
+All by reading the code at `57336cb` on 2026-10-06; nothing was run. One architecture decision is proposed: [ADR 013](../../adr/013-a-change-to-an-approved-job-waits-beside-it.md). None of the findings changes the agreed outcome; one changed the scope's wording before the owner's later look is needed.
 
 - **Is there one call for "Approve all"?** No. Each app answers every waiting job with its own call of `POST /api/bots/:id/jobs/:jobId/approve` (`server.js`). The server cannot tell that tap from a yes on the card, so the rule lives in the apps, and an app from Milestone 7 keeps approving scripts until it is updated. The scope says so under Exclusions and C17.
 - **Can a change wait beside a job?** Yes: `normalizeJob` (`lib/jobs.js`) decides in one place whether a change needs the owner (`changed`, `autoApproved`, `alwaysApprove`) and writes over the job; the scheduler reads `enabled && approved`. The approved definition has to be kept and the change stored beside it: ADR 013.

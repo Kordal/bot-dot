@@ -1,6 +1,6 @@
 # Feature test: Vault item types
 
-Test document of the feature "Vault item types" ([its record](milestone4.md#added-features)), written by its last task, VAULT-006. The tasks: VAULT-005 (server and web page), VAULT-006 (Android, and the owner's decision at the first look).
+Test document of the feature "Vault item types" ([its record](../../product/milestone4.md#added-features)), written by its last task, VAULT-006. The tasks: VAULT-005 (server and web page), VAULT-006 (Android, and the owner's decision at the first look).
 
 ## Review
 

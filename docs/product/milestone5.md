@@ -9,7 +9,7 @@ The owner can use botdot with every quick win of the interaction audit fixed, de
 - **Target user:** the owner, in ordinary daily use of the Chief of Staff chat, a bot's chat, Needs you and the phone's notifications.
 - **What "every quick win" covers, chosen by the owner on 2026-10-05:** the ten numbered quick wins of [the audit](improvements/2026-10-05-bot-interaction-audit.md), section 8, and three of its five "Also small": no cost words reach the Chief, a bot is told the owner may take over its computer, and a question before a bot is given "Everything allowed". The shared voice for all prompts and progress words written on the server were not chosen for this milestone.
 - **Priority, chosen by the owner on 2026-10-05:** nothing lost or hidden. When something has to give, these five are protected first: a failed send keeps the message, one "Can't reach botdot", the phone approves only what it shows, a failed Chief reply looks failed, and notes reach a bot with learning off. The other eight save turns or words and give way first.
-- **Why it matters:** the audit found these in everyday paths: a message typed twice, an approval given blind, a report that never came. Each is small and none needs a new design. The evidence is in [milestone5-research.md](milestone5-research.md).
+- **Why it matters:** the audit found these in everyday paths: a message typed twice, an approval given blind, a report that never came. Each is small and none needs a new design. The evidence is in [milestone5-research.md](../archive/product/milestone5-research.md).
 
 ## Journey
 
