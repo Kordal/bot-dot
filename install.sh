@@ -59,11 +59,15 @@
 # and bot-dot/desktop:latest) are used as they are on this machine: no token, no sign-in, no download.
 #   sudo BOT_DOT_IMAGE=bot-dot/server:latest BOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest sh install.sh
 # A rerun keeps them, so after a rebuild `sudo sh install.sh` updates the install in place.
+#
+# Uninstall (#76): everything the installer made goes, after it says what and a typed "yes" (BOT_DOT_YES=1 answers it):
+#   sudo sh install.sh --uninstall
 set -eu
 
 IMAGES="ghcr.io/kordal"
 DIR="${BOT_DOT_DIR:-/var/lib/botdot}"
 DOOR="$DIR/front-door"
+ENV="$DOOR/.env"
 SOCKETS="$DIR/sockets"
 ACCOUNTS="$DIR/accounts"
 # Where each account's rootless Docker keeps its socket: $RUN/<account>/docker.sock.
@@ -170,6 +174,7 @@ case "${1:-}" in
   --requested) MODE=requested ;;
   --update) UNATTENDED=1 ;;
   --load) MODE=load ;;
+  --uninstall) MODE=uninstall ;;
   *) die "Unknown option $1. Run it as: sudo sh install.sh" ;;
 esac
 ACCOUNT_RULE="2 to 24 lowercase letters, digits and dashes, starting with a letter"
@@ -255,6 +260,233 @@ write_load() {
 if [ "$MODE" = load ]; then
   [ "$(id -u)" = 0 ] || die "Root's step measures the accounts, so it runs as root."
   write_load
+  exit 0
+fi
+
+# account_pids NAME [COMMAND]: the processes of the account NAME's Linux user and of its subordinate users (its
+# containers' users), or only those named COMMAND, from /proc (a machine without procps has it too).
+account_pids() {
+  u="$(id -u "botdot-$1" 2>/dev/null || echo -1)"
+  s="$(awk -F: -v u="botdot-$1" '$1 == u { print $2; exit }' "$ETC/subuid" 2>/dev/null || true)"
+  cat "$PROC"/[0-9]*/status 2>/dev/null | awk -v u="$u" -v s="${s:--1}" -v c="${2:-}" '
+    /^Name:/ { n = $2 } /^State:/ { z = ($2 == "Z") } /^Pid:/ { p = $2 }
+    /^Uid:/ { if (!z && (c == "" || n == c) && (($2 == u && u >= 0) || (s >= 0 && $2 >= s && $2 < s + 65536))) print p }'
+}
+
+# stop_account NAME: the account NAME's rootless Docker stops, and its botdot server, docker-helper and bots' computers
+# with it (Docker stops its containers as it ends, and starts again the ones it should when it starts). Nothing of the
+# account runs, and it doesn't start with the machine. Its data, containers and Linux user stay.
+stop_account() {
+  if [ -n "$SYSTEMD" ]; then systemctl disable --now "botdot-account@$1" </dev/null >/dev/null 2>&1 || true
+  else
+    # shellcheck disable=SC2046 # one process id per word
+    kill -TERM $(account_pids "$1" dockerd) 2>/dev/null || true
+  fi
+  i=0
+  while [ -n "$(account_pids "$1")" ]; do
+    i=$((i + 1))
+    # shellcheck disable=SC2046
+    [ "$i" != 30 ] || kill -TERM $(account_pids "$1") 2>/dev/null || true
+    # shellcheck disable=SC2046
+    [ "$i" != 60 ] || kill -KILL $(account_pids "$1") 2>/dev/null || true
+    [ "$i" -lt 75 ] || die "The account $1 didn't stop; still running: $(account_pids "$1" | tr '\n' ' ')"
+    sleep 1
+  done
+  # As systemd does with the unit's runtime folder: the next start begins clean.
+  [ -n "$SYSTEMD" ] || rm -rf -- "${RUN:?}/$1"
+}
+
+# remove_account NAME: everything of the account NAME goes from the machine: its processes; its containers, images and
+# volumes (in its rootless Docker's folder, in its home) and its data, both in its home, and its disk; its socket
+# folder and its Docker's runtime folder; its share on its unit; its Linux user and group, and its subordinate IDs.
+remove_account() {
+  user="botdot-$1"
+  stop_account "$1"
+  [ -z "$SYSTEMD" ] || systemctl reset-failed "botdot-account@$1" </dev/null >/dev/null 2>&1 || true
+  # Whatever its rootless Docker left mounted in its folders, deepest first.
+  for f in "$ACCOUNTS/$1" "$RUN/$1"; do
+    awk -v f="$f" '$2 == f || index($2, f "/") == 1 { print $2 }' "$PROC/mounts" 2>/dev/null | sort -r | while IFS= read -r m; do umount -l "$m" 2>/dev/null || true; done
+  done
+  rm -rf -- "${ACCOUNTS:?}/$1" "${SOCKETS:?}/$1" "${RUN:?}/$1" "${RUN:?}/load/$1" "${DISKS:?}/$1.img" "${LOAD:?}/account-$1.json"
+  rm -rf -- "$ETC/systemd/system.control/botdot-account@$1.service.d"
+  [ -z "$SYSTEMD" ] || systemctl daemon-reload </dev/null || true
+  if id -u "$user" >/dev/null 2>&1; then userdel "$user" </dev/null || die "Couldn't remove the Linux user $user."; fi
+  rm -f "/var/mail/$user" "/var/spool/mail/$user"
+  for map in subuid subgid; do
+    if grep -q "^$user:" "$ETC/$map" 2>/dev/null; then
+      grep -v "^$user:" "$ETC/$map" > "$ETC/$map.new" || true
+      cat "$ETC/$map.new" > "$ETC/$map"
+      rm -f "$ETC/$map.new"
+    fi
+  done
+  ok "The account $1 is erased: its data, containers and Linux user"
+}
+# erase_account NAME: the account NAME removed, as the admin deleted it. Never the admin's own account.
+erase_account() {
+  [ "$1" != "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] || die "The account $1 is the admin's own, so it wasn't erased."
+  remove_account "$1"
+}
+
+# ---------------------------------------------------------------------------------------------
+# Uninstall (#76)
+#
+# Everything the installer made goes from the machine, and nothing else: the front door (its containers and volumes in
+# the machine's Docker, and its user; its images stay, as the installer removes none by name), every account (remove_account), root's step and the
+# accounts' units, the AppArmor profile, Tailscale Serve's setting that passes to the front door, and botdot's own
+# files in BOT_DOT_DIR. A Linux user is an account's only when it is botdot-<account> with the account's folder as its
+# home. Docker and Tailscale stay; the packages the installer may have installed go only when asked once more.
+
+# The units the installer writes, the files and folders it keeps in BOT_DOT_DIR, and the packages it may have installed
+# for the accounts (step 1), beside gVisor's apt source.
+UNITS="botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service"
+OWN="front-door accounts sockets disks bin update.log requests.log"
+PACKAGES="runsc docker-ce-rootless-extras"
+
+# installed_accounts: each account this machine has: its folder, its socket folder, its disk or its Linux user.
+installed_accounts() {
+  {
+    for f in "$ACCOUNTS"/*/ "$SOCKETS"/*/; do [ ! -d "$f" ] || basename "$f"; done
+    for f in "$DISKS"/*.img; do [ ! -f "$f" ] || basename "$f" .img; done
+    awk -F: -v h="$ACCOUNTS/" 'index($1, "botdot-") == 1 && $6 == h substr($1, 8) { print substr($1, 8) }' "$ETC/passwd" 2>/dev/null || true
+  } | sort -u | while IFS= read -r n; do if valid_account "$n"; then printf '%s\n' "$n"; fi; done
+}
+
+if [ "$MODE" = uninstall ]; then
+  [ "$(id -u)" = 0 ] || die "The uninstaller removes botdot's Linux users, so it runs as root. Run it with: sudo sh install.sh --uninstall"
+  bold "botdot uninstaller"
+  say ""
+
+  # What of botdot is on this machine.
+  D=''
+  if command -v docker >/dev/null 2>&1 && docker info </dev/null >/dev/null 2>&1; then D=docker; fi
+  NAMES="$(installed_accounts)"
+  door=''
+  if [ -f "$DOOR/compose.yaml" ] || id -u "$DOOR_USER" >/dev/null 2>&1; then door=1; fi
+  units=''
+  for u in $UNITS; do [ ! -f "$ETC/systemd/system/$u" ] || units="$units${units:+, }$u"; done
+  shares=''
+  for f in "$ETC"/systemd/system.control/botdot-account@*.service.d; do [ ! -e "$f" ] || shares=1; done
+  profile=''
+  if grep -qs '^# botdot (install.sh)' "$ETC/apparmor.d/botdot-rootlesskit"; then profile=1; fi
+  serve=''
+  if command -v tailscale >/dev/null 2>&1 && tailscale serve status </dev/null 2>/dev/null | grep -Eq "127\.0\.0\.1:$DOOR_PORT([^0-9]|$)"; then serve=1; fi
+  here=''
+  for f in $OWN; do [ ! -e "$DIR/$f" ] || here=1; done
+  pkgs=''
+  if command -v dpkg-query >/dev/null 2>&1; then
+    for p in $PACKAGES; do
+      # shellcheck disable=SC2016 # dpkg-query's own field
+      case "$(dpkg-query -W --showformat='${Status}' "$p" </dev/null 2>/dev/null || true)" in 'install ok installed') pkgs="$pkgs $p" ;; esac
+    done
+  fi
+  gvisor=''
+  [ ! -f "$ETC/apt/sources.list.d/gvisor.list" ] || gvisor=1
+  found="$NAMES$door$units$profile$serve$here"
+
+  # What goes, and a typed yes.
+  if [ -z "$found" ]; then ok "Nothing of botdot is on this machine."
+  else
+    say "This removes botdot from this machine for good:"
+    [ -z "$door" ] || say "  - the front door: its containers and volumes in this machine's Docker, and its Linux user $DOOR_USER"
+    for n in $NAMES; do say "  - the account $n: its botdot server, its bots' computers, its rootless Docker, its Linux user botdot-$n, its disk and its data"; done
+    [ -z "$units" ] || say "  - botdot's systemd units: $units${shares:+, and the accounts' shares}"
+    [ -z "$profile" ] || say "  - the AppArmor profile botdot-rootlesskit"
+    [ -z "$serve" ] || say "  - Tailscale Serve's setting for botdot"
+    [ -z "$here" ] || say "  - $DIR: every account's bots, chats, memory, vault and backups, and the passkeys"
+    say "Docker and Tailscale stay. This can't be undone."
+    if [ "${BOT_DOT_YES:-}" != 1 ]; then
+      say ""
+      printf 'Type yes to remove all of it: '
+      read_line
+      [ "$REPLY" = yes ] || die "Nothing was removed."
+    fi
+  fi
+  # The packages, asked apart: they may have been on the machine before botdot.
+  remove_packages=''
+  if [ -n "$pkgs$gvisor" ]; then
+    list=''
+    for p in $pkgs; do list="$list${list:+, }$p"; done
+    [ -z "$gvisor" ] || list="$list${list:+ and }gVisor's apt source"
+    say ""
+    say "botdot's installer may have installed these: $list."
+    if [ "${BOT_DOT_YES:-}" = 1 ]; then
+      how="${pkgs:+sudo apt-get remove$pkgs}"
+      [ -z "$gvisor" ] || how="$how${how:+ && }sudo rm $ETC/apt/sources.list.d/gvisor.list $ETC/apt/keyrings/gvisor.gpg"
+      say "The packages stay. Remove them yourself with: $how"
+    elif ask "Remove them too? Docker itself and Tailscale stay." n; then remove_packages=1
+    fi
+  fi
+
+  # What couldn't be removed, said at the end.
+  LEFT='' failed=''
+  left() { LEFT="$LEFT
+  - $1"; }
+  if [ -n "$found" ]; then
+    say ""
+    # Root's step first, so that it makes nothing again meanwhile.
+    if [ -n "$SYSTEMD" ]; then
+      systemctl disable --now botdot-accounts.path botdot-load.timer </dev/null >/dev/null 2>&1 || true
+      systemctl stop botdot-accounts.service botdot-load.service </dev/null >/dev/null 2>&1 || true
+    elif [ -f "$RUN/requests.pid" ]; then
+      pid="$(cat "$RUN/requests.pid")"
+      case "$(tr '\0' ' ' < "$PROC/$pid/cmdline" 2>/dev/null || true)" in *"$BIN/install.sh"*) kill "$pid" 2>/dev/null || true ;; esac
+    fi
+    if [ -f "$DOOR/compose.yaml" ] && [ -z "$D" ]; then left "the front door's containers: Docker isn't running"
+    elif [ -f "$DOOR/compose.yaml" ]; then
+      if $D compose --project-directory "$DOOR" down -v --remove-orphans </dev/null >/dev/null 2>&1; then ok "The front door is removed"
+      else left "the front door's containers (see: cd $DOOR && sudo docker compose ps -a)"; fi
+    fi
+    for n in $NAMES; do
+      set +e
+      ( set -e; remove_account "$n" )
+      gone=$?
+      set -e
+      [ "$gone" = 0 ] || { left "the account $n (see above)"; failed=1; }
+    done
+    if id -u "$DOOR_USER" >/dev/null 2>&1; then userdel "$DOOR_USER" </dev/null || left "the Linux user $DOOR_USER"; fi
+    for u in $UNITS; do rm -f -- "$ETC/systemd/system/$u"; done
+    rm -rf -- "$ETC"/systemd/system.control/botdot-account@*.service.d "$ETC"/systemd/system/*.wants/botdot-*
+    if [ -n "$SYSTEMD" ]; then
+      systemctl daemon-reload </dev/null || true
+      systemctl reset-failed 'botdot-*' </dev/null >/dev/null 2>&1 || true
+    fi
+    if [ -n "$profile" ]; then
+      if command -v apparmor_parser >/dev/null 2>&1; then apparmor_parser -R "$ETC/apparmor.d/botdot-rootlesskit" </dev/null >/dev/null 2>&1 || true; fi
+      rm -f -- "$ETC/apparmor.d/botdot-rootlesskit"
+    fi
+    if [ -n "$serve" ]; then tailscale serve --https=443 off </dev/null >/dev/null 2>&1 || left "Tailscale Serve's setting for botdot: sudo tailscale serve --https=443 off"; fi
+    if [ -n "$failed" ]; then left "$DIR, as an account in it wasn't removed: run the uninstaller again"
+    elif [ -n "$here" ]; then
+      # Whatever is still mounted in it, deepest first.
+      awk -v f="$DIR" 'index($2, f "/") == 1 { print $2 }' "$PROC/mounts" 2>/dev/null | sort -r | while IFS= read -r m; do umount -l "$m" 2>/dev/null || true; done
+      for f in $OWN; do rm -rf -- "${DIR:?}/$f"; done
+      rest="$(ls -A "$DIR" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
+      if [ -n "$rest" ]; then left "$DIR, which holds files botdot didn't make: $rest"
+      # A disk of its own mounted there stays mounted, and empty.
+      elif mountpoint -q "$DIR" 2>/dev/null; then ok "$DIR is empty; the folder stays, as a disk is mounted there"
+      elif rmdir -- "$DIR"; then ok "$DIR is removed"
+      else left "$DIR"; fi
+    fi
+    [ -n "$failed" ] || rm -rf -- "${RUN:?}"
+  fi
+  if [ -n "$remove_packages" ]; then
+    # Only what was named: apt-get would also take what depends on it, and Docker itself never goes.
+    # shellcheck disable=SC2086 # one package per word
+    more="$( [ -z "$pkgs" ] || apt-get -s remove $pkgs </dev/null 2>/dev/null | sed -n 's/^Remv \([^ ]*\).*/\1/p' | while IFS= read -r p; do case " $pkgs " in *" $p "*) ;; *) printf ' %s' "$p" ;; esac; done)"
+    if [ -n "$more" ]; then left "the packages$pkgs: apt-get would remove$more with them"
+    elif [ -n "$pkgs" ]; then
+      # shellcheck disable=SC2086
+      if DEBIAN_FRONTEND=noninteractive apt-get remove -y -qq $pkgs </dev/null; then ok "Removed the packages$pkgs"; else left "the packages$pkgs"; fi
+    fi
+    if [ -n "$gvisor" ]; then rm -f -- "$ETC/apt/sources.list.d/gvisor.list" "$ETC/apt/keyrings/gvisor.gpg"; ok "Removed gVisor's apt source"; fi
+  fi
+
+  if [ -n "$LEFT" ]; then
+    say ""
+    say "These couldn't be removed:$LEFT"
+    exit 1
+  fi
+  [ -z "$found" ] || { say ""; ok "botdot is removed from this machine. Docker and Tailscale stay."; }
   exit 0
 fi
 
@@ -348,7 +580,6 @@ fi
 # ---------------------------------------------------------------------------------------------
 # 2. The images: botdot's signed images from a registry, or ones built on this machine
 
-ENV="$DOOR/.env"
 [ "$MODE" = install ] || [ -f "$ENV" ] || die "botdot isn't installed here ($ENV is missing)."
 mkdir -p "$DOOR/data" "$SOCKETS" "$ACCOUNTS"
 chmod 755 "$DIR" "$SOCKETS"
@@ -877,67 +1108,6 @@ JSON
 door_state() {
   [ -f "$DOOR/data/front-door.json" ] || return 0
   $D run --rm -i --entrypoint node "$IMAGE" -e 'let s="";process.stdin.on("data",(d)=>{s+=d}).on("end",()=>{try{const j=JSON.parse(s),n=process.argv[1],a=j.accounts||{};if(!Object.hasOwn(a,n)){process.stdout.write(Object.hasOwn(j.deleted||{},n)?"deleted":"");return}const h=a[n].share||j.share||{},k=["cpu","ram","computers","disk"];process.stdout.write((a[n].suspended?"suspended":"running")+(k.every((x)=>Number.isInteger(h[x]))?" "+k.map((x)=>h[x]).join(" "):""))}catch{}})' "$1" < "$DOOR/data/front-door.json" 2>/dev/null || true
-}
-
-# account_pids NAME [COMMAND]: the processes of the account NAME's Linux user and of its subordinate users (its
-# containers' users), or only those named COMMAND, from /proc (a machine without procps has it too).
-account_pids() {
-  u="$(id -u "botdot-$1" 2>/dev/null || echo -1)"
-  s="$(awk -F: -v u="botdot-$1" '$1 == u { print $2; exit }' "$ETC/subuid" 2>/dev/null || true)"
-  cat "$PROC"/[0-9]*/status 2>/dev/null | awk -v u="$u" -v s="${s:--1}" -v c="${2:-}" '
-    /^Name:/ { n = $2 } /^State:/ { z = ($2 == "Z") } /^Pid:/ { p = $2 }
-    /^Uid:/ { if (!z && (c == "" || n == c) && (($2 == u && u >= 0) || (s >= 0 && $2 >= s && $2 < s + 65536))) print p }'
-}
-
-# stop_account NAME: the account NAME's rootless Docker stops, and its botdot server, docker-helper and bots' computers
-# with it (Docker stops its containers as it ends, and starts again the ones it should when it starts). Nothing of the
-# account runs, and it doesn't start with the machine. Its data, containers and Linux user stay.
-stop_account() {
-  if [ -n "$SYSTEMD" ]; then systemctl disable --now "botdot-account@$1" </dev/null >/dev/null 2>&1 || true
-  else
-    # shellcheck disable=SC2046 # one process id per word
-    kill -TERM $(account_pids "$1" dockerd) 2>/dev/null || true
-  fi
-  i=0
-  while [ -n "$(account_pids "$1")" ]; do
-    i=$((i + 1))
-    # shellcheck disable=SC2046
-    [ "$i" != 30 ] || kill -TERM $(account_pids "$1") 2>/dev/null || true
-    # shellcheck disable=SC2046
-    [ "$i" != 60 ] || kill -KILL $(account_pids "$1") 2>/dev/null || true
-    [ "$i" -lt 75 ] || die "The account $1 didn't stop; still running: $(account_pids "$1" | tr '\n' ' ')"
-    sleep 1
-  done
-  # As systemd does with the unit's runtime folder: the next start begins clean.
-  [ -n "$SYSTEMD" ] || rm -rf -- "${RUN:?}/$1"
-}
-
-# erase_account NAME: everything of the account NAME goes from the machine: its processes; its containers, images and
-# volumes (in its rootless Docker's folder, in its home) and its data, both in its home, and its disk; its socket
-# folder and its Docker's runtime folder; its share on its unit; its Linux user and group, and its subordinate IDs.
-# Never the admin's own account.
-erase_account() {
-  [ "$1" != "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] || die "The account $1 is the admin's own, so it wasn't erased."
-  user="botdot-$1"
-  stop_account "$1"
-  [ -z "$SYSTEMD" ] || systemctl reset-failed "botdot-account@$1" </dev/null >/dev/null 2>&1 || true
-  # Whatever its rootless Docker left mounted in its folders, deepest first.
-  for f in "$ACCOUNTS/$1" "$RUN/$1"; do
-    awk -v f="$f" '$2 == f || index($2, f "/") == 1 { print $2 }' "$PROC/mounts" 2>/dev/null | sort -r | while IFS= read -r m; do umount -l "$m" 2>/dev/null || true; done
-  done
-  rm -rf -- "${ACCOUNTS:?}/$1" "${SOCKETS:?}/$1" "${RUN:?}/$1" "${RUN:?}/load/$1" "${DISKS:?}/$1.img" "${LOAD:?}/account-$1.json"
-  rm -rf -- "$ETC/systemd/system.control/botdot-account@$1.service.d"
-  [ -z "$SYSTEMD" ] || systemctl daemon-reload </dev/null || true
-  if id -u "$user" >/dev/null 2>&1; then userdel "$user" </dev/null || die "Couldn't remove the Linux user $user."; fi
-  rm -f "/var/mail/$user" "/var/spool/mail/$user"
-  for map in subuid subgid; do
-    if grep -q "^$user:" "$ETC/$map" 2>/dev/null; then
-      grep -v "^$user:" "$ETC/$map" > "$ETC/$map.new" || true
-      cat "$ETC/$map.new" > "$ETC/$map"
-      rm -f "$ETC/$map.new"
-    fi
-  done
-  ok "The account $1 is erased: its data, containers and Linux user"
 }
 
 # settle NAME STATE [CPU RAM COMPUTERS DISK]: the machine made to match what the front door says of the account NAME

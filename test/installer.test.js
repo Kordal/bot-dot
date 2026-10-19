@@ -25,7 +25,7 @@ const SUB = 165536;
 // The machine's own tools, without those a test stands in for or leaves out: a Linux machine may have the real
 // tailscale, runsc or setfacl, and a test that leaves one out must find it missing. Made once, as links.
 const OWN = new Set(['docker', 'tailscale', 'dockerd-rootless.sh', 'rootlesskit', 'runsc', 'setfacl', 'newuidmap', 'slirp4netns', 'pasta', 'vpnkit',
-  'apt-get', 'dpkg', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
+  'apt-get', 'dpkg', 'dpkg-query', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
   'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'truncate', 'df', 'getconf']);
 let systemTools = null;
 function machineTools() {
@@ -76,6 +76,7 @@ function installer(t, { dotenv = ANSWERED, given = {}, bins = {}, input = '', sy
     fs.writeFileSync(path.join(etc, 'subuid'), 'ubuntu:100000:65536\n');
     fs.writeFileSync(path.join(etc, 'subgid'), 'ubuntu:100000:65536\n');
     fs.writeFileSync(users, '');
+    fs.writeFileSync(path.join(etc, 'passwd'), 'root:x:0:0:root:/root:/bin/bash\n');
   }
   // The account's Docker answers once systemd or su has started it.
   const started = path.join(top, 'started');
@@ -113,7 +114,9 @@ esac`);
   stand('useradd', `${said('useradd')}
 name="$(eval echo "\\\${$#}")"; n="$(wc -l < "${users}" | tr -d ' ')"
 case " $* " in *" --create-home "*) h="$(echo " $* " | sed 's/.* --home-dir \\([^ ]*\\) .*/\\1/')"; mkdir -p "$h" ;; esac
-case " $* " in *" --system "*) echo "$name:$((990 - n)):$((990 - n))" >> "${users}" ;; *) echo "$name:$((1001 + n)):$((1001 + n))" >> "${users}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subuid')}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subgid')}" ;; esac`);
+case " $* " in *" --system "*) echo "$name:$((990 - n)):$((990 - n))" >> "${users}" ;; *) echo "$name:$((1001 + n)):$((1001 + n))" >> "${users}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subuid')}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subgid')}" ;; esac
+h=''; prev=''; for a in "$@"; do [ "$prev" = --home-dir ] && h="$a"; prev="$a"; done
+echo "$name:x:$(grep "^$name:" "${users}" | cut -d: -f2-3):botdot:$h:/usr/sbin/nologin" >> "${path.join(etc, 'passwd')}"`);
   for (const name of ['chown', 'setfacl', 'apparmor_parser', 'gpg', 'nohup', 'umount', 'mkfs.ext4', 'resize2fs']) stand(name, said(name));
   // An account's disk: an image file the stand-in truncate writes its size in, mounted (as a mark) by mount.
   const mounts = path.join(top, 'mounts');
@@ -124,7 +127,10 @@ case " $* " in *" --system "*) echo "$name:$((990 - n)):$((990 - n))" >> "${user
   stand('df', `case "$2" in *accounts/*) echo "Filesystem 1024-blocks Used Available Capacity Mounted on"; echo "/dev/loop7 31457280 10485760 \${STAND_IN_DISK_FREE:-20971520} 34% $2" ;; *) echo "Filesystem 1024-blocks Used Available Capacity Mounted on"; echo "/dev/sda1 62914560 17825792 45088768 29% /" ;; esac`);
   stand('getconf', 'echo 4');
   stand('userdel', `${said('userdel')}
-grep -v "^$1:" "${users}" > "${users}.new"; mv "${users}.new" "${users}"`);
+grep -v "^$1:" "${users}" > "${users}.new"; mv "${users}.new" "${users}"
+grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new" "${path.join(etc, 'passwd')}"`);
+  // dpkg-query: the packages in STAND_IN_PACKAGES are installed, no other.
+  stand('dpkg-query', 'for p; do :; done; case " ${STAND_IN_PACKAGES:-} " in *" $p "*) echo "install ok installed" ;; *) exit 1 ;; esac');
   stand('su', `${said('su')}\ntouch "${started}"`);
   stand('systemctl', `${said('systemctl')}\n[ "$1" = show ] && exit ${systemd ? 0 : 1}\ncase "$1" in start|restart) touch "${started}" ;; esac\nexit 0`);
   stand('apt-get', said('apt-get'));
@@ -1041,4 +1047,181 @@ test("the timer that measures the load every minute runs root's copy of the inst
   const compose = fs.readFileSync(path.join(ROOT, 'compose.front-door.yaml'), 'utf8');
   assert.match(compose, /^ {6}- \.\/load:\/load:ro /m, 'the front door reads it, and writes nothing there');
   assert.match(compose, /^ {6}FRONT_DOOR_LOAD: \/load$/m);
+});
+
+// --- Uninstall (#76) -------------------------------------------------------------------------------
+
+// install.sh --uninstall, run from the source on the machine `first` installed, answering `input`.
+const uninstall = (t, first, options = {}) => installer(t, { again: first, dotenv: '', args: ['--uninstall'], ...options });
+// The AppArmor profile the installer writes on Ubuntu 24.04, where rootless Docker needs one.
+const PROFILE = '# botdot (install.sh): rootless Docker for each account needs user namespaces.\nabi <abi/4.0>,\ninclude <tunables/global>\n\nprofile botdot-rootlesskit /usr/bin/rootlesskit flags=(unconfined) {\n  userns,\n}\n';
+// A userdel on the machine `first` that removes every user but `refused`, which a process still uses.
+const refusingUserdel = (first, refused) => ['#!/bin/sh', 'echo "userdel $*" >> "$STAND_IN_LOG"',
+  `[ "$1" = ${refused} ] && { echo "userdel: user ${refused} is currently used by process 42" >&2; exit 8; }`,
+  `grep -v "^$1:" "${path.join(first.top, 'users')}" > "${first.top}/users.new"; mv "${first.top}/users.new" "${path.join(first.top, 'users')}"`, 'exit 0', ''].join('\n');
+const UNITS = ['botdot-account@.service', 'botdot-accounts.path', 'botdot-accounts.service', 'botdot-load.timer', 'botdot-load.service'];
+
+test('the uninstaller lists what it removes, and removes nothing without a typed yes', (t) => {
+  const { first, home } = withBob(t);
+  fs.writeFileSync(path.join(first.etc, 'apparmor.d', 'botdot-rootlesskit'), PROFILE);
+  // ann's share on her unit, as systemctl set-property keeps it.
+  fs.mkdirSync(path.join(first.etc, 'systemd', 'system.control', 'botdot-account@ann.service.d'), { recursive: true });
+  const before = first.system.length;
+  for (const input of ['y\n', '']) {
+    const done = uninstall(t, first, { input });
+    assert.equal(done.status, 1, `${done.said}\n${done.stderr}`);
+    assert.match(done.said, /botdot uninstaller/);
+    assert.ok(done.said.includes([
+      'This removes botdot from this machine for good:',
+      "  - the front door: its containers and volumes in this machine's Docker, and its Linux user botdot-door",
+      "  - the account ann: its botdot server, its bots' computers, its rootless Docker, its Linux user botdot-ann, its disk and its data",
+      "  - the account bob: its botdot server, its bots' computers, its rootless Docker, its Linux user botdot-bob, its disk and its data",
+      `  - botdot's systemd units: ${UNITS.join(', ')}, and the accounts' shares`,
+      '  - the AppArmor profile botdot-rootlesskit',
+      `  - ${first.dir}: every account's bots, chats, memory, vault and backups, and the passkeys`,
+      'Docker and Tailscale stay. This can\'t be undone.', '',
+      'Type yes to remove all of it: ',
+    ].join('\n')), done.said);
+    assert.match(done.stderr, /Nothing was removed\./);
+    assert.doesNotMatch(done.system.slice(before), /^(userdel|systemctl disable|apparmor_parser -R|umount|apt-get)/m);
+    assert.ok(!done.calls.some((c) => / down /.test(c)), 'the front door runs on');
+    assert.ok(fs.existsSync(path.join(home, 'compose.yaml')) && fs.existsSync(path.join(first.dir, 'front-door', '.env')));
+  }
+});
+
+test('a typed yes removes the front door, every account, root\'s step, the AppArmor profile and botdot\'s folder', (t) => {
+  const { first } = withBob(t);
+  const profile = path.join(first.etc, 'apparmor.d', 'botdot-rootlesskit');
+  fs.writeFileSync(profile, PROFILE);
+  fs.writeFileSync(path.join(first.etc, 'apparmor.d', 'usr.bin.man'), '# not botdot\'s');
+  const before = first.system.length;
+  const done = uninstall(t, first, { input: 'yes\nn\n', given: { STAND_IN_PACKAGES: 'runsc' } });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  const system = done.system.slice(before);
+  assert.match(system, /^systemctl disable --now botdot-accounts\.path botdot-load\.timer$/m, "root's step stops first");
+  assert.ok(done.calls.includes(`compose --project-directory ${first.dir}/front-door down -v --remove-orphans`), JSON.stringify(done.calls));
+  for (const name of ['ann', 'bob']) {
+    assert.match(system, new RegExp(`^systemctl disable --now botdot-account@${name}$`, 'm'));
+    assert.match(system, new RegExp(`^userdel botdot-${name}$`, 'm'));
+    assert.match(done.said, new RegExp(`The account ${name} is erased: its data, containers and Linux user`));
+  }
+  assert.match(system, /^userdel botdot-door$/m);
+  assert.match(system, new RegExp(`^apparmor_parser -R ${profile}$`, 'm'));
+  assert.ok(!fs.existsSync(profile));
+  assert.ok(fs.existsSync(path.join(first.etc, 'apparmor.d', 'usr.bin.man')), 'another profile stays');
+  for (const unit of UNITS) assert.ok(!fs.existsSync(path.join(first.etc, 'systemd', 'system', unit)), `${unit} is gone`);
+  assert.ok(!fs.existsSync(first.dir), `${first.dir} is gone`);
+  assert.ok(!fs.existsSync(first.run), `${first.run} is gone`);
+  for (const map of ['subuid', 'subgid']) assert.equal(fs.readFileSync(path.join(first.etc, map), 'utf8'), 'ubuntu:100000:65536\n', `${map} keeps the others' IDs`);
+  assert.equal(fs.readFileSync(path.join(first.etc, 'passwd'), 'utf8'), 'root:x:0:0:root:/root:/bin/bash\n');
+  assert.match(done.said, /Remove them too\? Docker itself and Tailscale stay\. \[y\/N\]/);
+  assert.doesNotMatch(system, /^apt-get/m, 'the packages stay when the answer is no');
+  assert.doesNotMatch(system, /^tailscale serve .*off/m, 'a public install has no Serve setting');
+  assert.match(done.said, /botdot is removed from this machine\. Docker and Tailscale stay\./);
+});
+
+test('BOT_DOT_YES=1 asks nothing, and keeps the packages', (t) => {
+  const first = rerun(t);
+  fs.mkdirSync(path.join(first.etc, 'apt', 'sources.list.d'), { recursive: true });
+  fs.writeFileSync(path.join(first.etc, 'apt', 'sources.list.d', 'gvisor.list'), 'deb [arch=amd64 signed-by=/etc/apt/keyrings/gvisor.gpg] https://storage.googleapis.com/gvisor/releases release main\n');
+  const before = first.system.length;
+  const done = uninstall(t, first, { given: { BOT_DOT_YES: '1', STAND_IN_PACKAGES: 'runsc docker-ce-rootless-extras' } });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.doesNotMatch(done.said, /Type yes|\[y\/N\]/);
+  assert.match(done.said, /This removes botdot from this machine for good:/, 'it still says what it removes');
+  assert.ok(done.said.includes(`The packages stay. Remove them yourself with: sudo apt-get remove runsc docker-ce-rootless-extras && sudo rm ${first.etc}/apt/sources.list.d/gvisor.list ${first.etc}/apt/keyrings/gvisor.gpg\n`), done.said);
+  assert.match(done.system.slice(before), /^userdel botdot-ann$/m);
+  assert.doesNotMatch(done.system.slice(before), /^apt-get/m);
+  assert.ok(fs.existsSync(path.join(first.etc, 'apt', 'sources.list.d', 'gvisor.list')));
+  assert.ok(!fs.existsSync(first.dir));
+});
+
+test('the packages go when asked, never Docker itself or Tailscale', (t) => {
+  const first = rerun(t);
+  for (const [folder, name] of [['sources.list.d', 'gvisor.list'], ['keyrings', 'gvisor.gpg'], ['sources.list.d', 'docker.list']]) {
+    fs.mkdirSync(path.join(first.etc, 'apt', folder), { recursive: true });
+    fs.writeFileSync(path.join(first.etc, 'apt', folder, name), '');
+  }
+  const before = first.system.length;
+  const done = uninstall(t, first, { input: 'yes\ny\n', given: { STAND_IN_PACKAGES: 'docker-ce docker-ce-cli runsc docker-ce-rootless-extras tailscale uidmap' } });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.match(done.said, /botdot's installer may have installed these: runsc, docker-ce-rootless-extras and gVisor's apt source\./);
+  const system = done.system.slice(before);
+  assert.match(system, /^apt-get -s remove runsc docker-ce-rootless-extras$/m, 'apt-get is asked first what else it would remove');
+  assert.deepEqual(system.match(/^apt-get remove .*/gm), ['apt-get remove -y -qq runsc docker-ce-rootless-extras']);
+  assert.ok(!fs.existsSync(path.join(first.etc, 'apt', 'sources.list.d', 'gvisor.list')));
+  assert.ok(!fs.existsSync(path.join(first.etc, 'apt', 'keyrings', 'gvisor.gpg')));
+  assert.ok(fs.existsSync(path.join(first.etc, 'apt', 'sources.list.d', 'docker.list')), "Docker's apt source stays");
+
+  // apt-get would take Docker with them: nothing is removed, and the uninstaller says so.
+  const other = rerun(t);
+  const aptGet = ['#!/bin/sh', 'echo "apt-get $*" >> "$STAND_IN_LOG"', '[ "$1" = -s ] && { echo "Remv runsc [20261005.0]"; echo "Remv docker-ce [5:29.9.1-1]"; }', 'exit 0', ''].join('\n');
+  const refused = uninstall(t, other, { input: 'yes\ny\n', bins: { 'apt-get': aptGet }, given: { STAND_IN_PACKAGES: 'runsc docker-ce' } });
+  assert.equal(refused.status, 1, `${refused.said}\n${refused.stderr}`);
+  assert.doesNotMatch(refused.system, /^apt-get remove/m);
+  assert.match(refused.said, / {2}- the packages runsc: apt-get would remove docker-ce with them/);
+});
+
+test("a tailnet install's Serve setting for botdot goes, and Tailscale's others stay", (t) => {
+  const serving = (to) => ['#!/bin/sh', 'echo "tailscale $*" >> "$STAND_IN_LOG"', `[ "$1" = serve ] && [ "$2" = status ] && { echo "https://vm.example.ts.net (tailnet only)"; echo "|-- / proxy http://127.0.0.1:${to}"; }`, 'exit 0', ''].join('\n');
+  const first = installer(t, { dotenv: '', input: '2\nann\n' });
+  assert.equal(first.status, 0, first.stderr);
+  const other = uninstall(t, first, { given: { BOT_DOT_YES: '1' }, bins: { tailscale: serving(8080) } });
+  assert.equal(other.status, 0, `${other.said}\n${other.stderr}`);
+  assert.doesNotMatch(other.said, /Tailscale Serve's setting/);
+  assert.doesNotMatch(other.system, /^tailscale serve --https=443 off$/m, 'Serve passes to something else: not botdot\'s');
+
+  const again = installer(t, { dotenv: '', input: '2\nann\n' });
+  assert.equal(again.status, 0, again.stderr);
+  const before = again.system.length;
+  const done = uninstall(t, again, { input: 'yes\n', bins: { tailscale: serving(4700) } });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.match(done.said, / {2}- Tailscale Serve's setting for botdot\n/);
+  assert.match(done.system.slice(before), /^tailscale serve --https=443 off$/m);
+  assert.doesNotMatch(done.system.slice(before), /^tailscale (down|logout|up)/m);
+});
+
+test("the uninstaller never touches what isn't botdot's, and says what it couldn't remove", (t) => {
+  const { first } = withBob(t);
+  fs.appendFileSync(path.join(first.etc, 'passwd'), 'botdot-zed:x:1500:1500:not an account:/home/zed:/bin/sh\n');
+  fs.writeFileSync(path.join(first.dir, 'notes.txt'), "the admin's");
+  const before = first.system.length;
+  const done = uninstall(t, first, { input: 'yes\n', bins: { userdel: refusingUserdel(first, 'botdot-door') } });
+  assert.equal(done.status, 1, `${done.said}\n${done.stderr}`);
+  assert.doesNotMatch(done.said, /account zed/, "a user named botdot-… whose home isn't an account's is no account");
+  assert.doesNotMatch(done.system.slice(before), /^userdel botdot-zed$/m);
+  assert.match(done.system.slice(before), /^userdel botdot-bob$/m, 'the others go on');
+  assert.ok(fs.existsSync(path.join(first.dir, 'notes.txt')), "a file botdot didn't make stays");
+  for (const gone of ['accounts', 'front-door', 'sockets', 'disks', 'bin']) assert.ok(!fs.existsSync(path.join(first.dir, gone)), `${gone} is gone`);
+  assert.ok(done.said.includes([
+    "These couldn't be removed:",
+    '  - the Linux user botdot-door',
+    `  - ${first.dir}, which holds files botdot didn't make: notes.txt`,
+  ].join('\n')), done.said);
+  assert.doesNotMatch(done.said, /botdot is removed from this machine/);
+});
+
+test("an account that couldn't be removed keeps botdot's folder, and a second run finishes", (t) => {
+  const { first } = withBob(t);
+  const done = uninstall(t, first, { input: 'yes\n', bins: { userdel: refusingUserdel(first, 'botdot-bob') } });
+  assert.equal(done.status, 1, `${done.said}\n${done.stderr}`);
+  assert.match(done.stderr, /Couldn't remove the Linux user botdot-bob\./);
+  assert.ok(done.said.includes([
+    "These couldn't be removed:",
+    '  - the account bob (see above)',
+    `  - ${first.dir}, as an account in it wasn't removed: run the uninstaller again`,
+  ].join('\n')), done.said);
+  assert.ok(fs.existsSync(first.dir));
+
+  const again = uninstall(t, first, { input: 'yes\n' });
+  assert.equal(again.status, 0, `${again.said}\n${again.stderr}`);
+  assert.match(again.said, /The account bob is erased/);
+  assert.ok(!fs.existsSync(first.dir));
+});
+
+test('on a machine without botdot the uninstaller removes nothing', (t) => {
+  const done = installer(t, { dotenv: '', args: ['--uninstall'], input: 'yes\n' });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.match(done.said, /Nothing of botdot is on this machine\./);
+  assert.doesNotMatch(done.system, /^(userdel|systemctl disable|apt-get)/m);
 });
