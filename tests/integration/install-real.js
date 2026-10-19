@@ -224,7 +224,8 @@ const cases = [
 
       assert.equal(botdotUsers(), '', 'no botdot-* user');
       assert.equal(machine.exec('sh', '-c', 'ls /etc/systemd/system /etc/systemd/system.control 2>/dev/null | grep botdot || true'), '', 'no unit');
-      assert.equal(machine.exec('sh', '-c', 'cat /proc/[0-9]*/comm 2>/dev/null | grep -c "^rootlesskit$" || true'), '0', "no account's rootless Docker runs");
+      // A zombie doesn't run: the test machine's first process may never reap the orphans the uninstall ended.
+      assert.equal(machine.exec('sh', '-c', "for f in /proc/[0-9]*/status; do awk '/^Name:/ { n = $2 } /^State:/ { s = $2 } /^Pid:/ { p = $2 } /^Uid:/ { if (n == \"rootlesskit\" && s != \"Z\") print p, s, $2 }' $f 2>/dev/null; done"), '', "no account's rootless Docker runs");
       for (const what of ['ps -a', 'volume ls', 'network ls']) {
         assert.equal(machine.inner(...what.split(' '), '-q', '--filter', 'label=com.docker.compose.project=botdot'), '', `no ${what.split(' ')[0]} of the front door`);
       }
