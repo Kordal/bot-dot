@@ -88,18 +88,11 @@ To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`),
 
 ## The Android app's sign-in
 
-The Android app signs in with the account's passkey only when the front door's `/.well-known/assetlinks.json` names the key that signed the installed app. The app from botdot's releases page is always named. A build of your own (a release build with your own key, or a debug build, signed with your computer's debug key) is not: Android then finds no passkey for it, shows "No available sign-in" with only "Passkey on another device", and lists no password manager, even one that holds the passkey (#82).
+The Android app signs in on your front door's own sign-in page, in the phone's browser: **Sign in with your passkey** opens the page, your password manager there (Proton Pass, Bitwarden, Google Password Manager) offers the passkey, and the browser comes back to the app signed in. It works with any domain and any build of the app, the releases' or your own, with nothing to set on the server.
 
-To let your own build sign in, give the installer the SHA-256 fingerprint of each key, comma separated, once; it keeps them in the front door's `.env`, and later runs and updates keep them too:
-
-```bash
-sudo FRONT_DOOR_ANDROID_KEYS=AA:BB:…,CC:DD:… sh bot-dot-source/install.sh
-```
-
-- An APK's fingerprint: `apksigner verify --print-certs app.apk` (in the Android SDK's `build-tools`), the line "certificate SHA-256 digest", written as pairs with colons.
-- The debug key's: `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`, the line "SHA256". Each computer has its own.
-
-Check it with `curl https://<your domain>/.well-known/assetlinks.json`; the front door's log says at start how many keys it takes (`docker logs botdot-front-door-1`), and names an entry it left out. On the phone, the password manager that holds the passkey must be on as a passkey provider in Android's settings (Passwords, passkeys and accounts).
+- The passkey comes from the browser's password manager. In Chrome on Android 14 and later, a password manager of another maker answers once it is on in Android's settings (Passwords, passkeys and accounts) and Chrome uses it (Chrome's Settings, Autofill services, "Autofill using another service"); or use a browser whose password manager holds it.
+- When the browser stays on the page after the passkey, tap **Back to the app** there.
+- An app from before this signed in through Android's Credential Manager, which needed the front door's `/.well-known/assetlinks.json` to name the key that signed the app. The front door still names botdot's release key and the keys in `FRONT_DOOR_ANDROID_KEYS` (`sudo FRONT_DOOR_ANDROID_KEYS=AA:BB:…,CC:DD:… sh bot-dot-source/install.sh`) for those installs; update the app and they are not needed.
 
 ## Sign in to Claude
 

@@ -42,6 +42,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="*/*" />
             </intent-filter>
+            <!-- The browser, back from the front door's sign-in page with a one-time code (botdot://signed-in?code=…).
+                 singleTask brings this activity back and closes the Custom Tab over it (data/BrowserSignIn.kt). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="botdot" android:host="signed-in" />
+            </intent-filter>
         </activity>
 
         <!-- Hands a downloaded update to Android's installer. -->

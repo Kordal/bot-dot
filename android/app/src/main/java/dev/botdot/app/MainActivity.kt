@@ -58,6 +58,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import dev.botdot.app.data.BotFiles
+import dev.botdot.app.data.BrowserSignIn
+import dev.botdot.app.data.Handoff
 import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.groupOfChat
 import dev.botdot.app.feed.FeedService
@@ -179,6 +181,20 @@ class MainActivity : ComponentActivity() {
                     panelOff.value()
                     nav.navigate("sign-in") { popUpTo(nav.graph.id) { inclusive = true } }
                 }
+                // Back from the sign-in in the browser: signed in, the home screen; not, the sign-in screen says why.
+                val browser by app.browserSignIn.state.collectAsState()
+                LaunchedEffect(browser, route) {
+                    when (browser) {
+                        is BrowserSignIn.State.Done -> {
+                            app.signedIn()
+                            app.browserSignIn.seen()
+                            nav.navigate("home") { popUpTo(nav.graph.id) { inclusive = true } }
+                        }
+                        is BrowserSignIn.State.Failed ->
+                            if (route != null && route != "sign-in" && route != "connect") nav.navigate("sign-in") { popUpTo(nav.graph.id) { inclusive = true } }
+                        else -> {}
+                    }
+                }
                 // The settings panel (a bot's settings, its jobs, the Chief's settings, a group's) belongs to the chat on screen.
                 // With room it stands right of that chat, which stays in use; without, it covers the chat.
                 var panelKept by rememberSaveable(stateSaver = SettingsPanel.Saver) { mutableStateOf<Panel?>(null) }
@@ -271,7 +287,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                     composable("sign-in") {
-                        SignInScreen(app, onSignedIn = { nav.navigate("home") { popUpTo(nav.graph.id) { inclusive = true } } }, onChangeServer = { nav.navigate("connect") })
+                        SignInScreen(app, onChangeServer = { nav.navigate("connect") })
                     }
                     composable("home") {
                         if (wide) ChiefScreen(app, "latest", emptyList(), "", onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },
@@ -401,6 +417,11 @@ class MainActivity : ComponentActivity() {
 
     private fun handle(intent: Intent?) {
         intent ?: return
+        // The browser, back from the front door's sign-in page (botdot://signed-in?code=…).
+        if (intent.action == Intent.ACTION_VIEW && Handoff.isReturn(intent.dataString)) {
+            BotDotApp.of(this).backFromBrowser(intent.dataString)
+            return
+        }
         intent.getStringExtra(Notifier.EXTRA_OPEN)?.let { openTarget.value = it }
         when (intent.action) {
             Intent.ACTION_SEND -> {

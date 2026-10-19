@@ -120,3 +120,39 @@ jobs:
       # New lint problems fail the build; the ones already there are listed in app/lint-baseline.xml.
       - name: Lint
         run: ./gradlew lintDebug --console=plain
+
+  # What needs Android itself, on an emulator (app/src/androidTest): the browser's way back to the app after the
+  # sign-in (botdot://signed-in), found by the app's manifest, and its code turned into the session at a stand-in
+  # front door. GitHub's Linux machines have KVM; the rule below lets the emulator use it.
+  android-emulator:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      # Built before the emulator starts, so its time goes to the tests.
+      - name: Build the app and its instrumented tests
+        run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --console=plain
+      - name: Instrumented tests
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          working-directory: android
+          script: ./gradlew :app:connectedDebugAndroidTest --console=plain

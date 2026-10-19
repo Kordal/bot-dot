@@ -7,6 +7,3 @@
 -dontwarn org.conscrypt.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.openjsse.**
-# Credential Manager finds Google Play services' passkeys by reflection (its documented rule).
--if class androidx.credentials.CredentialManager
--keep class androidx.credentials.playservices.** { *; }
