@@ -10,6 +10,9 @@ services:
   bot-dot:
     image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
     restart: unless-stopped
+    # gVisor with host Unix sockets (install.sh, runsc-uds): it reaches the helper's socket and makes the front
+    # door's. The bots' computers run without them.
+    runtime: runsc-uds
     # Only the local process/file supervisor remains root. server.js runs as 60000:60000.
     cap_drop: [ALL]
     cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID, KILL]
@@ -48,6 +51,7 @@ services:
     image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
     command: ["node", "lib/docker-helper.js"]
     restart: unless-stopped
+    runtime: runsc-uds                              # its own socket and the account's Docker socket, as the server's
     network_mode: bridge                            # as the server's: names resolve under gVisor
     # Root with the account's Docker socket is as powerful as that account's Docker; only the operations that
     # lib/docker-helper.js allows limit it. It runs without capabilities or new privileges, so a flaw in it gives as

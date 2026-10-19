@@ -78,12 +78,16 @@ DOOR_USER=botdot-door
 DOOR_PORT=4700
 # botdot's source, which this installer is part of.
 SOURCE="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
-# runsc's flags in a rootless Docker (ADR 028, "Spike result"): it cannot make cgroups there, botdot's services meet
-# through Unix sockets in their mounts, and a computer's firewall needs gVisor's iptables, which need raw sockets.
+# runsc's flags in a rootless Docker (ADR 028, "Spike result"): it cannot make cgroups there, and a computer's
+# firewall needs gVisor's iptables, which need raw sockets.
 # --overlay2=none: what a container writes goes to its own layer on the account's disk. runsc's default
 # (root:self) keeps it in an overlay of the sandbox, dropped when the container stops, so a bot's computer lost its
 # home, its SSH keys, its Tailscale login and what it installed on every stop (#68).
-RUNSC_FLAGS='"--ignore-cgroups", "--host-uds=all", "--net-raw", "--overlay2=none"'
+RUNSC_FLAGS='"--ignore-cgroups", "--net-raw", "--overlay2=none"'
+# runsc-uds, the runtime of botdot's server and its Docker helper alone (compose.yaml): they meet through Unix sockets
+# in their mounts, which gVisor lets a container reach only with --host-uds. Every other container, a bot's computer
+# first of all, runs under the default runsc, without it (#72).
+RUNSC_UDS_FLAGS="$RUNSC_FLAGS, \"--host-uds=all\""
 # Where the front door asks for new accounts, and root's copy of this installer that makes them.
 REQUESTS="$DOOR/requests"
 BIN="$DIR/bin"
@@ -647,7 +651,9 @@ if [ "$REACH" = public ]; then
     printf '# botdot (install.sh): HTTPS for the front door on its public domain. Caddy fetches the certificate.\n'
     printf '%s {\n' "$DOMAIN"
     [ "$TLS" != internal ] || printf '\ttls internal\n'
-    printf '\treverse_proxy 127.0.0.1:%s\n}\n' "$DOOR_PORT"
+    printf '\treverse_proxy 127.0.0.1:%s\n' "$DOOR_PORT"
+    # HTTPS only, for a year, on this domain alone: the owner's other subdomains aren't botdot's (#72).
+    printf '\theader Strict-Transport-Security "max-age=31536000"\n}\n'
   } > "$DOOR/Caddyfile"
 else
   set_env "$ENV" COMPOSE_PROFILES ''
@@ -790,7 +796,10 @@ account() {
   cat > "$home/.config/docker/daemon.json.new" <<JSON
 {
   "default-runtime": "runsc",
-  "runtimes": { "runsc": { "path": "$RUNSC", "runtimeArgs": [$RUNSC_FLAGS] } },
+  "runtimes": {
+    "runsc": { "path": "$RUNSC", "runtimeArgs": [$RUNSC_FLAGS] },
+    "runsc-uds": { "path": "$RUNSC", "runtimeArgs": [$RUNSC_UDS_FLAGS] }
+  },
   "exec-opts": ["native.cgroupdriver=cgroupfs"]
 }
 JSON

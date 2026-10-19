@@ -99,7 +99,7 @@ What must change:
    - gVisor's iptables are legacy only, and have no conntrack, state or TCP flag matches. So only what leaves is filtered: the internet is open, the machine's and the LAN's addresses are rejected, and on its own loopback the computer reaches only botdot's ports. The bot cannot change the rules.
 3. **runsc needs three flags in an account's Docker.**
    - `--ignore-cgroups`: rootless Docker cannot hand runsc cgroups without systemd delegation. Docker's `--memory` is then not enforced, so an account's RAM and CPU ceiling has to come from the account's own systemd slice.
-   - `--host-uds=all`: botdot's services meet through Unix sockets in their mounts (the docker-helper's, and the Docker socket).
+   - `--host-uds=all`: botdot's services meet through Unix sockets in their mounts (the docker-helper's, and the Docker socket). Since #72 only they get it: install.sh gives the account's Docker a second runtime, `runsc-uds`, with this flag, which `compose.yaml` names for the server and the helper, and the default `runsc` (a bot's computer) runs without it.
    - `--net-raw`: gVisor turns on its iptables only with raw sockets. Only a process with `CAP_NET_RAW` gets one, and no botdot container keeps it.
 4. **Each account stores its own images.** Every account has its own rootless Docker, so botdot's two images are unpacked once per account.
 

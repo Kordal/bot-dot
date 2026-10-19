@@ -537,7 +537,7 @@ const typedBy = (by) => (by === 'you' ? 'owner' : 'bot');
 function readBody(req, max = 1e6) {
   return readRaw(req, max).then((buf) => {
     const data = buf.toString('utf8');
-    try { return data ? JSON.parse(data) : {}; } catch { throw new Error('Invalid JSON'); }
+    try { return data ? JSON.parse(data) : {}; } catch { throw httpError(400, 'The request body is not valid JSON.'); }
   });
 }
 
@@ -3090,9 +3090,10 @@ async function handle(req, res) {
   let url;
   try { url = new URL(req.url, `http://${req.headers.host}`); } catch { throw httpError(400, 'Bad address'); }
   if (url.pathname === '/connectors/done') {
-    // Where Composio's sign-in page sends you back to. The web page notices the new connection itself.
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    return res.end('<!doctype html><meta name="viewport" content="width=device-width"><title>Connected</title><body style="font:16px system-ui;display:grid;place-items:center;height:90vh;background:#141413;color:#ecebe8"><div style="text-align:center"><div style="font-size:40px">✓</div><p>All set. You can close this tab and go back to botdot.</p></div><script>setTimeout(() => window.close(), 1500)</script>');
+    // Where Composio's sign-in page sends you back to. The web page notices the new connection itself. No script:
+    // a tab the page didn't open can't close itself anyway, so the page says to.
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': CSP });
+    return res.end('<!doctype html><meta name="viewport" content="width=device-width"><title>Connected</title><body style="font:16px system-ui;display:grid;place-items:center;height:90vh;background:#141413;color:#ecebe8"><div style="text-align:center"><div style="font-size:40px">✓</div><p>All set. You can close this tab and go back to botdot.</p></div>');
   }
   if (!url.pathname.startsWith('/api/')) return serveStatic(req, res);
   if (called) return takeCall(req, res, called);
