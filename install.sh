@@ -8,8 +8,9 @@
 #
 # What it makes (ADR 028):
 #   1. checks the machine (Linux, Intel or ARM), Docker, rootless Docker and gVisor, and offers to install them
-#   2. checks that botdot's images are signed with botdot's release key, and downloads them (while they are
-#      private, with a read-only GitHub token, asked once); images built on this machine are used as they are
+#   2. checks that botdot's images are signed with botdot's release key, and downloads them (anonymously;
+#      a read-only GitHub token is asked once only when the registry refuses the pull, as for a private fork or a
+#      mirror); images built on this machine are used as they are
 #   3. asks once how people reach botdot: a public domain, with Caddy for HTTPS, or a tailnet only, with
 #      Tailscale Serve, and the name of the admin's own account
 #   4. starts the front door, the one program people reach, in this machine's Docker (BOT_DOT_DIR/front-door)
@@ -396,7 +397,8 @@ check() {
   if SIGNED="$(signed "$1" "$2")"; then return 0; else status=$?; fi
   if [ "$status" = 2 ] && [ -z "$TOKEN" ]; then
     say ""
-    say "botdot's images are private. Paste a GitHub token that can only read packages"
+    say "The registry refused to hand over botdot's images without a token (a private fork or a mirror?)."
+    say "Paste a GitHub token that can only read packages"
     say "(github.com → Settings → Developer settings → Tokens (classic) → scope: read:packages)."
     ask_secret "Token:"
     TOKEN="$REPLY"

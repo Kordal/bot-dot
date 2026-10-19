@@ -1,3 +1,5 @@
+# Only for the paused Mac app (ADR 031), which is not maintained: this is not a way to install botdot. On Linux,
+# use install.sh (docs/install-linux.md).
 # botdot on a Mac, set up by botdot for Mac ("Run botdot on this Mac"). The app keeps this file as
 # compose.yaml in ~/Library/Application Support/botdot, next to a .env with the settings below, and
 # botdot's updater in Settings refreshes it from the image (BOT_DOT_PLATFORM tells it which file).

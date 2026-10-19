@@ -40,8 +40,9 @@ fixes. botdot updates itself from Settings → Updates.
   account's botdot server, and the job's key alone lets it in, from the internet too when the front door
   is public. The front door slows down repeated wrong keys. Treat a call key like a password.
 - In the Docker image (Linux), with separate users on (the default there): the Chief and each bot run
-  as their own Linux user, and botdot refuses owner controls to them. On a Mac, or with
-  `BOT_DOT_SEPARATE_USERS=0`, everything runs as you, and a bot with shell access can do what you can.
+  as their own Linux user, and botdot refuses owner controls to them. On the paused Mac app's server,
+  or with `BOT_DOT_SEPARATE_USERS=0`, everything runs as you, and a bot with shell access can do what
+  you can.
 - Giving a bot a connector gives it all of that app's actions, writing ones included. Instructions in
   a bot's task are guidance for the AI, not an enforced limit.
 - Script jobs, and jobs the Chief or a bot set up, wait for your approval before they run.
@@ -55,8 +56,8 @@ updates, when the server asks over a Unix socket that only root and the server's
 - **The helper is as powerful as its Docker.** Whoever can use the Docker socket can start a
   container that mounts what that Docker can reach. In an account (`install.sh`) that is the account's
   rootless Docker, so the account's own Linux user and its files; in a single Docker of the machine
-  (`compose.mac.yaml`, or a botdot started by hand) it is the machine's whole disk. A flaw that lets
-  someone run a Docker command of their own through the helper gives them that.
+  (`compose.mac.yaml` of the paused Mac app, ADR 031, or a botdot started by hand) it is the machine's
+  whole disk. A flaw that lets someone run a Docker command of their own through the helper gives them that.
 - **Only its list of allowed operations limits it.** It accepts a fixed set of named operations on a
   bot's id (start, stop or erase its computer, ask its state, check and apply an update, and the like),
   checks every argument, and never takes a Docker command, a mount, an image or a Compose project name.
@@ -88,8 +89,8 @@ updates, when the server asks over a Unix socket that only root and the server's
 - **Text from memory is never markup.** A note, a topic, a chat message or a past run printed into a
   prompt cannot close its block or open another: every `<` that could start a tag is written `&lt;`
   there.
-- **Without separate users, a bot that can read files can read the others'.** On a Mac, or with
-  `BOT_DOT_SEPARATE_USERS=0`, the Chief and every bot run as you. A bot with **Read** can then open
+- **Without separate users, a bot that can read files can read the others'.** On the paused Mac
+  app's server, or with `BOT_DOT_SEPARATE_USERS=0`, the Chief and every bot run as you. A bot with **Read** can then open
   any file you can, and a bot with shell access can run any command you can. That includes
   `data/memory.db` (every bot's notes, the shared notes and the index of past runs), the other bots'
   folders in `data/workspaces/`, the run records and the Chief's chats in `data/`, and for as long as
@@ -154,7 +155,8 @@ nothing is installed before you tap Install on its card in Needs you
   tool from a link it asks whatever https address it is given, addresses inside your own network
   included. Nothing of the answer reaches the Chief but its size, its checksum, what kind of file it
   is and, for an archive without the named command, the names of the programs in it.
-- **A local botdot server on a Mac.** There the data folder is a folder of the Mac shared into Docker.
+- **A local botdot server on a Mac** (the paused Mac app, ADR 031; not a supported way to run
+  botdot). There the data folder is a folder of the Mac shared into Docker.
   Measured on 3 October 2026 on a Mac-hosted test server (`compose.mac.yaml`): that mount shows every
   file as owned by whoever looks at it and enforces neither owner nor mode. A bot's user and another
   bot's user could both list and write `data/tools/<bot>`. So on a Mac-hosted botdot "only that bot"
