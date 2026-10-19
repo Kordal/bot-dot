@@ -68,6 +68,7 @@ lib/choices.js       quick-answer buttons ([[choices: …]]) and the card of que
 lib/setup.js         the setup page's data: first-run state, time zone, Claude sign-in from the browser, and whether this Claude Code takes its prompt from a file
 Dockerfile, compose.yaml   the all-in-one image (on the official llama.cpp server image) and how to run it
 .github/workflows/images.yml   builds and publishes the images (Intel + ARM)
+.github/workflows/claude-code-bump.yml   daily: a pull request when npm has a newer Claude Code than the Dockerfile pins (deploy/claude-code-pin.js)
 lib/self-mcp.js      a bot's tools for itself: its jobs, and learning (remember, create_skill…)
 lib/jobs.js          scheduled jobs: AI or script, approval, running scripts
 lib/connectors.js    Composio: API key, marketplace, connections, running actions
