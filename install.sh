@@ -33,8 +33,8 @@
 #
 # The admin page's Update asks with an empty file named UPDATE, which no account can be named (and which, unlike a
 # hidden file, wakes systemd's DirectoryNotEmpty): root's step then runs its copy of this installer as an update,
-# which asks nothing and stops at anything it would have to ask, and says how
-# it went in BOT_DOT_DIR/front-door/status (update.json; its output in BOT_DOT_DIR/update.log):
+# which hands over to the installer in the image it installs (ADR 036), asks nothing and stops at anything it would
+# have to ask, and says how it went in BOT_DOT_DIR/front-door/status (update.json; its output in BOT_DOT_DIR/update.log):
 #
 #   sh BOT_DOT_DIR/bin/install.sh --update
 #
@@ -505,6 +505,21 @@ esac
 command -v curl >/dev/null 2>&1 || die "The installer needs curl. Install it (sudo apt install curl) and run this again."
 # Each account gets a Linux user of its own, so the installer makes users and their folders.
 [ "$(id -u)" = 0 ] || die "The installer makes a Linux user for each account, so it runs as root. Run it with: sudo sh install.sh"
+# One installer at a time: a person's run, root's step and the admin page's update all change the same accounts, and
+# two at once left an account half on each version. A run waits for the one before it to finish. The update root's step
+# runs for the admin page, and the installer an update hands over to, go on under its hold (BOT_DOT_LOCKED, given to
+# them alone).
+# What the installer leaves running (an account's Docker, the loop without systemd) is started without the lock's
+# descriptor (9>&-), or it would hold the lock after the run ends.
+if [ -z "${BOT_DOT_LOCKED:-}" ] && command -v flock >/dev/null 2>&1; then
+  mkdir -p "$RUN"
+  exec 9>"$RUN/install.lock"
+  if ! flock -n 9; then
+    [ "$MODE" = requested ] || say "Another botdot installer is running here: this one waits for it to finish…"
+    flock 9
+  fi
+  BOT_DOT_LOCKED=1
+fi
 
 [ "$MODE" = install ] || command -v docker >/dev/null 2>&1 || die "Docker isn't installed: run the installer again."
 if ! command -v docker >/dev/null 2>&1; then
@@ -702,10 +717,31 @@ else
 fi
 
 # The compose files come from the image itself, so they always match the version you run.
-compose_file() { $D run --rm --pull never --entrypoint cat "$IMAGE" "/opt/bot-dot/$1" </dev/null; }
-ACCOUNT_COMPOSE="$(compose_file compose.yaml)" || die "Couldn't read compose.yaml from the image."
+image_file() { $D run --rm --pull never --entrypoint cat "$IMAGE" "/opt/bot-dot/$1" </dev/null; }
+# The admin page's update runs root's copy of the installer, which the version before left there. The installer that
+# goes with the version being installed is in that version's image, checked above: root's copy becomes it, with the
+# release check beside it, and the update goes on in it before anything is changed (ADR 036). An older copy took the
+# new version's compose files and set up the accounts' Docker the old way, and the update stopped half done.
+if [ -n "$UNATTENDED" ] && [ "$SOURCE" = "$BIN" ] && [ -z "${BOT_DOT_HANDED_OVER:-}" ]; then
+  if image_file install.sh > "$BIN/install.sh.new" 2>/dev/null && [ -s "$BIN/install.sh.new" ] && ! cmp -s "$BIN/install.sh.new" "$BIN/install.sh"; then
+    for f in signed-image registry release-manifest release-trust; do
+      image_file "lib/$f.js" > "$BIN/lib/$f.js.new" 2>/dev/null && [ -s "$BIN/lib/$f.js.new" ] || die "Couldn't read lib/$f.js from the image."
+    done
+    for f in signed-image registry release-manifest release-trust; do
+      chmod 644 "$BIN/lib/$f.js.new"
+      mv "$BIN/lib/$f.js.new" "$BIN/lib/$f.js"
+    done
+    chmod 600 "$BIN/install.sh.new"
+    mv "$BIN/install.sh.new" "$BIN/install.sh"
+    ok "The installer is the new version's"
+    BOT_DOT_HANDED_OVER=1 BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" exec sh "$BIN/install.sh" --update
+  fi
+  # An image from before the installer was in it, or the same installer: this copy goes on.
+  rm -f "$BIN/install.sh.new"
+fi
+ACCOUNT_COMPOSE="$(image_file compose.yaml)" || die "Couldn't read compose.yaml from the image."
 if [ "$MODE" = install ]; then
-  compose_file compose.front-door.yaml > "$DOOR/compose.yaml.new" || die "Couldn't read compose.front-door.yaml from the image."
+  image_file compose.front-door.yaml > "$DOOR/compose.yaml.new" || die "Couldn't read compose.front-door.yaml from the image."
   mv "$DOOR/compose.yaml.new" "$DOOR/compose.yaml"
   [ "$IMAGE" = "$IMAGES/bot-dot:latest" ] || set_env "$ENV" BOT_DOT_IMAGE "$IMAGE"
   # Only the pin of an earlier run stays when the newer computer could not be downloaded now.
@@ -1047,7 +1083,7 @@ JSON
     mkdir -p "$run"
     chown "$uid:$gid" "$run"
     chmod 700 "$run"
-    su -s /bin/sh "$user" -c "cd '$home' && exec env HOME='$home' XDG_RUNTIME_DIR='$run' PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin nohup '$ROOTLESS' >> '$home/docker.log' 2>&1 &" </dev/null
+    su -s /bin/sh "$user" -c "cd '$home' && exec env HOME='$home' XDG_RUNTIME_DIR='$run' PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin nohup '$ROOTLESS' >> '$home/docker.log' 2>&1 &" </dev/null 9>&-
     warn "This machine has no systemd, so the account $name's Docker was started now and doesn't start again after a restart. Run this installer again after one."
   fi
   i=0
@@ -1159,7 +1195,7 @@ update_all() {
   from="$(version_now)"
   write_status update.json "{\"state\":\"updating\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\"}"
   set +e
-  sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
+  BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
   updated=$?
   set -e
   chmod 600 "$DIR/update.log"
@@ -1255,8 +1291,9 @@ write_status version.json "{\"version\":\"$VERSION\",\"selfBuilt\":$([ -n "$REGI
 # Root's step for the front door: a copy of this installer only root may change, started by systemd whenever the front
 # door asked for an account, and every minute to write the load the admin page shows (botdot-load.timer). Without
 # systemd a loop started now does both, until the machine restarts. Beside it, the four files of botdot's source it
-# checks the signature of an update with (step 2): an update from the admin page runs this copy, and only the admin,
-# running the installer from the source again, changes either.
+# checks the signature of an update with (step 2). The admin running the installer from the source again changes them,
+# and so does an update from the admin page, with the installer and the four files of the signed image it installs
+# (ADR 036).
 mkdir -p "$BIN"
 chown 0:0 "$BIN"
 chmod 700 "$BIN"
@@ -1330,7 +1367,7 @@ UNIT
   systemctl enable --now botdot-load.timer </dev/null >/dev/null 2>&1 || warn "systemd didn't start botdot-load.timer, so the admin page shows no load. See: systemctl status botdot-load.timer"
 elif ! { [ -f "$RUN/requests.pid" ] && kill -0 "$(cat "$RUN/requests.pid")" 2>/dev/null; }; then
   mkdir -p "$RUN"
-  nohup sh -c "i=0; while :; do [ -z \"\$(ls -A '$REQUESTS' 2>/dev/null)\" ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --requested; [ \$((i % 20)) != 0 ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --load; i=\$((i + 1)); sleep 3; done" >> "$DIR/requests.log" 2>&1 </dev/null &
+  nohup sh -c "i=0; while :; do [ -z \"\$(ls -A '$REQUESTS' 2>/dev/null)\" ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --requested; [ \$((i % 20)) != 0 ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --load; i=\$((i + 1)); sleep 3; done" >> "$DIR/requests.log" 2>&1 </dev/null 9>&- &
   echo "$!" > "$RUN/requests.pid"
   warn "This machine has no systemd, so the accounts sign-up links make are made by a loop started now, which doesn't start again after a restart. Run this installer again after one. Its log: $DIR/requests.log"
 fi

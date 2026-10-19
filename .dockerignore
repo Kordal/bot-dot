@@ -5,6 +5,7 @@
 !front-door.js
 !package.json
 !lib/
+!install.sh
 !public/
 !chief-skills/
 !vendor/

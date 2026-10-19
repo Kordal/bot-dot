@@ -933,6 +933,61 @@ test("an update that fails says so to the admin page, with the installer's reaso
   assert.match(update.error, /Couldn't download ghcr\.io\/kordal\/bot-dot\./);
 });
 
+test("the admin's update goes on in the installer of the version it installs, from that version's image", (t) => {
+  const { first } = withBob(t);
+  const bin = path.join(first.dir, 'bin');
+  // Root's copy is the version before's: one that wrote no host sockets for the server and the helper, and an older
+  // release check beside it.
+  const old = fs.readFileSync(path.join(bin, 'install.sh'), 'utf8').replace('RUNSC_UDS_FLAGS="$RUNSC_FLAGS, \\"--host-uds=all\\""', 'RUNSC_UDS_FLAGS="$RUNSC_FLAGS"');
+  assert.notEqual(old, script, 'the copy is an older installer');
+  fs.writeFileSync(path.join(bin, 'install.sh'), old);
+  fs.appendFileSync(path.join(bin, 'lib', 'registry.js'), '// the version before\n');
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');
+  const done = installer(t, { again: first, dotenv: '', script: path.join(bin, 'install.sh'), args: ['--requested'] });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  const log = fs.readFileSync(path.join(first.dir, 'update.log'), 'utf8');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8')).state, 'updated', log);
+  assert.equal(fs.readFileSync(path.join(bin, 'install.sh'), 'utf8'), script, 'root\'s copy is the new version\'s installer');
+  assert.equal(fs.readFileSync(path.join(bin, 'lib', 'registry.js'), 'utf8'), fs.readFileSync(path.join(ROOT, 'lib', 'registry.js'), 'utf8'), 'and its release check');
+  assert.match(log, /The installer is the new version's/);
+  for (const account of ['ann', 'bob']) {
+    const daemon = JSON.parse(fs.readFileSync(path.join(first.dir, 'accounts', account, '.config', 'docker', 'daemon.json'), 'utf8'));
+    assert.ok(daemon.runtimes['runsc-uds'].runtimeArgs.includes('--host-uds=all'), `${account}'s Docker is set up as the new version needs`);
+  }
+  // A copy that is the version's own goes on as it is.
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');
+  const again = installer(t, { again: first, dotenv: '', script: path.join(bin, 'install.sh'), args: ['--requested'] });
+  assert.equal(again.status, 0, `${again.said}\n${again.stderr}`);
+  assert.doesNotMatch(fs.readFileSync(path.join(first.dir, 'update.log'), 'utf8'), /The installer is the new version's/);
+});
+
+test("botdot's image carries the installer and its release check, for the admin page's update", () => {
+  const allowed = fs.readFileSync(path.join(ROOT, '.dockerignore'), 'utf8').split('\n');
+  assert.ok(allowed.includes('!install.sh'));
+  assert.ok(allowed.includes('!lib/'));
+});
+
+test('one installer runs at a time: another waits for it, and then runs', async (t) => {
+  const first = rerun(t);
+  const lock = path.join(first.run, 'install.lock');
+  const holder = require('node:child_process').spawn('flock', [lock, 'sleep', '1'], { stdio: 'ignore' });
+  const ended = new Promise((resolve) => holder.on('exit', resolve));
+  // Until the holder has it.
+  for (let i = 0; i < 100 && spawnSync('flock', ['-n', lock, 'true']).status === 0; i += 1) await new Promise((r) => setTimeout(r, 10));
+  const done = installer(t, { again: first, dotenv: '' });
+  await ended;
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.match(done.said, /Another botdot installer is running here: this one waits for it to finish/);
+});
+
+test('what the installer leaves running holds no lock: an account\'s Docker and the loop without systemd', () => {
+  // Started with the lock's descriptor, either would hold it after the run, and the next installer would wait for ever.
+  const lasting = code.split('\n').filter((line) => /nohup/.test(line));
+  assert.equal(lasting.length, 2);
+  for (const line of lasting) assert.match(line, /9>&-/, line.trim());
+  assert.doesNotMatch(code, /export BOT_DOT_LOCKED/, 'only the update root\'s step starts, and the installer it hands over to, go on under its hold');
+});
+
 test("root's step takes no option but its own, and needs an install", (t) => {
   const wrong = installer(t, { args: ['--account', 'eve'] });
   assert.equal(wrong.status, 1);
