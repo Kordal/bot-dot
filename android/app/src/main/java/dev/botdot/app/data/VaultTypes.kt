@@ -68,7 +68,7 @@ object VaultTypes {
     /** Above the bots of a card, an identity or an SSH key: what sharing it lets a bot do. */
     fun itemBotsHint(kind: String): String = when (kind) {
         "card" -> "Bots that may pay with this card. You still approve every payment."
-        SSH_KEY -> "Bots that may use this key for SSH from their own computer. botdot loads it into an ssh-agent there: a bot never sees the private key."
+        SSH_KEY -> "Bots that may use this key for SSH from the account's computer. botdot loads it into an ssh-agent there for one command: no file holds the key, but every bot on that computer could read it meanwhile."
         else -> "Bots that may type these details into forms."
     }
 

@@ -43,7 +43,7 @@ test('POST and PUT /api/bots answer `waiting` when the Chief\'s change was held 
   // The card of what waits says the same in its title, and who proposed it (docs/api.md, "Things that need the owner").
   const card = (await srv.api('/asks')).data.find((a) => a.id === created.data.pendingChange);
   assert.deepEqual([card.by, card.title], ['chief', 'Change News Watcher: web access, commands, its own computer and Gmail?']);
-  assert.deepEqual(card.parts.map((p) => [p.label, p.now, 'was' in p]), [['What it may do', 'browse the web and run commands', false], ['Computer', 'a computer of its own, on your home network', false], ['Connected apps', 'Gmail', false]]);
+  assert.deepEqual(card.parts.map((p) => [p.label, p.now, 'was' in p]), [['What it may do', 'browse the web and run commands', false], ['Computer', "a screen on the account's computer, which every bot there shares with sudo, on your home network", false], ['Connected apps', 'Gmail', false]]);
   assert.ok(!('chatId' in card), 'made from no chat');
 
   const plain = await srv.asChief('/bots', { method: 'POST', body: { name: 'Note Taker', prompt: 'Take notes.', allowedTools: ['Read', 'Edit'] } });

@@ -40,7 +40,8 @@ fixes. botdot updates itself from Settings → Updates.
   account's botdot server, and the job's key alone lets it in, from the internet too when the front door
   is public. The front door slows down repeated wrong keys. Treat a call key like a password.
 - In the Docker image (Linux), with separate users on (the default there): the Chief and each bot run
-  as their own Linux user, and botdot refuses owner controls to them. On the paused Mac app's server,
+  as their own Linux user on the botdot server, and botdot refuses owner controls to them. On the
+  account's computer they are not separate: see [The account's computer](#the-accounts-computer). On the paused Mac app's server,
   or with `BOT_DOT_SEPARATE_USERS=0`, everything runs as you, and a bot with shell access can do what
   you can.
 - Giving a bot a connector gives it all of that app's actions, writing ones included. Instructions in
@@ -50,7 +51,7 @@ fixes. botdot updates itself from Settings → Updates.
 ## The docker-helper
 
 botdot's server does not hold the Docker socket. A second container, the docker-helper
-(`lib/docker-helper.js`), holds it: it starts, stops and erases the bots' computers and runs botdot's
+(`lib/docker-helper.js`), holds it: it starts, updates and erases the account's computer and runs botdot's
 updates, when the server asks over a Unix socket that only root and the server's own user can open.
 
 - **The helper is as powerful as its Docker.** Whoever can use the Docker socket can start a
@@ -59,16 +60,44 @@ updates, when the server asks over a Unix socket that only root and the server's
   (`compose.mac.yaml` of the paused Mac app, ADR 031, or a botdot started by hand) it is the machine's
   whole disk. A flaw that lets someone run a Docker command of their own through the helper gives them that.
 - **Only its list of allowed operations limits it.** It accepts a fixed set of named operations on a
-  bot's id (start, stop or erase its computer, ask its state, check and apply an update, and the like),
+  bot's id or the account's computer (start or erase it, ask its state, check and apply an update, and the like),
   checks every argument, and never takes a Docker command, a mount, an image or a Compose project name.
   That list is the boundary, and nothing else is.
 - **It sets each computer's firewall as root inside that computer**, with a privileged `docker exec` of botdot's
   own fixed script, before anything of the desktop runs. A computer starts with nothing but `sleep`, also after a
-  stop, so no restart skips it. The bot's programs there have no capability and cannot change it.
+  stop, so no restart skips it. The bots there have root through sudo, but the computer has Docker's
+  default capabilities only, without `NET_ADMIN` and never `--privileged`, so root there cannot change it.
 - **It runs without any capability and with no-new-privileges** (`cap_drop: [ALL]`,
   `no-new-privileges:true`), and is in the server's group only to hand the server its socket. That takes
   away what root would otherwise have inside its own container, such as reading other users' files or
   signalling their programs; it does not make the Docker socket less powerful.
+
+## The account's computer
+
+([ADR 035](docs/adr/035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md))
+
+Every bot with a computer works on the account's one computer, a container that stays on, as the same
+Linux user (`box`) with passwordless sudo. The owner chose this knowing what it costs:
+
+- **No walls between the bots there.** Each bot has a screen and a browser of its own and a folder in
+  `/workspace`, but those are separate work surfaces, not security boundaries. Every bot can read,
+  change and end every other bot's files and programs, watch its screen and use its browser's logins.
+- **Every bot is root on it.** It can install anything with apt and change anything installed there,
+  botdot's helper scripts included, until botdot copies its own back at the next start.
+- **Secrets used there are readable by every bot there.** A password, code, card or identity botdot
+  types into a browser, a login handed to `run_with_login` and an SSH key lent through
+  `run_with_ssh_key` while its agent lives can be read by any bot on the computer, through sudo. botdot
+  still never puts a secret on a command line or in a file, and the Vault's "Usable in its computer"
+  card says that every bot on the account's computer can read it. Saved logins used through
+  `api_request` never reach the computer.
+- **One Tailscale device, run as root, in userspace.** Every bot uses it. Its shields are up and the
+  computer's firewall keeps botdot's control and screen ports from the tailnet; a bot with sudo could
+  still open a port of its own to the tailnet, so limit the device with a tag.
+- **One bot can starve the others.** The computer's memory and CPUs are the account's share; a bot
+  that uses up the memory can end another's programs.
+- **Still walled off from the rest.** It runs under the account's gVisor, on a network of its own,
+  with no `NET_ADMIN`; other accounts, the botdot server, the Docker socket and the machine are out
+  of its reach.
 
 ## What a bot is told, and what it can read
 

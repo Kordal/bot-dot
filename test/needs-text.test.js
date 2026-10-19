@@ -49,7 +49,7 @@ test("a changed bot's card: a title that names what changes, and one part per ch
     { label: 'Main assignment', was: 'Read the news.', now: 'Read the news.\nSend the three best stories.' },
     { label: 'Rules', was: '', now: 'Never post.' },
     { label: 'What it may do', now: 'browse the web and run commands' },
-    { label: 'Computer', now: 'a computer of its own, on your home network' },
+    { label: 'Computer', now: "a screen on the account's computer, which every bot there shares with sudo, on your home network" },
     { label: 'Connected apps', now: 'Gmail and Google Calendar' },
   ]);
   assert.equal(card({ prompt: 'p', computer: 'linux' }, { prompt: 'q', computer: 'none' }).title, 'Change News Watcher: its own computer and new main assignment?');

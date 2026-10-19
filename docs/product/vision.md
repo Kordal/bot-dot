@@ -6,6 +6,8 @@ botdot gives each person a team of AI bots they run by chat: a Chief of Staff cr
 
 Today, getting an AI agent to do recurring work means configuring prompts, tools, permissions and schedules by hand, and then watching logs. botdot turns that into a messenger: each bot is a contact, giving it work is sending a message, and anything that needs the owner shows up as one thing to approve.
 
+Bots that need a desktop work on the account's one computer, which stays on, as Grok Bot's do: each on a screen of its own with its own browser, all as one user with sudo, so they can install anything and share their files, and each can see what the others do and the secrets used there ([ADR 035](../adr/035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md)).
+
 ## Principles
 
 - **Chat first.** Anything the Chief of Staff can do by chat stays out of the UI. The UI has as few words, icons and controls as possible.

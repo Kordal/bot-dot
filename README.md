@@ -33,7 +33,7 @@ A messenger-style app for a team of **bots**. Each bot is a Claude Code agent wi
 | ⏰ **Scheduled jobs** | A job runs on a schedule. When no AI is needed, a small script runs instead. |
 | 👥 **Groups** | Put two to six bots in one chat, and they hand the work on to each other. |
 | 🧠 **Memory** | Bots remember what you tell them, and you correct or erase it by chat. |
-| 🖥 **The bots' computer** | Bots can work on the account's computer, each on a screen of its own with its own browser, which you can watch live; they share the computer, with sudo. |
+| 🖥 **The bots' computer** | One always-on computer for the account, where bots work, each on a screen of its own with its own browser, which you can watch live. They share it as one user with sudo, so every bot there sees what the others do. |
 | 🔐 **Vault and connectors** | Bots use your logins without seeing them, and your apps (Gmail, Slack, GitHub and more) through Composio. |
 | ✋ **Your OK first** | Anything risky waits for you in **Needs you**. |
 | 📱 **Web and Android** | The web page works everywhere, and Android has its own app with notifications and no push service. |
@@ -110,6 +110,7 @@ The web page works on any phone. The [Android app](android/README.md) adds notif
 
 - **Each account is walled off under gVisor:** its own Linux user and rootless Docker, whose every container runs under gVisor.
 - **The installer runs as root, and root sees everything:** whoever is root on the machine can reach every account, its data and the logins its bots hold. Keep root to yourself.
+- **The bots share one computer, without walls between them:** every bot works on the account's computer as the same user, with sudo. Each can see, change and end what the others do there, and read any password, card or SSH key botdot types or hands to a command there. Other accounts, the botdot server and the machine stay out of its reach.
 - **Anything risky waits in Needs you:** a script, a login, a connected app's write (unless you always allow it), or a change the Chief makes after reading the web, until you say OK.
 
 [What bots can reach](docs/what-bots-can-reach.md) and [Security](SECURITY.md) have the full picture.
@@ -121,7 +122,7 @@ The web page works on any phone. The [Android app](android/README.md) adds notif
 | **A server** | A Linux server or VM of its own (Ubuntu 24.04, Intel/AMD or ARM) where you can use `sudo` |
 | **Docker** | The installer offers to install it when it's missing |
 | **Claude** | A Claude subscription (Pro or Max), or an Anthropic API key, for each account. Bots' runs count against that subscription's usage limits, or are paid as you go on the key |
-| **Room** | Per account, about 5 GB of RAM at most with two bots' computers running, and 15 GB of disk: its server holds about 2 GB (mostly the memory search model), and each bot's computer, an Ubuntu desktop in a container, 0.5–1 GB idle. Measured on an 8-CPU, 16 GB server, where the front door and Caddy take 65 MB |
+| **Room** | Per account, its share of the machine (by default 2 CPUs and 5 GB of RAM), and 15 GB of disk: its server holds about 2 GB (mostly the memory search model), and the account's computer, an Ubuntu desktop in a container that stays on, 0.5–1 GB idle plus what each bot's screen and programs use. The share's RAM and CPUs are the computer's limits. Measured on an 8-CPU, 16 GB server, where the front door and Caddy take 65 MB |
 | **A way in** | [Tailscale](https://tailscale.com) (a private tailnet) or a public domain that points at the server |
 
 botdot runs the official Claude Code CLI, signed in by you on your account's setup page. Bots run unattended, so read what Anthropic's terms say about that first: [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms). An account's [default share](docs/install-linux.md#shares-of-the-machine) of the machine is 2 CPUs and 5 GB of RAM. The full list, and whom botdot trusts, is in [Install on Linux](docs/install-linux.md#what-botdot-needs-and-whom-it-trusts).
