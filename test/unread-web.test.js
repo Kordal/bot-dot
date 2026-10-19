@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { startServer, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, feed, waitFor } = require('./helpers');
+const { webSource } = require('./web-source');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const page = vm.createContext({ setInterval, clearInterval });
@@ -75,7 +76,7 @@ test('web: in a Chief chat the line goes above the message the server named, or 
 });
 
 test('web: the app draws the dots after the time, for a bot and for the Chief in coral', () => {
-  const app = fs.readFileSync(path.join(PUBLIC, 'app.js'), 'utf8');
+  const app = webSource();
   assert.match(app, /<span class="time">\$\{esc\(shortTime\(r\?\.startedAt\)\)\}<\/span>\$\{line\.after\}<\/div>/);
   assert.match(app, /after: asks \? Unread\.mark\(b\.color\) : Unread\.dots\(Unread\.count\(b\), b\.color\) \};/, 'the dots, or the mark of a bot that asks (contactLine, SURE-003)');
   assert.match(app, /<span class="time">\$\{esc\(shortTime\(chat\?\.updatedAt\)\)\}<\/span>\$\{Unread\.dots\(state\.chiefUnread, CHIEF_COLOR\)\}<\/div>/);
@@ -253,7 +254,7 @@ test('web: older runs are read page by page until the line\'s run is there', asy
 });
 
 test('web: the app draws a bot\'s chat back to its "New" line', () => {
-  const app = fs.readFileSync(path.join(PUBLIC, 'app.js'), 'utf8');
+  const app = webSource();
   assert.match(app, /const drawn = Unread\.shown\(chatRuns\(bot\.id, newFirst\), newFirst\);\n\s*if \(drawn\.missing\) reachNew\(bot\.id, newFirst\);\n\s*const runs = drawn\.runs\.reverse\(\);/);
   assert.match(app, /Unread\.reach\(first, page\)/);
   assert.match(app, /\/runs\?botId=\$\{encodeURIComponent\(botId\)\}&limit=200\$\{before \? `&before=\$\{encodeURIComponent\(before\)\}` : ''\}/);

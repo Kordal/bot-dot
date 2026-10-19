@@ -3,8 +3,9 @@
 // This file draws what the server says and decides nothing: the group's row in the list, its chat, its panel,
 // and the picker that makes one from a bot's chat. Against a server without `groups` in `features` there are no
 // groups and nothing here is offered.
-// Loaded after app.js, whose helpers it uses (api, state, esc, botById, the message box, the cards, the "New"
-// line); app.js calls the functions of this file where a group takes part: the list, the views, the feed.
+// Loaded after app.js and the files split out of it (boot.js last), whose helpers it uses (api, state, esc, botById,
+// the message box, the cards, the "New" line); they call the functions of this file where a group takes part: the
+// list, the views, the feed.
 
 // ---------- what the server says ----------
 
@@ -452,9 +453,9 @@ function groupNextHTML(chat) {
 }
 // The owner's messages a group's chat holds, as the server has them: what a message on its way is looked for in.
 const groupWords = (chat) => [...chat.items.values()].filter((x) => x.type === 'message');
-// Its replies, oldest first, each by its turn's id: what counts as new on screen is told by these (app.js, "a reply arrives").
+// Its replies, oldest first, each by its turn's id: what counts as new on screen is told by these (replies.js, "a reply arrives").
 const groupReplyIds = (chat) => chatItems(chat).filter((x) => x.type === 'reply').map((x) => x.id);
-// A message of the owner's that is on its way (app.js, sentAtOnce) stands here as the page's own bubble: with no
+// A message of the owner's that is on its way (replies.js, sentAtOnce) stands here as the page's own bubble: with no
 // member at work and nothing waiting, under the replies, with one plain "Working" under it: no name, until the
 // server says who works. Otherwise at the end, under the messages that already wait, and the lines stay the members'.
 // Under the lines, and above the messages that wait, stand the heads of who is next (groupNextHTML).
@@ -568,7 +569,7 @@ function renderGroupChat() {
     if (!row && chat.more && chat.want < GROUP_REACH) loadGroupChat(g.id, GROUP_REACH);
     else if (!jumpTo(row)) openRun(id);
   }
-  // A reply that is new in the open chat arrives (app.js, "a reply arrives"): its whole row, once.
+  // A reply that is new in the open chat arrives (replies.js, "a reply arrives"): its whole row, once.
   for (const id of repliesArrive(arrivals.group, thread, key, groupReplyIds(chat))) arrive($(`[data-reply="${CSS.escape(id)}"]`, items));
   drawGroupTail(g, chat);
   updateChatNeeds(thread, key);

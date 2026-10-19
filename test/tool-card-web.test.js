@@ -8,13 +8,14 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { webSource } = require('./web-source');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
 const page = vm.createContext({});
 vm.runInContext(read('tool-card.js'), page);
 const { ToolCard } = page;
-const app = read('app.js');
+const app = webSource();
 const css = read('style.css');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // A part of app.js, from one line of it up to another.

@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { startServer } = require('./helpers');
+const { webSource } = require('./web-source');
 
 const FILE = path.join(__dirname, '..', 'lib', 'figure.json');
 const def = JSON.parse(fs.readFileSync(FILE, 'utf8'));
@@ -368,9 +369,9 @@ test('the web page loads the renderer and has no dot and no stick figure left', 
   const get = async (p) => (await fetch(`${srv.base}${p}`)).text();
   assert.match(await get('/'), /<script src="\/figure\.js"><\/script>\s*<script src="\/app\.js">/);
   assert.match(await get('/figure.js'), /root\.Figure = /);
-  assert.ok(!/\.bd\b|bd-av|botDot\(/.test((await get('/style.css')) + (await get('/app.js'))));
-  assert.ok(!/name-dot|needs-dots/.test((await get('/style.css')) + (await get('/app.js')) + (await get('/mentions.js'))));
-  assert.ok(!/stick figure|\.b-head|b-at-|held object|small figure/.test((await get('/style.css')) + (await get('/app.js')) + (await get('/figure.js'))));
+  assert.ok(!/\.bd\b|bd-av|botDot\(/.test((await get('/style.css')) + webSource()));
+  assert.ok(!/name-dot|needs-dots/.test((await get('/style.css')) + webSource() + (await get('/mentions.js'))));
+  assert.ok(!/stick figure|\.b-head|b-at-|held object|small figure/.test((await get('/style.css')) + webSource() + (await get('/figure.js'))));
   // Beside a name, a bot's small head wears its hat.
   assert.match(await get('/app.js'), /const botMark = \(b\) => Figure\.small\(colorOf\(b\), outfitOf\(b\), botById\(b\?\.id\)\?\.id\);/);
   // The avatar has no circle behind the head.

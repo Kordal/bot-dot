@@ -9,6 +9,7 @@ const path = require('path');
 const vm = require('vm');
 const Push = require('../public/push');
 const { cut } = require('./web-page');
+const { webSource } = require('./web-source');
 
 const SW = fs.readFileSync(path.join(__dirname, '..', 'public', 'sw.js'), 'utf8');
 const KEY = Buffer.concat([Buffer.from([4]), Buffer.alloc(64, 7)]).toString('base64url');
@@ -97,7 +98,7 @@ test('Safari on an iPhone or iPad needs the Home Screen app; the Home Screen app
   assert.match(card, /Add to Home Screen first/);
   assert.match(card, /needsHomeScreen\(navigator\)/);
   assert.match(card, /features\.includes\('web-push'\)/);
-  const app = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+  const app = webSource();
   assert.doesNotMatch(app, /requestPermission/);
   assert.match(cut('box.onchange = async', '\n  };'), /Push\.turnOn\(window, api\)/);
 });

@@ -11,6 +11,7 @@ const { startServer, makeBot } = require('./helpers');
 const cron = require('../lib/cron');
 const { describe } = require('../lib/cron-words');
 const table = require('./fixtures/cron-words.json');
+const { webSource } = require('./web-source');
 
 for (const row of table.rows) {
   test(`table: ${row.cron} is "${row.words}"`, () => {
@@ -196,7 +197,7 @@ test('server: the preview answers { when, next }, and for a refused expression {
 
 // ---------- the web page ----------
 
-const app = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+const app = webSource();
 // A part of app.js, from one line of it up to another.
 const cut = (from, to) => {
   const a = app.indexOf(from), b = app.indexOf(to, a);

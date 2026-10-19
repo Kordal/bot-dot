@@ -7,12 +7,13 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { webSource } = require('./web-source');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const page = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(PUBLIC, 'panel.js'), 'utf8'), page);
 const { Panel } = page;
-const app = fs.readFileSync(path.join(PUBLIC, 'app.js'), 'utf8');
+const app = webSource();
 const html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
 const css = fs.readFileSync(path.join(PUBLIC, 'style.css'), 'utf8');
 

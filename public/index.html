@@ -24,7 +24,7 @@
         <span class="away hidden" id="signed-out" role="status">Claude is signed out: bots can't work. <button type="button" data-sign-in>Sign in</button></span>
       </div>
       <div class="search"><input id="contact-search" type="search" placeholder="Search" autocomplete="off" /></div>
-      <!-- A wide window's home in place of the list (app.js, drawKeypad; ADR 029): the Board's values and Needs you,
+      <!-- A wide window's home in place of the list (list.js, drawKeypad; ADR 029): the Board's values and Needs you,
            then every page one under the other, its bots and groups as keys (#508). The stylesheet shows one or the
            other. -->
       <div class="keypad" id="keypad">
@@ -33,7 +33,7 @@
         <div class="kp-hint">1–9 open · Esc Chief · Ctrl+K search</div>
       </div>
       <div class="contacts" id="contacts"></div>
-      <!-- A phone's home in place of the list (app.js, drawKeypadSections; #498): the Board's values, every page as a
+      <!-- A phone's home in place of the list (list.js, drawKeypadSections; #498): the Board's values, every page as a
            section of keys and the Chief's message box. The stylesheet shows it below the list's phone width. -->
       <div class="kp-phone" id="kp-phone">
         <div class="kp-head"><div class="kp-board" id="kp-phone-board"></div></div>
@@ -43,13 +43,13 @@
       <nav class="side-foot">
         <!-- Settings; Activity, Skills, Connectors and Vault open from there. -->
         <button class="more-btn" id="more-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><i id="more-badge" class="more-badge hidden"></i></button>
-        <!-- The admin page, for the admin's session only (app.js, showAdminLink; ADR 028). -->
+        <!-- The admin page, for the admin's session only (settings.js, showAdminLink; ADR 028). -->
         <a class="more-btn hidden" id="admin-link" href="/admin" title="Admin" aria-label="Admin"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6z"/></svg></a>
       </nav>
     </aside>
-    <!-- The list's right edge: dragged to make the list wider or narrower (app.js, initSideGrip). -->
+    <!-- The list's right edge: dragged to make the list wider or narrower (list.js, initSideGrip). -->
     <div class="side-grip" id="side-grip" role="separator" aria-orientation="vertical" aria-label="Width of the list" aria-valuemin="72" aria-valuemax="480" tabindex="0"></div>
-    <!-- Beside the keypad, the chat's left edge: dragged to make the chat wider or narrower (app.js, initChatGrip). -->
+    <!-- Beside the keypad, the chat's left edge: dragged to make the chat wider or narrower (list.js, initChatGrip). -->
     <div class="chat-grip" id="chat-grip" role="separator" aria-orientation="vertical" aria-label="Width of the chat" aria-valuemin="400" aria-valuemax="900" tabindex="0"></div>
 
     <main class="main">
@@ -95,6 +95,24 @@
   <script src="/keypad.js"></script>
   <script src="/figure.js"></script>
   <script src="/app.js"></script>
+  <script src="/list.js"></script>
+  <script src="/bots.js"></script>
+  <script src="/runs.js"></script>
+  <script src="/computers.js"></script>
+  <script src="/chief.js"></script>
+  <script src="/bot-chat.js"></script>
+  <script src="/skills.js"></script>
+  <script src="/jobs.js"></script>
+  <script src="/connectors.js"></script>
+  <script src="/settings.js"></script>
+  <script src="/setup.js"></script>
+  <script src="/vault.js"></script>
+  <script src="/needs.js"></script>
+  <script src="/board.js"></script>
+  <script src="/login-requests.js"></script>
+  <script src="/replies.js"></script>
+  <script src="/feed.js"></script>
+  <script src="/boot.js"></script>
   <script src="/groups.js"></script>
   <script src="/claude-card.js"></script>
   <script src="/quiet-runs.js"></script>

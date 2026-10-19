@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { webSource } = require('./web-source');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
@@ -14,7 +15,7 @@ const page = vm.createContext({});
 vm.runInContext(read('unread.js'), page);
 vm.runInContext(read('ratings.js'), page);
 const { Ratings } = page;
-const app = read('app.js');
+const app = webSource();
 const css = read('style.css');
 const FEATURES = ['chief', 'unread', 'ratings'];
 const unasked = { role: 'chief', text: 'Your backup bot has not run since Monday. Start it?', at: '2026-10-03T09:00:00Z', unasked: true };
