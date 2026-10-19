@@ -92,6 +92,9 @@ RUNSC_FLAGS='"--ignore-cgroups", "--net-raw", "--overlay2=none"'
 # in their mounts, which gVisor lets a container reach only with --host-uds. Every other container, a bot's computer
 # first of all, runs under the default runsc, without it (#72).
 RUNSC_UDS_FLAGS="$RUNSC_FLAGS, \"--host-uds=all\""
+# The runtimes an account's Docker knows (its daemon.json, below, and Docker's own runc). A compose.yaml that names
+# another is from a newer version than this installer (#142).
+RUNTIMES='runc runsc runsc-uds'
 # Where the front door asks for new accounts, and root's copy of this installer that makes them.
 REQUESTS="$DOOR/requests"
 BIN="$DIR/bin"
@@ -740,6 +743,15 @@ if [ -n "$UNATTENDED" ] && [ "$SOURCE" = "$BIN" ] && [ -z "${BOT_DOT_HANDED_OVER
   rm -f "$BIN/install.sh.new"
 fi
 ACCOUNT_COMPOSE="$(image_file compose.yaml)" || die "Couldn't read compose.yaml from the image."
+# An installer older than the image (a run from a source not pulled, or an image from before it carried its installer)
+# would set up the accounts' Docker without a runtime the new compose names: compose would then stop each account half
+# done (#142). It stops here instead, before anything of an account is changed.
+for r in $(printf '%s\n' "$ACCOUNT_COMPOSE" | sed -n 's/^[[:space:]]*runtime:[[:space:]]*\([A-Za-z0-9._-]*\).*/\1/p' | sort -u); do
+  case " $RUNTIMES " in
+    *" $r "*) ;;
+    *) die "The image's compose.yaml needs the runtime $r, which this installer doesn't set up: it is older than the image. Take the installer of the same version (git pull in botdot's source) and run it again. Nothing was changed." ;;
+  esac
+done
 if [ "$MODE" = install ]; then
   image_file compose.front-door.yaml > "$DOOR/compose.yaml.new" || die "Couldn't read compose.front-door.yaml from the image."
   mv "$DOOR/compose.yaml.new" "$DOOR/compose.yaml"

@@ -334,6 +334,29 @@ test('a rerun keeps its Docker running when nothing of its settings changed', (t
   assert.doesNotMatch(after, /\/accounts\/ann\/data$/m, 'and then the server\'s: its running server keeps writing it');
 });
 
+test('an installer older than the image stops before it changes an account, and says to take the newer one (#142)', (t) => {
+  const first = rerun(t);
+  const file = path.join(first.dir, 'accounts', 'ann', '.config', 'docker', 'daemon.json');
+  const before = fs.readFileSync(file, 'utf8');
+  // The image's compose names a runtime this installer doesn't set up in an account's Docker.
+  const newer = `[ "$1" = run ] && [ "$8" = /opt/bot-dot/compose.yaml ] && { printf 'services:\\n  bot-dot:\\n    runtime: runsc-next\\n'; exit 0; }`;
+  const again = installer(t, { again: first, dockerFirst: [newer] });
+  assert.notEqual(again.status, 0);
+  assert.match(again.stderr, /runtime runsc-next/);
+  assert.match(again.stderr, /older than the image/);
+  assert.equal(fs.readFileSync(file, 'utf8'), before, 'the account\'s Docker keeps its settings');
+  const after = again.system.slice(first.system.length);
+  assert.doesNotMatch(after, /^systemctl (restart|stop) botdot-account@ann$/m, 'its containers keep running');
+  assert.ok(!again.accountCalls('ann').slice(first.accountCalls('ann').length).some((c) => /^compose .* up /.test(c)), 'nothing of the account is made again');
+});
+
+test('the runtimes compose.yaml names are the ones an account\'s Docker gets', () => {
+  const named = [...fs.readFileSync(path.join(ROOT, 'compose.yaml'), 'utf8').matchAll(/^\s*runtime:\s*([\w.-]+)/gm)].map((m) => m[1]);
+  assert.ok(named.length > 0);
+  const known = /^RUNTIMES='([^']*)'/m.exec(script)[1].split(' ');
+  for (const r of named) assert.ok(known.includes(r), r);
+});
+
 test('an account installed before computers kept their files gets --overlay2=none, and its Docker restarts with it (#68)', (t) => {
   const first = rerun(t);
   const file = path.join(first.dir, 'accounts', 'ann', '.config', 'docker', 'daemon.json');
