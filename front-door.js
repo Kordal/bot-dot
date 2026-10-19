@@ -62,7 +62,9 @@ if (ONE_ACCOUNT !== null && !store.ACCOUNT_NAME.test(ONE_ACCOUNT)) {
   process.exit(1);
 }
 const SETUP_KEY = ONE_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
-const doors = store.open(DATA);
+// The machine's RAM sizes the default share (#126): the last root's step measured, kept while its file is stale.
+let machineRam = null;
+const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; } });
 
 if (process.argv[2] === 'sign-up-link' || process.argv[2] === 'sign-in-link') {
   if (ONE_ACCOUNT) {
