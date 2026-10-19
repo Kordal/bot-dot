@@ -98,7 +98,7 @@ test("the owner's yes makes the key for no bot; the bot carries on told the addr
 
   // Later, through its own tool: the address and where the key is, never the key.
   const { did } = await inRun(bot, 'What was the address?', (token) => self(srv, token, 'jobs', { action: 'call', jobId: job.id }));
-  assert.deepEqual(did.data.call, { name: 'Gate', call: true, waiting: false, address, vaultItem: keyName(bot, job) });
+  assert.deepEqual(did.data.call, { name: 'Gate', call: true, waiting: false, address, vaultItem: keyName(bot, job), notifyUrl: null, notifyWaiting: null, notifySecretItem: null, notifyFailed: [] });
   assert.ok(!JSON.stringify(did.data).includes(key) && !JSON.stringify(did.data).includes(hash));
 });
 
@@ -141,7 +141,8 @@ test("a bot's MCP tools: propose_job_call, job_call and job_call_off, and its pr
   });
   const prompt = (await lastRun(bot)).system;
   assert.ok(['propose_job_call', 'job_call', 'job_call_off'].every((n) => did.names.includes(n)), did.names.join());
-  assert.ok(!did.names.includes('new_job_call_key'));
+  assert.ok(['propose_job_notify', 'job_notify_off'].every((n) => did.names.includes(n)), did.names.join());
+  assert.ok(!did.names.includes('new_job_call_key') && !did.names.includes('new_job_notify_secret'));
   assert.match(did.proposed, /waits for the owner's OK on a card in Needs you/);
   assert.deepEqual([did.info.call, did.info.waiting], [false, true]);
   assert.match(did.off, /Calls to the job "Barn" are off/);

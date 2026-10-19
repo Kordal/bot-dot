@@ -9,5 +9,5 @@
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["lib/front-door/*.js", "lib/calls.js"]
+  "include": ["lib/front-door/*.js", "lib/calls.js", "lib/notify.js"]
 }

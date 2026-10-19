@@ -63,6 +63,10 @@ function wireJobChange(card) {
   if (review) review.onclick = () => { const bot = botById(state.botId); const job = bot?.jobs?.find((x) => x.id === card.dataset.job); if (job && changeOf(job)) openJobApproval(bot, job); };
 }
 
+// Where a job sends the end of each run (`notifyUrl`, docs/api.md "Telling an address when a run ends"): shown, not
+// edited here; the Chief or the bot proposes it and the owner approves it on a card. '' for a job without one.
+const jobNotifyLine = (j) => (typeof j.notifyUrl === 'string' && j.notifyUrl ? `<div class="faint job-notify">Tells <span class="mono">${esc(j.notifyUrl)}</span> when a run ends, signed with the secret in the Vault.</div>` : '');
+
 function jobCardHTML(j, open = false) {
   const script = j.kind === 'script';
   const preset = CRON_PRESETS.some((p) => p.cron === j.cron);
@@ -77,6 +81,7 @@ function jobCardHTML(j, open = false) {
       <div class="job-body">
         ${jobChangeNote(j)}${!j.approved ? `<div class="req-note job-approve">${esc(j.changedBy === 'bot' ? 'The bot' : j.changedBy === 'chief' ? 'The Chief' : 'Someone')} set this up, so it waits for your OK before it runs. <button type="button" class="btn sm primary" data-approve>Approve</button></div>` : ''}
         ${j.assessment ? `<div class="job-why">💡 ${esc(j.assessment)}</div>` : ''}
+        ${jobNotifyLine(j)}
         <div class="row">
           <label class="field">Name<input type="text" name="jobName" value="${esc(j.name)}" placeholder="e.g. Morning news" maxlength="60"></label>
           <label class="field">When<select name="jobWhen">

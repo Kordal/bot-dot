@@ -70,6 +70,7 @@ data class Job(
     val script: String = "",
     val aiWhen: String? = null,
     val assessment: String = "",
+    val notifyUrl: String? = null, // where botdot sends the end of each run (#37); null without one, or from an older server
     val createdBy: String? = null,
     val changedBy: String? = null,
     val last: JobLast? = null,
