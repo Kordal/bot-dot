@@ -89,14 +89,20 @@ function openScreen(botId) {
   const fit = () => fitScreen(m);
   window.addEventListener('resize', fit);
   const frame = () => {
-    const on = state.computers?.[botId] === 'running';
+    // Its own screen off on the running computer (#134): the server's words and a button, not a viewer that can't connect.
+    const off = state.computers?.[botId] === 'running' && info?.screenOff;
+    const on = state.computers?.[botId] === 'running' && !off;
     $('#screen-state', m).textContent = `Computer is ${computerLabel(botId)}.${bot.running ? ' The bot is using it right now.' : ''}${$('#screen-state', m).dataset.disk || ''}`;
     $('#screen-control', m).textContent = control ? '👁 Just watch' : '🖱 Take control';
     $('#screen-full', m).href = screenUrl(botId, control);
     $('#screen-control', m).disabled = !on;
-    $('#screen-frame', m).innerHTML = on
+    $('#screen-frame', m).innerHTML = off
+      ? `<div class="screen-off"><div class="big">🖥</div>${esc(off.text)}<div><button class="btn sm" id="screen-start">${esc(off.start)}</button></div></div>`
+      : on
       ? `<iframe src="${screenUrl(botId, control)}" title="Live screen"></iframe>`
       : `<div class="screen-off"><div class="big">🖥</div>${state.computers?.[botId] === 'stopped' ? "The account's computer is starting again. It stays on for every bot." : "The account's computer isn't made yet. The first computer tool of any bot makes it."}</div>`;
+    const start = $('#screen-start', m);
+    if (start) start.onclick = async () => { start.disabled = true; await act('start', 'Starting its screen…'); await describe(); };
     keepScreenConnected($('#screen-frame iframe', m));
     fit();
   };

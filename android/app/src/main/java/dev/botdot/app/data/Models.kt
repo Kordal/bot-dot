@@ -1039,6 +1039,7 @@ data class ComputerInfo(
     val update: ComputerWords? = null,
     val old: OldComputer? = null,
     val usage: ComputerUsage? = null,
+    val screenOff: ScreenOff? = null,
 ) {
     /** Whether Reset erases the account's computer for every bot ([reset]), or, on a server from before, the bot's own. */
     val resetsAll: Boolean get() = reset != null
@@ -1050,6 +1051,10 @@ data class ComputerInfo(
         "Reset",
     )
 }
+
+/** The bot's own screen is off on the running computer (#134): the server's line and what its start button reads. */
+@Serializable
+data class ScreenOff(val text: String = "", val start: String = "")
 
 @Serializable
 data class ComputerUser(val id: String = "", val name: String = "")

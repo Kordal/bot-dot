@@ -54,7 +54,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     var control by remember { mutableStateOf(false) }
-    var state by remember { mutableStateOf("checking") } // checking | starting | running | error | resetting | reset | updating
+    var state by remember { mutableStateOf("checking") } // checking | starting | running | off | error | resetting | reset | updating
     var error by remember { mutableStateOf<String?>(null) }
     var info by remember { mutableStateOf<ComputerInfo?>(null) } // the server's words for it (#107)
     var askReset by remember { mutableStateOf(false) }
@@ -110,11 +110,22 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         }
     }
 
+    fun startScreen() {
+        val a = api ?: return
+        state = "starting"
+        scope.launch {
+            runCatching { a.startComputer(botId) }
+                .onSuccess { state = "running"; describe() }
+                .onError { state = "error"; error = it.message }
+        }
+    }
+
     LaunchedEffect(api) {
         val a = api ?: return@LaunchedEffect
         val found = runCatching { a.computer(botId) }.getOrNull()
         info = found
-        if (found?.state == "running") { state = "running"; return@LaunchedEffect }
+        // Its own screen off (#134): say so, and start it only when asked, rather than a viewer that can't connect.
+        if (found?.state == "running") { state = if (found.screenOff != null) "off" else "running"; return@LaunchedEffect }
         state = "starting"
         runCatching { a.startComputer(botId) }
             .onSuccess { state = "running" }
@@ -176,6 +187,10 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                             onRelease = { it.destroy() },
                             modifier = Modifier.fillMaxSize(),
                         )
+                    }
+                    "off" -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                        Text(info?.screenOff?.text.orEmpty(), color = Color.White)
+                        TextButton(onClick = { startScreen() }) { Text(info?.screenOff?.start?.ifBlank { null } ?: "Start its screen", color = Color.White) }
                     }
                     "error" -> Text(error ?: "Couldn't start its computer.", color = Color.White, modifier = Modifier.padding(24.dp))
                     "reset" -> Text(
