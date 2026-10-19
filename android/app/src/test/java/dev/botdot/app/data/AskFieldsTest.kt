@@ -248,4 +248,17 @@ class AskFieldsTest {
         assertEquals("Proxmox Admin's commands will be able to read this secret. Only for a secret that guards something on its own computer.", ToolCard.text(ask.warning))
         assertEquals("Allow", ask.yes)
     }
+
+    @Test fun aVaultRemoveHasItsTitlePartsAndYes() {
+        // A bot asks to remove a Vault entry (docs/api.md, "A Vault entry a bot asks to remove"): drawn as a switch's card.
+        val ask = asks("""[{"id":"r1","kind":"vault-remove","botId":"vps","bot":{"id":"vps","name":"VPS Admin","color":"#4a7fd8"},"reason":"Uptime Kuma is gone.",
+            "itemId":"i1","loginName":"Uptime Kuma netcup API key","site":"api.netcup.example","title":"Let VPS Admin remove “Uptime Kuma netcup API key” from the Vault?",
+            "parts":[{"label":"Entry","now":"Uptime Kuma netcup API key (api.netcup.example)"},{"label":"Asked by","now":"VPS Admin"},{"label":"Goes to","now":"Bitwarden's Trash, where you can restore it for 30 days"}],
+            "yes":"Allow","yesOn":"card","at":"2026-10-19T15:00:00.000Z"}]""").single()
+        assertEquals("vault-remove", ask.kind)
+        assertEquals("Let VPS Admin remove “Uptime Kuma netcup API key” from the Vault?", ask.title)
+        assertEquals(listOf(ChangedPart("Entry", null, "Uptime Kuma netcup API key (api.netcup.example)"), ChangedPart("Asked by", null, "VPS Admin"), ChangedPart("Goes to", null, "Bitwarden's Trash, where you can restore it for 30 days")), ask.parts)
+        assertEquals("", ToolCard.text(ask.warning))
+        assertEquals("Allow", ask.yes)
+    }
 }
