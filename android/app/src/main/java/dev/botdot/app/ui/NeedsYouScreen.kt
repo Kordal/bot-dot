@@ -1065,9 +1065,10 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             ThenLine(then)
             Buttons(ToolCard.INSTALL, { decide(t.title, true, ToolCard.answered(true)) }, ToolCard.DECLINE, { decide(t.title, false, ToolCard.answered(false)) })
         }
-    } else if (a.kind == "vault-switch") {
+    } else if (a.kind == "vault-switch" || a.kind == "vault-remove") {
         // A switch of a saved login a bot asks for: the server's title, the bot's reason, the login and the switch as
-        // rows, the warning of "Usable in its computer", and the server's word on the yes. As on the web page.
+        // rows, the warning of "Usable in its computer", and the server's word on the yes. As on the web page. A Vault
+        // entry a bot asks to remove is drawn the same way: its rows name the entry, the bot and Bitwarden's Trash.
         val warning = ToolCard.text(a.warning)
         Card(who, a.title, a.reason, expandable = true) {
             if (a.parts.isNotEmpty()) ChangedParts(a.parts)

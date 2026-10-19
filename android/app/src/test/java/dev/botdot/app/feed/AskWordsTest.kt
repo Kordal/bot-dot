@@ -87,4 +87,11 @@ class AskWordsTest {
         assertEquals("Asks to turn on “Accept self-signed certificate” for “Proxmox read-only API token”", words(tls).first)
         assertEquals(listOf("Decline"), buttons(tls))
     }
+
+    @Test fun aVaultRemoveIsAnsweredOnItsCardOnly() {
+        // A bot asks to remove a Vault entry: the server's line, and Decline alone (`yesOn: "card"`).
+        val remove = """{"id":"r1","kind":"vault-remove","botId":"vps","botName":"VPS Admin","text":"Asks to remove “Uptime Kuma netcup API key” from the Vault","yesOn":"card"}"""
+        assertEquals("Asks to remove “Uptime Kuma netcup API key” from the Vault", words(remove).first)
+        assertEquals(listOf("Decline"), buttons(remove))
+    }
 }

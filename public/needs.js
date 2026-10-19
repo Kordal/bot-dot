@@ -125,8 +125,9 @@ function needCardHTML(x, here = null) {
       `<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || 'Approve')}</button>`, parts ? 'need-rows' : '');
   }
   // A switch of a saved login a bot asks for (`vault-switch`): the server's title, the bot's reason, the login and the
-  // switch as rows, the warning of "Usable in its computer", and the server's word on the yes.
-  if (x.kind === 'ask' && x.a.kind === 'vault-switch') {
+  // switch as rows, the warning of "Usable in its computer", and the server's word on the yes. A Vault entry a bot asks
+  // to remove (`vault-remove`) is drawn the same way: its rows name the entry, the bot and Bitwarden's Trash.
+  if (x.kind === 'ask' && (x.a.kind === 'vault-switch' || x.a.kind === 'vault-remove')) {
     const warning = said(x.a.warning);
     return card(esc(said(x.a.title)), esc(said(x.a.reason)),
       `${partsHTML(x.a.parts)}${warning ? `<div class="need-body need-warn" role="note"><div class="nb">⚠️ ${esc(warning)}</div></div>` : ''}`,
@@ -515,6 +516,6 @@ function answeredWord(x, yes, always, answer) {
 
 async function refreshNeeds() {
   state.memPending = await api(MEMORY_WAITS).catch(() => state.memPending);
-  state.asks = await api('/asks?vault-switch=1&chief-action=1').catch(() => state.asks);
+  state.asks = await api('/asks?vault-switch=1&vault-remove=1&chief-action=1').catch(() => state.asks);
   await refresh();
 }
