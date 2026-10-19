@@ -10,8 +10,8 @@ services:
   bot-dot:
     image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
     restart: unless-stopped
-    # gVisor with host Unix sockets (install.sh, runsc-uds): it reaches the helper's socket and makes the front
-    # door's. The bots' computers run without them.
+    # gVisor with host Unix sockets (install.sh, runsc-uds): it reaches the helper's socket and makes the
+    # front door's socket. The bots' computers run without them.
     runtime: runsc-uds
     # Only the local process/file supervisor remains root. server.js runs as 60000:60000.
     cap_drop: [ALL]
