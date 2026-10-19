@@ -86,6 +86,8 @@ async function runTileSource(tile, source, where, extra = {}) {
 const asks = asksLib.create(B.DATA_DIR, { describe: (a) => askBrief(a) }); // permissions and skills bots ask the owner for
 // A change a bot proposed to its own instructions keeps the run that proposed it: the bot carries on after the yes (ADR 009).
 B.onChangeRequested((change) => asks.add({ kind: 'bot-change', ...change }, { runId: change.by === 'bot' ? change.runId || null : null }));
+// What each bot's teammates are told it reaches (#136): the names and kinds of the Vault's items shared with it, never a value.
+B.onLoginNames((botId) => store().forBot(botId).map((x) => ({ name: x.name, kind: x.kind || 'login' })));
 // What of a bot waits for the owner's OK on a card, in their words, for its first message (lib/hello.js): a held
 // change of the bot (bot-changes.js waitingWords) and a permission it asked for.
 B.onWaitingOnCards((bot) => asks.list().filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)

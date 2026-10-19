@@ -25,7 +25,7 @@ test('web: a bot\'s settings have no "Human-friendly replies" and no "While lear
   const field = (value) => ({ value, checked: false });
   const form = {
     name: field('Mail Watcher'), color: field('#1d9e75'), description: field(''), group: field(''), prompt: field(''), systemPrompt: field(''),
-    computer: field(''), computerAlwaysOn: field(''), tools: field(''), permissionMode: field('dontAsk'),
+    computer: field(''), computerAlwaysOn: field(''), othersMayAsk: field(''), tools: field(''), permissionMode: field('dontAsk'),
   };
   const sent = ctx.readBotForm(form, { skills: [], connectors: [], others: [], mayMessage: new Set() });
   assert.equal(sent.name, 'Mail Watcher');
