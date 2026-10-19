@@ -1024,8 +1024,49 @@ data class SetupInfo(
 @Serializable
 data class LoginLink(val url: String)
 
+/**
+ * A bot's computer (`GET /api/bots/:id/computer`): the account's one computer, which every bot with a computer works
+ * on. With `computer-reset` the server adds its own words (#107): [bots] that work on it, [reset] for the confirmation
+ * of a reset, which erases it for all of them, [update] when a newer desktop is offered, and [old], the bot's old
+ * computer of its own while it has one. A server from before sends none of them.
+ */
 @Serializable
-data class ComputerInfo(val state: String = "none")
+data class ComputerInfo(
+    val state: String = "none",
+    val bots: List<ComputerUser> = emptyList(),
+    val reset: ComputerWords? = null,
+    val update: ComputerWords? = null,
+    val old: OldComputer? = null,
+) {
+    /** Whether Reset erases the account's computer for every bot ([reset]), or, on a server from before, the bot's own. */
+    val resetsAll: Boolean get() = reset != null
+
+    /** What the confirmation of Reset says: the server's words, or the words for the bot's own computer of before. */
+    fun resetWords(botName: String): ComputerWords = reset ?: ComputerWords(
+        "Reset ${botName.ifBlank { "its" }}'s computer?",
+        "Everything installed on it, its files and its browser logins are erased. The next run starts from a fresh desktop.",
+        "Reset",
+    )
+}
+
+@Serializable
+data class ComputerUser(val id: String = "", val name: String = "")
+
+/** A confirmation as the server words it: its title (may be empty), its text, and what its yes button reads. */
+@Serializable
+data class ComputerWords(val title: String = "", val text: String = "", val yes: String = "")
+
+/** A bot's old computer of its own, kept and stopped: its line, the folder its files are copied into, and the buttons. */
+@Serializable
+data class OldComputer(val state: String = "", val folder: String = "", val text: String = "", val copy: String = "", val erase: String = "", val confirm: String = "")
+
+/** What `POST /api/computer/reset` and `/api/computer/update` answer: the account computer's state, and why an update failed. */
+@Serializable
+data class ComputerChanged(val state: String = "none", val erased: Boolean = false, val updated: Boolean = false, val error: String? = null)
+
+/** What copying a bot's old computer answers: the folder its home was copied into. */
+@Serializable
+data class OldCopied(val copied: String = "")
 
 /** The Board (GET /api/dashboard): headings in order, the tiles, and those whose script waits for your OK. */
 @Serializable

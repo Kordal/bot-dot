@@ -3,9 +3,13 @@ package dev.botdot.app.ui
 import android.annotation.SuppressLint
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,13 +34,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.botdot.app.BotDotApp
+import dev.botdot.app.data.ComputerInfo
 import kotlinx.coroutines.launch
 
 /**
- * A bot's desktop, live: botdot's own screen page (noVNC) in a web view. Watching only, unless
- * you take control (then taps and typing go to the bot's computer). Reset erases the computer, as on the web.
+ * A bot's desktop, live: botdot's own screen page (noVNC) in a web view. Watching only, unless you take control (then
+ * taps and typing go to the bot's screen). Reset erases the account's computer for every bot that works on it, after a
+ * confirmation in the server's words (#107); Update makes it again from a newer desktop when one is offered; a bot's
+ * old computer of its own is shown above the screen, with Copy its files and Erase it. As on the web.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -45,27 +53,67 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     var control by remember { mutableStateOf(false) }
-    var state by remember { mutableStateOf("checking") } // checking | starting | running | error | resetting | reset
+    var state by remember { mutableStateOf("checking") } // checking | starting | running | error | resetting | reset | updating
     var error by remember { mutableStateOf<String?>(null) }
+    var info by remember { mutableStateOf<ComputerInfo?>(null) } // the server's words for it (#107)
     var askReset by remember { mutableStateOf(false) }
+    var askUpdate by remember { mutableStateOf(false) }
+    var askErase by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
+
+    suspend fun describe() { api?.let { a -> runCatching { a.computer(botId) }.onSuccess { info = it } } }
 
     fun reset() {
         val a = api ?: return
         val before = state
+        val all = info?.resetsAll == true
         state = "resetting"; control = false
         scope.launch {
-            runCatching { a.resetComputer(botId) }
-                .onSuccess { state = "reset" }
+            runCatching { if (all) a.resetAccountComputer() else a.resetComputer(botId) }
+                .onSuccess { state = "reset"; describe() }
                 .onError { state = before; snack.showSnackbar(it.message ?: "Couldn't reset") }
+        }
+    }
+
+    fun update() {
+        val a = api ?: return
+        state = "updating"; control = false
+        scope.launch {
+            runCatching { a.updateAccountComputer() }
+                .onSuccess { r ->
+                    state = if (r.state == "running") "running" else "error"
+                    if (!r.updated) error = r.error
+                    r.error?.let { snack.showSnackbar(it) }
+                    describe()
+                }
+                .onError { state = "running"; snack.showSnackbar(it.message ?: "Couldn't update") }
+        }
+    }
+
+    fun copyOld() {
+        val a = api ?: return
+        scope.launch {
+            runCatching { a.copyOldComputer(botId) }
+                .onSuccess { snack.showSnackbar("Copied into ${it.copied}") }
+                .onError { snack.showSnackbar(it.message ?: "Couldn't copy its files") }
+        }
+    }
+
+    fun eraseOld() {
+        val a = api ?: return
+        scope.launch {
+            runCatching { a.resetComputer(botId) }
+                .onSuccess { describe() }
+                .onError { snack.showSnackbar(it.message ?: "Couldn't erase it") }
         }
     }
 
     LaunchedEffect(api) {
         val a = api ?: return@LaunchedEffect
-        val info = runCatching { a.computer(botId) }.getOrNull()
-        if (info?.state == "running") { state = "running"; return@LaunchedEffect }
+        val found = runCatching { a.computer(botId) }.getOrNull()
+        info = found
+        if (found?.state == "running") { state = "running"; return@LaunchedEffect }
         state = "starting"
         runCatching { a.startComputer(botId) }
             .onSuccess { state = "running" }
@@ -81,56 +129,93 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     if (state == "running") TextButton(onClick = { control = !control }) {
                         Text(if (control) "Stop controlling" else "Take control", color = if (control) p.err else p.text)
                     }
+                    info?.update?.let { u -> if (state == "running") TextButton(onClick = { askUpdate = true }) { Text(u.yes.ifBlank { "Update" }, color = p.text) } }
                     if (state == "running" || state == "error") TextButton(onClick = { askReset = true }) { Text("Reset", color = p.err) }
                 })
         },
         snackbarHost = { SnackbarHost(snack) },
     ) { pad ->
-        Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
-            when (state) {
-                "running" -> {
-                    val url = api?.screenUrl(botId, control) ?: return@Box
-                    AndroidView(
-                        factory = { ctx ->
-                            if (dev.botdot.app.BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
-                            WebView(ctx).apply {
-                                // Fill the space: with the default "as tall as its content", the page's 100% height is 0.
-                                layoutParams = android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                webViewClient = WebViewClient() // stay inside the view
-                                setBackgroundColor(android.graphics.Color.BLACK)
-                            }
-                        },
-                        update = {
-                            if (it.url != url) {
-                                // The page and its WebSocket go through the front door: they carry the app's session (ADR 028).
-                                val a = api
-                                a?.session?.token(a.baseUrl)?.let { token ->
-                                    android.webkit.CookieManager.getInstance().setCookie(a.baseUrl, "${dev.botdot.app.data.Session.COOKIE}=$token; Path=/; Secure; HttpOnly")
-                                }
-                                it.loadUrl(url)
-                            }
-                        },
-                        onRelease = { it.destroy() },
-                        modifier = Modifier.fillMaxSize(),
-                    )
+        Column(Modifier.padding(pad).fillMaxSize()) {
+            // The bot's old computer of its own, kept and stopped until its files are copied and it is erased (#107).
+            info?.old?.let { old ->
+                Column(Modifier.fillMaxWidth().background(p.sunk).padding(horizontal = 16.dp, vertical = 10.dp)) {
+                    Text(old.text, color = p.text, fontSize = 13.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { copyOld() }) { Text(old.copy.ifBlank { "Copy its files" }, color = p.text) }
+                        TextButton(onClick = { askErase = true }) { Text(old.erase.ifBlank { "Erase it" }, color = p.err) }
+                    }
                 }
-                "error" -> Text(error ?: "Couldn't start its computer.", color = Color.White, modifier = Modifier.padding(24.dp))
-                "reset" -> Text("Its computer was erased. The next run starts from a fresh desktop.", color = Color.White, modifier = Modifier.padding(24.dp))
-                else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = Color.White)
-                    Text(when (state) { "starting" -> "Starting its computer…"; "resetting" -> "Resetting…"; else -> "" }, color = Color.White, modifier = Modifier.padding(top = 12.dp))
+            }
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                when (state) {
+                    "running" -> {
+                        val url = api?.screenUrl(botId, control) ?: return@Box
+                        AndroidView(
+                            factory = { ctx ->
+                                if (dev.botdot.app.BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
+                                WebView(ctx).apply {
+                                    // Fill the space: with the default "as tall as its content", the page's 100% height is 0.
+                                    layoutParams = android.view.ViewGroup.LayoutParams(android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT)
+                                    settings.javaScriptEnabled = true
+                                    settings.domStorageEnabled = true
+                                    webViewClient = WebViewClient() // stay inside the view
+                                    setBackgroundColor(android.graphics.Color.BLACK)
+                                }
+                            },
+                            update = {
+                                if (it.url != url) {
+                                    // The page and its WebSocket go through the front door: they carry the app's session (ADR 028).
+                                    val a = api
+                                    a?.session?.token(a.baseUrl)?.let { token ->
+                                        android.webkit.CookieManager.getInstance().setCookie(a.baseUrl, "${dev.botdot.app.data.Session.COOKIE}=$token; Path=/; Secure; HttpOnly")
+                                    }
+                                    it.loadUrl(url)
+                                }
+                            },
+                            onRelease = { it.destroy() },
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    "error" -> Text(error ?: "Couldn't start its computer.", color = Color.White, modifier = Modifier.padding(24.dp))
+                    "reset" -> Text(
+                        if (info?.resetsAll == true) "The account's computer was erased. The next computer tool of any bot starts it again, fresh."
+                        else "Its computer was erased. The next run starts from a fresh desktop.",
+                        color = Color.White, modifier = Modifier.padding(24.dp),
+                    )
+                    else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = Color.White)
+                        Text(when (state) { "starting" -> "Starting its computer…"; "resetting" -> "Resetting…"; "updating" -> "Updating…"; else -> "" }, color = Color.White, modifier = Modifier.padding(top = 12.dp))
+                    }
                 }
             }
         }
     }
 
-    if (askReset) AlertDialog(
-        onDismissRequest = { askReset = false },
-        title = { Text("Reset ${botName.ifBlank { "its" }}'s computer?") },
-        text = { Text("Everything installed on it, its files and its browser logins are erased. The next run starts from a fresh desktop.") },
-        confirmButton = { TextButton(onClick = { askReset = false; reset() }) { Text("Reset", color = p.err) } },
-        dismissButton = { TextButton(onClick = { askReset = false }) { Text("Keep", color = p.text) } },
-    )
+    // The confirmation names the bots that work on the account's computer and what is lost: the server's words.
+    if (askReset) {
+        val words = (info ?: ComputerInfo()).resetWords(botName)
+        AlertDialog(
+            onDismissRequest = { askReset = false },
+            title = { Text(words.title) },
+            text = { Text(words.text) },
+            confirmButton = { TextButton(onClick = { askReset = false; reset() }) { Text(words.yes.ifBlank { "Reset" }, color = p.err) } },
+            dismissButton = { TextButton(onClick = { askReset = false }) { Text("Keep", color = p.text) } },
+        )
+    }
+    info?.update?.let { u ->
+        if (askUpdate) AlertDialog(
+            onDismissRequest = { askUpdate = false },
+            text = { Text(u.text) },
+            confirmButton = { TextButton(onClick = { askUpdate = false; update() }) { Text(u.yes.ifBlank { "Update" }, color = p.text) } },
+            dismissButton = { TextButton(onClick = { askUpdate = false }) { Text("Not now", color = p.text) } },
+        )
+    }
+    info?.old?.let { old ->
+        if (askErase) AlertDialog(
+            onDismissRequest = { askErase = false },
+            text = { Text(old.confirm) },
+            confirmButton = { TextButton(onClick = { askErase = false; eraseOld() }) { Text(old.erase.ifBlank { "Erase it" }, color = p.err) } },
+            dismissButton = { TextButton(onClick = { askErase = false }) { Text("Keep", color = p.text) } },
+        )
+    }
 }

@@ -297,8 +297,18 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun deleteBot(botId: String) { send("DELETE", "/bots/${enc(botId)}") }
     suspend fun computer(botId: String): ComputerInfo = json.decodeFromString(get("/bots/${enc(botId)}/computer"))
     suspend fun startComputer(botId: String) { send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "start") }) }
-    /** Erases a bot's computer (apps, files, browser logins). Its next run starts from a fresh desktop. */
+    /**
+     * Erases a bot's old computer of its own, made before the account's computer (#104). A server from before that
+     * erases the bot's computer itself (apps, files, browser logins).
+     */
     suspend fun resetComputer(botId: String) { send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "reset") }) }
+    /** Erases the account's computer for every bot that works on it (#107). Only with `computer-reset` in its features. */
+    suspend fun resetAccountComputer(): ComputerChanged = json.decodeFromString(send("POST", "/computer/reset"))
+    /** Makes the account's computer again from the newer desktop, keeping /home/box, /workspace and the logins (#107). */
+    suspend fun updateAccountComputer(): ComputerChanged = json.decodeFromString(send("POST", "/computer/update"))
+    /** Copies the home of a bot's old computer into its folder on the account's computer (#107, `old-computer-copy`). */
+    suspend fun copyOldComputer(botId: String): OldCopied =
+        json.decodeFromString(send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "copy-old") }))
     /** The page that shows a bot's desktop (noVNC, relayed by botdot). control = mouse and keyboard, not just watching. */
     fun screenUrl(botId: String, control: Boolean): String {
         val id = enc(botId)

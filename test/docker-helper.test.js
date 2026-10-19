@@ -11,7 +11,9 @@ test('the Docker helper accepts fixed computer operations and rejects arbitrary 
   const socket = path.join(dir, 'helper.sock');
   const calls = [];
   const cleaned = { removed: 1, skipped: 2, failed: 0, bytes: 3 };
-  const server = createServer({ computers: { inspect: async (id) => { calls.push(id); return { state: 'running' }; }, waiting: () => true }, updates: { clean: async (...args) => { calls.push(['clean', ...args]); return cleaned; } } });
+  const server = createServer({ computers: { inspect: async (id) => { calls.push(id); return { state: 'running' }; }, waiting: () => true,
+    resetAll: async (...args) => { calls.push(['resetAll', ...args]); return 'erased'; }, updateAll: async (...args) => { calls.push(['updateAll', ...args]); return 'updated'; },
+    copyOld: async (...args) => { calls.push(['copyOld', ...args]); return null; } }, updates: { clean: async (...args) => { calls.push(['clean', ...args]); return cleaned; } } });
   await new Promise((r) => server.listen(socket, r));
   t.after(async () => { await new Promise((r) => server.close(r)); fs.rmSync(dir, { recursive: true, force: true }); });
   const call = (value) => new Promise((resolve, reject) => {
@@ -37,9 +39,18 @@ test('the Docker helper accepts fixed computer operations and rejects arbitrary 
     { operation: 'update.clean', args: ['ghcr.io/kordal/bot-dot:latest'] },
     { operation: 'update.clean', args: [{ force: true }] },
     { operation: 'update.prune', args: [] },
+    // The account's computer (#107): a reset and an update take nothing, a copy only the bot whose old computer it is.
+    { operation: 'resetAll', args: ['test-bot'] },
+    { operation: 'updateAll', args: [{ image: 'evil' }] },
+    { operation: 'copyOld', args: [] },
+    { operation: 'copyOld', args: ['../../host'] },
+    { operation: 'copyOld', args: ['test-bot', '/etc'] },
   ]) assert.equal((await call(value)).status, 400, JSON.stringify(value));
   assert.deepEqual((await call({ operation: 'update.clean', args: [] })).data.value, cleaned);
-  assert.deepEqual(calls, ['test-bot', ['clean']]);
+  for (const value of [{ operation: 'resetAll', args: [] }, { operation: 'updateAll', args: [] }, { operation: 'copyOld', args: ['test-bot'] }]) {
+    assert.equal((await call(value)).status, 200, JSON.stringify(value));
+  }
+  assert.deepEqual(calls, ['test-bot', ['clean'], ['resetAll'], ['updateAll'], ['copyOld', 'test-bot']]);
 });
 
 test("owner edits and power settings never turn off the account's computer (#104)", async (t) => {

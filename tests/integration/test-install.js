@@ -96,7 +96,7 @@ function buildServer(tag, temp) {
 // The account's computer (ADR 035): what lib/computers.js needs of cua's desktop to start it, secure its network
 // and start a bot's screen on it, and nothing else. Its users box and browser, python3 (botdot reaches the computer
 // through it), iptables (the computer's firewall), supervisor (each bot's screen is a supervisord with botdot's
-// deploy/desktop/botdot-screen.conf, #105), a computer-server that answers /status on the screen's port, and the
+// deploy/desktop/botdot-screen.conf, #105), procps (botdot-tailscale ends a bot's old Tailscale with pkill, #106), a computer-server that answers /status on the screen's port, and the
 // label of a desktop made for the account's computer. The screen's desktop has no VNC server here, so it stops,
 // and noVNC and the browser bridge's interpreter end at once: the stand-in has no desktop and no Camoufox.
 const COMPUTER_SERVER = `# The stand-in for cua's computer-server: it answers /status on its port, which botdot waits for as a screen starts.
@@ -118,7 +118,7 @@ function buildComputer(tag, temp) {
   fs.writeFileSync(path.join(context, 'computer-server.py'), COMPUTER_SERVER);
   fs.writeFileSync(path.join(context, 'Dockerfile'), [
     `FROM ${NODE_IMAGE}`,
-    'RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 iptables supervisor && rm -rf /var/lib/apt/lists/*',
+    'RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 iptables supervisor procps && rm -rf /var/lib/apt/lists/*',
     'RUN useradd --create-home --shell /bin/bash box && useradd --create-home --shell /usr/sbin/nologin --groups box browser'
       + ' && install -d -o box -g box -m 2775 /workspace && install -d -o browser -g browser -m 0700 /run/botdot-browser /home/browser/profiles'
       + ' && install -d -o box -g box -m 0755 /run/botdot-desktop /var/log/supervisor',

@@ -69,11 +69,13 @@ function startComputer(machine, image) {
   return { id, container };
 }
 
-// A stand-in tailscaled for the bot's home: it notes its arguments and listens on its socket, as botdot-tailscale
-// waits for (deploy/desktop/botdot-tailscale), and a state that holds a login, as tailscaled keeps it once approved.
+// A stand-in tailscaled for root's Tailscale folder (#106): it notes its arguments there and listens on its socket, as
+// botdot-tailscale waits for (deploy/desktop/botdot-tailscale), and a state that holds a login, as tailscaled keeps it
+// once approved.
+const TAILSCALE_DIR = '/var/lib/botdot-tailscale';
 const TAILSCALED = `#!/usr/bin/python3
-import json, os, socket, sys, time
-open(os.path.join(os.environ['HOME'], 'tailscaled.args'), 'w').write(json.dumps(sys.argv[1:]))
+import json, socket, sys, time
+open('${TAILSCALE_DIR}/tailscaled.args', 'w').write(json.dumps(sys.argv[1:]))
 s = socket.socket(socket.AF_UNIX); s.bind([a.split('=', 1)[1] for a in sys.argv if a.startswith('--socket=')][0]); s.listen(); time.sleep(600)
 `;
 const SIGNED_IN = JSON.stringify({ _machinekey: Buffer.from('privkey:00').toString('base64'), _profiles: Buffer.from(JSON.stringify({ a1b2: { ID: 'a1b2' } })).toString('base64') });
@@ -84,20 +86,37 @@ const SIGNED_IN = JSON.stringify({ _machinekey: Buffer.from('privkey:00').toStri
 function computerKeepsItsFiles(machine, id, container) {
   const computer = (action) => machine.api('POST', `/api/bots/${id}/computer`, { action });
   const asBox = (script, ...args) => machine.account(ADMIN, 'exec', '-u', 'box', '-e', 'HOME=/home/box', container, 'sh', '-c', script, 'sh', ...args);
-  stage.step(`writing into box's home on the account's computer, then stopping it and starting it for bot ${id}`);
+  const asRoot = (script, ...args) => machine.account(ADMIN, 'exec', '-u', 'root', container, 'sh', '-c', script, 'sh', ...args);
+  const startedAgain = (why) => {
+    const args = JSON.parse(asRoot(`cat ${TAILSCALE_DIR}/tailscaled.args`));
+    assert.ok(args.includes(`--statedir=${TAILSCALE_DIR}/state`), why);
+  };
+  stage.step(`writing into box's home and root's Tailscale folder on the account's computer, then stopping it and starting it for bot ${id}`);
   assert.equal(computer('start').status, 200);
-  asBox('set -e; echo kept > ~/kept.txt; mkdir -p ~/.ssh ~/.local/tailscale/bin ~/.local/tailscale/state; echo key > ~/.ssh/id_test'
-    + '; printf %s "$1" > ~/.local/tailscale/bin/tailscaled; printf "#!/bin/sh\\n" > ~/.local/tailscale/bin/tailscale'
-    + '; chmod 755 ~/.local/tailscale/bin/*; printf %s "$2" > ~/.local/tailscale/state/tailscaled.state', TAILSCALED, SIGNED_IN);
+  asBox('set -e; echo kept > ~/kept.txt; mkdir -p ~/.ssh; echo key > ~/.ssh/id_test');
+  asRoot(`set -e; mkdir -p ${TAILSCALE_DIR}/bin ${TAILSCALE_DIR}/state; cd ${TAILSCALE_DIR}`
+    + '; printf %s "$1" > bin/tailscaled; printf "#!/bin/sh\\n" > bin/tailscale; chmod 755 bin/*'
+    + '; printf %s "$2" > state/tailscaled.state', TAILSCALED, SIGNED_IN);
   machine.account(ADMIN, 'stop', '-t', '5', container);
   assert.equal(computer('start').body.state, 'running');
   assert.equal(asBox('cat ~/kept.txt ~/.ssh/id_test'), 'kept\nkey', 'the home is there after a stop and a start under gVisor');
-  const tailscaled = JSON.parse(asBox('cat ~/tailscaled.args'));
-  assert.ok(tailscaled.includes('--statedir=/home/box/.local/tailscale/state'), 'Tailscale is started again from its saved login');
+  startedAgain('Tailscale is started again, as root, from its saved login');
 
   stage.step(`resetting the computer of bot ${id}`);
   assert.equal(computer('reset').body.state, 'running', 'the account\'s computer stays on');
   assert.equal(asBox('cat ~/kept.txt'), 'kept', 'and keeps what the bots made');
+
+  // #107: an update makes the account's computer again with the same volumes; a reset erases them, for every bot.
+  stage.step("updating the account's computer: box's home and root's Tailscale folder stay on their volumes");
+  asRoot(`rm ${TAILSCALE_DIR}/tailscaled.args`);
+  const updated = machine.api('POST', '/api/computer/update');
+  assert.equal(updated.body.updated, true, JSON.stringify(updated.body));
+  assert.equal(asBox('cat ~/kept.txt'), 'kept', 'an update keeps the home');
+  startedAgain('and the computer\'s Tailscale login, which starts it again (#106)');
+  stage.step("resetting the account's computer for every bot");
+  assert.equal(machine.api('POST', '/api/computer/reset').body.erased, true);
+  assert.equal(computer('start').body.state, 'running');
+  assert.equal(asBox('cat ~/kept.txt 2>/dev/null || echo gone'), 'gone', 'a reset erases the home');
 }
 
 // The admin's account: its own Linux user, its rootless Docker under gVisor, its botdot server in it, its socket.

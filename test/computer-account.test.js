@@ -16,14 +16,17 @@ const SHARE = path.join(shareDir, 'share.json');
 process.env.BOT_DOT_SHARE_FILE = SHARE;
 delete process.env.BOT_DOT_COMPUTER_MEMORY;
 const share = (text) => (text === null ? fs.rmSync(SHARE, { force: true }) : fs.writeFileSync(SHARE, text));
+const EventEmitter = require('node:events');
+const { PassThrough } = require('node:stream');
 
 dns.promises.Resolver = class {
   setServers() {}
   async resolve4() { const e = new Error('timed out'); e.code = 'ETIMEOUT'; throw e; }
 };
 
-// The stand-in Docker: containers by name, { state, labels }. With refuseLimits, it has no CPU cgroup.
-let containers, calls, screensUp, refuseLimits = false;
+// The stand-in Docker: containers by name, { state, labels, mounts }, and the named volumes. With refuseLimits, it has no
+// CPU cgroup. With missing, `docker cp` finds no such folder there.
+let containers, calls, screensUp, volumes, piped, missing, refuseLimits = false;
 function docker(args) {
   calls.push(args);
   const [cmd] = args;
@@ -38,10 +41,17 @@ function docker(args) {
     if (args[3]?.includes('user-version')) return c.versions;
     if (args[3]?.includes('.HostConfig.Runtime')) return 'runsc';
     if (args[3]?.includes('RestartPolicy')) return 'no';
+    if (args[3]?.includes('.Mounts')) return (c.mounts || []).join(' ');
     return '';
   }
+  if (cmd === 'volume' && args[1] === 'create') volumes.add(args.at(-1));
+  if (cmd === 'volume' && args[1] === 'rm') args.slice(2).filter((v) => v !== '-f').forEach((v) => volumes.delete(v));
   if (cmd === 'run' && refuseLimits && args.includes('--cpus')) throw new Error('Error response from daemon: NanoCPUs can not be set, as your kernel does not support CPU CFS scheduler or the cgroup is not mounted');
-  if (cmd === 'run') containers.set(args[args.indexOf('--name') + 1], { state: 'running', versions: '2|2' });
+  if (cmd === 'run' && args.includes('--name')) {
+    const mounts = args.filter((a, i) => args[i - 1] === '-v').map((v) => v.split(':')[0]);
+    mounts.forEach((v) => volumes.add(v));
+    containers.set(args[args.indexOf('--name') + 1], { state: 'running', versions: '2|2', mounts });
+  }
   if (cmd === 'stop' && name) containers.get(name).state = 'exited';
   if (cmd === 'start' && name) containers.get(name).state = 'running';
   if (cmd === 'rm' && name) containers.delete(name);
@@ -57,11 +67,25 @@ function fakeExecFile(file, args, opts, cb) {
   return { stdin: { on() {}, end() {} } };
 }
 fakeExecFile[util.promisify.custom] = async (file, args) => ({ stdout: docker(args) ?? '', stderr: '' });
+// A stream from one docker to another (a copy of files): each side is recorded, and both end well.
+function fakeSpawn(file, args) {
+  const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), kill() {} });
+  piped.push(args);
+  const gone = args[0] === 'cp' && missing.has(args[1].slice(args[1].indexOf(':') + 1));
+  setImmediate(() => {
+    if (gone) child.stderr.write(`Error response from daemon: Could not find the file ${args[1].slice(args[1].indexOf(':') + 1)} in container ${args[1].split(':')[0]}\n`);
+    child.stdout.end(); child.stderr.end(); child.emit('close', gone ? 1 : 0);
+  });
+  return child;
+}
 const realExecFile = childProcess.execFile;
+const realSpawn = childProcess.spawn;
 childProcess.execFile = fakeExecFile;
+childProcess.spawn = fakeSpawn;
 delete require.cache[require.resolve('../lib/computers')];
 const computers = require('../lib/computers');
 childProcess.execFile = realExecFile;
+childProcess.spawn = realSpawn;
 
 const ACCOUNT = 'botdot.account.computer';
 const runs = () => calls.filter((a) => a[0] === 'run');
@@ -72,6 +96,9 @@ after(() => fs.rmSync(shareDir, { recursive: true, force: true }));
 beforeEach(() => {
   share(null);
   calls = [];
+  piped = [];
+  missing = new Set();
+  volumes = new Set();
   screensUp = new Set();
   // Two bots' old computers of their own, made before (#104): one still running.
   containers = new Map([['botdot-a1', { state: 'running', versions: '2|1' }], ['botdot-b1', { state: 'exited', versions: '2|1' }]]);
@@ -238,4 +265,93 @@ test('a changed share sizes the computer at its next start', async () => {
 
 test('no start waits for a free computer: there is no such step', () => {
   assert.equal(computers.waiting, undefined);
+});
+
+// What survives (#107): /home/box, /workspace, the browsers' profiles and the computer's Tailscale login (root's, #106)
+// live on volumes of the account's own, which a new computer made from a newer desktop takes over. What apt installed
+// is in the computer itself and goes with it.
+const VOLUMES = [[`${ACCOUNT}-home`, '/home/box'], [`${ACCOUNT}-workspace`, '/workspace'], [`${ACCOUNT}-browser`, '/home/browser'],
+  [`${ACCOUNT}-tailscale`, '/var/lib/botdot-tailscale']];
+
+test("the account's computer keeps /home/box, /workspace, the browsers' logins and its Tailscale login on volumes of its own (#107)", async () => {
+  await computers.ensure(seat('a1'));
+  const run = runs()[0];
+  for (const [volume, dir] of VOLUMES) assert.ok(run.includes(`${volume}:${dir}`), `${volume}:${dir}`);
+  for (const [volume] of VOLUMES) {
+    const made = calls.find((a) => a[0] === 'volume' && a[1] === 'create' && a.at(-1) === volume);
+    assert.ok(made && made.includes('botdot.volume=account'), volume);
+  }
+});
+
+test('an update makes the computer again from the newer desktop, with the same volumes (#107)', async () => {
+  await computers.ensure(seat('a1'));
+  calls = [];
+  assert.equal(await computers.updateAll(), 'updated');
+  assert.ok(calls.some((a) => a[0] === 'rm' && a.includes(ACCOUNT)), 'the old container goes, with what apt installed in it');
+  assert.ok(!calls.some((a) => a[0] === 'volume' && a[1] === 'rm'), 'no volume is erased');
+  const again = runs();
+  assert.equal(again.length, 1);
+  for (const [volume, dir] of VOLUMES) assert.ok(again[0].includes(`${volume}:${dir}`));
+  assert.ok(again[0].includes(`${ACCOUNT}-tailscale:/var/lib/botdot-tailscale`), 'the computer stays on the tailnet, with no new approval');
+  assert.equal(containers.get(ACCOUNT).state, 'running');
+  assert.deepEqual(piped, [], 'its files were on the volumes already');
+  assert.ok(containers.has('botdot-a1') && containers.has('botdot-b1'), "the bots' old computers are not touched");
+  containers.delete(ACCOUNT);
+  assert.equal(await computers.updateAll(), 'none', 'nothing to update before it was ever made');
+});
+
+test('a computer made before the volumes has its folders copied onto them before an update (#107)', async () => {
+  containers.set(ACCOUNT, { state: 'running', versions: '2|2', mounts: [] });
+  assert.equal(await computers.updateAll(), 'updated');
+  assert.equal(piped.length, 8, 'a reading and a writing side for each of the four folders');
+  for (const [volume, dir] of VOLUMES) {
+    assert.ok(piped.some((a) => a[0] === 'cp' && a[1] === `${ACCOUNT}:${dir}` && a[2] === '-'), dir);
+    // At its own place, so the folder keeps its owner and mode: /home/box stays box's.
+    const into = piped.find((a) => a[0] === 'run' && a.includes(`${volume}:${dir}`));
+    assert.ok(into && into.includes('--rm') && into.includes('none'), volume);
+    assert.deepEqual(into.slice(-3), ['-x', '-C', dir.slice(0, dir.lastIndexOf('/')) || '/']);
+  }
+  const stop = calls.findIndex((a) => a[0] === 'stop' && a.includes(ACCOUNT));
+  const rm = calls.findIndex((a) => a[0] === 'rm' && a.includes(ACCOUNT));
+  assert.ok(stop >= 0 && stop < rm, 'stopped first, so nothing changes while it is copied');
+});
+
+test('a folder the computer never had is skipped in that copy: one that never joined the tailnet (#107)', async () => {
+  containers.set(ACCOUNT, { state: 'running', versions: '2|2', mounts: [] });
+  missing.add('/var/lib/botdot-tailscale');
+  assert.equal(await computers.updateAll(), 'updated');
+  assert.equal(containers.get(ACCOUNT).state, 'running');
+  // A folder every desktop has that cannot be copied stops the update, and nothing is erased.
+  const before = { state: 'running', versions: '2|2', mounts: [] };
+  containers.set(ACCOUNT, before);
+  missing.add('/workspace');
+  calls = [];
+  await assert.rejects(computers.updateAll(), /Couldn't keep its files, so nothing was changed: .*Could not find the file \/workspace/);
+  assert.equal(containers.get(ACCOUNT), before, 'the computer is kept');
+  assert.ok(!calls.some((a) => a[0] === 'rm'));
+});
+
+test("a reset erases the account's computer and its volumes, for every bot, and never a bot's old computer (#107)", async () => {
+  await computers.ensure(seat('a1'));
+  calls = [];
+  assert.equal(await computers.resetAll(), 'erased');
+  assert.ok(!containers.has(ACCOUNT));
+  for (const [volume] of VOLUMES) assert.ok(!volumes.has(volume), volume);
+  assert.ok(containers.has('botdot-a1') && containers.has('botdot-b1'));
+  assert.equal(await computers.resetAll(), 'none', 'nothing left to erase');
+  await computers.ensure(seat('a1'));
+  assert.equal(containers.get(ACCOUNT).state, 'running', 'the next computer tool makes it fresh');
+});
+
+test("a bot's old computer of its own: its home is copied into /workspace/<bot>/old-computer on the account's computer (#107)", async () => {
+  assert.equal((await computers.details('b1')).old, 'stopped', 'its screen says the old computer is kept, stopped');
+  assert.equal((await computers.details('c1')).old, undefined);
+  assert.deepEqual(await computers.copyOld('b1'), { copied: '/workspace/b1/old-computer' });
+  assert.equal(containers.get(ACCOUNT).state, 'running', "the account's computer is started for it");
+  const [from, to] = piped;
+  assert.deepEqual(from, ['cp', 'botdot-b1:/home/bot', '-']);
+  assert.deepEqual(to.slice(0, 5), ['exec', '-i', '-u', 'box', ACCOUNT]);
+  assert.equal(to.at(-1), '/workspace/b1/old-computer');
+  assert.equal(containers.get('botdot-b1').state, 'exited', 'the old one stays stopped and kept, until it is erased');
+  assert.equal(await computers.copyOld('c1'), null, 'a bot without one has nothing to copy');
 });
