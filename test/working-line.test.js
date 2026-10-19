@@ -38,6 +38,7 @@ test('a step in, one short plain line out', () => {
   assert.equal(tool('mcp__connectors__connector_run', { app: 'gmail', action: 'GMAIL_SEND_EMAIL' }), 'Using gmail');
   assert.equal(tool('mcp__self__remember', { text: 'x' }), 'Saving a note');
   assert.equal(tool('mcp__self__send_to_chief', { text: 'x' }), 'Writing to the Chief of Staff');
+  assert.equal(tool('mcp__self__propose_job_call', { jobId: 'j1', summary: 'x' }), 'Setting up a call'); // #37
   assert.equal(tool('mcp__self__something_new', {}), 'Looking after its notes and jobs');
   assert.equal(words({ phase: 'computer' }), 'Starting its computer');
   assert.equal(words({ phase: 'waiting' }), 'Waiting for a free computer'); // the account's computers that may run at once all run (#471)
