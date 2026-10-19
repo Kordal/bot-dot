@@ -8,7 +8,8 @@
     "matches: the mentions found in text, in order, as { kind: bot|job|skill, text, bot?, job?, skill? } (bot and job are ids, skill a name; text is the part of the message that is the mention).",
     "suggestions: the rows offered while the text before the cursor is typed, in order, as the text a pick inserts (followed by a space). [] means no list. Rows: bots, then jobs, then skills; a skill named like a bot is left out; after '@Bot/' only that bot's jobs; matching is a case-insensitive 'contains' on the short name.",
     "picks: { name, world, chat, before, pick, after, jobsNext }. before and after are the whole message with '|' where the cursor is. pick is the text of the suggested row (for the text before the cursor) that is picked. Picking puts the row's text in place of the '@…' before the cursor and the rest of that word, then a space unless a space (not a line break) follows already; the cursor goes after the space. jobsNext: a bot was picked and the space is new, so a '/' typed next replaces the space and lists the bot's jobs.",
-    "renamed: the team with the Chief named by the owner (#41). '@ChiefOfStaff' still means the Chief beside its name, and is not suggested."
+    "renamed: the team with the Chief named by the owner (#41). '@ChiefOfStaff' still means the Chief beside its name, and is not suggested.",
+    "group: a group's chat with all true (#124): '@all' is offered first while it is typed at the start of the message, and is no member's mention: a member named All is neither matched nor suggested there. Elsewhere '@all' is nothing of its own."
   ],
   "maxRows": 6,
   "shortNames": [
@@ -46,6 +47,15 @@
       "bots": [
         { "id": "chief", "name": "Ada", "jobs": [] },
         { "id": "fleet", "name": "Fleet Doctor", "skills": [], "jobs": [] }
+      ],
+      "library": []
+    },
+    "group": {
+      "all": true,
+      "bots": [
+        { "id": "ana", "name": "Ana", "jobs": [] },
+        { "id": "allbot", "name": "All", "jobs": [] },
+        { "id": "allie", "name": "Allie", "jobs": [] }
       ],
       "library": []
     }
@@ -117,7 +127,17 @@
     { "name": "a renamed Chief, by its role's mention still", "world": "renamed", "chat": "fleet", "text": "Ask @ChiefOfStaff and @chiefofstaff",
       "matches": [{ "kind": "bot", "text": "@ChiefOfStaff", "bot": "chief" }, { "kind": "bot", "text": "@chiefofstaff", "bot": "chief" }] },
     { "name": "a renamed Chief is suggested by its name only", "world": "renamed", "chat": "fleet", "typed": "Ask @Chief",
-      "suggestions": [] }
+      "suggestions": [] },
+    { "name": "in a group @all is no member's mention", "world": "group", "chat": "group:g1", "text": "@all and @Ana, @Allie: look",
+      "matches": [{ "kind": "bot", "text": "@Ana", "bot": "ana" }, { "kind": "bot", "text": "@Allie", "bot": "allie" }] },
+    { "name": "in a group @all is offered first at the start", "world": "group", "chat": "group:g1", "typed": "@",
+      "suggestions": ["@all", "@Ana", "@Allie"] },
+    { "name": "in a group @all is offered while it is typed", "world": "group", "chat": "group:g1", "typed": " @AL",
+      "suggestions": ["@all", "@Allie"] },
+    { "name": "in a group @all is not offered after other text", "world": "group", "chat": "group:g1", "typed": "Hi @al",
+      "suggestions": ["@Allie"] },
+    { "name": "in a group @all is not offered when nothing matches", "world": "group", "chat": "group:g1", "typed": "@an",
+      "suggestions": ["@Ana"] }
   ],
   "picks": [
     { "name": "a bot at the end", "world": "team", "chat": "chief", "before": "Ask @fle|", "pick": "@FleetDoctor",
@@ -133,6 +153,8 @@
     { "name": "a skill", "world": "team", "chat": "fleet", "before": "Use @week|", "pick": "@weekly-report",
       "after": "Use @weekly-report |", "jobsNext": false },
     { "name": "on a later line, text after it kept", "world": "team", "chat": "chief", "before": "Hi\n@mail|\nthanks", "pick": "@MailBot",
-      "after": "Hi\n@MailBot |\nthanks", "jobsNext": true }
+      "after": "Hi\n@MailBot |\nthanks", "jobsNext": true },
+    { "name": "@all in a group", "world": "group", "chat": "group:g1", "before": "@a|", "pick": "@all",
+      "after": "@all |", "jobsNext": false }
   ]
 }

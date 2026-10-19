@@ -15,7 +15,7 @@ class MentionsTest {
     data class Library(val name: String)
 
     @Serializable
-    data class World(val bots: List<Bot>, val library: List<Library>)
+    data class World(val bots: List<Bot>, val library: List<Library>, val all: Boolean = false)
 
     @Serializable
     data class Match(val kind: String, val text: String, val bot: String? = null, val job: String? = null, val skill: String? = null)
@@ -36,7 +36,7 @@ class MentionsTest {
         File(System.getProperty("mentionsTable") ?: "../../test/fixtures/mentions.json").readText(),
     )
 
-    private fun world(name: String, chat: String) = table.worlds.getValue(name).let { Mentions.World(chat, it.bots, it.library.map { k -> k.name }) }
+    private fun world(name: String, chat: String) = table.worlds.getValue(name).let { Mentions.World(chat, it.bots, it.library.map { k -> k.name }, all = it.all) }
     private fun world(c: Case) = world(c.world, c.chat)
 
     @Test fun maxRows() = assertEquals(table.maxRows, Mentions.MAX_ROWS)

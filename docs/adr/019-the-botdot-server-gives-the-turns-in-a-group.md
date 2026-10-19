@@ -67,10 +67,20 @@ Resolved by GRP-004 (2026-10-08), which delivers the hand-on and the limit:
 - **Two bots told to keep correcting each other** were stopped by the limit at the twelfth reply, three of three, with the thirteenth turn waiting; the third member passed each time.
 - **Not shown:** "Go on" (tested on the stand-in), a member naming another in passing (none did in 67 turns), and a turn that uses its tools: none called one.
 
+Amended by [#124](https://github.com/Kordal/bot-dot/issues/124) (2026-10-19), "@all":
+
+- **Turns stay one after another by default.** A question every member answers on its own ("What's the status of all VMs?") took one turn after another, which the owner asked about; asked whether to send to all at once, the owner chose "@all" ("yes lets do @all").
+- **A message of the owner's that starts with `@all`** (any case, then a space, a line or its end) **is all-at-once:** it records `together: true` and keeps its text as written, and its turns are asked without `@all`. Mentions after it pick nobody: every member that is not paused, deleted or out of the group gets one turn, and the member whose question was open does not go first.
+- **Every turn of it is given at once.** `advance` does not wait for a turn of the message to end before giving the next, and a turn of it that waits in a busy member's queue is not held while another turn of its message is at work (`together` beside `holds`, `lib/bots.js held`): it starts when its member is free, beside the others. The message is done when no turn of it is left at work, waiting or to come.
+- **Its replies hand on to nobody** (`handOn`), also the reply of a run that carried on after the owner's OK. The turn is told, in `RULES.together`, that the others answer at the same time without reading each other first, to answer once for its own part, never to change what another member owns, and that naming a member gives it no turn. A pass is still a pass.
+- **"Stop all", the working lines and the limit are as for any message:** every run at work is one line under the chat, "Stop all" ends them all, and each reply counts towards the 12. With six members at most the limit is not reached by one all-at-once message; were it reached, the turns not yet given would wait for "Go on" as any do.
+- **`@all` is reserved in a group's chat:** the mention rules read it as no member's mention (`public/mentions.js`, `all` in their context), so a member named "All" cannot be mentioned there. Typing `@` at the start of a message offers `@all` first, on the web page and on Android, when the server announces `group-all` in `features`.
+- **Why not instead.** The alternative "Every member answers at the same moment" below was rejected as the default for the duplicates it builds in; it stays rejected as the default. `@all` is the owner's choice per message, for questions each member answers alone, where duplicates are the point and hand-ons are not wanted.
+
 ## Alternatives
 
 - **The bots decide among themselves with `message_bot`.** Nothing to build on the server. Rejected: the limit is twenty hops per chain and not per message of the owner's, the messages are folded into each bot's own chat, and nothing but a model's judgement ends the exchange.
-- **Every member answers at the same moment.** The fastest. Rejected: no member reads another's reply, so the duplicates the survey reports are built in, and replies arrive in any order (OpenClaw).
+- **Every member answers at the same moment.** The fastest. Rejected as the default: no member reads another's reply, so the duplicates the survey reports are built in, and replies arrive in any order (OpenClaw). Since #124 the owner asks for it per message with `@all`.
 - **A model chooses the next speaker** (AutoGen, LobeHub). One answer at a time, for one more model call per turn and a choice the owner cannot predict. Excluded by the scope.
 - **Only a mentioned bot answers** (Poe, Open WebUI). The quietest and cheapest. Offered to the owner and not chosen.
 - **A turn that waited starts as soon as its member is free, also beside a later member's turn.** Less to keep track of. Rejected: the later member would not have read the reply of the one before it, which is what the order is for.

@@ -10,6 +10,9 @@
 //   chat: 'chief' or the id of the bot whose chat it is
 //   bots: [{ id, name, description?, prompt?, skills?, useSkills?, jobs?: [{ id, name, cron?, at?, kind?, prompt? }] }], the Chief included
 //   library: [{ name, description }], the whole skill library
+//   all: a group's chat, on a botdot that knows "@all" (#124, feature `group-all`): "@all" at the start of a message
+//     sends it to every member at once. It is offered first while it is typed there, and it is no member's mention:
+//     a member named All is neither matched nor suggested.
 // Skills in scope: the whole library in the Chief chat; the bot's picked skills in its own chat.
 // The apps follow the same rules, all checked against test/fixtures/mentions.json. The botdot server
 // (lib/mentions.js, which adds the note runs get) and the web page (a plain <script>, as
@@ -27,6 +30,7 @@ const NAME = '[\\p{L}\\p{N}_-]';
 const TOKEN = new RegExp(`(?<![\\p{L}\\p{N}_])@(${NAME}+)(?:/(${NAME}+))?`, 'gu');
 const TYPING = new RegExp(`(?<![\\p{L}\\p{N}_])@(${NAME}*)(?:/(${NAME}*))?$`, 'u');
 const WORD_REST = /^[\p{L}\p{N}_/-]*/u; // the rest of a mention's word after the cursor
+const ALL = 'all'; // "@all" in a group (ctx.all): every member at once, no member's mention
 
 // "Fleet Doctor" → "FleetDoctor", "Chief of Staff" → "ChiefOfStaff", "Morning check" → "MorningCheck".
 function shortName(name) {
@@ -46,6 +50,7 @@ function skillsInScope({ chat, bots = [], library = [] }) {
 
 // What "@a" or "@a/b" stands for, or null. Returns how much of the token it covers.
 function resolve(a, b, ctx, skills) {
+  if (ctx.all && same(a, ALL)) return null;
   const bots = ctx.bots || [];
   const bot = bots.find((x) => same(shortName(x.name), a)) || (same(CHIEF_ALIAS, a) ? bots.find((x) => x.id === CHIEF) : null);
   if (bot) {
@@ -71,12 +76,12 @@ function findMentions(text, ctx) {
 }
 
 // The suggestion rows for text typed up to the cursor, when it ends in a word starting with "@".
-// Bots, then jobs, then skills, at most MAX_ROWS. After "@Bot/" only that bot's jobs.
+// "@all" first in a group (ctx.all), then bots, then jobs, then skills, at most MAX_ROWS. After "@Bot/" only that bot's jobs.
 // Each row: { kind, text, label, bot?, job?, skill? }; picking it puts text plus a space in place of the "@…".
 function suggest(typed, ctx) {
   const m = String(typed || '').match(TYPING);
   if (!m) return [];
-  const bots = (ctx.bots || []).filter((b) => shortName(b.name)); // a name of only emoji can't be mentioned
+  const bots = (ctx.bots || []).filter((b) => shortName(b.name) && !(ctx.all && same(shortName(b.name), ALL))); // a name of only emoji can't be mentioned
   const has = (name, q) => name.toLowerCase().includes(q.toLowerCase());
   const jobRow = (bot, j) => ({ kind: 'job', text: `@${shortName(bot.name)}/${shortName(j.name)}`, label: `${bot.name} · ${j.name}`, bot: bot.id, job: j.id });
   let rows;
@@ -86,7 +91,9 @@ function suggest(typed, ctx) {
   } else {
     const q = m[1];
     const botNames = new Set(bots.map((b) => shortName(b.name).toLowerCase()));
+    const all = ctx.all && !String(typed).slice(0, m.index).trim() && has(ALL, q) ? [{ kind: 'all', text: `@${ALL}`, label: 'all: every member at once' }] : [];
     rows = [
+      ...all,
       ...bots.filter((b) => has(shortName(b.name), q)).map((b) => ({ kind: 'bot', text: `@${shortName(b.name)}`, label: b.name, bot: b.id })),
       ...bots.flatMap((b) => (b.jobs || []).filter((j) => has(shortName(j.name), q)).map((j) => jobRow(b, j))),
       ...skillsInScope(ctx).filter((k) => has(k.name, q) && !botNames.has(k.name.toLowerCase())).map((k) => ({ kind: 'skill', text: `@${k.name}`, label: k.name, skill: k.name })),

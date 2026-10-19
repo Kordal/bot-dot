@@ -156,8 +156,9 @@ function redrawMarks() {
 const botLabel = (b) => (b ? `${botMark(b)}${esc(b.name)}` : '');
 // Mentions (mentions.js): "@" plus a bot, a bot's job or a skill in a chat, matched against the names now.
 // chat is the Chief's id or the bot whose chat it is; it says which skills count. In a group's chat ("group:<id>")
-// a mention names a member and gives it the turn: only its members, and their jobs, are matched and suggested.
-const mentionCtx = (chat) => (String(chat).startsWith('group:') ? { chat, bots: groupMembers(groupById(String(chat).slice(6))), library: [] }
+// a mention names a member and gives it the turn: only its members, and their jobs, are matched and suggested, and
+// "@all" is offered first at the start of a message on a botdot that knows it (feature `group-all`, #124).
+const mentionCtx = (chat) => (String(chat).startsWith('group:') ? { chat, bots: groupMembers(groupById(String(chat).slice(6))), library: [], all: state.features.includes('group-all') }
   : { chat, bots: [CHIEF_BOT, ...state.bots], library: state.skillLib || [] });
 // The owner's own message with its mentions drawn: a bot as its small head and name, a job or a skill tinted; anything
 // else plain (escaped). Bot and Chief replies stay as they are.

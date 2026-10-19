@@ -99,7 +99,7 @@ Where the user keeps the secrets their bots may use without ever seeing them: bo
 _Avoid_: password manager, keychain, secrets store, credentials
 
 **Mention**:
-`@` plus the name of a bot, a bot's job or a skill in a message (`@FleetDoctor`, `@FleetDoctor/MorningCheck`, `@weekly-report`), saying the message is about it; it doesn't send anything to it or grant anything. In a group a mention of a member does one thing more: it gives that member the turn. The user's mention picks who answers, and a member's mention hands on. A mention of a bot that is no member gives nobody a turn.
+`@` plus the name of a bot, a bot's job or a skill in a message (`@FleetDoctor`, `@FleetDoctor/MorningCheck`, `@weekly-report`), saying the message is about it; it doesn't send anything to it or grant anything. In a group a mention of a member does one thing more: it gives that member the turn. The user's mention picks who answers, and a member's mention hands on. A mention of a bot that is no member gives nobody a turn. `@all` at the start of a message in a group is no mention: it gives every member its turn at once, and their replies hand on to nobody.
 _Avoid_: tag, ping
 
 **New reply**:
