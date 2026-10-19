@@ -1,7 +1,8 @@
 #!/bin/sh
 # One bot's desktop as box (#311, #105), in place of cua's /opt/desktop/start.sh, which keeps it in /root:
-# TigerVNC with an XFCE session on the screen's own display (SCREEN_DISPLAY, VNC port VNC_PORT, from
-# deploy/desktop/botdot-screen.conf), the browser user let onto that display to show Camoufox, and cua's theme.
+# TigerVNC with XFCE's window manager alone on the screen's own display (SCREEN_DISPLAY, VNC port VNC_PORT, from
+# deploy/desktop/botdot-screen.conf; the session is /usr/local/bin/botdot-xstartup, #134), the browser user let onto
+# that display to show Camoufox, and cua's window theme.
 # It then follows the screen's VNC log, so that supervisord sees it running.
 set -eu
 
@@ -11,7 +12,7 @@ N="${DISPLAY_NUM#:}"
 rm -f "/tmp/.X$N-lock" "/tmp/.X11-unix/X$N" 2>/dev/null || true
 
 mkdir -p "$HOME/.vnc"
-cp /opt/desktop/xstartup.sh "$HOME/.vnc/xstartup"
+cp /usr/local/bin/botdot-xstartup "$HOME/.vnc/xstartup"
 chmod +x "$HOME/.vnc/xstartup"
 
 vncserver "$DISPLAY_NUM" -geometry 1024x768 -depth 24 -rfbport "${VNC_PORT:-5901}" \
@@ -29,13 +30,7 @@ xhost +SI:localuser:browser
 
 sleep 6
 # lint-ignore: error-masking
-xfconf-query -c xsettings -p /Net/IconThemeName -s elementary-xfce-dark 2>/dev/null || true
-# lint-ignore: error-masking
-xfconf-query -c xsettings -p /Net/ThemeName -s Greybird 2>/dev/null || true
-# lint-ignore: error-masking
-xfconf-query -c xfce4-desktop -p '/backdrop/screen0/monitorVNC-0/workspace0/last-image' -s /usr/share/backgrounds/xfce/xfce-shapes.svg 2>/dev/null || true
-# lint-ignore: error-masking
-xfdesktop --reload 2>/dev/null || true
+xfconf-query -c xfwm4 -p /general/theme -s Greybird 2>/dev/null || true
 
 VNC_LOG="$(ls -t "$HOME"/.vnc/*"$DISPLAY_NUM".log 2>/dev/null | head -1)"
 exec tail -F "${VNC_LOG:-/dev/null}"

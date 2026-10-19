@@ -82,6 +82,7 @@ RUN python3 -m venv /opt/camoufox \
 
 COPY camoufox-browser /usr/local/bin/camoufox-browser
 COPY botdot-desktop /usr/local/bin/botdot-desktop
+COPY botdot-xstartup /usr/local/bin/botdot-xstartup
 # Each bot's screen: one supervisord with this per bot, started by botdot on the bot's first computer tool (#105).
 COPY botdot-screen.conf /etc/supervisor/botdot-screen.conf
 COPY camoufox.desktop /usr/share/applications/camoufox.desktop
@@ -92,7 +93,7 @@ COPY botdot-install /usr/local/bin/botdot-install
 COPY botdot-tailscale /usr/local/bin/botdot-tailscale
 
 # Make it the default browser everywhere: XFCE's web-browser launcher, xdg-open and x-www-browser.
-RUN chmod 755 /usr/local/bin/camoufox-browser /usr/local/bin/botdot-desktop /usr/local/bin/botdot-install /usr/local/bin/botdot-tailscale \
+RUN chmod 755 /usr/local/bin/camoufox-browser /usr/local/bin/botdot-desktop /usr/local/bin/botdot-xstartup /usr/local/bin/botdot-install /usr/local/bin/botdot-tailscale \
  && mkdir -p /etc/xdg/xfce4 && printf 'WebBrowser=camoufox\n' > /etc/xdg/xfce4/helpers.rc \
  && mkdir -p /home/box/.config/xfce4 && printf 'WebBrowser=camoufox\n' > /home/box/.config/xfce4/helpers.rc \
  && update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/local/bin/camoufox-browser 300 \
