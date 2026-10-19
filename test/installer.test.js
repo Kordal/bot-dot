@@ -944,12 +944,12 @@ test("root's step takes no option but its own, and needs an install", (t) => {
 
 // --- Shares of the machine (#471) -------------------------------------------------------------------
 
-test('each account gets its share: CPU and RAM on its unit, its computers in a file only root writes, and its disk', (t) => {
+test('each account gets its share: CPU and RAM on its unit and, for its computer, in a file only root writes, and its disk', (t) => {
   const done = rerun(t);
   const home = `${done.dir}/accounts/ann`;
-  // The default share (DEFAULT_SHARE, as the front door's): 2 CPUs, 5 GB of RAM, 2 computers, 30 GB of disk.
+  // The default share (DEFAULT_SHARE, as the front door's): 2 CPUs, 5 GB of RAM, 30 GB of disk.
   assert.match(done.system, /^systemctl set-property botdot-account@ann\.service CPUQuota=200% MemoryHigh=4608M MemoryMax=5G$/m, 'hard limits, applied at once and kept');
-  assert.equal(fs.readFileSync(path.join(home, 'share', 'share.json'), 'utf8'), '{"computers":2}\n');
+  assert.equal(fs.readFileSync(path.join(home, 'share', 'share.json'), 'utf8'), '{"cpu":2,"ram":5}\n');
   assert.match(done.system, new RegExp(`^chown 0:0 ${home}/share$`, 'm'), 'root writes it, not the account');
   assert.equal(fs.statSync(path.join(home, 'share', 'share.json')).mode & 0o777, 0o644);
   assert.match(done.system, new RegExp(`^truncate -s 30G ${done.dir}/disks/ann\\.img\\.new$`, 'm'));
@@ -970,24 +970,29 @@ test('each account gets its share: CPU and RAM on its unit, its computers in a f
 
 test("the share in the installer is the front door's default", () => {
   const { DEFAULT_SHARE } = require('../lib/front-door/store');
-  assert.match(script, new RegExp(`^DEFAULT_SHARE="${DEFAULT_SHARE.cpu} ${DEFAULT_SHARE.ram} ${DEFAULT_SHARE.computers} ${DEFAULT_SHARE.disk}"$`, 'm'));
+  assert.match(script, new RegExp(`^DEFAULT_SHARE="${DEFAULT_SHARE.cpu} ${DEFAULT_SHARE.ram} ${DEFAULT_SHARE.disk}"$`, 'm'));
+  assert.doesNotMatch(script, /computers at once|COMPUTERS/, 'a share has no computers at once (#108)');
+  // The admin page's use counts the account's one computer, not the bots' old ones.
+  assert.match(script, /docker ps -q --filter label=botdot\.computer=account --filter status=running/);
 });
 
 test("root's step gives an account the share the front door names, its own or the default, and grows its disk", (t) => {
   const { first, door, step } = withBob(t);
+  // A share the front door kept before #108 still has its computers at once: it is read without them.
   door({ accounts: { ann: {}, bob: { share: { cpu: 1, ram: 3, computers: 1, disk: 40 } } } });
   const own = step('bob');
   assert.match(own.system, /^systemctl set-property botdot-account@bob\.service CPUQuota=100% MemoryHigh=2764M MemoryMax=3G$/m);
-  assert.equal(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', 'share', 'share.json'), 'utf8'), '{"computers":1}\n');
+  assert.equal(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', 'share', 'share.json'), 'utf8'), '{"cpu":1,"ram":3}\n');
   assert.match(own.system, new RegExp(`^truncate -s 40G ${first.dir}/disks/bob\\.img$`, 'm'), 'a bigger disk grows at once');
   assert.match(own.system, /^losetup -c \/dev\/loop7$/m);
   assert.match(own.system, /^resize2fs \/dev\/loop7$/m);
-  assert.match(own.said, /The account bob is made already, and runs, with its share: 1 CPUs, 3 GB of RAM, 1 computers at once, 40 GB of disk/);
+  assert.match(own.said, /The account bob is made already, and runs, with its share: 1 CPUs, 3 GB of RAM, 40 GB of disk$/m);
+  assert.doesNotMatch(own.said, /at once/);
 
-  door({ share: { cpu: 3, ram: 6, computers: 3, disk: 20 }, accounts: { ann: {}, bob: {} } });
+  door({ share: { cpu: 3, ram: 6, disk: 20 }, accounts: { ann: {}, bob: {} } });
   const byDefault = step('bob');
   assert.match(byDefault.system, /^systemctl set-property botdot-account@bob\.service CPUQuota=300% MemoryHigh=5529M MemoryMax=6G$/m, 'the default the admin set');
-  assert.equal(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', 'share', 'share.json'), 'utf8'), '{"computers":3}\n');
+  assert.equal(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', 'share', 'share.json'), 'utf8'), '{"cpu":3,"ram":6}\n');
   assert.doesNotMatch(byDefault.system, /^(truncate|resize2fs)/m, 'a smaller disk is never shrunk');
 });
 
@@ -995,7 +1000,7 @@ test('without systemd the CPU and RAM share are said not to be applied', (t) => 
   const done = rerun(t, '', {}, { systemd: false });
   assert.match(done.said, /This machine has no systemd, so the CPU and RAM share of the account ann aren't applied\./);
   assert.doesNotMatch(done.system, /set-property/);
-  assert.equal(fs.readFileSync(path.join(done.dir, 'accounts', 'ann', 'share', 'share.json'), 'utf8'), '{"computers":2}\n', 'its computers are capped all the same');
+  assert.equal(fs.readFileSync(path.join(done.dir, 'accounts', 'ann', 'share', 'share.json'), 'utf8'), '{"cpu":2,"ram":5}\n', 'its computer is sized all the same');
 });
 
 test("an account's home made before disk shares keeps it, and the installer says it has none", (t) => {

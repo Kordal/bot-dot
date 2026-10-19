@@ -41,7 +41,7 @@ test('a step in, one short plain line out', () => {
   assert.equal(tool('mcp__self__propose_job_call', { jobId: 'j1', summary: 'x' }), 'Setting up a call'); // #37
   assert.equal(tool('mcp__self__something_new', {}), 'Looking after its notes and jobs');
   assert.equal(words({ phase: 'computer' }), 'Starting its computer');
-  assert.equal(words({ phase: 'waiting' }), 'Waiting for a free computer'); // the account's computers that may run at once all run (#471)
+  assert.equal(words({ phase: 'waiting' }), null, 'no start waits for a free computer: the account has one (#108)');
   assert.equal(words({ job: 'Disk check' }), 'Running Disk check');
 });
 

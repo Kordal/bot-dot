@@ -55,10 +55,10 @@ The admin page lists every account: its name, when it was made, when it was last
 
 ## Shares of the machine
 
-Every account gets a share of the machine: CPUs, GB of RAM, how many of its bots' computers run at once, and GB of disk. Set the **default share** at the top of the admin page (at first 2 CPUs, 5 GB of RAM, 2 computers and 30 GB of disk), and **Change share** on one account to give it its own; **Back to the default share** undoes that. A change applies at once, through root's step:
+Every account gets a share of the machine: CPUs, GB of RAM and GB of disk. Set the **default share** at the top of the admin page (at first 2 CPUs, 5 GB of RAM and 30 GB of disk), and **Change share** on one account to give it its own; **Back to the default share** undoes that. A change applies at once, through root's step:
 
 - CPU and RAM are hard limits on the account's rootless Docker: its work slows down, and nothing in the account says why.
-- When its computers all run, the next one waits, and its bot's line says "Waiting for a free computer" until another stops.
+- They are also the limits of the account's one computer, which all its bots work on: a changed share sizes it from its next start.
 - Its disk is its own (`/var/lib/botdot/disks/<name>.img`, mounted as its home): a run that fills it fails with "No space left on the server", and the admin page marks the account **Disk full**. A bigger disk applies at once; a smaller one only to accounts made after the change. An account made before shares has no disk of its own.
 
 The admin page shows the machine's load (CPU, RAM and disk) and what each account uses of its share, measured every minute from outside the accounts (`botdot-load.timer`).

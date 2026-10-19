@@ -14,8 +14,8 @@
 //     that his account is paused, his data stays) and resumes him as he was; a sign-in link makes bob a new passkey
 //     for the same account; and the admin deletes bob, after which nothing of bob's is left on the machine: no data,
 //     socket folder, Linux user, group, sub-IDs, process or file of his users;
-//   - each account has the default share, and its disk is its own (#471); the admin gives bob one computer at a time,
-//     and his second computer waits until the first stops; the admin page shows the machine's load and bob's use, and
+//   - each account has the default share, and its disk is its own (#471); the admin gives bob a smaller share, and his
+//     bots share his one computer, sized by it (#108); the admin page shows the machine's load and bob's use, and
 //     marks his disk full when it is, which botdot in bob's account, under gVisor, takes for "No space left on the
 //     server". CPU and RAM limits need systemd, which this machine hasn't: they are checked on a real machine.
 //
@@ -248,28 +248,28 @@ stage.run(async () => {
   stage.step('every account has the default share, and its disk is its own');
   const shares = ann('GET', '/admin/share');
   assert.equal(shares.status, 200);
-  assert.deepEqual(shares.body.share, { cpu: 2, ram: 5, computers: 2, disk: 30 });
+  assert.deepEqual(shares.body.share, { cpu: 2, ram: 5, disk: 30 });
   assert.equal(bobAgain('GET', '/admin/share').status, 404, 'an account never sees a share');
   for (const account of [ANN, BOB]) {
     assert.equal(machine.exec('sh', '-c', `mountpoint -q ${home(account)} && echo mounted`), 'mounted', `${account}'s home is its own disk`);
     const [size] = diskOf(account);
     assert.ok(size > 28 * GB && size <= 30 * GB, `${account}'s disk is 30 GB: ${size}`);
   }
-  assert.equal(machine.exec('cat', shareFile), '{"computers":2}');
+  assert.equal(machine.exec('cat', shareFile), '{"cpu":2,"ram":5}');
   assert.equal(machine.exec('stat', '-c', '%U %a', shareFile), 'root 644');
-  refused("bob's user changes his share", () => machine.exec('su', '-s', '/bin/sh', `botdot-${BOB}`, '-c', `echo '{"computers":9}' > ${shareFile}`), DENIED);
+  refused("bob's user changes his share", () => machine.exec('su', '-s', '/bin/sh', `botdot-${BOB}`, '-c', `echo '{"cpu":9,"ram":99}' > ${shareFile}`), DENIED);
 
-  stage.step('the admin gives bob one computer at a time, and a bigger disk: root\'s step applies it');
-  const bobShare = { cpu: 1, ram: 4, computers: 1, disk: 31 };
+  stage.step('the admin gives bob a smaller CPU and RAM share, and a bigger disk: root\'s step applies it');
+  const bobShare = { cpu: 1, ram: 4, disk: 31 };
   const changed = ann('POST', `/admin/accounts/${BOB}/share`, bobShare);
   assert.equal(changed.status, 200, JSON.stringify(changed.body));
   assert.deepEqual(changed.body.share, bobShare);
-  await rootSaid("root's step to apply bob's share", () => machine.exec('cat', shareFile) === '{"computers":1}' && diskOf(BOB)[0] > 30 * GB, 3 * 60_000);
+  await rootSaid("root's step to apply bob's share", () => machine.exec('cat', shareFile) === '{"cpu":1,"ram":4}' && diskOf(BOB)[0] > 30 * GB, 3 * 60_000);
   assert.ok(diskOf(ANN)[0] <= 30 * GB, "ann's share stays");
   assert.deepEqual(ann('GET', '/admin/accounts').body.accounts.find((a) => a.name === BOB).share, bobShare);
   assert.ok(bobsBots(bobAgain).includes('BobsOwn'), "bob's account carries on");
 
-  stage.step("bob's second computer waits until his first stops");
+  stage.step("bob's bots share his one computer, sized by his share (#108)");
   const computerBot = (name) => {
     const made = bobAgain('POST', '/api/bots', { name, prompt: 'Look at a page.', computer: 'linux' });
     assert.equal(made.status, 201, JSON.stringify(made.body));
@@ -277,20 +277,18 @@ stage.run(async () => {
   };
   const one = computerBot('First'), two = computerBot('Second');
   const computer = (id, action) => bobAgain('POST', `/api/bots/${id}/computer`, { action });
-  const computersOfBob = () => machine.account(BOB, 'ps', '-q', '--filter', 'label=botdot.bot', '--filter', 'status=running').split('\n').filter(Boolean).length;
-  const firstStart = computer(one, 'start');
-  assert.equal(firstStart.status, 200, `the first computer starts: ${JSON.stringify(firstStart.body)}`);
-  // The second start, as the web page asks it, while it waits: in the background, its answer in a file.
-  machine.exec('sh', '-c', `nohup curl -sS -k --resolve botdot.test:443:127.0.0.1 -b /root/bob-again -X POST -H 'X-Bot-Dot: 1' -H 'Content-Type: application/json' --data-binary '{"action":"start"}' -o /root/second.json -w '%{http_code}' https://botdot.test/api/bots/${two}/computer > /root/second.status 2>&1 &`);
-  await new Promise((r) => setTimeout(r, 20_000));
-  assert.equal(computersOfBob(), 1, 'one computer runs, as bob\'s share allows');
-  assert.equal(bobAgain('GET', `/api/bots/${two}/computer`).body.state === 'running', false, 'the second waits');
-  assert.equal(machine.exec('cat', '/root/second.status'), '', 'its start has no answer yet');
-  assert.equal(computer(one, 'stop').status, 200);
-  await until('the second computer to start once the first stopped', () => bobAgain('GET', `/api/bots/${two}/computer`).body.state === 'running', 5 * 60_000);
-  await until('its start to answer', () => machine.exec('cat', '/root/second.status') === '200', 60_000);
-  assert.equal(computersOfBob(), 1);
-  assert.equal(computer(two, 'stop').status, 200);
+  const computersOfBob = () => machine.account(BOB, 'ps', '-q', '--filter', 'label=botdot.computer=account', '--filter', 'status=running').split('\n').filter(Boolean).length;
+  for (const id of [one, two]) {
+    const started = computer(id, 'start');
+    assert.equal(started.status, 200, `its computer starts: ${JSON.stringify(started.body)}`);
+  }
+  assert.equal(computersOfBob(), 1, 'both bots work on the account\'s one computer');
+  const [computerId] = machine.account(BOB, 'ps', '-q', '--filter', 'label=botdot.computer=account').split('\n').filter(Boolean);
+  // A rootless Docker without cgroup controllers (as this machine's may be) drops or refuses them, and the computer
+  // runs without (lib/computers.js): CPU and RAM are then checked on a real machine, as the unit's are.
+  const limits = machine.account(BOB, 'inspect', computerId, '--format', '{{.HostConfig.Memory}} {{.HostConfig.NanoCpus}}');
+  if (limits === '0 0') console.log("  bob's Docker has no cgroup controllers: his computer runs without its limits here");
+  else assert.equal(limits, `${4 * GB} ${1e9}`, "bob's share's RAM and CPUs are its limits");
 
   stage.step("the admin page shows the machine's load and bob's use, and marks bob's full disk");
   await until('root\'s step to measure the load', () => {

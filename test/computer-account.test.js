@@ -1,19 +1,29 @@
 // One computer for the whole account (#104, ADR 035): every bot works on it, as the one user `box` with sudo. It
 // starts once, whichever bot asks first, and a bot that is done with it, or is deleted, never turns it off or erases
 // it: only a bot's old computer of its own goes. Docker is a stand-in here.
-const { test, beforeEach } = require('node:test');
+const { test, beforeEach, after } = require('node:test');
 const assert = require('node:assert/strict');
 const util = require('node:util');
 const childProcess = require('node:child_process');
 const dns = require('node:dns');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+// The account's share, as root's step writes it (install.sh): the helper reads it at each start (#108).
+const shareDir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-share-'));
+const SHARE = path.join(shareDir, 'share.json');
+process.env.BOT_DOT_SHARE_FILE = SHARE;
+delete process.env.BOT_DOT_COMPUTER_MEMORY;
+const share = (text) => (text === null ? fs.rmSync(SHARE, { force: true }) : fs.writeFileSync(SHARE, text));
 
 dns.promises.Resolver = class {
   setServers() {}
   async resolve4() { const e = new Error('timed out'); e.code = 'ETIMEOUT'; throw e; }
 };
 
-// The stand-in Docker: containers by name, { state, labels }.
-let containers, calls, screensUp;
+// The stand-in Docker: containers by name, { state, labels }. With refuseLimits, it has no CPU cgroup.
+let containers, calls, screensUp, refuseLimits = false;
 function docker(args) {
   calls.push(args);
   const [cmd] = args;
@@ -30,6 +40,7 @@ function docker(args) {
     if (args[3]?.includes('RestartPolicy')) return 'no';
     return '';
   }
+  if (cmd === 'run' && refuseLimits && args.includes('--cpus')) throw new Error('Error response from daemon: NanoCPUs can not be set, as your kernel does not support CPU CFS scheduler or the cgroup is not mounted');
   if (cmd === 'run') containers.set(args[args.indexOf('--name') + 1], { state: 'running', versions: '2|2' });
   if (cmd === 'stop' && name) containers.get(name).state = 'exited';
   if (cmd === 'start' && name) containers.get(name).state = 'running';
@@ -57,7 +68,9 @@ const runs = () => calls.filter((a) => a[0] === 'run');
 // Each bot's seat on it (#105): a1, b1 and c1 have screens 1, 2 and 3.
 const seat = (bot) => ({ bot, screen: { a1: 1, b1: 2, c1: 3 }[bot] });
 
+after(() => fs.rmSync(shareDir, { recursive: true, force: true }));
 beforeEach(() => {
+  share(null);
   calls = [];
   screensUp = new Set();
   // Two bots' old computers of their own, made before (#104): one still running.
@@ -167,6 +180,62 @@ test("a deleted bot's screen ends on the running computer: its supervisord, X se
   assert.ok(!calls.some((a) => a[0] === 'exec'), 'a computer that is off has no screens to end');
 });
 
-test('no start waits for a free computer: there is one', async () => {
-  assert.equal(await computers.waiting('a1'), false);
+test("the account's computer gets the share's RAM and CPUs as its limits (#108)", async () => {
+  share('{"cpu":3,"ram":6}\n');
+  await computers.ensure(seat('a1'));
+  const run = runs()[0];
+  assert.equal(run[run.indexOf('--memory') + 1], '6g');
+  assert.equal(run[run.indexOf('--memory-swap') + 1], '6g', 'no swap beyond it');
+  assert.equal(run[run.indexOf('--cpus') + 1], '3');
+});
+
+test('a share written before #108 is read without its computers at once, and no share means no limits', async () => {
+  share('{"computers":2}\n');
+  await computers.ensure(seat('a1'));
+  let run = runs()[0];
+  assert.ok(!run.includes('--memory') && !run.includes('--cpus'), run.join(' '));
+  containers.delete(ACCOUNT);
+  calls = [];
+  share('{"cpu":2,"ram":5,"computers":2}\n');
+  await computers.ensure(seat('a1'));
+  run = runs()[0];
+  assert.equal(run[run.indexOf('--memory') + 1], '5g');
+  assert.equal(run[run.indexOf('--cpus') + 1], '2');
+  for (const bad of [null, 'not json', '{"cpu":0,"ram":-1}', '{"cpu":"2","ram":1.5}']) {
+    containers.delete(ACCOUNT);
+    calls = [];
+    share(bad);
+    await computers.ensure(seat('a1'));
+    run = runs()[0];
+    assert.ok(!run.includes('--memory') && !run.includes('--cpus'), `${bad}: ${run.join(' ')}`);
+  }
+});
+
+test('a Docker that cannot set the limits still makes the computer, without them', async (t) => {
+  share('{"cpu":2,"ram":5}\n');
+  refuseLimits = true;
+  t.after(() => { refuseLimits = false; });
+  const warn = t.mock.method(console, 'warn', () => {});
+  await computers.ensure(seat('a1'));
+  assert.equal(runs().length, 2);
+  assert.ok(!runs()[1].includes('--cpus') && !runs()[1].includes('--memory'));
+  assert.equal(containers.get(ACCOUNT).state, 'running');
+  assert.match(warn.mock.calls[0].arguments[0], /refused the share's limits/);
+});
+
+test('a changed share sizes the computer at its next start', async () => {
+  share('{"cpu":2,"ram":5}\n');
+  await computers.ensure(seat('a1'));
+  containers.get(ACCOUNT).state = 'exited';
+  calls = [];
+  share('{"cpu":4,"ram":8}\n');
+  await computers.ensure(seat('a1'));
+  const update = calls.findIndex((a) => a[0] === 'update');
+  assert.deepEqual(calls[update], ['update', '--memory', '8g', '--memory-swap', '8g', '--cpus', '4', ACCOUNT]);
+  assert.ok(update < calls.findIndex((a) => a[0] === 'start'), 'before it starts');
+  assert.equal(containers.get(ACCOUNT).state, 'running');
+});
+
+test('no start waits for a free computer: there is no such step', () => {
+  assert.equal(computers.waiting, undefined);
 });

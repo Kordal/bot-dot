@@ -52,7 +52,7 @@ test("health is Docker's state of the computer, and why its last start failed un
   const h = await computers.health('pc');
   assert.deepEqual({ ...h, lastStartError: undefined }, {
     state: 'stopped', status: 'stopped', exitCode: 137, error: 'a | in its error', oomKilled: true,
-    startedAt: STATE.StartedAt, finishedAt: STATE.FinishedAt, restartCount: 3, waiting: false, lastStartError: undefined,
+    startedAt: STATE.StartedAt, finishedAt: STATE.FinishedAt, restartCount: 3, lastStartError: undefined,
   });
   assert.match(h.lastStartError.message, /Could not secure the computer: iptables: Failed to initialize/);
   assert.ok(!Number.isNaN(Date.parse(h.lastStartError.at)));
@@ -63,7 +63,7 @@ test("health is Docker's state of the computer, and why its last start failed un
 
 test('health of a computer that was never made says so, and Docker that does not answer is not that', async () => {
   answer = docker({ state: 'none' });
-  assert.deepEqual(await computers.health('nobody'), { state: 'none', waiting: false, lastStartError: null });
+  assert.deepEqual(await computers.health('nobody'), { state: 'none', lastStartError: null });
   answer = () => { throw new Error('Cannot connect to the Docker daemon'); };
   await assert.rejects(computers.health('pc'), /Cannot connect to the Docker daemon/);
 });

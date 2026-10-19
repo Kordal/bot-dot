@@ -91,7 +91,7 @@ install-real: ## A first install with today's installer and images from a local 
 	@./tests/integration/install-real.sh
 
 .PHONY: accounts-real
-accounts-real: ## Two accounts on one machine, in a nested Docker daemon: a sign-up link from the admin page makes the second, and neither account's bot, user or Docker reaches the other's containers, data or socket, nor its session the other; then the admin suspends, resumes and deletes the second, which leaves nothing of it on the machine, and a sign-in link gives it a new passkey; each account's share applies: its own disk, a computer beyond its share waits, a full disk is marked (needs Docker and the network)
+accounts-real: ## Two accounts on one machine, in a nested Docker daemon: a sign-up link from the admin page makes the second, and neither account's bot, user or Docker reaches the other's containers, data or socket, nor its session the other; then the admin suspends, resumes and deletes the second, which leaves nothing of it on the machine, and a sign-in link gives it a new passkey; each account's share applies: its own disk, its one computer sized by its CPU and RAM, a full disk is marked (needs Docker and the network)
 	@./tests/integration/accounts-real.sh
 
 .PHONY: gvisor-real

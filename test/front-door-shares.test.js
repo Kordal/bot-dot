@@ -62,10 +62,10 @@ test('every account has the default share until the admin gives it its own', asy
 
 test('the admin sets the default share, and the machine is asked about every account that has it', async () => {
   taken();
-  const own = await browsers.ann.post('/admin/accounts/cat/share', { cpu: 1, ram: 3, computers: 1, disk: 40 });
+  const own = await browsers.ann.post('/admin/accounts/cat/share', { cpu: 1, ram: 3, disk: 40 });
   assert.equal(own.status, 200, own.text);
   taken();
-  const share = { cpu: 3, ram: 6, computers: 3, disk: 50 };
+  const share = { cpu: 3, ram: 6, disk: 50 };
   const r = await browsers.ann.post('/admin/share', share);
   assert.equal(r.status, 200, r.text);
   assert.deepEqual(r.data.share, share);
@@ -73,7 +73,7 @@ test('the admin sets the default share, and the machine is asked about every acc
   assert.ok(asked('ann') && asked('bob'), 'root\'s step applies it to them');
   assert.ok(!asked('cat'), 'cat keeps its own');
   assert.deepEqual((await listed('bob')).share, share);
-  assert.deepEqual((await listed('cat')).share, { cpu: 1, ram: 3, computers: 1, disk: 40 });
+  assert.deepEqual((await listed('cat')).share, { cpu: 1, ram: 3, disk: 40 });
   // Back to the default.
   taken();
   const back = await browsers.ann.post('/admin/accounts/cat/share', { default: true });
@@ -86,7 +86,7 @@ test('the admin sets the default share, and the machine is asked about every acc
 
 test('the admin gives one account its own share, and the machine is asked about it alone', async () => {
   taken();
-  const share = { cpu: 1, ram: 2, computers: 1, disk: 12 };
+  const share = { cpu: 1, ram: 2, disk: 12 };
   const r = await browsers.ann.post('/admin/accounts/bob/share', share);
   assert.equal(r.status, 200, r.text);
   assert.deepEqual(r.data.share, share);
@@ -102,8 +102,8 @@ test('the admin gives one account its own share, and the machine is asked about 
 
 test('a share that is not one is refused, and nothing is asked of the machine', async () => {
   taken();
-  for (const bad of [{}, { cpu: 0, ram: 4, computers: 1, disk: 20 }, { cpu: 1.5, ram: 4, computers: 1, disk: 20 }, { cpu: 1, ram: 1, computers: 1, disk: 20 },
-    { cpu: 1, ram: 4, computers: 0, disk: 20 }, { cpu: 1, ram: 4, computers: 1, disk: 11 }, { cpu: '2', ram: 4, computers: 1, disk: 20 }]) {
+  for (const bad of [{}, { cpu: 0, ram: 4, disk: 20 }, { cpu: 1.5, ram: 4, disk: 20 }, { cpu: 1, ram: 1, disk: 20 },
+    { cpu: 1, ram: 4097, disk: 20 }, { cpu: 1, ram: 4, disk: 11 }, { cpu: '2', ram: 4, disk: 20 }]) {
     for (const route of ['/admin/share', '/admin/accounts/bob/share']) {
       const r = await browsers.ann.post(route, bad);
       assert.equal(r.status, 400, `${route} ${JSON.stringify(bad)}: ${r.text}`);
@@ -111,16 +111,16 @@ test('a share that is not one is refused, and nothing is asked of the machine', 
     }
   }
   assert.deepEqual(fs.readdirSync(requests), []);
-  assert.equal((await browsers.ann.post('/admin/accounts/zed/share', { cpu: 1, ram: 4, computers: 1, disk: 20 })).status, 404);
+  assert.equal((await browsers.ann.post('/admin/accounts/zed/share', { cpu: 1, ram: 4, disk: 20 })).status, 404);
 });
 
 test("only the admin sets a share or sees the load, and an account's own sessions never do", async () => {
-  for (const [method, route, body] of [['GET', '/admin/share'], ['POST', '/admin/share', { cpu: 64, ram: 64, computers: 9, disk: 900 }], ['POST', '/admin/accounts/bob/share', { cpu: 64, ram: 64, computers: 9, disk: 900 }]]) {
+  for (const [method, route, body] of [['GET', '/admin/share'], ['POST', '/admin/share', { cpu: 64, ram: 64, disk: 900 }], ['POST', '/admin/accounts/bob/share', { cpu: 64, ram: 64, disk: 900 }]]) {
     const r = method === 'GET' ? await browsers.bob.get(route) : await browsers.bob.post(route, body);
     assert.equal(r.status, 404, `${route}: ${r.text}`);
   }
   assert.ok(!stands.bob.seen.some((s) => /share|admin/.test(s.url)), 'nothing of it reaches a botdot server');
-  assert.notDeepEqual((await listed('bob')).share, { cpu: 64, ram: 64, computers: 9, disk: 900 });
+  assert.notDeepEqual((await listed('bob')).share, { cpu: 64, ram: 64, disk: 900 });
 });
 
 test("the admin page shows the machine's load and each account's use of its share, as root's step measured them", async () => {
@@ -160,6 +160,30 @@ test('the load files are read by name only, and an account name is the only file
     fs.writeFileSync(path.join(dir, 'account-ann.json'), JSON.stringify({ at, cpu: -1, ram: 'a lot', full: 'yes' }));
     assert.deepEqual(read.account('ann'), { at }, 'only numbers, and full only when it is true');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('a share has no computers at once (#108): an old store and an old admin page are read without it', async () => {
+  // An older admin page still sends it: the share is taken without it.
+  taken();
+  const r = await browsers.ann.post('/admin/accounts/bob/share', { cpu: 2, ram: 4, computers: 3, disk: 20 });
+  assert.equal(r.status, 200, r.text);
+  assert.deepEqual(r.data.share, { cpu: 2, ram: 4, disk: 20 });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(door.data, 'front-door.json'), 'utf8')).accounts.bob.share, { cpu: 2, ram: 4, disk: 20 });
+  taken();
+  // A store written before it.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-old-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'front-door.json'), JSON.stringify({
+      share: { cpu: 3, ram: 6, computers: 3, disk: 50 },
+      accounts: { ann: { created: '2026-10-01T00:00:00.000Z' }, bob: { created: '2026-10-01T00:00:00.000Z', share: { cpu: 1, ram: 3, computers: 1, disk: 40 } } },
+    }));
+    const old = store.open(dir);
+    assert.deepEqual(old.defaultShare(), { cpu: 3, ram: 6, disk: 50 });
+    assert.deepEqual(old.listAccounts().map((a) => a.share), [{ cpu: 3, ram: 6, disk: 50 }, { cpu: 1, ram: 3, disk: 40 }]);
+    assert.deepEqual(old.setAccountShare('ann', null), { cpu: 3, ram: 6, disk: 50 });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  // Nor does the admin page ask for it or show it.
+  assert.doesNotMatch(pages.ADMIN_SCRIPT + pages.admin(), /at once|name="computers"|'computers'/i);
 });
 
 test('the admin page script draws a share and a use as text, and an account never sees a limit', () => {
