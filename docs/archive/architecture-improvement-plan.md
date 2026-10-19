@@ -18,7 +18,7 @@ Rules for every step:
 
 ## Step 1 — The queue tells the truth
 
-**Problem.** A bot runs one AI run at a time; other work waits in a queue of at most ten per bot ([lib/bots.js:866](../lib/bots.js#L866)). When the queue is full, `enqueue` logs a warning and drops the work, but its caller still reports it as queued. Seen in a reproduction: 12 priority messages all answered `queued`, only 10 ran. The same path is used by five callers, each with its own loss:
+**Problem.** A bot runs one AI run at a time; other work waits in a queue of at most ten per bot ([lib/bots.js:866](../../lib/bots.js#L866)). When the queue is full, `enqueue` logs a warning and drops the work, but its caller still reports it as queued. Seen in a reproduction: 12 priority messages all answered `queued`, only 10 ran. The same path is used by five callers, each with its own loss:
 
 | Caller | Where | What goes wrong today |
 | --- | --- | --- |
@@ -38,7 +38,7 @@ Rules for every step:
    - Memory review: "Review now" answers with an error; a scheduled review is logged and caught up by the next one.
    - "Run now" on a job: answers with an error saying the bot has too much waiting.
    - Scheduled job: a one-time job stays in the bot's jobs and is retried every minute until it is accepted; it is removed only once it has started or been queued. A recurring job's missed occurrence is logged and recorded on the job's state.
-3. The update check counts queued work as busy ([lib/updates.js](../lib/updates.js) `busy()`), so an update doesn't restart the server and lose the queue. (Step 2 makes this matter less, but it ships first.)
+3. The update check counts queued work as busy ([lib/updates.js](../../lib/updates.js) `busy()`), so an update doesn't restart the server and lose the queue. (Step 2 makes this matter less, but it ships first.)
 
 **Tests.** Automated: fill a busy bot's queue with 12 messages and check that 10 run, 2 get `full`, and no stray waits exist; a full queue keeps a one-time job and a ready follow-up; a duplicate job is `already_queued` even when full. Full `npm test` after.
 
@@ -67,7 +67,7 @@ Rules for every step:
 
 ## Step 3 — Safer history files, faster run lists
 
-**Problem.** `listRuns` ([lib/bots.js:321](../lib/bots.js#L321)) opens every run file ever written to return the latest few, and the web app asks for it often. Run metadata, Chief chats, inboxes and waits are written in place, so a crash mid-write can leave a broken file that then reads as empty.
+**Problem.** `listRuns` ([lib/bots.js:321](../../lib/bots.js#L321)) opens every run file ever written to return the latest few, and the web app asks for it often. Run metadata, Chief chats, inboxes and waits are written in place, so a crash mid-write can leave a broken file that then reads as empty.
 
 **What changes.**
 

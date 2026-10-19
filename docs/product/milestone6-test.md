@@ -69,7 +69,7 @@ Documents and tests:
 - ADR 009 and ADR 010 were amended in place by OK-002, OK-003 and OK-007 to OK-010 instead of superseded; the plans of OK-007 to OK-010 say "ADRs: none".
 - `more` means "rows left out" in the feed and "too long" in the list. Both apps draw cards from the list only.
 - The `carriesOn` sentences are written four times in `server.js`; `connectors-mcp.js` holds a second copy of the server's words for "no answer"; a tool ask still takes `chatId` from the body.
-- `docs/security-issue-90.md` still says "All four clients".
+- `docs/archive/security-issue-90.md` still says "All four clients".
 - No test restarts botdot with work waiting whose request joined an older card; the reviewer ran it by hand and it held.
 - A6's "a watch job with nothing new stays silent" has no test of its own after a repeated run.
 - `test/refused.test.js` cannot tell the later of its two requests from the earlier: both have the same words.

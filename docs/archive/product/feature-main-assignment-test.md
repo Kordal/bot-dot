@@ -1,6 +1,6 @@
 # Feature test: a bot's main assignment
 
-Test document of the feature "main assignment" ([its record](milestone4.md#added-features)), written by its last task, ASSIGN-002. The tasks: ASSIGN-001 (the server, the web page and the docs), ASSIGN-002 (Android and this acceptance). The source: the improvement report [A bot's usual task becomes its main assignment](improvements/2026-10-04-main-assignment.md).
+Test document of the feature "main assignment" ([its record](../../product/milestone4.md#added-features)), written by its last task, ASSIGN-002. The tasks: ASSIGN-001 (the server, the web page and the docs), ASSIGN-002 (Android and this acceptance). The source: the improvement report [A bot's usual task becomes its main assignment](../../product/improvements/2026-10-04-main-assignment.md).
 
 ## Review
 

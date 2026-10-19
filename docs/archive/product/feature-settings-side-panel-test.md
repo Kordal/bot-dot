@@ -1,6 +1,6 @@
 # Feature test: the settings panel beside the chat
 
-Test document of the feature "settings side panel" ([its record](milestone4.md#added-features)), written by its last task, PANEL-002. The tasks: PANEL-001 (the web page), PANEL-002 (Android's wide screens and this acceptance).
+Test document of the feature "settings side panel" ([its record](../../product/milestone4.md#added-features)), written by its last task, PANEL-002. The tasks: PANEL-001 (the web page), PANEL-002 (Android's wide screens and this acceptance).
 
 ## Review
 

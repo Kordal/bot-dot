@@ -22,7 +22,7 @@ for image dependencies, release workflows/Linux packaging, and helper acceptance
 
 The original pass pinned the production P-256 public key in Node, Swift, Kotlin
 and Rust. After Linux GUI removal, Node, Swift and Kotlin remain supported; their
-pins match the fingerprint in [release-signing.md](release-signing.md).
+pins match the fingerprint in [release-signing.md](../release-signing.md).
 The private key was uploaded to GitHub's `release` environment, restricted to
 `main`; the temporary local key and smoke artifacts were removed. All six manifest
 types signed and verified with that key before removal. Fixture signatures are

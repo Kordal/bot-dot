@@ -10,7 +10,7 @@ The owner can have the Chief of Staff put a command-line tool onto the botdot se
 - **What "tools" covers, chosen by the owner on 2026-10-03:** named command-line tools from a curated registry, installed without root into the data folder, kept across updates. System packages installed as root, and a bigger image with a fixed set of tools, were considered and not chosen.
 - **Priority, chosen by the owner on 2026-10-03:** the owner's control. Every install waits for the owner's OK in Needs you. When effort runs short, a tool that cannot be installed this way stays not installed rather than installed without the OK. The Chief installing by itself and telling the owner afterwards was not chosen.
 - **Reach, chosen by the owner on 2026-10-03:** a tool belongs to the bot it was installed for. One shared set for every bot that may run commands was not chosen.
-- **Why it matters:** the owner's Coder could not start on an issue because `gh` is not on the botdot server, and nobody (the server, the Chief or a bot) can install a system package there. Each missing tool today waits for a botdot release. The evidence is in [milestone4-research.md](milestone4-research.md).
+- **Why it matters:** the owner's Coder could not start on an issue because `gh` is not on the botdot server, and nobody (the server, the Chief or a bot) can install a system package there. Each missing tool today waits for a botdot release. The evidence is in [milestone4-research.md](../archive/product/milestone4-research.md).
 
 ## Journey
 

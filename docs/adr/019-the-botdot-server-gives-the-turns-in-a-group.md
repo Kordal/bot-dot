@@ -9,7 +9,7 @@
 
 Today bots reach each other with `message_bot`: up to twenty hops, each message a run in the other bot's own chat (`lib/messages.js:12`, `lib/bots.js:1919-1973`). A bot does one thing at a time and the owner's message waits ([ADR 011](011-a-bot-does-one-thing-at-a-time-and-the-owners-message-waits.md)); a Stop ends one run, or the runs one Chief reply started, through a link kept in memory only ([ADR 012](012-a-run-keeps-who-ended-it-and-a-stop-ends-what-its-turn-started.md), `lib/chief.js:1408-1427`). A run that has nothing to say is known only for a scheduled run (`quietRun`, `lib/problems.js:59`). A mention sends nothing (`CONTEXT.md`), and is written `@IssueWriter`, the name without its spaces (`public/mentions.js:23-33`).
 
-The products surveyed differ exactly here ([research note](../product/milestone10-research.md), "Existing solutions"): every member answers, only a mentioned one, the bots decide, or a model chooses. Grok Bot, the owner's example, lets the bots decide and its makers report "duplicate work and noisy updates". OpenClaw counts turns per message of the person and lets a member pass.
+The products surveyed differ exactly here ([research note](../archive/product/milestone10-research.md), "Existing solutions"): every member answers, only a mentioned one, the bots decide, or a model chooses. Grok Bot, the owner's example, lets the bots decide and its makers report "duplicate work and noisy updates". OpenClaw counts turns per message of the person and lets a member pass.
 
 On 2026-10-08 the owner chose, on the prototype: every member reads a message and answers or passes; a mention picks who answers; a member hands the work on by naming a member; the group stops after 12 replies without the owner.
 

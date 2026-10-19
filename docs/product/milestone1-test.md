@@ -46,7 +46,7 @@ To start it again: in the repository, `PORT=4801 BOT_DOT_DATA=<scratch folder> n
 Do each step on the web page; look at Android and the Mac where it says so.
 
 1. **Existing bots have hats (A4, A6).** Open the three apps. The seven bots are heads in their colours, each with a hat, the same on all three. Judge: are they easy to see and to tell apart in the list on the phone, and do the hats fit?
-   ![Web](../evidence/FIG-009/web-real-bots-with-hats.png) ![Android](../evidence/FIG-009/android-real-bots-with-hats.png) ![Mac](../evidence/FIG-009/mac-real-bots-with-hats.png)
+   ![Web](../archive/evidence/FIG-009/web-real-bots-with-hats.png) ![Android](../archive/evidence/FIG-009/android-real-bots-with-hats.png) ![Mac](../archive/evidence/FIG-009/mac-real-bots-with-hats.png)
 2. **Create (A1).** Ask the Chief: "Make me a bot that keeps an eye on the weather." It appears on all three apps as the same head, colour and hat, without a reload.
 3. **A drawn hat (A11).** Ask the Chief for a bot the kit has no hat for, such as "a bot that looks after my bonsai". It wears a hat the Chief drew; the same on all three apps.
 4. **The list again (A6).** With the two new bots there are nine. Look at the list on the phone once more: is every bot still easy to tell apart, and its state readable?

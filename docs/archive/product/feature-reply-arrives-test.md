@@ -1,6 +1,6 @@
 # Feature test: a reply arrives, visibly
 
-The owner's test list for ALV-008 ([Kordal/bot-dot#337](https://github.com/Kordal/bot-dot/issues/337), from the spec [Kordal/bot-dot#329](https://github.com/Kordal/bot-dot/issues/329), report [2026-10-09](improvements/2026-10-09-bots-that-feel-alive.md)): a new reply fades in and rises into its place, once, as the working line goes, in a bot's chat, a Chief chat and a group. Your own message arrives the same way when you press Send. A reply that was there when the chat opened stands still, and nothing moves again when the app reads its lists again. With animations switched off nothing moves. The botdot server is not changed.
+The owner's test list for ALV-008 ([Kordal/bot-dot#337](https://github.com/Kordal/bot-dot/issues/337), from the spec [Kordal/bot-dot#329](https://github.com/Kordal/bot-dot/issues/329), report [2026-10-09](../../product/improvements/2026-10-09-bots-that-feel-alive.md)): a new reply fades in and rises into its place, once, as the working line goes, in a bot's chat, a Chief chat and a group. Your own message arrives the same way when you press Send. A reply that was there when the chat opened stands still, and nothing moves again when the app reads its lists again. With animations switched off nothing moves. The botdot server is not changed.
 
 How the movement looks is yours to judge on screen: no test can say whether it feels right.
 

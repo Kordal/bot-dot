@@ -6,7 +6,7 @@ Date: 2026-10-08. Revision inspected: `main` at `5b2cf30` (Milestone 9 merged th
 
 ## Why this milestone
 
-On 2026-10-08 the owner asked: "I would like to have a functionality to create a group chats with bots. For eg. I would like to create a "Dev group" which will consist of bots related to programming", and showed a group chat of Grok Bot as the example ([Grok Bot](#grok-bot-xai) below). Group chats were seen there for the [Milestone 2 note](milestone2-research.md) and left out of [Milestone 2](milestone2.md) ("Voice input, reactions and replies to a message, group chats, a plugin marketplace"), because each adds controls.
+On 2026-10-08 the owner asked: "I would like to have a functionality to create a group chats with bots. For eg. I would like to create a "Dev group" which will consist of bots related to programming", and showed a group chat of Grok Bot as the example ([Grok Bot](#grok-bot-xai) below). Group chats were seen there for the [Milestone 2 note](milestone2-research.md) and left out of [Milestone 2](../../product/milestone2.md) ("Voice input, reactions and replies to a message, group chats, a plugin marketplace"), because each adds controls.
 
 ## What the product delivers today
 
@@ -33,8 +33,8 @@ Read at `5b2cf30` on 2026-10-08 by one reader of the server, the web page and th
 | The key of a chat | `bot:<id>` or `chief:<id>`, nothing else: `/^(bot|chief):…$/` (`lib/read.js:18`) (C), and the same two in the presence check, the message keys, the web page's address and Android's routes `bot/{id}` and `chief/{id}` |
 | Who wrote a reply | Implied by the chat on both apps: a reply in a bot's chat is that bot's (`public/app.js:179`, `2581-2592`; Android `ui/BotChatScreen.kt:217`) |
 | One message to three bots | Three calls, three runs with nothing that joins them, each in its own chat, each with its own Stop and its own message key (`server.js:2141-2157`) |
-| Running at once | No cap on the number of runs across bots (`lib/bots.js:405`). Per bot: one run, ten of the owner's messages waiting (`QUEUE_MAX`, `OWNER_MAX`, `lib/bots.js:1604-1605`) (C), [ADR 011](../adr/011-a-bot-does-one-thing-at-a-time-and-the-owners-message-waits.md) |
-| Stop | Ends one run and says who ended it; a Stop in a Chief chat ends the runs that reply started ([ADR 012](../adr/012-a-run-keeps-who-ended-it-and-a-stop-ends-what-its-turn-started.md)). Nothing else stops the runs of several bots together |
+| Running at once | No cap on the number of runs across bots (`lib/bots.js:405`). Per bot: one run, ten of the owner's messages waiting (`QUEUE_MAX`, `OWNER_MAX`, `lib/bots.js:1604-1605`) (C), [ADR 011](../../adr/011-a-bot-does-one-thing-at-a-time-and-the-owners-message-waits.md) |
+| Stop | Ends one run and says who ended it; a Stop in a Chief chat ends the runs that reply started ([ADR 012](../../adr/012-a-run-keeps-who-ended-it-and-a-stop-ends-what-its-turn-started.md)). Nothing else stops the runs of several bots together |
 
 ### Bots and each other
 
@@ -50,7 +50,7 @@ Read at `5b2cf30` on 2026-10-08 by one reader of the server, the web page and th
 
 | Area | Read at `5b2cf30` |
 | --- | --- |
-| New reply, read position | Counted per bot from its runs or per Chief chat; `POST /api/read` accepts the two kinds of key only ([ADR 005](../adr/005-read-positions-on-the-server.md), `lib/read.js:76-105`, `server.js:947-960`) |
+| New reply, read position | Counted per bot from its runs or per Chief chat; `POST /api/read` accepts the two kinds of key only ([ADR 005](../../adr/005-read-positions-on-the-server.md), `lib/read.js:76-105`, `server.js:947-960`) |
 | Opening line, waiting messages, a question | Each kept per bot or per run and sent on the feed with one `botId` (`lib/events.js:60-84`) |
 | A card | Drawn in Needs you and at the end of the chat it was asked in |
 | Memory of a past run | One `bot_id` per run in the index (`lib/memory.js:189-193`); "left out" is per run |
@@ -75,9 +75,9 @@ Read at `5b2cf30` on 2026-10-08 by one reader of the server, the web page and th
 | A mention sends nothing today, by definition (verified). | In a group chat a mention would address a bot. `CONTEXT.md` and the note a mention adds to a prompt change with it, or the group gets another way to address one bot. |
 | A bot reads only its own runs (verified). In a shared chat the second bot would not know what the first said. | Hand each member the chat as the owner saw it, as "A bot remembers its chat" does for one bot. Each bot keeps its own notes and past runs (OpenClaw, Poe, Claude Code). |
 | Bots may answer bots for twenty hops, and such runs are folded and never new replies (verified). Grok Bot's makers report "duplicate work and noisy updates"; OpenClaw counts turns per message of the person, one round by default. | A bound per owner message, stated in the scope: each member speaks once, and again only when a member named it. A reply in the group is a new reply, whoever it answers. |
-| Three bots on one message are three runs with three Stops (verified). | One Stop under the group chat ends what the owner's message started, as a Stop in a Chief chat does ([ADR 012](../adr/012-a-run-keeps-who-ended-it-and-a-stop-ends-what-its-turn-started.md)). |
+| Three bots on one message are three runs with three Stops (verified). | One Stop under the group chat ends what the owner's message started, as a Stop in a Chief chat does ([ADR 012](../../adr/012-a-run-keeps-who-ended-it-and-a-stop-ends-what-its-turn-started.md)). |
 | New reply, read position, opening line and waiting messages are per bot (verified). | The same four for the group chat: one read position, several bots working at once shown under it. |
-| A bot that is in a group chat is also working in its own chat (verified: one run per bot, the owner's message waits). | A message to the group waits for a busy member, shown as waiting, as [ADR 011](../adr/011-a-bot-does-one-thing-at-a-time-and-the-owners-message-waits.md) has it. Whether the others answer meanwhile is a stage 3 question. |
+| A bot that is in a group chat is also working in its own chat (verified: one run per bot, the owner's message waits). | A message to the group waits for a busy member, shown as waiting, as [ADR 011](../../adr/011-a-bot-does-one-thing-at-a-time-and-the-owners-message-waits.md) has it. Whether the others answer meanwhile is a stage 3 question. |
 | A card is drawn at the end of the chat it was asked in (verified). Grok Bot keeps approvals and logins out of a group; Claude Code: a teammate cannot give consent. | Decide where a card asked in a group chat is drawn. Another bot's message is never an OK. |
 | Grok Bot makes a group with a control and edits members in a panel (observed). botdot's rule 5: no new control for what the Chief can do by chat. The Chief already places bots in groups (verified). | The Chief makes the group chat and changes its members by chat. The least the apps need is the row in the list and the chat. An owner decision at stage 3. |
 | "Group" already means the folder in the list and a kind of tile (verified). The owner's example, "Dev group", and Grok Bot's screenshot both put the chat inside the folder of its bots. | Decide the word, and whether the group chat is the folder's own chat (its members are the folder's bots) or a thing apart with members of its choosing. |
@@ -85,7 +85,7 @@ Read at `5b2cf30` on 2026-10-08 by one reader of the server, the web page and th
 
 ## Carried forward from Milestone 9
 
-No task is unfinished and nothing is blocked from outside. From [milestone9-test.md](milestone9-test.md), open and not part of this request: real use on the owner's own botdot server and phone (D30); the `CLAUDE.md` and auto-memory files bots left before Milestone 9; the low findings under "Follow-up". One of them meets this milestone: "Whether a bot may hand its private notes to a teammate is decided nowhere."
+No task is unfinished and nothing is blocked from outside. From [milestone9-test.md](../../product/milestone9-test.md), open and not part of this request: real use on the owner's own botdot server and phone (D30); the `CLAUDE.md` and auto-memory files bots left before Milestone 9; the low findings under "Follow-up". One of them meets this milestone: "Whether a bot may hand its private notes to a teammate is decided nowhere."
 
 From the improvement reports: the interaction audit's groups "One voice" and "The Chief as helper" were named for Milestone 8 and not chosen; the Board's label is marked "Later". Neither is part of this request.
 
@@ -93,11 +93,11 @@ From the improvement reports: the interaction audit's groups "One voice" and "Th
 
 In: one chat in which the owner writes to several bots, on the web page and in the Android app; who its members are and how the owner sets them; who answers a message and how one bot is addressed; every reply showing its sender; each member reading what the others said; a bound on bots answering bots; one Stop; new replies and the read position of the chat.
 
-Out: people other than the owner in a chat; a group that writes first; bots meeting without a message from the owner; voice, reactions and replies to one message; a chooser model that picks the speaker; anything that shows costs; the Mac app ([ADR 008](../adr/008-the-mac-app-is-no-longer-developed.md)).
+Out: people other than the owner in a chat; a group that writes first; bots meeting without a message from the owner; voice, reactions and replies to one message; a chooser model that picks the speaker; anything that shows costs; the Mac app ([ADR 008](../../adr/008-the-mac-app-is-no-longer-developed.md)).
 
 ## Stage 4: what was tried and read
 
-2026-10-08, after the owner agreed the scope of [milestone10.md](milestone10.md).
+2026-10-08, after the owner agreed the scope of [milestone10.md](../../product/milestone10.md).
 
 ### Do real bots take turns?
 
@@ -138,9 +138,9 @@ Read at `5b2cf30` by one reader; nothing was run.
 
 Three Proposed ADRs, each resolved and accepted by its owning task before the behaviour that depends on it:
 
-- [ADR 018](../adr/018-a-group-is-a-chat-of-its-own-and-a-turn-is-a-run-of-its-member.md): a group is a chat of its own, and a turn in it is a run of its member. GRP-001.
-- [ADR 019](../adr/019-the-botdot-server-gives-the-turns-in-a-group.md): the botdot server gives the turns. GRP-002.
-- [ADR 020](../adr/020-a-member-reads-the-groups-chat-and-keeps-its-own-memory.md): a member reads the group's chat and keeps its own memory. GRP-003.
+- [ADR 018](../../adr/018-a-group-is-a-chat-of-its-own-and-a-turn-is-a-run-of-its-member.md): a group is a chat of its own, and a turn in it is a run of its member. GRP-001.
+- [ADR 019](../../adr/019-the-botdot-server-gives-the-turns-in-a-group.md): the botdot server gives the turns. GRP-002.
+- [ADR 020](../../adr/020-a-member-reads-the-groups-chat-and-keeps-its-own-memory.md): a member reads the group's chat and keeps its own memory. GRP-003.
 
 | Uncertainty | State | Who resolves it | Blocks |
 | --- | --- | --- | --- |

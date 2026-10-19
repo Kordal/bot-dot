@@ -11,7 +11,7 @@ A note has no end either: "in London this weekend" stays in every prompt until s
 
 On 2026-10-06 the owner decided: a deleted note is purged after 30 days; "forget" reaches what a model reads, not run files, logs or Claude's transcripts; a passing state is kept, with its end, and the bot asks for the end when none was given; "Forget for good" by anything but the owner's own request waits on a card.
 
-Claude's memory stores keep versions for 30 days and have a second verb that scrubs the text; OpenClaw records forgotten sessions so that no re-index restores them, and reports what it could not reach ([research note](../product/milestone9-research.md), section 1).
+Claude's memory stores keep versions for 30 days and have a second verb that scrubs the text; OpenClaw records forgotten sessions so that no re-index restores them, and reports what it could not reach ([research note](../archive/product/milestone9-research.md), section 1).
 
 ## Decision
 

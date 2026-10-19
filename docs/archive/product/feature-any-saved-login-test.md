@@ -1,6 +1,6 @@
 # Feature test: any saved login in the login request
 
-Test document of the feature "any saved login" ([its record](milestone4.md#added-features)), written by its last task, VAULT-003. The tasks: VAULT-001 (server and web page), VAULT-004 (the search, from the first look), VAULT-002 (Android), VAULT-003 (the Mac).
+Test document of the feature "any saved login" ([its record](../../product/milestone4.md#added-features)), written by its last task, VAULT-003. The tasks: VAULT-001 (server and web page), VAULT-004 (the search, from the first look), VAULT-002 (Android), VAULT-003 (the Mac).
 
 ## Review
 

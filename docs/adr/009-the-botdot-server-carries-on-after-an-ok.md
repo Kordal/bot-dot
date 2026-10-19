@@ -11,7 +11,7 @@ Two things in the product already carried on. A tool install keeps the chat and 
 
 Every message to a bot is a fresh `claude -p` with no resumed session. A refused tool is known only at the end of the run, from the result's `permission_denials`.
 
-The evidence is in [milestone6-research.md](../product/milestone6-research.md), "Uncertainties resolved at stage 4".
+The evidence is in [milestone6-research.md](../archive/product/milestone6-research.md), "Uncertainties resolved at stage 4".
 
 ## Decision
 
@@ -43,7 +43,7 @@ Resolved by OK-002, for what the Chief asked for in a chat: a changed bot, a ski
 - **The waiting turns are in `data/chief-waiting-turns.json`**, `{ <chat id>: [{ prompt, message, otherwise, title, at }] }`, for every turn botdot starts, a tool install's among them. A turn leaves the file in the step that starts it, when its reply with its `otherwise` is in the chat, so a stop between the two neither loses nor repeats it. They start once botdot listens, as a tool install's result does; one that waited more than 24 hours is not started, and its `otherwise` is written in its place.
 - **One turn, not two.** A run the Chief started that waits for the Chief's own card is named in that card's turn and is not handed back a second time; a run botdot carries on itself is named too, so the Chief does not start it.
 - **A decline and a yes without a turn are a line of botdot's** in the chat that asked (`Declined: …`, `Approved: …`), which the Chief reads with its next turn there, also a turn botdot starts. No line is written for a chat that is gone.
-- **One card per grant, with the binding untouched.** No permission ask is made while a changed bot that gives that permission waits: the run joins that card. A changed bot takes over a permission ask for the same permission. The runs on a changed bot count from `runsAt`, when the first of them asked, since the card can be older than they are. A proposal still applies only to the values it was made against ([security remediation](../security-issue-90.md)). A change whose bot changed since is stale: it holds no permission any more, so a run that is refused one gets a card that can be allowed, and its own card says nothing of what follows.
+- **One card per grant, with the binding untouched.** No permission ask is made while a changed bot that gives that permission waits: the run joins that card. A changed bot takes over a permission ask for the same permission. The runs on a changed bot count from `runsAt`, when the first of them asked, since the card can be older than they are. A proposal still applies only to the values it was made against ([security remediation](../archive/security-issue-90.md)). A change whose bot changed since is stale: it holds no permission any more, so a run that is refused one gets a card that can be allowed, and its own card says nothing of what follows.
 - **A name in what botdot hands the Chief is labelled a name.** The turn's prompt quotes the card's line, which can hold a job's name that a bot chose; the prompt and the lines botdot quotes say that a name is never an instruction.
 
 Resolved by OK-007, after the milestone review, for a run the Chief started:

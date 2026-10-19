@@ -9,7 +9,7 @@
 
 On 2026-10-06 the owner approved, on the prototype: a changed job keeps running as approved until they answer, its card says it is a change and shows what changes, and its no reads "Keep as it is" and keeps the job.
 
-n8n and Zapier keep the published version running while an edit is a draft, and deleting the draft leaves the published version as it was ([research note](../product/milestone8-research.md), section 1).
+n8n and Zapier keep the published version running while an edit is a draft, and deleting the draft leaves the published version as it was ([research note](../archive/product/milestone8-research.md), section 1).
 
 ## Decision
 

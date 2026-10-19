@@ -9,7 +9,7 @@
 
 Today nothing can install anything. The container drops its capabilities and sets `no-new-privileges`; the server runs as user 60000; the only root process, the privilege broker, accepts five fixed operations and starts nothing but Claude or bash as a bot (`lib/privilege-broker.js`). An update replaces everything outside the data folder.
 
-A trial on 2026-10-03 ([milestone4-research.md](../product/milestone4-research.md), "Uncertainties resolved at stage 4") ran three installers as user 60000 under the container's flags, on `linux/arm64` and emulated `linux/amd64`. All three worked without root. What decided between them, and what constrains the design:
+A trial on 2026-10-03 ([milestone4-research.md](../archive/product/milestone4-research.md), "Uncertainties resolved at stage 4") ran three installers as user 60000 under the container's flags, on `linux/arm64` and emulated `linux/amd64`. All three worked without root. What decided between them, and what constrains the design:
 
 - micromamba is one file of about 20 MB and reaches conda-forge, which has `gh`, `make`, `jq` and ffmpeg for both architectures.
 - It installs from an explicit list (one URL with `#sha256:` per package) with no solver and no index download, in under a second for `gh`; a wrong hash aborts and installs nothing.

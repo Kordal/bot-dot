@@ -67,8 +67,8 @@ Out, proposed: free-form drawing by Claude of whole figures; a picker in the UI;
 | Uncertainty | Outcome | Owner |
 | --- | --- | --- |
 | Can Claude draw a recognisable piece in a restricted shape format? | Prototype in the planning conversation, 2026-10-02: ten pieces of 3 to 5 shapes each, shown at 64px and 24px. The owner judged them good enough and kept drawn pieces in scope. The agent did not see the render. | Settled; quality in real use is FIG-006's criterion (four of five recognised) |
-| How one figure is drawn alike by three native apps | [ADR 003](../adr/003-one-figure-definition-for-all-apps.md), Proposed: one definition file, three small renderers; bundled or fetched and the keyframe model are open | FIG-002 resolves it before FIG-004 and FIG-005 start |
-| What a piece is, so a model's drawing is safe and alike everywhere | [ADR 004](../adr/004-pieces-as-restricted-shape-lists.md), Proposed: a short list of simple shapes, validated on the server, never markup; limits open | FIG-003 resolves it before FIG-006 |
+| How one figure is drawn alike by three native apps | [ADR 003](../../adr/003-one-figure-definition-for-all-apps.md), Proposed: one definition file, three small renderers; bundled or fetched and the keyframe model are open | FIG-002 resolves it before FIG-004 and FIG-005 start |
+| What a piece is, so a model's drawing is safe and alike everywhere | [ADR 004](../../adr/004-pieces-as-restricted-shape-lists.md), Proposed: a short list of simple shapes, validated on the server, never markup; limits open | FIG-003 resolves it before FIG-006 |
 | Whether six poses stay distinct at sidebar size | Not tested. The mockups showed idle, a raised arm and walking only | FIG-002: a criterion with a nine-bot screenshot at phone width; a pose that fails is simplified there |
 | Whether the Chief reliably sets an outfit | Not tested | FIG-007 dresses any bot left without one, so a miss costs nothing |
 | Whether a 16px figure carries enough colour beside a name | Doubtful from the mockups | FIG-008: if it can't be made to read, it returns to the owner with screenshots and one alternative |

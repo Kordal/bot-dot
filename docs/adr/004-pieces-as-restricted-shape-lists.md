@@ -23,7 +23,7 @@ The owner revised [MVP 1](../product/milestone1.md): a bot is a head with a hat,
 - The kit is `kit: { limits, hat: { box, origin, pieces } }` and the Chief's outfit `chief: { outfit: { hat } }`. `kit.holds`, `kit.hat.attach`, `attach.held` and `turns` are gone.
 - The one box is the hat's, 10 wide and 6 high with `origin` `[5, 3.5]`, as before. It is placed by `attach.hat` of the definition ([ADR 003](003-one-figure-definition-for-all-apps.md)): drawn `scale` times as large with its `origin` on `at`, the top of the head; stroke widths grow with it. With the head 15 units wide and `scale` 2.6, the head is 5.8 of the hat's units wide below the origin, where the stick figure's was 4.4. The hat is drawn in the head's layer, after the face.
 - A hat's tones are still only `main` and `deep`. The tones `white` and `ink` belong to the faces in the definition; a hat that names them is refused.
-- Every kit hat was checked on a head in the list at phone width, light and dark (`docs/evidence/FIG-012/`): the aerial and the propeller cap were redrawn with thicker parts, the halo was dropped because a ring that small reads as a mouth or an eye, and 20 hats remain.
+- Every kit hat was checked on a head in the list at phone width, light and dark (`docs/archive/evidence/FIG-012/`): the aerial and the propeller cap were redrawn with thicker parts, the halo was dropped because a ring that small reads as a mouth or an eye, and 20 hats remain.
 
 ### The outfit
 
