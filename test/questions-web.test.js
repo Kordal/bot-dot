@@ -27,7 +27,9 @@ test('web: no undo of a bot\'s change: it went with the learning row of its sett
 test('web: still asked, unchanged', () => {
   for (const [what, re] of [
     ['deleting a bot', /if \(!confirm\(warning\)\) return;/],
-    ['resetting its computer', /confirm\(`Reset \$\{bot\.name\}'s computer\?/],
+    ['resetting the account\'s computer, in the server\'s words (#107)', /if \(confirm\(`\$\{info\.reset\.title\}\\n\\n\$\{info\.reset\.text\}`\)\) forAll\('reset', 'Resetting…'\);/],
+    ['updating the account\'s computer (#107)', /if \(info\?\.update && confirm\(info\.update\.text\)\) forAll\('update', 'Updating…'\);/],
+    ['erasing a bot\'s old computer (#107)', /if \(!info\?\.old \|\| !confirm\(info\.old\.confirm\)\) return;/],
     ['deleting a skill', /confirm\(`Delete the skill "\$\{k\.name\}"\? Bots that have it will stop using it\.`\)/],
     ['removing a job in the jobs panel', /if \(!confirm\('Remove this job\?'\)\) return;/],
     ['Decline on a job\'s card in Needs you, of a server whose button does not say that it removes', /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) decide\(x, false\);/],
@@ -40,7 +42,7 @@ test('web: still asked, unchanged', () => {
     ['signing out everywhere (#468)', /confirm\('Sign out everywhere\? Every browser and app signed in to your account/],
     ['removing the Anthropic API key (#35)', /confirm\(c\.subscription === true \? 'Remove the API key\? Bots will run on your Claude subscription\.'/],
   ]) assert.match(app, re, what);
-  assert.equal((app.match(/\bconfirm\(/g) || []).length, 16, 'six questions fewer, none about a note, and no undo (#305); one more to sign out everywhere (#468); none to update botdot, which the admin does (#473); one more to remove the API key (#35)');
+  assert.equal((app.match(/\bconfirm\(/g) || []).length, 18, 'six questions fewer, none about a note, and no undo (#305); one more to sign out everywhere (#468); none to update botdot, which the admin does (#473); one more to remove the API key (#35); two more to update the account\'s computer and erase a bot\'s old one (#107)');
 });
 
 // A bot's settings form, as far as the permission mode goes, wired by the page's own lines.
