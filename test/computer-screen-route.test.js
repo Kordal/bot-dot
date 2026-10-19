@@ -123,3 +123,14 @@ test("a deleted bot's screen ends, and its number goes to the next bot (#105)", 
   assert.equal((await srv.api(`/bots/${next.id}/computer`, { method: 'POST', body: { action: 'start' } })).status, 200);
   assert.equal(map()[next.id], n, 'the lowest free number');
 });
+
+test("the computer's view says when a bot's screen is off, and Start its screen starts it (#134)", async () => {
+  const cara = await makeBot(srv, { name: 'Cara', computer: 'linux' });
+  const off = (await srv.api(`/bots/${cara.id}/computer`)).data;
+  assert.equal(off.state, 'running');
+  assert.match(off.screenOff.text, /^Cara's screen is off\. Its commands and files run without one/);
+  assert.equal(off.screenOff.start, 'Start its screen');
+
+  assert.equal((await srv.api(`/bots/${cara.id}/computer`, { method: 'POST', body: { action: 'start' } })).status, 200);
+  assert.equal((await srv.api(`/bots/${cara.id}/computer`)).data.screenOff, undefined, 'its screen is on now');
+});
