@@ -22,7 +22,7 @@ async function bitwarden(t) {
   const cli = path.join(dir, 'bitwarden-cli');
   fs.writeFileSync(path.join(cli, 'items.json'), JSON.stringify([PORTAL]));
   await bw.unlock('fixture-master');
-  await bw.sync(); // after the one unlocking starts, so that the commands below are the writes' own
+  await bw.whenIdle(); // the sync the unlocking starts, so that the commands below are the writes' own
   t.after(() => bw.lock());
   const file = path.join(cli, 'calls.jsonl');
   const calls = () => fs.readFileSync(file, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
@@ -46,4 +46,15 @@ test('Bitwarden: a save, a change and a delete each run one bw command, and the 
   assert.equal(await bw.remove(added.id), true);
   assert.deepEqual(since(), [['delete', 'item']]);
   assert.deepEqual(bw.list().map((e) => e.name), ['Portal']);
+});
+
+test("Bitwarden: the owner's save goes before the background syncs waiting for bw, after the command running now", async (t) => {
+  const { bw, since } = await bitwarden(t);
+  // Two syncs nobody waits on (the 5-minute one, and one after a bot's request): the first one's bw sync starts now,
+  // the second's waits behind it, and then the owner saves.
+  const syncing = [bw.sync({ background: true }), bw.sync({ background: true })];
+  const saving = bw.add({ name: 'NAS', site: 'nas.example.net', password: 'nas-secret', allowedBots: ['bot1'] });
+  await Promise.all([...syncing, saving]);
+  assert.deepEqual(since().slice(0, 2), [['sync'], ['create', 'item']]);
+  assert.deepEqual(bw.list().map((e) => e.name), ['Portal', 'NAS']);
 });
