@@ -54,6 +54,8 @@ test("a bot with a computer is told it shares the account's computer, as box wit
   assert.ok(rec.system.includes(`Both start in your own folder, /workspace/${bot.id}.`));
   assert.match(rec.system, /Every bot works there as the user box, with sudo without a password/);
   assert.match(rec.system, /Your screen is no wall/);
+  // What an update of the account's computer keeps (#107).
+  assert.match(rec.system, /Files in \/home\/box and \/workspace also stay when the owner updates the computer to a newer desktop; programs installed with apt do not/);
   assert.match(rec.system, /never touch their files, screens, windows or programs/);
   assert.doesNotMatch(rec.system, /that only you use/);
   assert.match(rec.system, /use run_with_login with a command that reads "\$BOTDOT_USERNAME" and "\$BOTDOT_PASSWORD"\. It works only for a login with inComputer in list_logins/);

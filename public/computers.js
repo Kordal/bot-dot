@@ -52,16 +52,29 @@ function openScreen(botId) {
         <button class="btn sm" id="screen-control">🖱 Take control</button>
         <a class="btn sm" id="screen-full" target="_blank" rel="noopener">⤢ Full screen</a>
         <button class="btn sm" id="screen-power"></button>
-        <button class="btn sm danger" id="screen-reset" title="Delete this computer. The next run starts from a fresh desktop.">Reset</button>
+        <button class="btn sm danger" id="screen-reset" title="Erase the account's computer, for every bot that works on it.">Reset</button>
       </div>
       <div class="screen-steps hidden" id="screen-steps"><div class="muted" style="font-size:12.5px">What it's doing: <span id="screen-now"></span></div></div>
-      <div class="req-note hidden" id="screen-update">A newer desktop is available. This computer keeps running the version it was made with, so nothing installed on it is lost. <b>Reset</b> switches to the new desktop but erases its apps and files.</div>
+      <div class="req-note hidden" id="screen-update"><span id="screen-update-text"></span> <button class="btn sm" id="screen-update-yes"></button></div>
+      <div class="req-note hidden" id="screen-old"><span id="screen-old-text"></span> <button class="btn sm" id="screen-old-copy"></button> <button class="btn sm danger" id="screen-old-erase"></button></div>
     </div>`);
-  api(`/bots/${botId}/computer`).then((d) => {
-    $('#screen-update', m)?.classList.toggle('hidden', !d.outdated);
-    if (d.diskBytes != null) $('#screen-state', m).dataset.disk = ` Uses ${d.diskBytes > 1e9 ? (d.diskBytes / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(d.diskBytes / 1e6)) + ' MB'} of disk.`;
+  // The account's computer as the server describes it (#107): the words of its reset, of an update when one is
+  // offered, and of the bot's old computer of its own while it has one. Nothing of them is this page's own.
+  let info = null;
+  const describe = () => api(`/bots/${botId}/computer`).then((d) => {
+    info = d;
+    $('#screen-update', m).classList.toggle('hidden', !d.update);
+    if (d.update) { $('#screen-update-text', m).textContent = d.update.text; $('#screen-update-yes', m).textContent = d.update.yes; }
+    $('#screen-old', m).classList.toggle('hidden', !d.old);
+    if (d.old) {
+      $('#screen-old-text', m).textContent = d.old.text;
+      $('#screen-old-copy', m).textContent = d.old.copy;
+      $('#screen-old-erase', m).textContent = d.old.erase;
+    }
+    $('#screen-state', m).dataset.disk = d.diskBytes != null ? ` Uses ${d.diskBytes > 1e9 ? (d.diskBytes / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(d.diskBytes / 1e6)) + ' MB'} of disk.` : '';
     frame();
   }).catch(() => {});
+  describe();
   m.classList.add('wide', 'screen');
   const fit = () => fitScreen(m);
   window.addEventListener('resize', fit);
@@ -90,7 +103,36 @@ function openScreen(botId) {
   };
   $('#screen-control', m).onclick = () => { control = !control; frame(); };
   $('#screen-power', m).onclick = () => (state.computers?.[botId] === 'running' ? act('stop', 'Turning off…') : act('start', 'Turning on…'));
-  $('#screen-reset', m).onclick = () => { if (confirm(`Reset ${bot.name}'s computer?\n\nEverything installed on it, its files and its browser logins are erased. The next run starts from a fresh desktop.`)) act('reset', 'Resetting…'); };
+  // The account's computer, for every bot (#107): a reset and an update, each after the owner read what it does.
+  const forAll = async (what, label) => {
+    try {
+      toast(label);
+      const r = await api(`/computer/${what}`, { method: 'POST' });
+      if (r.error) toast(r.error, true);
+      const st = r.state === 'none' ? undefined : r.state;
+      state.computers = Object.fromEntries(state.bots.filter((b) => b.computer === 'linux').map((b) => [b.id, st]));
+      frame();
+      describe();
+    } catch (e) { toast(e.message, true); }
+  };
+  $('#screen-reset', m).onclick = () => {
+    if (!info?.reset) return;
+    if (confirm(`${info.reset.title}\n\n${info.reset.text}`)) forAll('reset', 'Resetting…');
+  };
+  $('#screen-update-yes', m).onclick = () => { if (info?.update && confirm(info.update.text)) forAll('update', 'Updating…'); };
+  // A bot's old computer of its own: its files copied into its folder, then the old one erased.
+  $('#screen-old-copy', m).onclick = async () => {
+    try {
+      toast('Copying…');
+      const r = await api(`/bots/${botId}/computer`, { method: 'POST', body: { action: 'copy-old' } });
+      toast(`Copied into ${r.copied}`);
+    } catch (e) { toast(e.message, true); }
+  };
+  $('#screen-old-erase', m).onclick = async () => {
+    if (!info?.old || !confirm(info.old.confirm)) return;
+    await act('reset', 'Erasing…');
+    describe();
+  };
   // Its line as it works, in the server's words, so a quiet screen (e.g. while it waits for you) still tells you
   // what's happening.
   const run = state.runs.find((r) => r.botId === botId && r.status === 'running');

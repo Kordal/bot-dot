@@ -98,6 +98,19 @@ function computerKeepsItsFiles(machine, id, container) {
   stage.step(`resetting the computer of bot ${id}`);
   assert.equal(computer('reset').body.state, 'running', 'the account\'s computer stays on');
   assert.equal(asBox('cat ~/kept.txt'), 'kept', 'and keeps what the bots made');
+
+  // #107: an update makes the account's computer again with the same volumes; a reset erases them, for every bot.
+  stage.step("updating the account's computer: box's home and root's Tailscale folder stay on their volumes");
+  const asRoot = (script) => machine.account(ADMIN, 'exec', '-u', 'root', container, 'sh', '-c', script);
+  asRoot('mkdir -p /var/lib/botdot-tailscale && echo signed-in > /var/lib/botdot-tailscale/kept');
+  const updated = machine.api('POST', '/api/computer/update');
+  assert.equal(updated.body.updated, true, JSON.stringify(updated.body));
+  assert.equal(asBox('cat ~/kept.txt'), 'kept', 'an update keeps the home');
+  assert.equal(asRoot('cat /var/lib/botdot-tailscale/kept'), 'signed-in', 'and the computer\'s Tailscale login (#106)');
+  stage.step("resetting the account's computer for every bot");
+  assert.equal(machine.api('POST', '/api/computer/reset').body.erased, true);
+  assert.equal(computer('start').body.state, 'running');
+  assert.equal(asBox('cat ~/kept.txt 2>/dev/null || echo gone'), 'gone', 'a reset erases the home');
 }
 
 // The admin's account: its own Linux user, its rootless Docker under gVisor, its botdot server in it, its socket.
