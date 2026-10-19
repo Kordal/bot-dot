@@ -1093,6 +1093,12 @@ JSON
     sleep 1
   done
   [ "$($A info --format '{{.DefaultRuntime}}' </dev/null 2>/dev/null)" = runsc ] || die "The account $name's Docker doesn't run its containers under gVisor."
+  # Every runtime the version's compose file names (runsc-uds): a Docker without one stops the account's server half
+  # updated ("unknown or invalid runtime name"), so the installer stops here, before it writes the new compose file.
+  have=" $($A info --format '{{range $k, $v := .Runtimes}}{{$k}} {{end}}' </dev/null 2>/dev/null) "
+  for rt in $(printf '%s\n' "$ACCOUNT_COMPOSE" | sed -n 's/^ *runtime: *\([A-Za-z0-9_.-]*\).*/\1/p' | sort -u); do
+    case "$have" in *" $rt "*) ;; *) die "The account $name's Docker has no $rt runtime, which this version's compose file needs.$( [ -n "$SYSTEMD" ] && printf ' Restart it (systemctl restart botdot-account@%s) and run this again.' "$name" || printf ' Restart it and run this again.')" ;; esac
+  done
 
   # Its socket folder: botdot's server user (60000 in its containers) owns it, and the front door's group may only
   # pass through it to the socket. Nobody else, and none of the account's bots, gets in.
