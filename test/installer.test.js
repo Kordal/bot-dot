@@ -58,8 +58,9 @@ const tailscale = ({ status = { Self: { DNSName: 'vm.example.ts.net.' } }, serve
 //   systemd: whether systemd runs the machine; old: the folders of a botdot from before accounts in its Docker;
 //   exists: the admin's account exists already (the front door makes no link); failPull: a pull that fails;
 //   noCompose: Docker has no Compose; signed / answers: steer the stand-in docker (fake-docker.js); script: another
-//   copy of the installer, args: its arguments; dockerFirst: lines the stand-in docker runs first.
-function installer(t, { dotenv = ANSWERED, given = {}, bins = {}, input = '', systemd = true, old = '', exists = false, failPull = '', noCompose = false, caddy = true, signed = null, answers = {}, script = file, args = [], again = null, onlyStandIns = false, dockerFirst = [] } = {}) {
+//   copy of the installer, args: its arguments; dockerFirst: lines the stand-in docker runs first; runtimes: the
+//   runtimes an account's Docker has besides runc and runsc.
+function installer(t, { dotenv = ANSWERED, given = {}, bins = {}, input = '', systemd = true, old = '', exists = false, failPull = '', noCompose = false, caddy = true, signed = null, answers = {}, script = file, args = [], again = null, onlyStandIns = false, dockerFirst = [], runtimes = 'runsc-uds' } = {}) {
   const real = fakeDocker();
   t.after(() => real.remove());
   // `again`: a run before this one on the same machine, whose folders this one finds.
@@ -94,6 +95,7 @@ function installer(t, { dotenv = ANSWERED, given = {}, bins = {}, input = '', sy
     `[ "$1" = run ] && [ "$4" = --entrypoint ] && [ "$5" = node ] && { shift 6; exec "${process.execPath}" "$@"; }`,
     `[ "$1" = run ] && [ "$5" = --entrypoint ] && [ "$6" = cat ] && { cat "${ROOT}$(echo "$8" | sed 's#^/opt/bot-dot##')"; exit; }`,
     `[ "$1" = info ] && [ -n "\${DOCKER_HOST:-}" ] && [ ! -e "${started}" ] && exit 1`,
+    `[ "$1" = info ] && [ "$2" = --format ] && case "$3" in *Runtimes*) echo "runc runsc ${runtimes}"; exit 0 ;; esac`,
     `[ "$1" = info ] && [ "$2" = --format ] && { echo runsc; exit 0; }`,
     // An account's Docker has none of botdot's images until they are handed to it.
     `[ "$1" = image ] && [ "$2" = inspect ] && [ -n "\${DOCKER_HOST:-}" ] && exit 1`,
@@ -320,6 +322,13 @@ test("the admin's account gets its own Linux user, rootless Docker under gVisor,
   assert.ok(done.accountCalls('ann').includes(`compose --project-directory ${home} up -d --remove-orphans`));
   assert.ok(!done.calls.some((c) => /^compose --project-directory .*accounts/.test(c)), 'never in the machine\'s Docker');
   assert.match(done.said, /The account ann is running/);
+});
+
+test("an account's Docker without a runtime the compose file names stops the installer before the server starts", (t) => {
+  const done = installer(t, { runtimes: '' });
+  assert.notEqual(done.status, 0);
+  assert.match(done.stderr, /The account ann's Docker has no runsc-uds runtime, which this version's compose file needs\. Restart it \(systemctl restart botdot-account@ann\) and run this again\./);
+  assert.ok(!done.accountCalls('ann').some((c) => / up\b/.test(c)), done.accountCalls('ann').join('\n'));
 });
 
 test('a rerun keeps its Docker running when nothing of its settings changed', (t) => {
