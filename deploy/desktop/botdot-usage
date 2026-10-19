@@ -1,0 +1,97 @@
+#!/usr/bin/python3 -I
+"""What each bot's screen uses of the account's computer (#109): the memory and CPU of its processes, printed as JSON.
+botdot sends this file's own copy and runs it as root (lib/computers.js usage), which may read every process.
+A process belongs to the screen in its environment: SCREEN=<n> (what botdot-screen.conf and its programs inherit) or
+DISPLAY=:<n> (a command botdot ran on the screen), else to the display its command line names (Xvnc :<n>,
+camoufox-browser --serve :<n>), else to its parent's. Screens are displays 11 to 99 (lib/computers.js screenPorts);
+the rest is the computer's own ("other"). Memory is resident memory, so what processes share counts in each;
+CPU is measured over a wait (argv[2] seconds, half a second by default), 100 being one CPU fully used.
+argv[1] is the /proc to read, /proc by default."""
+import json
+import os
+import re
+import sys
+import time
+
+PROC = sys.argv[1] if len(sys.argv) > 1 else "/proc"
+WAIT = float(sys.argv[2]) if len(sys.argv) > 2 else 0.5
+PAGE = os.sysconf("SC_PAGE_SIZE")
+HZ = os.sysconf("SC_CLK_TCK")
+ENV = re.compile(rb"^(SCREEN=(\d+)|DISPLAY=:(\d+)(\.\d+)?)$")
+ARG = re.compile(r"^:(\d+)$")
+
+
+def read(pid, name):
+    try:
+        with open(os.path.join(PROC, pid, name), "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def stats():
+    """Every process: (parent, CPU ticks so far, resident bytes)."""
+    out = {}
+    for pid in os.listdir(PROC):
+        if not pid.isdigit():
+            continue
+        stat = read(pid, "stat")
+        if not stat:
+            continue
+        try:
+            rest = stat[stat.rindex(b")") + 2:].split()
+            out[pid] = (rest[1].decode(), int(rest[11]) + int(rest[12]), int(rest[21]) * PAGE)
+        except (ValueError, IndexError):
+            continue
+    return out
+
+
+def own_display(pid):
+    env = read(pid, "environ") or b""
+    display = None
+    for entry in env.split(b"\0"):
+        m = ENV.match(entry)
+        if m and m.group(2):
+            return int(m.group(2))
+        if m:
+            display = int(m.group(3))
+    if display is not None:
+        return display
+    for arg in (read(pid, "cmdline") or b"").split(b"\0"):
+        m = ARG.match(arg.decode("utf-8", "replace"))
+        if m:
+            return int(m.group(1))
+    return None
+
+
+before = stats()
+time.sleep(max(WAIT, 0))
+now = stats()
+seen = {}
+
+
+def display_of(pid, depth=0):
+    if pid in seen:
+        return seen[pid]
+    seen[pid] = None  # a loop of parents ends here
+    n = own_display(pid)
+    if n is None and depth < 64 and pid in now and now[pid][0] in now:
+        n = display_of(now[pid][0], depth + 1)
+    seen[pid] = n
+    return n
+
+
+screens = {}
+other = {"memoryBytes": 0, "cpuPercent": 0.0, "processes": 0}
+for pid, (_parent, ticks, rss) in now.items():
+    n = display_of(pid)
+    into = screens.setdefault(str(n), {"memoryBytes": 0, "cpuPercent": 0.0, "processes": 0}) if n is not None and 11 <= n <= 99 else other
+    into["memoryBytes"] += rss
+    into["processes"] += 1
+    if WAIT > 0:
+        into["cpuPercent"] += max(ticks - before.get(pid, (None, 0, 0))[1], 0) * 100.0 / HZ / WAIT
+for u in list(screens.values()) + [other]:
+    u["cpuPercent"] = round(u["cpuPercent"], 1)
+    if u["cpuPercent"] == int(u["cpuPercent"]):
+        u["cpuPercent"] = int(u["cpuPercent"])
+print(json.dumps({"screens": screens, "other": other}))

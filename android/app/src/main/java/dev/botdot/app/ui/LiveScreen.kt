@@ -44,7 +44,8 @@ import kotlinx.coroutines.launch
  * A bot's desktop, live: botdot's own screen page (noVNC) in a web view. Watching only, unless you take control (then
  * taps and typing go to the bot's screen). Reset erases the account's computer for every bot that works on it, after a
  * confirmation in the server's words (#107); Update makes it again from a newer desktop when one is offered; a bot's
- * old computer of its own is shown above the screen, with Copy its files and Erase it. As on the web.
+ * old computer of its own is shown above the screen, with Copy its files and Erase it. Under the screen, what each bot
+ * uses of the account's computer (#109), in the server's words. Nothing turns it off: it is always on. As on the web.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -185,6 +186,18 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = Color.White)
                         Text(when (state) { "starting" -> "Starting its computer…"; "resetting" -> "Resetting…"; "updating" -> "Updating…"; else -> "" }, color = Color.White, modifier = Modifier.padding(top = 12.dp))
+                    }
+                }
+            }
+            // What each bot uses of the account's computer, most memory first (#109).
+            info?.usage?.let { u ->
+                Column(Modifier.fillMaxWidth().background(p.sunk).padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (u.text.isNotBlank()) Text(u.text, color = p.muted, fontSize = 12.sp)
+                    (u.bots + listOfNotNull(u.other)).forEach { row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(row.name, color = p.text, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f, fill = false).padding(end = 12.dp))
+                            Text(row.text, color = p.muted, fontSize = 13.sp)
+                        }
                     }
                 }
             }

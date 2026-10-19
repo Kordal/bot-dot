@@ -95,7 +95,7 @@ test('a stopped computer has no desktop logs, and one never made has none at all
   assert.deepEqual(await computers.logs({ bot: 'nobody', screen: 1 }), { state: 'none', container: '', desktop: '' });
 });
 
-test('the Docker helper takes health and logs for one bot id, and a line count of 1 to 500', async () => {
+test('the Docker helper takes health for the account\'s computer or one bot id, and logs with a line count of 1 to 500', async () => {
   const http = require('node:http');
   const { createServer } = require('../lib/docker-helper');
   const asked = [];
@@ -108,10 +108,10 @@ test('the Docker helper takes health and logs for one bot id, and a line count o
   });
   try {
     const S = { bot: 'pc', screen: 1 }; // a bot's seat (#105)
-    for (const [op, args] of [['health', ['pc']], ['logs', [S]], ['logs', [null, 20]], ['logs', [S, 1]], ['logs', [S, 500]]]) assert.equal(await call(op, args), 200, `${op} ${JSON.stringify(args)}`);
-    for (const [op, args] of [['health', []], ['health', ['../x']], ['health', ['pc', 1]], ['logs', ['pc']], ['logs', [S, 0]], ['logs', [S, 501]], ['logs', [S, 1.5]], ['logs', [S, '10']], ['logs', [S, 10, 1]], ['logs', [{ ...S, screen: 0 }]]]) {
+    for (const [op, args] of [['health', []], ['health', ['pc']], ['logs', [S]], ['logs', [null, 20]], ['logs', [S, 1]], ['logs', [S, 500]]]) assert.equal(await call(op, args), 200, `${op} ${JSON.stringify(args)}`);
+    for (const [op, args] of [['health', ['../x']], ['health', ['pc', 1]], ['logs', ['pc']], ['logs', [S, 0]], ['logs', [S, 501]], ['logs', [S, 1.5]], ['logs', [S, '10']], ['logs', [S, 10, 1]], ['logs', [{ ...S, screen: 0 }]]]) {
       assert.equal(await call(op, args), 400, `${op} ${JSON.stringify(args)}`);
     }
-    assert.equal(asked.length, 5);
+    assert.equal(asked.length, 6);
   } finally { server.close(); }
 });

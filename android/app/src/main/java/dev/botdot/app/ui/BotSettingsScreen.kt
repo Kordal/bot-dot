@@ -89,7 +89,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var model by remember { mutableStateOf("") }
     var effort by remember { mutableStateOf("") }
     var computer by remember { mutableStateOf(false) }
-    var alwaysOn by remember { mutableStateOf(false) }
     var useSkills by remember { mutableStateOf(true) }
     var skills by remember { mutableStateOf(setOf<String>()) }
     var sysSkills by remember { mutableStateOf(listOf<Pair<dev.botdot.app.data.BuiltinSkill, String>>()) } // every bot has these unless switched off
@@ -100,7 +99,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
 
     fun fill(b: Bot) {
         bot = b; color = b.color.orEmpty(); name = b.name; description = b.description; group = b.group; pinned = b.pinned > 0; task = b.prompt
-        model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux"; alwaysOn = b.computerAlwaysOn
+        model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux"
         useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
     }
 
@@ -127,7 +126,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             if (model != b.model.orEmpty()) put("model", model)
             if (effort != b.effort.orEmpty()) put("effort", effort)
             if (computer != (b.computer == "linux")) put("computer", if (computer) "linux" else "none")
-            if (alwaysOn != b.computerAlwaysOn) put("computerAlwaysOn", alwaysOn)
             if (useSkills != b.useSkills) put("useSkills", useSkills)
             if (skills != b.skills.toSet()) put("skills", JsonArray(skills.map { JsonPrimitive(it) }))
             if (disabled != b.disabledSkills.toSet()) put("disabledSkills", JsonArray(disabled.map { JsonPrimitive(it) }))
@@ -165,7 +163,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 OutlinedTextField(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
             }
             Section("What it can do") {
-                SwitchRow("Own computer", "A desktop with a browser, for sites that need real clicking.", computer) { computer = it; if (!it) alwaysOn = false }
+                SwitchRow("Own computer", "A desktop with a browser, for sites that need real clicking.", computer) { computer = it }
                 if (b.computer == "linux") OutlinedButton(onClick = onScreen) { Text("🖥 See its screen", color = p.text) }
                 val waiting = b.jobs.count { it.waits }
                 androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clickable(onClick = onJobs).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -256,7 +254,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 Choice("Model", model, listOf("" to "Default (from Settings)") + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
                 val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
                 if (canThink) Choice("Reasoning", effort, listOf("" to "Default (from Settings)") + choices.efforts.map { it.id to it.label }) { effort = it }
-                SwitchRow("Keep its computer on", "Never sleeps, so logins and open pages stay ready. Uses memory on the VM.", alwaysOn, enabled = computer) { alwaysOn = it }
             }
             Button(onClick = { save() }, enabled = !saving, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) {
                 Text(if (saving) "Saving…" else "Save")
@@ -268,7 +265,14 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     if (askDelete) AlertDialog(
         onDismissRequest = { askDelete = false },
         title = { Text("Delete ${bot?.name}?") },
-        text = { Text("Its settings and jobs go, and so do its computer (with the browser's logins and files) and the skills it wrote itself. Its past runs stay.") },
+        // Its screen on the account's computer ends; the computer, which the other bots use, and its folder there stay (#109).
+        text = {
+            Text(
+                "Its settings and jobs go, and so do the skills it wrote itself" +
+                    (if (bot?.computer == "linux") ", and its screen and its browser's logins on the account's computer. Its folder /workspace/$botId there stays, and so does the computer, which the other bots use" else "") +
+                    ". Its past runs stay."
+            )
+        },
         confirmButton = {
             TextButton(onClick = {
                 askDelete = false
