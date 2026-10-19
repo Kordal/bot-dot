@@ -3,10 +3,11 @@
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { webSource } = require('./web-source');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
-const app = read('app.js');
+const app = webSource();
 
 // A part of app.js, from one line of it up to another.
 function cut(from, to) {

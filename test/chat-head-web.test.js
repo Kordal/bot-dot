@@ -5,8 +5,9 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { webSource } = require('./web-source');
 
-const app = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+const app = webSource();
 const chief = app.slice(app.indexOf('function renderChief()')).match(/<div class="chat-head">[\s\S]*?<div class="chat-thread"/)[0];
 const head = app.slice(app.indexOf('function renderBotChat()')).match(/<div class="chat-head">[\s\S]*?<div class="chat-thread"/)[0];
 

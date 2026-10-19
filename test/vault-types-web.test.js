@@ -6,9 +6,10 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { webSource } = require('./web-source');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
-const app = fs.readFileSync(path.join(PUBLIC, 'app.js'), 'utf8');
+const app = webSource();
 const css = fs.readFileSync(path.join(PUBLIC, 'style.css'), 'utf8');
 // A part of app.js, from one line of it up to another.
 const cut = (from, to) => {

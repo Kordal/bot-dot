@@ -1,0 +1,510 @@
+// ---------- the Board ----------
+
+// Tiles the Chief put together (lib/dashboard.js): switches, buttons, values, lists and notes, or tiles
+// built from blocks. The server sends each tile's look filled in (dot, face, panel, tap); this only draws it.
+// Values are read again while this page is open; new ones arrive on the live feed.
+const tileScripts = (t) => [t.read, t.do, t.turnOn, t.turnOff, ...Object.values(t.reads || {}), ...Object.values(t.actions || {})].filter((x) => x?.type === 'script').map((x) => x.script);
+// A group has no bot of its own: it takes the colour of the bot whose tiles are in it (the Chief's when they're mixed).
+const tileColor = (t) => t.color || botById(t.bot || groupBot(t))?.color || CHIEF_COLOR;
+function groupBot(t) {
+  if (t.kind !== 'group') return null;
+  const owners = new Set((state.dash?.tiles || []).filter((x) => x.parent === t.id && x.bot).map((x) => x.bot));
+  return owners.size === 1 ? [...owners][0] : null;
+}
+// The tiles of the Board that the list's strip and the keypad's line show: those at its top, approved. A tile's mark
+// is its dot (filled when a switch is on).
+const boardTiles = () => (state.dash?.tiles || []).filter((t) => !t.parent && t.approved !== false);
+const tileMark = (t) => { const dot = t.look?.dot; return `<i${dot && dot.filled !== true ? ' class="off"' : ''} style="--c:${tintOf(dot?.color, t)}"></i>`; };
+const BOARD_EMPTY = '<span class="none"><b>Board</b> · Nothing on it yet</span>';
+// The strip at the top of the list: each tile's dot and name, and a value's value (a switch's dot is filled
+// when it's on). As many as fit; a tap opens the Board. With no tile to show, it says so beside the Board's
+// name. Not there until the Board has loaded.
+function dashStrip() {
+  if (!state.dash) return '';
+  const tile = (t) => `<span class="t">${tileMark(t)}${esc(t.title)}${t.look?.short ? ` <b>${esc(t.look.short)}</b>` : ''}</span>`;
+  return `<button class="dash-strip ${state.view === 'dashboard' ? 'active' : ''}" data-contact="dashboard" title="Board">
+    <svg class="board-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
+    <span class="tiles">${boardTiles().map(tile).join('') || BOARD_EMPTY}</span><span class="more">›</span></button>`;
+}
+// The tiles that don't fit whole are left out, not cut off.
+function fitStrip() {
+  const row = $('#contacts .dash-strip .tiles');
+  if (!row) return;
+  const ts = $$('.t', row);
+  ts.forEach((t) => (t.hidden = false));
+  const end = row.getBoundingClientRect().right;
+  let full = false;
+  for (const t of ts) if (full || (full = t.getBoundingClientRect().right > end + 0.5)) t.hidden = true;
+}
+new ResizeObserver(() => fitStrip()).observe($('#contacts')); // a wider or narrower list, or the list shown again
+
+let dashLoading = null;
+function loadDash(quiet = false) {
+  if (dashLoading) return dashLoading;
+  dashLoading = api(quiet ? '/dashboard?quiet' : '/dashboard/refresh', quiet ? {} : { method: 'POST' }).then((d) => { state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); })
+    .catch(() => {}).finally(() => { dashLoading = null; });
+  return dashLoading;
+}
+// While it's on screen, the stale tiles are read again every little while.
+setInterval(() => { if (state.view === 'dashboard' && !document.hidden) loadDash(); }, 15_000);
+
+const LEVEL = { ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--err)' };
+const TINT = { ...LEVEL, faint: 'var(--faint)', muted: 'var(--muted)', text: 'var(--text)' };
+// Words take ok's and warn's text shades, which pass 4.5:1 where the dots' colours don't.
+const TEXT_TINT = { ...TINT, ok: 'var(--ok-text)', warn: 'var(--warn-text)' };
+// A colour from a tile's look: "#rrggbb", a theme name, or none (the tile's own colour).
+const tintOf = (c, t, words = false) => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : (words ? TEXT_TINT : TINT)[c] || esc(tileColor(t)));
+const tapped = new Map(); // tile id → "Asked" and the like, for a moment after a tap
+const popped = new Set(); // tiles whose tap just worked: the card pops once, no words
+
+const dotHTML = (d, t) => (d ? `<i class="tile-dot ${d.big ? 'big' : ''} ${d.filled === false ? 'off' : d.filled == null ? 'unknown' : ''}" style="--c:${tintOf(d.color, t)}"></i>` : '');
+
+// A tile's blocks (see lib/tile-blocks.js). where: "face" (on the tile) or "panel" (its pop-up).
+function blocksHTML(list, t, where) {
+  return (list || []).map((b) => blockHTML(b, t, where)).join('');
+}
+function blockHTML(b, t, where) {
+  const faint = '<div class="faint">·</div>';
+  const ctl = (kind) => `data-ctl="${esc(b.key)}" data-ctl-kind="${kind}"`;
+  switch (b.type) {
+    case 'text':
+      if (!b.text) return faint;
+      if (b.markdown) return `<div class="tile-note md ${b.lines ? 'folded' : ''} ${b.size || ''} ${b.muted ? 'muted' : ''}" ${b.lines ? `style="--lines:${b.lines}"` : ''}>${md(b.text)}</div>`;
+      return `<div class="b-text ${b.size || ''} ${b.muted ? 'muted' : ''} ${b.lines ? 'clamp' : ''}" ${b.lines ? `style="--lines:${b.lines}"` : ''}>${esc(b.text)}</div>`;
+    case 'value':
+      return b.text ? `<div class="tile-val" ${b.color ? `style="color:${tintOf(b.color, t, true)}"` : ''}>${esc(b.text)}${b.unit ? `<span class="unit">${esc(b.unit)}</span>` : ''}</div>` : `<div class="tile-val">${faint}</div>`;
+    case 'dot':
+      return `<span class="b-dot">${dotHTML(b, t)}${b.label ? `<span>${esc(b.label)}</span>` : ''}</span>`;
+    case 'list':
+      return b.items.length ? `<ul class="tile-list">${b.items.slice(0, b.max).map((l) => `<li>${esc(l)}</li>`).join('')}${b.items.length > b.max ? '<li class="faint">…</li>' : ''}</ul>` : faint;
+    case 'progress':
+      return `<div class="b-progress"><div class="bar"><i style="width:${Math.round((b.ratio ?? 0) * 100)}%;--c:${tintOf(b.color, t)}"></i></div>${b.text ? `<span>${esc(b.text)}</span>` : ''}</div>`;
+    case 'gauge': {
+      const arc = 'M 8 48 A 40 40 0 0 1 88 48';
+      return `<div class="b-gauge"><svg viewBox="0 0 96 54" aria-hidden="true"><path d="${arc}" class="track" pathLength="100"/><path d="${arc}" class="fill" pathLength="100" stroke-dasharray="${Math.round((b.ratio ?? 0) * 100)} 100" style="--c:${tintOf(b.color, t)}"/></svg><span>${esc(b.text || '·')}</span></div>`;
+    }
+    case 'chart': {
+      const pts = b.points || [];
+      if (pts.length < 2) return `<div class="b-chart">${b.text ? `<span>${esc(b.text)}</span>` : ''}${faint}</div>`;
+      const lo = Math.min(...pts), hi = Math.max(...pts), span = hi - lo || 1;
+      const line = pts.map((v, i) => `${((i / (pts.length - 1)) * 100).toFixed(2)},${(28 - ((v - lo) / span) * 26).toFixed(2)}`).join(' ');
+      return `<div class="b-chart">${b.text ? `<span>${esc(b.text)}</span>` : ''}<svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><polyline points="${line}" style="--c:${tintOf(b.color, t)}" vector-effect="non-scaling-stroke"/></svg></div>`;
+    }
+    case 'image':
+      return `<img class="b-img ${b.height || 'normal'} ${b.fit || 'cover'}" src="/api${esc(b.src)}" alt="" loading="lazy" draggable="false">`;
+    case 'chat': {
+      const bot = botById(t.bot);
+      return bot ? `<button class="link-btn tile-chat" data-tile-chat>${b.label ? esc(b.label) : botLabel(bot)} ›</button>` : '';
+    }
+    case 'switch':
+      return `<label class="b-switch" data-ctl-wrap>${b.label ? `<span>${esc(b.label)}</span>` : ''}<span class="switch"><input type="checkbox" ${b.on ? 'checked' : ''} ${ctl('switch')} aria-label="${esc(b.label || t.title)}"><span></span></span></label>`;
+    case 'button':
+      return `<button class="btn sm b-btn" ${ctl('button')}>${esc(b.label)}</button>`;
+    case 'slider': {
+      const v = b.value ?? b.min;
+      return `<label class="b-slider ${b.value == null ? 'unset' : ''}" data-ctl-wrap><span class="lbl">${b.label ? `<span>${esc(b.label)}</span>` : ''}<b data-show>${b.value == null ? '·' : esc(sliderText(b, b.value))}</b></span><input type="range" min="${b.min}" max="${b.max}" step="${b.step}" value="${v}" ${ctl('slider')} aria-label="${esc(b.label || t.title)}"></label>`;
+    }
+    case 'color':
+      if (where === 'face') return `<button class="b-swatch" ${ctl('color-open')} style="--c:${b.value || 'var(--line-2)'}" aria-label="${esc(b.label || 'Colour')}"></button>`;
+      return `<div class="b-color" data-ctl-wrap>${b.label ? `<span class="lbl">${esc(b.label)}</span>` : ''}<div class="wheel" ${ctl('color')} role="slider" aria-label="${esc(b.label || 'Colour')}" tabindex="0">${b.value ? `<i class="mark" style="${wheelSpot(b.value)};--c:${b.value}"></i>` : ''}</div></div>`;
+    case 'choice':
+      return `<div class="b-choice" data-ctl-wrap>${b.label ? `<span class="lbl">${esc(b.label)}</span>` : ''}<div class="seg">${b.options.map((o) => `<button class="${String(o.value) === String(b.value) ? 'on' : ''}" ${ctl('choice')} data-v="${esc(JSON.stringify(o.value))}">${esc(o.label)}</button>`).join('')}</div></div>`;
+    case 'row':
+      return `<div class="b-row">${blocksHTML(b.blocks, t, where)}</div>`;
+    case 'column':
+      return `<div class="b-col">${blocksHTML(b.blocks, t, where)}</div>`;
+    default:
+      return '';
+  }
+}
+const fmtNum = (n) => String(Math.round(n * 100) / 100);
+const sliderText = (b, v) => (b.percent ? `${Math.round(((v - b.min) / (b.max - b.min)) * 100)} %` : `${fmtNum(v)}${b.unit ? ` ${b.unit}` : ''}`);
+
+// The colour wheel: hue around it (red at the right, going clockwise), white in the middle. Brightness is a slider of its own.
+function hsvHex(h, s) {
+  const f = (n) => { const k = (n + h / 60) % 6; return Math.round(255 * (1 - s * Math.max(0, Math.min(k, 4 - k, 1)))); };
+  return `#${[f(5), f(3), f(1)].map((x) => x.toString(16).padStart(2, '0')).join('')}`;
+}
+function hexHs(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b), d = max - Math.min(r, g, b);
+  let h = 0;
+  if (d) h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: max ? d / max : 0 };
+}
+function wheelSpot(hex) {
+  const { h, s } = hexHs(hex);
+  const a = (h * Math.PI) / 180;
+  return `left:${(50 + Math.cos(a) * s * 50).toFixed(1)}%;top:${(50 + Math.sin(a) * s * 50).toFixed(1)}%`;
+}
+
+function tileHTML(t, waiting) {
+  const look = t.look || { dot: { filled: true }, face: [], tap: 'none' };
+  let dot = dotHTML(look.dot, t);
+  let body = blocksHTML(look.face, t, 'face');
+  // A group: one dot per tile inside (filled when on, in its own colour).
+  if (t.kind === 'group') {
+    const inside = (state.dash?.tiles || []).filter((x) => x.parent === t.id);
+    dot = '';
+    body = `<div class="group-dots">${inside.map((x) => {
+      const d = x.look?.dot;
+      return `<i class="${d && d.filled !== true ? 'off' : ''}" style="--c:${tintOf(d?.color, x)}"></i>`;
+    }).join('') || '<span class="faint">·</span>'}</div>`;
+  }
+  const note = waiting ? 'Waiting for your OK' : tapped.get(t.id) || (t.error ? "Couldn't update" : '');
+  const pressed = look.tap === 'toggle' ? ` aria-pressed="${look.dot?.filled === true}"` : '';
+  const open = t.kind === 'group' && openGroups.has(t.id);
+  const size = t.size || (t.wide ? 'wide' : 'small');
+  return `<div role="button" tabindex="0" class="tile kind-${t.kind} size-${size} ${look.dot?.big ? 'big-dot' : ''} ${waiting ? 'waiting' : ''} ${open ? 'open' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${pressed}${t.kind === 'group' ? ` aria-expanded="${open}"` : ''} title="${esc(t.error || '')}">
+    <div class="tile-head">${dot}<span class="tile-title">${esc(t.title)}</span></div>
+    ${body}
+    ${note ? `<div class="tile-sub">${esc(note)}</div>` : ''}
+  </div>`;
+}
+
+function renderDashboard() {
+  const root = $('#view-dashboard');
+  const d = state.dash;
+  if (!d) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
+  if (tileDrag) return; // redrawing would drop the tile you're dragging
+  if (ctlHeld) { ctlHeld.later = true; return; } // nor while a slider or the colour wheel is in your hand
+  renderPanel();
+  const waiting = new Set((d.pending || []).map((t) => t.id));
+  const sig = JSON.stringify([d, [...tapped], [...popped], [...openGroups], state.bots.map((b) => b.color)]);
+  if (root.dataset.sig === sig) return;
+  root.dataset.sig = sig;
+  const loose = d.tiles.filter((t) => !t.parent);
+  const groups = [['', loose.filter((t) => !t.section)], ...d.sections.map((s) => [s, loose.filter((t) => t.section === s)])].filter(([, ts]) => ts.length);
+  // A group tile, and when it's open, its tiles right below it across the whole width.
+  const withInside = (t) => tileHTML(t, waiting.has(t.id)) + (t.kind === 'group' && openGroups.has(t.id)
+    ? `<div class="dash-inside"><div class="dash-grid" data-section="${esc(t.section)}" data-parent="${esc(t.id)}">${d.tiles.filter((x) => x.parent === t.id).map((x) => tileHTML(x, waiting.has(x.id))).join('') || '<div class="faint">Nothing in it yet.</div>'}</div></div>` : '');
+  root.innerHTML = `
+    <div class="section-head"><div>${BACK_BTN}<h1>Board</h1></div></div>
+    ${d.tiles.length ? '' : `<div class="dash-empty">
+      <p>Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.</p>
+      <p>Nothing is on it yet. Tell the Chief or any bot, for example: <i>“Put a shopping list on my board.”</i></p>
+    </div>`}
+    ${groups.map(([name, ts]) => `${name ? `<h3 class="dash-sec">${esc(name)}</h3>` : ''}<div class="dash-grid" data-section="${esc(name)}">${ts.map(withInside).join('')}</div>`).join('')}
+    ${(d.suggestions || []).length ? `<h3 class="dash-sec">Suggested</h3><div class="dash-grid">${d.suggestions.map(suggestedHTML).join('')}</div>` : ''}`;
+  $$('[data-tile]', root).forEach((el) => {
+    const t = d.tiles.find((x) => x.id === el.dataset.tile);
+    wireTile(el, t, waiting.has(el.dataset.tile));
+    if (t && !waiting.has(t.id)) wireControls(el, t);
+  });
+  wireTileDrags(root);
+  // A folded note that has more to it fades out at the bottom.
+  $$('.tile-note.folded', root).forEach((el) => el.classList.toggle('more', el.scrollHeight > el.clientHeight + 2));
+  $$('[data-sug]', root).forEach((el) => {
+    const x = tileSuggestions().find((y) => y.s.id === el.dataset.sug);
+    $('[data-sug-add]', el).onclick = () => answerSuggestion(x, true);
+    $('[data-sug-no]', el).onclick = () => answerSuggestion(x, false);
+  });
+}
+
+// A tile a bot suggested: faded, who and why, Add or ✕ (its script, if it has one, opens under it).
+function suggestedHTML(s) {
+  const t = s.tile;
+  const b = botById(s.bot);
+  return `<div class="tile suggested ${t.wide ? 'wide' : ''}" data-sug="${esc(s.id)}">
+    <div class="tile-head"><i class="tile-dot" style="--c:${esc(b?.color || CHIEF_COLOR)}"></i><span class="tile-title">${esc(t.title)}</span></div>
+    <div class="tile-why">${b ? `<b>${esc(b.name)}</b> · ` : ''}${esc(s.reason)}</div>
+    ${(t.scripts || []).length ? `<details class="tile-script"><summary>Its script</summary>${t.scripts.map((sc) => `<pre>${esc(sc)}</pre>`).join('')}</details>` : ''}
+    <div class="tile-actions"><button class="btn sm" data-sug-no aria-label="Not this one">✕</button><button class="btn sm primary" data-sug-add>Add</button></div>
+  </div>`;
+}
+async function answerSuggestion(x, add) {
+  if (!x) return;
+  try { await api(`/dashboard/suggestions/${x.s.id}`, { method: 'POST', body: { add } }); } catch (e) { toast(e.message, true); }
+  loadDash(true);
+}
+
+// A tap does the tile's thing; a long press (or right-click) offers to remove it.
+function wireTile(el, t, waiting) {
+  if (!t) return;
+  let timer = null, long = false;
+  const cancel = () => clearTimeout(timer);
+  el.onpointerdown = (e) => { long = false; if (e.pointerType === 'touch') timer = setTimeout(() => { long = true; removeTile(t); }, 550); }; // a mouse drags instead
+  el.onpointerup = cancel;
+  el.onpointerleave = cancel;
+  el.onpointercancel = cancel;
+  el.oncontextmenu = (e) => { if (e.target.closest('[data-ctl-wrap], [data-ctl]')) return; e.preventDefault(); cancel(); if (!long) removeTile(t); long = true; };
+  el.onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); el.click(); } };
+  el.onclick = (e) => {
+    if (e.target.closest('[data-ctl-wrap], [data-ctl], [data-tile-chat]')) return; // a control on the tile does its own thing
+    if (long) { long = false; return; }
+    if (t.kind === 'group') { openGroups.has(t.id) ? openGroups.delete(t.id) : openGroups.add(t.id); saveOpenGroups(); return renderDashboard(); }
+    waiting ? setView('needs') : tapTile(t);
+  };
+}
+
+// ---------- moving tiles by dragging ----------
+// The tile moves live among the others while you drag (they make room); letting go saves its heading,
+// its group and its place. Held over a closed group tile, it goes into that group.
+const TILE_DRAG = 'application/x-botdot-tile';
+let tileDrag = null; // { id, el, isGroup, into }
+function wireTileDrags(root) {
+  $$('[data-tile]', root).forEach((el) => {
+    el.draggable = true;
+    el.ondragstart = (e) => {
+      const t = state.dash.tiles.find((x) => x.id === el.dataset.tile);
+      e.dataTransfer.setData(TILE_DRAG, el.dataset.tile);
+      e.dataTransfer.effectAllowed = 'move';
+      tileDrag = { id: el.dataset.tile, el, isGroup: t?.kind === 'group', into: null };
+      setTimeout(() => el.classList.add('drag-ghost'));
+    };
+    el.ondragend = () => { el.classList.remove('drag-ghost'); $$('.tile.drop-into').forEach((x) => x.classList.remove('drop-into')); if (tileDrag && !tileDrag.dropped) { tileDrag = null; delete root.dataset.sig; renderDashboard(); } };
+    el.ondragover = (e) => {
+      if (!tileDrag || !e.dataTransfer.types.includes(TILE_DRAG) || el === tileDrag.el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const r = el.getBoundingClientRect();
+      // Over the middle of a closed group: into it.
+      const isGroup = el.classList.contains('kind-group');
+      const middle = Math.abs(e.clientX - (r.left + r.width / 2)) < r.width / 4;
+      $$('.tile.drop-into').forEach((x) => x !== el && x.classList.remove('drop-into'));
+      if (isGroup && !tileDrag.isGroup && middle && !openGroups.has(el.dataset.tile)) { el.classList.add('drop-into'); tileDrag.into = el.dataset.tile; return; }
+      el.classList.remove('drop-into');
+      tileDrag.into = null;
+      const grid = el.parentElement;
+      if (tileDrag.isGroup && grid.dataset.parent) return; // a group stays out of groups
+      const after = e.clientX > r.left + r.width / 2;
+      let spot = after ? el.nextElementSibling : el;
+      if (after && spot?.classList.contains('dash-inside')) spot = spot.nextElementSibling; // an open group keeps its tiles right below it
+      if (spot === tileDrag.el) return;
+      grid.insertBefore(tileDrag.el, spot);
+      moveInsideAlong();
+    };
+    el.ondrop = (e) => dropTile(e);
+  });
+  // Over the empty part of a grid (or of an open group): at its end.
+  $$('.dash-grid[data-section]', root).forEach((grid) => {
+    grid.ondragover = (e) => {
+      if (!tileDrag || !e.dataTransfer.types.includes(TILE_DRAG)) return;
+      if (tileDrag.isGroup && grid.dataset.parent) return;
+      e.preventDefault();
+      if (e.target === grid && grid.lastElementChild !== tileDrag.el) { grid.append(tileDrag.el); moveInsideAlong(); }
+    };
+    grid.ondrop = (e) => dropTile(e);
+  });
+}
+// A dragged open group takes its tiles' block along, right after it.
+function moveInsideAlong() {
+  const el = tileDrag?.el;
+  if (!el?.classList.contains('open')) return;
+  const inside = $$('.dash-inside').find((x) => x.querySelector(`[data-parent="${CSS.escape(el.dataset.tile)}"]`));
+  if (inside && el.nextElementSibling !== inside) el.after(inside);
+}
+async function dropTile(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const drag = tileDrag;
+  if (!drag || drag.dropped) return;
+  drag.dropped = true;
+  let body;
+  if (drag.into) body = { parent: drag.into };
+  else {
+    const grid = drag.el.parentElement;
+    let next = drag.el.nextElementSibling;
+    while (next && !next.dataset?.tile) next = next.nextElementSibling;
+    body = { section: grid?.dataset.section || '', parent: grid?.dataset.parent || null, before: next?.dataset.tile || null };
+  }
+  try { await api(`/dashboard/tiles/${drag.id}/move`, { method: 'POST', body }); } catch (err) { toast(err.message, true); }
+  tileDrag = null;
+  delete $('#view-dashboard').dataset.sig;
+  await loadDash(true);
+  renderDashboard();
+}
+
+// A tile's panel: its pop-up in the middle (the Board stays as it is). A note or list shows all of it
+// there, with a way into its bot's chat; a light its on/off, brightness and colour wheel. It follows the tile's new values.
+let panelOpen = null; // { id, m, sig }
+// How often a tile refreshes, in words, for its pop-up (#42): `every` as the owner chose it, 0 for only when
+// tapped; nothing for a tile that reads nothing, or from a server that doesn't say. The Chief changes it.
+function refreshLine(t) {
+  const n = t.every;
+  if (typeof n !== 'number') return '';
+  const unit = (k, one) => (k === 1 ? `every ${one}` : `every ${k} ${one}s`);
+  const when = n === 0 ? 'only when tapped'
+    : `${n % 86400 === 0 ? unit(n / 86400, 'day') : n % 3600 === 0 ? unit(n / 3600, 'hour') : n % 60 === 0 ? unit(n / 60, 'minute') : unit(n, 'second')} while the Board is open`;
+  return `Refreshes ${when}. Ask the Chief of Staff to change it.`;
+}
+function openTilePanel(t, only = null) {
+  const m = openModal(`
+    <div class="modal-head"><h2>${esc(t.title)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body tile-full tile-panel"></div>`);
+  m.classList.add('tile-pop'); // the one dialog every pop-up uses: narrow only for this one
+  panelOpen = { id: t.id, m, only, sig: null };
+  // A click beside it closes it (the dialog's own backdrop; its padding counts as inside).
+  const away = (e) => {
+    if (e.target !== m) return;
+    const r = m.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) m.close();
+  };
+  m.addEventListener('click', away);
+  m.addEventListener('close', () => { m.classList.remove('tile-pop'); m.removeEventListener('click', away); panelOpen = null; }, { once: true });
+  renderPanel();
+}
+function renderPanel() {
+  if (!panelOpen || ctlHeld) return;
+  const t = state.dash?.tiles.find((x) => x.id === panelOpen.id);
+  if (!t) { panelOpen.m.close(); return; }
+  const list = panelOpen.only ? [findBlock(t.look?.face, panelOpen.only)].filter(Boolean) : t.look?.panel;
+  const sig = JSON.stringify([list, t.every]);
+  if (sig === panelOpen.sig) return;
+  panelOpen.sig = sig;
+  const body = $('.tile-panel', panelOpen.m);
+  const every = panelOpen.only ? '' : refreshLine(t);
+  body.innerHTML = (blocksHTML(list, t, 'panel') || '<div class="faint">·</div>') + (every ? `<div class="faint tile-every">${esc(every)}</div>` : '');
+  wireControls(body, t);
+  const link = $('[data-tile-chat]', body);
+  if (link) link.onclick = () => { panelOpen?.m.close(); setView('bot', t.bot); };
+}
+function findBlock(list, key) {
+  for (const b of list || []) { if (b.key === key) return b; const x = findBlock(b.blocks, key); if (x) return x; }
+  return null;
+}
+
+// ---------- a tile's controls: switches, buttons, sliders, the colour wheel, choices ----------
+let ctlHeld = null; // a slider or the wheel being dragged: the page isn't redrawn under your finger
+function holdCtl(tileEl) {
+  ctlHeld = { later: false, tileEl };
+  if (tileEl) tileEl.draggable = false; // a slider moves, not the tile
+  const up = () => {
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
+    setTimeout(() => {
+      const later = ctlHeld?.later;
+      if (ctlHeld?.tileEl) ctlHeld.tileEl.draggable = true;
+      ctlHeld = null;
+      if (later) { delete $('#view-dashboard').dataset.sig; renderDashboard(); }
+      renderPanel();
+    }, 0);
+  };
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
+
+function wireControls(root, t) {
+  const tileEl = root.closest?.('[data-tile]') || (root.dataset?.tile ? root : null);
+  $$('[data-ctl-wrap], [data-ctl], [data-tile-chat]', root).forEach((el) => {
+    el.addEventListener('pointerdown', (e) => { e.stopPropagation(); holdCtl(tileEl); });
+    el.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
+  });
+  const chat = $('[data-tile-chat]', root);
+  if (chat && tileEl) chat.onclick = (e) => { e.stopPropagation(); setView('bot', t.bot); };
+  $$('[data-ctl]', root).forEach((el) => {
+    const key = el.dataset.ctl;
+    switch (el.dataset.ctlKind) {
+      case 'switch':
+        el.onchange = () => sendCtl(t, key, el.checked);
+        break;
+      case 'button':
+        el.onclick = (e) => { e.stopPropagation(); sendCtl(t, key, null, { pop: true }); };
+        break;
+      case 'slider': {
+        const show = $('[data-show]', el.closest('.b-slider'));
+        const b = findBlock(t.look?.panel, key) || findBlock(t.look?.face, key) || {};
+        el.oninput = () => { el.closest('.b-slider').classList.remove('unset'); show.textContent = sliderText(b, Number(el.value)); };
+        el.onchange = () => sendCtl(t, key, Number(el.value));
+        break;
+      }
+      case 'choice':
+        el.onclick = (e) => {
+          e.stopPropagation();
+          $$('button', el.parentElement).forEach((b) => b.classList.toggle('on', b === el));
+          sendCtl(t, key, JSON.parse(el.dataset.v));
+        };
+        break;
+      case 'color-open':
+        el.onclick = (e) => { e.stopPropagation(); openTilePanel(t, key); };
+        break;
+      case 'color':
+        wireWheel(el, (hex, done) => sendCtl(t, key, hex, { quiet: !done }));
+        break;
+      default:
+    }
+  });
+}
+
+// Drag on the wheel: the mark follows, the light follows a few times a second, and once more when you let go.
+function wireWheel(el, send) {
+  let last = 0, timer = null, hex = null;
+  const pick = (e) => {
+    const r = el.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5;
+    const sat = Math.min(Math.hypot(x, y) * 2, 1);
+    hex = hsvHex(((Math.atan2(y, x) * 180) / Math.PI + 360) % 360, sat);
+    let mark = $('.mark', el);
+    if (!mark) { mark = document.createElement('i'); mark.className = 'mark'; el.append(mark); }
+    mark.setAttribute('style', `${wheelSpot(hex)};--c:${hex}`);
+    const now = Date.now();
+    clearTimeout(timer);
+    if (now - last > 350) { last = now; send(hex, false); } else timer = setTimeout(() => { last = Date.now(); send(hex, false); }, 350);
+  };
+  el.onpointerdown = (e) => { el.setPointerCapture(e.pointerId); pick(e); el.onpointermove = pick; };
+  el.onpointerup = () => { el.onpointermove = null; clearTimeout(timer); if (hex) send(hex, true); };
+  el.onpointercancel = el.onpointerup;
+}
+
+async function sendCtl(t, key, value, { pop: popIt = false, quiet = false } = {}) {
+  try {
+    const r = await api(`/dashboard/tiles/${t.id}/act`, { method: 'POST', body: { block: key, value } });
+    if (quiet) return; // the wheel mid-drag: the last one updates the page
+    state.dash.tiles = state.dash.tiles.map((x) => (x.id === t.id ? { ...x, ...r } : x));
+    if (popIt) { popped.add(t.id); setTimeout(() => { popped.delete(t.id); renderDashboard(); }, 500); }
+    renderDashboard();
+    renderPanel();
+  } catch (e) {
+    toast(e.message, true);
+    loadDash(true);
+  }
+}
+
+// Groups you opened stay open (in this browser).
+const openGroups = new Set((() => { try { return JSON.parse(localStorage.getItem('dash-open') || '[]'); } catch { return []; } })());
+function saveOpenGroups() { try { localStorage.setItem('dash-open', JSON.stringify([...openGroups])); } catch { /* private window */ } }
+
+function removeTile(t) {
+  const inside = t.kind === 'group' ? (state.dash?.tiles || []).filter((x) => x.parent === t.id) : [];
+  if (inside.length) return removeGroup(t, inside.length);
+  if (!confirm(`Remove “${t.title}” from your Board?`)) return;
+  api(`/dashboard/tiles/${t.id}`, { method: 'DELETE' }).then(() => loadDash(true)).catch((e) => toast(e.message, true));
+}
+
+// A group with tiles in it: only the group (its tiles stay, loose), or everything.
+function removeGroup(t, n) {
+  const m = openModal(`
+    <div class="modal-head"><h2>Remove “${esc(t.title)}”?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body"><p style="margin:0">It holds ${n === 1 ? 'one tile' : `${n} tiles`}.</p></div>
+    <div class="modal-foot">
+      <button class="btn" data-dismiss>Cancel</button>
+      <button class="btn" id="rm-group">Only the group</button>
+      <button class="btn danger" id="rm-all">The group and its tiles</button>
+    </div>`);
+  const go = (all) => { m.close(); api(`/dashboard/tiles/${t.id}${all ? '?all' : ''}`, { method: 'DELETE' }).then(() => loadDash(true)).catch((e) => toast(e.message, true)); };
+  $('#rm-group', m).onclick = () => go(false);
+  $('#rm-all', m).onclick = () => go(true);
+}
+
+// What a tile says when its bot was busy: the request waits among the owner's messages (docs/api.md, "A message that waits").
+const tileWaits = (t) => `${botById(t.bot)?.name || 'Its bot'} will do it when it is free`;
+async function tapTile(t) {
+  const tap = t.look?.tap || 'none';
+  if (tap === 'panel') return openTilePanel(t);
+  if (tap === 'chat' || tap === 'none') { if (tap === 'chat' && botById(t.bot)) setView('bot', t.bot); return; }
+  const flash = (text) => { tapped.set(t.id, text); renderDashboard(); setTimeout(() => { tapped.delete(t.id); renderDashboard(); }, 2500); };
+  const pop = () => { popped.add(t.id); renderDashboard(); setTimeout(() => { popped.delete(t.id); renderDashboard(); }, 500); };
+  const on = t.look.dot?.filled !== true;
+  if (tap === 'toggle') { state.dash.tiles = state.dash.tiles.map((x) => (x.id === t.id ? { ...x, value: on, look: { ...x.look, dot: { ...x.look.dot, filled: on } } } : x)); renderDashboard(); }
+  if (t.asks) flash(`Asked ${botById(t.bot)?.name || 'its bot'}`);
+  try {
+    const { queued, ...r } = await api(`/dashboard/tiles/${t.id}/tap`, { method: 'POST', body: tap === 'toggle' ? { on } : {} });
+    state.dash.tiles = state.dash.tiles.map((x) => (x.id === t.id ? { ...x, ...r } : x));
+    if (t.asks && queued === true) flash(tileWaits(t)); // its bot is working: the request waits its turn
+    if (tap === 'act' && !t.asks) pop();
+    else renderDashboard();
+  } catch (e) {
+    toast(e.message, true);
+    loadDash(true);
+  }
+}

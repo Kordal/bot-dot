@@ -5,8 +5,9 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { webSource } = require('./web-source');
 
-const app = fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8');
+const app = webSource();
 const cut = (from, to) => {
   const a = app.indexOf(from), b = app.indexOf(to, a);
   assert.ok(a >= 0 && b > a, `app.js has "${from}" … "${to}"`);

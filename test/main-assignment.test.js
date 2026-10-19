@@ -10,6 +10,7 @@ const { rpcClient } = require('./memory-helpers');
 const { proposalView } = require('../lib/asks');
 const jobs = require('../lib/jobs');
 const { TOOLS } = require('../lib/mcp-server');
+const { webSource } = require('./web-source');
 
 let srv;
 before(async () => { srv = await startServer(); });
@@ -129,7 +130,7 @@ test("the Chief's tools: the prompt is the bot's main assignment", () => {
 });
 
 test('the web page says "Main assignment", and its empty chat has no button to run it', () => {
-  const app = source('public/app.js');
+  const app = webSource();
   for (const text of [
     'Main assignment <span class="hint">what it does when a job runs it, and its guide for your messages</span>',
     'Ran its main assignment',

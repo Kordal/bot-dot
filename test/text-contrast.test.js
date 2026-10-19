@@ -3,6 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { read } = require('./web-page');
+const { webSource } = require('./web-source');
 
 const css = read('style.css');
 
@@ -46,6 +47,6 @@ test('ok and warn words take the text shades, while dots, fills and borders keep
   assert.match(css, /\.pill\.warn \{ background: var\(--warn-soft\); color: var\(--warn-text\); \}/);
   assert.match(css, /\.switch input:checked \+ span \{ background: var\(--ok\); \}/);
   assert.match(css, /\.pip\.in-control \{ border-color: var\(--warn\); \}/);
-  const app = read('app.js');
+  const app = webSource();
   assert.match(app, /style="color:\$\{tintOf\(b\.color, t, true\)\}"/, "a tile's value in ok or warn is words");
 });

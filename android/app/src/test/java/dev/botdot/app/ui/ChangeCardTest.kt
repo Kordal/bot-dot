@@ -203,8 +203,8 @@ class ChangeCardTest {
     }
 
     @Test fun alwaysAllowAsksInTheWebPagesWords() {
-        // The same question as the web page's (public/app.js): one sentence, read from the page so the two stay alike.
-        val page = File(System.getProperty("webPage") ?: "../../public/app.js").readText()
+        // The same question as the web page's (public/needs.js): one sentence, read from the page so the two stay alike.
+        val page = File(System.getProperty("webPage") ?: "../../public/needs.js").readText()
         assertTrue(ALWAYS_ALLOW_QUESTION, page.contains("confirm('$ALWAYS_ALLOW_QUESTION')"))
     }
 }

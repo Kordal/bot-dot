@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { startServer, ROOT } = require('./helpers');
+const { webSource } = require('./web-source');
 
 const PASS = 'a passphrase long enough';
 const servers = [];
@@ -35,7 +36,7 @@ test('the Mac\'s botdot keeps its update', async () => {
 });
 
 test('the web page has no update of botdot', () => {
-  const app = fs.readFileSync(path.join(ROOT, 'public', 'app.js'), 'utf8');
+  const app = webSource();
   assert.ok(!/['"`]\/updates/.test(app), 'calls no route of the update');
   assert.ok(!/Update botdot|upd-row|update_available/.test(app));
 });

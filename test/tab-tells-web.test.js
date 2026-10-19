@@ -7,6 +7,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
 const { app, read, cut } = require('./web-page');
+const { webFiles } = require('./web-source');
 
 const lib = vm.createContext({});
 vm.runInContext(read('unread.js'), lib);
@@ -199,5 +200,5 @@ test('web: the tab is told wherever the list\'s dots and Needs you are drawn, an
   assert.match(index, /<link rel="icon" href="\/icon\.svg\?v=2" \/>/);
   assert.equal(app.match(/document\.title\s*=[^=]/g)?.length, 1, 'one place sets the title');
   // No notification, no permission question, no service worker, no sound.
-  for (const f of ['app.js', 'index.html', 'groups.js', 'unread.js']) assert.doesNotMatch(read(f), /\bNotification\b|serviceWorker|requestPermission|new Audio|AudioContext|navigator\.setAppBadge/, f);
+  for (const f of [...webFiles(), 'index.html', 'groups.js', 'unread.js']) assert.doesNotMatch(read(f), /\bNotification\b|serviceWorker|requestPermission|new Audio|AudioContext|navigator\.setAppBadge/, f);
 });

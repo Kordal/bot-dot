@@ -10,6 +10,7 @@ const vm = require('vm');
 const { startServer, makeBot, heldRun, self, waitFor, ROOT } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 const { TOOLS } = require('../lib/mcp-server');
+const { webSource } = require('./web-source');
 
 let srv;
 before(async () => { srv = await startServer(); });
@@ -169,7 +170,7 @@ test('the errors name the Board and get_board', async (t) => {
 
 // ---------- the web page ----------
 
-const app = source('public/app.js');
+const app = webSource();
 const css = source('public/style.css');
 // A part of app.js, from one line of it up to another.
 const cut = (from, to) => {

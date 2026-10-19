@@ -52,7 +52,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 /* ---------- shell ---------- */
 .app { display: flex; height: 100dvh; }
 .sidebar { width: var(--side-w, 300px); container-type: inline-size; container-name: side; flex: none; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--line); padding-top: env(safe-area-inset-top); }
-/* The list's right edge, dragged to resize it (app.js, initSideGrip): no width of its own, a strip of 9px to catch
+/* The list's right edge, dragged to resize it (list.js, initSideGrip): no width of its own, a strip of 9px to catch
    the pointer, and a line while it is touched. Only where the list has its full layout (see responsive). The
    chat's left edge beside the keypad (initChatGrip, #28) is the same handle (see the keypad). */
 .side-grip, .chat-grip { display: none; position: relative; flex: none; width: 0; z-index: 3; outline: none; touch-action: none; }
@@ -216,7 +216,7 @@ a.more-btn { text-decoration: none; }
 .chat-sent:empty { display: none; }
 .chief-empty:has(~ .chat-sent), .chat-empty:has(~ .chat-sent) { display: none; }
 /* A reply that is new in the open chat, and the owner's message on Send, arrive: the row fades in and rises into
-   its place, once (app.js, "a reply arrives"). A row that was there has no mark, and stands. */
+   its place, once (replies.js, "a reply arrives"). A row that was there has no mark, and stands. */
 .arrives { animation: arrive 260ms ease-out; }
 @keyframes arrive { from { opacity: 0; transform: translateY(10px); } }
 @media (prefers-reduced-motion: reduce) { .arrives { animation: none; } }
@@ -515,7 +515,7 @@ legend { font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 0 6p
 .tool-toggles { display: flex; flex-wrap: wrap; gap: 6px; }
 .tool-toggles label { display: flex; gap: 6px; align-items: center; font-size: 12.5px; font-family: var(--mono); background: var(--sunk); padding: 4px 10px; border-radius: 99px; cursor: pointer; }
 .screen-frame { aspect-ratio: 4 / 3; background: #000; border-radius: 14px; overflow: hidden; display: grid; place-items: center; }
-/* A bot's computer: no wider than the height left for its screen lets it be (--screen-w, from fitScreen in app.js), so
+/* A bot's computer: no wider than the height left for its screen lets it be (--screen-w, from fitScreen in computers.js), so
    the whole dialog is in the window (#43); what is under it keeps the dialog's width. */
 #modal.screen .screen-frame { width: min(100%, var(--screen-w, 100%)); justify-self: center; }
 .screen-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
@@ -1215,7 +1215,7 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .key.drop-on { border-color: var(--text); }
 .kp-page-head.drop-on { color: var(--text); border-bottom-color: var(--text); }
 
-/* ---------- the keypad on a phone: its home below the list's phone width (app.js, drawKeypadSections; #498) ----------
+/* ---------- the keypad on a phone: its home below the list's phone width (list.js, drawKeypadSections; #498) ----------
    The pages stand one under the other, each a section of keys in rows of three, under the Board's values and over
    the Chief's message box. A key opens its chat full screen (.in-main), as a row of the list does. The wide keypad
    is not shown, so no digits and no keys. The heads are the list's, still under reduced motion as there. */

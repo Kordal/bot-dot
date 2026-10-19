@@ -4,6 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
+const { webSource } = require('./web-source');
 
 const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -18,7 +19,7 @@ test('the web page is dark, and has no light theme or choice of look', () => {
   assert.match(html, /<meta name="theme-color" content="#000000" \/>/);
   assert.match(html, /<meta name="apple-mobile-web-app-status-bar-style" content="black" \/>/);
   assert.ok(!fs.existsSync(path.join(ROOT, 'public/theme.js')), 'no saved look to apply');
-  const app = read('public/app.js');
+  const app = webSource();
   assert.doesNotMatch(app, /Appearance|applyTheme|data-theme-pick|botdot\.theme|dataset\.theme/);
 });
 

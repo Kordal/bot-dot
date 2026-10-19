@@ -1,6 +1,6 @@
 {
   "about": [
-    "The types of a login-kind item of the Vault (docs/api.md, The Vault's items), as words every app must show alike: the web page (VAULT_TYPES in public/app.js) and the Android app (VaultTypes.kt).",
+    "The types of a login-kind item of the Vault (docs/api.md, The Vault's items), as words every app must show alike: the web page (VAULT_TYPES in public/vault.js) and the Android app (VaultTypes.kt).",
     "types: each type's label, the label of its first field (null: the form has the secret alone), whether that field is optional, the label of its secret, and what an item's line shows: its icon, the words for an item without a username, and the words after the lock.",
     "items: saved items with the two lines each shows in the Vault's list, under its name: its type before its address, then the line of that type."
   ],

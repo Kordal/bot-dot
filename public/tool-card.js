@@ -20,7 +20,7 @@ const rowsOf = (list) => (Array.isArray(list) ? list : [])
   .map((f) => ({ label: text(f?.label), value: text(f?.value) }))
   .filter((f) => f.label || f.value);
 // Such rows as one block of the card: a faint label and its value per row. '' without a row.
-// Other cards whose rows the server hands out are drawn by it too: a connected-app action, a changed bot (app.js).
+// Other cards whose rows the server hands out are drawn by it too: a connected-app action, a changed bot (needs.js).
 const rows = (list) => { const r = rowsOf(list); return r.length ? `<div class="need-body"><dl class="nb need-facts">${r.map((f) => `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join('')}</dl></div>` : ''; };
 
 const BUTTONS = '<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>Install</button>';

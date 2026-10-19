@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const vm = require('vm');
 const { read, cut, element, finders } = require('./web-page');
 const { rulesAt, winner } = require('./css-rules');
+const { webSource } = require('./web-source');
 
 const css = read('style.css');
 const html = read('index.html');
@@ -146,7 +147,7 @@ test('web: the divider is a separator the keyboard reaches, between the keypad a
   assert.match(grip[0], /aria-valuemin="400"/);
   assert.match(grip[0], /aria-valuemax="900"/);
   assert.match(html, /<\/aside>[\s\S]*<div class="side-grip"[^>]*><\/div>\s*(<!--[^>]*-->\s*)?<div class="chat-grip"[^>]*><\/div>\s*<main class="main">/);
-  assert.match(read('app.js'), /^initSideGrip\(\);\ninitChatGrip\(\);$/m);
+  assert.match(webSource(), /^initSideGrip\(\);\ninitChatGrip\(\);$/m);
 });
 
 const APP = { tag: 'div', classes: ['app'], index: 1 };
