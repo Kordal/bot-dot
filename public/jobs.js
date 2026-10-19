@@ -66,6 +66,9 @@ function wireJobChange(card) {
 // Where a job sends the end of each run (`notifyUrl`, docs/api.md "Telling an address when a run ends"): shown, not
 // edited here; the Chief or the bot proposes it and the owner approves it on a card. '' for a job without one.
 const jobNotifyLine = (j) => (typeof j.notifyUrl === 'string' && j.notifyUrl ? `<div class="faint job-notify">Tells <span class="mono">${esc(j.notifyUrl)}</span> when a run ends, signed with the secret in the Vault.</div>` : '');
+// A job that takes signed calls (`callMode: "signed"`, docs/api.md "A signed call"): how a sender gets in, beside the
+// notify line. '' for any other job.
+const jobCallModeLine = (j) => (j.call === true && j.callMode === 'signed' ? '<div class="faint job-call-mode">Takes signed calls: each one is signed with the secret in the Vault, and runs once.</div>' : '');
 
 function jobCardHTML(j, open = false) {
   const script = j.kind === 'script';
@@ -81,7 +84,7 @@ function jobCardHTML(j, open = false) {
       <div class="job-body">
         ${jobChangeNote(j)}${!j.approved ? `<div class="req-note job-approve">${esc(j.changedBy === 'bot' ? 'The bot' : j.changedBy === 'chief' ? 'The Chief' : 'Someone')} set this up, so it waits for your OK before it runs. <button type="button" class="btn sm primary" data-approve>Approve</button></div>` : ''}
         ${j.assessment ? `<div class="job-why">💡 ${esc(j.assessment)}</div>` : ''}
-        ${jobNotifyLine(j)}
+        ${jobCallModeLine(j)}${jobNotifyLine(j)}
         <div class="row">
           <label class="field">Name<input type="text" name="jobName" value="${esc(j.name)}" placeholder="e.g. Morning news" maxlength="60"></label>
           <label class="field">When<select name="jobWhen">

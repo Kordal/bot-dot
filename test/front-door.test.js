@@ -297,6 +297,11 @@ test("a call reaches its account's botdot server without a session, as the job's
     assert.equal(got.headers['x-forwarded-for'], '203.0.113.9', 'the sender, as Caddy or Serve in front named it');
     for (const h of ['cookie', 'x-chief-key', 'x-run-token', 'tailscale-user-login']) assert.equal(got.headers[h], undefined, h);
     assert.equal(Object.values(stands).map((s) => s.seen.length).join(), others, "no other account's botdot server saw it");
+    // A signed call's signature, in either form (#37), reaches it too; the botdot server checks it.
+    const signed = { 'X-Botdot-Timestamp': '1800000000', 'X-Botdot-Signature-256': `sha256=${'a'.repeat(64)}`, 'X-Hub-Signature-256': `sha256=${'b'.repeat(64)}`, 'X-GitHub-Event': 'push' };
+    assert.equal((await call('/call/pat/b123/j456', { key: 'right', body: '{}', headers: signed })).status, 202);
+    const passed = stand.seen.at(-1).headers;
+    assert.deepEqual([passed['x-botdot-timestamp'], passed['x-botdot-signature-256'], passed['x-hub-signature-256'], passed['x-github-event']], ['1800000000', `sha256=${'a'.repeat(64)}`, `sha256=${'b'.repeat(64)}`, undefined]);
   } finally { stand.close(); }
 });
 

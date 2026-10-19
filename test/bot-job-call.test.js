@@ -98,7 +98,7 @@ test("the owner's yes makes the key for no bot; the bot carries on told the addr
 
   // Later, through its own tool: the address and where the key is, never the key.
   const { did } = await inRun(bot, 'What was the address?', (token) => self(srv, token, 'jobs', { action: 'call', jobId: job.id }));
-  assert.deepEqual(did.data.call, { name: 'Gate', call: true, waiting: false, address, vaultItem: keyName(bot, job), notifyUrl: null, notifyWaiting: null, notifySecretItem: null, notifyFailed: [] });
+  assert.deepEqual(did.data.call, { name: 'Gate', call: true, waiting: false, mode: 'bearer', waitingMode: null, address, vaultItem: keyName(bot, job), notifyUrl: null, notifyWaiting: null, notifySecretItem: null, notifyFailed: [] });
   assert.ok(!JSON.stringify(did.data).includes(key) && !JSON.stringify(did.data).includes(hash));
 });
 

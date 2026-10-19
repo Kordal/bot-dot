@@ -124,6 +124,7 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
             )
         }
         if (changeWaits(j)) Text(CHANGE_WAITS, color = p.warnText, style = MaterialTheme.typography.bodyMedium)
+        callModeLine(j)?.let { Text(it, color = p.faint, style = MaterialTheme.typography.bodySmall) }
         j.notifyUrl?.takeIf { it.isNotBlank() }?.let { Text(notifyLine(it), color = p.faint, style = MaterialTheme.typography.bodySmall) }
         j.last?.let { l ->
             Text(jobLine(l, shortTime(l.at)), color = when (jobLineTone(l)) { JobTone.FAILED -> p.err; JobTone.MISSED -> p.warnText; JobTone.FINE -> p.faint }, style = MaterialTheme.typography.bodySmall)
@@ -135,6 +136,10 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
         }
     }
 }
+
+/** Under a job that takes signed calls (`callMode`, docs/api.md "A signed call"): how a sender gets in; null for any other. */
+internal fun callModeLine(j: Job): String? =
+    if (j.call && j.callMode == "signed") "Takes signed calls: each one is signed with the secret in the Vault, and runs once." else null
 
 /** Under a job with a notify address (`notifyUrl`, docs/api.md): where the end of each run goes. */
 internal fun notifyLine(url: String): String = "Tells $url when a run ends, signed with the secret in the Vault."

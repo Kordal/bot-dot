@@ -16,6 +16,7 @@ const audit = require('./lib/audit').create(B.DATA_DIR);
 const calls = require('./lib/calls');
 const callKeys = calls.keyStore(B.DATA_DIR); // the keys of the jobs that can be called (ADR 026)
 const callRefusals = calls.refusalLog(B.DATA_DIR); // the calls each job refused, the last ones
+const callsSeen = calls.seenStore(B.DATA_DIR); // the signatures of the signed calls each job took lately (#37)
 const messageKeys = require('./lib/message-keys');
 const keys = messageKeys.create(B.DATA_DIR); // the keys of the messages botdot took: a message sent again is taken once
 const cronWords = require('./lib/cron-words');
@@ -174,7 +175,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -637,8 +638,8 @@ async function handle(req, res) {
   }
 }
 
-// A call to a job (ADR 026), passed on by the front door (ADR 028): the job's key lets it in, and its script runs now
-// with the body on stdin. The sender gets 202 and the run's id at once. A refusal starts nothing. The key in a header
+// A call to a job (ADR 026), passed on by the front door (ADR 028): the job's key lets it in, or for a job that takes
+// signed calls (#37) the signature of its body, and its script runs now with the body on stdin. The sender gets 202 and the run's id at once. A refusal starts nothing. The key in a header
 // forces a CORS preflight on a cross-site request, which botdot never approves, so no X-Bot-Dot is asked.
 async function takeCall(req, res, { botId, jobId }) {
   // A refusal of a job that exists is kept with it (the Chief reads them): when, why and from which device. The body
@@ -650,14 +651,25 @@ async function takeCall(req, res, { botId, jobId }) {
     return send(res, status, { error });
   };
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return refuse(405, 'A call is a POST request.', 'not a POST'); }
-  const key = calls.bearer(req.headers);
-  if (!key) return refuse(401, "Send the job's key as the header Authorization: Bearer <key>.", 'no key');
-  if (!callKeys.matches(botId, jobId, key)) return refuse(401, 'Wrong key.', 'wrong key');
+  // A job that takes signed calls is let in on the signature of the body, read first (64 KB at most); any other on
+  // its key, before its body is read. A job that does not exist answers as a wrong key.
+  const signed = B.jobsLib.callModeOf((B.bots.get(botId)?.jobs || []).find((j) => j.id === jobId)) === 'signed';
+  if (!signed) {
+    const key = calls.bearer(req.headers);
+    if (!key) return refuse(401, "Send the job's key as the header Authorization: Bearer <key>.", 'no key');
+    if (!callKeys.matches(botId, jobId, key)) return refuse(401, 'Wrong key.', 'wrong key');
+  }
   const tooLarge = `A call can carry at most ${calls.BODY_MAX / 1024} KB.`;
   const tooLargeRefused = () => refuse(413, tooLarge, 'too large'); // the rest of the body is dropped first, as for every refusal
   if (Number(req.headers['content-length']) > calls.BODY_MAX) return tooLargeRefused();
   let body;
   try { body = await readRaw(req, calls.BODY_MAX); } catch (e) { return e.status === 413 ? tooLargeRefused() : send(res, e.status || 400, { error: e.message }); }
+  let signature = null; // a signed call's, taken once below
+  if (signed) {
+    const checked = calls.checkSigned(req.headers, body, B.callSecrets.secretOf(botId, jobId));
+    if (!checked.ok) return refuse(401, checked.error, checked.why);
+    signature = checked.signature;
+  }
   const bot = B.bots.get(botId);
   const job = (bot?.jobs || []).find((j) => j.id === jobId);
   if (!job) return send(res, 404, { error: 'This job no longer exists.' });
@@ -666,9 +678,13 @@ async function takeCall(req, res, { botId, jobId }) {
   if (!job.approved) return refuse(409, "This job waits for the owner's approval.", 'waits for approval');
   // Unlike "Run now", a call never waits for its job to be switched on again: an old event would run late.
   if (!job.enabled) return asksLib.paused(bot) ? refuse(409, 'This bot is paused.', 'paused') : refuse(409, 'This job is switched off.', 'switched off');
+  // A signed request runs once: played again, by anyone who saw it go by, it is refused. A call that starts nothing
+  // gives its signature back, so that the sender may try it again.
+  if (signature && !callsSeen.take(botId, jobId, signature)) return refuse(409, 'This signed call was taken already: each one runs once.', 'repeated');
+  const giveBack = () => { if (signature) callsSeen.giveBack(botId, jobId, signature); };
   let r;
-  try { r = B.runJob(bot, job, 'call', { input: job.kind === 'script' ? body : body.toString('utf8') }); } catch (e) { return e.status === 429 ? refuse(429, e.message, 'too many waiting') : send(res, e.status || 409, { error: e.message }); }
-  if (r.skipped) return refuse(409, r.skipped, 'still running');
+  try { r = B.runJob(bot, job, 'call', { input: job.kind === 'script' ? body : body.toString('utf8') }); } catch (e) { giveBack(); return e.status === 429 ? refuse(429, e.message, 'too many waiting') : send(res, e.status || 409, { error: e.message }); }
+  if (r.skipped) { giveBack(); return refuse(409, r.skipped, 'still running'); }
   // An AI job's call that waits for its busy bot has the id of its run already (ADR 011).
   return send(res, 202, { runId: r.scriptRun || r.runId });
 }
