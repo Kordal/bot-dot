@@ -3,7 +3,7 @@
 // tiles a botdot server sends. Used by the tests of who carries on, the Chief's bot change, a connected-app
 // action and the feed's list of what waits.
 const vm = require('vm');
-const { read, cut, esc, element } = require('./web-page');
+const { read, cut, esc, element, whileBusy } = require('./web-page');
 
 const CHIEF_COLOR = '#d85a30';
 const plain = (x) => JSON.parse(JSON.stringify(x)); // out of the page's realm, for deepEqual
@@ -37,7 +37,7 @@ function page({ state = {}, answer = () => ({ ok: true }), screen = {} } = {}) {
     botLabel: (b) => (b ? `<svg class="fig fig-small"></svg>${esc(b.name)}` : ''),
     CSS: { escape: (s) => s }, PLAN_APPROVAL: '', loadDash() {}, wireNeedCards() {},
     api: async (url, opts) => { calls.push([url, opts.method, opts.body]); const a = answer(url, opts.body); if (a instanceof Error) throw a; return a; },
-    toast: (text, bad) => toasts.push([text, !!bad]),
+    toast: (text, bad) => toasts.push([text, !!bad]), whileBusy,
     refreshNeeds: () => { refreshed++; },
     document: { createElement: () => element() },
     $: (sel, root) => (root ? root.querySelector(sel) : sel === '#view-needs' ? needsPage : screen[sel] || null),

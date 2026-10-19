@@ -199,6 +199,7 @@ test('server: the preview answers { when, next }, and for a refused expression {
 
 const app = webSource();
 // A part of app.js, from one line of it up to another.
+const { whileBusy } = require('./web-page');
 const cut = (from, to) => {
   const a = app.indexOf(from), b = app.indexOf(to, a);
   assert.ok(a >= 0 && b > a, `app.js has "${from}" … "${to}"`);
@@ -215,7 +216,7 @@ test('web: the page has no describer of its own, and never draws a job\'s cron a
 
 // The jobs' part of the page, with stand-ins for what it calls.
 function jobsPage(extra = {}) {
-  const page = vm.createContext({ esc, ago: () => 'a while ago', toast: () => {}, refresh: () => {}, confirm: () => true, setTimeout, clearTimeout, ...extra });
+  const page = vm.createContext({ esc, ago: () => 'a while ago', toast: () => {}, refresh: () => {}, confirm: () => true, setTimeout, clearTimeout, whileBusy, ...extra });
   vm.runInContext(`${cut('const CRON_PRESETS = [', 'const MODE_INFO')}
     ${cut('// "18:32" today', '// When a message in a chat was sent')}
     ${cut('const AI_WHEN_TEXT = {', '// A script job\'s run in the chat')}
@@ -241,7 +242,7 @@ test('web: the approval dialog and its toast show the words, and the toast keeps
   const toasts = [];
   const els = {};
   let html;
-  const modal = { close() {}, querySelector: (sel) => (els[sel] ||= {}) };
+  const modal = { close() {}, querySelector: (sel) => (els[sel] ||= { dataset: {} }) };
   const page = jobsPage({ openModal: (h) => { html = h; return modal; }, api: async () => ({}), toast: (t) => toasts.push(t), $: (sel, root) => root.querySelector(sel) });
   page.openJobApproval({ id: 'b1', name: 'Probe' }, { ...JOB, cron: '0 10 * * 1', when: 'Mondays at 10:00', changedBy: 'chief' });
   assert.match(html, /<b>🧠 Morning check<\/b> · Mondays at 10:00<\/div>/);

@@ -119,8 +119,8 @@ async function renderVault() {
   }));
   wireBitwardenSetup(root);
   const u = $('#bw-unlock-btn'); if (u) u.onclick = () => { if (!bwUi.unlocking) openUnlock(); };
-  const lk = $('#bw-lock'); if (lk) lk.onclick = async () => { await api('/vault/bitwarden/lock', { method: 'POST' }); toast('Locked'); bwUi.prompted = true; renderVault(); showBitwardenBanner(); };
-  const sy = $('#bw-sync'); if (sy) sy.onclick = async () => { sy.disabled = true; try { await api('/vault/bitwarden/sync', { method: 'POST' }); toast('Synced'); } catch (e) { toast(e.message, true); } renderVault(); };
+  const lk = $('#bw-lock'); if (lk) lk.onclick = () => whileBusy(lk, 'Locking…', async () => { try { await api('/vault/bitwarden/lock', { method: 'POST' }); toast('Locked'); } catch (e) { toast(e.message, true); } bwUi.prompted = true; renderVault(); showBitwardenBanner(); });
+  const sy = $('#bw-sync'); if (sy) sy.onclick = () => whileBusy(sy, 'Syncing…', async () => { try { await api('/vault/bitwarden/sync', { method: 'POST' }); toast('Synced'); } catch (e) { toast(e.message, true); } renderVault(); });
 }
 
 function openLoginEditor(login) {
@@ -155,12 +155,16 @@ function openLoginEditor(login) {
   const form = $('#login-form', m);
   wireVaultType(form, { username: l.username, isNew });
   const del = $('#delete-login', m);
-  if (del) del.onclick = async () => {
+  if (del) del.onclick = () => {
     if (!confirm(state.bw?.configured ? `Delete "${l.name}"? It moves to Bitwarden's trash, where you can restore it for 30 days.` : `Delete "${l.name}" from the Vault?`)) return;
-    await api(`/vault/${l.id}`, { method: 'DELETE' });
-    m.close();
-    toast('Deleted');
-    renderVault();
+    whileBusy(del, 'Deleting…', async () => {
+      try {
+        await api(`/vault/${l.id}`, { method: 'DELETE' });
+        m.close();
+        toast('Deleted');
+        renderVault();
+      } catch (err) { toast(err.message, true); }
+    });
   };
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -177,7 +181,7 @@ function openLoginEditor(login) {
     };
     if (form.password.value) body.password = form.password.value;
     form.password.value = '';
-    try {
+    await whileBusy($('button[type=submit]', form), 'Saving…', async () => { try {
       await api(isNew ? '/vault' : `/vault/${l.id}`, { method: isNew ? 'POST' : 'PUT', body });
       m.close();
       toast(state.bw?.configured ? (isNew ? 'Saved to Bitwarden (bot-dot folder)' : 'Saved in Bitwarden') : 'Saved');
@@ -186,7 +190,7 @@ function openLoginEditor(login) {
       // Refused: the server's sentence, in the form, which stays open with what was typed, except the secret.
       refused.textContent = err.message;
       refused.hidden = false;
-    }
+    } });
   };
 }
 
@@ -337,8 +341,8 @@ function openCardApproval(r) {
       toast(action === 'approve' ? `Approved. ${r.bot.name} will continue.` : 'Declined');
     } catch (e) { toast(e.message, true); }
   };
-  $('#card-approve', m).onclick = () => answer('approve');
-  $('#card-decline', m).onclick = () => answer('decline');
+  $('#card-approve', m).onclick = () => whileBusy($('#card-approve', m), 'Approving…', () => answer('approve'));
+  $('#card-decline', m).onclick = () => whileBusy($('#card-decline', m), 'Declining…', () => answer('decline'));
   $('#card-later', m).onclick = () => { loginReq.snoozed.add(r.id); m.close(); };
   $('[data-dismiss]', m).onclick = () => { loginReq.snoozed.add(r.id); m.close(); };
   m.addEventListener('close', () => { loginReq.shown = null; delete m.dataset.request; pollLoginRequests(); }, { once: true });
@@ -356,6 +360,6 @@ function openItemBots(item) {
     </form>`);
   $('#item-bots', m).onsubmit = async (e) => {
     e.preventDefault();
-    try { await api(`/vault/${item.id}`, { method: 'PUT', body: { allowedBots: $$('input[name=bot]:checked', m).map((c) => c.value) } }); m.close(); toast('Saved'); renderVault(); } catch (err) { toast(err.message, true); }
+    await whileBusy($('.modal-foot .primary', m), 'Saving…', async () => { try { await api(`/vault/${item.id}`, { method: 'PUT', body: { allowedBots: $$('input[name=bot]:checked', m).map((c) => c.value) } }); m.close(); toast('Saved'); renderVault(); } catch (err) { toast(err.message, true); } });
   };
 }

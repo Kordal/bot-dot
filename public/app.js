@@ -327,6 +327,24 @@ document.addEventListener('click', async (e) => {
   }
 });
 
+// A button whose answer waits on the server (Bitwarden can take several seconds): it says `words` ("Approving…"),
+// and it and the buttons beside it can't be pressed again, until `work` ends. A second press meanwhile does nothing.
+async function whileBusy(button, words, work) {
+  if (!button) return work();
+  if (button.dataset.busy) return undefined;
+  const beside = [...(button.parentElement?.querySelectorAll('button') || [button])];
+  const was = button.textContent;
+  const before = beside.map((b) => b.disabled);
+  button.dataset.busy = '1';
+  beside.forEach((b) => { b.disabled = true; });
+  button.textContent = words;
+  try { return await work(); } finally {
+    delete button.dataset.busy;
+    beside.forEach((b, i) => { b.disabled = before[i]; });
+    button.textContent = was;
+  }
+}
+
 function toast(msg, isErr = false) {
   const t = $('#toast');
   t.textContent = msg;

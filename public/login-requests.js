@@ -113,7 +113,7 @@ function openLoginRequest(r) {
       pollLoginRequests();
     } catch (e) { toast(e.message, true); }
   };
-  $$('[data-allow]', m).forEach((b) => (b.onclick = () => answer({ action: 'allow', loginId: b.dataset.allow }, `${r.bot.name} can now use it and will continue`)));
+  $$('[data-allow]', m).forEach((b) => (b.onclick = () => whileBusy(b, 'Allowing…', () => answer({ action: 'allow', loginId: b.dataset.allow }, `${r.bot.name} can now use it and will continue`))));
   // A login of another website: its list opens from one line, and a pick is asked a second time in the dialog.
   const othersOpen = $('#req-others-open', m);
   if (othersOpen) othersOpen.onclick = () => {
@@ -146,8 +146,7 @@ function openLoginRequest(r) {
     const yes = $('#req-confirm-yes', c);
     $('[data-back]', c).onclick = () => { c.remove(); form.classList.remove('confirming'); };
     $('[data-back]', c).focus();
-    yes.onclick = async () => {
-      yes.disabled = true;
+    yes.onclick = () => whileBusy(yes, 'Allowing…', async () => {
       try {
         await api(`/vault/requests/${r.id}`, { method: 'POST', body: { action: 'allow', loginId: e.id } });
         m.close();
@@ -158,11 +157,10 @@ function openLoginRequest(r) {
         const box = $('.req-error', c);
         box.textContent = err.message;
         box.hidden = false;
-        yes.disabled = false;
       }
-    };
+    });
   }));
-  $('#req-decline', m).onclick = () => answer({ action: 'decline' }, 'Declined');
+  $('#req-decline', m).onclick = () => whileBusy($('#req-decline', m), 'Declining…', () => answer({ action: 'decline' }, 'Declined'));
   const recheck = $('#req-recheck', m);
   if (recheck) recheck.onclick = async () => {
     recheck.disabled = true; recheck.textContent = 'checking…';

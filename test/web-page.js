@@ -89,4 +89,7 @@ function thread() {
   return { thread: t, make, find, names };
 }
 
-module.exports = { app, read, cut, esc, element, finders, answer, thread };
+// The page's own whileBusy (app.js), for the code that answers a press with it.
+const whileBusy = require('vm').runInNewContext(`${cut('// A button whose answer waits on the server', 'function toast(')}; whileBusy`);
+
+module.exports = { app, read, cut, esc, element, finders, answer, thread, whileBusy };
