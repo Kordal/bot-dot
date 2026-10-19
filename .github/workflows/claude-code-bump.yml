@@ -1,0 +1,76 @@
+# Keeps the bots' engine current (#85): once a day it compares the Claude Code the Dockerfile pins with the newest
+# stable release on npm (the `latest` tag, never `next` or a beta), and when npm has a newer one it opens one pull
+# request on the branch bump/claude-code, or updates the one that is open, changing only the version on the
+# Dockerfile's comment and install line. The owner merges it, and the next nightly image (images.yml) carries it.
+#
+# A pull request opened with GITHUB_TOKEN starts no pull_request workflow, so this one starts Tests and Install on
+# the branch by hand (workflow_dispatch, which GITHUB_TOKEN may start); their checks show on the branch's commit.
+# A push of the owner's to the branch starts them as for any pull request. GitHub must allow Actions to create
+# pull requests (Settings → Actions → General → Workflow permissions).
+name: Claude Code bump
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write # to push the branch
+  pull-requests: write # to open or update its pull request
+  actions: write # to start Tests and Install on it
+
+concurrency:
+  group: claude-code-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - id: pin
+        name: The pinned version and npm's newest
+        run: |
+          LATEST="$(npm view @anthropic-ai/claude-code dist-tags.latest)"
+          node deploy/claude-code-pin.js Dockerfile "$LATEST" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Open or update the pull request
+        if: steps.pin.outputs.bump == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FROM: ${{ steps.pin.outputs.from }}
+          TO: ${{ steps.pin.outputs.to }}
+        run: |
+          BRANCH=bump/claude-code
+          PR="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$BRANCH" --base main --state open --json number --jq '.[0].number // empty')"
+          # Already proposed: the open pull request's branch pins this version.
+          if [ -n "$PR" ] && git fetch -q origin "$BRANCH" && git show FETCH_HEAD:Dockerfile > "$RUNNER_TEMP/Dockerfile.open" \
+            && [ "$(node deploy/claude-code-pin.js "$RUNNER_TEMP/Dockerfile.open")" = "$TO" ]; then
+            echo "Pull request #$PR already proposes Claude Code $TO."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -C "$BRANCH"
+          git commit -am "Claude Code $TO (was $FROM)"
+          git push --force origin "$BRANCH"
+          TITLE="Claude Code $TO"
+          BODY="$(cat <<END
+          Bumps the bots' engine, \`@anthropic-ai/claude-code\`, from $FROM to $TO in the \`Dockerfile\` (its comment and install line, nothing else). Opened by \`claude-code-bump.yml\` (#85).
+
+          - What changed: the [Claude Code changelog](https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md), $FROM to $TO. Look for changes to \`claude -p\`, \`--output-format stream-json\` and the flags \`lib/bots.js\`, \`lib/chief.js\` and \`lib/dresser.js\` pass: the tests' stand-in Claude would not catch them.
+          - Checks: a pull request opened with \`GITHUB_TOKEN\` starts no \`pull_request\` workflow, so this workflow started **Tests** and **Install** on \`$BRANCH\` by hand; their checks show on the commit. A push of yours to the branch starts them as usual.
+          - After the merge, the next nightly image carries it.
+          END
+          )"
+          if [ -n "$PR" ]; then
+            gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" --title "$TITLE" --body "$BODY"
+          fi
+          gh workflow run tests.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
+          gh workflow run install.yml --repo "$GITHUB_REPOSITORY" --ref "$BRANCH"
