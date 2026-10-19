@@ -40,7 +40,7 @@ document.addEventListener('click', (e) => {
   if (opensSetup(setupNow)) {
     setView('setup');
   } else {
-    const known = ['chief', 'dashboard', 'bot', 'group', ...Panel.NAMES, 'runs', 'vault', 'skills', 'settings', 'setup', 'connectors'].includes(view);
+    const known = ['chief', 'dashboard', 'bot', 'group', 'needs', ...Panel.NAMES, 'runs', 'vault', 'skills', 'settings', 'setup', 'connectors'].includes(view);
     setView(known ? view : 'chief', BOT_NAMES.includes(view) || GROUP_NAMES.includes(view) ? sub : undefined);
     if (!known) showList(); // phones start on the contact list
   }
@@ -61,4 +61,10 @@ document.addEventListener('click', (e) => {
   });
   followFeed();
   if (state.feed) followGroups(state.feed); // what happens in the groups (groups.js)
+  // Notifications on this device (push.js): botdot is given this browser's subscription again, and a tap on one
+  // of them opens what it is about.
+  if (state.features.includes('web-push') && Push.supported(window)) {
+    Push.again(window, api);
+    Push.onTap(window, openTarget);
+  }
 })();

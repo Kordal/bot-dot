@@ -223,11 +223,13 @@ function renderSettings() {
         ? custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')
         : '<p class="muted settings-hint" style="margin:0">None: every bot uses the default. Change a bot in its settings (⚙ in its chat).</p>'}
     </div>
+    ${pushCardHTML()}
     <div class="card settings-card" id="backups-card">
       <h3 class="page-sub" style="margin-top:0">Backups</h3>
       <p class="muted settings-hint" style="margin:0">Checking…</p>
     </div>
     ${signOutCardHTML()}`;
+  wirePushCard(root);
   const signOut = $('#sign-out-everywhere', root);
   if (signOut) signOut.onclick = signOutEverywhere;
   $$('[data-go]', root).forEach((b) => (b.onclick = () => setView(b.dataset.go)));
@@ -255,6 +257,57 @@ function renderSettings() {
       toast('Saved. New runs use it.');
     } catch (err) { toast(err.message, true); }
   };
+}
+
+// ---------- notifications on this device ----------
+
+// Settings → "Notifications on this device" (issue #87, push.js): botdot sends this browser what the phone app shows.
+// The browser's permission is asked when the switch is turned on, never on load. In Safari on an iPhone or iPad the
+// switch is replaced by the way there: Web Push comes only to botdot added to the Home Screen.
+function pushCardHTML() {
+  if (!state.features.includes('web-push')) return '';
+  const head = '<h3 class="page-sub" style="margin-top:0">Notifications on this device</h3>';
+  if (Push.needsHomeScreen(navigator)) {
+    return `<div class="card settings-card" id="push-card">${head}
+      <p class="muted settings-hint" style="margin:0">Add to Home Screen first: tap Share, then “Add to Home Screen”, and open botdot from there. Then turn this on in its Settings.</p></div>`;
+  }
+  if (!Push.supported(window)) {
+    return `<div class="card settings-card" id="push-card">${head}
+      <p class="muted settings-hint" style="margin:0">This browser can't show botdot's notifications.</p></div>`;
+  }
+  return `<div class="card settings-card bs-rows" id="push-card">
+      <div class="bs-row">
+        <span class="bs-icon">🔔</span>
+        <div class="grow"><b>Notifications on this device</b><div class="faint">Replies, and what needs you, as the phone app shows them.</div></div>
+        <label class="switch"><input type="checkbox" id="push-on" disabled aria-label="Notifications on this device"><span></span></label>
+      </div>
+    </div>`;
+}
+
+function wirePushCard(root) {
+  const box = $('#push-on', root);
+  if (!box) return;
+  Push.isOn(window).catch(() => false).then((on) => { box.checked = on; box.disabled = false; });
+  box.onchange = async () => {
+    const on = box.checked;
+    box.disabled = true;
+    try {
+      await (on ? Push.turnOn(window, api) : Push.turnOff(window, api));
+      toast(on ? 'Notifications are on for this device.' : 'Notifications are off for this device.');
+    } catch (err) {
+      toast(err.message || "Couldn't change notifications.", true);
+    }
+    box.checked = await Push.isOn(window).catch(() => false);
+    box.disabled = false;
+  };
+}
+
+// A tap on a notification of this browser (sw.js): the chat or the card it is about.
+function openTarget(target) {
+  const to = Push.viewOf(target);
+  if (!to) return;
+  if (to.view === 'chief') openChiefChat(to.id || state.chatId || null);
+  else setView(to.view, to.id || undefined);
 }
 
 // ---------- signing out everywhere ----------

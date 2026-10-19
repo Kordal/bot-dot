@@ -43,6 +43,10 @@ const learningWords = require('./lib/learning'); // what a chip, a memory card a
 const { CHIEF_NOTES } = require('./lib/chief-tools'); // the Chief's own place for notes (ADR 017)
 const toolsLib = require('./lib/tools');
 const feed = require('./lib/events');
+// Web Push (issue #87): a browser that turned on "Notifications on this device" is sent what the phone shows, by
+// botdot itself, through the browser's push service (lib/push.js). http endpoints only for the tests' stand-in.
+const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.BOT_DOT_PUSH_HTTP === '1' });
+push.follow(feed, { onScreen: (chat) => B.read.onScreen(chat), chiefName: () => chief.named().name });
 const { signedIn } = require('./lib/setup');
 const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN });
 const updates = require('./lib/updates').create({ busy: () => B.activeCount() + chief.activeCount(), computerImage: process.env.BOT_DOT_COMPUTER_IMAGE });
@@ -170,7 +174,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -467,7 +471,7 @@ function tellChiefOfHeld(a, { answer, error }) {
 const ctx = { ACCOUNT, audit, callKeys, callRefusals, keys, vault, bitwarden, store, readyForSecrets, setup, updates,
   UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, backups, connectedApps, tools, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, macApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
-  chiefChatOf, doHeldAction, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; }, ...shared };
+  chiefChatOf, doHeldAction, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; }, ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
 ctx.computerRoutes = require('./lib/routes/computers').create(ctx);
 ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
@@ -477,6 +481,7 @@ const ROUTES = [
   require('./lib/routes/files').create(ctx),
   require('./lib/routes/presence').create(ctx),
   require('./lib/routes/updates').create(ctx),
+  require('./lib/routes/push').create(ctx),
   require('./lib/routes/setup').create(ctx),
   require('./lib/routes/memory').create(ctx),
   require('./lib/routes/group-chats').create(ctx),

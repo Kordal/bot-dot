@@ -78,6 +78,7 @@ function syncRead() {
   if (chat === readChat) return;
   readChat = chat;
   if (!chat) { report.show(null); return; }
+  Push.clear(window, chat); // its notifications on this device go (push.js)
   // It came on screen: place the line from what the server says is new, then say the chat is being read.
   placeNewLine(chat, unreadKnown(chat));
   unreadNow(chat).catch(() => null).then((now) => {
