@@ -270,6 +270,9 @@ test('the front door runs as its own user, with the accounts\' socket folders an
   const keys = `${'AB:'.repeat(31)}AB`;
   const android = rerun(t, '', { FRONT_DOOR_ANDROID_KEYS: keys });
   assert.equal(android.env.FRONT_DOOR_ANDROID_KEYS, keys, 'the Android app\'s signing keys are kept for the front door');
+  // An update from the admin page is given no keys: it keeps the ones given before (#82).
+  const update = rerun(t, `FRONT_DOOR_ANDROID_KEYS=${keys}\n`, {}, { args: ['--update'] });
+  assert.equal(update.env.FRONT_DOOR_ANDROID_KEYS, keys, 'an update keeps them');
   assert.match(fs.readFileSync(path.join(ROOT, 'compose.front-door.yaml'), 'utf8'), /FRONT_DOOR_ANDROID_KEYS: \$\{FRONT_DOOR_ANDROID_KEYS:-\}/);
 });
 

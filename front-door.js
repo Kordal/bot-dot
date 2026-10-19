@@ -27,7 +27,8 @@
 //                     (install.sh --load), which the admin page shows (lib/front-door/load.js)
 // FRONT_DOOR_HOST, FRONT_DOOR_PORT   where it listens (default 127.0.0.1:4700), behind Caddy or Tailscale Serve
 // FRONT_DOOR_ANDROID_KEYS  the SHA-256 fingerprints of the Android app's signing certificates (AA:BB:…, comma
-//                     separated): the app's passkey sign-in is taken from those, and /.well-known/assetlinks.json names them
+//                     separated) besides botdot's release key, which is always named: the app's passkey sign-in is
+//                     taken from those, and /.well-known/assetlinks.json names them
 // FRONT_DOOR_ONE_ACCOUNT  a machine of exactly this one account (the Mac app's local botdot server, ADR 028): no
 //                     sign-up link is printed or opens, and the account's passkey is made with FRONT_DOOR_SETUP_KEY
 // FRONT_DOOR_SETUP_KEY  with FRONT_DOOR_ONE_ACCOUNT: the secret (32 to 100 base64url characters) that only the Mac app
@@ -97,8 +98,12 @@ const VERSION = { app: 'bot-dot', frontDoor: true, features: ['accounts', 'passk
 // trusts an app with a site's passkeys when the site's asset links name it. The app's sign-in then comes from
 // android:apk-key-hash:<the certificate's SHA-256, base64url> in place of the site's own origin.
 const ANDROID_PACKAGE = 'dev.botdot.app';
-const ANDROID_KEYS = String(process.env.FRONT_DOOR_ANDROID_KEYS || '').split(',').map((s) => s.trim().toUpperCase())
-  .filter((s) => /^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/.test(s));
+// botdot's release key, which signs the app on botdot's releases page (.github/workflows/android.yml checks each release
+// against it): always named, so that app signs in with no setting (#82). FRONT_DOOR_ANDROID_KEYS adds a build of one's own.
+const RELEASE_ANDROID_KEY = 'CC:05:CE:8B:44:37:30:33:BF:34:93:34:73:21:FD:0C:C8:4B:E3:6B:0E:E5:F1:5D:23:C6:88:8F:C7:BE:6B:E3';
+const ANDROID_GIVEN = String(process.env.FRONT_DOOR_ANDROID_KEYS || '').split(',').map((s) => s.trim()).filter(Boolean);
+const isFingerprint = (s) => /^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/i.test(s);
+const ANDROID_KEYS = [...new Set([RELEASE_ANDROID_KEY, ...ANDROID_GIVEN.filter(isFingerprint).map((s) => s.toUpperCase())])];
 const ORIGINS = [ORIGIN.origin, ...ANDROID_KEYS.map((f) => `android:apk-key-hash:${Buffer.from(f.replace(/:/g, ''), 'hex').toString('base64url')}`)];
 const ASSET_LINKS = [{
   relation: ['delegate_permission/common.get_login_creds'],
@@ -601,7 +606,6 @@ const server = http.createServer(async (req, res) => {
       return res.end(FONTS[p]);
     }
     if (p === '/.well-known/assetlinks.json' && req.method === 'GET') {
-      if (!ANDROID_KEYS.length) return send(res, 404, { error: 'No app signs in here.' });
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600' });
       return res.end(JSON.stringify(ASSET_LINKS));
     }
@@ -655,6 +659,14 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => p
 
 server.listen(PORT, HOST, () => {
   console.log(`The front door is at ${ORIGIN.origin} (listening on ${HOST}:${PORT})`);
+  // Which Android builds sign in, said once: a build the asset links leave out finds no passkey on the phone (#82).
+  for (const s of ANDROID_GIVEN.filter((s) => !isFingerprint(s))) {
+    console.log(`[front door] FRONT_DOOR_ANDROID_KEYS: "${s.slice(0, 120)}" is no SHA-256 fingerprint (AA:BB:…, 32 pairs), so it is left out`);
+  }
+  const more = ANDROID_KEYS.length - 1;
+  console.log(ANDROID_GIVEN.length
+    ? `[front door] the Android app signs in as botdot's release build and with ${more} more key${more === 1 ? '' : 's'} from FRONT_DOOR_ANDROID_KEYS`
+    : "[front door] FRONT_DOOR_ANDROID_KEYS is not set: the Android app signs in only as botdot's release build; a build of your own needs its signing key's SHA-256 there (docs/install-linux.md)");
   // Until the first account is made, every start prints a link that makes it: the admin's own (ADR 028).
   if (!doors.accountCount() && !ONE_ACCOUNT) {
     const { url } = doors.newSignUpLink({ origin: ORIGIN.origin, account: ADMIN });

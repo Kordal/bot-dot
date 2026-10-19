@@ -84,7 +84,22 @@ A **self-built botdot server** instead builds both images from the source on the
 cd bot-dot-source && sudo make images && sudo BOT_DOT_IMAGE=bot-dot/server:latest BOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest sh install.sh
 ```
 
-To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`. For the Android app's passkey sign-in, set `FRONT_DOOR_ANDROID_KEYS` to the SHA-256 fingerprints of the app's signing certificates (`AA:BB:…`, comma separated) once; the installer keeps them.
+To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`; for the Android app, `FRONT_DOOR_ANDROID_KEYS` (below).
+
+## The Android app's sign-in
+
+The Android app signs in with the account's passkey only when the front door's `/.well-known/assetlinks.json` names the key that signed the installed app. The app from botdot's releases page is always named. A build of your own (a release build with your own key, or a debug build, signed with your computer's debug key) is not: Android then finds no passkey for it, shows "No available sign-in" with only "Passkey on another device", and lists no password manager, even one that holds the passkey (#82).
+
+To let your own build sign in, give the installer the SHA-256 fingerprint of each key, comma separated, once; it keeps them in the front door's `.env`, and later runs and updates keep them too:
+
+```bash
+sudo FRONT_DOOR_ANDROID_KEYS=AA:BB:…,CC:DD:… sh bot-dot-source/install.sh
+```
+
+- An APK's fingerprint: `apksigner verify --print-certs app.apk` (in the Android SDK's `build-tools`), the line "certificate SHA-256 digest", written as pairs with colons.
+- The debug key's: `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android`, the line "SHA256". Each computer has its own.
+
+Check it with `curl https://<your domain>/.well-known/assetlinks.json`; the front door's log says at start how many keys it takes (`docker logs botdot-front-door-1`), and names an entry it left out. On the phone, the password manager that holds the passkey must be on as a passkey provider in Android's settings (Passwords, passkeys and accounts).
 
 ## Sign in to Claude
 
