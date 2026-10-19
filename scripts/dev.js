@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // npm start / npm run dev (#71): botdot on this machine for development. botdot is only reached through its front
 // door (ADR 028), so this starts both: the front door on http://localhost:<PORT> (default 4747) with one account
-// and a setup key, as the Mac app's local server was, and the botdot server of that account on PORT + 1. Until the
+// and a setup key, as the Mac app's local server was, and the botdot server of that account behind it, on a free
+// port of 127.0.0.1 that only the Chief's and the bots' tools use. Until the
 // account has its passkey, it prints the sign-up link; after that, the address to sign in at.
 //
 //   node scripts/dev.js            serve (npm start)
@@ -13,6 +14,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const http = require('http');
+const net = require('net');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const store = require('../lib/front-door/store');
@@ -59,27 +61,30 @@ function stop(code) {
 process.on('SIGINT', () => stop(0));
 process.on('SIGTERM', () => stop(0));
 
-start([...(process.argv.includes('--watch') ? ['--watch'] : []), 'server.js'], {
-  PORT: String(PORT + 1),
-  BOT_DOT_ACCOUNT: ACCOUNT,
-  BOT_DOT_FRONT_DOOR_SOCKET: socket,
+const freePort = () => new Promise((resolve, reject) => {
+  const s = net.createServer().on('error', reject).listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); });
 });
-start(['front-door.js'], {
-  FRONT_DOOR_ORIGIN: ORIGIN,
-  FRONT_DOOR_PORT: String(PORT),
-  FRONT_DOOR_HOST: '127.0.0.1',
-  FRONT_DOOR_DATA: DOOR_DATA,
-  FRONT_DOOR_SOCKETS: sockets,
-  FRONT_DOOR_ONE_ACCOUNT: ACCOUNT,
-  FRONT_DOOR_SETUP_KEY: setupKey,
-});
-
-// Once the front door answers: where to go.
+// Once the front door answers and the server has made its socket: where to go.
 const answers = () => new Promise((resolve) => {
+  if (!fs.existsSync(socket)) return resolve(false);
   http.get({ host: '127.0.0.1', port: PORT, path: '/api/version', headers: { Host: `localhost:${PORT}` } }, (res) => { res.resume(); resolve(res.statusCode === 200); })
     .on('error', () => resolve(false));
 });
 (async () => {
+  start([...(process.argv.includes('--watch') ? ['--watch'] : []), 'server.js'], {
+    PORT: String(await freePort()),
+    BOT_DOT_ACCOUNT: ACCOUNT,
+    BOT_DOT_FRONT_DOOR_SOCKET: socket,
+  });
+  start(['front-door.js'], {
+    FRONT_DOOR_ORIGIN: ORIGIN,
+    FRONT_DOOR_PORT: String(PORT),
+    FRONT_DOOR_HOST: '127.0.0.1',
+    FRONT_DOOR_DATA: DOOR_DATA,
+    FRONT_DOOR_SOCKETS: sockets,
+    FRONT_DOOR_ONE_ACCOUNT: ACCOUNT,
+    FRONT_DOOR_SETUP_KEY: setupKey,
+  });
   while (!stopping && !(await answers())) await new Promise((r) => setTimeout(r, 200));
   if (stopping) return;
   if (store.open(DOOR_DATA).accountCount()) console.log(`\nbotdot is running. Open ${ORIGIN} and sign in with your passkey.\n`);

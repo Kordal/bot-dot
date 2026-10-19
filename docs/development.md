@@ -11,14 +11,14 @@ npm start            # → http://localhost:4747, with the link to make your pas
 npm run dev          # the same, the server restarted when you change its files
 ```
 
-botdot is only reached through its front door (ADR 028), so `npm start` runs both (`scripts/dev.js`): the front door on http://localhost:4747 with one account, `owner`, and the botdot server of that account behind it. The first time, it prints a sign-up link: open it in the browser on this machine, make your passkey (they work on `localhost`), and the web app opens with the Chief's chat. After that, it prints the address to sign in at. Then sign in to Claude on the setup page, or log the Claude CLI in (below). The front door's data and the setup key are in `.dev-data/`; delete it to start over with a new passkey.
+botdot is only reached through its front door (ADR 028), so `npm start` runs both (`scripts/dev.js`): the front door on http://localhost:4747 with one account, `owner`, and the botdot server of that account behind it. That account is the only one, and Settings shows no updates: a checkout is updated with git. The first time, it prints a sign-up link: open it in the browser on this machine, make your passkey (they work on `localhost`), and the web app opens with the Chief's chat. After that, it prints the address to sign in at. Then sign in to Claude on the setup page, or log the Claude CLI in (below). The front door's data and the setup key are in `.dev-data/`; delete it to start over with a new passkey.
 
 `node server.js` alone starts only the server, which nobody can reach as its owner without a front door.
 
 ## Setup notes
 
 - **Claude CLI.** Found automatically: first `CLAUDE_BIN`, then `claude` on your PATH, then the copy inside the Claude desktop app. The CLI must be logged in. If a run says "Not logged in", run the CLI once in a terminal and type `/login`. It must also be new enough to take its prompt from a file (`--append-system-prompt-file`; the one in the Docker image is): with an older one botdot says so when it starts and in Setup, and runs no bot until Claude Code is updated and botdot restarted.
-- **Port.** `PORT=5000 npm start`: the front door on 5000, the server on 5001.
+- **Port.** `PORT=5000 npm start` puts the front door on 5000. The server itself takes a free port of 127.0.0.1, which only the Chief's and the bots' tools use.
 - **Docker.** The bots' computers (their desktops) need Docker. Without it, a bot runs without a computer.
 - **Data.** Bots are stored in `data/bots.json` and run logs in `data/runs/`. Override the folder with `BOT_DOT_DATA`.
 - **Security.** By default the server listens on 127.0.0.1 only. It rejects unknown Host headers and write requests that lack its custom header, so other websites can't trigger bots.
