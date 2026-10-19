@@ -16,19 +16,41 @@ import kotlinx.coroutines.CancellationException
  * PublicKeyCredential as JSON. [context] is the activity on screen, over which Android draws its sheet.
  */
 object Passkeys {
-    /** Android's sheet was closed without a choice: nothing to say. */
+    /** Android's sheet was closed without a choice. */
     class Closed : CancellationException("The sign-in was closed.")
+
+    /** No passkey provider on the phone has a passkey for this botdot (or Android lets none answer for this app). */
+    class NoPasskey : Exception("No passkey for this botdot.")
+
+    // Where a passkey provider is turned on: Android's own words for that screen differ between versions and makers.
+    private const val HINT = "turn on the password manager that holds it as a passkey provider in Android's settings " +
+        "(Passwords, passkeys and accounts), then try again."
 
     suspend fun signIn(context: Context, requestJson: String): String {
         val result = try {
             CredentialManager.create(context).getCredential(context, GetCredentialRequest(listOf(GetPublicKeyCredentialOption(requestJson))))
-        } catch (_: GetCredentialCancellationException) {
-            throw Closed()
-        } catch (_: NoCredentialException) {
-            throw ApiException("This phone has no passkey for this botdot. It is in the password manager you made it with: add that one in Android's settings (Passwords and accounts), then try again.")
         } catch (e: GetCredentialException) {
-            throw ApiException(e.errorMessage?.toString()?.ifBlank { null } ?: "The passkey didn't answer. Try again.")
+            throw failure(e)
         }
         return (result.credential as? PublicKeyCredential)?.authenticationResponseJson ?: throw ApiException("That was no passkey. Try again.")
+    }
+
+    /** What a failed request to Credential Manager becomes: [Closed], [NoPasskey], or an [ApiException] in Android's words. */
+    fun failure(e: Throwable): Throwable = when (e) {
+        is GetCredentialCancellationException -> Closed()
+        is NoCredentialException -> NoPasskey()
+        is GetCredentialException -> ApiException(e.errorMessage?.toString()?.trim()?.ifEmpty { null }
+            ?.let { "The passkey didn't answer: ${it.trimEnd('.')}. Try again." } ?: "The passkey didn't answer. Try again.")
+        else -> e
+    }
+
+    /**
+     * What the sign-in screen says after a sign-in that didn't sign in, for the botdot at [host] (#82). A closed sheet
+     * gets the hint too: Android's "No available sign-in" sheet, which it shows when no provider has a passkey, ends so.
+     */
+    fun words(e: Throwable, host: String): String = when (e) {
+        is Closed -> "Sign-in closed. If Android listed no passkey for $host, $HINT"
+        is NoPasskey -> "This phone has no passkey for $host. ${HINT.replaceFirstChar(Char::uppercaseChar)}"
+        else -> e.message?.ifBlank { null } ?: "That didn't sign you in."
     }
 }

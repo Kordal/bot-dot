@@ -47,10 +47,11 @@ fun SignInScreen(app: BotDotApp, onSignedIn: () -> Unit, onChangeServer: () -> U
         signingIn = true
         error = null
         scope.launch {
+            // The button is back however the sheet ended, and the screen says why in its own words (#82).
             val r = runCatching { a.signInWithPasskey { options -> Passkeys.signIn(context, options) } }
             signingIn = false
             r.onSuccess { app.signedIn(); onSignedIn() }
-                .onFailure { e -> if (e !is Passkeys.Closed) error = e.message ?: "That didn't sign you in." }
+                .onFailure { e -> error = Passkeys.words(e, host) }
         }
     }
 

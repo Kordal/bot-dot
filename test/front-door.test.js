@@ -385,18 +385,28 @@ test('"Sign out everywhere" ends every session of the account, and no other acco
   } finally { for (const s of stands2) s.close(); }
 });
 
+// botdot's release key (the app on botdot's releases page), as the Android release workflow checks each release.
+const RELEASE_KEY = (() => {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'android.yml'), 'utf8');
+  return workflow.match(/certificate SHA-256 digest: ([0-9a-f]{64})\$/)[1].toUpperCase().match(/../g).join(':');
+})();
+const appOriginOf = (fingerprint) => `android:apk-key-hash:${Buffer.from(fingerprint.split(':').join(''), 'hex').toString('base64url')}`;
+
 test("the Android app's passkey signs in from the app named in FRONT_DOOR_ANDROID_KEYS, and the front door says so for Android", async () => {
   const fingerprint = Array.from({ length: 32 }, (_, i) => (i * 7 + 3).toString(16).padStart(2, '0').toUpperCase()).join(':');
-  const appOrigin = `android:apk-key-hash:${Buffer.from(fingerprint.split(':').join(''), 'hex').toString('base64url')}`;
-  const own = await startFrontDoor({ env: { FRONT_DOOR_ANDROID_KEYS: `${fingerprint}, not-a-fingerprint` } });
+  const appOrigin = appOriginOf(fingerprint);
+  const own = await startFrontDoor({ env: { FRONT_DOOR_ANDROID_KEYS: `${fingerprint}, not-a-fingerprint, ${RELEASE_KEY.toLowerCase()}` } });
   try {
     // Asked without a session: what Android's Credential Manager reads to trust the app with this site's passkeys.
     const links = await own.browser().get('/.well-known/assetlinks.json');
     assert.equal(links.status, 200, links.text);
     assert.deepEqual(links.data, [{
       relation: ['delegate_permission/common.get_login_creds'],
-      target: { namespace: 'android_app', package_name: 'dev.botdot.app', sha256_cert_fingerprints: [fingerprint] },
-    }]);
+      target: { namespace: 'android_app', package_name: 'dev.botdot.app', sha256_cert_fingerprints: [RELEASE_KEY, fingerprint] },
+    }], 'the release key once, then the ones named');
+    // A wrong entry is said at start, not left out in silence (#82).
+    assert.match(own.log.join(''), /FRONT_DOOR_ANDROID_KEYS: "not-a-fingerprint" is no SHA-256 fingerprint/);
+    assert.match(own.log.join(''), /the Android app signs in as botdot's release build and with 1 more key from FRONT_DOOR_ANDROID_KEYS/);
     const link = own.newLink();
     const web = own.browser();
     const key = passkey.create({ rpId: own.rpId, origin: own.origin });
@@ -413,9 +423,13 @@ test("the Android app's passkey signs in from the app named in FRONT_DOOR_ANDROI
   } finally { await own.stop(); }
 });
 
-test('without FRONT_DOOR_ANDROID_KEYS no app origin signs in, and there are no asset links', async () => {
+test("without FRONT_DOOR_ANDROID_KEYS the app from botdot's releases still signs in, and no other build (#82)", async () => {
   const { key } = await signUp('sol');
-  assert.equal((await browser().get('/.well-known/assetlinks.json')).status, 404);
-  const appOrigin = `android:apk-key-hash:${Buffer.alloc(32, 9).toString('base64url')}`;
-  assert.equal((await signIn(key, browser(), { origin: appOrigin })).r.status, 401);
+  const links = await browser().get('/.well-known/assetlinks.json');
+  assert.equal(links.status, 200, links.text);
+  assert.deepEqual(links.data[0].target.sha256_cert_fingerprints, [RELEASE_KEY]);
+  assert.match(door.log.join(''), /FRONT_DOOR_ANDROID_KEYS is not set: the Android app signs in only as botdot's release build/);
+  assert.equal((await signIn(key, browser(), { origin: appOriginOf(RELEASE_KEY) })).r.status, 200, 'the release build');
+  const stranger = `android:apk-key-hash:${Buffer.alloc(32, 9).toString('base64url')}`;
+  assert.equal((await signIn(key, browser(), { origin: stranger })).r.status, 401, 'a build with another key');
 });
