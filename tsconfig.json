@@ -1,0 +1,13 @@
+{
+  "//": "Type checks of the files marked // @ts-check, typed with JSDoc (scripts/typecheck.sh, #77). Add a file here when you mark it.",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "target": "es2022",
+    "module": "commonjs",
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["lib/front-door/*.js", "lib/calls.js"]
+}

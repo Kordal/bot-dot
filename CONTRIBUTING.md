@@ -16,7 +16,7 @@ npm start            # → http://localhost:4747
 
 ```bash
 npm test             # the server's and the web page's tests, with a stand-in for Claude
-make lint            # the documentation links
+make lint            # the documentation links, that the code parses, and the type checks
 ```
 
 Both need nothing running, and both must pass before a change is done. `make help` lists the slower suites (the Android app, a real install); run the ones that cover what you changed. [Development](docs/development.md#tests) says what the tests cover.
