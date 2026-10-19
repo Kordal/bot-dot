@@ -507,7 +507,10 @@ command -v curl >/dev/null 2>&1 || die "The installer needs curl. Install it (su
 [ "$(id -u)" = 0 ] || die "The installer makes a Linux user for each account, so it runs as root. Run it with: sudo sh install.sh"
 # One installer at a time: a person's run, root's step and the admin page's update all change the same accounts, and
 # two at once left an account half on each version. A run waits for the one before it to finish. The update root's step
-# runs for the admin page goes on under its step's hold (BOT_DOT_LOCKED).
+# runs for the admin page, and the installer an update hands over to, go on under its hold (BOT_DOT_LOCKED, given to
+# them alone).
+# What the installer leaves running (an account's Docker, the loop without systemd) is started without the lock's
+# descriptor (9>&-), or it would hold the lock after the run ends.
 if [ -z "${BOT_DOT_LOCKED:-}" ] && command -v flock >/dev/null 2>&1; then
   mkdir -p "$RUN"
   exec 9>"$RUN/install.lock"
@@ -516,7 +519,6 @@ if [ -z "${BOT_DOT_LOCKED:-}" ] && command -v flock >/dev/null 2>&1; then
     flock 9
   fi
   BOT_DOT_LOCKED=1
-  export BOT_DOT_LOCKED
 fi
 
 [ "$MODE" = install ] || command -v docker >/dev/null 2>&1 || die "Docker isn't installed: run the installer again."
@@ -732,7 +734,7 @@ if [ -n "$UNATTENDED" ] && [ "$SOURCE" = "$BIN" ] && [ -z "${BOT_DOT_HANDED_OVER
     chmod 600 "$BIN/install.sh.new"
     mv "$BIN/install.sh.new" "$BIN/install.sh"
     ok "The installer is the new version's"
-    BOT_DOT_HANDED_OVER=1 exec sh "$BIN/install.sh" --update
+    BOT_DOT_HANDED_OVER=1 BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" exec sh "$BIN/install.sh" --update
   fi
   # An image from before the installer was in it, or the same installer: this copy goes on.
   rm -f "$BIN/install.sh.new"
@@ -1081,7 +1083,7 @@ JSON
     mkdir -p "$run"
     chown "$uid:$gid" "$run"
     chmod 700 "$run"
-    su -s /bin/sh "$user" -c "cd '$home' && exec env HOME='$home' XDG_RUNTIME_DIR='$run' PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin nohup '$ROOTLESS' >> '$home/docker.log' 2>&1 &" </dev/null
+    su -s /bin/sh "$user" -c "cd '$home' && exec env HOME='$home' XDG_RUNTIME_DIR='$run' PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin nohup '$ROOTLESS' >> '$home/docker.log' 2>&1 &" </dev/null 9>&-
     warn "This machine has no systemd, so the account $name's Docker was started now and doesn't start again after a restart. Run this installer again after one."
   fi
   i=0
@@ -1193,7 +1195,7 @@ update_all() {
   from="$(version_now)"
   write_status update.json "{\"state\":\"updating\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\"}"
   set +e
-  sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
+  BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
   updated=$?
   set -e
   chmod 600 "$DIR/update.log"
@@ -1365,7 +1367,7 @@ UNIT
   systemctl enable --now botdot-load.timer </dev/null >/dev/null 2>&1 || warn "systemd didn't start botdot-load.timer, so the admin page shows no load. See: systemctl status botdot-load.timer"
 elif ! { [ -f "$RUN/requests.pid" ] && kill -0 "$(cat "$RUN/requests.pid")" 2>/dev/null; }; then
   mkdir -p "$RUN"
-  nohup sh -c "i=0; while :; do [ -z \"\$(ls -A '$REQUESTS' 2>/dev/null)\" ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --requested; [ \$((i % 20)) != 0 ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --load; i=\$((i + 1)); sleep 3; done" >> "$DIR/requests.log" 2>&1 </dev/null &
+  nohup sh -c "i=0; while :; do [ -z \"\$(ls -A '$REQUESTS' 2>/dev/null)\" ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --requested; [ \$((i % 20)) != 0 ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --load; i=\$((i + 1)); sleep 3; done" >> "$DIR/requests.log" 2>&1 </dev/null 9>&- &
   echo "$!" > "$RUN/requests.pid"
   warn "This machine has no systemd, so the accounts sign-up links make are made by a loop started now, which doesn't start again after a restart. Run this installer again after one. Its log: $DIR/requests.log"
 fi

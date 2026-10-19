@@ -980,6 +980,14 @@ test('one installer runs at a time: another waits for it, and then runs', async 
   assert.match(done.said, /Another botdot installer is running here: this one waits for it to finish/);
 });
 
+test('what the installer leaves running holds no lock: an account\'s Docker and the loop without systemd', () => {
+  // Started with the lock's descriptor, either would hold it after the run, and the next installer would wait for ever.
+  const lasting = code.split('\n').filter((line) => /nohup/.test(line));
+  assert.equal(lasting.length, 2);
+  for (const line of lasting) assert.match(line, /9>&-/, line.trim());
+  assert.doesNotMatch(code, /export BOT_DOT_LOCKED/, 'only the update root\'s step starts, and the installer it hands over to, go on under its hold');
+});
+
 test("root's step takes no option but its own, and needs an install", (t) => {
   const wrong = installer(t, { args: ['--account', 'eve'] });
   assert.equal(wrong.status, 1);
