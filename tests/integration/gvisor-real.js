@@ -31,12 +31,14 @@ const GVISOR_SHA256 = { amd64: '0a8a9058b9f11791a2097f03190c2ddc5b963c3dbee5bb9f
 const DIND_ROOTLESS = 'docker:28-dind-rootless@sha256:7c3e797187e43738220462658f4586572cbd3bf009f728b21e34d9c5c06ce431';
 const SOCKET = '/run/user/1000/docker.sock';
 const ACCOUNT = '/home/rootless/account';
-// runsc's flags in a rootless Docker: it may not make cgroups there (--ignore-cgroups), botdot's services meet
-// through Unix sockets in their mounts: the docker-helper's and the Docker socket (--host-uds=all), and a
+// runsc's flags in a rootless Docker: it may not make cgroups there (--ignore-cgroups), a
 // computer's firewall needs gVisor's iptables, which come with raw sockets (--net-raw; only a process with
 // CAP_NET_RAW gets one, and no container of botdot's has it), and a container's writes go to its disk, so a bot's
 // computer keeps its files when it stops (--overlay2=none, #68), as install.sh gives an account.
-const RUNSC_FLAGS = ['--ignore-cgroups', '--host-uds=all', '--net-raw', '--overlay2=none'];
+const RUNSC_FLAGS = ['--ignore-cgroups', '--net-raw', '--overlay2=none'];
+// botdot's server and docker-helper alone (compose.yaml, runtime runsc-uds) meet through Unix sockets in their
+// mounts: the docker-helper's and the Docker socket (--host-uds=all). A bot's computer gets none (#72).
+const RUNSC_UDS_FLAGS = [...RUNSC_FLAGS, '--host-uds=all'];
 // What the account changes in compose.yaml. Under gVisor host networking hands a container the host's network,
 // whose sockets gVisor's /proc/net/tcp does not list, so botdot could tell nobody apart: botdot keeps a network
 // of its own, as it will behind ADR 028's front door. The docker-helper gets the account's rootless Docker.
@@ -82,7 +84,7 @@ function machineImage() {
     'RUN apk add --no-cache zstd',
     'RUN --mount=from=gvisor,source=/gvisor.tar.zstd,target=/tmp/gvisor.tar.zstd zstd -dc /tmp/gvisor.tar.zstd | tar -x -C /usr/local/bin runsc gvisor-bin && runsc --version',
     'USER rootless',
-    `RUN mkdir -p /home/rootless/.config/docker && echo '${JSON.stringify({ 'default-runtime': 'runsc', runtimes: { runsc: { path: '/usr/local/bin/runsc', runtimeArgs: RUNSC_FLAGS } } })}' > /home/rootless/.config/docker/daemon.json`,
+    `RUN mkdir -p /home/rootless/.config/docker && echo '${JSON.stringify({ 'default-runtime': 'runsc', runtimes: { runsc: { path: '/usr/local/bin/runsc', runtimeArgs: RUNSC_FLAGS }, 'runsc-uds': { path: '/usr/local/bin/runsc', runtimeArgs: RUNSC_UDS_FLAGS } } })}' > /home/rootless/.config/docker/daemon.json`,
     '',
   ].join('\n'));
   const tag = `${prefix}:machine`;

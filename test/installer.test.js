@@ -217,7 +217,7 @@ test('the answers can be given beforehand, and a wrong one is asked again', (t) 
 test('a public install puts Caddy in front of the front door, on the domain alone', (t) => {
   const done = rerun(t);
   assert.equal(done.env.COMPOSE_PROFILES, 'public', 'Caddy starts with the front door');
-  assert.equal(done.read('front-door/Caddyfile'), '# botdot (install.sh): HTTPS for the front door on its public domain. Caddy fetches the certificate.\nbotdot.example.com {\n\treverse_proxy 127.0.0.1:4700\n}\n');
+  assert.equal(done.read('front-door/Caddyfile'), '# botdot (install.sh): HTTPS for the front door on its public domain. Caddy fetches the certificate.\nbotdot.example.com {\n\treverse_proxy 127.0.0.1:4700\n\theader Strict-Transport-Security "max-age=31536000"\n}\n');
   assert.equal(done.read('front-door/compose.yaml'), fs.readFileSync(path.join(ROOT, 'compose.front-door.yaml'), 'utf8'), 'the front door\'s compose file, from the image');
   assert.ok(done.calls.includes(`compose --project-directory ${done.dir}/front-door up -d --remove-orphans`));
   assert.match(done.system, /^curl -fsSk -o \/dev\/null --resolve botdot\.example\.com:443:127\.0\.0\.1 https:\/\/botdot\.example\.com\/api\/version$/m);
@@ -284,8 +284,14 @@ test("the admin's account gets its own Linux user, rootless Docker under gVisor,
   assert.ok(done.system.indexOf(`mount -o loop ${done.dir}/disks/ann.img ${home}`) < done.system.indexOf('useradd --no-create-home'), 'its disk is its home before anything is in it');
   const daemon = JSON.parse(fs.readFileSync(path.join(home, '.config', 'docker', 'daemon.json'), 'utf8'));
   assert.equal(daemon['default-runtime'], 'runsc');
-  assert.deepEqual(daemon.runtimes.runsc.runtimeArgs, ['--ignore-cgroups', '--host-uds=all', '--net-raw', '--overlay2=none'],
-    'the spike\'s flags (ADR 028), and a computer\'s files are written to its disk, so they outlive a stop (#68)');
+  assert.deepEqual(daemon.runtimes.runsc.runtimeArgs, ['--ignore-cgroups', '--net-raw', '--overlay2=none'],
+    'the spike\'s flags (ADR 028), and a computer\'s files are written to its disk, so they outlive a stop (#68): no host sockets for a bot\'s computer (#72)');
+  assert.deepEqual(daemon.runtimes['runsc-uds'], { path: daemon.runtimes.runsc.path, runtimeArgs: ['--ignore-cgroups', '--net-raw', '--overlay2=none', '--host-uds=all'] },
+    'the server and the helper meet through Unix sockets in their mounts');
+  const compose = fs.readFileSync(path.join(ROOT, 'compose.yaml'), 'utf8');
+  for (const service of ['bot-dot', 'docker-helper']) {
+    assert.match(compose, new RegExp(`\\n  ${service}:\\n(    .*\\n)*?    runtime: runsc-uds\\b`), service);
+  }
   assert.deepEqual(daemon['exec-opts'], ['native.cgroupdriver=cgroupfs']);
 
   // Started by systemd as the account's own user.

@@ -108,7 +108,7 @@ function accountIsWalledOff(machine) {
   const server = machine.account(ADMIN, 'compose', '--project-directory', HOME, 'ps', '-q', 'bot-dot');
   assert.match(server, /^[0-9a-f]{12,64}$/, 'its botdot server runs in its own Docker');
   const { HostConfig } = JSON.parse(machine.account(ADMIN, 'inspect', server))[0];
-  assert.equal(HostConfig.Runtime, 'runsc');
+  assert.equal(HostConfig.Runtime, 'runsc-uds', 'the server alone reaches host sockets, not a bot\'s computer (#72)');
   assert.notEqual(HostConfig.NetworkMode, 'host', 'on a network of its own');
   assert.equal(machine.inner('ps', '-q', '--filter', 'label=com.docker.compose.service=bot-dot'), '', 'nothing of the account runs in the machine\'s Docker');
   // Its socket: only the front door's user gets in, another user of the machine doesn't.
