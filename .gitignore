@@ -17,6 +17,10 @@ node_modules/
 /macos/BotDotKit/.build/
 xcuserdata/
 
+# Android app packages, built or downloaded: the releases carry them, not Git
+*.apk
+*.aab
+
 # Secrets: environment files, private keys and signing material. Templates (*.env.example) are fine.
 .env
 .env.*
