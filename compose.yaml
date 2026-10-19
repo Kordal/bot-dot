@@ -68,7 +68,7 @@ services:
       BOT_DOT_PLATFORM: linux
       BOT_DOT_COMPUTER_IMAGE: ${BOT_DOT_COMPUTER_IMAGE:-}
       BOT_DOT_REGISTRY_TOKEN: ${BOT_DOT_REGISTRY_TOKEN:-}
-      # How many of the bots' computers run at once: the account's share, which only root writes (install.sh).
+      # The account's share of RAM and CPUs, the limits of its one computer, which only root writes (install.sh).
       BOT_DOT_SHARE_FILE: /run/botdot-share/share.json
     volumes:
       - bot-dot-helper:/run/botdot

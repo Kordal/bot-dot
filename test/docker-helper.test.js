@@ -11,7 +11,7 @@ test('the Docker helper accepts fixed computer operations and rejects arbitrary 
   const socket = path.join(dir, 'helper.sock');
   const calls = [];
   const cleaned = { removed: 1, skipped: 2, failed: 0, bytes: 3 };
-  const server = createServer({ computers: { inspect: async (id) => { calls.push(id); return { state: 'running' }; }, waiting: (id) => id === 'test-bot' }, updates: { clean: async (...args) => { calls.push(['clean', ...args]); return cleaned; } } });
+  const server = createServer({ computers: { inspect: async (id) => { calls.push(id); return { state: 'running' }; }, waiting: () => true }, updates: { clean: async (...args) => { calls.push(['clean', ...args]); return cleaned; } } });
   await new Promise((r) => server.listen(socket, r));
   t.after(async () => { await new Promise((r) => server.close(r)); fs.rmSync(dir, { recursive: true, force: true }); });
   const call = (value) => new Promise((resolve, reject) => {
@@ -21,13 +21,11 @@ test('the Docker helper accepts fixed computer operations and rejects arbitrary 
     req.on('error', reject); req.end(JSON.stringify(value));
   });
   assert.equal((await call({ operation: 'inspect', args: ['test-bot'] })).data.value.state, 'running');
-  // Whether a bot's computer waits for a free one (#471): its run says so.
-  assert.equal((await call({ operation: 'waiting', args: ['test-bot'] })).data.value, true);
   for (const value of [
     { operation: 'exec', args: ['host', 'sh'] },
     { operation: 'inspect', args: ['../../host'] },
-    { operation: 'waiting', args: ['../../host'] },
-    { operation: 'waiting', args: ['test-bot', 'other'] },
+    // No computer waits for a free one: the account has one (#108).
+    { operation: 'waiting', args: ['test-bot'] },
     { operation: 'inspect', args: ['test-bot'], mounts: ['/:/host'] },
     { operation: 'ensure', args: ['test-bot', { image: 'evil', mounts: ['/:/host'] }] },
     { operation: 'ensure', args: ['test-bot', 'internet'] },

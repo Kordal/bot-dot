@@ -207,7 +207,7 @@ Where the admin creates and revokes sign-up links, suspends or deletes accounts,
 _Avoid_: dashboard (the Board's old name), admin panel, console
 
 **Share**:
-How much of the machine one account may use: CPUs, RAM, how many of its bots' computers run at once, and disk. The admin sets the default share and may give one account its own. Nothing in the account shows it: its work slows down, a computer waits for a free one, and a full disk fails a run with "No space left on the server".
+How much of the machine one account may use: CPUs, RAM and disk. Its CPUs and RAM are also the limits of the account's one computer. The admin sets the default share and may give one account its own. Nothing in the account shows it: its work slows down, and a full disk fails a run with "No space left on the server".
 _Avoid_: quota, plan, limits, tier
 
 **Sign-up link**:

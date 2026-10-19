@@ -1,6 +1,6 @@
-// What an account's share of the machine does to a run (#471, ADR 028), and all it shows: a run whose computer waits
-// for a free one says "Waiting for a free computer" on its working line until it starts, a run stopped meanwhile
-// starts no computer, and a run that fails on a full disk says "No space left on the server." and nothing of a size or
+// What an account's share of the machine does to a run (#471, ADR 028), and all it shows: a run whose computer starts
+// says "Starting its computer" and never waits for a free one (#108: the account has one), a run stopped meanwhile
+// leaves none on for it, and a run that fails on a full disk says "No space left on the server." and nothing of a size or
 // a limit. This file loads lib/bots.js itself, on a scratch data folder and the stand-in for Claude, with the computers
 // stubbed.
 const fs = require('fs');
@@ -34,22 +34,23 @@ let waits = new Set();
 let free = null;
 Object.assign(B.computers, {
   ensure: (botId) => { asked.push(['ensure', botId]); waits.add(botId); return new Promise((resolve) => { free = () => { waits.delete(botId); resolve(); }; }); },
-  waiting: async (botId) => waits.has(botId),
+  waiting: async (botId) => { asked.push(['waiting', botId]); return waits.has(botId); },
   stop: async (botId) => { asked.push(['stop', botId]); },
   inspect: async () => ({ state: 'stopped' }),
   setRestartPolicy: async () => {},
 });
 beforeEach(() => { asked = []; waits = new Set(); free = null; fs.rmSync(path.join(out, 'fail.txt'), { force: true }); });
 
-test('a computer that waits for a free one says so on its run\'s line, until it starts', async () => {
+test('a computer that starts says so on its run\'s line, and never that it waits for a free one (#108)', async () => {
   const bot = B.bots.create({ name: 'Waiting Bot', prompt: 'Look at a page.', computer: 'linux' });
   hold();
   const meta = B.startRun(bot, { prompt: 'Open the page' });
   await waitFor(() => B.readMeta(meta.id)?.status === 'running' && B.workingLineOf(meta.id) !== undefined, { what: 'the run to start' });
   const started = B.computerForRun(meta.id);
   assert.equal(B.readMeta(meta.id).phase, 'Starting its computer');
-  await waitFor(() => B.readMeta(meta.id).phase === 'Waiting for a free computer', { what: 'the line to say it waits', timeout: 8000 });
-  await waitFor(() => B.workingLineOf(meta.id) === 'Waiting for a free computer', { what: 'the working line', timeout: 8000 });
+  await new Promise((r) => setTimeout(r, 2500));
+  assert.equal(B.readMeta(meta.id).phase, 'Starting its computer', 'it waits for no other computer');
+  assert.ok(!asked.some(([what]) => what === 'waiting'));
   free();
   await started;
   assert.equal(B.readMeta(meta.id).phase, undefined, 'the line is the run\'s own again');
@@ -57,7 +58,7 @@ test('a computer that waits for a free one says so on its run\'s line, until it 
   await ended(meta.id);
 });
 
-test('a run stopped while its computer waits starts no computer', async () => {
+test('a run stopped while its computer starts leaves no computer on for it', async () => {
   const bot = B.bots.create({ name: 'Stopped Waiting', prompt: 'Look at a page.', computer: 'linux' });
   hold();
   const meta = B.startRun(bot, { prompt: 'Open the page' });
@@ -67,7 +68,7 @@ test('a run stopped while its computer waits starts no computer', async () => {
   B.stopRun(meta.id);
   letGo();
   await ended(meta.id);
-  assert.ok(asked.some(([what, id]) => what === 'stop' && id === bot.id), 'its waiting start is stopped');
+  assert.ok(asked.some(([what, id]) => what === 'stop' && id === bot.id), 'its start is stopped');
   // Had it started all the same, it is stopped once it has.
   asked = [];
   free();

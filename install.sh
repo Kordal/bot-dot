@@ -42,8 +42,8 @@
 # into the machine's Docker and every account's first, then restarts the front door and every account on it.
 #
 # Each account has a share of the machine that the admin sets on the admin page (ADR 028, #471): CPUs and RAM are hard
-# limits on its unit (systemctl set-property), its bots' computers are capped by its docker-helper (a file only root
-# writes, share/share.json in its home), and its disk is an ext4 image of that size, mounted as its home (disks/).
+# limits on its unit (systemctl set-property) and the limits of its one computer, which its docker-helper reads (a file
+# only root writes, share/share.json in its home), and its disk is an ext4 image of that size, mounted as its home (disks/).
 # Root's step applies a share the front door asked for as it makes the account match. Every minute root's step also
 # writes the machine's load and each account's use of its share for the admin page (front-door/load), from outside the
 # account:
@@ -99,8 +99,8 @@ BIN="$DIR/bin"
 DISKS="$DIR/disks"
 LOAD="$DOOR/load"
 # The share an account has while the front door names none (as DEFAULT_SHARE in lib/front-door/store.js): CPUs, GB of
-# RAM, computers at once, GB of disk.
-DEFAULT_SHARE="2 5 2 30"
+# RAM, GB of disk.
+DEFAULT_SHARE="2 5 30"
 # An account's disk is full below this many bytes free: the admin page marks it.
 FULL_BELOW=209715200
 
@@ -184,11 +184,11 @@ valid_account() {
   [ "${#1}" -ge 2 ] && [ "${#1}" -le 24 ]
 }
 
-# valid_share CPU RAM COMPUTERS DISK: four whole numbers, as the front door checks them.
+# valid_share CPU RAM DISK: three whole numbers, as the front door checks them.
 valid_share() {
-  [ "$#" = 4 ] || return 1
+  [ "$#" = 3 ] || return 1
   for v_ in "$@"; do case "$v_" in '' | *[!0-9]*) return 1 ;; esac; done
-  [ "$1" -ge 1 ] && [ "$2" -ge 2 ] && [ "$3" -ge 1 ] && [ "$4" -ge 12 ]
+  [ "$1" -ge 1 ] && [ "$2" -ge 2 ] && [ "$3" -ge 12 ]
 }
 
 # The systemd that runs this machine, if one does.
@@ -207,8 +207,8 @@ num() { case "$1" in '' | *[!0-9.]* | *.*.*) printf 'null' ;; *) printf '%s' "$1
 
 # write_load: the machine's load, and each account's use of its share, measured from outside the accounts, for the
 # admin page: LOAD/machine.json and LOAD/account-<account>.json (lib/front-door/load.js reads them). CPU is how many CPUs the
-# account used since the last time (from its unit's CPU time), RAM what its unit holds, computers how many of its bots'
-# computers run (in its own Docker), and its disk the image's size and use; `full` when less than FULL_BELOW is free.
+# account used since the last time (from its unit's CPU time), RAM what its unit holds, computers whether its one
+# computer runs (1 or 0, in its own Docker), and its disk the image's size and use; `full` when less than FULL_BELOW is free.
 write_load() {
   [ -d "$DOOR" ] || return 0
   mkdir -p "$LOAD" "$RUN/load"
@@ -239,7 +239,7 @@ write_load() {
       [ -z "$ns" ] || printf '%s %s\n' "$now" "$ns" > "$RUN/load/$n"
     fi
     computers=''
-    [ ! -S "$RUN/$n/docker.sock" ] || computers="$(env DOCKER_HOST="unix://$RUN/$n/docker.sock" docker ps -q --filter label=botdot.bot --filter status=running </dev/null 2>/dev/null | wc -l | tr -d ' ' || true)"
+    [ ! -S "$RUN/$n/docker.sock" ] || computers="$(env DOCKER_HOST="unix://$RUN/$n/docker.sock" docker ps -q --filter label=botdot.computer=account --filter status=running </dev/null 2>/dev/null | wc -l | tr -d ' ' || true)"
     size='' used='' full=false
     if mountpoint -q "$ACCOUNTS/$n" 2>/dev/null; then
       # shellcheck disable=SC2046
@@ -971,9 +971,10 @@ disk() {
   fi
 }
 
-# share NAME CPU RAM COMPUTERS: the account NAME's share of CPU and RAM, hard limits on its unit, applied at once and
-# kept (its work slows down near its RAM before anything is ended at it), and how many of its bots' computers run at
-# once, in a file only root writes, which its docker-helper reads (lib/computers.js). It never shows in the account.
+# share NAME CPU RAM: the account NAME's share of CPU and RAM, hard limits on its unit, applied at once and kept (its
+# work slows down near its RAM before anything is ended at it), and the limits of its one computer (#108), in a file
+# only root writes, which its docker-helper reads as the computer starts (lib/computers.js). It never shows in the
+# account.
 share() {
   if [ -n "$SYSTEMD" ]; then
     systemctl set-property "botdot-account@$1.service" "CPUQuota=$(($2 * 100))%" "MemoryHigh=$(($3 * 1024 * 9 / 10))M" "MemoryMax=$3G" </dev/null \
@@ -984,17 +985,17 @@ share() {
   mkdir -p "$ACCOUNTS/$1/share"
   chown 0:0 "$ACCOUNTS/$1/share"
   chmod 755 "$ACCOUNTS/$1/share"
-  printf '{"computers":%s}\n' "$4" > "$ACCOUNTS/$1/share/share.json.new"
+  printf '{"cpu":%s,"ram":%s}\n' "$2" "$3" > "$ACCOUNTS/$1/share/share.json.new"
   chmod 644 "$ACCOUNTS/$1/share/share.json.new"
   mv "$ACCOUNTS/$1/share/share.json.new" "$ACCOUNTS/$1/share/share.json"
 }
 
-# account NAME [CPU RAM COMPUTERS DISK]: makes or updates the account NAME with that share (DEFAULT_SHARE without
-# one) and starts its botdot server.
+# account NAME [CPU RAM DISK]: makes or updates the account NAME with that share (DEFAULT_SHARE without one) and
+# starts its botdot server.
 account() {
   name="$1"
   shift
-  # shellcheck disable=SC2086 # four numbers
+  # shellcheck disable=SC2086 # three numbers
   valid_share "$@" || set -- $DEFAULT_SHARE
   user="botdot-$name"
   home="$ACCOUNTS/$name"
@@ -1003,7 +1004,7 @@ account() {
   A="env DOCKER_HOST=unix://$run/docker.sock docker"
 
   # Its disk, mounted as its home before anything is in it.
-  disk "$name" "$4"
+  disk "$name" "$3"
   # Its Linux user, with subordinate IDs for its containers' users (the Chief, the bots, the tools user).
   if ! id -u "$user" >/dev/null 2>&1; then
     useradd --no-create-home --home-dir "$home" --shell /usr/sbin/nologin --comment "botdot account $name" "$user" </dev/null \
@@ -1038,7 +1039,7 @@ JSON
   cmp -s "$home/.config/docker/daemon.json.new" "$home/.config/docker/daemon.json" 2>/dev/null || changed=1
   mv "$home/.config/docker/daemon.json.new" "$home/.config/docker/daemon.json"
   chown -R "$uid:$gid" "$home/.config"
-  share "$name" "$1" "$2" "$3"
+  share "$name" "$1" "$2"
   if [ -n "$SYSTEMD" ]; then
     systemctl enable "botdot-account@$name" </dev/null >/dev/null 2>&1 || true
     if [ -n "$changed" ]; then systemctl restart "botdot-account@$name" </dev/null; else systemctl start "botdot-account@$name" </dev/null; fi
@@ -1102,15 +1103,15 @@ JSON
 # door_state NAME: what the front door's data says of the account NAME, read with the image's own Node (NAME on its
 # command line, never in the script): "running", "suspended" (the admin suspended it) or "deleted" (the admin deleted
 # it, and no account of that name was made since), and after "running" or "suspended" its share, its own or the
-# default when the front door has one: CPUs, GB of RAM, computers and GB of disk. Nothing when it has no such account
-# or its data can't be read, so that an account is erased only when the front door says so. Nothing else of that file
-# is used.
+# default when the front door has one: CPUs, GB of RAM and GB of disk (a share kept before #108 also has computers at
+# once, which is ignored). Nothing when it has no such account or its data can't be read, so that an account is erased
+# only when the front door says so. Nothing else of that file is used.
 door_state() {
   [ -f "$DOOR/data/front-door.json" ] || return 0
-  $D run --rm -i --entrypoint node "$IMAGE" -e 'let s="";process.stdin.on("data",(d)=>{s+=d}).on("end",()=>{try{const j=JSON.parse(s),n=process.argv[1],a=j.accounts||{};if(!Object.hasOwn(a,n)){process.stdout.write(Object.hasOwn(j.deleted||{},n)?"deleted":"");return}const h=a[n].share||j.share||{},k=["cpu","ram","computers","disk"];process.stdout.write((a[n].suspended?"suspended":"running")+(k.every((x)=>Number.isInteger(h[x]))?" "+k.map((x)=>h[x]).join(" "):""))}catch{}})' "$1" < "$DOOR/data/front-door.json" 2>/dev/null || true
+  $D run --rm -i --entrypoint node "$IMAGE" -e 'let s="";process.stdin.on("data",(d)=>{s+=d}).on("end",()=>{try{const j=JSON.parse(s),n=process.argv[1],a=j.accounts||{};if(!Object.hasOwn(a,n)){process.stdout.write(Object.hasOwn(j.deleted||{},n)?"deleted":"");return}const h=a[n].share||j.share||{},k=["cpu","ram","disk"];process.stdout.write((a[n].suspended?"suspended":"running")+(k.every((x)=>Number.isInteger(h[x]))?" "+k.map((x)=>h[x]).join(" "):""))}catch{}})' "$1" < "$DOOR/data/front-door.json" 2>/dev/null || true
 }
 
-# settle NAME STATE [CPU RAM COMPUTERS DISK]: the machine made to match what the front door says of the account NAME
+# settle NAME STATE [CPU RAM DISK]: the machine made to match what the front door says of the account NAME
 # (door_state), with its share.
 settle() {
   n="$1" s="${2:-}"
@@ -1120,11 +1121,11 @@ settle() {
     running)
       # Its Docker answers when it runs: suspending stops it. One that runs gets its share now.
       if [ -f "$ACCOUNTS/$n/compose.yaml" ] && env DOCKER_HOST="unix://$RUN/$n/docker.sock" docker info </dev/null >/dev/null 2>&1; then
-        # shellcheck disable=SC2086 # four numbers
+        # shellcheck disable=SC2086 # three numbers
         valid_share "$@" || set -- $DEFAULT_SHARE
-        disk "$n" "$4"
-        share "$n" "$1" "$2" "$3"
-        ok "The account $n is made already, and runs, with its share: $1 CPUs, $2 GB of RAM, $3 computers at once, $4 GB of disk"
+        disk "$n" "$3"
+        share "$n" "$1" "$2"
+        ok "The account $n is made already, and runs, with its share: $1 CPUs, $2 GB of RAM, $3 GB of disk"
       elif [ -f "$ACCOUNTS/$n/compose.yaml" ]; then
         say "Starting the account $n again, which the admin resumed"
         account "$n" "$@"
@@ -1193,7 +1194,7 @@ if [ "$MODE" = requested ]; then
         [ "$state" != "$settled" ] || break
         # In a subshell of its own, which stops at its first failure: a `||` here would turn that off.
         set +e
-        # shellcheck disable=SC2086 # the state, then its share's four numbers
+        # shellcheck disable=SC2086 # the state, then its share's three numbers
         ( set -e; settle "$name" $state )
         done_=$?
         set -e
@@ -1217,7 +1218,7 @@ if [ "$MODE" = requested ]; then
 fi
 
 state="$(door_state "$ADMIN")"
-# shellcheck disable=SC2086 # its share's four numbers, after its state
+# shellcheck disable=SC2086 # its share's three numbers, after its state
 account "$ADMIN" ${state#* }
 for other in "$ACCOUNTS"/*/; do
   other="$(basename "$other")"
@@ -1227,7 +1228,7 @@ for other in "$ACCOUNTS"/*/; do
   case "$state" in
     suspended*) ok "The account $other is suspended, so it stays stopped" ;;
     deleted) erase_account "$other" ;;
-    # shellcheck disable=SC2086 # its share's four numbers, after its state
+    # shellcheck disable=SC2086 # its share's three numbers, after its state
     *) account "$other" ${state#* } ;;
   esac
 done
