@@ -45,7 +45,10 @@ before(async () => {
 after(async () => { await srv.stop(); await new Promise((r) => helper.close(r)); fs.rmSync(dir, { recursive: true, force: true }); });
 
 const chief = (t) => rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey });
-const ofBot = (bot) => asked.filter(([, id]) => id === bot.id).map(([op]) => op);
+// A call for the bot: by its id, or by its seat on the account's computer (#105).
+const ofBot = (bot) => asked.filter(([, id]) => id === bot.id || id?.bot === bot.id).map(([op]) => op);
+// The bot never used its computer, so it has no screen and its logs are the computer's alone (#105).
+const lastLogs = () => { const [op, seat, lines] = asked.findLast(([o]) => o === 'logs'); return [op, seat, lines]; };
 
 test("computer_status quotes why the bot's computer did not start", async (t) => {
   const bot = await makeBot(srv, { name: 'VPS Admin', computer: 'linux' });
@@ -59,11 +62,11 @@ test("computer_logs reads the computer's recent logs, as many lines as asked, at
   const tools = chief(t);
   const logs = await tools.json('computer_logs', { id: bot.id, lines: 50 });
   assert.equal(logs.desktop, 'supervisord: novnc exited (exit status 1)');
-  assert.deepEqual(asked.findLast(([op]) => op === 'logs'), ['logs', bot.id, 50]);
+  assert.deepEqual(lastLogs(), ['logs', null, 50]);
   await tools.json('computer_logs', { id: bot.id, lines: 100000 });
-  assert.deepEqual(asked.findLast(([op]) => op === 'logs'), ['logs', bot.id, 500]);
+  assert.deepEqual(lastLogs(), ['logs', null, 500]);
   await tools.json('computer_logs', { id: bot.id });
-  assert.deepEqual(asked.findLast(([op]) => op === 'logs'), ['logs', bot.id, 100]);
+  assert.deepEqual(lastLogs(), ['logs', null, 100]);
 });
 
 test('restart_computer stops the computer and starts it again, and says plainly when it did not come up', async (t) => {

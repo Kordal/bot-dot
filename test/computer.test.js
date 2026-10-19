@@ -47,9 +47,14 @@ test("nothing outside the viewer's folder", async () => {
 test("a bot with a computer is told it shares the account's computer, as box with sudo, and that the owner can take over (#104)", async () => {
   const bot = await makeBot(srv, { name: 'Clicker', computer: 'linux' });
   const { rec, run } = await heldRun(srv, bot);
-  assert.match(rec.system, /You have a computer: an Ubuntu Linux desktop \(XFCE, 1024x768\) that the owner's other bots with a computer work on too, at the same time\. The owner can watch it and take the mouse and keyboard at any time: when the screen changed in a way you did not cause, the owner or another bot did it, and you carry on from what you see\./);
+  assert.match(rec.system, /You have a computer: an Ubuntu Linux computer that the owner's other bots with a computer work on too, at the same time\./);
+  // Its own screen and browser, and its own folder (#105).
+  assert.match(rec.system, /You have a screen of your own on it, an XFCE desktop \(1024x768\) with your own Camoufox browser/);
+  assert.match(rec.system, /The owner can watch your screen and take the mouse and keyboard at any time/);
+  assert.ok(rec.system.includes(`Both start in your own folder, /workspace/${bot.id}.`));
   assert.match(rec.system, /Every bot works there as the user box, with sudo without a password/);
-  assert.match(rec.system, /never touch their files, windows or programs/);
+  assert.match(rec.system, /Your screen is no wall/);
+  assert.match(rec.system, /never touch their files, screens, windows or programs/);
   assert.doesNotMatch(rec.system, /that only you use/);
   assert.match(rec.system, /use run_with_login with a command that reads "\$BOTDOT_USERNAME" and "\$BOTDOT_PASSWORD"\. It works only for a login with inComputer in list_logins/);
   srv.release(rec);

@@ -40,7 +40,7 @@ function docker({ state = 'running', failStart = false } = {}) {
     if (cmd === 'exec' && args.includes('--privileged') && failStart) throw new Error('iptables: Failed to initialize');
     if (cmd === 'exec' && args.includes('python3')) return '{}';
     if (cmd === 'logs') return { stdout: 'out line\n', stderr: 'err line\n' };
-    if (cmd === 'exec' && args.includes('/var/log/supervisor/supervisord.log')) return 'novnc exited';
+    if (cmd === 'exec' && args.includes('/var/log/supervisor/screen-11.log')) return 'novnc exited';
     return '';
   };
 }
@@ -48,7 +48,7 @@ beforeEach(() => { calls = []; answer = docker(); });
 
 test("health is Docker's state of the computer, and why its last start failed until one succeeds", async () => {
   answer = docker({ state: 'stopped', failStart: true });
-  await assert.rejects(computers.ensure('pc'), /Could not secure the computer: iptables/);
+  await assert.rejects(computers.ensure({ bot: 'pc', screen: 1 }), /Could not secure the computer: iptables/);
   const h = await computers.health('pc');
   assert.deepEqual({ ...h, lastStartError: undefined }, {
     state: 'stopped', status: 'stopped', exitCode: 137, error: 'a | in its error', oomKilled: true,
@@ -57,7 +57,7 @@ test("health is Docker's state of the computer, and why its last start failed un
   assert.match(h.lastStartError.message, /Could not secure the computer: iptables: Failed to initialize/);
   assert.ok(!Number.isNaN(Date.parse(h.lastStartError.at)));
   answer = docker({ state: 'stopped' });
-  await computers.ensure('pc');
+  await computers.ensure({ bot: 'pc', screen: 1 });
   assert.equal((await computers.health('pc')).lastStartError, null, 'a start that succeeds clears it');
 });
 
@@ -70,27 +70,29 @@ test('health of a computer that was never made says so, and Docker that does not
 
 test("erasing a bot's old computer leaves why the account's computer did not start (#104)", async () => {
   answer = docker({ state: 'stopped', failStart: true });
-  await assert.rejects(computers.ensure('gone'));
+  await assert.rejects(computers.ensure({ bot: 'gone', screen: 1 }));
   await computers.reset('gone');
   assert.ok((await computers.health('other')).lastStartError, "every bot reads the account computer's");
 });
 
 test("logs are the container's own and the desktop's, the last lines of each", async () => {
-  const logs = await computers.logs('pc', 50);
+  const logs = await computers.logs({ bot: 'pc', screen: 1 }, 50);
   assert.deepEqual(logs, { state: 'running', container: 'out line\nerr line\n', desktop: 'novnc exited' });
   assert.deepEqual(calls.find((a) => a[0] === 'logs'), ['logs', '--tail', '50', '--timestamps', 'botdot.account.computer']);
   assert.ok(calls.some((a) => a[0] === 'exec' && a.includes('-n') && a[a.indexOf('-n') + 1] === '50'));
   assert.ok(!calls.some((a) => a.some((x) => /bridge\.log/.test(x))), "not the browser bridge's, which may hold what botdot typed");
+  assert.ok(calls.some((a) => a.includes('/var/log/supervisor/screen-11.log')), "the bot's own screen's (#105)");
+  assert.deepEqual(await computers.logs(null, 50), { state: 'running', container: 'out line\nerr line\n', desktop: '' }, 'a bot without a screen yet');
   calls = [];
-  await computers.logs('pc', 9999);
+  await computers.logs({ bot: 'pc', screen: 1 }, 9999);
   assert.equal(calls.find((a) => a[0] === 'logs')[2], '500');
 });
 
 test('a stopped computer has no desktop logs, and one never made has none at all', async () => {
   answer = docker({ state: 'stopped' });
-  assert.equal((await computers.logs('pc')).desktop, '');
+  assert.equal((await computers.logs({ bot: 'pc', screen: 1 })).desktop, '');
   answer = docker({ state: 'none' });
-  assert.deepEqual(await computers.logs('nobody'), { state: 'none', container: '', desktop: '' });
+  assert.deepEqual(await computers.logs({ bot: 'nobody', screen: 1 }), { state: 'none', container: '', desktop: '' });
 });
 
 test('the Docker helper takes health and logs for one bot id, and a line count of 1 to 500', async () => {
@@ -105,10 +107,11 @@ test('the Docker helper takes health and logs for one bot id, and a line count o
     req.end(JSON.stringify({ operation, args }));
   });
   try {
-    for (const [op, args] of [['health', ['pc']], ['logs', ['pc']], ['logs', ['pc', 1]], ['logs', ['pc', 500]]]) assert.equal(await call(op, args), 200, `${op} ${JSON.stringify(args)}`);
-    for (const [op, args] of [['health', []], ['health', ['../x']], ['health', ['pc', 1]], ['logs', ['pc', 0]], ['logs', ['pc', 501]], ['logs', ['pc', 1.5]], ['logs', ['pc', '10']], ['logs', ['pc', 10, 1]]]) {
+    const S = { bot: 'pc', screen: 1 }; // a bot's seat (#105)
+    for (const [op, args] of [['health', ['pc']], ['logs', [S]], ['logs', [null, 20]], ['logs', [S, 1]], ['logs', [S, 500]]]) assert.equal(await call(op, args), 200, `${op} ${JSON.stringify(args)}`);
+    for (const [op, args] of [['health', []], ['health', ['../x']], ['health', ['pc', 1]], ['logs', ['pc']], ['logs', [S, 0]], ['logs', [S, 501]], ['logs', [S, 1.5]], ['logs', [S, '10']], ['logs', [S, 10, 1]], ['logs', [{ ...S, screen: 0 }]]]) {
       assert.equal(await call(op, args), 400, `${op} ${JSON.stringify(args)}`);
     }
-    assert.equal(asked.length, 4);
+    assert.equal(asked.length, 5);
   } finally { server.close(); }
 });

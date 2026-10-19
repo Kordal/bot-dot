@@ -1,22 +1,24 @@
 #!/bin/sh
-# The bot's desktop as the bot user (#311), in place of cua's /opt/desktop/start.sh, which keeps it in /root:
-# TigerVNC with an XFCE session on :1 (VNC port 5901), the browser user let onto that display to show Camoufox,
-# and cua's theme. It then follows the VNC log, so that supervisord sees it running.
+# One bot's desktop as box (#311, #105), in place of cua's /opt/desktop/start.sh, which keeps it in /root:
+# TigerVNC with an XFCE session on the screen's own display (SCREEN_DISPLAY, VNC port VNC_PORT, from
+# deploy/desktop/botdot-screen.conf), the browser user let onto that display to show Camoufox, and cua's theme.
+# It then follows the screen's VNC log, so that supervisord sees it running.
 set -eu
 
-DISPLAY_NUM=:1
+DISPLAY_NUM="${SCREEN_DISPLAY:-:1}"
+N="${DISPLAY_NUM#:}"
 # lint-ignore: error-masking
-rm -f /tmp/.X1-lock /tmp/.X11-unix/X1 2>/dev/null || true
+rm -f "/tmp/.X$N-lock" "/tmp/.X11-unix/X$N" 2>/dev/null || true
 
 mkdir -p "$HOME/.vnc"
 cp /opt/desktop/xstartup.sh "$HOME/.vnc/xstartup"
 chmod +x "$HOME/.vnc/xstartup"
 
-vncserver "$DISPLAY_NUM" -geometry 1024x768 -depth 24 -rfbport 5901 \
+vncserver "$DISPLAY_NUM" -geometry 1024x768 -depth 24 -rfbport "${VNC_PORT:-5901}" \
     -SecurityTypes None --I-KNOW-THIS-IS-INSECURE -localhost no
 
 for _ in $(seq 1 40); do
-    [ -e /tmp/.X11-unix/X1 ] && break
+    [ -e "/tmp/.X11-unix/X$N" ] && break
     sleep 0.5
 done
 
@@ -35,5 +37,5 @@ xfconf-query -c xfce4-desktop -p '/backdrop/screen0/monitorVNC-0/workspace0/last
 # lint-ignore: error-masking
 xfdesktop --reload 2>/dev/null || true
 
-VNC_LOG="$(ls -t "$HOME"/.vnc/*.log 2>/dev/null | head -1)"
+VNC_LOG="$(ls -t "$HOME"/.vnc/*"$DISPLAY_NUM".log 2>/dev/null | head -1)"
 exec tail -F "${VNC_LOG:-/dev/null}"

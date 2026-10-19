@@ -25,6 +25,7 @@ with socket.socket() as s:
     port = s.getsockname()[1]
 launcher.OPEN_PORT = port
 launcher.BRIDGE_SOCKET = os.path.join(sys.argv[2], "bridge.sock")
+launcher.PROFILE = os.path.join(sys.argv[2], "profile")
 threading.Thread(target=launcher.serve, daemon=True).start()
 
 
@@ -51,6 +52,7 @@ out = {}
 out["where_closed"] = bridge({"op": "where"})
 out["secret_on_port"] = port_post({"site": "example.com", "field": "password", "value": "synthetic-port-secret"})
 out["where_on_port"] = port_post({"op": "where"})
+out["is_open_closed"] = port_post({"op": "is-open"})
 out["open"] = port_post({"op": "open", "url": "https://example.com/login"})
 for _ in range(100):
     if sync_api.LAUNCHES:
@@ -58,6 +60,7 @@ for _ in range(100):
     time.sleep(0.05)
 time.sleep(0.5)
 out["where_open"] = bridge({"op": "where"})
+out["is_open"] = port_post({"op": "is-open"})
 out["secret"] = bridge({"site": "example.com", "field": "password", "value": "synthetic-secret"})
 out["typed"] = sync_api.TYPED
 out["launches"] = len(sync_api.LAUNCHES)

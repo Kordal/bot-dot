@@ -17,6 +17,8 @@ const { rpcClient } = require('./memory-helpers');
 
 const SECRET = 'br1dge-S3cret/+=';
 const USER = 'bart@proton.me';
+// The bot's seat on the account's computer: screen 1, display :11 (#105).
+const MAIL = { bot: 'mail', screen: 1 };
 
 // ---------- the docker call (lib/computers.js) ----------
 
@@ -43,7 +45,7 @@ delete require.cache[require.resolve('../lib/computers')];
 test('the login goes to docker exec in its own environment, never on its command line', async () => {
   calls = [];
   reply = () => ({ stdout: '* OK IMAP4rev1 ready\n', stderr: '' });
-  const r = await computers.runWithLogin('mail', { command: 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/INBOX', username: USER, password: SECRET });
+  const r = await computers.runWithLogin(MAIL, { command: 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/INBOX', username: USER, password: SECRET });
   assert.deepEqual(r, { code: 0, stdout: '* OK IMAP4rev1 ready\n', stderr: '', timedOut: false });
   assert.equal(calls.length, 1);
   const { file, args, opts } = calls[0];
@@ -55,16 +57,19 @@ test('the login goes to docker exec in its own environment, never on its command
   assert.equal(opts.env.BOTDOT_USERNAME, USER);
   assert.equal(opts.env.BOTDOT_PASSWORD, SECRET);
   assert.equal(opts.env.PATH, process.env.PATH, "the rest of botdot's environment, so docker is found");
-  // The command runs as given, in sh, inside `timeout`, in this bot's computer.
+  // The command runs as given, in sh, inside `timeout`, in this bot's computer, in its own folder and on its own
+  // screen (#105).
   const at = args.indexOf(computers.containerName('mail'));
-  assert.deepEqual(args.slice(at + 1), ['timeout', '-k', '5', '120', 'sh', '-c', 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/INBOX']);
+  assert.deepEqual(args.slice(at + 1), ['timeout', '-k', '5', '120', 'sh', '-c', 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"',
+    'sh', '/workspace/mail', 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/INBOX']);
+  assert.ok(args.includes('DISPLAY=:11'));
 });
 
 test('the time limit is 120 s by default and 600 s at most; a command that ran out says so', async () => {
   reply = () => ({ stdout: 'partial', stderr: '', error: Object.assign(new Error('Command failed'), { code: 124 }) });
   const seconds = async (timeoutSeconds) => {
     calls = [];
-    const r = await computers.runWithLogin('mail', { command: 'sleep 9999', username: '', password: SECRET, timeoutSeconds });
+    const r = await computers.runWithLogin(MAIL, { command: 'sleep 9999', username: '', password: SECRET, timeoutSeconds });
     const { args, opts } = calls[0];
     return { limit: args[args.indexOf('timeout') + 3], killAfter: opts.timeout, r };
   };
@@ -76,7 +81,7 @@ test('the time limit is 120 s by default and 600 s at most; a command that ran o
   assert.deepEqual(most.r, { code: 124, stdout: 'partial', stderr: '', timedOut: true });
   // A failing command is its exit code and output, not an error.
   reply = () => ({ stdout: '', stderr: 'auth failed', error: Object.assign(new Error('Command failed'), { code: 1 }) });
-  assert.deepEqual(await computers.runWithLogin('mail', { command: 'false', username: USER, password: SECRET }), { code: 1, stdout: '', stderr: 'auth failed', timedOut: false });
+  assert.deepEqual(await computers.runWithLogin(MAIL, { command: 'false', username: USER, password: SECRET }), { code: 1, stdout: '', stderr: 'auth failed', timedOut: false });
 });
 
 // ---------- every form of the secret is blanked out ----------
@@ -108,16 +113,18 @@ test('the Docker helper accepts run_with_login only in its fixed shape', async (
     req.on('error', reject); req.end(JSON.stringify(value));
   });
   const good = { command: 'echo hi', username: USER, password: SECRET, timeoutSeconds: 60 };
-  assert.equal((await call({ operation: 'runWithLogin', args: ['mail', good] })).data.value.stdout, 'ok');
-  assert.deepEqual(got, [['mail', good]]);
+  assert.equal((await call({ operation: 'runWithLogin', args: [MAIL, good] })).data.value.stdout, 'ok');
+  assert.deepEqual(got, [[MAIL, good]]);
   for (const args of [
     ['../host', good],
-    ['mail', { ...good, user: 'root' }],
-    ['mail', { ...good, command: '' }],
-    ['mail', { ...good, command: 'x'.repeat(4001) }],
-    ['mail', { ...good, password: 42 }],
-    ['mail', { ...good, timeoutSeconds: 601 }],
-    ['mail', good, 'extra'],
+    ['mail', good], // a bot id alone is no screen (#105)
+    [{ bot: 'mail', screen: 90 }, good],
+    [MAIL, { ...good, user: 'root' }],
+    [MAIL, { ...good, command: '' }],
+    [MAIL, { ...good, command: 'x'.repeat(4001) }],
+    [MAIL, { ...good, password: 42 }],
+    [MAIL, { ...good, timeoutSeconds: 601 }],
+    [MAIL, good, 'extra'],
   ]) assert.equal((await call({ operation: 'runWithLogin', args })).status, 400, JSON.stringify(args).slice(0, 120));
   assert.equal(got.length, 1);
 });

@@ -582,9 +582,12 @@ async function serveScreen(req, res, { botId, rest }) {
     res.writeHead(404);
     return res.end('Not found');
   }
-  if (file === path.join(NOVNC, 'vnc.html') && (await B.computers.inspect(botId)).state !== 'running') {
+  // The bot's own screen on the account's computer (#105).
+  const { state } = file === path.join(NOVNC, 'vnc.html') ? await B.computers.screenState(botId) : { state: 'running' };
+  if (state !== 'running') {
+    const why = state === 'off' ? "This bot's screen starts when it first uses its computer." : "This bot's computer is turned off.";
     res.writeHead(503, { 'Content-Type': 'text/html' });
-    return res.end('<body style="font:14px system-ui;background:#111;color:#aaa;display:grid;place-items:center;height:100vh;margin:0">This bot\'s computer is turned off.</body>');
+    return res.end(`<body style="font:14px system-ui;background:#111;color:#aaa;display:grid;place-items:center;height:100vh;margin:0">${why}</body>`);
   }
   if (req.method === 'HEAD') { res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' }); return res.end(); }
   sendFile(res, file, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
@@ -706,7 +709,8 @@ async function screenSocket(req, socket, head) {
   let sameOrigin = false;
   try { sameOrigin = new URL(origin).host === req.headers.host; } catch { /* no origin */ }
   if (!screen || !/^\/websockify(\?|$)/.test(screen.rest) || gate(req) || !sameOrigin) return socket.destroy();
-  const running = (await B.computers.inspect(screen.botId).catch(() => ({}))).state === 'running';
+  // Only to the bot's own screen, once it is on (#105).
+  const running = (await B.computers.screenState(screen.botId).catch(() => ({}))).state === 'running';
   if (!running || socket.destroyed) return socket.destroy();
   const up = B.computers.screenPipe(screen.botId);
   const close = () => { socket.destroy(); up.kill(); };

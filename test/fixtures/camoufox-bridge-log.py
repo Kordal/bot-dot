@@ -37,6 +37,7 @@ with socket.socket() as s:
 launcher.BRIDGE_SOCKET = os.path.join(scratch, "nofolder" if scenario == "crash" else "", "bridge.sock")
 launcher.BRIDGE_LOG = os.path.join(scratch, "nofolder" if scenario == "nolog" else "", "bridge.log")
 launcher.LOG_CAP = cap
+launcher.PROFILE = os.path.join(scratch, "profile")
 
 
 def connected(listening=True):
