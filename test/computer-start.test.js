@@ -110,6 +110,10 @@ test('under gVisor the firewall is legacy iptables on what leaves, without connt
   assert.match(script, /-p tcp -m multiport --sports 5911:5999,6011:6099,6111:6199,8111:8199,47211:47299,8000,6080,5901,6001,47111 -j DROP/, "every screen's control and view answer nobody outside, and the shared screen's of before (#105)");
   assert.match(script, /"\$tool" -A OUTPUT -j ACCEPT/);
   assert.doesNotMatch(script, /REJECT/, 'the local network is open');
+  // The computer's Tailscale runs as root in userspace and forwards a tailnet connection to the loopback (#106):
+  // what root sends to botdot's ports there is dropped, before the loopback is let through.
+  const guard = script.indexOf('"$tool" -A OUTPUT -o lo -p tcp -m owner --uid-owner 0 -m multiport --dports 5911:5999,6011:6099,6111:6199,8111:8199,47211:47299,8000,6080,5901,6001,47111 -j DROP');
+  assert.ok(guard > 0 && guard < script.indexOf('"$tool" -A OUTPUT -o lo -j ACCEPT'), script);
   assert.match(script, /> \/etc\/resolv\.conf/);
 });
 
@@ -122,6 +126,7 @@ test('under runc the firewall keeps its rules for what comes in, with conntrack'
   assert.match(script, /"\$tool" -A INPUT -i lo -j ACCEPT/);
   assert.match(script, /-m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT/);
   assert.match(script, /"\$tool" -P OUTPUT ACCEPT/, 'what leaves is open: the internet, the local network, its own loopback');
+  assert.match(script, /"\$tool" -F OUTPUT\n[^]*"\$tool" -A OUTPUT -o lo -p tcp -m owner --uid-owner 0 -m multiport --dports 5911:5999,[^ ]*,47111 -j DROP/, 'nor under runc does Tailscale forward a tailnet connection to them (#106)');
   assert.match(script, /rules iptables\nrules ip6tables/);
   assert.doesNotMatch(script, /REJECT/);
 });
@@ -134,16 +139,32 @@ test('a stopped computer starts with nothing running, gets its firewall, then it
   assert.ok(start >= 0 && start < index(isFirewall) && index(isFirewall) < index(isDesktop));
 });
 
-// A computer signed in to the owner's tailnet comes back on it when it starts (#68): botdot-tailscale resume, as the
-// bot, starts Tailscale with its saved login and asks for none.
+test('a Docker runtime without the owner match still sets the rest of the firewall, and says the guard is off (#106)', async () => {
+  await computers.ensure(PC);
+  const script = firewallScript();
+  assert.match(script, /--uid-owner 0 [^\n]* -j DROP 2>\/dev\/null \|\| guard=off/, 'a failed rule leaves the other rules in place');
+  assert.match(script, /echo "tailnet-guard \$guard"/);
+  const base = docker();
+  answer = (args) => (isFirewall(args) ? 'tailnet-guard off' : base(args));
+  const warn = mock.method(console, 'warn', () => {});
+  try {
+    calls = [];
+    await computers.ensure(PC);
+    assert.ok(index(isBridge) >= 0, 'the computer starts all the same');
+    assert.ok(warn.mock.calls.some((c) => /no owner match/.test(c.arguments[0])), 'and botdot says so in its log');
+  } finally { warn.mock.restore(); }
+});
+
+// The account's computer on the owner's tailnet comes back on it when it starts (#68, #106): botdot-tailscale resume,
+// as root, starts its one Tailscale with its saved login, asks for none, and puts its shields back up.
 const isResume = (a) => a[0] === 'exec' && a.at(-2) === '/usr/local/bin/botdot-tailscale' && a.at(-1) === 'resume';
-test('a stopped computer starts Tailscale again as box, after its firewall and with the current botdot-tailscale', async () => {
+test('a stopped computer starts Tailscale again as root, after its firewall and with the current botdot-tailscale', async () => {
   answer = docker({ state: 'stopped' });
   await computers.ensure(PC);
   const resume = calls.find((c) => isResume(c.args));
   assert.ok(resume, 'Tailscale is resumed');
-  assert.deepEqual(resume.args.slice(0, 5), ['exec', '-u', 'box', '-e', 'HOME=/home/box']);
-  assert.ok(!resume.args.includes('--privileged') && !resume.args.includes('root'));
+  assert.deepEqual(resume.args.slice(0, 4), ['exec', '-u', 'root', 'botdot.account.computer']);
+  assert.ok(!resume.args.includes('--privileged'), 'no NET_ADMIN: the firewall stays botdot\'s');
   const copy = index((a) => a[0] === 'exec' && a.at(-1).includes('mv -f /usr/local/bin/.botdot-tailscale.new /usr/local/bin/botdot-tailscale'));
   assert.ok(index(isFirewall) < copy && copy < index(isResume), 'root writes botdot-tailscale in, so an older computer has resume');
 });

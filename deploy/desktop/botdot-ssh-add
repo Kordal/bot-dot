@@ -4,8 +4,9 @@ Arguments: the agent's socket, the agent's pid, the key's lifetime in seconds, a
 
 botdot sends this file's own copy with every call and runs it as root, from /, in Python's isolated mode
 (lib/computers.js runWithSshKey), so nothing in the computer can change it, and the key never appears in a
-command line, a file or an environment. Root's processes are closed to the bot (--cap-drop ALL, another user), and
-the agent makes itself untraceable, so the bot can use the key through the agent's socket and never read it.
+command line, a file or an environment. The agent makes itself untraceable, so a program that does not use sudo can
+use the key through the agent's socket and never read it. Every bot on the account's computer has sudo (ADR 035):
+one that uses it can read the key while the agent lives, which is only as long as the one command runs.
 
 The agent's socket is in a folder of the bot's, so the bot could put a socket of its own there: the key goes only
 to the program that is the agent botdot started (its pid, and the bot user's, by SO_PEERCRED). ssh-add reaches it
