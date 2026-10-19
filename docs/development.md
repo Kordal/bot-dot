@@ -36,7 +36,10 @@ On GitHub, the **Tests** workflow runs them and builds the Android app, on every
 ## Layout
 
 ```
-server.js            HTTP API + static files + scheduler start
+server.js            startup, the gate, static files, the live feed and the order the routes are tried in
+lib/routes/          the API's routes by feature (bots, chief, jobs, memory, vault, setup, computers, board…):
+                     each create(ctx) returns a handler that answers NEXT when none of its routes is asked for;
+                     shared.js and http.js hold what several of them use
 scripts/dev.js       npm start: the server behind the front door, with one account, on this machine
 lib/bots.js          bot store, headless runner, scheduler
 lib/chief.js         Chief of Staff chat (multi-turn, via --resume)

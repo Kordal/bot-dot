@@ -149,7 +149,7 @@ test('the vocabulary has the term, and no text of the server, the web page or th
   assert.match(context, new RegExp(`\\*\\*Main assignment\\*\\*:\\n.+\\n_Avoid_: ${OLD_NAME.toLowerCase()}, task, prompt\\n`));
   assert.equal(context.split('\n').filter((line) => OLD.test(line)).length, 1, 'only its Avoid line has the old name');
   assert.match(context, /A headless Claude Code agent with its own main assignment, rules, /);
-  const files = ['server.js', 'README.md', 'docs/user-guide.md', 'docs/api.md', ...['lib', 'public'].flatMap((d) => fs.readdirSync(path.join(ROOT, d)).filter((f) => /\.(js|html|css)$/.test(f)).map((f) => `${d}/${f}`))];
+  const files = ['server.js', 'README.md', 'docs/user-guide.md', 'docs/api.md', ...['lib', 'lib/routes', 'public'].flatMap((d) => fs.readdirSync(path.join(ROOT, d)).filter((f) => /\.(js|html|css)$/.test(f)).map((f) => `${d}/${f}`))];
   for (const file of files) {
     const hit = source(file).split('\n').findIndex((line) => OLD.test(line));
     assert.equal(hit, -1, `${file}:${hit + 1}`);
