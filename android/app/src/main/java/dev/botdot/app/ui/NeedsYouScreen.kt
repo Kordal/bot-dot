@@ -58,6 +58,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -162,6 +163,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onBack: () -> 
     fun act(done: String, block: suspend () -> Unit) = scope.launch {
         val r = runCatching { block() }
         load()
+        answered()
         tell(r.fold({ done }, { it.message ?: "That didn't work" }))
     }
 
@@ -181,6 +183,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onBack: () -> 
             }
             .onError { tell(it.message ?: "That didn't work") }
         load()
+        answered()
     }
     val jobWho = { b: Bot, j: Job -> inGroup(b.named(), cardGroups[CardGroups.jobKey(b.id, j.id)]) }
     val memWho = { m: MemoryChange -> inGroup(whoOf(m.botId, bots.firstOrNull { it.id == m.botId }?.name ?: m.bot?.name ?: "A bot"), m.group) }
@@ -346,6 +349,7 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
             .onSuccess { said -> decided = decided + Decided(key, null, title, answeredLabel(answeredWord(label, said, yes), said?.carriesOn.takeIf { yes })); error = null }
             .onError { error = it.message ?: "That didn't work" }
         load()
+        answered()
     }
 
     val chief = scope == "chief"
@@ -670,15 +674,40 @@ private fun Body(text: String, mono: Boolean = false) {
         modifier = Modifier.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp)).then(if (mono) Modifier.horizontalScroll(rememberScrollState()) else Modifier).padding(10.dp))
 }
 
-/** Decline on the left, the yes on the right, at the card's right edge ("Always approve" between them, wrapping if needed). */
+// Each answer sent from a card, once the server said yes or no and the cards are loaded again: a card still there
+// (the answer failed) can be pressed again (#129).
+private val answers = mutableIntStateOf(0)
+private fun answered() { answers.intValue++ }
+
+/** What a card's button says while its answer is on its way: "Approving…" for "Approve", as on the web page. */
+internal fun busyWord(label: String): String = when (label) {
+    "Approve", "Always approve" -> "Approving…"
+    "Allow", "Allow once", "Always allow" -> "Allowing…"
+    "Decline" -> "Declining…"
+    "Save" -> "Saving…"
+    "Install" -> "Installing…"
+    "Add" -> "Adding…"
+    else -> "$label…"
+}
+
+/**
+ * Decline on the left, the yes on the right, at the card's right edge ("Always approve" between them, wrapping if needed).
+ * A press says so on its button ([busyWord]) and leaves none of them to press again until the answer came back: a slow
+ * save to Bitwarden made a call key for each press (#129).
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, onSecondary: () -> Unit, enabled: Boolean = true, onAlways: (() -> Unit)? = null) {
     val p = LocalPaper.current
+    var pressed by remember { mutableStateOf<String?>(null) }
+    val sent = answers.intValue
+    LaunchedEffect(sent) { pressed = null }
+    val press = { label: String, action: () -> Unit -> { if (pressed == null) { pressed = label; action() } } }
+    val word = { label: String -> if (pressed == label) busyWord(label) else label }
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-        OutlinedButton(onClick = onSecondary) { Text(secondary, color = p.text) }
-        if (onAlways != null) OutlinedButton(onClick = onAlways) { Text("Always approve", color = p.text) }
-        Button(onClick = onPrimary, enabled = enabled, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(primary) }
+        OutlinedButton(onClick = press(secondary, onSecondary), enabled = pressed == null) { Text(word(secondary), color = p.text) }
+        if (onAlways != null) OutlinedButton(onClick = press("Always approve", onAlways), enabled = pressed == null) { Text(word("Always approve"), color = p.text) }
+        Button(onClick = press(primary, onPrimary), enabled = enabled && pressed == null, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(word(primary)) }
     }
 }
 
