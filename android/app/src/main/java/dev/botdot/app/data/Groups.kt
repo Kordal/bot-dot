@@ -21,6 +21,11 @@ const val GROUPS = "groups"
 /** Whether groups are offered: the server announces them. While its features are not known yet: no. */
 fun hasGroups(features: Collection<String>?): Boolean = features != null && GROUPS in features
 
+/** "@all" at the start of a message in a group sends it to every member at once (#124): offered while typing "@"
+ *  only by a server that announces it. */
+const val GROUP_ALL = "group-all"
+fun hasGroupAll(features: Collection<String>?): Boolean = features != null && GROUP_ALL in features
+
 /** The groups of a botdot server with these [features]: one without groups is asked nothing, and has none. */
 suspend fun Api.groupsOf(features: Collection<String>?): List<Group> = if (hasGroups(features)) groups() else emptyList()
 

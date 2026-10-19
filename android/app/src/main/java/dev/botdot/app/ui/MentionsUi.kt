@@ -58,7 +58,7 @@ fun withMentions(text: String, w: Mentions.World?, tint: Color): AnnotatedString
             append(text.substring(at, m.start))
             when (m.kind) {
                 Mentions.Kind.BOT -> w!!.bot(m.bot).let { b -> bot(b?.name ?: m.text, b?.color, b?.outfit) }
-                Mentions.Kind.JOB, Mentions.Kind.SKILL -> withStyle(SpanStyle(color = tint)) { append(m.text) }
+                Mentions.Kind.JOB, Mentions.Kind.SKILL, Mentions.Kind.ALL -> withStyle(SpanStyle(color = tint)) { append(m.text) }
             }
             at = m.end
         }
@@ -90,7 +90,7 @@ fun MentionList(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.R
     Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) {
         rows.forEach { r ->
             val label = buildAnnotatedString {
-                if (r.kind != Mentions.Kind.SKILL) w.bot(r.bot).let { b -> bot(r.label, b?.color, b?.outfit) } else append(r.label)
+                if (r.kind == Mentions.Kind.BOT || r.kind == Mentions.Kind.JOB) w.bot(r.bot).let { b -> bot(r.label, b?.color, b?.outfit) } else append(r.label)
             }
             FigureText(label, color = p.text, fontSize = 15.sp, maxLines = 1,
                 modifier = Modifier.fillMaxWidth().clickable { onPick(r) }.padding(horizontal = 16.dp, vertical = 11.dp))

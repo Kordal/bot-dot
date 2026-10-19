@@ -199,5 +199,6 @@ Rounds: GRP-001; GRP-002; GRP-003; GRP-004; GRP-005 with GRP-006 and GRP-007; GR
 
 ## Added features
 
+- 2026-10-19: a message that starts with "@all" goes to every member at once, each answering once and on its own with no hand-ons, beside scenario 6's side-by-side work; without it the turns stay one after another. From the owner's "yes lets do @all" after asking why only one member worked at a time. Task: [#124](https://github.com/Kordal/bot-dot/issues/124).
 - 2026-10-08: "Add a bot to this chat" in a bot's settings is a very small plus icon, from the owner's first look. Task: GRP-009.
 - 2026-10-08: the small plus leaves the bot's settings and stands in the top of the bot's chat, right of its name, on the web page and on Android, from the owner's test of the milestone ("Move this plus on the top of the chat on the right side of the bot name"). Task: GRP-011.

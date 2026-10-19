@@ -22,6 +22,8 @@ object Mentions {
     private val WORD_REST = Regex("^[\\p{L}\\p{N}_/-]*") // the rest of a mention's word after the cursor
     private val SPACES = Regex("\\s+") // no (?U): Android's ICU regex rejects it, and its \s is Unicode already
     private val NOT_NAME = Regex("[^\\p{L}\\p{N}_-]")
+    /** "@all" in a group ([World.all], #124): every member at once, and no member's mention. */
+    private const val ALL = "all"
 
     /** "Fleet Doctor" → "FleetDoctor", "Chief of Staff" → "ChiefOfStaff", "Morning check" → "MorningCheck". */
     fun shortName(name: String): String =
@@ -35,15 +37,17 @@ object Mentions {
     /**
      * What can be mentioned in one chat. [chat] is [CHIEF] or the id of the bot whose chat it is; [bots] include the
      * Chief; [library] is the names of the whole skill library. Skills in scope: the whole library in the Chief chat,
-     * the bot's picked skills in its own chat.
+     * the bot's picked skills in its own chat. [all]: a group's chat on a server that knows "@all" (#124): it is
+     * offered first while typed at the start of a message, and is no member's mention (a member named All is neither
+     * matched nor suggested).
      */
-    class World(val chat: String, val bots: List<Bot>, val library: List<String>) {
+    class World(val chat: String, val bots: List<Bot>, val library: List<String>, val all: Boolean = false) {
         val skills: List<String> = if (chat == CHIEF) library else bots.firstOrNull { it.id == chat }
             ?.takeIf { it.useSkills }?.let { b -> library.filter { it in b.skills } }.orEmpty()
         fun bot(id: String?) = bots.firstOrNull { it.id == id }
     }
 
-    enum class Kind { BOT, JOB, SKILL }
+    enum class Kind { BOT, JOB, SKILL, ALL }
 
     /** One mention in a text: [start] until [end] is [text]. [bot] and [job] are ids, [skill] a name. */
     data class Found(val kind: Kind, val text: String, val start: Int, val end: Int, val bot: String? = null, val job: String? = null, val skill: String? = null)
@@ -58,6 +62,7 @@ object Mentions {
             val a = m.groupValues[1]
             val b = m.groups[2]?.value
             val start = m.range.first
+            if (w.all && same(a, ALL)) return@mapNotNull null
             // The Chief keeps its role's mention beside the name the owner gave it (CHIEF_ALIAS).
             val bot = w.bots.firstOrNull { same(shortName(it.name), a) } ?: if (same(CHIEF_ALIAS, a)) w.bots.firstOrNull { it.id == CHIEF } else null
             if (bot != null) {
@@ -73,12 +78,12 @@ object Mentions {
     }
 
     /**
-     * The suggestion rows for the text typed up to the cursor, when it ends in a word starting with "@". Bots, then
-     * jobs, then skills, at most [MAX_ROWS]. After "@Bot/" only that bot's jobs.
+     * The suggestion rows for the text typed up to the cursor, when it ends in a word starting with "@". "@all" first
+     * in a group ([World.all]), then bots, then jobs, then skills, at most [MAX_ROWS]. After "@Bot/" only that bot's jobs.
      */
     fun suggest(typed: String, w: World): List<Row> {
         val m = TYPING.find(typed) ?: return emptyList()
-        val bots = w.bots.filter { shortName(it.name).isNotEmpty() } // a name of only emoji can't be mentioned
+        val bots = w.bots.filter { shortName(it.name).isNotEmpty() && !(w.all && same(shortName(it.name), ALL)) } // a name of only emoji can't be mentioned
         fun has(name: String, q: String) = name.lowercase().contains(q.lowercase())
         fun jobRow(bot: Bot, j: Job) = Row(Kind.JOB, "@${shortName(bot.name)}/${shortName(j.name)}", "${bot.name} · ${j.name}", bot = bot.id, job = j.id)
         val q = m.groupValues[1]
@@ -88,7 +93,8 @@ object Mentions {
             bot?.jobs?.filter { has(shortName(it.name), after) }?.map { jobRow(bot, it) }.orEmpty()
         } else {
             val botNames = bots.map { shortName(it.name).lowercase() }.toSet()
-            bots.filter { has(shortName(it.name), q) }.map { Row(Kind.BOT, "@${shortName(it.name)}", it.name, bot = it.id) } +
+            val all = if (w.all && typed.substring(0, m.range.first).isBlank() && has(ALL, q)) listOf(Row(Kind.ALL, "@$ALL", "all: every member at once")) else emptyList()
+            all + bots.filter { has(shortName(it.name), q) }.map { Row(Kind.BOT, "@${shortName(it.name)}", it.name, bot = it.id) } +
                 bots.flatMap { b -> b.jobs.filter { has(shortName(it.name), q) }.map { jobRow(b, it) } } +
                 w.skills.filter { has(it, q) && it.lowercase() !in botNames }.map { Row(Kind.SKILL, "@$it", it, skill = it) }
         }

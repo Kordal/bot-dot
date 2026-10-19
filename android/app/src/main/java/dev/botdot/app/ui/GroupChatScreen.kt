@@ -63,6 +63,7 @@ import dev.botdot.app.data.Run
 import dev.botdot.app.data.Unread
 import dev.botdot.app.data.announces
 import dev.botdot.app.data.groupKey
+import dev.botdot.app.data.hasGroupAll
 import dev.botdot.app.data.str
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -334,8 +335,10 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
 
     suspend fun sendFrom(text: String, key: String): Boolean = vm.send(text, emptyList(), box = false, key = key).await()
 
-    // Typing "@" in a group suggests its members; a member named in the owner's message is drawn as a mention.
-    val mentions = remember(members, chatKey) { Mentions.World(chatKey, members, emptyList()) }
+    // Typing "@" in a group suggests its members, and "@all" first at the start of a message (#124); a member named in
+    // the owner's message is drawn as a mention.
+    val all = hasGroupAll(features)
+    val mentions = remember(members, chatKey, all) { Mentions.World(chatKey, members, emptyList(), all) }
     // Text selected in a message is quoted into this chat's message box (QuoteUi.kt).
     CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }) {
         Scaffold(
