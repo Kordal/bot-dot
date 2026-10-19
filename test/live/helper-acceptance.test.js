@@ -76,15 +76,11 @@ test('isolated server and helper preserve legacy files and restore an isolated c
   assert.equal(await s.inner('exec', s.server, 'node', '-e', 'console.log(require("fs").existsSync("/var/run/docker.sock"))'), 'false');
   const restricted = await s.inner('inspect', computer, '--format', '{{json .HostConfig.CapDrop}}|{{json .HostConfig.SecurityOpt}}|{{.HostConfig.NetworkMode}}');
   assert.match(restricted, /ALL/); assert.match(restricted, /no-new-privileges/); assert.match(restricted, /container:/);
-  // A live private service makes rejection distinguishable from a missing destination.
+  // A live private service on the machine's network.
   await s.inner('run', '-d', '--name', 'private-fixture', '--network', 'host', '--entrypoint', 'python3', 'bot-dot/desktop:latest', '-m', 'http.server', '18080');
   const address = await s.inner('network', 'inspect', `botdot-${id}-network`, '--format', '{{(index .IPAM.Config 0).Gateway}}');
   const probe = () => cmd(`python3 -c 'import socket; s=socket.socket(); s.settimeout(2); print("connected" if s.connect_ex(("${address}",18080)) == 0 else "blocked")'`);
-  assert.match((await probe()).text, /blocked/);
-  assert.equal((await s.api(`/bots/${id}`, 'PUT', { computerEgress: 'lan' })).status, 200);
-  assert.match((await probe()).text, /connected/);
-  assert.equal((await s.api(`/bots/${id}`, 'PUT', { computerEgress: 'internet' })).status, 200);
-  assert.match((await probe()).text, /blocked/);
+  assert.match((await probe()).text, /connected/, 'a computer reaches the local network');
   const html = await fetch(`${s.base}/computer/${id}/vnc.html`);
   assert.equal(html.status, 200); assert.match(await html.text(), /noVNC/);
   await require('./helper-secret-acceptance').secretAcceptance(s.helper, id);

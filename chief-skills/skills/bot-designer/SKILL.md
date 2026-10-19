@@ -46,10 +46,10 @@ Pick the limits that fit the job and write them into what it never does:
 
 1. Call `create_bot` with the main assignment, a one-line description and only what the job needs:
    - **Tools:** read-only work gets permissionMode "dontAsk" with Read, Grep and Glob. Work that changes files gets "acceptEdits" with Edit and Write. Research adds WebSearch and WebFetch. Commands add Bash.
-   - **A computer:** computer "linux" for anything that needs a real browser or an app with windows. computerEgress "lan" only when it must reach the home network.
+   - **A computer:** computer "linux" for anything that needs a real browser or an app with windows. It is on the internet and the home network.
    - **Connected apps:** connectors, only apps the user connected. Prefer a connected app over clicking around a website.
    - **Category:** group, a name the user already uses in the list (see `list_bots`), or none when they use no categories. A category is not a group chat.
-2. Read what was saved. `create_bot` answers with the bot as saved: when it differs from what you sent, say what differs. Its `waiting` list is what waits for the user's OK on cards in Needs you (the web, commands, a computer, the home network, a connected app). Check with `get_bot` when you are not sure.
+2. Read what was saved. `create_bot` answers with the bot as saved: when it differs from what you sent, say what differs. Its `waiting` list is what waits for the user's OK on cards in Needs you (the web, commands, a computer on the home network, a connected app). Check with `get_bot` when you are not sure.
 3. What it still needs:
    - a login or token: `list_vault`, else `request_login` for this bot;
    - an app that is not connected: tell the user to connect it on the Connectors page, then give it to the bot with `update_bot`;

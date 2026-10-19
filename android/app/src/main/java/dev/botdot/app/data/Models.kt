@@ -155,7 +155,6 @@ data class Bot(
     val prompt: String = "",
     val model: String? = null,
     val effort: String? = null,
-    val computerEgress: String = "internet",
     val computerAlwaysOn: Boolean = false,
     val useSkills: Boolean = true,
     val skills: List<String> = emptyList(),

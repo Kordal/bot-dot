@@ -95,37 +95,29 @@ test('root sets the firewall inside the computer, then the desktop starts as the
 });
 
 test('under gVisor the firewall is legacy iptables on what leaves, without conntrack', async () => {
-  await computers.ensure('pc', 'internet');
+  await computers.ensure('pc');
   const script = firewallScript();
   assert.match(script, /"\$tool" -P OUTPUT DROP/);
   assert.match(script, /for tool in iptables-legacy ip6tables-legacy/);
   assert.doesNotMatch(script, /conntrack|ctstate|--state|INPUT/);
-  assert.match(script, /-o lo -p tcp -m multiport --dports 8000,6080,5901,6001,47111 -j ACCEPT/);
+  assert.match(script, /"\$tool" -A OUTPUT -o lo -j ACCEPT\n/, "the computer's own loopback is open: a mail bridge on 127.0.0.1:1143, Tailscale's proxy");
   assert.match(script, /-p tcp -m multiport --sports 8000,6080,5901,6001,47111 -j DROP/, 'its control and screen answer nobody outside');
-  assert.match(script, /for block in [^;]*192\.168\.0\.0\/16[^;]*; do iptables-legacy -A OUTPUT -d "\$block" -j REJECT/);
-  assert.match(script, /fc00::\/7[^;]*; do ip6tables-legacy -A OUTPUT/);
+  assert.match(script, /"\$tool" -A OUTPUT -j ACCEPT/);
+  assert.doesNotMatch(script, /REJECT/, 'the local network is open');
   assert.match(script, /> \/etc\/resolv\.conf/);
-});
-
-test('under gVisor with the LAN allowed, private addresses are open but the control and screen still answer nobody outside', async () => {
-  await computers.ensure('pc', 'lan');
-  const script = firewallScript();
-  assert.doesNotMatch(script, /REJECT/);
-  assert.match(script, /--sports 8000,6080,5901,6001,47111 -j DROP/);
 });
 
 test('under runc the firewall keeps its rules for what comes in, with conntrack', async () => {
   answer = docker({ runtime: 'runc' });
-  await computers.ensure('pc', 'internet');
+  await computers.ensure('pc');
   const script = firewallScript();
   assert.doesNotMatch(script, /iptables-legacy/);
   assert.match(script, /"\$tool" -P INPUT DROP/);
+  assert.match(script, /"\$tool" -A INPUT -i lo -j ACCEPT/);
   assert.match(script, /-m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT/);
+  assert.match(script, /"\$tool" -P OUTPUT ACCEPT/, 'what leaves is open: the internet, the local network, its own loopback');
   assert.match(script, /rules iptables\nrules ip6tables/);
-  assert.match(script, /192\.168\.0\.0\/16[^;]*; do iptables -A OUTPUT -d "\$block" -j REJECT/);
-  calls = [];
-  await computers.ensure('pc', 'lan');
-  assert.doesNotMatch(firewallScript(), /REJECT/);
+  assert.doesNotMatch(script, /REJECT/);
 });
 
 test('a stopped computer starts with nothing running, gets its firewall, then its desktop', async () => {
@@ -156,10 +148,10 @@ test('a computer whose Tailscale does not come back still starts', async () => {
   assert.ok(index(isBridge) >= 0, 'it is ready for the run');
 });
 
-test('a running computer gets its new firewall and keeps its desktop', async () => {
+test('a running computer gets its firewall again and keeps its desktop', async () => {
   answer = docker({ state: 'running' });
-  await computers.reconfigure('pc', 'lan');
-  assert.doesNotMatch(firewallScript(), /REJECT/);
+  await computers.ensure('pc');
+  assert.ok(index(isFirewall) >= 0, 'a computer started by an older botdot gets the open loopback too');
   assert.equal(index(isDesktop), -1, 'the desktop is not started a second time');
   assert.equal(index(isResume), -1, 'nor Tailscale');
 });
@@ -204,39 +196,30 @@ test("reset erases the computer, its network, and an old computer's quiet contai
   assert.ok(index((a) => a[0] === 'network' && a[1] === 'rm' && a.includes('botdot-pc-network')) >= 0);
 });
 
-test('with the LAN allowed and Tailscale on the machine, the computer asks Tailscale first, so tailnet names resolve (#523)', async () => {
+test('with Tailscale on the machine, the computer asks Tailscale first, so tailnet names resolve (#523)', async () => {
   tailscale = 'up';
-  await computers.ensure('pc', 'lan');
+  await computers.ensure('pc');
   assert.deepEqual(resolvers(), ['100.100.100.100', '1.1.1.1', '8.8.8.8']);
   assert.deepEqual(asked[0].servers, ['100.100.100.100']);
 });
 
-test('with the LAN allowed but no Tailscale on the machine, the computer keeps the public resolvers', async () => {
-  await computers.ensure('pc', 'lan');
+test('with no Tailscale on the machine, the computer keeps the public resolvers', async () => {
+  await computers.ensure('pc');
   assert.deepEqual(resolvers(), ['1.1.1.1', '8.8.8.8']);
-});
-
-test('on internet only, Tailscale is never asked, even when the machine runs it', async () => {
-  tailscale = 'up';
-  await computers.ensure('pc', 'internet');
-  assert.deepEqual(resolvers(), ['1.1.1.1', '8.8.8.8']);
-  assert.equal(asked.length, 0);
 });
 
 test('the machine\'s Tailscale is checked once, then again after 10 minutes', async () => {
   tailscale = 'up';
   answer = docker({ state: 'running' });
-  await computers.reconfigure('pc', 'lan');
+  await computers.ensure('pc');
   calls = [];
   tailscale = 'down';
-  await computers.reconfigure('pc', 'internet');
-  await computers.reconfigure('pc', 'lan');
+  await computers.ensure('pc');
   assert.deepEqual(resolvers(), ['100.100.100.100', '1.1.1.1', '8.8.8.8'], 'the first answer still holds');
   assert.equal(asked.length, 1);
   mock.timers.setTime(clock += 10 * 60_000 + 1);
   calls = [];
-  await computers.reconfigure('pc', 'internet');
-  await computers.reconfigure('pc', 'lan');
+  await computers.ensure('pc');
   assert.deepEqual(resolvers(), ['1.1.1.1', '8.8.8.8']);
   assert.equal(asked.length, 2);
 });

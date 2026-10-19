@@ -321,10 +321,13 @@ async function main() {
 
   step('its firewall, set by root inside its sandbox');
   const gateway = m.inner('network', 'inspect', network, '--format', '{{(index .IPAM.Config 0).Gateway}}');
-  report.firewall = { internet: reaches(m, computer, '1.1.1.1', 443), gateway: reaches(m, computer, gateway, 22), loopbackOtherPort: reaches(m, computer, '127.0.0.1', 22) };
+  // A program of the bot on its own loopback, as a mail bridge on 127.0.0.1:1143 is.
+  const loopback = inComputer(m, computer, 'bot', ['python3', '-c',
+    'import socket,threading\nl=socket.socket();l.bind(("127.0.0.1",1143));l.listen()\nthreading.Thread(target=lambda:l.accept()[0].close(),daemon=True).start()\ntry:\n socket.create_connection(("127.0.0.1",1143),6);print("open")\nexcept Exception as e:\n print(type(e).__name__)']);
+  report.firewall = { internet: reaches(m, computer, '1.1.1.1', 443), gateway: reaches(m, computer, gateway, 22), loopback };
   assert.equal(report.firewall.internet, 'open', 'the computer reaches the internet');
-  assert.notEqual(report.firewall.gateway, 'open', 'and not the machine it runs on');
-  assert.notEqual(report.firewall.loopbackOtherPort, 'open', 'and of its own loopback only botdot\'s ports');
+  assert.notEqual(report.firewall.gateway, 'TimeoutError', 'and the local network: the machine it runs on answers, open or refused');
+  assert.equal(report.firewall.loopback, 'open', 'and a program of its own on its loopback');
   assert.match(inComputer(m, computer, 'bot', ['sh', '-c', 'iptables-legacy -F OUTPUT 2>&1; true']), /denied|not permitted/i, 'the bot cannot change the firewall');
   assert.equal(m.inner('inspect', '--format', '{{.HostConfig.Runtime}}', computer), 'runsc', 'the computer runs under runsc');
   assert.equal(m.inner('inspect', '--format', '{{.Config.User}}', computer), 'bot');
