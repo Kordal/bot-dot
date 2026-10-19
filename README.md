@@ -33,7 +33,7 @@ A messenger-style app for a team of **bots**. Each bot is a Claude Code agent wi
 | ⏰ **Scheduled jobs** | A job runs on a schedule. When no AI is needed, a small script runs instead. |
 | 👥 **Groups** | Put two to six bots in one chat, and they hand the work on to each other. |
 | 🧠 **Memory** | Bots remember what you tell them, and you correct or erase it by chat. |
-| 🖥 **Bots' own computers** | A bot can get a private desktop with a browser, which you can watch live. |
+| 🖥 **The bots' computer** | Bots can work on the account's desktop with a browser, which you can watch live; they share it, with sudo. |
 | 🔐 **Vault and connectors** | Bots use your logins without seeing them, and your apps (Gmail, Slack, GitHub and more) through Composio. |
 | ✋ **Your OK first** | Anything risky waits for you in **Needs you**. |
 | 📱 **Web and Android** | The web page works everywhere, and Android has its own app with notifications and no push service. |

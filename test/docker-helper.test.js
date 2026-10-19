@@ -44,7 +44,7 @@ test('the Docker helper accepts fixed computer operations and rejects arbitrary 
   assert.deepEqual(calls, ['test-bot', ['clean']]);
 });
 
-test('owner edits preserve a manually started computer and explicit power changes still apply', async (t) => {
+test("owner edits and power settings never turn off the account's computer (#104)", async (t) => {
   const { startServer, makeBot, waitFor } = require('./helpers');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-helper-power-'));
   const socket = path.join(dir, 'helper.sock');
@@ -85,8 +85,11 @@ test('owner edits preserve a manually started computer and explicit power change
     assert.equal((await srv.api(`/asks/${proposal.data.pendingChange}`, { method: 'POST', body: { yes: true } })).status, 200);
     assert.equal(await status(), 'running', 'approving a change must preserve manual power');
   }
-  for (const [body, expected] of [[{ computerAlwaysOn: true }, 'running'], [{ computerAlwaysOn: false }, 'stopped'], [{ computerAlwaysOn: true }, 'running'], [{ computer: 'none' }, 'stopped']]) {
+  for (const [body, expected] of [[{ computerAlwaysOn: true }, 'running'], [{ computerAlwaysOn: false }, 'running'], [{ computer: 'none' }, 'running']]) {
     assert.equal((await srv.api(`/bots/${bot.id}`, { method: 'PUT', body })).status, 200);
     await waitFor(async () => (await status()) === expected, { what: `explicit power change to ${expected}` });
   }
+  // Every bot with a computer shows the state of the account's computer, which they all work on.
+  const other = await makeBot(srv, { name: 'Second', computer: 'linux' });
+  assert.deepEqual((await srv.api('/computers')).data, { [other.id]: 'running' });
 });

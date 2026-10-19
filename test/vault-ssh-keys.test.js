@@ -117,7 +117,7 @@ const AGENT_DIR = '/tmp/botdot-ssh-AbC123xYz9';
 function computer(change = {}) {
   return (call) => {
     const { args } = call;
-    if (args[0] === 'inspect') return change.labels ?? '2|1';
+    if (args[0] === 'inspect') return change.labels ?? '2|2';
     if (args[0] !== 'exec') return '';
     if (args.some((a) => String(a).includes('ssh-agent -D'))) return change.agent ?? `${AGENT_DIR} 4242`;
     if (args.includes('/usr/bin/python3')) return change.load ?? '{"ok": true}';
@@ -139,18 +139,18 @@ test('runWithSshKey: the agent as the bot, the key as root on stdin only, the co
   assert.deepEqual(r, { code: 0, stdout: ' 10:00:00 up 3 days\n', stderr: '', timedOut: false });
   const name = computers.containerName('ops');
   const agent = step('agent');
-  assert.deepEqual(agent.args.slice(0, 4), ['exec', '-u', 'bot', name]);
+  assert.deepEqual(agent.args.slice(0, 4), ['exec', '-u', 'box', name]);
   assert.equal(agent.args.at(-1), '90', 'the agent drops the key a minute after the time limit');
   const load = step('load');
   assert.deepEqual(load.args.slice(0, 11), ['exec', '-i', '-u', 'root', '-w', '/', name, '/usr/bin/python3', '-I', '-c', HELPER], "botdot's own copy of the loader, as root");
-  assert.deepEqual(load.args.slice(11), [`${AGENT_DIR}/agent`, '4242', '90', 'bot'], 'to that agent, its pid and the bot user');
+  assert.deepEqual(load.args.slice(11), [`${AGENT_DIR}/agent`, '4242', '90', 'box'], 'to that agent, its pid and its user');
   assert.equal(load.stdin, PRIVATE_KEY, 'the key on stdin');
   const run = step('run');
-  assert.deepEqual(run.args.slice(0, 3), ['exec', '-u', 'bot']);
+  assert.deepEqual(run.args.slice(0, 3), ['exec', '-u', 'box']);
   assert.equal(run.args[run.args.indexOf(`SSH_AUTH_SOCK=${AGENT_DIR}/agent`) - 1], '-e');
   assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '5', '30', 'sh', '-c', 'ssh admin@server.example.ts.net uptime']);
   const stop = step('stop');
-  assert.deepEqual(stop.args.slice(0, 4), ['exec', '-u', 'bot', name]);
+  assert.deepEqual(stop.args.slice(0, 4), ['exec', '-u', 'box', name]);
   assert.deepEqual(stop.args.slice(-2), ['4242', AGENT_DIR]);
   assert.equal(execs().length, 4);
   assert.deepEqual([agent, load, run, stop].map((c) => execs().indexOf(c)), [0, 1, 2, 3], 'in that order');
@@ -169,7 +169,7 @@ test('runWithSshKey: no command runs when the agent does not start or the key do
   assert.match(r.error, /couldn't start an ssh-agent/);
   assert.ok(!step('load') && !step('run'), 'no key sent, no command run');
 
-  calls = []; answer = computer({ agent: '/home/bot/evil 1' });
+  calls = []; answer = computer({ agent: '/home/box/evil 1' });
   r = await computers.runWithSshKey('ops', { command: 'ssh host true', privateKey: PRIVATE_KEY });
   assert.match(r.error, /couldn't start an ssh-agent/, 'only a folder of the shape botdot makes');
   assert.ok(!step('load'));

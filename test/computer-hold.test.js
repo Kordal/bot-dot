@@ -144,10 +144,12 @@ test('a bot whose computer stays on all the time behaves as before: keep_compute
   await run(bot, { keepOn: true });
   await B.keepHeldComputers(Date.now() + 2 * 60 * 60_000);
   assert.equal(stops(bot), 0);
-  // Its setting turned off later: no hold of before is there to keep it on, nor to turn it on again.
+  // Its setting turned off later: no hold of before is there to keep it on, nor to turn it on again. The account's
+  // computer, which the other bots work on, is not turned off for it (#104).
   const plain = B.bots.update(bot.id, { computerAlwaysOn: false });
   await B.applyComputerPower(plain);
-  assert.equal(stops(bot), 1);
+  assert.equal(stops(bot), 0);
+  on.clear(); // the computer went off since, for another reason
   await B.keepHeldComputers();
   assert.ok(!on.has(bot.id));
 });
@@ -156,9 +158,10 @@ test("a change of the bot's computer setting ends the hold", async () => {
   const bot = B.bots.create({ name: 'Changed', prompt: 'Keep the mail.', computer: 'linux' });
   await run(bot, { keepOn: true });
   await B.applyComputerPower(B.bots.update(bot.id, { computer: 'none' }));
-  assert.equal(stops(bot), 1);
+  assert.equal(stops(bot), 0, "the account's computer is not turned off for one bot (#104)");
   // Given its computer back, the hold of before does not turn it on.
   await B.applyComputerPower(B.bots.update(bot.id, { computer: 'linux' }));
+  on.clear(); // the computer went off since, for another reason
   await B.keepHeldComputers();
   assert.ok(!on.has(bot.id));
   // Nor does a change to stay on all the time leave one that would turn it off after the hour.

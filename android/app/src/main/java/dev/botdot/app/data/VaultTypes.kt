@@ -22,7 +22,7 @@ object VaultTypes {
     /** "Usable in its computer" (docs/api.md, The Vault's items): a server that keeps it says so in its features. */
     const val IN_COMPUTER_FEATURE = "vault-in-computer"
     const val IN_COMPUTER = "Usable in its computer"
-    const val IN_COMPUTER_HINT = "Bots may use it in a command on their own computer, e.g. for Proton Bridge there. A bot could then read it: only for secrets that guard something on that computer."
+    const val IN_COMPUTER_HINT = "Bots may use it in a command on the account's computer, e.g. for Proton Bridge there. Every bot on that computer could then read it: only for secrets that guard something on it."
 
     /** Whether the server keeps "Usable in its computer": only then is there a switch for it, and a value to send. */
     fun showsInComputer(features: Collection<String>?): Boolean = features != null && IN_COMPUTER_FEATURE in features

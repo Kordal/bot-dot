@@ -23,12 +23,13 @@ RUN dpkg-query -W -f='${binary:Package} ${db:Status-Status}\n' \
     | xargs -r apt-get purge -y \
  && rm -rf /var/lib/apt/lists/*
 
-# OpenSSH's client: ssh, and the ssh-agent and ssh-add through which run_with_ssh_key lends the bot a saved SSH key
-# without showing it (lib/computers.js runWithSshKey, #44). Installed whether or not the base already has it.
+# OpenSSH's client: ssh, and the ssh-agent and ssh-add through which run_with_ssh_key lends a bot a saved SSH key
+# without showing it (lib/computers.js runWithSshKey, #44), and sudo, which every bot has (ADR 035). Installed
+# whether or not the base already has them.
 # This step leaves SSH host keys in /etc/ssh (the image's secret scan found them): removed in this same step, so no
 # layer keeps private keys every computer would share. No computer runs an SSH server.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssh-client \
+ && apt-get install -y --no-install-recommends openssh-client sudo \
  && rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub \
  && rm -rf /var/lib/apt/lists/*
 
@@ -44,22 +45,26 @@ RUN npm install -g npm@10.9.9 \
       'cua-computer-server==0.3.46' 'fastmcp==3.2.4' 'PyJWT==2.14.0' \
  && /opt/computer-server/venv/bin/pip check
 
-# The bot works on its computer as `bot`, not root. Camoufox and botdot's bridge into it run as `browser`, whose
-# home and bridge socket the bot cannot open, and which may write into the bot's Downloads folder (#311).
-# The container runs as `bot` (lib/computers.js), so the desktop's services write their logs and pid as it.
-RUN useradd --create-home --shell /bin/bash bot \
- && useradd --create-home --shell /usr/sbin/nologin --groups bot browser \
+# Every bot of the account works on this computer as `box`, with passwordless sudo (ADR 035): there is no wall between
+# bots here. Camoufox and botdot's bridge into it run as `browser`, whose home and bridge socket a program of the
+# bots cannot open without sudo, and which may write into box's Downloads folder (#311). /workspace is shared by the
+# bots. The container runs as `box` (lib/computers.js), so the desktop's services write their logs and pid as it.
+RUN useradd --create-home --shell /bin/bash box \
+ && useradd --create-home --shell /usr/sbin/nologin --groups box browser \
+ && printf 'box ALL=(ALL:ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/botdot-box \
+ && chmod 0440 /etc/sudoers.d/botdot-box \
+ && visudo -cf /etc/sudoers.d/botdot-box \
  && chmod 0700 /home/browser \
- && install -d -o bot -g bot -m 2775 /home/bot/Downloads \
+ && install -d -o box -g box -m 2775 /home/box/Downloads /workspace \
  && install -d -o browser -g browser -m 0700 /run/botdot-browser \
- && install -d -o bot -g bot -m 0755 /run/botdot-desktop /var/log/supervisor \
+ && install -d -o box -g box -m 0755 /run/botdot-desktop /var/log/supervisor \
  && install -d -m 1777 /tmp/.X11-unix /tmp/.ICE-unix
 
 # Camoufox (anti-detect Firefox) via its Python launcher, in its own venv. The browser itself is fetched into
 # CAMOUFOX_CACHE, root's like the launcher, so that not even the browser user can change what botdot types
 # through (#311); the bridge gives the launcher that folder (lib/computers.js). The launcher writes its font
 # settings into camoufox/fontconfig there on every start, so only that folder is the browser user's. Root in the
-# computer has no right to chown (--cap-drop ALL), so the image makes it.
+# computer had no right to chown when this was written (--cap-drop ALL, ADR 021), so the image makes it.
 # Both pinned to what the released images carry, so a rebuilt layer installs the same pair.
 # Launcher 0.5.7 needs indexed-zstd, which has no arm64 wheel and cannot be compiled here, as
 # the C headers went with the kernel packages above; launcher 0.5.6 does not know the patches
@@ -78,7 +83,7 @@ COPY botdot-desktop /usr/local/bin/botdot-desktop
 COPY supervisord.conf /etc/supervisor/supervisord.conf
 COPY camoufox.desktop /usr/share/applications/camoufox.desktop
 COPY camoufox-helper.desktop /usr/share/xfce4/helpers/camoufox.desktop
-# The bot's own installs, into its home without root, and its way onto the owner's tailnet in userspace (ADR 032).
+# The bots' installs into box's home without sudo, and a way onto the owner's tailnet in userspace (ADR 032).
 COPY --from=micromamba --chmod=0755 /micromamba /usr/local/bin/micromamba
 COPY botdot-install /usr/local/bin/botdot-install
 COPY botdot-tailscale /usr/local/bin/botdot-tailscale
@@ -86,10 +91,10 @@ COPY botdot-tailscale /usr/local/bin/botdot-tailscale
 # Make it the default browser everywhere: XFCE's web-browser launcher, xdg-open and x-www-browser.
 RUN chmod 755 /usr/local/bin/camoufox-browser /usr/local/bin/botdot-desktop /usr/local/bin/botdot-install /usr/local/bin/botdot-tailscale \
  && mkdir -p /etc/xdg/xfce4 && printf 'WebBrowser=camoufox\n' > /etc/xdg/xfce4/helpers.rc \
- && mkdir -p /home/bot/.config/xfce4 && printf 'WebBrowser=camoufox\n' > /home/bot/.config/xfce4/helpers.rc \
+ && mkdir -p /home/box/.config/xfce4 && printf 'WebBrowser=camoufox\n' > /home/box/.config/xfce4/helpers.rc \
  && update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/local/bin/camoufox-browser 300 \
  && update-alternatives --set x-www-browser /usr/local/bin/camoufox-browser \
- && printf '[Default Applications]\ntext/html=camoufox.desktop\nx-scheme-handler/http=camoufox.desktop\nx-scheme-handler/https=camoufox.desktop\n' > /home/bot/.config/mimeapps.list \
- && chown -R bot:bot /home/bot/.config
+ && printf '[Default Applications]\ntext/html=camoufox.desktop\nx-scheme-handler/http=camoufox.desktop\nx-scheme-handler/https=camoufox.desktop\n' > /home/box/.config/mimeapps.list \
+ && chown -R box:box /home/box/.config
 
-LABEL botdot.desktop="camoufox" botdot.user-version="1"
+LABEL botdot.desktop="camoufox" botdot.user-version="2"

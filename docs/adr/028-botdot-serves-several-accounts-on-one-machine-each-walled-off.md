@@ -1,6 +1,6 @@
 # ADR-028: botdot serves several accounts on one machine, each walled off
 
-- **Status:** Accepted (2026-10-16, the owner's decision). Supersedes [ADR 027](027-botdot-trusts-one-owner-on-a-server-of-its-own-reached-through-tailscale.md).
+- **Status:** Accepted (2026-10-16, the owner's decision). Supersedes [ADR 027](027-botdot-trusts-one-owner-on-a-server-of-its-own-reached-through-tailscale.md). Its parts about a computer per bot (a gVisor container for each bot, at most a set number running at once) are superseded by [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md): the account has one computer.
 - **Owning task:** the spec [#463](https://github.com/Kordal/bot-dot/issues/463)
 
 ## Context

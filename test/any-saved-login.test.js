@@ -291,7 +291,7 @@ test('the server asks the browser where it is and hands it the chosen site (the 
   const server = fs.readFileSync(path.join(__dirname, '..', 'lib', 'routes', 'vault.js'), 'utf8');
   const a = server.indexOf("if (parts[2] === 'type' && m === 'POST')");
   const route = server.slice(a, server.indexOf("if (parts[2] === 'card' && m === 'POST')", a));
-  assert.match(route, /const site = await siteToType\(\(payload\) => typeInComputer\(session\.container, payload\), secret\);/);
-  assert.match(route, /typeInComputer\(session\.container, \{ site, field: kind, value: secret\.value, submit: !!submit \}\)/);
+  assert.match(route, /const site = await siteToType\(\(payload\) => typeInComputer\(session, payload\), secret\);/);
+  assert.match(route, /typeInComputer\(session, \{ site, field: kind, value: secret\.value, submit: !!submit \}\)/);
   assert.doesNotMatch(route, /site: secret\.site/);
 });

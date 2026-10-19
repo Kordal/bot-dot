@@ -34,13 +34,13 @@ const computers = require('../lib/computers');
 childProcess.execFile = realExecFile;
 
 // A Docker with the image, and a computer in the given state with the given labels.
-function docker({ state = 'none', network = '2', users = '1', fail = () => false } = {}) {
+function docker({ state = 'none', network = '2', users = '2', fail = () => false } = {}) {
   return (args, call) => {
     if (fail(args, call)) throw new Error('docker failed');
     const [cmd] = args;
     if (cmd === 'info') return '27.0.0';
     if (cmd === 'images') return 'sha256:image';
-    if (cmd === 'image') return '1'; // the image's botdot.user-version
+    if (cmd === 'image') return '2'; // the image's botdot.user-version
     if (cmd === 'inspect' && args[2] === '--format' && args[3].includes('.State.Status')) {
       if (state === 'none') throw new Error('No such object');
       return `"${state}"|"bot-dot/desktop:latest"|"sha256:image"`;
@@ -58,15 +58,15 @@ const helperCalls = () => calls.filter((c) => c.args[0] === 'exec' && c.args.inc
 
 beforeEach(() => { calls = []; answer = docker(); });
 
-test('a new computer runs as the bot user and is marked as such (#311)', async () => {
+test("the account's computer runs as box and is marked as such (#311, ADR 035)", async () => {
   answer = docker({ state: 'none' });
   await computers.ensure('newbot');
-  const runCall = calls.find((c) => c.args[0] === 'run' && c.args.includes('botdot-newbot'));
+  const runCall = calls.find((c) => c.args[0] === 'run' && c.args.includes('botdot.account.computer'));
   assert.ok(runCall, 'the computer was made');
   const args = runCall.args;
-  assert.equal(args[args.indexOf('--user') + 1], 'bot');
-  assert.ok(args.includes('HOME=/home/bot'));
-  assert.ok(args.includes('botdot.user-version=1'));
+  assert.equal(args[args.indexOf('--user') + 1], 'box');
+  assert.ok(args.includes('HOME=/home/box'));
+  assert.ok(args.includes('botdot.user-version=2'));
 });
 
 test("the browser's bridge is started as the browser user when the computer starts (#311)", async () => {
@@ -89,17 +89,17 @@ test("botdot's browser launcher is written into the computer by root from stdin,
   assert.ok(!calls.some((c) => c.args[0] === 'cp'), 'no docker cp');
   const copy = execs().find((c) => c.args.at(-1).includes('/usr/local/bin/camoufox-browser'));
   assert.ok(copy, 'the launcher was written');
-  assert.deepEqual(copy.args.slice(0, 7), ['exec', '-i', '-u', 'root', 'botdot-copybot', 'sh', '-c']);
+  assert.deepEqual(copy.args.slice(0, 7), ['exec', '-i', '-u', 'root', 'botdot.account.computer', 'sh', '-c']);
   assert.equal(copy.args.at(-1), 'rm -f /usr/local/bin/.camoufox-browser.new && cat > /usr/local/bin/.camoufox-browser.new'
     + ' && chmod 755 /usr/local/bin/.camoufox-browser.new && mv -f /usr/local/bin/.camoufox-browser.new /usr/local/bin/camoufox-browser');
   assert.equal(copy.stdin, fs.readFileSync(path.join(__dirname, '..', 'deploy', 'desktop', 'camoufox-browser'), 'utf8'), 'the launcher went on stdin');
   assert.ok(execs().indexOf(copy) < execs().indexOf(bridgeCall()), 'before the bridge starts');
 });
 
-test('a computer made before the bot lost root is kept but stopped, with what to do (#311)', async () => {
+test('a computer older than the account computer is kept but stopped, with what to do (#311)', async () => {
   answer = docker({ state: 'stopped', network: '1', users: '' });
-  await assert.rejects(computers.ensure('oldbot'), /older computer is preserved but stopped\. Export its files and reset it/);
-  assert.ok(calls.some((c) => c.args[0] === 'stop' && c.args.includes('botdot-oldbot')), 'it was stopped');
+  await assert.rejects(computers.ensure('oldbot'), /kept but stopped\. Export its files and reset it/);
+  assert.ok(calls.some((c) => c.args[0] === 'stop' && c.args.includes('botdot.account.computer')), 'it was stopped');
   assert.ok(!calls.some((c) => c.args[0] === 'start'), 'it was not started');
 });
 
@@ -115,14 +115,14 @@ test("typeSecret runs botdot's own copy of the helper as the browser user, the s
   assert.deepEqual(result, { ok: true });
   const [call] = helperCalls();
   assert.ok(call, 'the helper ran');
-  assert.deepEqual(call.args.slice(0, 7), ['exec', '-i', '-u', 'browser', '-w', '/', 'botdot-typebot']);
+  assert.deepEqual(call.args.slice(0, 7), ['exec', '-i', '-u', 'browser', '-w', '/', 'botdot.account.computer']);
   assert.deepEqual(call.args.slice(7), ['/usr/bin/python3', '-I', '-c', HELPER]);
   assert.ok(!call.args.some((a) => a.includes('synthetic-secret')), 'the secret is not in the command line');
   assert.deepEqual(JSON.parse(call.stdin), payload);
   assert.ok(!calls.some((c) => c.args.includes('/usr/local/bin/botdot-type-secret')), 'no file of the computer is run');
 });
 
-test('typeSecret types nothing into a computer made before the bot lost root (#311)', async () => {
+test('typeSecret types nothing into a computer older than the account computer (#311)', async () => {
   answer = docker({ state: 'running', users: '' });
   const result = await computers.typeSecret('oldbot', { site: 'example.com', field: 'password', value: 'synthetic-secret' });
   assert.equal(result.ok, false);
@@ -137,16 +137,16 @@ test("typeSecret sends nothing when botdot's copy of the helper cannot be read (
   assert.equal(helperCalls().length, 0, 'nothing was sent');
 });
 
-test('start_program runs as the bot user in its own home (#311)', async () => {
+test("start_program runs as box in box's home (#311, ADR 035)", async () => {
   await computers.startProgram('progbot', 'xfce4-terminal');
   const [call] = execs();
-  assert.deepEqual(call.args.slice(0, 4), ['exec', '-d', '-u', 'bot']);
-  assert.ok(call.args.includes('HOME=/home/bot'));
+  assert.deepEqual(call.args.slice(0, 4), ['exec', '-d', '-u', 'box']);
+  assert.ok(call.args.includes('HOME=/home/box'));
   assert.ok(!call.args.includes('HOME=/root'));
   assert.deepEqual(call.args.slice(-3), ['sh', '-c', 'xfce4-terminal']);
 });
 
-test('a changed time zone ends the browser and its bridge as the browser user, whom root cannot signal, and the bridge starts again (#311)', async () => {
+test('a changed time zone ends the browser and its bridge as the browser user, and the bridge starts again (#311)', async () => {
   answer = (args, call) => (args.includes('-u') && args[args.indexOf('-u') + 1] === 'root' && args.includes('sh') ? 'changed' : docker({ state: 'running' })(args, call));
   await computers.ensure('tzbot');
   const close = execs().findIndex((c) => c.args.at(-1).includes('pkill'));
@@ -156,7 +156,7 @@ test('a changed time zone ends the browser and its bridge as the browser user, w
   assert.ok(execs().indexOf(bridgeCall()) > close, 'the bridge starts again after');
 });
 
-test('a desktop image made before the bot lost root is made again before a computer is (#311)', async () => {
+test('a desktop image made before the account computer is made again before a computer is (#311, ADR 035)', async () => {
   const old = docker({ state: 'none' });
   answer = (args, call) => (args[0] === 'image' ? '' : old(args, call));
   await computers.ensureImage();

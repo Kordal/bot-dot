@@ -34,7 +34,7 @@ function docker({ state = 'running', failStart = false } = {}) {
     if (cmd === 'inspect' && state === 'none') throw new Error('No such object');
     if (cmd === 'inspect' && format.includes('.State.Status')) return `"${state}"|"bot-dot/desktop:latest"|"sha256:image"`;
     if (cmd === 'inspect' && format.includes('{{json .State}}')) return `3|${JSON.stringify({ ...STATE, Status: state, Error: state === 'stopped' ? 'a | in its error' : '' })}`;
-    if (cmd === 'inspect' && format.includes('user-version')) return '2|1';
+    if (cmd === 'inspect' && format.includes('user-version')) return '2|2';
     if (cmd === 'inspect' && format.includes('.HostConfig.Runtime')) return 'runsc';
     if (cmd === 'inspect' && format.includes('RestartPolicy')) return 'no';
     if (cmd === 'exec' && args.includes('--privileged') && failStart) throw new Error('iptables: Failed to initialize');
@@ -68,18 +68,17 @@ test('health of a computer that was never made says so, and Docker that does not
   await assert.rejects(computers.health('pc'), /Cannot connect to the Docker daemon/);
 });
 
-test('erasing a computer forgets why its last start failed', async () => {
+test("erasing a bot's old computer leaves why the account's computer did not start (#104)", async () => {
   answer = docker({ state: 'stopped', failStart: true });
   await assert.rejects(computers.ensure('gone'));
-  assert.ok((await computers.health('gone')).lastStartError);
   await computers.reset('gone');
-  assert.equal((await computers.health('gone')).lastStartError, null);
+  assert.ok((await computers.health('other')).lastStartError, "every bot reads the account computer's");
 });
 
 test("logs are the container's own and the desktop's, the last lines of each", async () => {
   const logs = await computers.logs('pc', 50);
   assert.deepEqual(logs, { state: 'running', container: 'out line\nerr line\n', desktop: 'novnc exited' });
-  assert.deepEqual(calls.find((a) => a[0] === 'logs'), ['logs', '--tail', '50', '--timestamps', 'botdot-pc']);
+  assert.deepEqual(calls.find((a) => a[0] === 'logs'), ['logs', '--tail', '50', '--timestamps', 'botdot.account.computer']);
   assert.ok(calls.some((a) => a[0] === 'exec' && a.includes('-n') && a[a.indexOf('-n') + 1] === '50'));
   assert.ok(!calls.some((a) => a.some((x) => /bridge\.log/.test(x))), "not the browser bridge's, which may hold what botdot typed");
   calls = [];

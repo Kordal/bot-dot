@@ -1,6 +1,6 @@
 # ADR-032: A bot installs programs in its home, and joins the tailnet in userspace
 
-- **Status:** Accepted (2026-10-18, the owner's decision)
+- **Status:** Superseded by [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md) (2026-10-19): the bots have sudo and may install with apt; `botdot-install` and `botdot-tailscale` stay. Accepted 2026-10-18, the owner's decision.
 - **Owning task:** [#11](https://github.com/Kordal/bot-dot/issues/11)
 
 ## Context

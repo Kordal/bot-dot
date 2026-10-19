@@ -48,7 +48,7 @@ test('the login goes to docker exec in its own environment, never on its command
   assert.equal(calls.length, 1);
   const { file, args, opts } = calls[0];
   assert.equal(file, 'docker');
-  assert.deepEqual(args.slice(0, 3), ['exec', '-u', 'bot']);
+  assert.deepEqual(args.slice(0, 3), ['exec', '-u', 'box']);
   // `-e NAME` without a value: docker takes the value from its own environment.
   for (const name of ['BOTDOT_USERNAME', 'BOTDOT_PASSWORD']) assert.equal(args[args.indexOf(name) - 1], '-e', name);
   assert.ok(!args.some((a) => a.includes(SECRET) || a.includes(USER) || /BOTDOT_(USERNAME|PASSWORD)=/.test(a)), `argv holds no value: ${JSON.stringify(args)}`);

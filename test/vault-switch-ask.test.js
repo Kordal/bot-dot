@@ -88,7 +88,8 @@ test('"Usable in its computer" says that the bot\'s commands will be able to rea
   const [card] = await switchCards();
   assert.equal(card.title, 'Let Proxmox Admin use “Proton Bridge” in its computer?');
   assert.deepEqual(card.parts[1], { label: 'Switch', now: 'Usable in its computer' });
-  assert.equal(card.warning, "Proxmox Admin's commands will be able to read this secret. Only for a secret that guards something on its own computer.");
+  // Every bot works on the account's computer with sudo (#104, ADR 035): what one of them is given there, all can read.
+  assert.equal(card.warning, "Proxmox Admin and every other bot on the account's computer will be able to read this secret: they all work there with sudo. Only for a secret that guards something on that computer.");
   assert.equal((await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: false } })).status, 200);
   assert.equal((await login('Proton Bridge')).inComputer, false, 'a no changes nothing');
   // After a no the bot does not ask for it again for a while.

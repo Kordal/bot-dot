@@ -8,7 +8,7 @@
   botdot-install --list            what is installed from conda-forge
 
 Everything goes into ~/.local/env, whose bin folder is on the PATH of every new shell (~/.profile and ~/.bashrc).
-There is no root here, so apt packages and system services can't be installed; most programs are on conda-forge.
+It needs no sudo, and what it installs stays in the home; `sudo apt-get install` installs system-wide (ADR 035).
 """
 import os, subprocess, sys
 

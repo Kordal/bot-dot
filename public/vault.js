@@ -138,7 +138,7 @@ function openLoginEditor(login) {
         ${vaultTypeFields(l.type, { username: l.username, isNew })}
         <label class="field">Additional exact hosts <input name="allowedHosts" value="${esc((l.allowedHosts || []).join(', '))}" placeholder="api.example.com, auth.example.com"><span class="hint">Only these hosts may receive this login. Subdomains are not included automatically.</span></label>
         <label class="toggle"><input type="checkbox" name="insecureTls" ${l.insecureTls ? 'checked' : ''}> Accept a self-signed certificate <span class="hint muted" style="font-weight:400">for your own servers, e.g. Proxmox or a NAS</span></label>
-        <label class="toggle"><input type="checkbox" name="inComputer" ${l.inComputer ? 'checked' : ''}> Usable in its computer <span class="hint muted" style="font-weight:400">bots may use it in a command on their own computer, e.g. for Proton Bridge there. A bot could then read it: only for secrets that guard something on that computer</span></label>
+        <label class="toggle"><input type="checkbox" name="inComputer" ${l.inComputer ? 'checked' : ''}> Usable in its computer <span class="hint muted" style="font-weight:400">bots may use it in a command on the account's computer, e.g. for Proton Bridge there. Every bot on that computer could then read it: only for secrets that guard something on it</span></label>
         <div class="req-note">Bots can use this login to sign in on the website, or to call its API: they write <span class="mono">{{username}}</span> and <span class="mono">{{password}}</span> in the request and botdot fills them in, so they never see the secret.</div>
         <fieldset>
           <legend>Bots that may use it</legend>

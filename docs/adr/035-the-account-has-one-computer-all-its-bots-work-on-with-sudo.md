@@ -1,0 +1,35 @@
+# ADR-035: The account has one computer, and all its bots work on it as one user with sudo
+
+- **Status:** Accepted (2026-10-19, the owner's decision). Supersedes [ADR 021](021-a-bot-works-on-its-computer-as-a-normal-user.md), [ADR 032](032-a-bot-installs-programs-in-its-home.md) and the parts of [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) about a computer per bot (one gVisor container per bot, at most a set number running at once).
+- **Owning task:** [#102](https://github.com/Kordal/bot-dot/issues/102), first built in [#104](https://github.com/Kordal/bot-dot/issues/104)
+
+## Context
+
+Until now each bot with a computer had a gVisor container of its own, with 3 GB of memory, `--cap-drop ALL`, `no-new-privileges`, its own Docker network and the user `bot` without root (ADR 021). Camoufox and the bridge that types saved secrets ran as the user `browser`. A bot installed programs into its home and joined the tailnet in userspace (ADR 032). The computer turned off when the bot replied, and the account's share capped how many computers ran at once.
+
+On 19 October 2026 the owner chose one computer for the whole account that runs all the time, with every bot working on it, as Grok Bot does. On the variant card he picked "Kopia Groka": all bots as one Linux user with passwordless sudo. He chose it knowing that every bot can then see everything, and could intercept a Vault password typed into a browser. A separate Linux user per bot, without root, was offered and declined.
+
+## Decision
+
+- **One computer per account.** One container, named `botdot-<project>.account.computer` (`botdot.account.computer` without a Docker helper). A project name and a bot id never hold a dot, so the name never meets a bot's old computer. It is labelled `botdot.computer=account` and `botdot.user-version=2`. It is still under the account's Docker runtime (gVisor), on a network of its own, with botdot's firewall set by a privileged `docker exec` (ADR 034), and walled off from other accounts as ADR 028 says.
+- **One user with sudo.** Every bot works there as `box` (home `/home/box`), with `box ALL=(ALL:ALL) NOPASSWD: ALL`, and may `sudo apt-get install`. The container has Docker's default capabilities, without `--cap-drop ALL` and without `no-new-privileges`, which sudo and apt need. It is never `--privileged` and has no `NET_ADMIN`, so root in it cannot change the firewall that keeps botdot's control and screen ports from answering anybody outside.
+- **Shared files.** `/home/box` and `/workspace` are shared. The prompt tells each bot to keep its work in a folder of its own under `/workspace` and not to touch the others' files, windows or programs. That is a convention, not a wall.
+- **Always on.** The first computer tool of any bot makes and starts the computer. After that botdot starts it again every minute when it is off, while any bot has a computer. A run that ends, a hold or a bot's "turn off" no longer stops it. botdot keeps it on instead of Docker's restart policy, because a computer that came back by itself would run without its firewall until botdot set it. No memory limit of its own unless `BOT_DOT_COMPUTER_MEMORY` is set: it lives inside the account's share. No start waits for a free computer.
+- **The browser and the secrets.** Camoufox and botdot's bridge still run as `browser`, and botdot still sends its own copy of the helper with each secret and each SSH key (ADR 021, #44). That keeps a program that does not use sudo from reading the browser's profile or taking a secret in the bridge's place. It is no wall against a bot that uses sudo.
+- **A bot's old computer.** A computer made before this (`botdot-<project>.<bot id>`) is stopped when botdot starts and kept, with its files. Resetting "its computer" or deleting the bot erases only that old computer, never the account's.
+- For now all bots share the computer's one screen and browser. A screen and browser for each bot follow in [#105](https://github.com/Kordal/bot-dot/issues/105).
+
+## Alternatives
+
+- **A Linux user per bot, without root.** Each bot's files, processes and browser would be closed to the others, and secrets would stay with the bot they were given to. The owner declined it: he wants the Grok Bot model, where bots install anything with apt and share one machine.
+- **Keep a computer per bot and only add sudo.** Each bot would still pay for its own desktop's memory, and the computers would not run all the time.
+- **Docker's restart policy for "always on".** Rejected, for the firewall reason above. gVisor also fails `docker update` on a running computer.
+
+## Consequences
+
+- **No isolation between bots.** Every bot on the account's computer can read, change and end every other bot's files and programs, watch its screen, and use its logins in the browser. One bot's runaway program can use up the memory and end another's.
+- **Every bot has root on the account's computer** through sudo. It can change anything installed there, botdot's scripts included, until botdot copies its own back at the next start.
+- **Vault values used on the computer are readable by every bot there.** That covers a password, code, card or identity botdot types into the browser, a login handed to `run_with_login`, and a key lent through `run_with_ssh_key` while its agent lives. A bot with sudo can read the browser's memory, the command's environment or the agent, or replace the Python botdot runs the helper with. botdot still never puts a secret on a command line or in a file. The "Usable in its computer" card now says that every bot on the account's computer can read the secret. Saved logins used through `api_request` never reach the computer and are not affected.
+- A Tailscale login made in `/home/box` is every bot's. One device for the computer is [#106](https://github.com/Kordal/bot-dot/issues/106).
+- The account's walls are unchanged: another account, the botdot server and the machine are out of reach, as ADR 028 says.
+- An old per-bot computer stays stopped until its files are moved ([#107](https://github.com/Kordal/bot-dot/issues/107)). The share's "computers at once" no longer limits anything, and goes in [#108](https://github.com/Kordal/bot-dot/issues/108).
