@@ -13,7 +13,7 @@ Memory has no screen in the apps: the user asks you, and you answer and change i
 |---|---|---|
 | Notes | Each bot's own notes, your own, and the shared notes every bot reads. Pinned notes (up to 30 in each place) are in every prompt; the rest are found with recall. | On, always |
 | Past runs | Every finished run is searchable by the bot that did it (and by you). | Kept 12 months |
-| Weekly memory review | A short run per bot that tidies its notes and reports in its chat. | On, Sundays 03:30, Opus 5.5 |
+| Weekly memory review | A short run per bot that tidies its notes and reports in its chat. At the same time, your own review: how-tos in your notes and the shared notes, and skills a bot wrote that other bots could use, each proposed as a skill on a card in Needs you. | On, Sundays 03:30, Opus 5.5 |
 | Meaning-based search | Also finds rephrasings ("went down" for "crashed", even across languages) with the bge-m3 model in llama.cpp, run locally by botdot. | On in the Docker image, off elsewhere |
 
 ## Steps
@@ -23,6 +23,7 @@ Memory has no screen in the apps: the user asks you, and you answer and change i
 2. **Weekly review.** If it's off, turn it on with `set_memory_settings` (`review.enabled: true`), unless the user said they don't want it.
    - Keep the day, time and model unless the user asks for something else.
    - Say in one line that it only runs for bots that did at least 3 runs since their last review.
+   - Your own review runs at the same time when your notes, the shared notes or a bot's skills changed since the last one. It changes nothing by itself: each how-to becomes a card in Needs you (the skill's text, which bots get it, which notes it replaces), and a bot's skill can be proposed for other bots. The user's yes creates or gives the skill and removes the notes it replaces; a no is not proposed again. botdot writes one line per proposal, or "nothing to change", in your chat.
 
 3. **How long past runs stay searchable.** Keep 12 months unless the user asks otherwise (`retentionDays`: 90, 180, 365, 730, or 0 for always).
 
@@ -38,7 +39,7 @@ Memory has no screen in the apps: the user asks you, and you answer and change i
 
 5. **Waiting for the user's OK.** If `waitingForUsersOk` is more than 0, tell the user that some memory changes are waiting for them in Needs you. You can't approve them yourself, and must not.
 
-6. **First review (optional).** For bots with many notes, or many runs and no review yet, offer to run a review now. Run `review_memory` only after the user agrees, and say it reports in each bot's chat.
+6. **First review (optional).** For bots with many notes, or many runs and no review yet, offer to run a review now. Run `review_memory` only after the user agrees, and say it reports in each bot's chat. For your own notes and the shared notes, `review_memory` with `botId: "chief"` runs your review now: say its proposals wait in Needs you and botdot reports in this chat.
 
 7. **Report.** Finish with a short summary in plain words:
    - what's on

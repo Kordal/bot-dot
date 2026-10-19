@@ -107,6 +107,12 @@ connectorApprovals.start(); // no run of before the start waits for an answer an
 const backups = require('./lib/backup').create({ dataDir: B.DATA_DIR, memory: B.memory, revision: process.env.BOT_DOT_REVISION, account: ACCOUNT || null, audit });
 // Tools installed on the botdot server for one bot, on the owner's OK (ADR 007).
 const connectedApps = connectedAppsLib.create({ tellChief: (turn) => chief.tell(turn) });
+// The Chief's memory review of its own and the shared notes (#117): proposals on cards, done on the owner's yes.
+const chiefReview = require('./lib/chief-review').create({
+  dataDir: B.DATA_DIR, memory: B.memory, skills: B.skills, bots: B.bots, asks, chiefHas: shared.chiefHas, attachSkill: (name, ids) => shared.attachSkill(name, ids),
+  settings: () => B.settings.get(), run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId),
+});
+B.onChiefReview(() => chiefReview.due());
 const tools = toolsLib.create({ dataDir: B.DATA_DIR, bots: B.bots, asks, audit, starts: B.toolStarts, tellChief: (turn) => chief.tell(turn), notify: (text) => chief.post(text), ownerWrote: (chatId) => chief.ownerWrote(chatId) });
 
 const PORT = Number(process.env.PORT) || 4747;
@@ -474,7 +480,7 @@ function tellChiefOfHeld(a, { answer, error }) {
 // feed above reads it too. The Board goes by its own word, board: "dashboard" stays the name of its module and
 // of the calls to it (test/board.test.js).
 const ctx = { ACCOUNT, audit, callKeys, callRefusals, keys, vault, bitwarden, store, readyForSecrets, setup, updates,
-  UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, backups, connectedApps, tools, PORT,
+  UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, backups, connectedApps, tools, chiefReview, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, macApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
   chiefChatOf, doHeldAction, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; }, ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
