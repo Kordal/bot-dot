@@ -1,5 +1,7 @@
 <h1 align="center">botdot</h1>
 
+<p align="center"><b>A self-hosted team of Claude Code bots you run by chat.</b></p>
+
 <p align="center">
   <a href="https://github.com/Kordal/bot-dot/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/Kordal/bot-dot/actions/workflows/tests.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-blue.svg"></a>
@@ -95,7 +97,7 @@ botdot has one look, dark, on the web and on Android. A bot's head shows its sta
 </tr>
 </table>
 
-The web page works on any phone. The [Android app](android/README.md) adds notifications with **Reply** and **Approve**, sharing files to a bot from any app, and the keypad on tablets and foldables. botdot carries the newest app, so phones update themselves from your server.
+The web page works on any phone. The [Android app](android/README.md) adds notifications with **Reply** and **Approve**, sharing files to a bot from any app, and the keypad on tablets and foldables. For the first install, download the `.apk` from the newest `android-v…` release on the [Releases page](https://github.com/Kordal/bot-dot/releases); after that, botdot carries the newest app and phones update themselves from your server. There is no iOS app: on an iPhone, use the web page.
 
 ## How it works
 
@@ -103,6 +105,12 @@ The web page works on any phone. The [Android app](android/README.md) adds notif
 - **Each bot is Claude Code.** A run is `claude -p` in the bot's own workspace, with only the tools and permissions you gave it.
 - **Accounts are walled off.** One machine can hold several people's botdot, and nothing in one account can be seen or reached from another.
 - **Nothing a bot writes is trusted as markup.** Text and drawings from Claude are checked on the server and drawn by the apps' own code.
+
+## Security
+
+- **Each account is walled off under gVisor:** its own Linux user and rootless Docker, whose every container runs under gVisor.
+- **The installer runs as root, and root sees everything:** whoever is root on the machine can reach every account, its data and the logins its bots hold. Keep root to yourself.
+- **Anything risky waits in Needs you:** a script, a login, a connected app's write (unless you always allow it), or a change the Chief makes after reading the web, until you say OK.
 
 [What bots can reach](docs/what-bots-can-reach.md) and [Security](SECURITY.md) have the full picture.
 
@@ -112,10 +120,15 @@ The web page works on any phone. The [Android app](android/README.md) adds notif
 | --- | --- |
 | **A server** | A Linux server or VM of its own (Ubuntu 24.04, Intel/AMD or ARM) where you can use `sudo` |
 | **Docker** | The installer offers to install it when it's missing |
-| **Claude** | A Claude subscription (Pro or Max), or an Anthropic API key, for each account |
+| **Claude** | A Claude subscription (Pro or Max), or an Anthropic API key, for each account. Bots' runs count against that subscription's usage limits, or are paid as you go on the key |
+| **Room** | Per account, about 5 GB of RAM at most with two bots' computers running, and 15 GB of disk: its server holds about 2 GB (mostly the memory search model), and each bot's computer, an Ubuntu desktop in a container, 0.5–1 GB idle. Measured on an 8-CPU, 16 GB server, where the front door and Caddy take 65 MB |
 | **A way in** | [Tailscale](https://tailscale.com) (a private tailnet) or a public domain that points at the server |
 
-The full list, and whom botdot trusts, is in [Install on Linux](docs/install-linux.md#what-botdot-needs-and-whom-it-trusts).
+botdot runs the official Claude Code CLI, signed in by you on your account's setup page. Bots run unattended, so read what Anthropic's terms say about that first: [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms). An account's [default share](docs/install-linux.md#shares-of-the-machine) of the machine is 2 CPUs and 5 GB of RAM. The full list, and whom botdot trusts, is in [Install on Linux](docs/install-linux.md#what-botdot-needs-and-whom-it-trusts).
+
+## Status
+
+botdot is early: version 0.x, built by one person with Claude, so expect breaking changes ([Releases](https://github.com/Kordal/bot-dot/releases)). It is not a hosted service, it runs Claude only (no other models), and it is not a laptop app: it installs on a Linux server of its own, and you use it from the web page or the Android app.
 
 ## Install
 
@@ -126,11 +139,13 @@ git clone https://github.com/Kordal/bot-dot.git bot-dot-source
 sudo sh bot-dot-source/install.sh
 ```
 
-The installer asks a few questions and ends with your address and a sign-up link. Open the link, make your passkey, and sign in to Claude on the setup page. Then ask the Chief of Staff for your first bot.
+The installer asks a few questions and ends with your address and a sign-up link. Open the link, make your passkey, and sign in to Claude on the setup page. Then ask the Chief of Staff for your first bot. On a public domain, open the link right away: until the first account is made, the front door also prints a fresh sign-up link in its log each time it starts.
 
 | Where | Guide |
 | --- | --- |
 | A Linux server or VM, one or more accounts | [Install on Linux](docs/install-linux.md): accounts, updates, backups, uninstalling |
+
+To remove botdot, follow [Uninstall](docs/install-linux.md#uninstall).
 
 ## Development
 

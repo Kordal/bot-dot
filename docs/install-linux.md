@@ -19,7 +19,7 @@ One machine serves several **accounts**, each walled off from the others ([ADR 0
   - **a public domain** whose DNS points at the machine, with ports 80 and 443 free: Caddy answers there over HTTPS and fetches its own certificate;
   - **a tailnet only**, with a Tailscale account (free for personal use): Tailscale Serve gives botdot an HTTPS name on your tailnet, and nothing is on the internet.
 - **A Claude subscription** (Pro or Max), or an Anthropic API key, for each account. The Chief of Staff and the bots run as Claude Code, signed in with it or on the key.
-- **Disk space:** about 1.5 GB for botdot and a few GB for the bots' computer, for each account.
+- **Disk space:** about 15 GB for each account: botdot's image is about 4 GB and the bots' computer image about 7 GB; older computer images stay after an update, so leave room for two or three.
 
 ## Install
 
