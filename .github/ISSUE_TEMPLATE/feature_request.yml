@@ -1,0 +1,27 @@
+name: Feature request
+description: An idea for something botdot should do.
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the idea. botdot keeps its screens small: what the Chief of Staff can do by chat gets no new button, so say what you want to get done, not only the control you picture.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you want to do
+      description: What you are trying to get done, and what stops you today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What botdot could do
+      description: How it could work, in a few sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: other
+    attributes:
+      label: What you tried instead
+      description: Other ways you tried, or a way around it you use now.

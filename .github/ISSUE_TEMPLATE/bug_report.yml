@@ -1,0 +1,58 @@
+name: Bug report
+description: Something in botdot doesn't work as it should.
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. A security problem doesn't go here: see SECURITY.md to report it privately.
+  - type: input
+    id: version
+    attributes:
+      label: botdot version
+      description: The admin page shows it under Update ("Every account runs version …"). Running from the source? Paste the output of `git rev-parse --short HEAD`.
+      placeholder: "e.g. d184dcb"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How botdot was installed
+      options:
+        - install.sh on a Linux server or VM
+        - Self-built images (make images, then install.sh)
+        - Docker on a Mac (compose.mac.yaml)
+        - From the source (npm start)
+        - Other (say how below)
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where you saw it
+      multiple: true
+      options:
+        - The web page
+        - The Android app
+        - The admin page
+        - The installer
+        - Somewhere else
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What you did, step by step, and what botdot did.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The server's output around the time it happened, or the run's output from Activity. Remove passwords, keys, tokens and anything private before you paste.
+      render: text
