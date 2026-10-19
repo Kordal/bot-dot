@@ -90,7 +90,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var effort by remember { mutableStateOf("") }
     var computer by remember { mutableStateOf(false) }
     var alwaysOn by remember { mutableStateOf(false) }
-    var localNetwork by remember { mutableStateOf(false) }
     var useSkills by remember { mutableStateOf(true) }
     var skills by remember { mutableStateOf(setOf<String>()) }
     var sysSkills by remember { mutableStateOf(listOf<Pair<dev.botdot.app.data.BuiltinSkill, String>>()) } // every bot has these unless switched off
@@ -102,7 +101,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     fun fill(b: Bot) {
         bot = b; color = b.color.orEmpty(); name = b.name; description = b.description; group = b.group; pinned = b.pinned > 0; task = b.prompt
         model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux"; alwaysOn = b.computerAlwaysOn
-        localNetwork = b.computerEgress == "lan"
         useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
     }
 
@@ -129,7 +127,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             if (model != b.model.orEmpty()) put("model", model)
             if (effort != b.effort.orEmpty()) put("effort", effort)
             if (computer != (b.computer == "linux")) put("computer", if (computer) "linux" else "none")
-            if (localNetwork != (b.computerEgress == "lan")) put("computerEgress", if (localNetwork) "lan" else "internet")
             if (alwaysOn != b.computerAlwaysOn) put("computerAlwaysOn", alwaysOn)
             if (useSkills != b.useSkills) put("useSkills", useSkills)
             if (skills != b.skills.toSet()) put("skills", JsonArray(skills.map { JsonPrimitive(it) }))
@@ -259,7 +256,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 Choice("Model", model, listOf("" to "Default (from Settings)") + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
                 val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
                 if (canThink) Choice("Reasoning", effort, listOf("" to "Default (from Settings)") + choices.efforts.map { it.id to it.label }) { effort = it }
-                SwitchRow("Local network access", "Allow this computer to reach your router, NAS and other private services.", localNetwork, enabled = computer) { localNetwork = it }
                 SwitchRow("Keep its computer on", "Never sleeps, so logins and open pages stay ready. Uses memory on the VM.", alwaysOn, enabled = computer) { alwaysOn = it }
             }
             Button(onClick = { save() }, enabled = !saving, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) {

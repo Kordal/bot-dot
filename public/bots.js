@@ -80,7 +80,6 @@ function readBotForm(form, sel) {
     systemPrompt: form.systemPrompt.value,
     computer: form.computer.checked ? 'linux' : 'none',
     computerAlwaysOn: form.computer.checked && form.computerAlwaysOn.checked,
-    computerEgress: form.computerEgress.value,
     skills: [...sel.skills],
     disabledSkills: readDisabledSkills(form),
     connectors: [...sel.connectors],
@@ -226,7 +225,6 @@ function renderBotSettings(force = false) {
         </div>
         <label class="field">Personality / rules <span class="hint">added to Claude Code's system prompt</span>
           <textarea name="systemPrompt" rows="3">${esc(b.systemPrompt)}</textarea></label>
-        <label>Computer network <select name="computerEgress"><option value="internet" ${b.computerEgress !== 'lan' ? 'selected' : ''}>Internet only</option><option value="lan" ${b.computerEgress === 'lan' ? 'selected' : ''}>Internet and local network</option></select><span class="hint muted">Local network access includes your router, NAS and other private services.</span></label>
         <label class="toggle"><input type="checkbox" name="computerAlwaysOn" ${b.computerAlwaysOn ? 'checked' : ''}> Keep its computer on all the time <span class="hint muted" style="font-weight:400">open apps keep running; uses memory all the time</span></label>
       </details>
       <div class="bs-foot"><button type="button" class="link-btn danger-text" id="delete-bot">Delete ${esc(b.name)}</button></div>

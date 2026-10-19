@@ -18,7 +18,7 @@ test('the bot works as a normal user and cannot take the secret path of its comp
   const computers = require('../../lib/computers');
   const id = `secrets-test-${process.pid}`;
   t.after(async () => { await computers.reset(id); });
-  await computers.ensure(id, 'internet');
+  await computers.ensure(id);
   // /cmd answers as SSE ("data: {...}"), read like lib/computer-mcp.js does.
   const cmd = async (command, params) => {
     const { text } = await computers.request(id, '/cmd', { command, params });
@@ -63,7 +63,7 @@ test('the bot works as a normal user and cannot take the secret path of its comp
   const noBridge = await computers.typeSecret(id, { site: '', field: 'password', value: SECRET });
   assert.equal(noBridge.ok, false, 'no secret is typed with no bridge');
   assert.match(noBridge.error, /open_browser/);
-  await computers.ensure(id, 'internet'); // the bridge starts again, beside the bot's listener
+  await computers.ensure(id); // the bridge starts again, beside the bot's listener
   const noBrowser = await computers.typeSecret(id, { site: '', field: 'password', value: SECRET });
   assert.equal(noBrowser.ok, false, 'no secret is typed with no browser open');
   // The bot's ask to open a page now reaches its own listener, so no browser opens and still nothing is typed.
@@ -73,7 +73,7 @@ test('the bot works as a normal user and cannot take the secret path of its comp
   assert.ok(!(await shell('cat /home/bot/fake.log')).stdout.includes(SECRET), 'no listener of the bot got the secret');
   browserExec('sh', '-c', 'pkill -f "camoufox-[b]"; sleep 1; true');
   await shell('pkill -f "socket.SO_[R]EUSEADDR"; true');
-  await computers.ensure(id, 'internet');
+  await computers.ensure(id);
 
   // With the port the bridge's again, the real bridge types a password and a two-step code.
   await computers.startProgram(id, `camoufox-browser ${shq(PAGE)}`);

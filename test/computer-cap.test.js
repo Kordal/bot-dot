@@ -81,7 +81,7 @@ test('as many computers as the share allows start at once, and the next waits un
 test('a computer that runs already never waits, and the cap counts no computer twice', async () => {
   await computers.ensure('one');
   await computers.ensure('two');
-  assert.equal(await settled(computers.ensure('one', 'lan'), 'one'), 'started', 'its own computer is no other one');
+  assert.equal(await settled(computers.ensure('one'), 'one'), 'started', 'its own computer is no other one');
 });
 
 test('the computers that wait start first come first', async () => {
