@@ -1,0 +1,13 @@
+{
+  "about": "Web addresses linked in plain chat text, by the web page (public/app.js chatLinks) and the Android app (linkedChatText). links: each linked address as written and where it goes.",
+  "cases": [
+    { "text": "See https://example.com/a?b=1&c=2.", "links": [["https://example.com/a?b=1&c=2", "https://example.com/a?b=1&c=2"]] },
+    { "text": "testy ruszą nocą codziennie: x.com/dhh/status/2112209965377302998", "links": [["x.com/dhh/status/2112209965377302998", "https://x.com/dhh/status/2112209965377302998"]] },
+    { "text": "(github.com/Kordal/bot-dot/pull/138), and www.example.org/path.", "links": [["github.com/Kordal/bot-dot/pull/138", "https://github.com/Kordal/bot-dot/pull/138"], ["www.example.org/path", "https://www.example.org/path"]] },
+    { "text": "en.wikipedia.org/wiki/Foo_(bar) is it", "links": [["en.wikipedia.org/wiki/Foo_(bar)", "https://en.wikipedia.org/wiki/Foo_(bar)"]] },
+    { "text": "Edit README.md, lib/bots.js, docs/api.md and run install.sh/now", "links": [] },
+    { "text": "Write to bart@example.com/x or see x.com alone", "links": [] },
+    { "text": "Not in code: `x.com/dhh/status/1` or `https://example.com/a`", "links": [] },
+    { "text": "files/x.com/a and ../y.io/b stay", "links": [] }
+  ]
+}

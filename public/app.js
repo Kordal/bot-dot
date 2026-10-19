@@ -492,6 +492,31 @@ function mdHTML(blocks) {
 
 // Link bare web addresses after rendering, so existing Markdown links and code stay intact.
 // DOM text nodes give us the original &, quotes, and query strings without HTML re-escaping.
+// An address without https:// is a domain with a path, like x.com/dhh/status/1, on a common top-level domain, so that
+// file names like README.md or lib/bots.js stay text (test/fixtures/chat-links.json, shared with the Android app).
+const BARE_TLDS = 'com|org|net|io|dev|app|ai|co|pl|me|gg|tv|xyz|edu|gov|info|eu|uk|de|fr|ly|so|be|fm|to|tech|blog|news|page|site|social|cloud|art|link';
+const WEB_URL = new RegExp(`https?://[^\\s<>"'\`]+|(?<![\\p{L}\\p{N}_@./:-])(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+(?:${BARE_TLDS})/[^\\s<>"'\`]*`, 'giu');
+// The web addresses in a text, outside `code`: where each starts, how long it is, and where it goes.
+function chatLinks(text) {
+  const code = [...text.matchAll(/(`+)[\s\S]*?\1/g)].map((m) => [m.index, m.index + m[0].length]);
+  const links = [];
+  for (const match of text.matchAll(WEB_URL)) {
+    if (code.some(([start, end]) => match.index < end && match.index + match[0].length > start)) continue;
+    let url = match[0];
+    // Sentence punctuation is outside the address; balanced parentheses can be part of it.
+    for (;;) {
+      const last = url.at(-1);
+      const opening = { ')': '(', ']': '[', '}': '{' }[last];
+      if (/[.,;:!?]/.test(last || '') || (opening && url.split(last).length > url.split(opening).length)) url = url.slice(0, -1);
+      else break;
+    }
+    const href = /^https?:/i.test(url) ? url : `https://${url}`;
+    try { const parsed = new URL(href); if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname) continue; }
+    catch { continue; }
+    links.push({ index: match.index, text: url, href });
+  }
+  return links;
+}
 function linkifyChat(root) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes = [];
@@ -503,29 +528,17 @@ function linkifyChat(root) {
   }
   for (const node of nodes) {
     const text = node.textContent;
-    const code = [...text.matchAll(/(`+)[\s\S]*?\1/g)].map((m) => [m.index, m.index + m[0].length]);
     const fragment = document.createDocumentFragment();
     let at = 0;
-    for (const match of text.matchAll(/https?:\/\/[^\s<>"'`]+/gi)) {
-      if (code.some(([start, end]) => match.index < end && match.index + match[0].length > start)) continue;
-      let url = match[0];
-      // Sentence punctuation is outside the address; balanced parentheses can be part of it.
-      for (;;) {
-        const last = url.at(-1);
-        const opening = { ')': '(', ']': '[', '}': '{' }[last];
-        if (/[.,;:!?]/.test(last || '') || (opening && url.split(last).length > url.split(opening).length)) url = url.slice(0, -1);
-        else break;
-      }
-      try { const parsed = new URL(url); if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname) continue; }
-      catch { continue; }
-      fragment.append(document.createTextNode(text.slice(at, match.index)));
+    for (const { index, text: url, href } of chatLinks(text)) {
+      fragment.append(document.createTextNode(text.slice(at, index)));
       const link = document.createElement('a');
-      link.href = url;
+      link.href = href;
       link.textContent = url;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       fragment.append(link);
-      at = match.index + url.length;
+      at = index + url.length;
     }
     if (at) {
       fragment.append(document.createTextNode(text.slice(at)));

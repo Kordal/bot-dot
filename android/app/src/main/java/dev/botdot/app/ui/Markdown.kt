@@ -270,17 +270,21 @@ internal fun parseBlocks(src: String): List<Block> {
     return out
 }
 
-private val INLINE = Regex("""\*\*(.+?)\*\*|__(.+?)__|(`+)([\s\S]*?)\3|\[([^\]]+)]\(((?:[^()\s]|\([^()\s]*\))+)\)|((?<![\p{L}\p{N}_:/])(?i:https?://)[^\s<>"\x27`]+)|(?<![*\w])\*([^*\n]+)\*(?!\w)|(?<![_\w])_([^_\n]+)_(?!\w)""")
-private val WEB_URL = Regex("""(?<![\p{L}\p{N}_:/])https?://[^\s<>"'`]+""", RegexOption.IGNORE_CASE)
+// An address without https:// is a domain with a path, like x.com/dhh/status/1, on a common top-level domain, so that
+// file names like README.md or lib/bots.js stay text (test/fixtures/chat-links.json, shared with the web page).
+private const val BARE_TLDS = "com|org|net|io|dev|app|ai|co|pl|me|gg|tv|xyz|edu|gov|info|eu|uk|de|fr|ly|so|be|fm|to|tech|blog|news|page|site|social|cloud|art|link"
+private const val BARE_URL = """(?<![\p{L}\p{N}_@./:-])(?i:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:$BARE_TLDS))/[^\s<>"\x27`]*"""
+private val INLINE = Regex("""\*\*(.+?)\*\*|__(.+?)__|(`+)([\s\S]*?)\3|\[([^\]]+)]\(((?:[^()\s]|\([^()\s]*\))+)\)|((?<![\p{L}\p{N}_:/])(?i:https?://)[^\s<>"\x27`]+|$BARE_URL)|(?<![*\w])\*([^*\n]+)\*(?!\w)|(?<![_\w])_([^_\n]+)_(?!\w)""")
+private val WEB_URL = Regex("""(?<![\p{L}\p{N}_:/])(?i:https?://)[^\s<>"\x27`]+|$BARE_URL""")
 private val CODE_SPAN = Regex("""(`+)[\s\S]*?\1""")
 
-/** Link plain chat text without changing its characters, mentions or search marks. */
-internal fun linkedChatText(source: AnnotatedString, color: Color): AnnotatedString = buildAnnotatedString {
-    append(source)
-    val code = CODE_SPAN.findAll(source.text).map { it.range }.toList()
-    val styles = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline))
-    WEB_URL.findAll(source.text).forEach { match ->
-        if (code.any { it.first <= match.range.last && it.last >= match.range.first }) return@forEach
+/** A web address in plain chat text, outside `code`: where it starts, as written, and where it goes. */
+internal data class ChatLink(val start: Int, val text: String, val url: String)
+
+internal fun chatLinks(text: String): List<ChatLink> {
+    val code = CODE_SPAN.findAll(text).map { it.range }.toList()
+    return WEB_URL.findAll(text).mapNotNull { match ->
+        if (code.any { it.first <= match.range.last && it.last >= match.range.first }) return@mapNotNull null
         var url = match.value
         while (url.isNotEmpty()) {
             val last = url.last()
@@ -288,10 +292,19 @@ internal fun linkedChatText(source: AnnotatedString, color: Color): AnnotatedStr
             if (last in ".,;:!?" || (open != null && url.count { it == last } > url.count { it == open })) url = url.dropLast(1)
             else break
         }
-        val host = runCatching { java.net.URI(url).host }.getOrNull()
-        if (!host.isNullOrEmpty() && source.getLinkAnnotations(match.range.first, match.range.first + url.length).isEmpty()) {
-            addLink(LinkAnnotation.Url(url, styles), match.range.first, match.range.first + url.length)
-        }
+        val target = if (url.startsWith("http://", true) || url.startsWith("https://", true)) url else "https://$url"
+        val host = runCatching { java.net.URI(target).host }.getOrNull()
+        if (host.isNullOrEmpty()) null else ChatLink(match.range.first, url, target)
+    }.toList()
+}
+
+/** Link plain chat text without changing its characters, mentions or search marks. */
+internal fun linkedChatText(source: AnnotatedString, color: Color): AnnotatedString = buildAnnotatedString {
+    append(source)
+    val styles = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline))
+    chatLinks(source.text).forEach { link ->
+        val end = link.start + link.text.length
+        if (source.getLinkAnnotations(link.start, end).isEmpty()) addLink(LinkAnnotation.Url(link.url, styles), link.start, end)
     }
 }
 
