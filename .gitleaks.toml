@@ -3,11 +3,12 @@
 useDefault = true
 
 [allowlist]
-description = "Made-up test secrets, the exact public release verification key, and RFC 6455's sample WebSocket key"
+description = "Made-up test secrets, the exact public release verification key, RFC 6455's sample WebSocket key and RFC 8291's test vector"
 paths = ['''^test/backup\.test\.js$''', '''^test/owner-key\.test\.js$''', '''^test/fixtures/release-signing/private\.pem$''']
 # This SPKI public key is intentionally shipped to every client; it cannot sign releases.
 # Match its exact bytes rather than excluding production files or arbitrary key values.
 # The WebSocket handshake's Sec-WebSocket-Key in test/front-door-helpers.js is the sample nonce printed in RFC 6455
-# ("the sample nonce", base64): a public example, no key to anything.
+# ("the sample nonce", base64): a public example, no key to anything. The auth secret in test/web-push.test.js is
+# RFC 8291's example (Appendix A), printed in the RFC.
 regexTarget = "secret"
-regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''', '''^MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdDU16CG2HWzALPBB5pDx5BQHKTrcfdHF4t90R\+\+nTnsMvIQKGQq/o26wIF0w0o6OEt4RoPi\+Sf2rJsZmz3vvng==$''']
+regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''', '''^BTBZMqHH6r4Tts7J_aSIgg$''', '''^MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdDU16CG2HWzALPBB5pDx5BQHKTrcfdHF4t90R\+\+nTnsMvIQKGQq/o26wIF0w0o6OEt4RoPi\+Sf2rJsZmz3vvng==$''']
