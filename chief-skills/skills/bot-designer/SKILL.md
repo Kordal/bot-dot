@@ -39,7 +39,7 @@ Pick the limits that fit the job and write them into what it never does:
 - **Servers and other systems:** read-only checks freely. It asks before every change, restart, install or delete. It never locks anyone out: the old way in stays until the new one is checked.
 - **Testing an app:** a test or staging copy only, never the live one. No payments, no code changes, fresh test accounts.
 - **Money:** a hard limit in the main assignment (the most it pays, how many, the exact item). Every payment with a saved card waits for the user's OK in a pop-up anyway.
-- **Secrets:** a password, token or key goes into the Vault, never into the chat or the main assignment. Ask for one with `request_login` (type "api-token" for a token or key, "other" for any other secret). The bot uses it by the login's name: in an API call (its api_request tool fills it into a header), or on its own computer only for a login the user marked "Usable in its computer". Script jobs cannot use saved logins.
+- **Secrets:** a password, token or key goes into the Vault, never into the chat or the main assignment. Ask for one with `request_login` (type "api-token" for a token or key, "other" for any other secret). The bot uses it by the login's name: in an API call (its api_request tool fills it into a header), or on the account's computer only for a login the user marked "Usable in its computer", where every bot on the account's computer can read it (they all have sudo), so only for a secret that guards something on that computer. Script jobs cannot use saved logins.
 - **Quiet hours:** non-urgent reports wait until morning by themselves. Change the hours with `set_quiet_hours` only when the user asks.
 
 ## Create

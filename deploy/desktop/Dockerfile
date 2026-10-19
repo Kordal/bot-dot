@@ -86,7 +86,7 @@ COPY botdot-desktop /usr/local/bin/botdot-desktop
 COPY botdot-screen.conf /etc/supervisor/botdot-screen.conf
 COPY camoufox.desktop /usr/share/applications/camoufox.desktop
 COPY camoufox-helper.desktop /usr/share/xfce4/helpers/camoufox.desktop
-# The bots' installs into box's home without sudo, and a way onto the owner's tailnet in userspace (ADR 032).
+# The bots' installs into box's home without sudo, and the computer's one device on the owner's tailnet, run by root (#106).
 COPY --from=micromamba --chmod=0755 /micromamba /usr/local/bin/micromamba
 COPY botdot-install /usr/local/bin/botdot-install
 COPY botdot-tailscale /usr/local/bin/botdot-tailscale
