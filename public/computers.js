@@ -20,11 +20,10 @@ function keepScreenConnected(iframe) {
   }, 4000);
 }
 
+// The account's computer is always on, for every bot (#104): it is on, being started again, or not made yet.
 function computerLabel(botId) {
   const st = state.computers?.[botId];
-  const always = state.bots.find((b) => b.id === botId)?.computerAlwaysOn;
-  if (always) return st === 'running' ? 'on (always on)' : 'starting (always on)';
-  return st === 'running' ? 'on' : st === 'stopped' ? 'off (files kept)' : 'not created yet';
+  return st === 'running' ? 'on' : st === 'stopped' ? 'starting again' : 'not made yet';
 }
 
 // The screen as large as the window lets it be, at the desktop's 4:3, with all of the dialog in the window and no
@@ -36,6 +35,14 @@ function fitScreen(m) {
   // The dialog's height may be the window's less 40 (the stylesheet's max-height), its 1px border included.
   const room = window.innerHeight - 42 - (m.scrollHeight - f.offsetHeight);
   m.style.setProperty('--screen-w', `${Math.max(240, Math.floor((room * 4) / 3))}px`);
+}
+
+// What each bot uses of the account's computer (#109), as the server words it: its line, then a row per bot, most
+// memory first, and what runs on no bot's screen. Nothing for a server from before, or a computer that is not on.
+function usageRows(usage) {
+  if (!usage?.bots) return '';
+  const row = (name, text) => `<div class="usage-row"><span class="usage-name">${esc(name)}</span><span class="muted">${esc(text)}</span></div>`;
+  return `<div class="muted usage-text">${esc(usage.text || '')}</div>${usage.bots.map((b) => row(b.name, b.text)).join('')}${usage.other ? row(usage.other.name || '', usage.other.text) : ''}`;
 }
 
 function openScreen(botId) {
@@ -51,15 +58,16 @@ function openScreen(botId) {
         <span style="flex:1"></span>
         <button class="btn sm" id="screen-control">🖱 Take control</button>
         <a class="btn sm" id="screen-full" target="_blank" rel="noopener">⤢ Full screen</a>
-        <button class="btn sm" id="screen-power"></button>
         <button class="btn sm danger" id="screen-reset" title="Erase the account's computer, for every bot that works on it.">Reset</button>
       </div>
       <div class="screen-steps hidden" id="screen-steps"><div class="muted" style="font-size:12.5px">What it's doing: <span id="screen-now"></span></div></div>
       <div class="req-note hidden" id="screen-update"><span id="screen-update-text"></span> <button class="btn sm" id="screen-update-yes"></button></div>
       <div class="req-note hidden" id="screen-old"><span id="screen-old-text"></span> <button class="btn sm" id="screen-old-copy"></button> <button class="btn sm danger" id="screen-old-erase"></button></div>
+      <div class="screen-usage hidden" id="screen-usage"></div>
     </div>`);
   // The account's computer as the server describes it (#107): the words of its reset, of an update when one is
-  // offered, and of the bot's old computer of its own while it has one. Nothing of them is this page's own.
+  // offered, of the bot's old computer of its own while it has one, and what each bot uses of it (#109). Nothing of
+  // them is this page's own.
   let info = null;
   const describe = () => api(`/bots/${botId}/computer`).then((d) => {
     info = d;
@@ -71,6 +79,8 @@ function openScreen(botId) {
       $('#screen-old-copy', m).textContent = d.old.copy;
       $('#screen-old-erase', m).textContent = d.old.erase;
     }
+    $('#screen-usage', m).innerHTML = usageRows(d.usage);
+    $('#screen-usage', m).classList.toggle('hidden', !d.usage?.bots);
     $('#screen-state', m).dataset.disk = d.diskBytes != null ? ` Uses ${d.diskBytes > 1e9 ? (d.diskBytes / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(d.diskBytes / 1e6)) + ' MB'} of disk.` : '';
     frame();
   }).catch(() => {});
@@ -81,15 +91,12 @@ function openScreen(botId) {
   const frame = () => {
     const on = state.computers?.[botId] === 'running';
     $('#screen-state', m).textContent = `Computer is ${computerLabel(botId)}.${bot.running ? ' The bot is using it right now.' : ''}${$('#screen-state', m).dataset.disk || ''}`;
-    $('#screen-power', m).textContent = bot.computerAlwaysOn ? 'Always on' : on ? 'Turn off' : 'Turn on';
-    $('#screen-power', m).disabled = !!bot.computerAlwaysOn;
-    $('#screen-power', m).title = bot.computerAlwaysOn ? 'Set to stay on. Change it in the bot settings.' : '';
     $('#screen-control', m).textContent = control ? '👁 Just watch' : '🖱 Take control';
     $('#screen-full', m).href = screenUrl(botId, control);
     $('#screen-control', m).disabled = !on;
     $('#screen-frame', m).innerHTML = on
       ? `<iframe src="${screenUrl(botId, control)}" title="Live screen"></iframe>`
-      : `<div class="screen-off"><div class="big">🖥</div>${bot.computerAlwaysOn ? 'Starting its computer… It stays on all the time.' : 'The computer is off. It turns on by itself when the bot runs.'}</div>`;
+      : `<div class="screen-off"><div class="big">🖥</div>${state.computers?.[botId] === 'stopped' ? "The account's computer is starting again. It stays on for every bot." : "The account's computer isn't made yet. The first computer tool of any bot makes it."}</div>`;
     keepScreenConnected($('#screen-frame iframe', m));
     fit();
   };
@@ -102,7 +109,6 @@ function openScreen(botId) {
     } catch (e) { toast(e.message, true); }
   };
   $('#screen-control', m).onclick = () => { control = !control; frame(); };
-  $('#screen-power', m).onclick = () => (state.computers?.[botId] === 'running' ? act('stop', 'Turning off…') : act('start', 'Turning on…'));
   // The account's computer, for every bot (#107): a reset and an update, each after the owner read what it does.
   const forAll = async (what, label) => {
     try {

@@ -79,7 +79,6 @@ function readBotForm(form, sel) {
     prompt: form.prompt.value,
     systemPrompt: form.systemPrompt.value,
     computer: form.computer.checked ? 'linux' : 'none',
-    computerAlwaysOn: form.computer.checked && form.computerAlwaysOn.checked,
     skills: [...sel.skills],
     disabledSkills: readDisabledSkills(form),
     connectors: [...sel.connectors],
@@ -225,7 +224,6 @@ function renderBotSettings(force = false) {
         </div>
         <label class="field">Personality / rules <span class="hint">added to Claude Code's system prompt</span>
           <textarea name="systemPrompt" rows="3">${esc(b.systemPrompt)}</textarea></label>
-        <label class="toggle"><input type="checkbox" name="computerAlwaysOn" ${b.computerAlwaysOn ? 'checked' : ''}> Keep its computer on all the time <span class="hint muted" style="font-weight:400">open apps keep running; uses memory all the time</span></label>
       </details>
       <div class="bs-foot"><button type="button" class="link-btn danger-text" id="delete-bot">Delete ${esc(b.name)}</button></div>
     </form>`;
@@ -300,13 +298,6 @@ function renderBotSettings(force = false) {
     saveSoon();
   }));
   form.tools.addEventListener('input', syncPerms);
-
-  const syncComputer = () => {
-    form.computerAlwaysOn.disabled = !form.computer.checked;
-    if (!form.computer.checked) form.computerAlwaysOn.checked = false;
-  };
-  form.computer.addEventListener('change', syncComputer);
-  syncComputer();
 
   // Advanced stays open or closed as you last left it (this browser).
   const adv = $('#bs-advanced', root);
@@ -386,18 +377,22 @@ function renderBotSettings(force = false) {
   drawBotSettingsLive(b);
 
   $('#delete-bot', root).onclick = async () => {
-    const hasComputer = !!state.computers?.[b.id];
+    // Its screen on the account's computer ends and its browser's logins go; the computer, which the other bots use,
+    // stays, and so does its folder there (#109).
+    const hasComputer = b.computer === 'linux';
     const ownOnly = ownSkills.filter((k) => !k.usedBy.some((x) => x !== b.id)).length;
     const gone = [
-      hasComputer ? 'its computer (everything installed on it, its files and its browser logins)' : '',
+      hasComputer ? "its screen and its browser's logins on the account's computer" : '',
       'its memory',
       ownOnly ? `the ${ownOnly === 1 ? 'skill' : `${ownOnly} skills`} it wrote` : '',
     ].filter(Boolean);
-    const warning = `Delete ${b.name}?\n\nThis also erases ${gone.length > 1 ? `${gone.slice(0, -1).join(', ')} and ${gone[gone.length - 1]}` : gone[0]}. This can't be undone.\n\nIts run history is kept.`;
+    const kept = hasComputer ? ` Its folder /workspace/${b.id} on the account's computer is kept, and so is the computer, which the other bots use.` : '';
+    const warning = `Delete ${b.name}?\n\nThis also erases ${gone.length > 1 ? `${gone.slice(0, -1).join(', ')} and ${gone[gone.length - 1]}` : gone[0]}. This can't be undone.\n\nIts run history is kept.${kept}`;
     if (!confirm(warning)) return;
     let r;
     try { r = await api(`/bots/${b.id}`, { method: 'DELETE' }); } catch (err) { return toast(err.message, true); }
-    toast(r.computer === 'erased' ? 'Bot and its computer deleted' : r.computer === 'failed' ? "Bot deleted, but its computer couldn't be erased (is Docker running?)" : 'Bot deleted', r.computer === 'failed');
+    // `computer` is about its old computer of its own from before the account's computer (#104), if it still had one.
+    toast(r.computer === 'erased' ? 'Bot and its old computer deleted' : r.computer === 'failed' ? "Bot deleted, but its old computer couldn't be erased (is Docker running?)" : 'Bot deleted', r.computer === 'failed');
     delete root.dataset.bot;
     leaveBot();
     await refresh();

@@ -39,6 +39,20 @@ class ComputerInfoTest {
         assertEquals("Reset Coder's computer?", info.resetWords("Coder").title)
     }
 
+    @Test fun whatEachBotUsesIsTheServersRows() {
+        val info = json.decodeFromString<ComputerInfo>(
+            """{"state":"running","usage":{"text":"What each bot uses of the account's computer now.",
+            "bots":[{"id":"s1","name":"Scout","memoryBytes":1600000000,"cpuPercent":87.6,"processes":30,"text":"1.6 GB memory · 88% CPU"},
+                    {"id":"c1","name":"Coder","memoryBytes":0,"cpuPercent":0,"processes":0,"text":"nothing running"}],
+            "other":{"name":"Not on a bot's screen","memoryBytes":300000000,"cpuPercent":1,"processes":4,"text":"300 MB memory · 1% CPU"}}}""".trimIndent()
+        )
+        val u = info.usage!!
+        assertEquals(listOf("Scout", "Coder"), u.bots.map { it.name })
+        assertEquals("1.6 GB memory · 88% CPU", u.bots[0].text)
+        assertEquals("Not on a bot's screen", u.other?.name)
+        assertNull(json.decodeFromString<ComputerInfo>("""{"state":"stopped"}""").usage)
+    }
+
     @Test fun whatAResetOrAnUpdateAnswers() {
         assertTrue(json.decodeFromString<ComputerChanged>("""{"state":"none","erased":true}""").erased)
         val failed = json.decodeFromString<ComputerChanged>("""{"state":"stopped","updated":false,"error":"Couldn't keep its files"}""")
