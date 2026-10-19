@@ -85,6 +85,7 @@ test('a new computer is on a network of its own and starts with nothing running'
   assert.ok(run.includes('botdot.network-version=2'));
   assert.equal(run[run.indexOf('--user') + 1], 'box');
   assert.ok(!run.includes('--cap-drop'), 'sudo needs Docker\'s default capabilities (ADR 035)');
+  assert.ok(run.includes('--no-healthcheck'), 'the desktop image\'s check asks a port no bot\'s screen uses, so it would say unhealthy (#125)');
   assert.ok(!calls.some((c) => c.args[0] === 'run' && c.args.includes('NET_ADMIN')), 'no second container sets the firewall');
 });
 
