@@ -12,7 +12,7 @@ None was confirmed by the owner for this report. It uses the one the question im
 
 - **A sign of life in time.** After the owner does something, and all through a bot's work, the screen shows within the limits people notice (0.1 s, 1 s, 10 s, see "What works") that the bot took it, is at it, and what it is at.
 
-"Feels alive" is the owner's word and is judged by the owner, as the Milestone 2 research already said (`docs/product/milestone2-research.md:32`).
+"Feels alive" is the owner's word and is judged by the owner, as the Milestone 2 research already said (`docs/archive/product/milestone2-research.md:32`).
 
 ## Observed
 
@@ -45,7 +45,7 @@ Paths under `android/` are shortened to the part after `android/app/src/main/jav
 
 ### While a bot works
 
-11. **One line, by the owner's decision.** A working bot is one status line under its chat, with a pulsing dot in its colour and Stop: "Working", then its opening line (`public/opening-line.js:29-38`, `public/style.css:193-199`; `data/OpeningLine.kt:45-50`, `ui/Components.kt:350-368`). The row in the list says the same (`public/app.js:752`, `ui/HomeScreen.kt:561`). The step bubble and Details of a running run were removed on purpose on 2 Oct 2026 (`docs/product/milestone2.md:175`, `docs/product/feature-working-bot-one-line-test.md`).
+11. **One line, by the owner's decision.** A working bot is one status line under its chat, with a pulsing dot in its colour and Stop: "Working", then its opening line (`public/opening-line.js:29-38`, `public/style.css:193-199`; `data/OpeningLine.kt:45-50`, `ui/Components.kt:350-368`). The row in the list says the same (`public/app.js:752`, `ui/HomeScreen.kt:561`). The step bubble and Details of a running run were removed on purpose on 2 Oct 2026 (`docs/product/milestone2.md:175`, `docs/archive/product/feature-working-bot-one-line-test.md`).
 12. **After the opening line, the line never changes.** The server sends `opening_line` once per run (`lib/bots.js:1331-1336`). Both apps follow the run's stream and throw its steps away: the web page passes an empty function for them (`public/app.js:2790`), Android writes `is RunEvent.Step -> Unit` and `is RunEvent.Text -> Unit` (`ui/ChatModels.kt:228-229`). A run may go on for 60 minutes (`lib/bots.js:1389`).
 13. **The Chief's line does change.** The server sends `activity` for each of the Chief's tool calls, with its own words for some ("Saving a note", "Waiting for Web Surfer") and "Thinking" between them (`lib/chief.js:509-510`, `:717-730`), and both apps draw it (`public/app.js:2561-2562`, `ui/ChatModels.kt:473`).
 14. **One wait has its own words:** "Waiting for your OK", with a still dot, while an action in a connected app waits on a card (`lib/connector-approvals.js:54`, `public/opening-line.js:21`, `public/style.css:199-201`).
@@ -113,7 +113,7 @@ Read against botdot: G1 is a 0.1 s matter, G2 a 1 s to 10 s matter, and G3 lies 
 - In a lazy list, "The animateItem modifier applies default animations to item additions, removals, and moves", and items need keys. https://developer.android.com/develop/ui/compose/lists. botdot's chat rows have keys already (`ui/BotChatScreen.kt:190`).
 - **Material Design's motion guidance could not be read:** https://m3.material.io/styles/motion/overview returned a page without its text. Nothing in this report rests on it. **Unverified.**
 
-**Other products**, from botdot's own earlier note and not opened again: Telegram and Slack both prefer a status that clears itself over a saved "please wait" message (`docs/product/milestone2-research.md:126-127`), which is what the opening line became.
+**Other products**, from botdot's own earlier note and not opened again: Telegram and Slack both prefer a status that clears itself over a saved "please wait" message (`docs/archive/product/milestone2-research.md:126-127`), which is what the opening line became.
 
 ## Tests a change must keep passing
 

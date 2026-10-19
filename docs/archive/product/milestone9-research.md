@@ -2,11 +2,11 @@
 
 Planning status: stage 6 closed on 2026-10-07; next: delivery, starting with MEM-001 or MEM-002.
 
-Date: 2026-10-06. Revision inspected: `main` at `7a175c3` (`57336cb` plus the two planning commits of Milestone 8). `node scripts/agent-local.mjs phase` prints `delivering`: SURE-001 to SURE-005 of [Milestone 8](milestone8.md) are unfinished, SURE-001 and SURE-004 are claimed. Tests rerun: the store's tests (`test/memory.test.js` and `test/memory-semantic.test.js`: 37 pass, 1 skipped), and the audit's store claims were reproduced with node on a temporary database. No botdot server was started and no message was sent. This note is research evidence, not an implementation plan.
+Date: 2026-10-06. Revision inspected: `main` at `7a175c3` (`57336cb` plus the two planning commits of Milestone 8). `node scripts/agent-local.mjs phase` prints `delivering`: SURE-001 to SURE-005 of [Milestone 8](../../product/milestone8.md) are unfinished, SURE-001 and SURE-004 are claimed. Tests rerun: the store's tests (`test/memory.test.js` and `test/memory-semantic.test.js`: 37 pass, 1 skipped), and the audit's store claims were reproduced with node on a temporary database. No botdot server was started and no message was sent. This note is research evidence, not an implementation plan.
 
 ## Why this milestone
 
-On 2026-10-06 the owner handed over [the memory audit](improvements/2026-10-06-memory-audit.md) and asked for a plan that takes in every point of it. The audit read `main` after [Milestone 5](milestone5.md). Since then [Milestone 6](milestone6.md), [Milestone 7](milestone7.md) and the feature "A bot remembers its chat" (CHAT-001) were merged, and Milestone 8 is being delivered. So every claim was read again first.
+On 2026-10-06 the owner handed over [the memory audit](../../product/improvements/2026-10-06-memory-audit.md) and asked for a plan that takes in every point of it. The audit read `main` after [Milestone 5](../../product/milestone5.md). Since then [Milestone 6](../../product/milestone6.md), [Milestone 7](../../product/milestone7.md) and the feature "A bot remembers its chat" (CHAT-001) were merged, and Milestone 8 is being delivered. So every claim was read again first.
 
 ## What the product delivers today
 
@@ -167,9 +167,9 @@ Eight things a plan would get wrong by trusting the audit as written:
 ## Carried forward
 
 - Milestone 8 is in delivery. Its tasks change `startRun`, `finishReport`, `quietRun` and the bots' own routes. Milestone 9 starts from `main` after it merges; the claims above are read again at stage 6. Milestone 8 keeps shared-memory changes inside "Approve all".
-- Milestone 7: real use (B23); its low findings under Follow-up of [milestone7-test.md](milestone7-test.md). One touches memory: a memory review still starts and fails while Claude is signed out.
+- Milestone 7: real use (B23); its low findings under Follow-up of [milestone7-test.md](../../product/milestone7-test.md). One touches memory: a memory review still starts and fails while Claude is signed out.
 - Milestones 3, 5 and 6: real use on the owner's server.
-- [The interaction audit](improvements/2026-10-05-bot-interaction-audit.md): its groups 3 ("One voice") and 4 ("The Chief as helper"), and the rest of group 2, were named for Milestone 8 and not chosen. Its row "Settings panels (bot, jobs, memory): trim to what chat cannot do" meets the memory audit's decision 9.
+- [The interaction audit](../../product/improvements/2026-10-05-bot-interaction-audit.md): its groups 3 ("One voice") and 4 ("The Chief as helper"), and the rest of group 2, were named for Milestone 8 and not chosen. Its row "Settings panels (bot, jobs, memory): trim to what chat cannot do" meets the memory audit's decision 9.
 - Browser tests run in no gate: the repository does not carry Playwright.
 - Improvement reports: "Board" proposals 4 and 5 are marked later.
 - Issues 269, 254 and 9 are not part of this.
@@ -185,7 +185,7 @@ The owner asked for every point of the audit. They fall into six groups, in the 
 5. **The right note arrives.** The lookup, recall with paging, a job's last run, meaning search in the lookup.
 6. **The Chief files a note where it belongs,** and the two apps show the same controls.
 
-Out, whatever is chosen, by the audit's own reasoning: an extraction model or a summariser; a project scope; note types, confidence, importance or expiry columns; a vector database or a reranking model; separate OS users on a Mac; anything that shows costs; the Mac app ([ADR 008](../adr/008-the-mac-app-is-no-longer-developed.md)).
+Out, whatever is chosen, by the audit's own reasoning: an extraction model or a summariser; a project scope; note types, confidence, importance or expiry columns; a vector database or a reranking model; separate OS users on a Mac; anything that shows costs; the Mac app ([ADR 008](../../adr/008-the-mac-app-is-no-longer-developed.md)).
 
 Ten decisions the audit leaves to the owner are taken at stage 3, with the scope.
 
@@ -364,11 +364,11 @@ None. Claude Code's auto memory and subagent memory are files a bot can write, o
 
 ## Decisions of stage 2 and 3
 
-On 2026-10-06 the owner chose the outcome (every point of the audit in one milestone, safety and forgetting first) and took the seventeen decisions listed under Owner decisions in [milestone9.md](milestone9.md): the audit's ten, and seven on the prototype and the scope. Two of them depart from the audit: the apps show no memory screen, and a passing state is kept with its end date. The scope is agreed as written there.
+On 2026-10-06 the owner chose the outcome (every point of the audit in one milestone, safety and forgetting first) and took the seventeen decisions listed under Owner decisions in [milestone9.md](../../product/milestone9.md): the audit's ten, and seven on the prototype and the scope. Two of them depart from the audit: the apps show no memory screen, and a passing state is kept with its end date. The scope is agreed as written there.
 
 ## Uncertainties resolved at stage 4
 
-By reading the code at `7a175c3` and the survey above on 2026-10-06; one thing was looked at outside the repository (the pinned Claude Code binary, searched and not run). Four architecture decisions are proposed: [ADR 014](../adr/014-botdots-memory-is-the-only-memory-a-bot-keeps.md), [ADR 015](../adr/015-the-server-records-who-said-a-note.md), [ADR 016](../adr/016-a-forgotten-note-is-erased-and-a-removed-one-ends.md) and [ADR 017](../adr/017-the-chief-files-a-note-with-a-bot-in-the-owners-turns.md). None of the findings changes the agreed outcome or scope. `CONTEXT.md` has the memory terms the plans use.
+By reading the code at `7a175c3` and the survey above on 2026-10-06; one thing was looked at outside the repository (the pinned Claude Code binary, searched and not run). Four architecture decisions are proposed: [ADR 014](../../adr/014-botdots-memory-is-the-only-memory-a-bot-keeps.md), [ADR 015](../../adr/015-the-server-records-who-said-a-note.md), [ADR 016](../../adr/016-a-forgotten-note-is-erased-and-a-removed-one-ends.md) and [ADR 017](../../adr/017-the-chief-files-a-note-with-a-bot-in-the-owners-turns.md). None of the findings changes the agreed outcome or scope. `CONTEXT.md` has the memory terms the plans use.
 
 - **Does the pinned Claude Code know the private prompt file and the memory switches?** Yes, by its binary: the package of 2.1.284 for `darwin-arm64` holds `--append-system-prompt-file`, `--strict-mcp-config`, `CLAUDE_CODE_DISABLE_AUTO_MEMORY` and `CLAUDE_CODE_DISABLE_CLAUDE_MDS`. Not run: MEM-002 runs it first, and ADR 014 says what botdot does with a `claude` that lacks the flag.
 - **Do the switches take a bot's skills with them?** No, by the documentation: they stop `CLAUDE.md` and auto memory. A bot's skills arrive through `--plugin-dir` (`lib/skills.js`). `--setting-sources` would drop more, and is not proposed.
@@ -392,4 +392,4 @@ On 2026-10-07 Milestone 8 was merged (`main` at `37dd09c`, pull request 277; SUR
 - **Every place the plans name still exists** under its name: `startRun`, `learningNote`, `reviewPrompt`, `noteLearned` and the one `--append-system-prompt` of `lib/bots.js`; the three of `lib/chief.js`, which also start the look; `runAs`; `makeRoom`, `forPrompt`, `ftsQuery`, `relevantFor`, `indexRun`, `removeNote`, `removeOwner`, `prune`, `forgetRunsOfBot`; `sender` in `lib/chat-history.js`; `describeAction` and `perTurn`; `CHIEF_ROUTES`; `finishReport` and `quietRun`; `age` in the live suite; `notesCardHTML`, `#mem-settings` and `[data-learned]` on the web page. Looked up by a search of the merged code; nothing was run.
 - **Still as the audit found it:** no `ALTER TABLE`, no `--strict-mcp-config` for a bot, no switch for Claude Code's own memory, the forgotten text written into `learned`, the six-character note id, "The owner has sent you a message." The Docker image still pins Claude Code 2.1.284.
 - **Changed by Milestone 8, as the plans expected:** a scheduled run that asks a question is no longer quiet; "Approve all" counts what it approves and leaves scripts out, and still takes every waiting memory change, on the web page and on Android. MEM-005, MEM-007 and MEM-008 say to read those functions again first.
-- **Carried forward from Milestone 8:** real use (C18) and the low findings under Follow-up of [milestone8-test.md](milestone8-test.md). Two meet this milestone: the words of a change's card are written once per app and not on the server, which Milestone 9 does for the memory card only; and `test/chief-message-waits.test.js` failed once under load, which a task gate here may meet.
+- **Carried forward from Milestone 8:** real use (C18) and the low findings under Follow-up of [milestone8-test.md](../../product/milestone8-test.md). Two meet this milestone: the words of a change's card are written once per app and not on the server, which Milestone 9 does for the memory card only; and `test/chief-message-waits.test.js` failed once under load, which a task gate here may meet.

@@ -47,7 +47,7 @@ Verified by reading the code at the revision above:
 
 ## Carried forward from Milestone 1
 
-From the review notes in [milestone1-test.md](milestone1-test.md), left for the owner to know and still open: Android notifications show a bot as a plain coloured circle; at most eight marks in Android's "Needs you" row and the Mac's menu bar; browser tests are in no gate because the repository does not carry Playwright. The last one limits how this milestone's web behaviour can be tested automatically.
+From the review notes in [milestone1-test.md](../../product/milestone1-test.md), left for the owner to know and still open: Android notifications show a bot as a plain coloured circle; at most eight marks in Android's "Needs you" row and the Mac's menu bar; browser tests are in no gate because the repository does not carry Playwright. The last one limits how this milestone's web behaviour can be tested automatically.
 
 No task is unfinished and nothing is blocked from outside.
 
@@ -139,6 +139,6 @@ Checked on 2026-10-02 on a throwaway copy of the server (branch `prototype/miles
 | Will a bot write an opening line before its first tool call when told it may? | The shared style was given one exception ("first write one short line saying what you are about to do … under ten words, no tool names"), and three bots were each asked something that needs a tool, one of them in Polish. | Three of three did: "Checking my scheduled jobs.", "Checking my past runs.", "Sprawdzam notatki o dysku." Each line came as text before the first tool call in the event stream, in the owner's language, and was not part of the final reply. Three runs are a small sample; the delivering task repeats the check in its tests with a recorded stream, and the acceptance test with real runs. |
 | Which apps already report the chat on screen? | Read the code. | The web page and the Mac app do (`POST /api/presence`); the Android app does not and has to start. |
 | Can Android draw a bot's head with its hat in a notification? | Read `BotFigure.kt` and `Notifier.kt`. | The head is drawn by a `DrawScope` function and notifications take a bitmap. Drawing the same function into a bitmap is a standard Compose facility; left to the task as a routine choice. |
-| Where does unread state live? | Design question. | Proposed in [ADR 005](../adr/005-read-positions-on-the-server.md), owned by the first task. |
+| Where does unread state live? | Design question. | Proposed in [ADR 005](../../adr/005-read-positions-on-the-server.md), owned by the first task. |
 
 No finding changes the agreed outcome or scope. Nothing is blocked from outside.

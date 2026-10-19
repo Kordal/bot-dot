@@ -17,7 +17,7 @@ Verified by reading the code at the revision above:
 - **The Chief never starts a turn by itself.** A Chief turn starts only from the owner's message, an approved suggestion from a bot, or a bot's result coming back (`lib/chief.js`). The only messages that land in a Chief chat without one are reminders the owner asked for (`remind_me`, `remindersDue()` every 15 seconds) and bots' reports.
 - **The Chief cannot look anything up.** Its tools are botdot's own plus `Read`, `Grep`, `Glob` and `Skill` (`TOOL_ALLOW` in `lib/chief.js`). It has no web search; web research belongs to bots that have `WebSearch` and `WebFetch`.
 - **What botdot knows about the owner.** Shared memory: pinned notes about the owner that every bot and the Chief read on every run, at most 30 notes or 5000 characters, saved with `remember_shared` (`lib/chief.js`, `lib/memory.js`). Past runs and Chief replies are indexed and searchable with `recall` (full-text, optional meaning-based search). A weekly memory review exists per bot.
-- **Nothing records what the owner liked.** There is no reaction, rating or "more like this" anywhere; Milestone 2 excluded reactions. The only signal botdot has is the read position per chat ([ADR 005](../adr/005-read-positions-on-the-server.md)) and whether the owner answered.
+- **Nothing records what the owner liked.** There is no reaction, rating or "more like this" anywhere; Milestone 2 excluded reactions. The only signal botdot has is the read position per chat ([ADR 005](../../adr/005-read-positions-on-the-server.md)) and whether the owner answered.
 - **"In your inbox" exists.** Since Milestone 2 a new reply marks its chat with dots in the list and a "New" line in the chat, on the web page, Android and the Mac, and a notification follows unread state (`lib/read.js`). A Chief message counts as new (`messageCounts`).
 - **"Never in your face" exists in part.** Quiet hours (22:00 to 07:00 unless changed) hold non-urgent scheduled reports until morning (`lib/reporting.js`, `deliverHeldReports` in `lib/bots.js`). Every new reply notifies; there is no kind of reply that shows as new without a notification.
 - **Staying quiet exists for bots.** A scheduled AI job reaches the owner only when the bot calls `notify_owner`; "nothing new" replies are suppressed in many languages (`noNews` in `lib/reporting.js`). Nothing like it exists for the Chief.
@@ -41,11 +41,11 @@ Verified by reading the code at the revision above:
 | Every new reply notifies (verified). "Never in your face." | A proactive message marks the chat as new but sends no notification, or only inside chosen hours. An owner decision at stage 3. |
 | Reviews of Poke say its weak point is judging what is worth telling (reported, not verified). | A hard limit on how often the Chief writes first, and no repeat of a topic it already raised. A loop guard, not a spending cap. |
 | Quiet hours already hold scheduled reports (verified). | Proactive messages respect quiet hours with the same rule. |
-| Low findings left open by Milestone 2's review ([milestone2-test.md](milestone2-test.md)). | Not part of this outcome; listed under "Carried forward". |
+| Low findings left open by Milestone 2's review ([milestone2-test.md](../../product/milestone2-test.md)). | Not part of this outcome; listed under "Carried forward". |
 
 ## Carried forward
 
-From Milestone 2's review, open and for the owner to decide: the medium defect on the Mac (a Chief chat that holds a bot's failed report does not load), and the low findings in the "Follow-up" list of [milestone2-test.md](milestone2-test.md). The Mac defect touches the Chief chat, where this milestone's messages land, so it is a candidate to fix here.
+From Milestone 2's review, open and for the owner to decide: the medium defect on the Mac (a Chief chat that holds a bot's failed report does not load), and the low findings in the "Follow-up" list of [milestone2-test.md](../../product/milestone2-test.md). The Mac defect touches the Chief chat, where this milestone's messages land, so it is a candidate to fix here.
 
 Browser tests are still in no gate (the repository does not carry Playwright).
 
@@ -119,7 +119,7 @@ Checked on 2026-10-03. The look was tried with a throwaway script: one `claude -
 | Can it joke? | Follow-ups listed as used up. | Yes, a joke about the owner's own bots staying quiet. |
 | Can it bring a fresh find from the web? | Asked for a verified recent find only. | It searched (five turns) and answered `NOTHING`: it found nothing it could verify. The path works; a real find was not seen. The delivering task tests it with a recorded turn, and acceptance scenario A14 with real use. |
 | How does the Chief know what it wrote when the owner answers? | Read the code. | Reminders and bots' reports already reach the chat's session on the owner's next turn (`unseen` in `lib/chief.js`). An unasked message uses the same path. |
-| How does a look search the web without the Chief's changing tools? | Design. | [ADR 006](../adr/006-a-look-is-its-own-read-only-chief-session.md), Proposed, owned by CHF-001. |
+| How does a look search the web without the Chief's changing tools? | Design. | [ADR 006](../../adr/006-a-look-is-its-own-read-only-chief-session.md), Proposed, owned by CHF-001. |
 
 Four of five trial runs took one model turn and under 11 seconds. The sample is five runs on eleven-day-old data: it shows the mechanism, not how the owner will judge a week of messages.
 

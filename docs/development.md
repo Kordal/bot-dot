@@ -29,6 +29,8 @@ botdot is only reached through its front door (ADR 028), so `npm start` runs bot
 
 On GitHub, the **Tests** workflow runs them and builds the Android app, on every pull request and before the **Images** and **Android** workflows publish. When a test fails, nothing is published, and the VM and phones keep the last good version. Every workflow runs on GitHub's own throwaway machines, and `test/workflows.test.js` fails when one names any other runner. It also runs the separate-users test as root (`test/users.test.js`) and scans the history for secrets (gitleaks).
 
+`npm test` runs `test/*.test.js` and `tests/theme-parity.test.js`; `tests/integration/` holds the checks the Makefile and the workflows call by path (the link check and the real installs, see `make help`), and `scripts/check-docs.test.mjs` the link check's own tests.
+
 ## Layout
 
 ```

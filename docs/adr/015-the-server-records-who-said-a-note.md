@@ -17,7 +17,7 @@ The schema is `CREATE TABLE IF NOT EXISTS`; no column was ever added to a table 
 
 On 2026-10-06 the owner decided: a note saved after outside content is not "you said", also in a run they started; the weekly review and a scheduled run leave what the owner said alone; a skill written after the bot read the web waits for their OK, after its own commands alone it does not.
 
-OpenClaw sets a note's origin in code from a closed set and never defaults it to the owner ([research note](../product/milestone9-research.md), section 2).
+OpenClaw sets a note's origin in code from a closed set and never defaults it to the owner ([research note](../archive/product/milestone9-research.md), section 2).
 
 ## Decision
 

@@ -1,6 +1,6 @@
 # Feature test: a bot remembers its chat
 
-Test document of the feature "a bot remembers its chat" ([its record](milestone7.md#added-features)), written by its one task, CHAT-001. Nothing changes on the web page or in the Android app: what changes is what a bot is handed when you write to it, so the test is what the bot answers.
+Test document of the feature "a bot remembers its chat" ([its record](../../product/milestone7.md#added-features)), written by its one task, CHAT-001. Nothing changes on the web page or in the Android app: what changes is what a bot is handed when you write to it, so the test is what the bot answers.
 
 ## Review
 

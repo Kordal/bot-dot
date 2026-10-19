@@ -10,7 +10,7 @@ The owner gets messages from the Chief of Staff that they did not ask for (a tip
 - **Sender, chosen by the owner on 2026-10-03:** the Chief of Staff only. A daily note at a fixed time and other bots writing first were considered and not chosen.
 - **Content, chosen by the owner on 2026-10-03:** the owner's world (chats, bots, memory) and fresh finds from the web on topics the owner asked about.
 - **Priority, chosen by the owner on 2026-10-03:** feeling alive. When effort runs short, the regular, friendly voice (jokes included) is kept, and the strictness of staying silent is trimmed first.
-- **Why it matters:** the owner wants a sidekick that "actually gives a damn": always in the inbox, never in the face, with zero noise. Today the Chief never starts a turn by itself, cannot look anything up, and botdot records nothing about what the owner liked. The evidence is in [milestone3-research.md](milestone3-research.md).
+- **Why it matters:** the owner wants a sidekick that "actually gives a damn": always in the inbox, never in the face, with zero noise. Today the Chief never starts a turn by itself, cannot look anything up, and botdot records nothing about what the owner liked. The evidence is in [milestone3-research.md](../archive/product/milestone3-research.md).
 
 ## Journey
 

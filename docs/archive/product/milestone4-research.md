@@ -59,7 +59,7 @@ From the security analysis of 29 September 2026 (`docs/grok-sec-analysis.md`, no
 
 ## Carried forward
 
-- Milestone 3: real use (A14) on the owner's own botdot server and the follow-up list of [milestone3-test.md](milestone3-test.md) are open and for the owner to decide.
+- Milestone 3: real use (A14) on the owner's own botdot server and the follow-up list of [milestone3-test.md](../../product/milestone3-test.md) are open and for the owner to decide.
 - The cancelled Milestone 4: git and `gh` with a saved login. `gh` installed by this milestone would still have no login; that part stays cancelled unless the owner brings it back.
 - Issue 9 (security findings before an open-source release) is open and blocked on the release scan; an install mechanism adds to what that scan must cover.
 - Browser tests are still in no gate (the repository does not carry Playwright).
@@ -154,7 +154,7 @@ Checked on 2026-10-03 with a throwaway trial: micromamba 2.9.0, pixi 0.81.0 and 
 | Does it work when botdot is hosted on a Mac? | The same on a bind mount of the Mac's disk. | In part: installs from an explicit list work; the solver's cache breaks on its second run there, and the mount shows every file as owned by whoever looks, so "only that bot" could not be checked. Assigned to TOOL-001: keep the cache off the data folder, and check on a Mac-hosted botdot what another bot can reach. It does not block the queue. |
 | Can an old app answer the new card? | Read `NeedsYouScreen.kt` and `Needs.swift`. | Yes, as a skill card with an empty name: an unknown kind of ask falls into the skill branch, and the answer goes to the server by the ask's id. |
 | How does a bot reach the Chief with one OK? | Read `lib/self-mcp.js` and `lib/chief.js`. | `send_to_chief` waits for the owner's Approve in a new chat, which would be a second OK. A bot's request for a tool needs its own path that starts a Chief turn; TOOL-001 builds it on the way a bot's report reaches a Chief chat. |
-| How are installs done as root-free as possible, but with a folder the bot cannot write? | Design. | [ADR 007](../adr/007-installed-tools-are-pinned-lists-placed-by-a-tools-user.md), Proposed, owned by TOOL-001. |
+| How are installs done as root-free as possible, but with a folder the bot cannot write? | Design. | [ADR 007](../../adr/007-installed-tools-are-pinned-lists-placed-by-a-tools-user.md), Proposed, owned by TOOL-001. |
 
 Not run: a tampered registry server, signature checks (experimental in micromamba), pixi and mise on amd64, host networking as on the Linux server. The trial is one afternoon on one machine: it shows the mechanism, not a year of updates.
 

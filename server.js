@@ -459,7 +459,7 @@ function allowAction(a, always) {
   return { ok: true, ...(carries ? { carriesOn: { who: 'bot', text: carries === 'started' ? 'it carries on' : 'it carries on when it is free' } } : {}) };
 }
 // A changed bot. The proposal is bound to the values it was made against: a bot that changed since is not
-// overwritten (docs/security-issue-90.md), and the card stays for the owner to decline.
+// overwritten (docs/archive/security-issue-90.md), and the card stays for the owner to decline.
 async function approveChange(a) {
   const bot = B.bots.get(a.botId);
   if (!bot) { asks.take(a.id); throw httpError(404, 'That bot is gone.'); }

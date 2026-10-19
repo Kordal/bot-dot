@@ -86,7 +86,7 @@ also failed before the fix and passes afterwards.
 ## Remaining release work
 
 1. Provision the protected release signing key and pin its public key in all four
-   verifiers. Follow [release-signing.md](release-signing.md); never use the fixture key.
+   verifiers. Follow [release-signing.md](../release-signing.md); never use the fixture key.
 2. Build, scan and sign actual release artifacts and both platform image digests.
    Retain the SBOMs and scan results from that workflow run.
 3. Verify an isolated two-service Compose upgrade, legacy computer migration,

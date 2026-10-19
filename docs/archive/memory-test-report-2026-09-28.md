@@ -30,7 +30,7 @@ All writes used generated test data in temporary directories. The existing GGUF 
 
 **Fix direction:** associate embeddings with a content hash/version; after the asynchronous request, only store vectors whose source still matches. Apply the same guard to run reindexing and deleted records.
 
-Evidence: [race test](../test/memory-semantic.test.js), test name `REGRESSION: editing a note during embedding must not permanently attach a stale vector`; [embedding implementation](../lib/memory.js), `embedPending`.
+Evidence: [race test](../../test/memory-semantic.test.js), test name `REGRESSION: editing a note during embedding must not permanently attach a stale vector`; [embedding implementation](../../lib/memory.js), `embedPending`.
 
 ### 2. `read_run` promises a complete run but returns truncated search data
 
@@ -42,7 +42,7 @@ Evidence: [race test](../test/memory-semantic.test.js), test name `REGRESSION: e
 
 **Fix direction:** keep bounded excerpts in recall results, but have `read_run` load the durable full run record after applying the existing ownership and exclusion checks.
 
-Evidence: [MCP integration test](../test/memory-api.test.js), test name `REGRESSION: read_run must retrieve the complete answer it advertises, including its tail`; [self endpoint](../server.js), [indexing](../lib/memory.js), [tool description](../lib/self-mcp.js).
+Evidence: [MCP integration test](../../test/memory-api.test.js), test name `REGRESSION: read_run must retrieve the complete answer it advertises, including its tail`; [self endpoint](../../server.js), [indexing](../../lib/memory.js), [tool description](../../lib/self-mcp.js).
 
 ### 3. A rebuilt index does not recover existing Chief chats
 
@@ -54,7 +54,7 @@ Evidence: [MCP integration test](../test/memory-api.test.js), test name `REGRESS
 
 **Fix direction:** include durable Chief chat records in backfill, retaining stable message identifiers and deleting records for chats that no longer exist.
 
-Evidence: [restart reproduction](../test/memory-api.test.js), test name `REGRESSION: rebuilding a missing memory index must recover existing Chief chats as well as bot runs`; [startup indexing](../lib/bots.js), `startMemoryIndex`; [Chief reply indexing](../lib/chief.js).
+Evidence: [restart reproduction](../../test/memory-api.test.js), test name `REGRESSION: rebuilding a missing memory index must recover existing Chief chats as well as bot runs`; [startup indexing](../../lib/bots.js), `startMemoryIndex`; [Chief reply indexing](../../lib/chief.js).
 
 ### 4. Edits bypass the pinned-memory character budget
 
@@ -66,7 +66,7 @@ Evidence: [restart reproduction](../test/memory-api.test.js), test name `REGRESS
 
 **Fix direction:** enforce the same combined budget during edits, preserving owner pin locks and explicitly handling an edit that cannot fit.
 
-Evidence: [budget reproduction](../test/memory.test.js), test name `REGRESSION: editing pinned notes must keep the prompt within its character budget`; [note editing](../lib/memory.js), `editNote`.
+Evidence: [budget reproduction](../../test/memory.test.js), test name `REGRESSION: editing pinned notes must keep the prompt within its character budget`; [note editing](../../lib/memory.js), `editNote`.
 
 ### 5. A failed pin changes unrelated notes
 
@@ -78,7 +78,7 @@ Evidence: [budget reproduction](../test/memory.test.js), test name `REGRESSION: 
 
 **Fix direction:** determine whether enough room can be made before mutating, or make the entire pin operation transactional and roll it back on failure.
 
-Evidence: [atomicity reproduction](../test/memory.test.js), test name `REGRESSION: a refused pin must not silently unpin unrelated notes`; [pin implementation](../lib/memory.js), `makeRoom` and `setPinned`.
+Evidence: [atomicity reproduction](../../test/memory.test.js), test name `REGRESSION: a refused pin must not silently unpin unrelated notes`; [pin implementation](../../lib/memory.js), `makeRoom` and `setPinned`.
 
 ### 6. Semantic index accounting includes removed or excluded records
 
@@ -90,7 +90,7 @@ Evidence: [atomicity reproduction](../test/memory.test.js), test name `REGRESSIO
 
 **Fix direction:** clean up vectors for deleted/pruned source records and count only eligible vectors in status. An excluded run's retained vector must not count as an active indexed item.
 
-Evidence: [five cleanup/accounting tests](../test/memory-semantic.test.js), named `REGRESSION: semantic index accounting stays valid after …`; [storage and status implementation](../lib/memory.js).
+Evidence: [five cleanup/accounting tests](../../test/memory-semantic.test.js), named `REGRESSION: semantic index accounting stays valid after …`; [storage and status implementation](../../lib/memory.js).
 
 ## What was exercised
 

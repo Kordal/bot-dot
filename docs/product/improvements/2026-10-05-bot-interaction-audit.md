@@ -1,6 +1,6 @@
 # How the bots interact with the user: an audit
 
-5 Oct 2026. An audit and redesign recommendation the owner asked for; no code was changed. Revision read: `main` at `debefff`, before the feature "Board" was merged: every `file:line` below is of that revision, and the Dashboard it names is now the Board. Its section 8, the quick wins, is the starting point of [Milestone 5](../milestone5-research.md).
+5 Oct 2026. An audit and redesign recommendation the owner asked for; no code was changed. Revision read: `main` at `debefff`, before the feature "Board" was merged: every `file:line` below is of that revision, and the Dashboard it names is now the Board. Its section 8, the quick wins, is the starting point of [Milestone 5](../../archive/product/milestone5-research.md).
 
 **Method.** 64 agents: 21 readers (16 areas, then 5 gaps a completeness critic found), each finding re-checked against the code by a separate verifier told to refute it. 168 findings: 86 confirmed as stated, 82 corrected in detail, 0 refuted. Where a verifier corrected a claim, this report uses the corrected version.
 
@@ -48,7 +48,7 @@
 - Problem: the Chief is told to ask for a yes in chat (`lib/chief.js:110`, `113`), then the server holds the change for a card. A refused tool makes a permission card *and* the Chief's `update_bot` makes a bot-change card for the same grant; approving one makes the other fail with 409 (`server.js:1036`). The chip says "Created"/"Updated" while the change waits (`chief.js:376`; `mcp-server.js:33-42` drops `pendingChange`). The card is not in the Chief chat where the owner asked (`app.js:4455-4458`) and shows field names and two full texts with no diff (`asks.js:121-125`).
 - Impact: the owner hunts for a card worded in internals, to confirm their own sentence.
 - Recommendation: one control point per decision: the card. Drop the chat yes where a card follows; show the card under the Chief's reply in plain words; the chip says what waits.
-- Priority: **High** (keep the gate itself: `docs/security-issue-90.md`)
+- Priority: **High** (keep the gate itself: `docs/archive/security-issue-90.md`)
 
 **7. The phone can approve what it does not show.**
 - Problem: for a bot change or a connected-app action the notification reads "Asks to " and nothing else, with Allow (`server.js:95`, `Notifier.kt:519-527`). A script job is approvable from a notification that shows only its name (`Notifier.kt:254-255`, `server.js:1593`). Android's tile card leaves out scripts in named reads and actions (`Models.kt:479-484`).

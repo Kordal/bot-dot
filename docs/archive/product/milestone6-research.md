@@ -6,7 +6,7 @@ Date: 2026-10-05. Revision inspected: `main` at `6547da9` (Milestone 5 is merged
 
 ## Why this milestone
 
-On 2026-10-05 the owner asked to plan from [the interaction audit](improvements/2026-10-05-bot-interaction-audit.md) again. [Milestone 5](milestone5.md) delivered its section 8, the quick wins, and excluded every structural change of its section 9. Those are the candidates here.
+On 2026-10-05 the owner asked to plan from [the interaction audit](../../product/improvements/2026-10-05-bot-interaction-audit.md) again. [Milestone 5](../../product/milestone5.md) delivered its section 8, the quick wins, and excluded every structural change of its section 9. Those are the candidates here.
 
 ## What the product delivers today
 
@@ -60,9 +60,9 @@ Each remaining finding was looked up again at `6547da9` on 2026-10-05 by reading
 
 ## Carried forward
 
-- Milestone 5: real use (A20) on the owner's server; the low findings under Follow-up of [milestone5-test.md](milestone5-test.md). Those that touch the candidates: a plan's Approve and a reply from a notification send no message key; the chip and the notification name the same grant in two vocabularies; `run_job` still hands the Chief a `costUsd` key; a ring of waiting bots ends only at the timeout.
-- Milestone 4: the low findings of [milestone4-test.md](milestone4-test.md). One touches the candidates: an install's result that waits behind another Chief reply is lost on a restart (`waitingTurns` is in memory).
-- Milestone 3: real use (A14) and the follow-up list of [milestone3-test.md](milestone3-test.md). The audit's "any next message counts as the owner answered" needs an update of [ADR 006](../adr/006-a-look-is-its-own-read-only-chief-session.md).
+- Milestone 5: real use (A20) on the owner's server; the low findings under Follow-up of [milestone5-test.md](../../product/milestone5-test.md). Those that touch the candidates: a plan's Approve and a reply from a notification send no message key; the chip and the notification name the same grant in two vocabularies; `run_job` still hands the Chief a `costUsd` key; a ring of waiting bots ends only at the timeout.
+- Milestone 4: the low findings of [milestone4-test.md](../../product/milestone4-test.md). One touches the candidates: an install's result that waits behind another Chief reply is lost on a restart (`waitingTurns` is in memory).
+- Milestone 3: real use (A14) and the follow-up list of [milestone3-test.md](../../product/milestone3-test.md). The audit's "any next message counts as the owner answered" needs an update of [ADR 006](../../adr/006-a-look-is-its-own-read-only-chief-session.md).
 - Improvement reports: "Board" proposals 4 and 5 are marked later; neither is part of this.
 - Issue 9 (security findings before an open-source release) is open and blocked on the release scan.
 - Browser tests run in no gate; the task gate runs at about 2 of its 3 minutes.
@@ -77,7 +77,7 @@ One of four outcomes, for the owner at stage 2:
 3. **A bot remembers its chat.** The answer with its question, a truthful history. Medium; a session resumed per bot chat would need an ADR.
 4. **One voice and one set of words.** Not chosen on 2026-10-05.
 
-Out, whatever is chosen: the Mac app ([ADR 008](../adr/008-the-mac-app-is-no-longer-developed.md)); new controls (AGENTS.md rule 5); anything that shows costs; removing an approval gate.
+Out, whatever is chosen: the Mac app ([ADR 008](../../adr/008-the-mac-app-is-no-longer-developed.md)); new controls (AGENTS.md rule 5); anything that shows costs; removing an approval gate.
 
 ## Existing solutions
 
@@ -295,7 +295,7 @@ None replaces the product. Three parts of Claude Code need not be built again, e
 
 ## Uncertainties resolved at stage 4
 
-All by reading the code at `6547da9` on 2026-10-05; nothing was run. Two architecture decisions are proposed: [ADR 009](../adr/009-the-botdot-server-carries-on-after-an-ok.md) and [ADR 010](../adr/010-a-connected-app-action-waits-in-its-run.md). None of the findings changes the agreed outcome or scope.
+All by reading the code at `6547da9` on 2026-10-05; nothing was run. Two architecture decisions are proposed: [ADR 009](../../adr/009-the-botdot-server-carries-on-after-an-ok.md) and [ADR 010](../../adr/010-a-connected-app-action-waits-in-its-run.md). None of the findings changes the agreed outcome or scope.
 
 - **Can a bot be started again from a run's record?** Yes. The record keeps the request as the owner wrote it, with no history in it (`prompt`, `customPrompt`), the attachments, which stay in the workspace's `uploads/`, and `trigger`, `jobId`, `startedBy`, `fromBot`, `chainId` (`lib/bots.js:878-895`). Not kept: the Chief's chat, which `chatThatStarted(runId)` finds from the chat files, also after a restart (`lib/chief.js:268-271`); and a one-time job, which is removed as its run starts and must be carried with the work, as QW-009 did for a script's follow-up.
 - **Does the ask know its run?** Not today, and it can. The run id is in scope where a refused tool makes its ask (`lib/bots.js:1024`, during the `result` event, before the run ends) and where `ask_permission` and `ask_skill` make theirs (`server.js:1112`, `1136`); neither passes it. One run can make several asks. A second run that is refused the same permission gets the first run's ask back unchanged (`lib/asks.js:42`), so an ask must keep every run that waits for it.

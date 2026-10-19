@@ -1,6 +1,6 @@
 # Feature "Board": the owner's test
 
-The feature: the owner can find their page of tiles under one name, the Board, and open it while it is empty, on the web page and in the Android app. Tasks BOARD-001 and BOARD-002, from the improvement report [The Dashboard becomes the Board, and shows while empty](improvements/2026-10-04-board-name-and-empty-entry.md).
+The feature: the owner can find their page of tiles under one name, the Board, and open it while it is empty, on the web page and in the Android app. Tasks BOARD-001 and BOARD-002, from the improvement report [The Dashboard becomes the Board, and shows while empty](../../product/improvements/2026-10-04-board-name-and-empty-entry.md).
 
 ## Review
 
