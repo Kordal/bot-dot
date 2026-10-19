@@ -23,7 +23,7 @@ The one Linux computer of an account, a container that stays on, which every bot
 _Avoid_: VM, sandbox, container, a bot's own computer, computers (there is one per account)
 
 **Bot's computer**:
-The account's computer as one bot works on it: its own screen (a desktop with its own browser), which the user can watch live or take control of, and its own folder, `/workspace/<bot id>`. "Own computer" in a bot's settings gives a bot one. A bot's old computer of its own, from before the account's computer, is kept stopped until the owner copies its files and erases it.
+The account's computer as one bot works on it: its own screen (a desktop with its own browser), which the user can watch live or take control of, and its own folder, `/workspace/<bot id>`. "Uses the computer" in a bot's settings gives a bot one; a bot without it has no screen and cannot reach the computer. A bot's old computer of its own, from before the account's computer, is kept stopped until the owner copies its files and erases it.
 _Avoid_: VM, sandbox, desktop
 
 **Group**:

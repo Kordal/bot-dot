@@ -160,7 +160,7 @@ test('web: several parts are drawn in the server\'s order, and several changed t
     { label: 'Connected apps', now: 'Gmail' },
     { label: 'Computer', now: 'its own Linux computer' },
   ];
-  const p = page({ state: { asks: [{ ...ASSIGNMENT, title: 'Change Coder: web access, new main assignment, new rules, Gmail, its own computer?', parts }] } });
+  const p = page({ state: { asks: [{ ...ASSIGNMENT, title: 'Change Coder: web access, new main assignment, new rules, Gmail, the computer?', parts }] } });
   const html = p.needCardHTML(p.item('ask:b2'));
   assert.deepEqual(labels(html), ['Main assignment', 'Rules']);
   assert.deepEqual(changes(html), [[WAS, NOW], ['Never reply to a sender.', 'Never reply to a sender. Never delete mail.']]);

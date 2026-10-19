@@ -3,7 +3,7 @@
 const CHIEF_SUGGESTIONS = [
   'What bots do I have, and what is each one good at?',
   'Create a bot that checks the news on a topic every morning and sends me the highlights.',
-  'Make a bot with its own computer that can use websites for me.',
+  'Make a bot that uses the computer to work on websites for me.',
   'Make a research bot that finds fresh game design ideas on the web.',
 ];
 

@@ -24,12 +24,12 @@ test('each held field has its words; what was given at once has none', () => {
   assert.deepEqual(held({ allowedTools: ['Read', 'WebSearch', 'Bash(git log:*)'] }), ['commands']);
   assert.deepEqual(held({ allowedTools: ['Read', 'WebSearch', 'Edit', 'Write'] }), [], 'files are given at once');
   assert.deepEqual(held({ allowedTools: ['Read'] }), [], 'taking a tool away waits for nothing');
-  assert.deepEqual(held({ computer: 'linux' }), ['its own computer']);
+  assert.deepEqual(held({ computer: 'linux' }), ['the computer']);
   assert.deepEqual(held({ connectors: ['slack', 'gmail', 'notion'] }, (app) => ({ gmail: 'Gmail', notion: 'Notion' })[app]), ['Gmail', 'Notion'], 'only the apps it did not have');
   assert.deepEqual(held({ prompt: 'Another task' }), ['new main assignment']);
   assert.deepEqual(held({ systemPrompt: 'Other rules' }), ['new rules']);
   assert.deepEqual(held({ prompt: 'x', systemPrompt: 'y', allowedTools: ['Bash', 'WebFetch'], computer: 'linux', connectors: ['gmail'] }, () => 'Gmail'),
-    ['web access', 'commands', 'its own computer', 'Gmail', 'new main assignment', 'new rules']);
+    ['web access', 'commands', 'the computer', 'Gmail', 'new main assignment', 'new rules']);
 });
 
 // ---------- the routes ----------
@@ -37,12 +37,12 @@ test('each held field has its words; what was given at once has none', () => {
 test('POST and PUT /api/bots answer `waiting` when the Chief\'s change was held back, and not otherwise', async () => {
   const created = await srv.asChief('/bots', { method: 'POST', body: { name: 'News Watcher', prompt: 'Watch the news.', allowedTools: ['Read', 'WebSearch', 'Bash'], computer: 'linux', connectors: ['gmail'] } });
   assert.equal(created.status, 201, JSON.stringify(created.data));
-  assert.deepEqual(created.data.waiting, ['web access', 'commands', 'its own computer', 'Gmail']);
+  assert.deepEqual(created.data.waiting, ['web access', 'commands', 'the computer', 'Gmail']);
   assert.deepEqual(created.data.allowedTools, ['Read'], 'the bot in the answer is as it was saved');
   assert.ok(created.data.pendingChange);
   // The card of what waits says the same in its title, and who proposed it (docs/api.md, "Things that need the owner").
   const card = (await srv.api('/asks')).data.find((a) => a.id === created.data.pendingChange);
-  assert.deepEqual([card.by, card.title], ['chief', 'Change News Watcher: web access, commands, its own computer and Gmail?']);
+  assert.deepEqual([card.by, card.title], ['chief', 'Change News Watcher: web access, commands, the computer and Gmail?']);
   assert.deepEqual(card.parts.map((p) => [p.label, p.now, 'was' in p]), [['What it may do', 'browse the web and run commands', false], ['Computer', "a screen on the account's computer, which every bot there shares with sudo, on your home network", false], ['Connected apps', 'Gmail', false]]);
   assert.ok(!('chatId' in card), 'made from no chat');
 
@@ -86,7 +86,7 @@ test('create_bot and update_bot return `waiting` and the saved main assignment, 
 
   // Everything of the call waits: said so.
   const all = await call('update_bot', { id: made.id, prompt: 'Watch two prices.', computer: 'linux' });
-  assert.deepEqual(all.waiting, ['its own computer', 'new main assignment']);
+  assert.deepEqual(all.waiting, ['the computer', 'new main assignment']);
   assert.equal(all.prompt, 'Watch the price of one thing.', 'the main assignment as it is saved');
   assert.equal(all.applied, false);
   // Part of it was saved.
@@ -136,7 +136,7 @@ test('the chips name the bot, and say what waits for the owner', async () => {
     ['create_bot', { name: 'Runner' }, { id: 'b2', name: 'Runner', waiting: ['web access', 'commands', 'Gmail'] }],
     ['create_bot', { name: 'Reader' }, { id: 'b3', name: 'Reader' }],
     ['update_bot', { id: 'b1', description: 'd', systemPrompt: 's' }, { id: 'b1', name: 'News Watcher', waiting: ['new rules'] }],
-    ['update_bot', { id: 'b1', prompt: 'p', computer: 'linux' }, { id: 'b1', name: 'News Watcher', waiting: ['its own computer', 'new main assignment'], applied: false }],
+    ['update_bot', { id: 'b1', prompt: 'p', computer: 'linux' }, { id: 'b1', name: 'News Watcher', waiting: ['the computer', 'new main assignment'], applied: false }],
     ['update_bot', { id: 'b3', name: 'Reader' }, { id: 'b3', name: 'Reader' }],
     ['delete_bot', { id: 'b3', userConfirmed: true }, { ok: true, name: 'Reader', computer: 'none', skillsRemoved: 0 }],
     ['delete_bot', { id: 'b9', userConfirmed: true }, { ok: true }],
@@ -146,7 +146,7 @@ test('the chips name the bot, and say what waits for the owner', async () => {
     { kind: 'created', text: 'Created Runner', botId: 'b2', waits: 'web access, commands and Gmail wait for your OK' },
     { kind: 'created', text: 'Created Reader', botId: 'b3' },
     { kind: 'updated', text: 'Updated News Watcher', botId: 'b1', waits: 'new rules waits for your OK' },
-    { kind: 'updated', text: 'News Watcher', botId: 'b1', waits: 'its own computer and new main assignment wait for your OK' },
+    { kind: 'updated', text: 'News Watcher', botId: 'b1', waits: 'the computer and new main assignment wait for your OK' },
     { kind: 'updated', text: 'Updated Reader', botId: 'b3' },
     { kind: 'deleted', text: 'Deleted Reader' },
     { kind: 'deleted', text: 'Deleted b9' },
@@ -160,7 +160,7 @@ test('from the tool to the chip: what the Chief\'s real tools answer reads right
   const gone = await call('delete_bot', { id: made.id, userConfirmed: true });
   const actions = await chips([['create_bot', {}, made], ['update_bot', { id: made.id }, all], ['delete_bot', { id: made.id, userConfirmed: true }, gone]]);
   assert.deepEqual(actions, [
-    { kind: 'created', text: 'Created Home Helper', botId: made.id, waits: 'commands and its own computer wait for your OK' },
+    { kind: 'created', text: 'Created Home Helper', botId: made.id, waits: 'commands and the computer wait for your OK' },
     { kind: 'updated', text: 'Home Helper', botId: made.id, waits: 'new rules waits for your OK' },
     { kind: 'deleted', text: 'Deleted Home Helper' },
   ]);

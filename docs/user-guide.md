@@ -191,7 +191,7 @@ This is the only memory a bot keeps. Claude Code's own memory is switched off fo
 
 ## Bots with a computer
 
-In a bot's settings, switch on **Own computer**, or ask the Chief ("give it its own browser"). The bot then works on the account's computer: one Ubuntu desktop running in Docker that stays on, which every bot with a computer shares, controlled with the mouse, keyboard and screenshots, plus a shell and files ([ADR 035](adr/035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md)). The account has one such computer, however many bots use it.
+In a bot's settings, switch on **Uses the computer**, or ask the Chief ("let it use the computer"). The bot then works on the account's computer: one Ubuntu desktop running in Docker that stays on, which every bot with a computer shares, controlled with the mouse, keyboard and screenshots, plus a shell and files ([ADR 035](adr/035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md)). The account has one such computer, however many bots use it.
 
 **What sharing it means:** there are no walls between the bots there. They all work as the same user, `box`, with sudo, so each bot can read, change and end the others' files and programs, watch their screens and use their browsers' logins, and change anything installed, botdot's helper scripts included (botdot puts its own back at the next start). Any secret botdot types or hands to a command there (a Vault password, card, identity or SSH key) can be read by every bot on the computer while it is used. One bot's runaway program can use up the memory and end another's. Give a computer only to bots you trust with everything the others do there. Other accounts, the botdot server and the machine stay out of its reach.
 

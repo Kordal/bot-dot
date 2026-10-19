@@ -44,7 +44,7 @@ test("a changed bot's card: a title that names what changes, and one part per ch
     { prompt: 'Read the news.\nSend the three best stories.', systemPrompt: 'Never post.', allowedTools: ['Read', 'Bash', 'WebFetch'], computer: 'linux', connectors: ['slack', 'gmail', 'googlecalendar'] },
     { prompt: 'Read the news.', systemPrompt: '', allowedTools: ['Read'], computer: 'none', connectors: ['slack'] },
   );
-  assert.equal(all.title, 'Change News Watcher: web access, commands, its own computer, Gmail, Google Calendar, new main assignment and new rules?');
+  assert.equal(all.title, 'Change News Watcher: web access, commands, the computer, Gmail, Google Calendar, new main assignment and new rules?');
   assert.deepEqual(all.parts, [
     { label: 'Main assignment', was: 'Read the news.', now: 'Read the news.\nSend the three best stories.' },
     { label: 'Rules', was: '', now: 'Never post.' },
@@ -52,7 +52,7 @@ test("a changed bot's card: a title that names what changes, and one part per ch
     { label: 'Computer', now: "a screen on the account's computer, which every bot there shares with sudo, on your home network" },
     { label: 'Connected apps', now: 'Gmail and Google Calendar' },
   ]);
-  assert.equal(card({ prompt: 'p', computer: 'linux' }, { prompt: 'q', computer: 'none' }).title, 'Change News Watcher: its own computer and new main assignment?');
+  assert.equal(card({ prompt: 'p', computer: 'linux' }, { prompt: 'q', computer: 'none' }).title, 'Change News Watcher: the computer and new main assignment?');
   // A text is there in full, and no field's own name reaches the title or a part.
   const long = 'A long task. '.repeat(400);
   assert.equal(card({ prompt: long }, { prompt: `${long}Before.` }).parts[0].now, long);
