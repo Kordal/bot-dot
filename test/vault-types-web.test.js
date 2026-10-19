@@ -52,9 +52,9 @@ test('web: a login-kind item shows its type before its address', () => {
 
 test('web: the line under it reads by type', () => {
   // A login, as before this task.
-  assert.equal(page.vaultItemLine({ type: 'login', username: 'bart' }), '👤 bart · 🔒 secret saved');
+  assert.equal(page.vaultItemLine({ type: 'login', username: 'alice' }), '👤 alice · 🔒 secret saved');
   assert.equal(page.vaultItemLine({ username: '' }), '👤 (no username) · 🔒 secret saved', 'without a type: a login');
-  assert.equal(page.vaultItemLine({ type: 'login', username: 'bart', hasTotp: true, insecureTls: true }), '👤 bart · 🔒 secret saved · two-step code · self-signed certificate OK');
+  assert.equal(page.vaultItemLine({ type: 'login', username: 'alice', hasTotp: true, insecureTls: true }), '👤 alice · 🔒 secret saved · two-step code · self-signed certificate OK');
   // An API token: its token ID, and "token saved".
   assert.equal(page.vaultItemLine({ type: 'api-token', username: 'root@pam!botdot' }), '🆔 root@pam!botdot · 🔒 token saved');
   assert.equal(page.vaultItemLine({ type: 'api-token', username: '' }), '🆔 (no token ID) · 🔒 token saved');
@@ -113,8 +113,8 @@ test('web: the fields of each type: Login a username and a password, API token a
 });
 
 test('web: a saved item keeps its secret when the field is left empty; the username field starts with the stored one, escaped', () => {
-  const saved = page.vaultTypeFields('login', { username: 'bart@example.com', isNew: false });
-  assert.match(saved, /name="username" value="bart@example\.com"/);
+  const saved = page.vaultTypeFields('login', { username: 'alice@example.com', isNew: false });
+  assert.match(saved, /name="username" value="alice@example\.com"/);
   assert.match(saved, /Password <span class="hint">leave empty to keep the current one<\/span><input type="password" name="password" autocomplete="new-password" placeholder="••••••••">/);
   assert.doesNotMatch(saved, /required/);
   const evil = page.vaultTypeFields('api-token', { username: '"><img src=x onerror=1>' });
@@ -155,16 +155,16 @@ test('web: the fields follow the choice at once, and what was typed stays', () =
 });
 
 test('web: a login changed to Other and back shows its stored username again', () => {
-  const { form, choose } = standIn('other', { username: 'bart', isNew: false });
+  const { form, choose } = standIn('other', { username: 'alice', isNew: false });
   assert.equal(form.username, undefined, 'Other: not shown');
   assert.deepEqual(choose('login'), [['Username or email', 'username'], ['Password leave empty to keep the current one', 'password']]);
-  assert.equal(form.username.value, 'bart');
+  assert.equal(form.username.value, 'alice');
   assert.doesNotMatch(form.html, /required/, 'still a saved item');
 });
 
 test('web: Other sends no username; Login and API token send the type and the username', () => {
   const body = (type, username) => page.vaultTypeBody({ type: { value: type }, ...(username === undefined ? {} : { username: { value: username } }) });
-  assert.deepEqual({ ...body('login', 'bart') }, { type: 'login', username: 'bart' });
+  assert.deepEqual({ ...body('login', 'alice') }, { type: 'login', username: 'alice' });
   assert.deepEqual({ ...body('api-token', '') }, { type: 'api-token', username: '' });
   const other = body('other');
   assert.deepEqual({ ...other }, { type: 'other' });
@@ -194,7 +194,7 @@ test('web: the editor has "Usable in its computer", off for a new item, and send
   const submit = editor.slice(at(editor, 'form.onsubmit = async (e) => {'));
   assert.match(submit, /insecureTls: form\.insecureTls\.checked,\s*inComputer: form\.inComputer\.checked,/);
   assert.doesNotMatch(dialog, /inComputer/, 'a bot asking for a login cannot have it marked from there');
-  assert.equal(page.vaultItemLine({ type: 'login', username: 'bart', inComputer: true }), '👤 bart · 🔒 secret saved · usable in its computer');
+  assert.equal(page.vaultItemLine({ type: 'login', username: 'alice', inComputer: true }), '👤 alice · 🔒 secret saved · usable in its computer');
 });
 
 test('web: the note of the editor no longer explains where a token ID goes', () => {

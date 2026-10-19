@@ -8,13 +8,13 @@ botdot gives each person a team of AI bots they run by chat: a Chief of Staff cr
 
 ## Product scope
 
-[Milestone 1](docs/product/milestone1.md): every bot is shown as a head in its colour with a hat, not a dot, on the web page and in the Android and Mac apps; its face shows its state, and Claude picks or draws the hat when the bot is created.
+[Milestone 1](docs/product/milestone1.md): every bot is shown as a head in its colour with a hat, not a dot, on the web page and in the Android app (and in the Mac app, stopped since ADR 031); its face shows its state, and Claude picks or draws the hat when the bot is created.
 
-[Milestone 2](docs/product/milestone2.md): a bot with a new reply shows dots in the list and a "New" line in its chat, a working bot says what it is about to do, the Chief writes each new bot as one job with what it never does, and notifications follow unread state, on the web page and in the Android and Mac apps.
+[Milestone 2](docs/product/milestone2.md): a bot with a new reply shows dots in the list and a "New" line in its chat, a working bot says what it is about to do, the Chief writes each new bot as one job with what it never does, and notifications follow unread state, on the web page and in the Android app (and in the Mac app, stopped since ADR 031).
 
-[Milestone 3](docs/product/milestone3.md): the Chief of Staff writes first, at most three times a day and only when it has something tied to the owner (a follow-up, a tip, a fresh find, a joke), as a plain Chief message with 👍 and 👎 under it, on the web page and in the Android and Mac apps.
+[Milestone 3](docs/product/milestone3.md): the Chief of Staff writes first, at most three times a day and only when it has something tied to the owner (a follow-up, a tip, a fresh find, a joke), as a plain Chief message with 👍 and 👎 under it, on the web page and in the Android app (and in the Mac app, stopped since ADR 031).
 
-[Milestone 4](docs/product/milestone4.md): the Chief of Staff gets a command-line tool installed on the botdot server for one bot, from a registry or a link, without root and only after the owner's OK on a card in Needs you, on the web page and in the Android and Mac apps.
+[Milestone 4](docs/product/milestone4.md): the Chief of Staff gets a command-line tool installed on the botdot server for one bot, from a registry or a link, without root and only after the owner's OK on a card in Needs you, on the web page and in the Android app (and in the Mac app, stopped since ADR 031).
 
 [Milestone 5](docs/product/milestone5.md): the quick wins of the interaction audit: a failed send keeps the message, the phone approves only what it shows, a failed Chief reply looks failed, a hand-off and a requested report always come back, and nine smaller fixes, on the web page and in the Android app.
 

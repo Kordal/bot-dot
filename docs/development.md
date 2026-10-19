@@ -45,7 +45,7 @@ docs/api.md          the API for clients (the Android app): version, the live fe
 android/             the Android app (Kotlin, Jetpack Compose): see android/README.md
 lib/events.js        the live feed (/api/events): runs, the Chief's replies, login requests, approvals
 lib/updates.js       Settings → Updates: checks the registry, and updates botdot through a helper container
-lib/registry.js      the private image registry: signing in with the read-only token, and which image a tag points to
+lib/registry.js      the image registry: signing in with a read-only token when it asks for one, and which image a tag points to
 lib/identity.js      separate users for the Chief and each bot (Docker installs), and who's on the other end of a connection
 lib/uploads.js       files attached to messages, and readable copies of Office and OpenDocument files
 lib/messages.js      bots messaging bots: the inbox and the limits
@@ -53,7 +53,7 @@ lib/backup.js        nightly encrypted backups, and restoring one
 lib/choices.js       quick-answer buttons ([[choices: …]]) and the card of questions ([[ask: …]]) under a reply, and a bot's question in one line
 lib/setup.js         the setup page's data: first-run state, time zone, Claude sign-in from the browser, and whether this Claude Code takes its prompt from a file
 Dockerfile, compose.yaml   the all-in-one image (on the official llama.cpp server image) and how to run it
-.github/workflows/images.yml   builds and publishes the images (Intel + ARM, private)
+.github/workflows/images.yml   builds and publishes the images (Intel + ARM)
 lib/self-mcp.js      a bot's tools for itself: its jobs, and learning (remember, create_skill…)
 lib/jobs.js          scheduled jobs: AI or script, approval, running scripts
 lib/connectors.js    Composio: API key, marketplace, connections, running actions
