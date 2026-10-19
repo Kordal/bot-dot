@@ -152,12 +152,12 @@ To remove botdot, follow [Uninstall](docs/install-linux.md#uninstall).
 botdot's server needs nothing but Node 22.13 or newer.
 
 ```bash
-npm start            # → http://localhost:4747
+npm start            # → http://localhost:4747, with the link to make your passkey
 npm test             # the tests, with a stand-in for Claude
 make lint            # the documentation links
 ```
 
-[Development](docs/development.md) has the setup notes, the tests and the code layout. [AGENTS.md](AGENTS.md) is how work is done in this repository.
+`npm start` runs the server behind its front door, with one account; [Development](docs/development.md) has how to sign in, the setup notes, the tests and the code layout. [AGENTS.md](AGENTS.md) is how work is done in this repository.
 
 ## Documentation
 

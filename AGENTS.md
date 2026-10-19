@@ -111,7 +111,7 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 | `docs/agents/` | What the skills read: the issue tracker (`issue-tracker.md`), the triage labels (`triage-labels.md`) and the domain documents (`domain.md`) |
 | `docs/evidence/` | Screenshots of the tasks completed in Milestone 1; later work records none |
 | `docs/screenshots/` | The README's picture of the web page |
-| `scripts/` | The tests of the documentation link check |
+| `scripts/` | `dev.js`, what `npm start` runs (the server behind the front door, on this machine), and the tests of the documentation link check |
 | `tests/` | Cross-component checks |
 | `server.js`, `lib/` | The botdot server: API, bots, jobs, memory, the Chief's MCP server |
 | `public/` | The web page |

@@ -1,6 +1,8 @@
 # Your bots, runs, chats, skills library and encrypted vault: never commit.
 /data/
 /front-door-data/
+# npm start's front door and setup key (scripts/dev.js)
+/.dev-data/
 # The scratch data of the one local test server (bot-dot-test in .claude/launch.json)
 /.test-data/
 node_modules/
