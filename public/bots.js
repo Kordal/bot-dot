@@ -173,8 +173,8 @@ function renderBotSettings(force = false) {
       <div class="card settings-card bs-rows">
         <div class="bs-row ${docker || b.computer === 'linux' ? '' : 'hidden'}">
           <span class="bs-icon">🖥</span>
-          <div class="grow"><b>Own computer</b><div class="faint">A desktop with a browser, for sites that need real clicking.${b.computer === 'linux' ? ' <button type="button" class="link-btn" data-bs-screen>See its screen</button>' : ''}</div></div>
-          <label class="switch"><input type="checkbox" name="computer" ${b.computer === 'linux' ? 'checked' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'} aria-label="Own computer"><span></span></label>
+          <div class="grow"><b>Uses the computer</b><div class="faint">Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.${b.computer === 'linux' ? ' <button type="button" class="link-btn" data-bs-screen>See its screen</button>' : ''}</div></div>
+          <label class="switch"><input type="checkbox" name="computer" ${b.computer === 'linux' ? 'checked' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'} aria-label="Uses the computer"><span></span></label>
         </div>
         <div class="bs-row">
           <span class="bs-icon">📌</span>

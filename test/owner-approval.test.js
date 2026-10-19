@@ -32,7 +32,7 @@ test('Chief proposals cannot grant tools, a computer or connectors, and stale pr
   const change = { prompt: 'New task', allowedTools: ['Read', 'Bash', 'WebFetch'], computer: 'linux', connectors: ['gmail'] };
   const proposed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { ...change, _by: 'you' } });
   assert.ok(proposed.data.pendingChange);
-  assert.deepEqual(proposed.data.waiting, ['web access', 'commands', 'its own computer', 'Gmail', 'new main assignment'], 'the answer says what was held back');
+  assert.deepEqual(proposed.data.waiting, ['web access', 'commands', 'the computer', 'Gmail', 'new main assignment'], 'the answer says what was held back');
   assert.equal((await srv.api('/asks')).data.find((a) => a.id === proposed.data.pendingChange).text, 'The Chief wants to change its main assignment, what it may do, its computer and its connected apps');
   const before = (await srv.api(`/bots/${bot.id}`)).data;
   assert.equal(before.prompt, 'Owner task');

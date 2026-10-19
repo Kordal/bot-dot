@@ -163,7 +163,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 OutlinedTextField(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
             }
             Section("What it can do") {
-                SwitchRow("Own computer", "A desktop with a browser, for sites that need real clicking.", computer) { computer = it }
+                SwitchRow("Uses the computer", "Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.", computer) { computer = it }
                 if (b.computer == "linux") OutlinedButton(onClick = onScreen) { Text("🖥 See its screen", color = p.text) }
                 val waiting = b.jobs.count { it.waits }
                 androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clickable(onClick = onJobs).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
