@@ -1,6 +1,6 @@
 // Each bot has a screen of its own on the account's computer (#105): botdot keeps a map from bot to screen number,
 // which stays the same across restarts of botdot and is freed when the bot is deleted. Every computer call of a bot
-// goes to its own screen.
+// goes to its own screen, which a call that needs it starts first.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -65,7 +65,7 @@ test("a bot's computer calls go to its own screen; the account's calls stay the 
   const alice = { bot: 'alice', screen: 1 };
   const bob = { bot: 'bob', screen: 2 };
   assert.deepEqual(got, [
-    ['ensure', alice], ['request', bob, '/cmd', { command: 'screenshot' }], ['typeSecret', alice, { op: 'where' }],
+    ['ensure', alice], ['ensure', bob], ['request', bob, '/cmd', { command: 'screenshot' }], ['typeSecret', alice, { op: 'where' }],
     ['startProgram', bob, 'xterm'], ['runWithLogin', alice, { command: 'true' }], ['runWithSshKey', bob, { command: 'true', privateKey: 'k' }],
     ['logs', alice, 50], ['screenState', bob], ['screenPipe', alice], ['inspect', 'alice'], ['reset', 'bob'], ['ensure'],
   ]);
