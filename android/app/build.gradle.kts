@@ -96,7 +96,11 @@ android {
         unitTests.all { it.systemProperty("cronWords", cronWords.path); it.inputs.file(cronWords) }
         // How a reply is read into blocks, as the web page reads it (MarkdownTest).
         val markdownCases = rootProject.file("../test/fixtures/markdown-cases.json")
-        unitTests.all { it.systemProperty("markdownCases", markdownCases.path); it.inputs.file(markdownCases) }
+        val chatLinks = rootProject.file("../test/fixtures/chat-links.json")
+        unitTests.all {
+            it.systemProperty("markdownCases", markdownCases.path); it.inputs.file(markdownCases)
+            it.systemProperty("chatLinks", chatLinks.path); it.inputs.file(chatLinks)
+        }
         // The words of the Vault's item types, as the web page shows them (VaultTypesTest).
         val vaultTypes = rootProject.file("../test/fixtures/vault-types.json")
         unitTests.all { it.systemProperty("vaultTypes", vaultTypes.path); it.inputs.file(vaultTypes) }
