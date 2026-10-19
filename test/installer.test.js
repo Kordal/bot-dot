@@ -1034,7 +1034,7 @@ test("root's step takes no option but its own, and needs an install", (t) => {
 test('each account gets its share: CPU and RAM on its unit and, for its computer, in a file only root writes, and its disk', (t) => {
   const done = rerun(t);
   const home = `${done.dir}/accounts/ann`;
-  // The default share (DEFAULT_SHARE, as the front door's): 2 CPUs, 5 GB of RAM, 30 GB of disk.
+  // The default share (DEFAULT_SHARE, as the front door's): 2 CPUs, 5 GB of RAM (no RAM measured here), 30 GB of disk.
   assert.match(done.system, /^systemctl set-property botdot-account@ann\.service CPUQuota=200% MemoryHigh=4608M MemoryMax=5G$/m, 'hard limits, applied at once and kept');
   assert.equal(fs.readFileSync(path.join(home, 'share', 'share.json'), 'utf8'), '{"cpu":2,"ram":5}\n');
   assert.match(done.system, new RegExp(`^chown 0:0 ${home}/share$`, 'm'), 'root writes it, not the account');
@@ -1057,7 +1057,14 @@ test('each account gets its share: CPU and RAM on its unit and, for its computer
 
 test("the share in the installer is the front door's default", () => {
   const { DEFAULT_SHARE } = require('../lib/front-door/store');
-  assert.match(script, new RegExp(`^DEFAULT_SHARE="${DEFAULT_SHARE.cpu} ${DEFAULT_SHARE.ram} ${DEFAULT_SHARE.disk}"$`, 'm'));
+  assert.match(script, new RegExp(`^DEFAULT_SHARE="${DEFAULT_SHARE.cpu} \\$\\{DEFAULT_RAM:-${DEFAULT_SHARE.ram}\\} ${DEFAULT_SHARE.disk}"$`, 'm'));
+  // Its RAM from the machine's (#126), by the front door's rule.
+  const awk = script.match(/^DEFAULT_RAM="\$\(awk '([^']+)'/m)[1];
+  const { defaultRam } = require('../lib/front-door/store');
+  for (const kb of [4_000_000, 8_000_000, 16_300_000, 65_800_000, 131_000_000]) {
+    const out = require('child_process').execFileSync('awk', [awk], { input: `MemTotal:       ${kb} kB\n` }).toString().trim();
+    assert.equal(Number(out), defaultRam(kb * 1024), `${kb} kB`);
+  }
   assert.doesNotMatch(script, /computers at once|COMPUTERS/, 'a share has no computers at once (#108)');
   // The admin page's use counts the account's one computer, not the bots' old ones.
   assert.match(script, /docker ps -q --filter label=botdot\.computer=account --filter status=running/);

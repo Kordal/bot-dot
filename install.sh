@@ -102,8 +102,10 @@ BIN="$DIR/bin"
 DISKS="$DIR/disks"
 LOAD="$DOOR/load"
 # The share an account has while the front door names none (as DEFAULT_SHARE in lib/front-door/store.js): CPUs, GB of
-# RAM, GB of disk.
-DEFAULT_SHARE="2 5 30"
+# RAM, GB of disk. Its RAM is half the machine's, at least 5 GB (store.js defaultRam): under gVisor a sandbox keeps its
+# file cache in its own memory, so an account held to 4 GB on a 16 GB machine filled it and thrashed its disk (#126).
+DEFAULT_RAM="$(awk '/^MemTotal:/ { g = int(int($2 / 1048576 + 0.5) / 2); print (g < 5 ? 5 : g) }' "$PROC/meminfo" 2>/dev/null || true)"
+DEFAULT_SHARE="2 ${DEFAULT_RAM:-5} 30"
 # An account's disk is full below this many bytes free: the admin page marks it.
 FULL_BELOW=209715200
 

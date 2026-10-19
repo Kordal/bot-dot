@@ -196,3 +196,25 @@ test('the admin page script draws a share and a use as text, and an account neve
     assert.doesNotMatch(html.replace(/<style>[\s\S]*?<\/style>/, ''), /share|load|limit|quota|GB|CPU/i);
   }
 });
+
+test("the default RAM is half the machine's, at least 5 GB, once root's step measured it (#126)", () => {
+  const GiB = 2 ** 30;
+  assert.equal(store.defaultRam(null), store.DEFAULT_SHARE.ram, 'unknown: the fixed default');
+  assert.equal(store.defaultRam(15.6 * GiB), 8, 'a 16 GB machine (as /proc/meminfo has it)');
+  assert.equal(store.defaultRam(4 * GiB), 5, 'never below the fixed default');
+  assert.equal(store.defaultRam(64 * GiB), 32);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-ram-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'front-door.json'), JSON.stringify({ accounts: { ann: { created: '2026-10-01T00:00:00.000Z' } } }));
+    let ram = null;
+    const s = store.open(dir, { machineRam: () => ram });
+    assert.deepEqual(s.defaultShare(), store.DEFAULT_SHARE);
+    ram = 15.6 * GiB;
+    assert.deepEqual(s.defaultShare(), { ...store.DEFAULT_SHARE, ram: 8 });
+    assert.deepEqual(s.listAccounts()[0].share, { ...store.DEFAULT_SHARE, ram: 8 });
+    // A default the admin set stays theirs.
+    s.setDefaultShare({ cpu: 2, ram: 6, disk: 30 });
+    assert.equal(s.defaultShare().ram, 6);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  assert.match(pages.ADMIN_SCRIPT, /Near its RAM: its site may stall\. Give it more RAM\./);
+});
