@@ -31,6 +31,8 @@ On GitHub, the **Tests** workflow runs them and builds the Android app, on every
 
 `npm test` runs `test/*.test.js` and `tests/theme-parity.test.js`; `tests/integration/` holds the checks the Makefile and the workflows call by path (the link check and the real installs, see `make help`), and `scripts/check-docs.test.mjs` the link check's own tests.
 
+`make lint` checks the documentation's links, that every JavaScript file parses (`scripts/check-code.js`), and the types of the files `tsconfig.json` includes (`scripts/typecheck.sh`). Those are marked `// @ts-check` and typed with JSDoc. botdot has no npm dependencies, so the type check fetches a pinned TypeScript with npm into `~/.cache/botdot-tsc`, never into the checkout. Mark a file and add it to `tsconfig.json` to have it checked.
+
 ## Layout
 
 ```

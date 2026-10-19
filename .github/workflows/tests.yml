@@ -70,6 +70,9 @@ jobs:
       # Every relative link in the Markdown files leads somewhere, and the checker's own tests.
       - run: bash tests/integration/check-docs.sh
       - run: node --test scripts/check-docs.test.mjs
+      # Every JavaScript file parses, and the files marked // @ts-check type-check (make lint, #77).
+      - run: node scripts/check-code.js
+      - run: bash scripts/typecheck.sh
 
   # The bots' and the Chief's own Linux users (identity.js): real processes under their users try
   # the owner's controls. Needs root, so in a container.
