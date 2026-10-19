@@ -255,6 +255,67 @@ function wireComposer(form, onSend, uploadTo, chat) {
   };
 }
 
+// Quote (#97, quote.js): text selected in one message of a chat (the Chief's, a bot's, a group's) shows a Quote button
+// by it; a tap adds the text to that chat's message box as a Markdown quote, after what was typed, the cursor after it.
+// Nothing for a selection in the message box, over two messages, or of spaces only. Above the selection with a mouse
+// (the browser's own buttons sit at its end); below it on a touch screen, where the phone's menu is above.
+function initQuote() {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'quote-btn hidden';
+  btn.textContent = 'Quote';
+  document.body.append(btn);
+  // picked: { form, text, range } of the selection shown; held: that one as the button was pressed (a tap may clear
+  // the selection before its click); down: a pointer still selecting.
+  let picked = null, held = null, down = false;
+  const elementOf = (n) => (n?.nodeType === 1 ? n : n?.parentElement);
+  const pick = () => {
+    const sel = getSelection();
+    if (down || !sel || sel.isCollapsed || !sel.rangeCount) return null;
+    const bubble = elementOf(sel.anchorNode)?.closest('.bubble');
+    if (!bubble || bubble !== elementOf(sel.focusNode)?.closest('.bubble') || !bubble.closest('.chat-thread')) return null;
+    const form = $('form.composer', bubble.closest('.view') || document);
+    if (!form) return null;
+    const range = sel.getRangeAt(0);
+    const text = Quote.read(range.cloneContents(), getComputedStyle(bubble).whiteSpace.startsWith('pre'));
+    return Quote.block(text) ? { form, text, range } : null;
+  };
+  const place = () => {
+    picked = pick();
+    btn.classList.toggle('hidden', !picked);
+    if (!picked) return;
+    const r = picked.range.getBoundingClientRect(), w = btn.offsetWidth, h = btn.offsetHeight;
+    const above = r.top - h - 8, below = r.bottom + 8;
+    let top = matchMedia('(pointer: coarse)').matches ? below : above;
+    if (top < 8) top = below;
+    if (top + h > innerHeight - 8) top = Math.max(8, above);
+    btn.style.left = `${Math.max(8, Math.min(r.left, innerWidth - w - 8))}px`;
+    btn.style.top = `${top}px`;
+  };
+  const later = () => requestAnimationFrame(place);
+  document.addEventListener('selectionchange', later);
+  document.addEventListener('pointerdown', (e) => { if (e.target !== btn) { down = true; later(); } });
+  document.addEventListener('pointerup', (e) => { down = false; if (e.target !== btn) later(); });
+  document.addEventListener('pointercancel', () => { down = false; later(); });
+  document.addEventListener('scroll', () => { if (picked) place(); }, true);
+  btn.onpointerdown = (e) => { e.preventDefault(); held = picked; };
+  btn.onmousedown = (e) => e.preventDefault(); // the selection stays until the click
+  btn.onclick = () => {
+    const was = held || picked;
+    picked = held = null;
+    btn.classList.add('hidden');
+    getSelection().removeAllRanges();
+    const ta = was?.form.text;
+    const done = ta && Quote.add(ta.value, was.text);
+    if (!done) return;
+    ta.value = done.text;
+    ta.dispatchEvent(new Event('input')); // the box grows, and it is an edit: a failed message's line goes
+    ta.focus();
+    ta.setSelectionRange(done.cursor, done.cursor);
+    ta.scrollTop = ta.scrollHeight;
+  };
+}
+
 // Send stays (docs/api.md, "A message that waits"): a message to a working bot or a replying Chief waits its
 // turn on the botdot server, and Stop is the word at the end of the working line (placeStatusLines).
 const sendStays = () => state.features.includes('message-waits');
@@ -458,7 +519,7 @@ async function showChat(id) {
   thread._from = chat.offset || 0; // the place of its first row in the whole chat (see chiefArrives)
   wireActions(thread);
   wireChoices(thread, (t, key) => sendFrom(form, () => sendToChief(t, [], key)));
-  $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a')) el.firstElementChild.classList.toggle('clamp'); }));
+  $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
   const build = $('[data-sug-build]', thread);
   if (build) build.onclick = withKey(async (key) => { if (await sendFrom(form, () => sendToChief(PLAN_APPROVAL, [], key))) build.closest('.suggestion-actions')?.remove(); });
   const dismiss = $('[data-sug-dismiss]', thread);

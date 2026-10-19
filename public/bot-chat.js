@@ -149,7 +149,7 @@ function renderBotChat() {
     thread.innerHTML = botThreadHTML(bot, runs, newFirst) + notesFoldHTML(waiting, 'Notes waiting:');
     if (atBottom) thread.scrollTop = thread.scrollHeight;
     scrollToNew(thread);
-    $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a')) el.firstElementChild.classList.toggle('clamp'); }));
+    $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
     $$('[data-details]', thread).forEach((el) => (el.onclick = () => openRun(el.dataset.details)));
     wireChoices(thread, (t, key) => sendFrom($('form', root), () => runBot(bot.id, t, [], key)));
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));

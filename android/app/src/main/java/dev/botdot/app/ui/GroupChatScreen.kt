@@ -336,7 +336,8 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
 
     // Typing "@" in a group suggests its members; a member named in the owner's message is drawn as a mention.
     val mentions = remember(members, chatKey) { Mentions.World(chatKey, members, emptyList()) }
-    CompositionLocalProvider(LocalMentions provides mentions) {
+    // Text selected in a message is quoted into this chat's message box (QuoteUi.kt).
+    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },

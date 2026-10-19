@@ -83,6 +83,9 @@ import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.Attachment
 import dev.botdot.app.data.Mentions
+import dev.botdot.app.data.Quote
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import dev.botdot.app.data.Unread
 import dev.botdot.app.BotDotApp
 import androidx.activity.compose.LocalActivity
@@ -482,7 +485,10 @@ fun MyBubble(text: String, files: List<Attachment>? = null) {
         ) {
             val mentions = LocalMentions.current
             val shown = remember(text, mentions, p.mention) { withMentions(text, mentions, p.mention) }
-            if (text.isNotBlank()) Text(SearchMarks.mark(linkedChatText(shown, p.inkText)), color = p.inkText, style = MaterialTheme.typography.bodyLarge, inlineContent = figureInlines(shown))
+            // Selectable, with Quote in its menu (QuoteUi.kt), as a bot's reply is.
+            if (text.isNotBlank()) QuotableSelection {
+                Text(SearchMarks.mark(linkedChatText(shown, p.inkText)), color = p.inkText, style = MaterialTheme.typography.bodyLarge, inlineContent = figureInlines(shown))
+            }
             if (!files.isNullOrEmpty()) FilesRow(files, onDark = true)
         }
     }
@@ -668,6 +674,17 @@ fun Composer(
         picked = -1
         files.put(failed.attachments)
     }
+    // Text quoted from a message of this chat (QuoteUi.kt): after what is typed, the cursor after it, ready to write.
+    val quotes = LocalQuote.current
+    val focus = remember { FocusRequester() }
+    val quoted = quotes?.pending
+    LaunchedEffect(quoted) {
+        val added = quotes?.take()?.let { Quote.add(text.text, it) } ?: return@LaunchedEffect
+        text = TextFieldValue(added.text, TextRange(added.cursor))
+        picked = -1
+        outbox.edited()
+        runCatching { focus.requestFocus() }
+    }
     // It floats over the messages, which fade out behind it.
     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(p.bg.copy(alpha = 0f), p.bg.copy(alpha = 0.85f), p.bg)))
         .navigationBarsPadding().imePadding().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
@@ -709,7 +726,7 @@ fun Composer(
                     textStyle = TextStyle(color = p.text, fontSize = 16.sp, lineHeight = 22.sp, fontFamily = Geist),
                     cursorBrush = SolidColor(p.text),
                     maxLines = 6,
-                    modifier = Modifier.weight(1f).padding(vertical = 9.dp).heightIn(min = 22.dp),
+                    modifier = Modifier.weight(1f).padding(vertical = 9.dp).heightIn(min = 22.dp).focusRequester(focus),
                     decorationBox = { inner ->
                         Box { if (text.text.isEmpty()) Text(placeholder, color = p.faint, fontSize = 16.sp); inner() }
                     },

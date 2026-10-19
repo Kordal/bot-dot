@@ -136,8 +136,9 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // From a quick answer or a question card: whether it went. What was tapped stays until it did.
     suspend fun sendFrom(text: String, key: String): Boolean = vm.send(text, emptyList(), box = false, key = key).await()
 
-    // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles.
-    CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId)) {
+    // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles. And where Quote
+    // puts text selected in a message: this chat's message box (QuoteUi.kt).
+    CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId), LocalQuote provides remember(botId) { QuoteBox() }) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },

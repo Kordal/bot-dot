@@ -3,6 +3,7 @@
 $('#more-btn').onclick = () => setView('settings');
 initSideGrip();
 initChatGrip();
+initQuote(); // the Quote button by text selected in a chat (chief.js)
 // The pages opened from Settings go back to it.
 document.addEventListener('click', (e) => { if (e.target.closest('[data-to-settings]')) setView('settings'); });
 document.addEventListener('click', (e) => { if (e.target.closest('[data-sign-in]')) setView('setup'); }); // the standing line's "Sign in"
