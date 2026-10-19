@@ -19,7 +19,7 @@ botdot is only reached through its front door (ADR 028), so `npm start` runs bot
 
 - **Claude CLI.** Found automatically: first `CLAUDE_BIN`, then `claude` on your PATH, then the copy inside the Claude desktop app. The CLI must be logged in. If a run says "Not logged in", run the CLI once in a terminal and type `/login`. It must also be new enough to take its prompt from a file (`--append-system-prompt-file`; the one in the Docker image is): with an older one botdot says so when it starts and in Setup, and runs no bot until Claude Code is updated and botdot restarted.
 - **Port.** `PORT=5000 npm start` puts the front door on 5000. The server itself takes a free port of 127.0.0.1, which only the Chief's and the bots' tools use.
-- **Docker.** The bots' computers (their desktops) need Docker. Without it, a bot runs without a computer.
+- **Docker.** The account's computer, where the bots' desktops are, needs Docker. Without it, a bot runs without a computer.
 - **Data.** Bots are stored in `data/bots.json` and run logs in `data/runs/`. Override the folder with `BOT_DOT_DATA`.
 - **Security.** By default the server listens on 127.0.0.1 only. It rejects unknown Host headers and write requests that lack its custom header, so other websites can't trigger bots.
 
@@ -44,7 +44,7 @@ scripts/dev.js       npm start: the server behind the front door, with one accou
 lib/bots.js          bot store, headless runner, scheduler
 lib/chief.js         Chief of Staff chat (multi-turn, via --resume)
 lib/mcp-server.js    MCP tools the Chief uses to manage bots
-lib/computers.js     per-bot Docker desktops (start/stop/reset)
+lib/computers.js     the account's computer (one Docker desktop, a screen per bot): start, update, reset
 lib/computer-mcp.js  mouse/keyboard/screen/shell tools a bot uses on its desktop
 lib/skills.js        skill library, GitHub import, per-run skill plugin
 lib/settings.js      default model and reasoning level (Settings page)

@@ -175,7 +175,7 @@ class VaultTypesTest {
         assertEquals("SHA256:abc", key.fingerprint)
         assertEquals(listOf("SSH key", "SHA256:abc · 🔒 for SSH on a bot's computer, never shown to it"), VaultTypes.sshKeyRows(key))
         assertEquals(listOf("SSH key", "🔒 for SSH on a bot's computer, never shown to it"), VaultTypes.sshKeyRows(key.copy(fingerprint = null)))
-        assertTrue(VaultTypes.itemBotsHint("ssh-key").contains("never sees the private key"))
+        assertTrue(VaultTypes.itemBotsHint("ssh-key").contains("every bot on that computer could read it"))
         assertEquals("Bots that may pay with this card. You still approve every payment.", VaultTypes.itemBotsHint("card"))
         assertEquals("Bots that may type these details into forms.", VaultTypes.itemBotsHint("identity"))
     }

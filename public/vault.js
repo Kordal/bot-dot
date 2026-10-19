@@ -198,7 +198,7 @@ const KIND_ICON = { login: '🔑', card: '💳', identity: '🪪', 'ssh-key': '�
 const ITEM_BOTS_HINT = {
   card: 'Bots that may pay with this card. You still approve every payment in a pop-up.',
   identity: 'Bots that may type these details into forms.',
-  'ssh-key': 'Bots that may use this key for SSH from their own computer. botdot loads it into an ssh-agent there: a bot never sees the private key.',
+  'ssh-key': "Bots that may use this key for SSH from the account's computer. botdot loads it into an ssh-agent there for one command: no file holds the key, but every bot on that computer could read it meanwhile.",
 };
 
 function bitwardenSetupHTML() {

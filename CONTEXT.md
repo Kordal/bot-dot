@@ -1,6 +1,6 @@
 # botdot
 
-A messenger-style app for a team of AI bots, run by a Chief of Staff. Each person has an account on a machine that holds one or more; their account's botdot server holds their bots and data, and the web page and the Android and Mac apps are windows onto it. On Linux, the owner uses the web page; the botdot server and bots' computers still run on Linux.
+A messenger-style app for a team of AI bots, run by a Chief of Staff. Each person has an account on a machine that holds one or more; their account's botdot server holds their bots and data, and the web page and the Android and Mac apps are windows onto it. On Linux, the owner uses the web page; the botdot server and the account's computer still run on Linux.
 
 ## Language
 
@@ -18,8 +18,12 @@ _Avoid_: usual task, task, prompt
 The one special chat that creates, changes and runs the other bots for the user. It counts as a bot when bots message each other. The user may give it a name of its own (asked once in the first-run setup, changed later by asking it); the apps then show that name where they name it, and "Chief of Staff" stays the name of its role.
 _Avoid_: Chief bot, manager, admin
 
+**Account's computer**:
+The one Linux computer of an account, a container that stays on, which every bot with a computer works on at the same time, as the same user (`box`) with sudo. Its memory and CPUs are the account's share. Each bot has a screen of its own there; `/home/box` and `/workspace` are shared. Every bot there can see and change what the others do and read the secrets used there: the screens are separate work surfaces, not walls ([ADR 035](docs/adr/035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md)).
+_Avoid_: VM, sandbox, container, a bot's own computer, computers (there is one per account)
+
 **Bot's computer**:
-A bot's own Linux desktop in a container, with a live screen the user can watch or take control of.
+The account's computer as one bot works on it: its own screen (a desktop with its own browser), which the user can watch live or take control of, and its own folder, `/workspace/<bot id>`. "Own computer" in a bot's settings gives a bot one. A bot's old computer of its own, from before the account's computer, is kept stopped until the owner copies its files and erases it.
 _Avoid_: VM, sandbox, desktop
 
 **Group**:
@@ -219,7 +223,7 @@ A link the admin makes on the admin page for an account that exists, for its own
 _Avoid_: recovery link, reset link, magic link
 
 **Suspended**:
-An account the admin paused: its botdot server and bots' computers are stopped, its data is kept, and its owner sees only "Your account is paused by the admin" until the admin resumes it.
+An account the admin paused: its botdot server and the account's computer are stopped, its data is kept, and its owner sees only "Your account is paused by the admin" until the admin resumes it.
 _Avoid_: disabled, frozen, locked, banned
 
 **Local botdot server**:
