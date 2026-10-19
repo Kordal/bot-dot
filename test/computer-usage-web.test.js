@@ -23,7 +23,7 @@ test('web: a bot\'s settings have no "Keep its computer on", and saving sends no
   vm.runInContext(`${cut('function readBotForm(', '// Switched-off machine/built-in skills')}\nthis.readBotForm = readBotForm;`, ctx);
   const field = (value, checked = false) => ({ value, checked });
   const form = { name: field('Coder'), color: field('#1d9e75'), description: field(''), group: field(''), prompt: field(''), systemPrompt: field(''),
-    computer: field('', true), tools: field(''), permissionMode: field('dontAsk') };
+    computer: field('', true), othersMayAsk: field('', true), tools: field(''), permissionMode: field('dontAsk') };
   const sent = ctx.readBotForm(form, { skills: [], connectors: [], others: [], mayMessage: new Set() });
   assert.equal(sent.computer, 'linux');
   assert.equal('computerAlwaysOn' in sent, false);

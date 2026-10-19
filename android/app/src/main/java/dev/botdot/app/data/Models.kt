@@ -165,6 +165,7 @@ data class Bot(
     val connectors: List<String> = emptyList(),
     val mayMessageAll: Boolean = false, // it may message every other bot, bots made later too
     val mayMessage: List<String> = emptyList(),
+    val othersMayAsk: Boolean? = null, // "Other bots may ask it" (#136); null from a server without it, which shows no switch
     val unread: Int = 0, // its new replies, as the botdot server counts them; 0 from a server without the feature
     val firstUnread: String? = null, // the run that is the first of them in its chat: the "New" line goes there
     // The owner's messages that wait for it (`message-waits`), kept as they came. Read them through [queued].

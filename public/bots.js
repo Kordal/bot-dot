@@ -84,6 +84,7 @@ function readBotForm(form, sel) {
     connectors: [...sel.connectors],
     mayMessageAll: sel.others.every((id) => sel.mayMessage.has(id)),
     mayMessage: [...sel.mayMessage],
+    othersMayAsk: form.othersMayAsk.checked,
     allowedTools: form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean),
     permissionMode: form.permissionMode.value,
     ...readLlmFields(form, 'bot'),
@@ -195,6 +196,11 @@ function renderBotSettings(force = false) {
           <span class="bs-icon">💬</span>
           <div class="grow"><b>May message</b><div id="bot-picks"></div></div>
           <span class="faint bs-chev">›</span>
+        </div>
+        <div class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}">
+          <span class="bs-icon">🔓</span>
+          <div class="grow"><b>Other bots may ask it</b><div class="faint">Off keeps it to you: other bots don't see it among their teammates and can't message it.</div></div>
+          <label class="switch"><input type="checkbox" name="othersMayAsk" ${b.othersMayAsk !== false ? 'checked' : ''} aria-label="Other bots may ask it"><span></span></label>
         </div>
         <button type="button" class="bs-row bs-link" data-bs-jobs>
           <span class="bs-icon">⏰</span>
