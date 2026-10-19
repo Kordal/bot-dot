@@ -71,6 +71,8 @@ data class Job(
     val aiWhen: String? = null,
     val assessment: String = "",
     val notifyUrl: String? = null, // where botdot sends the end of each run (#37); null without one, or from an older server
+    val call: Boolean = false, // it takes calls (`job-calls`)
+    val callMode: String? = null, // "signed" for a job that takes signed calls (#37, `job-call-signed`); null otherwise
     val createdBy: String? = null,
     val changedBy: String? = null,
     val last: JobLast? = null,
