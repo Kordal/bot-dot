@@ -80,6 +80,11 @@ ENV NODE_ENV=production \
     MICROMAMBA_BIN=/usr/local/bin/micromamba \
     PORT=4747
 
+# A file in /tmp keeps it on the container's own disk: under gVisor an empty /tmp becomes a tmpfs in the sandbox's
+# memory, up to half the machine's RAM and outside the account's share, which Claude Code's files filled (#126).
+# The supervisor empties the rest at each start (lib/privilege-broker.js).
+RUN touch /tmp/.botdot-tmp-on-disk
+
 # Keep /root as the persistent server home for upgrades from the former root server.
 # The supervisor migrates application state before starting the server as UID/GID 60000.
 # The home directory stays root-owned and sticky to protect legacy Docker credentials.
