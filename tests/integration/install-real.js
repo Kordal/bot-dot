@@ -14,7 +14,8 @@
 // only the cases whose name contains it; INSTALL_REAL_KEEP leaves the machines there to look at a failure.
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
-const { createStage, REGISTRY, SERVER, DESKTOP, DOMAIN, ADMIN, DIR } = require('./test-install');
+const { spawnSync } = require('node:child_process');
+const { createStage, REGISTRY, SERVER, DESKTOP, DOMAIN, ADMIN, DIR, REGISTRY_IMAGE } = require('./test-install');
 // The names `make images` gives a self-built botdot server's images.
 const SELF_SERVER = 'bot-dot/server:latest', SELF_DESKTOP = 'bot-dot/desktop:latest';
 const HOME = `${DIR}/accounts/${ADMIN}`;
@@ -190,6 +191,55 @@ const cases = [
       assert.doesNotMatch(again, /\/sign-up\//, `once the account is made there is no link:\n${again}`);
       assert.ok(again.includes(ROOT_REACHES));
       answers(machine);
+    },
+  },
+  {
+    // #76: `install.sh --uninstall` after an install leaves nothing of botdot's: no botdot-* user, unit, container,
+    // AppArmor profile or BOT_DOT_DIR, and the machine's Docker still works, with what else it ran.
+    name: 'an uninstall after an install leaves nothing of botdot, and Docker works',
+    async run(machine) {
+      await machine.load(stage.server());
+      machine.publish(stage.server(), `${SERVER}:latest`);
+      machine.sign(`${SERVER}:latest`, { app: 'server' });
+      stage.step('install.sh');
+      machine.install({ BOT_DOT_IMAGE: `${SERVER}:latest` });
+      assert.equal(machine.api('GET', '/api/version').status, 200, 'botdot answers');
+      const uninstall = (input) => spawnSync('docker', ['exec', '-i', machine.name, 'sh', '/root/install.sh', '--uninstall'], { input, encoding: 'utf8', timeout: 10 * 60_000 });
+      const botdotUsers = () => machine.exec('sh', '-c', "getent passwd | cut -d: -f1 | grep '^botdot-' || true");
+      assert.match(botdotUsers(), new RegExp(`^botdot-${ADMIN}$`, 'm'));
+
+      stage.step('install.sh --uninstall, answering no');
+      const no = uninstall('no\n');
+      assert.notEqual(no.status, 0);
+      assert.match(no.stdout, new RegExp(`This removes botdot from this machine for good:\\n.*the front door.*\\n.*the account ${ADMIN}:`));
+      assert.match(no.stdout, /Type yes to remove all of it: /);
+      assert.match(no.stderr, /Nothing was removed\./);
+      assert.equal(machine.api('GET', '/api/version').status, 200, 'botdot still answers');
+
+      stage.step('install.sh --uninstall, answering yes, and yes to the packages');
+      const yes = uninstall('yes\ny\n');
+      assert.equal(yes.status, 0, `the uninstall ends well:\n${yes.stdout}\n${yes.stderr}`);
+      assert.match(yes.stdout, /botdot's installer may have installed these: docker-ce-rootless-extras\./);
+      assert.match(yes.stdout, /botdot is removed from this machine\. Docker and Tailscale stay\./);
+
+      assert.equal(botdotUsers(), '', 'no botdot-* user');
+      assert.equal(machine.exec('sh', '-c', 'ls /etc/systemd/system /etc/systemd/system.control 2>/dev/null | grep botdot || true'), '', 'no unit');
+      assert.equal(machine.exec('sh', '-c', 'cat /proc/[0-9]*/comm 2>/dev/null | grep -c "^rootlesskit$" || true'), '0', "no account's rootless Docker runs");
+      for (const what of ['ps -a', 'volume ls', 'network ls']) {
+        assert.equal(machine.inner(...what.split(' '), '-q', '--filter', 'label=com.docker.compose.project=botdot'), '', `no ${what.split(' ')[0]} of the front door`);
+      }
+      assert.equal(machine.exec('sh', '-c', 'test -e /etc/apparmor.d/botdot-rootlesskit && echo there || echo gone'), 'gone', 'no AppArmor profile');
+      // BOT_DOT_DIR is a volume of the test machine, so its folder stays there, empty.
+      assert.equal(machine.exec('sh', '-c', `ls -A ${DIR} 2>/dev/null || true`), '', `nothing in ${DIR}`);
+      assert.equal(machine.exec('sh', '-c', 'test -e /run/botdot-accounts && echo there || echo gone'), 'gone');
+      assert.equal(machine.exec('sh', '-c', 'grep "^botdot-" /etc/subuid /etc/subgid || true'), '', 'no sub-IDs of an account');
+
+      stage.step('Docker after the uninstall');
+      const status = (p) => machine.exec('sh', '-c', `dpkg-query -W --showformat='\${Status}' ${p} 2>/dev/null || true`);
+      for (const p of ['docker-ce', 'docker-ce-cli', 'containerd.io']) assert.equal(status(p), 'install ok installed', `${p} stays`);
+      assert.notEqual(status('docker-ce-rootless-extras'), 'install ok installed', 'the rootless extras went, as asked');
+      assert.equal(machine.inner('inspect', '--format', '{{.State.Running}}', 'registry'), 'true', 'what else the machine ran runs on');
+      assert.equal(machine.inner('run', '--rm', '--network', 'none', '--entrypoint', 'echo', REGISTRY_IMAGE, 'works'), 'works', 'Docker runs a container');
     },
   },
   {

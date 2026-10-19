@@ -141,20 +141,30 @@ To restore, on the same server or a new one: install botdot, open it, and choose
 
 ## Uninstall
 
-On the server, for each account (here `ann`), stop its botdot server and its Docker, then the front door and the Tailscale Serve setting:
+On the server, from the source you installed with:
+
+```bash
+sudo sh bot-dot-source/install.sh --uninstall
+```
+
+It lists what it removes and asks you to type `yes`, as this can't be undone: the front door, every account (its botdot server, its bots' computers, its rootless Docker, its Linux user `botdot-<name>`, its disk and its data, backups included), the front door's user `botdot-door`, botdot's systemd units, the AppArmor profile `botdot-rootlesskit`, Tailscale Serve's setting for botdot and `/var/lib/botdot` with the passkeys. Download each account's backup first if you want to keep it. Then it asks once more whether to remove the packages the installer may have installed (`runsc`, `docker-ce-rootless-extras` and gVisor's apt source); Docker itself and Tailscale always stay. botdot's images stay in Docker too: `sudo docker image ls` lists them, and `sudo docker image rm` removes one. `BOT_DOT_YES=1` answers the first question and asks nothing, and keeps the packages. Anything it couldn't remove is listed at the end, and running it again finishes what it can.
+
+The source you cloned goes with `rm -rf ~/bot-dot-source`, and on a tailnet the server leaves it in Tailscale's admin console.
+
+### By hand
+
+If the uninstaller can't run, the same steps by hand. For each account (here `ann`), stop its botdot server and its Docker, then the front door and the Tailscale Serve setting:
 
 ```bash
 cd /var/lib/botdot/accounts/ann && sudo DOCKER_HOST=unix:///run/botdot-accounts/ann/docker.sock docker compose down
 sudo systemctl disable --now botdot-account@ann
 sudo umount /var/lib/botdot/accounts/ann
 sudo systemctl disable --now botdot-accounts.path botdot-load.timer
-cd /var/lib/botdot/front-door && sudo docker compose down
+cd /var/lib/botdot/front-door && sudo docker compose down -v
 sudo tailscale serve --https=443 off
 ```
 
-That keeps your data. To remove it too (every account's bots, chats, memory, vault and backups, and the passkeys, for good): `sudo rm -rf /var/lib/botdot`, then `sudo userdel botdot-ann` for each account, `sudo userdel botdot-door` and `sudo rm -r /etc/systemd/system/botdot-account@.service /etc/systemd/system/botdot-accounts.path /etc/systemd/system/botdot-accounts.service /etc/systemd/system/botdot-load.timer /etc/systemd/system/botdot-load.service /etc/systemd/system.control/botdot-account@*.service.d` (the last are the accounts' CPU and RAM shares).
-
-The source you cloned goes with `rm -rf ~/bot-dot-source`, and on a tailnet the server leaves it in Tailscale's admin console.
+That keeps your data. To remove it too (every account's bots, chats, memory, vault and backups, and the passkeys, for good): `sudo rm -rf /var/lib/botdot`, then `sudo userdel botdot-ann` for each account (and its lines in `/etc/subuid` and `/etc/subgid`), `sudo userdel botdot-door`, `sudo rm -r /etc/systemd/system/botdot-account@.service /etc/systemd/system/botdot-accounts.path /etc/systemd/system/botdot-accounts.service /etc/systemd/system/botdot-load.timer /etc/systemd/system/botdot-load.service /etc/systemd/system.control/botdot-account@*.service.d` (the last are the accounts' CPU and RAM shares), and on Ubuntu 24.04 `sudo apparmor_parser -R /etc/apparmor.d/botdot-rootlesskit && sudo rm /etc/apparmor.d/botdot-rootlesskit`.
 
 ## Platforms
 
