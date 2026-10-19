@@ -49,12 +49,14 @@ RUN npm install -g npm@10.9.9 \
 # bots here. Camoufox and botdot's bridge into it run as `browser`, whose home and bridge socket a program of the
 # bots cannot open without sudo, and which may write into box's Downloads folder (#311). /workspace is shared by the
 # bots. The container runs as `box` (lib/computers.js), so the desktop's services write their logs and pid as it.
+# Each bot's Camoufox keeps its own profile in /home/browser/profiles/<bot> (#105).
 RUN useradd --create-home --shell /bin/bash box \
  && useradd --create-home --shell /usr/sbin/nologin --groups box browser \
  && printf 'box ALL=(ALL:ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/botdot-box \
  && chmod 0440 /etc/sudoers.d/botdot-box \
  && visudo -cf /etc/sudoers.d/botdot-box \
  && chmod 0700 /home/browser \
+ && install -d -o browser -g browser -m 0700 /home/browser/profiles \
  && install -d -o box -g box -m 2775 /home/box/Downloads /workspace \
  && install -d -o browser -g browser -m 0700 /run/botdot-browser \
  && install -d -o box -g box -m 0755 /run/botdot-desktop /var/log/supervisor \
@@ -80,7 +82,8 @@ RUN python3 -m venv /opt/camoufox \
 
 COPY camoufox-browser /usr/local/bin/camoufox-browser
 COPY botdot-desktop /usr/local/bin/botdot-desktop
-COPY supervisord.conf /etc/supervisor/supervisord.conf
+# Each bot's screen: one supervisord with this per bot, started by botdot on the bot's first computer tool (#105).
+COPY botdot-screen.conf /etc/supervisor/botdot-screen.conf
 COPY camoufox.desktop /usr/share/applications/camoufox.desktop
 COPY camoufox-helper.desktop /usr/share/xfce4/helpers/camoufox.desktop
 # The bots' installs into box's home without sudo, and a way onto the owner's tailnet in userspace (ADR 032).

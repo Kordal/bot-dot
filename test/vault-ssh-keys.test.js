@@ -26,6 +26,8 @@ const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-ssh-keys-'))
 // A private key of OpenSSH's shape, made up for each run (no real key in the repository, nor its header in one piece).
 const BODY = crypto.randomBytes(300).toString('base64').match(/.{1,70}/g);
 const PRIVATE_KEY = [['-----BEGIN', 'OPENSSH PRIVATE KEY-----'].join(' '), ...BODY, ['-----END', 'OPENSSH PRIVATE KEY-----'].join(' '), ''].join('\n');
+// The bot's seat on the account's computer: screen 1, display :11 (#105).
+const OPS = { bot: 'ops', screen: 1 };
 const PUBLIC_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakePublicKeyForTheTestsOnly0000000000000 tailnet';
 const FINGERPRINT = 'SHA256:fakeFingerprintForTheTestsOnly0000000000000';
 const SSH_ITEM = { id: 'i-ssh', type: 5, name: 'Tailnet servers', sshKey: { privateKey: PRIVATE_KEY, publicKey: PUBLIC_KEY, keyFingerprint: FINGERPRINT } };
@@ -135,7 +137,7 @@ const step = (name) => execs().find((c) => ({
 
 test('runWithSshKey: the agent as the bot, the key as root on stdin only, the command with SSH_AUTH_SOCK, and the agent ended', async () => {
   calls = []; answer = computer();
-  const r = await computers.runWithSshKey('ops', { command: 'ssh admin@server.example.ts.net uptime', privateKey: PRIVATE_KEY, timeoutSeconds: 30 });
+  const r = await computers.runWithSshKey(OPS, { command: 'ssh admin@server.example.ts.net uptime', privateKey: PRIVATE_KEY, timeoutSeconds: 30 });
   assert.deepEqual(r, { code: 0, stdout: ' 10:00:00 up 3 days\n', stderr: '', timedOut: false });
   const name = computers.containerName('ops');
   const agent = step('agent');
@@ -148,7 +150,8 @@ test('runWithSshKey: the agent as the bot, the key as root on stdin only, the co
   const run = step('run');
   assert.deepEqual(run.args.slice(0, 3), ['exec', '-u', 'box']);
   assert.equal(run.args[run.args.indexOf(`SSH_AUTH_SOCK=${AGENT_DIR}/agent`) - 1], '-e');
-  assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '5', '30', 'sh', '-c', 'ssh admin@server.example.ts.net uptime']);
+  assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '5', '30', 'sh', '-c', 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"',
+    'sh', '/workspace/ops', 'ssh admin@server.example.ts.net uptime'], 'in its own folder (#105)');
   const stop = step('stop');
   assert.deepEqual(stop.args.slice(0, 4), ['exec', '-u', 'box', name]);
   assert.deepEqual(stop.args.slice(-2), ['4242', AGENT_DIR]);
@@ -164,31 +167,31 @@ test('runWithSshKey: the agent as the bot, the key as root on stdin only, the co
 
 test('runWithSshKey: no command runs when the agent does not start or the key does not load, and the agent is ended', async () => {
   calls = []; answer = computer({ agent: '' });
-  let r = await computers.runWithSshKey('ops', { command: 'ssh host true', privateKey: PRIVATE_KEY });
+  let r = await computers.runWithSshKey(OPS, { command: 'ssh host true', privateKey: PRIVATE_KEY });
   assert.equal(r.code, null);
   assert.match(r.error, /couldn't start an ssh-agent/);
   assert.ok(!step('load') && !step('run'), 'no key sent, no command run');
 
   calls = []; answer = computer({ agent: '/home/box/evil 1' });
-  r = await computers.runWithSshKey('ops', { command: 'ssh host true', privateKey: PRIVATE_KEY });
+  r = await computers.runWithSshKey(OPS, { command: 'ssh host true', privateKey: PRIVATE_KEY });
   assert.match(r.error, /couldn't start an ssh-agent/, 'only a folder of the shape botdot makes');
   assert.ok(!step('load'));
 
   calls = []; answer = computer({ load: '{"ok": false, "error": "the ssh-agent\'s socket was not the agent botdot started"}' });
-  r = await computers.runWithSshKey('ops', { command: 'ssh host true', privateKey: PRIVATE_KEY });
+  r = await computers.runWithSshKey(OPS, { command: 'ssh host true', privateKey: PRIVATE_KEY });
   assert.deepEqual(r, { code: null, stdout: '', stderr: '', timedOut: false, error: "the ssh-agent's socket was not the agent botdot started" });
   assert.ok(!step('run'), 'no command run');
   assert.ok(step('stop'), 'the agent is ended');
 
   calls = []; answer = computer({ load: 'Traceback…' });
-  r = await computers.runWithSshKey('ops', { command: 'ssh host true', privateKey: PRIVATE_KEY });
+  r = await computers.runWithSshKey(OPS, { command: 'ssh host true', privateKey: PRIVATE_KEY });
   assert.match(r.error, /couldn't load the key/);
   assert.ok(!step('run') && step('stop'));
 });
 
 test('runWithSshKey: a computer made before the bot lost root gets no key', async () => {
   calls = []; answer = computer({ labels: '2|' });
-  const r = await computers.runWithSshKey('old', { command: 'ssh host true', privateKey: PRIVATE_KEY });
+  const r = await computers.runWithSshKey({ bot: 'old', screen: 1 }, { command: 'ssh host true', privateKey: PRIVATE_KEY });
   assert.equal(r.code, null);
   assert.match(r.error, /older than botdot's SSH keys.*reset/);
   assert.equal(execs().length, 0, 'nothing ran in it');
@@ -211,17 +214,18 @@ test('the Docker helper accepts runWithSshKey only in its fixed shape', async (t
     req.on('error', reject); req.end(JSON.stringify(value));
   });
   const good = { command: 'ssh host uptime', privateKey: PRIVATE_KEY, timeoutSeconds: 60 };
-  assert.equal((await call({ operation: 'runWithSshKey', args: ['ops', good] })).data.value.stdout, 'ok');
-  assert.deepEqual(got, [['ops', good]]);
+  assert.equal((await call({ operation: 'runWithSshKey', args: [OPS, good] })).data.value.stdout, 'ok');
+  assert.deepEqual(got, [[OPS, good]]);
   for (const args of [
     ['../host', good],
-    ['ops', { ...good, user: 'root' }],
-    ['ops', { ...good, command: '' }],
-    ['ops', { ...good, privateKey: '' }],
-    ['ops', { ...good, privateKey: 42 }],
-    ['ops', { ...good, privateKey: 'x'.repeat(65537) }],
-    ['ops', { ...good, timeoutSeconds: 601 }],
-    ['ops', good, 'extra'],
+    ['ops', good], // a bot id alone is no screen (#105)
+    [OPS, { ...good, user: 'root' }],
+    [OPS, { ...good, command: '' }],
+    [OPS, { ...good, privateKey: '' }],
+    [OPS, { ...good, privateKey: 42 }],
+    [OPS, { ...good, privateKey: 'x'.repeat(65537) }],
+    [OPS, { ...good, timeoutSeconds: 601 }],
+    [OPS, good, 'extra'],
   ]) assert.equal((await call({ operation: 'runWithSshKey', args })).status, 400, JSON.stringify(args).slice(0, 80));
   assert.equal(got.length, 1);
 });

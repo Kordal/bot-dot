@@ -36,9 +36,11 @@ function answers(machine) {
   return status.body;
 }
 
-// The owner makes a bot with a computer, starts the computer and stops it, as the web page does. The computer
-// is started by the docker-helper from the configured computer image, in the account's Docker, under gVisor.
-function startAndStopComputer(machine, image) {
+// The owner makes a bot with a computer and starts it, as the web page does. Every bot of the account works on its
+// one computer, as box (ADR 035), which the docker-helper starts from the configured computer image, in the
+// account's Docker, under gVisor; the bot gets its own screen and folder on it (#105). A bot cannot stop it: the
+// account's computer stays on for every bot.
+function startComputer(machine, image) {
   const created = machine.api('POST', '/api/bots', { name: 'Acceptance', prompt: 'Check that the install works.', computer: 'linux' });
   assert.equal(created.status, 201, `the bot is made: ${JSON.stringify(created.body)}`);
   const { id } = created.body;
@@ -48,23 +50,22 @@ function startAndStopComputer(machine, image) {
   assert.equal(started.status, 200, `the computer starts: ${JSON.stringify(started.body)}`);
   assert.equal(started.body.state, 'running');
   assert.equal(machine.api('GET', `/api/bots/${id}/computer`).body.state, 'running');
-  // Named after the account's Compose project (#19): botdot-<project>.<bot id>.
-  const container = machine.account(ADMIN, 'ps', '-a', '--filter', `label=botdot.bot=${id}`, '--format', '{{.Names}}');
-  assert.match(container, new RegExp(`^botdot-[a-z0-9_-]+\\.${id}$`), 'one computer, named after its project');
+  // Named after the account's Compose project (#19): botdot-<project>.account.computer.
+  const container = machine.account(ADMIN, 'ps', '-a', '--filter', 'label=botdot.computer=account', '--format', '{{.Names}}');
+  assert.match(container, /^botdot-[a-z0-9_-]+\.account\.computer$/, 'one computer, named after its project');
   const made = JSON.parse(machine.account(ADMIN, 'inspect', container))[0];
   assert.equal(made.State.Status, 'running');
   assert.equal(made.Config.Image, image, 'from the configured computer image');
-  assert.equal(made.Config.User, 'bot', 'the bot works on it as a normal user');
-  assert.equal(made.Config.Labels['botdot.bot'], id);
+  assert.equal(made.Config.User, 'box', 'the bots work on it as box');
+  assert.equal(made.Config.Labels['botdot.computer'], 'account');
   assert.equal(made.HostConfig.Runtime, 'runsc', 'under gVisor');
   assert.throws(() => machine.inner('inspect', container), 'and not in the machine\'s own Docker');
+  assert.equal(machine.account(ADMIN, 'exec', container, 'sh', '-c', `test -d /workspace/${id} && ls /run/botdot-desktop/screen-*.pid >/dev/null && echo yes`), 'yes', 'the bot\'s screen runs, and its folder is made');
 
-  stage.step(`stopping the computer of bot ${id}`);
+  stage.step(`asking to stop the computer of bot ${id}`);
   const stopped = machine.api('POST', `/api/bots/${id}/computer`, { action: 'stop' });
-  assert.equal(stopped.status, 200, `the computer stops: ${JSON.stringify(stopped.body)}`);
-  assert.equal(stopped.body.state, 'stopped');
-  assert.equal(machine.api('GET', `/api/bots/${id}/computer`).body.state, 'stopped');
-  assert.equal(machine.account(ADMIN, 'inspect', '--format', '{{.State.Status}}', container), 'exited');
+  assert.equal(stopped.status, 409, `the account's computer stays on: ${JSON.stringify(stopped.body)}`);
+  assert.equal(machine.account(ADMIN, 'inspect', '--format', '{{.State.Status}}', container), 'running');
   return { id, container };
 }
 
@@ -77,27 +78,26 @@ s = socket.socket(socket.AF_UNIX); s.bind([a.split('=', 1)[1] for a in sys.argv 
 `;
 const SIGNED_IN = JSON.stringify({ _machinekey: Buffer.from('privkey:00').toString('base64'), _profiles: Buffer.from(JSON.stringify({ a1b2: { ID: 'a1b2' } })).toString('base64') });
 
-// What the bot keeps on its computer outlives a stop under gVisor (#68): a file in its home, its SSH folder and its
-// Tailscale login, which botdot starts again as the computer starts. A reset still erases it all.
+// What the bots keep on the account's computer outlives a stop under gVisor (#68), as when the machine restarts: a file
+// in box's home, its SSH folder and its Tailscale login, which botdot starts again as the computer starts. A bot's
+// reset erases only an old computer of its own, never the account's (#104).
 function computerKeepsItsFiles(machine, id, container) {
   const computer = (action) => machine.api('POST', `/api/bots/${id}/computer`, { action });
-  const asBot = (script, ...args) => machine.account(ADMIN, 'exec', '-u', 'bot', '-e', 'HOME=/home/bot', container, 'sh', '-c', script, 'sh', ...args);
-  stage.step(`writing into the home of bot ${id}'s computer, then stopping and starting it`);
+  const asBox = (script, ...args) => machine.account(ADMIN, 'exec', '-u', 'box', '-e', 'HOME=/home/box', container, 'sh', '-c', script, 'sh', ...args);
+  stage.step(`writing into box's home on the account's computer, then stopping it and starting it for bot ${id}`);
   assert.equal(computer('start').status, 200);
-  asBot('set -e; echo kept > ~/kept.txt; mkdir -p ~/.ssh ~/.local/tailscale/bin ~/.local/tailscale/state; echo key > ~/.ssh/id_test'
+  asBox('set -e; echo kept > ~/kept.txt; mkdir -p ~/.ssh ~/.local/tailscale/bin ~/.local/tailscale/state; echo key > ~/.ssh/id_test'
     + '; printf %s "$1" > ~/.local/tailscale/bin/tailscaled; printf "#!/bin/sh\\n" > ~/.local/tailscale/bin/tailscale'
     + '; chmod 755 ~/.local/tailscale/bin/*; printf %s "$2" > ~/.local/tailscale/state/tailscaled.state', TAILSCALED, SIGNED_IN);
-  assert.equal(computer('stop').body.state, 'stopped');
+  machine.account(ADMIN, 'stop', '-t', '5', container);
   assert.equal(computer('start').body.state, 'running');
-  assert.equal(asBot('cat ~/kept.txt ~/.ssh/id_test'), 'kept\nkey', 'the home is there after a stop and a start under gVisor');
-  const tailscaled = JSON.parse(asBot('cat ~/tailscaled.args'));
-  assert.ok(tailscaled.includes('--statedir=/home/bot/.local/tailscale/state'), 'Tailscale is started again from its saved login');
+  assert.equal(asBox('cat ~/kept.txt ~/.ssh/id_test'), 'kept\nkey', 'the home is there after a stop and a start under gVisor');
+  const tailscaled = JSON.parse(asBox('cat ~/tailscaled.args'));
+  assert.ok(tailscaled.includes('--statedir=/home/box/.local/tailscale/state'), 'Tailscale is started again from its saved login');
 
   stage.step(`resetting the computer of bot ${id}`);
-  assert.equal(computer('reset').body.state, 'none');
-  assert.equal(computer('start').body.state, 'running');
-  assert.equal(asBot('ls -A ~/kept.txt ~/.ssh ~/.local/tailscale 2>/dev/null || true'), '', 'a reset erases everything');
-  assert.equal(computer('stop').body.state, 'stopped');
+  assert.equal(computer('reset').body.state, 'running', 'the account\'s computer stays on');
+  assert.equal(asBox('cat ~/kept.txt'), 'kept', 'and keeps what the bots made');
 }
 
 // The admin's account: its own Linux user, its rootless Docker under gVisor, its botdot server in it, its socket.
@@ -183,7 +183,7 @@ const cases = [
       machine.signUp(said);
       const status = answers(machine);
       assert.equal(status.docker.image, true, 'botdot sees the bots\' computer image');
-      const { id, container } = startAndStopComputer(machine, computer);
+      const { id, container } = startComputer(machine, computer);
       computerKeepsItsFiles(machine, id, container);
 
       stage.step('install.sh again');
@@ -305,7 +305,7 @@ const cases = [
       machine.signUp(said);
       const status = answers(machine);
       assert.equal(status.docker.image, true, 'botdot sees the self-built computer image');
-      const { id } = startAndStopComputer(machine, SELF_DESKTOP);
+      const { id } = startComputer(machine, SELF_DESKTOP);
 
       stage.step('an account has no update of its own: the admin updates every account (#473)');
       for (const route of ['/api/updates', '/api/updates/check']) {

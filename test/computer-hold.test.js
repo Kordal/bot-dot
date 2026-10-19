@@ -29,12 +29,14 @@ after(() => { letGo(); B.stopAllRuns(); fs.rmSync(dir, { recursive: true, force:
 // The computers, stubbed: what botdot asked of them, and which ones are on.
 let asked = [];
 const on = new Set();
-Object.assign(B.computers, {
+const STUBS = {
   ensure: async (botId) => { asked.push(['ensure', botId]); on.add(botId); },
   stop: async (botId) => { asked.push(['stop', botId]); on.delete(botId); },
   inspect: async (botId) => ({ state: on.has(botId) ? 'running' : 'stopped' }),
+  screenState: async (botId) => ({ state: on.has(botId) ? 'running' : 'stopped' }), // the bot's own screen (#105)
   setRestartPolicy: async () => {},
-});
+};
+Object.assign(B.computers, STUBS);
 beforeEach(() => { asked = []; on.clear(); });
 const stops = (bot) => asked.filter(([what, id]) => what === 'stop' && id === bot.id).length;
 
@@ -223,6 +225,7 @@ test('a saved hold comes back after a restart of botdot, and the hour still coun
   // botdot starts again: a fresh lib/bots.js reads what was saved in the same data folder.
   for (const m of ['../lib/bots', '../lib/computer-holds']) delete require.cache[require.resolve(m)];
   const again = require('../lib/bots');
+  Object.assign(again.computers, STUBS); // its own view of the computers, by bot id (#105)
   const mine = () => asked.filter(([, id]) => id === bot.id).map(([what]) => what);
   await again.keepHeldComputers(started + 59 * 60_000);
   assert.deepEqual(mine(), ['ensure']);

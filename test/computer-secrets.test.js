@@ -53,14 +53,16 @@ function docker({ state = 'none', network = '2', users = '2', fail = () => false
   };
 }
 const execs = () => calls.filter((c) => c.args[0] === 'exec');
-const bridgeCall = () => execs().find((c) => c.args.at(-1) === '--serve');
+const bridgeCall = () => execs().find((c) => c.args.includes('--serve'));
+// A bot's seat: screen 1, display :11 (#105).
+const seat = (bot) => ({ bot, screen: 1 });
 const helperCalls = () => calls.filter((c) => c.args[0] === 'exec' && c.args.includes('-I'));
 
 beforeEach(() => { calls = []; answer = docker(); });
 
 test("the account's computer runs as box and is marked as such (#311, ADR 035)", async () => {
   answer = docker({ state: 'none' });
-  await computers.ensure('newbot');
+  await computers.ensure(seat('newbot'));
   const runCall = calls.find((c) => c.args[0] === 'run' && c.args.includes('botdot.account.computer'));
   assert.ok(runCall, 'the computer was made');
   const args = runCall.args;
@@ -71,21 +73,22 @@ test("the account's computer runs as box and is marked as such (#311, ADR 035)",
 
 test("the browser's bridge is started as the browser user when the computer starts (#311)", async () => {
   answer = docker({ state: 'none' });
-  await computers.ensure('bridgebot');
+  await computers.ensure(seat('bridgebot'));
   const bridge = bridgeCall();
   assert.ok(bridge, 'the bridge was started');
   assert.deepEqual(bridge.args.slice(0, 4), ['exec', '-d', '-u', 'browser']);
   assert.ok(bridge.args.includes('HOME=/home/browser'));
   assert.ok(bridge.args.includes(`TZ=${computers.timeZone()}`), "the browser it opens shows botdot's time zone");
   assert.ok(bridge.args.includes('XDG_CACHE_HOME=/opt/camoufox-cache'), "it runs root's copy of the browser");
-  assert.deepEqual(bridge.args.slice(-2), ['/usr/local/bin/camoufox-browser', '--serve'],
-    'the launcher keeps its own log, bounded (#355), and nothing else appends to it');
+  assert.deepEqual(bridge.args.slice(-4), ['/usr/local/bin/camoufox-browser', '--serve', ':11', 'bridgebot'],
+    "the bot's own screen and profile (#105); the launcher keeps its own log, bounded (#355), and nothing else appends to it");
+  assert.ok(bridge.args.includes('DISPLAY=:11'), "Camoufox shows on the bot's own screen");
   assert.ok(!bridge.args.some((a) => a.includes('>>') || a.includes('bridge.log')), 'no shell appends to bridge.log (#355)');
 });
 
 test("botdot's browser launcher is written into the computer by root from stdin, not copied with its owner (#311)", async () => {
   answer = docker({ state: 'none' });
-  await computers.ensure('copybot');
+  await computers.ensure(seat('copybot'));
   assert.ok(!calls.some((c) => c.args[0] === 'cp'), 'no docker cp');
   const copy = execs().find((c) => c.args.at(-1).includes('/usr/local/bin/camoufox-browser'));
   assert.ok(copy, 'the launcher was written');
@@ -98,25 +101,26 @@ test("botdot's browser launcher is written into the computer by root from stdin,
 
 test('a computer older than the account computer is kept but stopped, with what to do (#311)', async () => {
   answer = docker({ state: 'stopped', network: '1', users: '' });
-  await assert.rejects(computers.ensure('oldbot'), /kept but stopped\. Export its files and reset it/);
+  await assert.rejects(computers.ensure(seat('oldbot')), /kept but stopped\. Export its files and reset it/);
   assert.ok(calls.some((c) => c.args[0] === 'stop' && c.args.includes('botdot.account.computer')), 'it was stopped');
   assert.ok(!calls.some((c) => c.args[0] === 'start'), 'it was not started');
 });
 
 test('a failed copy of the browser into the computer stops the start instead of going on (#311)', async () => {
   answer = docker({ state: 'none', fail: (args) => args.at(-1).includes('.camoufox-browser.new') });
-  await assert.rejects(computers.ensure('cpbot'), /Could not copy botdot's browser into the computer/);
+  await assert.rejects(computers.ensure(seat('cpbot')), /Could not copy botdot's browser into the computer/);
   assert.ok(!bridgeCall(), 'no bridge was started');
 });
 
 test("typeSecret runs botdot's own copy of the helper as the browser user, the secret only on stdin (#311)", async () => {
   const payload = { site: 'example.com', field: 'password', value: 'synthetic-secret', submit: false };
-  const result = await computers.typeSecret('typebot', payload);
+  const result = await computers.typeSecret(seat('typebot'), payload);
   assert.deepEqual(result, { ok: true });
   const [call] = helperCalls();
   assert.ok(call, 'the helper ran');
   assert.deepEqual(call.args.slice(0, 7), ['exec', '-i', '-u', 'browser', '-w', '/', 'botdot.account.computer']);
-  assert.deepEqual(call.args.slice(7), ['/usr/bin/python3', '-I', '-c', HELPER]);
+  assert.deepEqual(call.args.slice(7), ['/usr/bin/python3', '-I', '-c', HELPER, '/run/botdot-browser/bridge-11.sock'],
+    "to the bridge of the bot's own screen (#105)");
   assert.ok(!call.args.some((a) => a.includes('synthetic-secret')), 'the secret is not in the command line');
   assert.deepEqual(JSON.parse(call.stdin), payload);
   assert.ok(!calls.some((c) => c.args.includes('/usr/local/bin/botdot-type-secret')), 'no file of the computer is run');
@@ -124,7 +128,7 @@ test("typeSecret runs botdot's own copy of the helper as the browser user, the s
 
 test('typeSecret types nothing into a computer older than the account computer (#311)', async () => {
   answer = docker({ state: 'running', users: '' });
-  const result = await computers.typeSecret('oldbot', { site: 'example.com', field: 'password', value: 'synthetic-secret' });
+  const result = await computers.typeSecret(seat('oldbot'), { site: 'example.com', field: 'password', value: 'synthetic-secret' });
   assert.equal(result.ok, false);
   assert.match(result.error, /reset/);
   assert.equal(helperCalls().length, 0, 'nothing was sent');
@@ -132,23 +136,36 @@ test('typeSecret types nothing into a computer older than the account computer (
 
 test("typeSecret sends nothing when botdot's copy of the helper cannot be read (#311)", async (t) => {
   t.mock.method(fs.promises, 'readFile', async () => { throw new Error('EACCES'); });
-  const result = await computers.typeSecret('typebot', { op: 'where' });
+  const result = await computers.typeSecret(seat('typebot'), { op: 'where' });
   assert.equal(result.ok, false);
   assert.equal(helperCalls().length, 0, 'nothing was sent');
 });
 
-test("start_program runs as box in box's home (#311, ADR 035)", async () => {
-  await computers.startProgram('progbot', 'xfce4-terminal');
-  const [call] = execs();
+test("start_program runs as box, on the bot's own screen and in its own folder (#311, ADR 035, #105)", async () => {
+  await computers.startProgram(seat('progbot'), 'xfce4-terminal');
+  await computers.startProgram({ bot: 'other', screen: 2 }, 'xterm');
+  const [call, other] = execs();
   assert.deepEqual(call.args.slice(0, 4), ['exec', '-d', '-u', 'box']);
   assert.ok(call.args.includes('HOME=/home/box'));
   assert.ok(!call.args.includes('HOME=/root'));
-  assert.deepEqual(call.args.slice(-3), ['sh', '-c', 'xfce4-terminal']);
+  assert.ok(call.args.includes('DISPLAY=:11') && other.args.includes('DISPLAY=:12'), 'each on its own screen');
+  assert.deepEqual(call.args.slice(-6), ['sh', '-c', 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"', 'sh', '/workspace/progbot', 'xfce4-terminal']);
+  assert.deepEqual(other.args.slice(-2), ['/workspace/other', 'xterm']);
+});
+
+// The wrapper as it runs: the command starts in the bot's folder, made if it is gone, and is run as given.
+test("a bot's command starts in its own folder, made again if it is gone (#105)", async (t) => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'workspace-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  await computers.startProgram(seat('progbot'), 'true');
+  const wrapper = execs()[0].args.at(-4);
+  const { stdout } = await util.promisify(realExecFile)('sh', ['-c', wrapper, 'sh', path.join(dir, 'alice'), 'pwd; echo "$0"']);
+  assert.deepEqual(stdout.trim().split('\n'), [fs.realpathSync(path.join(dir, 'alice')), 'sh']);
 });
 
 test('a changed time zone ends the browser and its bridge as the browser user, and the bridge starts again (#311)', async () => {
   answer = (args, call) => (args.includes('-u') && args[args.indexOf('-u') + 1] === 'root' && args.includes('sh') ? 'changed' : docker({ state: 'running' })(args, call));
-  await computers.ensure('tzbot');
+  await computers.ensure(seat('tzbot'));
   const close = execs().findIndex((c) => c.args.at(-1).includes('pkill'));
   assert.ok(close >= 0, 'the browser was closed');
   assert.deepEqual(execs()[close].args.slice(0, 3), ['exec', '-u', 'browser']);
@@ -231,4 +248,36 @@ test("the browser's bridge takes secrets only on its socket, and its port only o
   assert.deepEqual(out.where_open, { ok: true, host: 'example.com' });
   assert.deepEqual(out.secret, { ok: true });
   assert.deepEqual(out.typed, ['synthetic-secret'], 'only the secret from the socket was typed');
+  assert.deepEqual(out.is_open_closed, { ok: true, open: false }, 'open_browser asks whether its own Camoufox is open (#105)');
+  assert.deepEqual(out.is_open, { ok: true, open: true });
+});
+
+// Each bot's screen has a bridge of its own (#105): its socket, log and port follow the screen's display, and its
+// Camoufox the bot's own profile. A program on a screen reaches that screen's bridge, through its DISPLAY.
+test("each screen's bridge has its own socket, log, port and the bot's own profile (#105)", { skip: !hasPython() }, async () => {
+  const script = `
+import importlib.machinery, importlib.util, json, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("camoufox_browser", sys.argv[1])
+spec = importlib.util.spec_from_loader("camoufox_browser", loader)
+m = importlib.util.module_from_spec(spec)
+loader.exec_module(m)
+m.for_screen(":21", "alice")
+out = {"socket": m.BRIDGE_SOCKET, "log": m.BRIDGE_LOG, "port": m.OPEN_PORT, "profile": m.PROFILE,
+       "of_display": m.port_of_display(":21"), "of_screen": m.port_of_display(":21.0"), "none": m.port_of_display(None)}
+try:
+    m.for_screen(":21", "../browser")
+    out["bad"] = "taken"
+except SystemExit:
+    out["bad"] = "refused"
+print(json.dumps(out))`;
+  const { stdout } = await util.promisify(realExecFile)('python3', ['-c', script, path.join(__dirname, '..', 'deploy', 'desktop', 'camoufox-browser')], { timeout: 30_000 });
+  const ports = computers.screenPorts({ bot: 'alice', screen: 11 });
+  assert.deepEqual(JSON.parse(stdout), {
+    socket: '/run/botdot-browser/bridge-21.sock', log: '/home/browser/bridge-21.log', port: 47221, profile: '/home/browser/profiles/alice',
+    of_display: 47221, of_screen: 47221, none: 47221, bad: 'refused',
+  });
+  assert.equal(ports.display, ':21');
+  assert.equal(ports.browser, 47221, 'botdot and the launcher agree on the port');
+  assert.equal(ports.socket, '/run/botdot-browser/bridge-21.sock', 'and on the socket');
 });

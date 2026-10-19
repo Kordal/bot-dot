@@ -71,7 +71,7 @@ test("a helper lists only its own old computers, not another app's", async () =>
 });
 
 test("the account's computer is named and labelled with the project, and so is its network", async () => {
-  await alpha.ensure('a2');
+  await alpha.ensure();
   const run = calls.find((a) => a[0] === 'run');
   assert.equal(run[run.indexOf('--name') + 1], 'botdot-alpha.account.computer');
   assert.ok(run.includes('botdot.instance=alpha') && run.includes('botdot.computer=account'));

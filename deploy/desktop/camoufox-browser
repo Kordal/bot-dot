@@ -1,14 +1,19 @@
 #!/opt/camoufox/bin/python
 """Camoufox on the desktop with a persistent profile, and botdot's bridge into it.
 
-camoufox-browser --serve
-    botdot runs this as the browser user when the computer starts. It opens Camoufox when asked and types a
-    saved password, two-step code, card detail or identity detail into the page for botdot, after checking the
-    site and the focused field. {"op": "where"} returns the site the browser is on. Those requests come only
-    over BRIDGE_SOCKET, in a folder only the browser user can open, so no program of the bot can receive or
-    answer them (#311). 127.0.0.1:47111 (inside the container only) takes {"op": "open"} and nothing else.
+camoufox-browser --serve <display> <bot>
+    botdot runs this as the browser user for each bot's screen (#105): one bridge and one Camoufox per screen, on
+    that screen's display and with that bot's own profile. It opens Camoufox when asked and types a saved password,
+    two-step code, card detail or identity detail into the page for botdot, after checking the site and the
+    focused field. {"op": "where"} returns the site the browser is on. Those requests come only over
+    BRIDGE_SOCKET, in a folder only the browser user can open, so no program of the bots that does not use sudo
+    can receive or answer them (#311). 127.0.0.1:OPEN_PORT (inside the container only) takes {"op": "open"} and
+    {"op": "is-open"}, and nothing else.
 camoufox-browser [url]
-    Opens the url in that Camoufox, starting it if it is closed: the dock's browser icon, xdg-open, open_browser.
+    Opens the url in the Camoufox of the screen it is run on (DISPLAY), starting it if it is closed: the dock's
+    browser icon, xdg-open, open_browser.
+camoufox-browser --is-open
+    Exits 0 when the Camoufox of the screen it is run on is open, 1 when not (open_browser).
 
 What the bridge and Camoufox print goes to BRIDGE_LOG, at most LOG_CAP bytes of the latest, and the previous
 run's to BRIDGE_LOG.1 (#355).
@@ -17,6 +22,7 @@ import atexit
 import json
 import os
 import queue
+import re
 import socket
 import socketserver
 import sys
@@ -29,8 +35,33 @@ BRIDGE_SOCKET = "/run/botdot-browser/bridge.sock"
 BRIDGE_LOG = "/home/browser/bridge.log"  # as told in lib/computers.js, above startBrowserBridge
 LOG_CAP = 1024 * 1024
 OPEN_PORT = 47111
+PROFILE = os.path.expanduser("~/.camoufox-profile")
+# Screen :N's bridge port is OPEN_PORT_BASE + N, as lib/computers.js (screenPorts) has it.
+OPEN_PORT_BASE = 47200
+DISPLAY_FORM = re.compile(r"^:([0-9]{1,3})(\.[0-9]+)?$")
+BOT_FORM = re.compile(r"^[a-z0-9][a-z0-9_-]{0,79}$")
 NOT_OPEN = {"ok": False, "error": "Camoufox isn't open. Open the site with open_browser first."}
 requests = queue.Queue()  # (body, reply queue or None), served on the browser's thread
+browser_open = threading.Event()  # Camoufox is open on this screen
+
+
+def for_screen(display, bot):
+    """Point this bridge at screen `display` (":21") and the profile of `bot`: its own socket, log and port."""
+    global BRIDGE_SOCKET, BRIDGE_LOG, OPEN_PORT, PROFILE
+    m = DISPLAY_FORM.match(display or "")
+    if not m or not BOT_FORM.match(bot or ""):
+        raise SystemExit("camoufox-browser --serve takes a display and a bot")
+    n = int(m.group(1))
+    BRIDGE_SOCKET = f"/run/botdot-browser/bridge-{n}.sock"
+    BRIDGE_LOG = f"/home/browser/bridge-{n}.log"
+    OPEN_PORT = OPEN_PORT_BASE + n
+    PROFILE = f"/home/browser/profiles/{bot}"
+
+
+def port_of_display(display):
+    """The bridge port of the screen a program runs on."""
+    m = DISPLAY_FORM.match(display or "")
+    return OPEN_PORT_BASE + int(m.group(1)) if m else OPEN_PORT
 
 
 class BridgeHandler(socketserver.StreamRequestHandler):
@@ -68,6 +99,8 @@ class OpenHandler(BaseHTTPRequestHandler):
         if isinstance(body, dict) and body.get("op") == "open":
             requests.put(({"op": "open", "url": str(body.get("url") or "about:blank")}, None))
             result = {"ok": True}
+        elif isinstance(body, dict) and body.get("op") == "is-open":
+            result = {"ok": True, "open": browser_open.is_set()}
         else:
             result = {"ok": False, "error": "This only opens pages in Camoufox."}
         data = json.dumps(result).encode()
@@ -146,15 +179,15 @@ def type_secret(context, req):
     return {"ok": True}
 
 
-def ask_to_open(url):
-    """Ask the bridge, on its port, to open the URL in Camoufox."""
+def ask_bridge(body, port):
+    """Ask a screen's bridge, on its port: its answer, or {} when none came."""
     try:
-        req = urllib.request.Request(f"http://127.0.0.1:{OPEN_PORT}", json.dumps({"op": "open", "url": url}).encode(),
-                                     {"Content-Type": "application/json"})
+        req = urllib.request.Request(f"http://127.0.0.1:{port}", json.dumps(body).encode(), {"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=40) as res:
-            return json.loads(res.read()).get("ok", False)
+            answer = json.loads(res.read())
+            return answer if isinstance(answer, dict) else {}
     except (OSError, ValueError):
-        return False
+        return {}
 
 
 def bridge_running():
@@ -275,10 +308,11 @@ def run_browser(url):
     from browserforge.fingerprints import Screen
     from camoufox.sync_api import Camoufox
 
+    os.makedirs(PROFILE, mode=0o700, exist_ok=True)
     with Camoufox(
         headless=False,
         persistent_context=True,
-        user_data_dir=os.path.expanduser("~/.camoufox-profile"),
+        user_data_dir=PROFILE,
         os="linux",                      # match the real machine so fonts and platform agree
         screen=Screen(max_width=1024, max_height=768),
         window=(1024, 740),
@@ -292,6 +326,7 @@ def run_browser(url):
             "browser.download.folderList": 2,
         },
     ) as context:
+        browser_open.set()
         closed = threading.Event()
         context.on("close", lambda *_: closed.set())
         page = context.pages[0] if context.pages else context.new_page()
@@ -319,15 +354,21 @@ def run_browser(url):
                 body.clear()
             if reply is not None:
                 reply.put(result)
+    browser_open.clear()
 
 
 def main():
     if sys.argv[1:2] == ["--serve"]:
+        if len(sys.argv) > 2:  # a bot's screen (#105); without, the one shared screen of before
+            for_screen(sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "")
         serve()
         return
+    port = port_of_display(os.environ.get("DISPLAY"))
+    if sys.argv[1:2] == ["--is-open"]:
+        sys.exit(0 if ask_bridge({"op": "is-open"}, port).get("open") else 1)
     url = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else "about:blank"
-    if not ask_to_open(url):
-        print("botdot's browser is not running on this computer.", file=sys.stderr)
+    if not ask_bridge({"op": "open", "url": url}, port).get("ok", False):
+        print("botdot's browser is not running on this screen.", file=sys.stderr)
         sys.exit(1)
 
 
