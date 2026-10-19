@@ -547,7 +547,7 @@ function renderGroupChat() {
     drawReplyMentions(items, key);
     if (atBottom) thread.scrollTop = thread.scrollHeight;
     scrollToNew(thread);
-    $$('[data-expand]', items).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a')) el.firstElementChild.classList.toggle('clamp'); }));
+    $$('[data-expand]', items).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
     $$('[data-details]', items).forEach((el) => (el.onclick = () => openRun(el.dataset.details)));
     // What a member learned in its turn opens that bot's jobs or settings, as in its own chat.
     $$('[data-learned]', items).forEach((el) => (el.onclick = () => {

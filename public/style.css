@@ -1242,3 +1242,6 @@ a.file-chip.link:hover { border-color: var(--faint); }
 /* The Chief's message box: a tap opens the Chief's chat, ready to write in. */
 .kp-chief { flex: none; display: flex; align-items: center; gap: 8px; margin: 6px 12px 10px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 16px; background: transparent; color: var(--faint); font: inherit; font-size: 14px; text-align: left; cursor: text; }
 .kp-chief span { flex: 1; }
+/* Quote (#97, chief.js initQuote): by text selected in a chat message, above it (below on a touch screen). */
+.quote-btn { position: fixed; z-index: 40; border: 1px solid var(--line-2); background: var(--sunk); color: var(--text); padding: 6px 14px; border-radius: 99px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: var(--shadow-lg); }
+.quote-btn:hover { background: var(--line-2); }

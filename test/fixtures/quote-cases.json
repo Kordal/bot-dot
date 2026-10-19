@@ -1,0 +1,32 @@
+{
+  "about": [
+    "Quote (issue #97): text selected in one chat message, added to the message box as a Markdown quote. Every app's Quote is checked against these cases: public/quote.js (web) and Quote.kt (Android).",
+    "blocks: { name, selected, quote }. selected is the text as the selection gives it; quote is what goes in the message box, '' when there is nothing to quote (no button, no menu item).",
+    "The rules: line breaks become \\n and a no-break space a space; each line loses the spaces at its end; blank lines at the start and the end go, and several blank lines in a row are one; each line gets '> ' in front, a blank line '>'. No author name is added.",
+    "adds: { name, draft, selected, text }. draft is what the message box held; text what it holds after Quote, null when nothing is added (the box stays as it was). The cursor is at the end of text.",
+    "The quote goes after the draft: a draft that is only spaces or line breaks goes; any other draft keeps its words, loses the spaces and line breaks at its end, and is followed by a blank line. The quote is followed by a blank line, so the cursor is on a new line after it."
+  ],
+  "blocks": [
+    { "name": "one sentence", "selected": "The backup ran at 3:00.", "quote": "> The backup ran at 3:00." },
+    { "name": "several lines", "selected": "netcup: pilne prace na hoscie (6)\nDoctena: wizyta przelozona i przypomnienie (74, 75)", "quote": "> netcup: pilne prace na hoscie (6)\n> Doctena: wizyta przelozona i przypomnienie (74, 75)" },
+    { "name": "a list stays a list", "selected": "- one\n- two\n  - two and a half", "quote": "> - one\n> - two\n>   - two and a half" },
+    { "name": "a blank line between paragraphs", "selected": "First.\n\nSecond.", "quote": "> First.\n>\n> Second." },
+    { "name": "several blank lines are one", "selected": "First.\n\n\n\nSecond.", "quote": "> First.\n>\n> Second." },
+    { "name": "blank lines at the ends go", "selected": "\n\n  \nMiddle\n \n\n", "quote": "> Middle" },
+    { "name": "spaces at a line's end go, at its start stay", "selected": "  indented   \nnext\t", "quote": ">   indented\n> next" },
+    { "name": "Windows and old Mac line breaks", "selected": "a\r\nb\rc", "quote": "> a\n> b\n> c" },
+    { "name": "a no-break space", "selected": "10 km", "quote": "> 10 km" },
+    { "name": "a quote of a quote", "selected": "> said before", "quote": "> > said before" },
+    { "name": "nothing selected", "selected": "", "quote": "" },
+    { "name": "only spaces and line breaks", "selected": " \n\t\n ", "quote": "" }
+  ],
+  "adds": [
+    { "name": "into an empty box", "draft": "", "selected": "The backup ran.", "text": "> The backup ran.\n\n" },
+    { "name": "after a draft", "draft": "Why?", "selected": "The backup ran.", "text": "Why?\n\n> The backup ran.\n\n" },
+    { "name": "a draft's spaces and line breaks at its end go", "draft": "Why?  \n\n\n", "selected": "The backup ran.", "text": "Why?\n\n> The backup ran.\n\n" },
+    { "name": "a draft of only spaces goes", "draft": "  \n ", "selected": "The backup ran.", "text": "> The backup ran.\n\n" },
+    { "name": "quoting twice keeps the first", "draft": "> First part.\n\n", "selected": "Second part.", "text": "> First part.\n\n> Second part.\n\n" },
+    { "name": "a draft written under a quote", "draft": "> First part.\n\nThis one is wrong.", "selected": "Second part.", "text": "> First part.\n\nThis one is wrong.\n\n> Second part.\n\n" },
+    { "name": "nothing to quote leaves the box", "draft": "Why?", "selected": "  \n", "text": null }
+  ]
+}

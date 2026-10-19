@@ -88,6 +88,9 @@ android {
         val releaseVectors = rootProject.file("../test/fixtures/release-signing/vectors.json")
         unitTests.all { it.systemProperty("releaseVectors", releaseVectors.path); it.inputs.file(releaseVectors) }
         unitTests.all { it.systemProperty("mentionsTable", mentionsTable.path); it.inputs.file(mentionsTable) }
+        // Quote's rules, as the web page follows them (QuoteTest).
+        val quoteCases = rootProject.file("../test/fixtures/quote-cases.json")
+        unitTests.all { it.systemProperty("quoteCases", quoteCases.path); it.inputs.file(quoteCases) }
         // A job's schedule in words, as the server says it (ScheduleWordsTest).
         val cronWords = rootProject.file("../test/fixtures/cron-words.json")
         unitTests.all { it.systemProperty("cronWords", cronWords.path); it.inputs.file(cronWords) }

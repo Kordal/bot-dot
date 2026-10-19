@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -81,7 +80,7 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
             }
         }
     }
-    SelectionContainer(modifier) {
+    QuotableSelection(modifier) { // selectable, with Quote in its menu inside a chat (QuoteUi.kt)
         Column {
             blocks.forEachIndexed { i, b ->
                 val st = styled[i]
