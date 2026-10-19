@@ -15,8 +15,8 @@ test('web: no question for the seven that can be undone or say what they do', ()
   // Each now acts at once.
   assert.match(app, /\$\('#group-remove', m\)\.onclick = \(\) => rename\('', 'Category removed'\);/);
   assert.match(app, /if \(a === 'control'\) pip\.control = !pip\.control;/);
-  assert.match(app, /\$\('#job-decline', m\)\.onclick = \(\) => answer\(false\);/, '"Decline and remove" in the job dialog');
-  assert.match(cut("const approve = $('[data-approve]', card);", "$('.job-approve', card)?.remove();"), /approve\.onclick = async \(\) => \{\s*try \{\s*const job = await api\(`\$\{jobUrl\(\)\}\/approve`/);
+  assert.match(app, /\$\('#job-decline', m\)\.onclick = \(\) => whileBusy\(\$\('#job-decline', m\), 'Declining…', \(\) => answer\(false\)\);/, '"Decline and remove" in the job dialog');
+  assert.match(cut("const approve = $('[data-approve]', card);", "$('.job-approve', card)?.remove();"), /approve\.onclick = \(\) => whileBusy\(approve, 'Approving…', async \(\) => \{\s*try \{\s*const job = await api\(`\$\{jobUrl\(\)\}\/approve`/);
   // Deleting a note and downloading the search model went with the memory screens (MEM-007).
 });
 
@@ -32,7 +32,7 @@ test('web: still asked, unchanged', () => {
     ['erasing a bot\'s old computer (#107)', /if \(!info\?\.old \|\| !confirm\(info\.old\.confirm\)\) return;/],
     ['deleting a skill', /confirm\(`Delete the skill "\$\{k\.name\}"\? Bots that have it will stop using it\.`\)/],
     ['removing a job in the jobs panel', /if \(!confirm\('Remove this job\?'\)\) return;/],
-    ['Decline on a job\'s card in Needs you, of a server whose button does not say that it removes', /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) decide\(x, false\);/],
+    ['Decline on a job\'s card in Needs you, of a server whose button does not say that it removes', /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) whileBusy\(no, 'Declining…', \(\) => decide\(x, false\)\);/],
     ['Always allow', /confirm\('Allow this exact connector action for this bot in future runs, with any arguments\?'\)/],
     ['Always approve', /confirm\(scriptWarning\(x\.bot\.name, x\.job\.name\)\)/],
     ['disconnecting an app', /confirm\(`Disconnect \$\{c\?\.app\?\.name \|\| c\?\.toolkit\}\?/],

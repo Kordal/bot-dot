@@ -225,7 +225,7 @@ function wireJobCard(card, bot) {
   };
   const approve = $('[data-approve]', card);
   // Approve right here (the script is shown in the card).
-  if (approve) approve.onclick = async () => {
+  if (approve) approve.onclick = () => whileBusy(approve, 'Approving…', async () => {
     try {
       const job = await api(`${jobUrl()}/approve`, { method: 'POST', body: { approve: true } });
       $('.job-approve', card)?.remove();
@@ -233,7 +233,7 @@ function wireJobCard(card, bot) {
       toast('Approved');
       refresh();
     } catch (e) { toast(e.message, true); }
-  };
+  });
 }
 
 // A script job's run in the chat: what it printed, no AI involved.
@@ -324,6 +324,6 @@ function openJobApproval(bot, job) {
       refresh();
     } catch (e) { toast(e.message, true); }
   };
-  $('#job-approve', m).onclick = () => answer(true);
-  $('#job-decline', m).onclick = () => answer(false); // the button says what it does
+  $('#job-approve', m).onclick = () => whileBusy($('#job-approve', m), 'Approving…', () => answer(true));
+  $('#job-decline', m).onclick = () => whileBusy($('#job-decline', m), 'Declining…', () => answer(false)); // the button says what it does
 }

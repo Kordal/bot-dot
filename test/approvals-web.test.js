@@ -6,7 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element } = require('./web-page');
+const { app, read, cut, esc, element, whileBusy } = require('./web-page');
 const { page, plain, titleOf, metaOf, thenOf, buttonsOf, CODER, NEWS, BAD } = require('./need-cards');
 const Unread = require('../public/unread.js');
 
@@ -119,7 +119,7 @@ test('web: a job and a tile that wait for their first approval have the server\'
   }
   // No browser question: the button says what it does.
   assert.equal(p.asksBeforeNo(p.item('job:j3')), false);
-  assert.match(cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat'), /if \(no\) no\.onclick = \(\) => \{ if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) decide\(x, false\); \};/);
+  assert.match(cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat'), /if \(no\) no\.onclick = \(\) => \{ if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) whileBusy\(no, 'Declining…', \(\) => decide\(x, false\)\); \};/);
 });
 
 test('web: the server\'s words are text, never markup', async () => {
@@ -337,11 +337,11 @@ test('web: a waiting job, a suggested tile and a changed bot with `then` say who
 // The page's code for a job in the jobs panel, and for the dialog of one waiting job.
 function panel() {
   const opened = [], toasts = [], calls = [];
-  const modal = element({ '#job-approve': {}, '#job-decline': {} }, { close() { modal.closed = true; } });
+  const modal = element({ '#job-approve': element(), '#job-decline': element() }, { close() { modal.closed = true; } });
   const ctx = vm.createContext({
     esc, state: { bots: [], botId: 'coder' }, CRON_PRESETS: [], OpeningLine: { text: (t) => (typeof t === 'string' ? t.trim() : '') }, ago: () => 'just now', shortTime: () => '08:00',
     botById: (id) => ctx.state.bots.find((b) => b.id === id), ToolCard: { is: () => false }, tileScripts: () => [],
-    openModal: (html) => { opened.push(html); return modal; }, toast: (t) => toasts.push(t), refresh() {},
+    openModal: (html) => { opened.push(html); return modal; }, toast: (t) => toasts.push(t), refresh() {}, whileBusy,
     // GET /api/bots/:id/jobs before a yes: the jobs as the server has them now (ctx.jobs; none set: no list).
     api: async (url, opts) => { if (!opts) return ctx.jobs; calls.push([url, opts.body]); return ctx.answer; },
     $: (sel, root) => root.querySelector(sel),
@@ -461,11 +461,11 @@ test('web: a yes in the dialog looks first whether the job is still what the dia
 // The page's own wiring of a card's buttons, with stand-ins for the card, the browser's question and decide.
 function wired(x, { agrees = true } = {}) {
   const asked = [], decided = [];
-  const buttons = { '[data-need-yes]': {}, '[data-need-no]': {}, '[data-need-always]': {} };
+  const buttons = { '[data-need-yes]': element(), '[data-need-no]': element(), '[data-need-always]': element() };
   const card = element(buttons, { dataset: { need: x.key } });
   const ctx = vm.createContext({
     $: (sel, el) => el.querySelector(sel), $$: () => [card], needsOpen: new Set(), openNeed() {}, ToolCard: { is: () => false }, tileScripts: () => [], AI_WHEN_TEXT: {},
-    confirm: (q) => { asked.push(q); return agrees; }, decide: (...a) => decided.push(a.slice(1)),
+    confirm: (q) => { asked.push(q); return agrees; }, decide: (...a) => decided.push(a.slice(1)), whileBusy,
   });
   vm.runInContext(`${cut('// A change that waits beside an approved job or tile', 'function pendingJobs() {')}
     ${cut('// Words of the server\'s that a card draws', '// Who carries on after a yes')}
