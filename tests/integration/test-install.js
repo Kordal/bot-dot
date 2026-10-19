@@ -93,11 +93,13 @@ function buildServer(tag, temp) {
   docker('build', '-q', '-f', path.join(temp, 'server.Dockerfile'), '-t', tag, context);
 }
 
-// The bots' computer: what lib/computers.js needs of cua's desktop to start one, stop it and secure its
-// network, and nothing else. Its users bot and browser, python3 (botdot reaches the computer through it),
-// iptables (the computer's firewall), a computer-server that answers /status, and the label of a desktop made
-// since the bot lost root. The browser bridge's interpreter ends at once: the stand-in has no Camoufox.
-const COMPUTER_SERVER = `# The stand-in for cua's computer-server: it answers /status, which botdot waits for after a start.
+// The account's computer (ADR 035): what lib/computers.js needs of cua's desktop to start it, secure its network
+// and start a bot's screen on it, and nothing else. Its users box and browser, python3 (botdot reaches the computer
+// through it), iptables (the computer's firewall), supervisor (each bot's screen is a supervisord with botdot's
+// deploy/desktop/botdot-screen.conf, #105), a computer-server that answers /status on the screen's port, and the
+// label of a desktop made for the account's computer. The screen's desktop has no VNC server here, so it stops,
+// and noVNC and the browser bridge's interpreter end at once: the stand-in has no desktop and no Camoufox.
+const COMPUTER_SERVER = `# The stand-in for cua's computer-server: it answers /status on its port, which botdot waits for as a screen starts.
 import http.server, signal, sys
 signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
 class Status(http.server.BaseHTTPRequestHandler):
@@ -108,7 +110,7 @@ class Status(http.server.BaseHTTPRequestHandler):
         self.wfile.write(b'{"status": "ok"}' if self.path == '/status' else b'{}')
     def log_message(self, *_):
         pass
-http.server.HTTPServer(('127.0.0.1', 8000), Status).serve_forever()
+http.server.HTTPServer(('127.0.0.1', int(sys.argv[1])), Status).serve_forever()
 `;
 function buildComputer(tag, temp) {
   const context = path.join(temp, 'computer');
@@ -117,13 +119,16 @@ function buildComputer(tag, temp) {
   fs.writeFileSync(path.join(context, 'Dockerfile'), [
     `FROM ${NODE_IMAGE}`,
     'RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3 iptables supervisor && rm -rf /var/lib/apt/lists/*',
-    // botdot starts the desktop's services with supervisord, as the bot (lib/computers.js): here only the server.
-    "RUN printf '[supervisord]\\nnodaemon=true\\nlogfile=/tmp/supervisord.log\\npidfile=/tmp/supervisord.pid\\n\\n[program:computer-server]\\ncommand=python3 /usr/local/lib/computer-server.py\\n' > /etc/supervisor/supervisord.conf",
-    'RUN useradd --create-home --shell /bin/bash bot && useradd --create-home --shell /usr/sbin/nologin --groups bot browser',
+    'RUN useradd --create-home --shell /bin/bash box && useradd --create-home --shell /usr/sbin/nologin --groups box browser'
+      + ' && install -d -o box -g box -m 2775 /workspace && install -d -o browser -g browser -m 0700 /run/botdot-browser /home/browser/profiles'
+      + ' && install -d -o box -g box -m 0755 /run/botdot-desktop /var/log/supervisor',
+    // cua's Python, as botdot-screen.conf starts it: `-m computer_server --host 0.0.0.0 --port <port>` is the stand-in
+    // server on that port, anything else (noVNC's websockify) ends.
+    "RUN mkdir -p /opt/computer-server/venv/bin && printf '#!/bin/sh\\n[ \"$2\" = computer_server ] && exec python3 /usr/local/lib/computer-server.py \"$6\"\\nexit 0\\n' > /opt/computer-server/venv/bin/python && chmod 755 /opt/computer-server/venv/bin/python",
     "RUN mkdir -p /opt/camoufox/bin && printf '#!/bin/sh\\nexit 0\\n' > /opt/camoufox/bin/python && chmod 755 /opt/camoufox/bin/python",
     'COPY computer-server.py /usr/local/lib/computer-server.py',
-    'LABEL botdot.desktop="stand-in" botdot.user-version="1"',
-    'HEALTHCHECK NONE', 'ENTRYPOINT []', 'CMD ["python3", "/usr/local/lib/computer-server.py"]', '',
+    'LABEL botdot.desktop="stand-in" botdot.user-version="2"',
+    'HEALTHCHECK NONE', 'ENTRYPOINT []', 'CMD ["sleep", "infinity"]', '',
   ].join('\n'));
   docker('build', '-q', '-t', tag, context);
 }
