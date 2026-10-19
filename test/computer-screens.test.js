@@ -45,8 +45,9 @@ test("a bot's computer calls go to its own screen; the account's calls stay the 
     ensure: record('ensure'), request: record('request'), typeSecret: record('typeSecret'), startProgram: record('startProgram'),
     runWithLogin: record('runWithLogin'), runWithSshKey: record('runWithSshKey'), logs: record('logs'), screenState: record('screenState'),
     freeScreen: record('freeScreen'), inspect: record('inspect'), reset: record('reset'),
-    screenPipe: (...args) => { got.push(['screenPipe', ...args]); return 'pipe'; },
+    screenPipe: (...args) => { got.push(['screenPipe', ...args]); return pipe; },
   };
+  const pipe = new (require('node:events'))(); // a child process, as lib/computers.js gives
   const screens = screensLib.create(dir());
   const computers = screensLib.facade(raw, screens);
   await computers.ensure('alice');
@@ -57,7 +58,7 @@ test("a bot's computer calls go to its own screen; the account's calls stay the 
   await computers.runWithSshKey('bob', { command: 'true', privateKey: 'k' });
   await computers.logs('alice', 50);
   await computers.screenState('bob');
-  assert.equal(computers.screenPipe('alice'), 'pipe');
+  assert.equal(computers.screenPipe('alice'), pipe);
   await computers.inspect('alice');
   await computers.reset('bob');
   await computers.ensure();
@@ -127,4 +128,42 @@ test('freeing a bot ends its screen on the computer and gives its number back', 
   await computers.free('nobody');
   assert.deepEqual(got, [{ bot: 'alice', screen: 1 }], 'a bot that never had a screen has nothing to end');
   assert.equal(screens.has('alice'), false);
+});
+
+// A screen nobody used for a while ends (#126): its desktop and its browser hold memory of the account's computer
+// that gVisor never gives back while they run (a screen and Camoufox, 0.5 to 2.5 GB). Its browser profile and its
+// files stay, and its next computer tool starts it again. A call still running, or the owner watching the screen,
+// keeps it.
+test('a screen idle for longer than the rest time ends; one in use, or watched, does not', async () => {
+  const rested = [];
+  let clock = 0;
+  let finish;
+  const raw = {
+    ensure: async () => 'ensured', restScreen: async (seat) => { rested.push(seat.bot); },
+    request: () => new Promise((r) => { finish = r; }),
+    screenPipe: () => { const pipe = new (require('node:events'))(); return pipe; },
+  };
+  const computers = screensLib.facade(raw, screensLib.create(dir()), { restAfterMs: 1000, now: () => clock });
+  await computers.ensure('alice');
+  await computers.ensure('bob');
+  const pipe = computers.screenPipe('carol');
+  const call = computers.request('dave', '/cmd', { command: 'screenshot' });
+  clock = 999;
+  assert.deepEqual(await computers.restIdle(), [], 'not yet');
+  await computers.ensure('bob'); // used again
+  clock = 1500;
+  assert.deepEqual(await computers.restIdle(), ['alice']);
+  assert.deepEqual(rested, ['alice']);
+  assert.deepEqual(await computers.restIdle(), [], 'ended once');
+  clock = 5000;
+  assert.deepEqual(await computers.restIdle(), ['bob'], 'carol is watched and dave is still in a call');
+  finish('done'); await call;
+  pipe.emit('close');
+  clock = 5999;
+  assert.deepEqual(await computers.restIdle(), []);
+  clock = 6001;
+  assert.deepEqual((await computers.restIdle()).sort(), ['carol', 'dave'], 'a rest time after the call and the watching ended');
+  await computers.ensure('alice');
+  clock = 7500;
+  assert.deepEqual(await computers.restIdle(), ['alice'], 'started again by its next tool, and ends again');
 });

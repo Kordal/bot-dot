@@ -207,6 +207,17 @@ test("a deleted bot's screen ends on the running computer: its supervisord, X se
   assert.ok(!calls.some((a) => a[0] === 'exec'), 'a computer that is off has no screens to end');
 });
 
+test('a screen unused for a while ends as a deleted one does, and keeps its browser profile (#126)', async () => {
+  await computers.ensure(seat('a1'));
+  calls = [];
+  await computers.restScreen(seat('a1'));
+  const [end] = calls.filter((a) => a[0] === 'exec');
+  assert.deepEqual(end.slice(-3), ['sh', '11', 'a1']);
+  assert.match(end[6], /screen-\$n\.pid/);
+  assert.match(end[6], /pkill -f "X\[a-z\]\*vnc :\$n/);
+  assert.doesNotMatch(end[6], /profiles\/\$bot"/, 'its browser profile stays');
+});
+
 test("the account's computer gets the share's RAM and CPUs as its limits (#108)", async () => {
   share('{"cpu":3,"ram":6}\n');
   await computers.ensure(seat('a1'));
