@@ -5,10 +5,12 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.widget.Toast
+import androidx.core.content.edit
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import dev.botdot.app.data.Api
+import dev.botdot.app.data.BrowserSignIn
 import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.isTrue
 import dev.botdot.app.data.ReadReport
@@ -100,6 +102,24 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
 
     /** Signed in again: the feed connects at once, and its hello brings everything back. */
     fun signedIn() = feed.retryNow()
+
+    /** The sign-in in the browser (docs/api.md, "The front door"): its secret is kept privately until the browser is back. */
+    val browserSignIn by lazy {
+        val prefs = getSharedPreferences("sign-in", MODE_PRIVATE)
+        BrowserSignIn(object : BrowserSignIn.Keep {
+            override fun read() = prefs.getString("handoff", null)
+            // Written at once: the browser may come back to an app Android ended meanwhile.
+            override fun write(value: String?) { prefs.edit(commit = true) { if (value == null) remove("handoff") else putString("handoff", value) } }
+        }, api = { api.value })
+    }
+
+    /** The browser came back to the app with [uri]: once botdot's address is read, its code becomes the session. */
+    fun backFromBrowser(uri: String?) {
+        scope.launch {
+            withTimeoutOrNull(5_000) { api.first { it != null } }
+            browserSignIn.back(uri)
+        }
+    }
 
     private val _api = MutableStateFlow<Api?>(null)
     /** null until a botdot address is set. */

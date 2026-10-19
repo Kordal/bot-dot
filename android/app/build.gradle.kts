@@ -46,6 +46,8 @@ android {
         targetSdk = 36
         versionCode = buildNumber
         versionName = "0.1.$buildNumber"
+        // The tests that need Android itself (src/androidTest: the browser's way back to the app), on an emulator in CI.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -138,18 +140,21 @@ dependencies {
     implementation(libs.reorderable) // dragging bots to pin them and change their order
     implementation(libs.coil.compose) // pictures: decoded at the size shown, kept in memory and on disk
     implementation(libs.coil.okhttp)
-    // Signing in with the account's passkey (ADR 028); Google Play services brings it to Android 13 and older.
-    implementation(libs.androidx.credentials)
-    implementation(libs.androidx.credentials.play.services)
+    // Signing in on the front door's page in a Custom Tab, where the browser's password manager answers the passkey.
+    implementation(libs.androidx.browser)
     implementation(libs.androidx.profileinstaller) // installs the baseline profile: faster start and scrolling
     baselineProfile(project(":baselineprofile"))
     debugImplementation(libs.compose.ui.tooling)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
-    // Compose UI tests on the JVM: no emulator in CI (.github/workflows/tests.yml runs testDebugUnitTest).
+    // Compose UI tests on the JVM, with Robolectric (.github/workflows/tests.yml runs testDebugUnitTest).
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
     testImplementation(libs.robolectric)
     debugImplementation(libs.compose.ui.test.manifest) // the empty activity those tests draw in
+    // On an emulator (.github/workflows/tests.yml, android-emulator): connectedDebugAndroidTest.
+    androidTestImplementation(libs.androidx.test.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.okhttp.mockwebserver)
 }

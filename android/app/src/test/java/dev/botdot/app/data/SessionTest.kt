@@ -17,8 +17,8 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * The app's session with the front door (ADR 028, #468), against a stand-in front door: it signs in once with the
- * passkey, every request and the feed carry the session, it is kept across a restart, a session that was ended
+ * The app's session with the front door (ADR 028, #468), against a stand-in front door: it signs in once (in the
+ * browser, handed back as a code), every request and the feed carry the session, it is kept across a restart, a session that was ended
  * sends the app back to sign-in, and "Sign out everywhere" ends it.
  */
 class SessionTest {
@@ -42,26 +42,19 @@ class SessionTest {
     private fun json(body: String, code: Int = 200, vararg headers: Pair<String, String>) =
         MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").apply { headers.forEach { addHeader(it.first, it.second) } }.body(body).build()
     private val signInFirst = """{"error":"Sign in first.","signIn":"/sign-in"}"""
-    private val options = """{"publicKey":{"challenge":"Y2hhbGxlbmdl","rpId":"botdot.example.com","userVerification":"required","timeout":300000}}"""
-    /** What Credential Manager hands back for the options: a PublicKeyCredential as JSON. */
-    private val credential = """{"id":"a2V5","rawId":"a2V5","type":"public-key","response":{"clientDataJSON":"Y2Q","authenticatorData":"YWQ","signature":"c2ln","userHandle":"dQ"},"clientExtensionResults":{}}"""
+    /** A sign-in in the browser handed back: the code at botdot://signed-in, and the secret this app kept. */
+    private val code = "c".repeat(43)
+    private val verifier = "v".repeat(43)
 
     private suspend fun signIn(api: Api): String {
-        door.enqueue(json(options))
         door.enqueue(json("""{"ok":true,"account":"ann"}""", 200, "Set-Cookie" to "botdot_session=s3cret; Path=/; HttpOnly; SameSite=Lax; Max-Age=34560000; Secure"))
-        var asked: String? = null
-        val account = api.signInWithPasskey { requestJson -> asked = requestJson; credential }
-        val o = door.takeRequest()
-        assertEquals("POST" to "/sign-in/options", o.method to o.target)
-        assertEquals("1", o.headers["X-Bot-Dot"])
-        // The passkey is asked with the front door's own options, as WebAuthn's JSON.
-        assertEquals("Y2hhbGxlbmdl", Api.JSON.parseToJsonElement(asked!!).jsonObject["challenge"]!!.jsonPrimitive.content)
+        val account = api.finishSignIn(code, verifier)
         val s = door.takeRequest()
-        assertEquals("POST" to "/sign-in", s.method to s.target)
+        assertEquals("POST" to "/sign-in/handoff", s.method to s.target)
         assertEquals("1", s.headers["X-Bot-Dot"])
         val body = Api.JSON.parseToJsonElement(s.body!!.utf8()).jsonObject
-        assertEquals("android", body["app"]!!.jsonPrimitive.content)
-        assertEquals(Api.JSON.parseToJsonElement(credential), body["credential"])
+        assertEquals(code, body["code"]!!.jsonPrimitive.content)
+        assertEquals(verifier, body["verifier"]!!.jsonPrimitive.content)
         return account
     }
 
@@ -146,12 +139,11 @@ class SessionTest {
         assertEquals(url, session.signInNeeded.value)
     }
 
-    @Test fun aPasskeyThatDidNotSignInSaysWhy() = runBlocking {
+    @Test fun aCodeTheFrontDoorDidNotTakeSaysWhy() = runBlocking {
         val api = Api(url, Session(keep))
-        door.enqueue(json(options))
-        door.enqueue(json("""{"error":"That passkey didn't sign you in."}""", 401))
-        try { api.signInWithPasskey { credential }; fail("refused") } catch (e: ApiException) {
-            assertEquals("That passkey didn't sign you in.", e.message)
+        door.enqueue(json("""{"error":"That sign-in didn't come from this app. Sign in again."}""", 401))
+        try { api.finishSignIn(code, verifier); fail("refused") } catch (e: ApiException) {
+            assertEquals("That sign-in didn't come from this app. Sign in again.", e.message)
         }
         assertTrue(kept.isEmpty())
     }

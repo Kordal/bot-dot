@@ -28,7 +28,8 @@
 // FRONT_DOOR_HOST, FRONT_DOOR_PORT   where it listens (default 127.0.0.1:4700), behind Caddy or Tailscale Serve
 // FRONT_DOOR_ANDROID_KEYS  the SHA-256 fingerprints of the Android app's signing certificates (AA:BB:…, comma
 //                     separated) besides botdot's release key, which is always named: the app's passkey sign-in is
-//                     taken from those, and /.well-known/assetlinks.json names them
+//                     taken from those, and /.well-known/assetlinks.json names them. Only apps from before the
+//                     sign-in in the browser use it: today the app signs in on the sign-in page, with a hand-off
 // FRONT_DOOR_ONE_ACCOUNT  a machine of exactly this one account (the Mac app's local botdot server, ADR 028): no
 //                     sign-up link is printed or opens, and the account's passkey is made with FRONT_DOOR_SETUP_KEY
 // FRONT_DOOR_SETUP_KEY  with FRONT_DOOR_ONE_ACCOUNT: the secret (32 to 100 base64url characters) that only the Mac app
@@ -125,15 +126,18 @@ const callTries = limits.create(); // calls with a wrong key, or none, or to an 
 const challenges = new Map();
 const CHALLENGES_PER_CLIENT = 20;
 const CHALLENGES_MAX = 10_000;
-// The Mac app signs in on this front door's own page, in a browser sheet (ASWebAuthenticationSession), which hands
-// the sign-in back to the app as a code at botdot://signed-in?code=…. The app sends the code with the secret whose
-// SHA-256 the page carried (`handoff`) and gets its session: a code alone, seen by anything else, signs nobody in.
+// The native apps sign in on this front door's own page in a browser: the Mac app in a sheet
+// (ASWebAuthenticationSession), the Android app in a Custom Tab, so the browser's password manager answers the passkey.
+// The page hands the sign-in back to the app as a code at botdot://signed-in?code=…. The app sends the code with the
+// secret whose SHA-256 the page carried (`handoff`) and gets its session: a code alone, seen by anything else (on
+// Android, another app may claim botdot:// too), signs nobody in.
 // code → { account, app, challenge, until }: each works once, for 2 minutes, and is kept in memory only.
 const handoffs = new Map();
 const HANDOFF_MS = 2 * 60_000;
 const HANDOFFS_MAX = 1000;
 const HANDOFF_CHALLENGE = /^[A-Za-z0-9_-]{43}$/; // a SHA-256 in base64url
-const MAC_CALLBACK = 'botdot://signed-in';
+const APP_CALLBACK = 'botdot://signed-in';
+const HANDOFF_APPS = ['mac', 'android']; // the apps that sign in through the browser
 setInterval(() => {
   for (const map of [challenges, handoffs]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
 }, 60_000).unref();
@@ -289,24 +293,25 @@ function slowedDown(req, res, limit = tries, what = 'failed sign-ins') {
 
 // ---------- the front door's own routes ----------
 
-// What a page that signs in asks for: { challenge } when it is the Mac app's sheet, which hands the sign-in back,
-// {} for any other app, which gets its session's cookie. Null, answered here, for a hand-off that is wrong.
+// What a page that signs in asks for: { challenge } when it is a native app's browser (the Mac app's sheet, the
+// Android app's Custom Tab), which hands the sign-in back, {} for any other, which gets its session's cookie. Null,
+// answered here, for a hand-off that is wrong.
 function handoffOf(body, res) {
   if (body.handoff === undefined) return {};
-  if (body.app !== 'mac' || typeof body.handoff !== 'string' || !HANDOFF_CHALLENGE.test(body.handoff)) {
-    send(res, 400, { error: 'Only the Mac app signs in through its sheet.' });
+  if (!HANDOFF_APPS.includes(body.app) || typeof body.handoff !== 'string' || !HANDOFF_CHALLENGE.test(body.handoff)) {
+    send(res, 400, { error: 'Only the botdot apps sign in through the browser.' });
     return null;
   }
   return { challenge: body.handoff };
 }
-// `account` is signed in, in `app`: its session's cookie, or for the Mac app's sheet, the code that hands it on.
+// `account` is signed in, in `app`: its session's cookie, or for a native app's browser, the code that hands it on.
 function signedIn(res, status, account, app, handoff) {
   doors.seen(account);
   if (!handoff.challenge) return send(res, status, { ok: true, account }, { 'Set-Cookie': sessionCookie(doors.newSession(account, app)) });
   if (handoffs.size >= HANDOFFS_MAX) handoffs.delete(handoffs.keys().next().value);
   const code = crypto.randomBytes(32).toString('base64url');
   handoffs.set(code, { account, app, challenge: handoff.challenge, until: Date.now() + HANDOFF_MS });
-  return send(res, status, { ok: true, account, code, next: `${MAC_CALLBACK}?code=${code}` });
+  return send(res, status, { ok: true, account, code, next: `${APP_CALLBACK}?code=${code}` });
 }
 // The hand-off that `code` names, taken (each works once, right or wrong), when `verifier` is its secret.
 function takeHandoff(code, verifier) {
@@ -353,7 +358,7 @@ async function signInRoutes(req, res, p) {
     doors.counted(credential.id, count);
     return signedIn(res, 200, key.account, app, handoff);
   }
-  // The Mac app, back from its sheet with the code and the secret it kept: its own session.
+  // A native app, back from the browser with the code and the secret it kept: its own session.
   if (p === '/sign-in/handoff' && req.method === 'POST') {
     if (slowedDown(req, res)) return;
     const { code, verifier } = await readJson(req);

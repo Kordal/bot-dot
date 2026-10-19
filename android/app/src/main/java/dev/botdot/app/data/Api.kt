@@ -105,16 +105,12 @@ class Api(val baseUrl: String, val session: Session? = null) {
             .post(body.toString().toRequestBody(JSON_TYPE)).build())
 
     /**
-     * Signs this app in with the account's passkey: the front door's options go to [passkey] (Credential Manager on
-     * the phone) as WebAuthn's JSON, and what it answers, a PublicKeyCredential as JSON, back to the front door. The
-     * session arrives as its cookie and is kept ([Session]). Returns the account's name; a passkey the front door did
-     * not take throws its sentence.
+     * Ends a sign-in in the browser ([BrowserSignIn]): the code the front door's page handed back and the secret whose
+     * SHA-256 that page carried. The session arrives as its cookie and is kept ([Session]). Returns the account's name;
+     * a code the front door did not take (spent, too old, or for another secret) throws its sentence.
      */
-    suspend fun signInWithPasskey(passkey: suspend (requestJson: String) -> String): String {
-        val options = json.parseToJsonElement(door("/sign-in/options")).jsonObject["publicKey"]
-            ?: throw ApiException("botdot sent no sign-in to answer.")
-        val credential = json.parseToJsonElement(passkey(options.toString()))
-        val answer = door("/sign-in", buildJsonObject { put("credential", credential); put("app", "android") })
+    suspend fun finishSignIn(code: String, verifier: String): String {
+        val answer = door("/sign-in/handoff", buildJsonObject { put("code", code); put("verifier", verifier) })
         return json.parseToJsonElement(answer).jsonObject.str("account")
     }
 
