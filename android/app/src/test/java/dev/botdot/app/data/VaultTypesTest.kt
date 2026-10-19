@@ -68,7 +68,7 @@ class VaultTypesTest {
     @Test fun theTypeIsReadOnItemsWithItWithoutItAndWithOneThisAppDoesNotKnow() {
         val list = items(
             """[{"id":"a","name":"Proxmox","kind":"login","type":"api-token","site":"pve.example.ts.net","username":"root@pam!botdot"},
-                {"id":"b","name":"Old","site":"old.example.org","username":"bart"},
+                {"id":"b","name":"Old","site":"old.example.org","username":"alice"},
                 {"id":"c","name":"Odd","kind":"login","type":"ssh-key","site":"odd.example.org","folder":"work"},
                 {"id":"d","name":"Visa","kind":"card","last4":"4242"}]""",
         )
@@ -85,8 +85,8 @@ class VaultTypesTest {
     }
 
     @Test fun anItemInTheListShowsItsTypeBeforeItsAddressAndTheLineOfThatType() {
-        val login = VaultItem(id = "1", name = "Food", site = "food.example.org", username = "bart@example.com")
-        assertEquals(listOf("Login · food.example.org", "👤 bart@example.com · 🔒 secret saved"), VaultTypes.rows(login, types))
+        val login = VaultItem(id = "1", name = "Food", site = "food.example.org", username = "alice@example.com")
+        assertEquals(listOf("Login · food.example.org", "👤 alice@example.com · 🔒 secret saved"), VaultTypes.rows(login, types))
         assertEquals(listOf("Login · food.example.org", "👤 (no username) · 🔒 secret saved"), VaultTypes.rows(login.copy(username = ""), types))
         val token = VaultItem(id = "2", name = "Proxmox", type = "api-token", site = "pve.example.ts.net", username = "root@pam!botdot", insecureTls = true)
         assertEquals(listOf("API token · pve.example.ts.net", "🆔 root@pam!botdot · 🔒 token saved · self-signed certificate OK"), VaultTypes.rows(token, types))
@@ -98,9 +98,9 @@ class VaultTypesTest {
     }
 
     @Test fun usableInItsComputerShowsOnItsLineAndItsSwitchOnlyForAServerThatKeepsIt() {
-        val bridge = VaultItem(id = "8", name = "Proton Bridge", site = "127.0.0.1", username = "bart@proton.me", inComputer = true)
-        assertEquals("👤 bart@proton.me · 🔒 secret saved · usable in its computer", VaultTypes.rows(bridge, types)[1])
-        assertEquals("👤 bart@proton.me · 🔒 secret saved", VaultTypes.rows(bridge.copy(inComputer = false), types)[1])
+        val bridge = VaultItem(id = "8", name = "Proton Bridge", site = "127.0.0.1", username = "alice@proton.me", inComputer = true)
+        assertEquals("👤 alice@proton.me · 🔒 secret saved · usable in its computer", VaultTypes.rows(bridge, types)[1])
+        assertEquals("👤 alice@proton.me · 🔒 secret saved", VaultTypes.rows(bridge.copy(inComputer = false), types)[1])
         assertTrue(VaultTypes.showsInComputer(listOf(VaultTypes.IN_COMPUTER_FEATURE)))
         assertFalse(VaultTypes.showsInComputer(types))
         assertFalse(VaultTypes.showsInComputer(null))
@@ -141,7 +141,7 @@ class VaultTypesTest {
     }
 
     @Test fun aSaveSendsTheTypeAndNoUsernameForOther() {
-        assertEquals(VaultTypes.Sent("login", "bart"), VaultTypes.sent("login", "bart", types))
+        assertEquals(VaultTypes.Sent("login", "alice"), VaultTypes.sent("login", "alice", types))
         assertEquals(VaultTypes.Sent("api-token", ""), VaultTypes.sent("api-token", "", types))
         val other = VaultTypes.sent("other", "kept", types)
         assertEquals("other", other.type)
@@ -159,12 +159,12 @@ class VaultTypesTest {
     @Test fun theRequestsSaveCarriesTheChosenTypeAndForOtherNoUsername() {
         assertEquals("""{"action":"save","type":"api-token","username":"id","password":"p"}""", VaultTypes.requestSave(VaultTypes.sent("api-token", "id", types), "p").toString())
         assertEquals("""{"action":"save","type":"other","password":"p"}""", VaultTypes.requestSave(VaultTypes.sent("other", "kept", types), "p").toString())
-        assertEquals("Bitwarden is locked: its master password goes along", """{"action":"save","type":"login","username":"bart","password":"p","unlockPassword":"m"}""", VaultTypes.requestSave(VaultTypes.sent("login", "bart", types), "p", "m").toString())
-        assertEquals("a server from before the types", """{"action":"save","username":"bart","password":"p"}""", VaultTypes.requestSave(VaultTypes.sent("api-token", "bart", before), "p").toString())
+        assertEquals("Bitwarden is locked: its master password goes along", """{"action":"save","type":"login","username":"alice","password":"p","unlockPassword":"m"}""", VaultTypes.requestSave(VaultTypes.sent("login", "alice", types), "p", "m").toString())
+        assertEquals("a server from before the types", """{"action":"save","username":"alice","password":"p"}""", VaultTypes.requestSave(VaultTypes.sent("api-token", "alice", before), "p").toString())
     }
 
     @Test fun aSaveToAServerBeforeTheTypesSendsNoTypeAndTheUsernameAsTyped() {
-        assertEquals(VaultTypes.Sent(null, "bart"), VaultTypes.sent("other", "bart", before))
+        assertEquals(VaultTypes.Sent(null, "alice"), VaultTypes.sent("other", "alice", before))
         assertEquals(VaultTypes.Sent(null, ""), VaultTypes.sent("api-token", "", null))
     }
 

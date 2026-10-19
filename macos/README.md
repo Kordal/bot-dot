@@ -1,5 +1,7 @@
 # botdot for Mac
 
+> **The Mac app is not maintained.** It is stopped since 18 October 2026 ([ADR 031](../docs/adr/031-the-mac-app-is-stopped-again.md)): this folder stays as it is, no workflow builds or tests it, and new features reach only the web page and the Android app. To run botdot, install it on a Linux machine ([Install on Linux](../docs/install-linux.md)) and use the web page or the Android app.
+
 A native Mac app (SwiftUI) that does everything the web page does and is drawn as the web page is: the same font (Geist, in the app), buttons, cards and panel beside a chat. It can connect to a botdot server you already run, or set one up on this Mac. It talks to botdot through the API in [../docs/api.md](../docs/api.md), like the web page and the Android app.
 
 ## Two ways to start
@@ -9,7 +11,7 @@ The first time it opens, it offers two equal choices:
 - **Connect to a botdot server.** Enter its address: its tailnet address (with Tailscale on), or `localhost:4747`.
 - **Run botdot on this Mac.** The app sets up a **local botdot server** in Docker, with the same images `install.sh` uses on Linux (see [ADR 0002](../docs/adr/0002-mac-hosting-in-docker.md)):
   1. It finds Docker Desktop, OrbStack or Colima. If there's none, it says where to get Docker Desktop and goes on by itself once Docker runs.
-  2. It asks once for a GitHub token that can only read packages, because the images are private.
+  2. It downloads the images without signing in. Only when the registry refuses the pull (a private fork or a mirror, for example) does it ask, once, for a GitHub token that can only read packages.
   3. It writes its folder in `~/Library/Application Support/botdot`: `compose.yaml` (from the image), `.env` (this Mac's time zone) and `data/`.
   4. It downloads the images and starts botdot behind its front door on `http://localhost:4747` (published on `127.0.0.1` only), showing its progress.
   5. It asks you to make your passkey.
@@ -107,7 +109,7 @@ swift test
 
 These tests start real botdot test servers (`test/fixtures/test-server.js`, with the stand-in Claude) and test BotDotKit, the app's data layer, against them. That covers chats, the live feed, Needs you, jobs, settings, skills, the vault, the dashboard, updates, and setting botdot up on this Mac with a stand-in docker. They need Node 22.13 or newer.
 
-`BOTDOT_LIVE_DOCKER=1 swift test` also sets botdot up for real in Docker (several GB). While the images are private, it needs `BOTDOT_REGISTRY_TOKEN` too.
+`BOTDOT_LIVE_DOCKER=1 swift test` also sets botdot up for real in Docker (several GB). When the registry refuses the pull (a private fork or a mirror), it needs `BOTDOT_REGISTRY_TOKEN` too.
 
 ## Layout
 

@@ -4,7 +4,7 @@ The full install reference: what botdot needs, the installer, accounts, shares o
 
 **On a Linux server,** one machine serves several accounts, each signing in with a passkey and walled off from the others. Below is what it needs and the two commands that install it.
 
-**On a Mac,** the Mac app sets botdot up for you in Docker: choose **Run botdot on this Mac** when it first opens (see [macos/](../macos/README.md)).
+botdot installs on Linux only. The Mac app, which could set botdot up on a Mac, is paused and not maintained ([ADR 031](adr/031-the-mac-app-is-stopped-again.md)): from a Mac, use the web page of a botdot on a Linux machine.
 
 ## What botdot needs, and whom it trusts
 

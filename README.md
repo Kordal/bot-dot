@@ -158,4 +158,4 @@ make lint            # the documentation links
 
 ## Licence
 
-[MIT](LICENSE)
+[MIT](LICENSE). Third-party code keeps its own licence: see [NOTICE](NOTICE).
