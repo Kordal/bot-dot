@@ -1,4 +1,4 @@
-// How a bot's computer starts (#475, ADR 028): on a network of its own, with nothing running, its firewall set by
+// How the account's computer starts (#475, ADR 028, ADR 035): on a network of its own, with nothing running, its firewall set by
 // root from inside it, and only then the desktop. gVisor allows nothing else, and runc works the same way. Docker
 // is a stand-in here.
 const { test, beforeEach, mock } = require('node:test');
@@ -48,7 +48,7 @@ function docker({ state = 'none', network = '2', runtime = 'runsc', restart = 'n
       if (state === 'none') throw new Error('No such object');
       return `"${state}"|"bot-dot/desktop:latest"|"sha256:image"`;
     }
-    if (cmd === 'inspect' && args[3]?.includes('user-version')) return `${network}|1`;
+    if (cmd === 'inspect' && args[3]?.includes('user-version')) return `${network}|2`;
     if (cmd === 'inspect' && args[3]?.includes('.HostConfig.Runtime')) return runtime;
     if (cmd === 'inspect' && args[3]?.includes('RestartPolicy')) return restart;
     if (cmd === 'exec' && args.includes('python3')) return '{}';
@@ -56,7 +56,7 @@ function docker({ state = 'none', network = '2', runtime = 'runsc', restart = 'n
   };
 }
 const index = (match) => calls.findIndex((c) => match(c.args));
-const isRun = (a) => a[0] === 'run' && a.includes('botdot-pc');
+const isRun = (a) => a[0] === 'run' && a.includes('botdot.account.computer');
 const isFirewall = (a) => a[0] === 'exec' && a.includes('--privileged');
 const isDesktop = (a) => a[0] === 'exec' && a.includes('/usr/bin/supervisord');
 const isBridge = (a) => a[0] === 'exec' && a.at(-1) === '--serve';
@@ -71,24 +71,24 @@ beforeEach(() => { calls = []; answer = docker(); tailscale = 'down'; asked.leng
 
 test('a new computer is on a network of its own and starts with nothing running', async () => {
   await computers.ensure('pc');
-  assert.ok(index((a) => a[0] === 'network' && a[1] === 'create' && a.at(-1) === 'botdot-pc-network') >= 0, 'its network is made');
+  assert.ok(index((a) => a[0] === 'network' && a[1] === 'create' && a.at(-1) === 'botdot.account.computer-network') >= 0, 'its network is made');
   const run = calls.find((c) => isRun(c.args)).args;
-  assert.equal(run[run.indexOf('--network') + 1], 'botdot-pc-network');
+  assert.equal(run[run.indexOf('--network') + 1], 'botdot.account.computer-network');
   assert.ok(!run.some((a) => a.startsWith('container:')), 'it joins no other container');
   assert.deepEqual(run.slice(-4), ['--entrypoint', 'sleep', computers.IMAGE, 'infinity']);
   assert.ok(run.includes('botdot.network-version=2'));
-  assert.equal(run[run.indexOf('--user') + 1], 'bot');
-  assert.equal(run[run.indexOf('--cap-drop') + 1], 'ALL');
+  assert.equal(run[run.indexOf('--user') + 1], 'box');
+  assert.ok(!run.includes('--cap-drop'), 'sudo needs Docker\'s default capabilities (ADR 035)');
   assert.ok(!calls.some((c) => c.args[0] === 'run' && c.args.includes('NET_ADMIN')), 'no second container sets the firewall');
 });
 
-test('root sets the firewall inside the computer, then the desktop starts as the bot, then the bridge', async () => {
+test('root sets the firewall inside the computer, then the desktop starts as box, then the bridge', async () => {
   await computers.ensure('pc');
   const firewall = calls.find((c) => isFirewall(c.args)).args;
-  assert.deepEqual(firewall.slice(0, 7), ['exec', '--privileged', '-u', 'root', 'botdot-pc', 'sh', '-c']);
+  assert.deepEqual(firewall.slice(0, 7), ['exec', '--privileged', '-u', 'root', 'botdot.account.computer', 'sh', '-c']);
   assert.deepEqual(firewall.slice(-3), ['sh', '1.1.1.1', '8.8.8.8'], 'the resolvers are its arguments');
   const desktop = calls.find((c) => isDesktop(c.args)).args;
-  assert.deepEqual(desktop.slice(0, 4), ['exec', '-d', '-u', 'bot']);
+  assert.deepEqual(desktop.slice(0, 4), ['exec', '-d', '-u', 'box']);
   assert.ok(index((a) => isRun(a)) < index(isFirewall));
   assert.ok(index(isFirewall) < index(isDesktop), 'nothing of the desktop runs before the firewall');
   assert.ok(index(isDesktop) < index(isBridge));
@@ -124,19 +124,19 @@ test('a stopped computer starts with nothing running, gets its firewall, then it
   answer = docker({ state: 'stopped' });
   await computers.ensure('pc');
   assert.ok(!calls.some((c) => isRun(c.args)), 'it is not made again');
-  const start = index((a) => a[0] === 'start' && a.includes('botdot-pc'));
+  const start = index((a) => a[0] === 'start' && a.includes('botdot.account.computer'));
   assert.ok(start >= 0 && start < index(isFirewall) && index(isFirewall) < index(isDesktop));
 });
 
 // A computer signed in to the owner's tailnet comes back on it when it starts (#68): botdot-tailscale resume, as the
 // bot, starts Tailscale with its saved login and asks for none.
 const isResume = (a) => a[0] === 'exec' && a.at(-2) === '/usr/local/bin/botdot-tailscale' && a.at(-1) === 'resume';
-test('a stopped computer starts Tailscale again as the bot, after its firewall and with the current botdot-tailscale', async () => {
+test('a stopped computer starts Tailscale again as box, after its firewall and with the current botdot-tailscale', async () => {
   answer = docker({ state: 'stopped' });
   await computers.ensure('pc');
   const resume = calls.find((c) => isResume(c.args));
   assert.ok(resume, 'Tailscale is resumed');
-  assert.deepEqual(resume.args.slice(0, 5), ['exec', '-u', 'bot', '-e', 'HOME=/home/bot']);
+  assert.deepEqual(resume.args.slice(0, 5), ['exec', '-u', 'box', '-e', 'HOME=/home/box']);
   assert.ok(!resume.args.includes('--privileged') && !resume.args.includes('root'));
   const copy = index((a) => a[0] === 'exec' && a.at(-1).includes('mv -f /usr/local/bin/.botdot-tailscale.new /usr/local/bin/botdot-tailscale'));
   assert.ok(index(isFirewall) < copy && copy < index(isResume), 'root writes botdot-tailscale in, so an older computer has resume');
@@ -176,24 +176,16 @@ test('a computer that would still come back by itself is set not to, and a failu
 test('a computer whose firewall cannot be set is stopped and its desktop never starts', async () => {
   answer = docker({ fail: isFirewall });
   await assert.rejects(computers.ensure('pc'), /^Error: Could not secure the computer: iptables: Failed to initialize/);
-  assert.ok(calls.some((c) => c.args[0] === 'stop' && c.args.includes('botdot-pc')));
+  assert.ok(calls.some((c) => c.args[0] === 'stop' && c.args.includes('botdot.account.computer')));
   assert.equal(index(isDesktop), -1);
 });
 
-test('a computer that joined a quiet container is kept but stopped, with what to do', async () => {
+test('a computer older than the account computer is kept but stopped, with what to do', async () => {
   answer = docker({ state: 'stopped', network: '1' });
-  await assert.rejects(computers.ensure('pc'), /older computer is preserved but stopped\. Export its files and reset it: botdot now gives every computer a network of its own/);
-  assert.ok(calls.some((c) => c.args[0] === 'stop' && c.args.includes('botdot-pc')));
+  await assert.rejects(computers.ensure('pc'), /older than botdot's account computer and is kept but stopped\. Export its files and reset it/);
+  assert.ok(calls.some((c) => c.args[0] === 'stop' && c.args.includes('botdot.account.computer')));
   assert.ok(!calls.some((c) => c.args[0] === 'start'));
   assert.equal(index(isFirewall), -1);
-});
-
-test("reset erases the computer, its network, and an old computer's quiet container", async () => {
-  answer = docker({ state: 'stopped' });
-  assert.equal(await computers.reset('pc'), 'erased');
-  assert.ok(index((a) => a[0] === 'rm' && a.includes('botdot-pc')) >= 0);
-  assert.ok(index((a) => a[0] === 'rm' && a.includes('botdot-pc-network')) >= 0);
-  assert.ok(index((a) => a[0] === 'network' && a[1] === 'rm' && a.includes('botdot-pc-network')) >= 0);
 });
 
 test('with Tailscale on the machine, the computer asks Tailscale first, so tailnet names resolve (#523)', async () => {

@@ -1,6 +1,6 @@
 # ADR-021: A bot works on its computer as a normal user, and its browser as another
 
-- **Status:** Accepted (2026-10-09, [#311](https://github.com/Kordal/bot-dot/issues/311))
+- **Status:** Superseded by [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md) (2026-10-19): every bot works on the account's one computer as `box`, with sudo. Accepted 2026-10-09, [#311](https://github.com/Kordal/bot-dot/issues/311).
 - **Owning task:** #311
 
 ## Context

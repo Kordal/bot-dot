@@ -288,7 +288,7 @@ def run_browser(url):
             "signon.autofillForms": False,
             # The bot's own folder, which the browser user may write into (deploy/desktop/Dockerfile): the bot
             # reads what it downloads, and this user's home stays closed to it.
-            "browser.download.dir": "/home/bot/Downloads",
+            "browser.download.dir": "/home/box/Downloads",
             "browser.download.folderList": 2,
         },
     ) as context:

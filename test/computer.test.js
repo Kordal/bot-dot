@@ -44,10 +44,12 @@ test("nothing outside the viewer's folder", async () => {
   }
 });
 
-test('a bot with a computer is told the desktop is its own and that the owner can take over', async () => {
+test("a bot with a computer is told it shares the account's computer, as box with sudo, and that the owner can take over (#104)", async () => {
   const bot = await makeBot(srv, { name: 'Clicker', computer: 'linux' });
   const { rec, run } = await heldRun(srv, bot);
-  assert.match(rec.system, /You have your own computer: an Ubuntu Linux desktop \(XFCE, 1024x768\)\. The desktop is your own, and the owner can watch it and take the mouse and keyboard at any time: when the screen changed in a way you did not cause, the owner did it, and you carry on from what you see\./);
+  assert.match(rec.system, /You have a computer: an Ubuntu Linux desktop \(XFCE, 1024x768\) that the owner's other bots with a computer work on too, at the same time\. The owner can watch it and take the mouse and keyboard at any time: when the screen changed in a way you did not cause, the owner or another bot did it, and you carry on from what you see\./);
+  assert.match(rec.system, /Every bot works there as the user box, with sudo without a password/);
+  assert.match(rec.system, /never touch their files, windows or programs/);
   assert.doesNotMatch(rec.system, /that only you use/);
   assert.match(rec.system, /use run_with_login with a command that reads "\$BOTDOT_USERNAME" and "\$BOTDOT_PASSWORD"\. It works only for a login with inComputer in list_logins/);
   srv.release(rec);
@@ -55,7 +57,7 @@ test('a bot with a computer is told the desktop is its own and that the owner ca
   srv.unhold();
   // A bot without one is told nothing of it.
   const plain = await heldRun(srv, await makeBot(srv, { name: 'No Desk' }));
-  assert.doesNotMatch(plain.rec.system, /You have your own computer/);
+  assert.doesNotMatch(plain.rec.system, /You have a computer/);
   srv.release(plain.rec);
   await srv.finished(plain.run.id);
   srv.unhold();
@@ -78,12 +80,11 @@ test("a computer's commands need the run's key, and a bot with a computer", asyn
   srv.unhold();
 });
 
-test("a bot with a computer is told it turns off when it replies, and to keep it on only for the owner's step on it (#340)", async () => {
+test('a bot with a computer is told it stays on when it replies, so it need not keep it on (#104)', async () => {
   const bot = await makeBot(srv, { name: 'Holder', computer: 'linux' });
   const { rec, run } = await heldRun(srv, bot);
-  assert.match(rec.system, /Your computer turns off when you reply/);
-  assert.match(rec.system, /call keep_computer_on just before you reply/);
-  assert.match(rec.system, /until the owner's next message to you, or 1 hour at most\. Say that in your reply\./);
+  assert.match(rec.system, /Your computer stays on when you reply, with your windows and programs, so you need not call keep_computer_on\./);
+  assert.doesNotMatch(rec.system, /turns off when you reply/);
   srv.release(rec);
   await srv.finished(run.id);
   srv.unhold();
@@ -109,7 +110,7 @@ test('keep_computer_on needs the run\'s key and a bot with a computer (#340)', a
   assert.equal(fs.existsSync(path.join(srv.data, 'computer-holds.json')), false);
 });
 
-test('"Turn off", "Reset" and deleting the bot end a saved hold of the computer (#340)', async () => {
+test('"Turn off", "Reset" and deleting the bot end a saved hold of the computer (#340); the account\'s computer is not turned off (#104)', async () => {
   const off = await makeBot(srv, { name: 'Held Off', computer: 'linux' });
   const reset = await makeBot(srv, { name: 'Held Reset', computer: 'linux' });
   const gone = await makeBot(srv, { name: 'Held Gone', computer: 'linux' });
@@ -118,7 +119,9 @@ test('"Turn off", "Reset" and deleting the bot end a saved hold of the computer 
   srv = await restartServer(srv, () => fs.writeFileSync(holds, JSON.stringify({ [gone.id]: { since }, [off.id]: { since }, [reset.id]: { since } })));
   assert.equal((await srv.api(`/bots/${gone.id}`, { method: 'DELETE' })).status, 200);
   assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(holds, 'utf8'))).sort(), [off.id, reset.id].sort());
-  assert.equal((await srv.api(`/bots/${off.id}/computer`, { method: 'POST', body: { action: 'stop' } })).status, 200);
+  const turnOff = await srv.api(`/bots/${off.id}/computer`, { method: 'POST', body: { action: 'stop' } });
+  assert.equal(turnOff.status, 409);
+  assert.match(turnOff.data.error, /The account's computer stays on/);
   assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(holds, 'utf8'))), [reset.id]);
   assert.equal((await srv.api(`/bots/${reset.id}/computer`, { method: 'POST', body: { action: 'reset' } })).status, 200);
   assert.deepEqual(JSON.parse(fs.readFileSync(holds, 'utf8')), {});
