@@ -305,7 +305,7 @@ test('the server, the web page and the skill say "dashboard" only as an identifi
     /\bdashboard\.[a-zA-Z]+\(/g, /\bconst dashboard = /g, // server.js: the module and its calls
   ];
   const prose = (line) => IDENTIFIERS.reduce((rest, re) => rest.replace(re, ''), line);
-  const files = ['server.js', ...['lib', 'public'].flatMap((d) => fs.readdirSync(path.join(ROOT, d)).filter((f) => /\.(js|html|css|json)$/.test(f)).map((f) => `${d}/${f}`)), 'chief-skills/skills/board/SKILL.md', 'chief-skills/skills/memory-setup/SKILL.md'];
+  const files = ['server.js', ...['lib', 'lib/routes', 'public'].flatMap((d) => fs.readdirSync(path.join(ROOT, d)).filter((f) => /\.(js|html|css|json)$/.test(f)).map((f) => `${d}/${f}`)), 'chief-skills/skills/board/SKILL.md', 'chief-skills/skills/memory-setup/SKILL.md'];
   const left = files.flatMap((file) => source(file).split('\n').filter((line) => OLD.test(prose(line))).map((line) => `${file}: ${line.trim()}`));
   const COMPOSIO = /Composio(\\?'s)? dashboard|Composio account, for its dashboard|^lib\/connectors\.js: \/\/ dashboard, else Composio's own login/; // Composio's own page
   assert.deepEqual(left.filter((line) => !COMPOSIO.test(line) && !line.includes(EARLIER_NAME)), []);

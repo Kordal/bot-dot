@@ -288,7 +288,7 @@ test('type_login: a login without additional hosts is typed as before, without a
 });
 
 test('the server asks the browser where it is and hands it the chosen site (the type route)', () => {
-  const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
+  const server = fs.readFileSync(path.join(__dirname, '..', 'lib', 'routes', 'vault.js'), 'utf8');
   const a = server.indexOf("if (parts[2] === 'type' && m === 'POST')");
   const route = server.slice(a, server.indexOf("if (parts[2] === 'card' && m === 'POST')", a));
   assert.match(route, /const site = await siteToType\(\(payload\) => typeInComputer\(session\.container, payload\), secret\);/);

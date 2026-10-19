@@ -113,7 +113,7 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 | `docs/screenshots/` | The README's picture of the web page |
 | `scripts/` | `dev.js`, what `npm start` runs (the server behind the front door, on this machine), `check-code.js` and `typecheck.sh` (`make lint`'s code and type checks, `tsconfig.json`), and the tests of the documentation link check |
 | `tests/` | Cross-component checks |
-| `server.js`, `lib/` | The botdot server: API, bots, jobs, memory, the Chief's MCP server |
+| `server.js`, `lib/` | The botdot server: API, bots, jobs, memory, the Chief's MCP server; `server.js` starts it and tries the routes of `lib/routes/` (one module per feature) in order |
 | `public/` | The web page |
 | `android/` | The Android app |
 | `macos/` | The stopped Mac app and its `BotDotKit` package (ADR 031) |
