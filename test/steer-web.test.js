@@ -43,3 +43,25 @@ test('web: the messages a run read stand after its request, in order, as the own
 test('web: the feed\'s `run_steered` reads the runs again', () => {
   assert.match(cut('function followFeed()', '// ---------- boot ----------'), /es\.addEventListener\('run_steered', soon\);/);
 });
+
+test('web: in a Chief chat the messages a reply read stand before it, as the owner\'s, with "Steered" and no buttons', () => {
+  const ctx = vm.createContext({
+    esc, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, msgTime: (at) => `t(${at})`, copyBtn: () => '<copy>', escMentions: (t) => esc(t),
+    filesHTML: (list) => (list?.length ? `<files ${list.map((f) => f.name).join(',')}>` : ''),
+    userBubble: (m) => `<user ${esc(m.text)}>`, suggestionBubble: () => '', reportBubble: () => '', chiefBubble: (m) => `<chief ${esc(m.text)}>`,
+  });
+  vm.runInContext(`${cut('const messageHTML = ', 'function wireActions(root)')}\nthis.messageHTML = messageHTML;`, ctx);
+  const all = [{ role: 'user', text: 'Plan my week' }, { role: 'chief', text: 'Done.', steered }];
+  const html = all.map((m, i) => ctx.messageHTML(m, i, all)).join('');
+  const at = (x) => html.indexOf(x);
+  assert.ok(at('<user Plan my week>') < at('staging-vm access') && at('staging-vm access') < at('&lt;b&gt;and port 2222') && at('&lt;b&gt;and port 2222') < at('<chief Done.>'));
+  assert.match(html, /<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">staging-vm access mozesz dostac od Homelab Admin<files where\.txt><\/div><div class="bubble-meta"><span>Steered · t\(2026-10-20T10:01:00\.000Z\)<\/span><copy><\/div><\/div><\/div>/);
+  assert.doesNotMatch(html, /<b>and port|data-take-back|data-steer=/);
+  for (const none of [undefined, null, 'x']) assert.equal(ctx.messageHTML({ role: 'chief', text: 'Hi', steered: none }, 0, [{}]), '<chief Hi>');
+});
+
+test('web: the Chief\'s stream says when its reply read a steered message, and the page draws them before that reply', () => {
+  const follow = cut('function followChief(id) {', '    } else if (ev.type === \'file\') {');
+  assert.match(follow, /ev\.type === 'steered'/);
+  assert.match(follow, /row\.insertAdjacentHTML\('beforebegin', steeredBubbles\(ev\.steered\)\)/);
+});

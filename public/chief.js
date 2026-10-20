@@ -448,7 +448,9 @@ const reportBubble = (m) => `
   </div></div>`;
 
 // at: the message's place in the whole chat (the chat may have come in part, from `offset` on).
-const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m) : chiefBubble(m, i === all.length - 1, at));
+const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m) : steeredBubbles(m.steered) + chiefBubble(m, i === all.length - 1, at));
+// What the owner steered into a reply while the Chief worked (ADR 040): their messages, before that reply, without buttons.
+const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [])}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
 
 const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments)}</div>${m.text ? `<div class="bubble-meta">${copyBtn(m.text)}</div>` : ''}</div></div>`;
 
@@ -634,6 +636,12 @@ function followChief(id) {
       row?.querySelector('.actions')?.insertAdjacentHTML('beforeend', actionChip(ev.action));
       wireActions(row);
       refresh();
+    } else if (ev.type === 'steered') {
+      // The reply read a steered message: the owner's messages it read stand before it, in place of what was there.
+      if (row?.isConnected) {
+        while (row.previousElementSibling?.matches('[data-steered]')) row.previousElementSibling.remove();
+        row.insertAdjacentHTML('beforebegin', steeredBubbles(ev.steered));
+      } else state.chatReload = true;
     } else if (ev.type === 'file') {
       row?.insertAdjacentHTML('beforebegin', reportBubble(ev.message)); // a bot's file, while the Chief still waits for it
       placeStatusLines(); // it arrives (chiefArrives)

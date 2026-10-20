@@ -217,9 +217,10 @@ function setQueued(chat, list) {
   else return;
   placeStatusLines();
 }
-// One waiting message: the owner's bubble, faded, with what it waits for and the way back. In a bot's chat, also
-// Steer (ADR 040): the run that is going reads it at its next tool call; until then it shows "Steering…".
-const canSteer = (kind) => kind === 'bot' && state.features.includes('steer');
+// One waiting message: the owner's bubble, faded, with what it waits for and the way back. In a bot's chat and a
+// Chief chat, also Steer (ADR 040): the run or reply that is going reads it at its next tool call; until then it
+// shows "Steering…".
+const canSteer = (kind) => state.features.includes(kind === 'bot' ? 'steer' : kind === 'chief' ? 'chief-steer' : '');
 function queuedHTML(q, chat) {
   const [kind, id] = chatParts(chat);
   const who = kind === 'chief' ? 'the Chief' : botById(id)?.name || 'the bot';
@@ -255,19 +256,22 @@ function updateChatQueued(thread, chat, sent = null, arrives = false) {
   if (sent && arrives) arrive($('[data-sent]', box));
   if (atBottom) thread.scrollTop = thread.scrollHeight;
 }
-// Steer a waiting message into the run that is going (ADR 040): the server's list comes back with it marked. When
-// it started meanwhile, or the run can't take it (409), the line above the message box says why, in the server's words.
+// Steer a waiting message into the run or reply that is going (ADR 040): the server's list comes back with it
+// marked. When it started meanwhile, or what is going can't take it (409), the line above the message box says
+// why, in the server's words.
 async function steerQueued(chat, queuedId, button) {
-  const [, id] = chatParts(chat);
+  const [kind, id] = chatParts(chat);
+  const form = $(kind === 'chief' ? '#view-chief form' : '#view-bot form');
+  const again = () => (kind === 'chief' ? (state.chatId === id ? showChat(id) : null) : refresh());
   if (button) button.disabled = true;
   try {
-    const back = await api(`/bots/${encodeURIComponent(id)}/queued/${encodeURIComponent(queuedId)}/steer`, { method: 'POST' });
+    const back = await api(`${kind === 'chief' ? `/chief/chats/${encodeURIComponent(id)}` : `/bots/${encodeURIComponent(id)}`}/queued/${encodeURIComponent(queuedId)}/steer`, { method: 'POST' });
     setQueued(chat, back?.queued);
   } catch (e) {
     if (button) button.disabled = false;
-    if (e.status === 409) { showBoxNote(chatOpenIs(chat) ? $('#view-bot form') : null, e.message); await refresh(); return; }
+    if (e.status === 409) { showBoxNote(chatOpenIs(chat) ? form : null, e.message); await again(); return; }
     toast(e.message, true);
-    if (e.status === 404) await refresh();
+    if (e.status === 404) await again();
   }
 }
 // Take a waiting message back: its text and files are in the message box again, and it starts nothing. When its

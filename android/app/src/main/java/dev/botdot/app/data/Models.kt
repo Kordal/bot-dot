@@ -530,7 +530,12 @@ data class ChiefMessage(
     val actions: List<ChiefAction>? = null, // what it did while replying
     val unasked: Boolean = false, // the Chief wrote it without being asked: it gets 👍 and 👎 (Ratings)
     val rating: String? = null, // an unasked message: "up" or "down" as the owner rated it, or none
+    // A Chief reply: what the owner steered into it and it read (`chief-steer`, ADR 040), kept as it came. Read it through [steered].
+    @SerialName("steered") val steeredValue: JsonElement? = null,
 ) {
+    /** The owner's messages this reply read while it worked, in the order read: drawn before it, without buttons. */
+    val steered: List<Steered> get() = Steered.list(steeredValue)
+
     /** Why it failed, in words, or null. */
     val error: String? get() = (errorValue as? JsonPrimitive)?.takeIf { it.isString }?.content
 

@@ -158,6 +158,22 @@ class MessageWaitsTest {
         assertFalse("not known yet: no button", canSteer(null))
     }
 
+    @Test fun aChiefChatHasSteerOnlyWithItsOwnFeature() {
+        assertTrue(canSteerChief(listOf("steer", "chief-steer")))
+        assertFalse("a bot's Steer is not the Chief's", canSteerChief(listOf("message-waits", "steer")))
+        assertFalse(canSteerChief(null))
+    }
+
+    @Test fun aChiefReplyReadsWhatWasSteeredIntoItAndAnOlderOneHasNone() {
+        val chat = Api.JSON.decodeFromString(ChiefChat.serializer(), """{"id":"c1","title":"Week","messages":[{"role":"user","text":"Plan my week"},{"role":"chief","text":"Done.","steered":[{"id":"w1","text":"Also book the dentist","attachments":[{"name":"dentist.txt","file":"uploads/dentist.txt"}],"at":"2026-10-20T10:01:00.000Z","readAt":"2026-10-20T10:02:00.000Z"},{"text":"no id"}]},{"role":"chief","text":"Before"},{"role":"chief","text":"Odd","steered":"x"}]}""")
+        val (_, reply, before, odd) = chat.messages
+        assertEquals(listOf("w1" to "Also book the dentist"), reply.steered.map { it.id to it.text })
+        assertEquals(listOf("dentist.txt"), reply.steered[0].attachments.map { it.name })
+        assertEquals("2026-10-20T10:01:00.000Z", reply.steered[0].at)
+        assertEquals(emptyList<Any>(), before.steered)
+        assertEquals(emptyList<Any>(), odd.steered)
+    }
+
     @Test fun aSteeredMessageIsReadFromTheListAndMarkedHereBeforeTheServerSaysSo() {
         val steering = """{"id":"q1","text":"Use port 2222","attachments":[],"at":"2026-10-20T10:00:00.000Z","steering":true}"""
         val odd = """{"id":"q3","text":"x","steering":"yes"}"""

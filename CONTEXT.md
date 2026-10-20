@@ -135,7 +135,7 @@ The time up to which the user has read a chat, kept by the botdot server. A chat
 _Avoid_: last seen, read receipt
 
 **Steer**:
-The owner's press on a waiting message of a working bot: the run that is going reads it at its next tool call, in place of starting it as a run of its own later. Until then it shows "Steering…" and can still be taken back (ADR 040).
+The owner's press on a waiting message of a working bot or of the Chief of Staff: the run or reply that is going reads it at its next tool call, in place of starting it as a run or turn of its own later. Until then it shows "Steering…" and can still be taken back (ADR 040).
 _Avoid_: interrupt (Stop ends the run), inject, push
 
 ### Memory
