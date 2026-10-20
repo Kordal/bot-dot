@@ -440,6 +440,7 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 
 /* settings */
 .settings-card { padding: 18px 20px; margin-bottom: 14px; display: grid; gap: 12px; }
+.settings-card[hidden] { display: none; }
 .settings-hint { margin: -4px 0 0; font-size: 13px; line-height: 1.55; }
 .llm-fields { display: grid; gap: 10px; }
 .llm-note { font-size: 12.5px; color: var(--muted); line-height: 1.5; min-height: 1em; }
@@ -504,6 +505,7 @@ input[type=text], input[type=number], input[type=password], .conn-filters input[
 textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 .composer textarea { width: auto; min-height: 22px; }
 textarea.mono { font-family: var(--mono); font-size: 12.5px; }
+textarea.masked { -webkit-text-security: disc; } /* a Vault secret of several lines, e.g. a private key: hidden as a password field is */
 input[type=color] { width: 100%; height: 38px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--bg); padding: 3px; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid color-mix(in srgb, var(--text) 25%, transparent); outline-offset: 1px; }
 .search input:focus-visible, .composer textarea:focus-visible { outline: none; }

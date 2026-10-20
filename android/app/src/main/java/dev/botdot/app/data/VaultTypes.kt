@@ -5,8 +5,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /**
- * The type of a login-kind item of the Vault: a login, an API token or any other secret (docs/api.md "The Vault's
- * items"). The type is a label and the fields its form asks for, nothing else. This says how an item reads in the
+ * The type of a login-kind item of the Vault: a login, an API token, any other secret or a GitHub App (docs/api.md
+ * "The Vault's items"). The type is a label and the fields its form asks for; a GitHub App is also used by its token
+ * alone, which the server makes from its key (#155). This says how an item reads in the
  * list, what the editor and the login request's card ask for, and what a save sends; the screens draw what it
  * says. `VAULT_TYPES` in `public/app.js` is the web page's side, with the same words.
  */
@@ -15,6 +16,10 @@ object VaultTypes {
     const val LOGIN = "login"
     const val API_TOKEN = "api-token"
     const val OTHER = "other"
+    const val GITHUB_APP = "github-app"
+
+    /** A GitHub App (#155) is offered only by a server that keeps one: an older one refuses the type. */
+    const val GITHUB_APP_FEATURE = "vault-github-app"
 
     /** The label of the control that picks the type. */
     const val CONTROL = "Type"
@@ -29,18 +34,32 @@ object VaultTypes {
 
     /**
      * What a type is called and asks for. [username]: the label of its first field, null where the form has the
-     * secret alone. [none]: what the list shows for an item without a username.
+     * secret alone. [none]: what the list shows for an item without a username. [multiline]: its secret is a masked
+     * box of several lines, which can be read from a file (a private key keeps its line breaks). [feature]: what the
+     * server must say before the type is offered. [site]: the address a new one starts with.
      */
-    data class Type(val id: String, val label: String, val username: String?, val optional: Boolean, val secret: String, val icon: String, val none: String, val saved: String)
+    data class Type(val id: String, val label: String, val username: String?, val optional: Boolean, val secret: String, val icon: String, val none: String, val saved: String,
+        val multiline: Boolean = false, val feature: String? = null, val site: String? = null)
 
     val ALL = listOf(
         Type(LOGIN, "Login", "Username or email", false, "Password", "👤", "(no username)", "secret saved"),
         Type(API_TOKEN, "API token", "Token ID", true, "Token", "🆔", "(no token ID)", "token saved"),
-        Type(OTHER, "Other", null, false, "Secret", "", "", "secret saved"),
+        Type(OTHER, "Other", null, false, "Secret", "", "", "secret saved", multiline = true),
+        Type(GITHUB_APP, "GitHub App", "App ID", false, "Private key (.pem)", "🐙", "(no App ID)", "key saved", multiline = true, feature = GITHUB_APP_FEATURE, site = "api.github.com"),
     )
 
-    /** The types as the Type control offers them: id to label. */
-    val OPTIONS = ALL.map { it.id to it.label }
+    /** Under a GitHub App's App ID: the installation, when it is installed on several accounts. */
+    const val GITHUB_APP_HINT = "Add /installation ID if it is installed on several accounts."
+
+    /** A secret read from a file: at most this many bytes (a private key is a few KB). */
+    const val SECRET_FILE_MAX = 64 * 1024
+
+    /**
+     * The types as the Type control offers them: id to label. A type the server must announce is offered only when it
+     * does, or when it is the type of the item already ([current]).
+     */
+    fun options(features: Collection<String>?, current: String? = null): List<Pair<String, String>> =
+        ALL.filter { it.feature == null || features?.contains(it.feature) == true || it.id == current }.map { it.id to it.label }
 
     /** The type of an item or a request: a login where it has none, or one this app does not know. */
     fun of(type: String?): Type = ALL.firstOrNull { it.id == type } ?: ALL.first()
@@ -90,21 +109,21 @@ object VaultTypes {
         else -> "Bots that may type these details into forms."
     }
 
-    /** The two fields that hold the secret of a type. [username] null: the form shows the secret alone. */
-    data class Fields(val username: String?, val secret: String)
+    /** The two fields that hold the secret of a type. [username] null: the form shows the secret alone. [multiline]: the secret is a box of several lines. */
+    data class Fields(val username: String?, val secret: String, val multiline: Boolean = false)
 
     /** The Vault editor's fields. [isNew]: a new item needs its secret, a saved one keeps it when the field is left empty. */
     fun editorFields(type: String?, features: Collection<String>?, isNew: Boolean): Fields {
         if (!shows(features)) return Fields("Username, email or token ID", if (isNew) "Password, token or key" else "New password (empty keeps it)")
         val t = of(type)
-        return Fields(usernameLabel(t), if (isNew) t.secret else "New ${t.secret.lowercase()} (empty keeps it)")
+        return Fields(usernameLabel(t), if (isNew) t.secret else "New ${t.secret.lowercase()} (empty keeps it)", t.multiline)
     }
 
     /** The new-login fields of a login request's card. */
     fun requestFields(type: String?, features: Collection<String>?): Fields {
         if (!shows(features)) return Fields("Username or email", "Password")
         val t = of(type)
-        return Fields(usernameLabel(t), t.secret)
+        return Fields(usernameLabel(t), t.secret, t.multiline)
     }
 
     private fun usernameLabel(t: Type): String? = t.username?.let { if (t.optional) "$it (optional)" else it }

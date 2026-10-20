@@ -88,11 +88,12 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   types into a browser, a login handed to `run_with_login`, an SSH key lent through
   `run_with_ssh_key` while its agent lives and a file of the Vault handed to `run_with_file` while its
   command runs can be read by any bot on the computer, through sudo. botdot never puts a secret on a
-  command line. It puts one in a file only for `run_with_file` ([ADR 037](docs/adr/037-a-saved-file-is-in-the-computer-for-one-command.md)):
+  command line. It puts one in a file only for `run_with_file` ([ADR 038](docs/adr/038-a-saved-file-is-in-the-computer-for-one-command.md)):
   a 0600 file in a 0700 folder of the bot user's, for that one command, removed when it ends, fails or
   runs out of time, and at most 64 KB. The Vault's "Usable in its computer" card and its file dialog
   say that every bot on the account's computer can read it. Saved logins used through
-  `api_request` never reach the computer.
+  `api_request` never reach the computer, and a GitHub App's private key never leaves botdot: a bot
+  gets only the installation tokens botdot makes from it, which expire within the hour (ADR 037).
 - **One Tailscale device, run as root, in userspace.** Every bot uses it. Its shields are up and the
   computer's firewall keeps botdot's control and screen ports from the tailnet; a bot with sudo could
   still open a port of its own to the tailnet, so limit the device with a tag.

@@ -20,14 +20,18 @@ function looksLikeSecret(t) {
 
 // ---------- vault item types ----------
 
-// A login-kind item of the Vault is a login, an API token or any other secret (docs/api.md, "The Vault's
-// items"). The type is a label and the fields its form asks for, nothing else. An item or a request without
-// one, or with one this page does not know, is a login.
+// A login-kind item of the Vault is a login, an API token, any other secret or a GitHub App (docs/api.md, "The
+// Vault's items"). The type is a label and the fields its form asks for; a GitHub App is also used by its token
+// alone, which botdot makes from its key (#155). An item or a request without one, or with one this page does not
+// know, is a login. multiline: its secret is a masked box of several lines, which can be read from a file (a
+// private key), as a one-line field would lose its line breaks. site: the address a new one starts with.
 const VAULT_TYPES = {
   login: { label: 'Login', username: 'Username or email', secret: 'Password', icon: '👤', none: '(no username)', saved: 'secret saved' },
   'api-token': { label: 'API token', username: 'Token ID', optional: true, secret: 'Token', icon: '🆔', none: '(no token ID)', saved: 'token saved' },
-  other: { label: 'Other', secret: 'Secret', saved: 'secret saved' },
+  other: { label: 'Other', secret: 'Secret', saved: 'secret saved', multiline: true },
+  'github-app': { label: 'GitHub App', username: 'App ID', secret: 'Private key (.pem)', icon: '🐙', none: '(no App ID)', saved: 'key saved', multiline: true, site: 'api.github.com', hint: 'add /installation ID if it is installed on several accounts' },
 };
+const SECRET_FILE_MAX = 64 * 1024; // a secret read from a file: a private key is a few KB
 const vaultType = (type) => (Object.hasOwn(VAULT_TYPES, type) ? type : 'login');
 
 // A login-kind item in the Vault's list: its type before its address, and the line under it.
@@ -48,20 +52,41 @@ const vaultFileLine = (l) => `${esc(l.fileName || '')} · ${vaultFileSize(Number
 const vaultTypeControl = (type) => `<label class="field">Type<select name="type">${Object.entries(VAULT_TYPES).map(([value, t]) => `<option value="${value}"${value === vaultType(type) ? ' selected' : ''}>${t.label}</option>`).join('')}</select></label>`;
 function vaultTypeFields(type, { username = '', isNew = true } = {}) {
   const t = VAULT_TYPES[vaultType(type)];
-  const secret = `<label class="field">${t.secret}${isNew ? '' : ' <span class="hint">leave empty to keep the current one</span>'}<input type="password" name="password" autocomplete="new-password"${isNew ? ' required' : ' placeholder="••••••••"'}></label>`;
-  if (!t.username) return `<div class="row one" data-type-fields>${secret}</div>`;
-  return `<div class="row" data-type-fields><label class="field">${t.username}${t.optional ? ' <span class="hint">optional</span>' : ''}<input type="text" name="username" value="${esc(username)}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>${secret}</div>`;
+  const keep = isNew ? '' : ' <span class="hint">leave empty to keep the current one</span>';
+  const secret = t.multiline
+    ? `<label class="field">${t.secret}${keep}<textarea name="password" class="mono masked" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false"${isNew ? ' required' : ' placeholder="••••••••"'}></textarea></label><label class="field">Or pick its file<input type="file" name="secretFile"></label>`
+    : `<label class="field">${t.secret}${keep}<input type="password" name="password" autocomplete="new-password"${isNew ? ' required' : ' placeholder="••••••••"'}></label>`;
+  const user = t.username ? `<label class="field">${t.username}${t.optional ? ' <span class="hint">optional</span>' : ''}${t.hint ? ` <span class="hint">${t.hint}</span>` : ''}<input type="text" name="username" value="${esc(username)}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>` : '';
+  // A secret of several lines takes the form's width, under its username.
+  return `<div class="row${!t.username || t.multiline ? ' one' : ''}" data-type-fields>${user}${secret}</div>`;
+}
+
+// A secret of several lines read from its file, as it is: its line breaks too.
+function wireSecretFile(form) {
+  if (!form.secretFile) return;
+  form.secretFile.onchange = async () => {
+    const file = form.secretFile.files[0];
+    form.secretFile.value = '';
+    if (!file) return;
+    if (file.size > SECRET_FILE_MAX) { toast('That file is too big for the Vault (64 KB at most).', true); return; }
+    form.password.value = await file.text();
+  };
 }
 
 // The fields follow the Type control at once. What was typed stays: the secret, and the username also while
-// Other shows no field for it, so a login changed to Other and back shows its username again.
+// Other shows no field for it, so a login changed to Other and back shows its username again. A type with its own
+// address (a GitHub App's api.github.com) fills an empty address field.
 function wireVaultType(form, { username = '', isNew = true } = {}) {
   let kept = username;
+  wireSecretFile(form);
   form.type.onchange = () => {
     if (form.username) kept = form.username.value;
     const secret = form.password.value;
+    const t = VAULT_TYPES[vaultType(form.type.value)];
     $('[data-type-fields]', form).outerHTML = vaultTypeFields(form.type.value, { username: kept, isNew });
     form.password.value = secret;
+    wireSecretFile(form);
+    if (t.site && form.site && !form.site.value.trim()) form.site.value = t.site;
   };
 }
 
