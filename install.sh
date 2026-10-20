@@ -50,6 +50,9 @@
 #
 #   sh BOT_DOT_DIR/bin/install.sh --load
 #
+# Once an hour at most it also looks for the newest signed release, for the admin page's "Version X is available"
+# (status/latest.json). An update that finds the images the front door and every account run already restarts nothing.
+#
 # Settings you can pass in: BOT_DOT_DIR (default /var/lib/botdot), BOT_DOT_IMAGE, BOT_DOT_COMPUTER_IMAGE, and the
 # answers: BOT_DOT_REACH (public or tailnet), BOT_DOT_DOMAIN and BOT_DOT_ADMIN (the admin's account's name).
 # BOT_DOT_TLS=internal gives Caddy its own certificate authority in place of Let's Encrypt, for a test machine
@@ -166,6 +169,9 @@ set_env() {
   chmod 600 "$1"
 }
 get_env() { sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -n 1; }
+# registry_of IMAGE: the registry an image is named on, none for one built on this machine. owner_of IMAGE: its owner there.
+registry_of() { case "$1" in */*) h="${1%%/*}"; case "$h" in *.*) printf '%s' "$h" ;; esac ;; esac; }
+owner_of() { r="${1#*/}"; printf '%s' "${r%%/*}"; }
 
 # write_status FILE JSON: what the admin page reads of this install and of its last update (#473), in a folder that
 # only root writes and the front door reads (FRONT_DOOR_STATUS).
@@ -176,6 +182,15 @@ write_status() {
   chmod 644 "$DOOR/status/$1.new"
   mv "$DOOR/status/$1.new" "$DOOR/status/$1"
 }
+# say_newest VERSION: status/latest.json, for the admin page's "Version X is available" (#193): VERSION, a source
+# revision of 7 characters, is the newest signed release, found now. An image's id (an image without a revision) isn't one.
+say_newest() {
+  case "$1" in *[!0-9a-f]* | '') return 0 ;; esac
+  [ "${#1}" = 7 ] || return 0
+  write_status latest.json "{\"version\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+}
+# version_now: the version root's step last said the front door and every account run.
+version_now() { sed -n 's/.*"version":"\([0-9a-f]*\)".*/\1/p' "$DOOR/status/version.json" 2>/dev/null || true; }
 
 # install: install or update (the default). requested: root's step that makes the accounts the front door asked for.
 # --update: the update the admin asked for on the admin page, which root's step runs: an install again, that asks
@@ -277,9 +292,55 @@ write_load() {
     [ -f "$ACCOUNTS/$n/compose.yaml" ] || rm -f "$f" "$RUN/load/$n"
   done
 }
+# An image from a registry is installed only once its signature is botdot's, checked before anything is
+# downloaded by the updater's own check (lib/signed-image.js, the release key pinned in lib/release-trust.js)
+# from the source this installer is in. It runs on the Node of botdot's image, pinned by its digest (the
+# Dockerfile's NODE_IMAGE), as nobody, read-only and with nothing but the network, trusting the certificates
+# this machine trusts, as Docker does. A registry token goes to it on its input.
+CHECK_NODE="node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6"
+# isolated OPTION… IMAGE COMMAND…: docker run, as nobody, read-only and with nothing but the network, trusting the
+# certificates this machine trusts, with the registry token on its input.
+isolated() {
+  CA=''
+  [ -r /etc/ssl/certs/ca-certificates.crt ] && CA="-v /etc/ssl/certs/ca-certificates.crt:/check/ca.crt:ro -e NODE_EXTRA_CA_CERTS=/check/ca.crt"
+  # shellcheck disable=SC2086 # CA is two options or none
+  printf '%s' "$TOKEN" | $D run --rm -i --pull never --network host --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 $CA "$@"
+}
+# check_node FILE ARG…: lib/FILE of this installer's source, run with ARGs on that Node, isolated.
+check_node() {
+  cn_file="$1"
+  shift
+  isolated -v "$SOURCE/lib:/check/lib:ro" "$CHECK_NODE" node "/check/lib/$cn_file" "$@"
+}
+# signed NAME server|desktop [--revision]: prints the signed release of NAME's repository, pinned by digest (and the
+# source revision it was built from after it), or why it was refused (status 1; 2 when the registry wants a token).
+signed() { check_node signed-image.js "$@"; }
+
+# look_for_newest: once an hour at most, the newest signed release of the repository the install pinned, for the admin
+# page's "Version X is available" (#193): status/latest.json, its source revision and when it was found. Asked with the
+# same check as an update (signed), from root's copy of the installer and the release check beside it. Images built on
+# this machine have none. A check that fails waits its hour too, and the last one found stays.
+look_for_newest() {
+  wl_image="$(get_env "$ENV" BOT_DOT_IMAGE)"
+  [ -n "$(registry_of "$wl_image")" ] && [ -f "$SOURCE/lib/signed-image.js" ] || return 0
+  mkdir -p "$RUN/load"
+  # Named so that no account's CPU reading beside it can be (an account's name is lowercase).
+  [ -z "$(find "$RUN/load/LATEST" -mmin -60 2>/dev/null)" ] || return 0
+  touch "$RUN/load/LATEST"
+  wl_image="${wl_image%@sha256:*}"
+  case "${wl_image##*/}" in *:*) wl_image="${wl_image%:*}" ;; esac
+  TOKEN="$(get_env "$ENV" BOT_DOT_REGISTRY_TOKEN)"
+  wl_found="$(signed "$wl_image:latest" server --revision </dev/null 2>/dev/null)" || return 0
+  wl_rev="${wl_found##* }"
+  [ "${#wl_rev}" = 40 ] || return 0
+  say_newest "$(printf '%s' "$wl_rev" | cut -c1-7)"
+}
 if [ "$MODE" = load ]; then
   [ "$(id -u)" = 0 ] || die "Root's step measures the accounts, so it runs as root."
   write_load
+  # The machine's Docker, as below: this step ends before it.
+  D=docker
+  look_for_newest || true
   exit 0
 fi
 
@@ -622,9 +683,6 @@ chmod 711 "$ACCOUNTS"
 touch "$ENV"
 chmod 600 "$ENV"
 
-registry_of() { case "$1" in */*) h="${1%%/*}"; case "$h" in *.*) printf '%s' "$h" ;; esac ;; esac; }
-owner_of() { r="${1#*/}"; printf '%s' "${r%%/*}"; }
-
 # A self-built botdot server stays one: without a name given now, a rerun takes the local images .env names.
 saved_local() { v="$(get_env "$ENV" "$1")"; [ -n "$v" ] && [ -z "$(registry_of "$v")" ] && printf '%s' "$v" || true; }
 # The admin page's update (--update) is given no names: it takes the newest release of the repositories .env pins.
@@ -647,29 +705,6 @@ else
   COMPUTER_IMAGE="${COMPUTER_IMAGE:-$IMAGES/bot-dot-desktop:latest}"
 fi
 
-# An image from a registry is installed only once its signature is botdot's, checked before anything is
-# downloaded by the updater's own check (lib/signed-image.js, the release key pinned in lib/release-trust.js)
-# from the source this installer is in. It runs on the Node of botdot's image, pinned by its digest (the
-# Dockerfile's NODE_IMAGE), as nobody, read-only and with nothing but the network, trusting the certificates
-# this machine trusts, as Docker does. A registry token goes to it on its input.
-CHECK_NODE="node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6"
-# isolated OPTION… IMAGE COMMAND…: docker run, as nobody, read-only and with nothing but the network, trusting the
-# certificates this machine trusts, with the registry token on its input.
-isolated() {
-  CA=''
-  [ -r /etc/ssl/certs/ca-certificates.crt ] && CA="-v /etc/ssl/certs/ca-certificates.crt:/check/ca.crt:ro -e NODE_EXTRA_CA_CERTS=/check/ca.crt"
-  # shellcheck disable=SC2086 # CA is two options or none
-  printf '%s' "$TOKEN" | $D run --rm -i --pull never --network host --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 $CA "$@"
-}
-# check_node FILE ARG…: lib/FILE of this installer's source, run with ARGs on that Node, isolated.
-check_node() {
-  cn_file="$1"
-  shift
-  isolated -v "$SOURCE/lib:/check/lib:ro" "$CHECK_NODE" node "/check/lib/$cn_file" "$@"
-}
-# signed NAME server|desktop: prints the signed release of NAME's repository, pinned by digest, or why it was
-# refused (status 1; 2 when the registry wants a token).
-signed() { check_node signed-image.js "$1" "$2"; }
 # check NAME server|desktop: $SIGNED is what NAME installs as. A refusal ends the installer.
 check() {
   if SIGNED="$(signed "$1" "$2")"; then return 0; else status=$?; fi
@@ -755,6 +790,29 @@ room_for_accounts() {
   done
 }
 
+# runs DOCKER SERVICE…: the Docker DOCKER runs each compose SERVICE on the image $SERVER_SIGNED, pinned by the same digest.
+runs() {
+  r_ps="$($1 ps --format '{{.Label "com.docker.compose.service"}} {{.Image}}' </dev/null 2>/dev/null)" || return 1
+  shift
+  for r_s; do printf '%s\n' "$r_ps" | grep -qxF "$r_s $SERVER_SIGNED" || return 1; done
+}
+# runs_signed: the signed images just checked are the ones the front door and every running account were installed with
+# (.env) and run now. An account whose Docker is stopped (suspended) gets them when it is started again.
+runs_signed() {
+  [ "$(get_env "$ENV" BOT_DOT_IMAGE)" = "$SERVER_SIGNED" ] || return 1
+  [ -z "$COMPUTER_SIGNED" ] || [ "$(get_env "$ENV" BOT_DOT_COMPUTER_IMAGE)" = "$COMPUTER_SIGNED" ] || return 1
+  runs "$D" front-door || return 1
+  for rs_home in "$ACCOUNTS"/*/; do
+    rs_name="$(basename "$rs_home")"
+    [ -f "$ACCOUNTS/$rs_name/compose.yaml" ] || continue
+    rs_d="env DOCKER_HOST=unix://$RUN/$rs_name/docker.sock docker"
+    $rs_d info </dev/null >/dev/null 2>&1 || continue
+    [ "$(get_env "$ACCOUNTS/$rs_name/.env" BOT_DOT_IMAGE)" = "$SERVER_SIGNED" ] || return 1
+    [ -z "$COMPUTER_SIGNED" ] || [ "$(get_env "$ACCOUNTS/$rs_name/.env" BOT_DOT_COMPUTER_IMAGE)" = "$COMPUTER_SIGNED" ] || return 1
+    runs "$rs_d" bot-dot docker-helper || return 1
+  done
+}
+
 REGISTRY="$(registry_of "$IMAGE")"
 TOKEN=''
 COMPUTER_READY=''
@@ -784,6 +842,13 @@ elif [ -n "$REGISTRY" ]; then
   if [ "$(registry_of "$COMPUTER_IMAGE")" = "$REGISTRY" ]; then
     check "$COMPUTER_IMAGE" desktop
     COMPUTER_SIGNED="$SIGNED"
+  fi
+  # The admin page's update finds nothing new: the front door and every running account run these very images, so
+  # it changes nothing, restarts nothing and stops no bot's run (#193).
+  if [ -n "$UNATTENDED" ] && runs_signed; then
+    say_newest "$(version_now)"
+    ok "It was the newest already: the front door and every account run it, so nothing was restarted"
+    exit 0
   fi
   # Room first, in the machine's Docker too, by the rule of the version it runs now (#190).
   clean_images /var/run/docker.sock "$(get_env "$ENV" BOT_DOT_IMAGE)" "$(get_env "$ENV" BOT_DOT_IMAGE)" "$(get_env "$ENV" BOT_DOT_COMPUTER_IMAGE)"
@@ -1362,7 +1427,6 @@ account_results() {
   done < "$1"
   printf ']'
 }
-version_now() { sed -n 's/.*"version":"\([0-9a-f]*\)".*/\1/p' "$DOOR/status/version.json" 2>/dev/null || true; }
 update_all() {
   from="$(version_now)"
   write_status update.json "{\"state\":\"updating\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\"}"
@@ -1501,6 +1565,8 @@ case "$VERSION" in
 esac
 case "$VERSION" in *[!0-9a-f]*) VERSION='' ;; esac
 write_status version.json "{\"version\":\"$VERSION\",\"selfBuilt\":$([ -n "$REGISTRY" ] && echo false || echo true),\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+# The signed release just checked and installed is the newest there is, until root's step finds a newer one (#193).
+[ -z "$REGISTRY" ] || say_newest "$VERSION"
 
 # Root's step for the front door: a copy of this installer only root may change, started by systemd whenever the front
 # door asked for an account, and every minute to write the load the admin page shows (botdot-load.timer). Without
