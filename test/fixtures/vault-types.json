@@ -1,15 +1,16 @@
 {
   "about": [
     "The types of a login-kind item of the Vault (docs/api.md, The Vault's items), as words every app must show alike: the web page (VAULT_TYPES in public/vault.js) and the Android app (VaultTypes.kt).",
-    "types: each type's label, the label of its first field (null: the form has the secret alone), whether that field is optional, the label of its secret, and what an item's line shows: its icon, the words for an item without a username, and the words after the lock.",
+    "types: each type's label, the label of its first field (null: the form has the secret alone), whether that field is optional, the label of its secret, whether that secret is a masked box of several lines (multiline: a private key keeps its line breaks), and what an item's line shows: its icon, the words for an item without a username, and the words after the lock.",
     "items: saved items with the two lines each shows in the Vault's list, under its name: its type before its address, then the line of that type."
   ],
   "feature": "vault-types",
   "control": "Type",
   "types": [
-    { "id": "login", "label": "Login", "username": "Username or email", "optional": false, "secret": "Password", "icon": "👤", "none": "(no username)", "saved": "secret saved" },
-    { "id": "api-token", "label": "API token", "username": "Token ID", "optional": true, "secret": "Token", "icon": "🆔", "none": "(no token ID)", "saved": "token saved" },
-    { "id": "other", "label": "Other", "username": null, "optional": false, "secret": "Secret", "icon": "", "none": "", "saved": "secret saved" }
+    { "id": "login", "label": "Login", "username": "Username or email", "optional": false, "secret": "Password", "icon": "👤", "none": "(no username)", "saved": "secret saved", "multiline": false },
+    { "id": "api-token", "label": "API token", "username": "Token ID", "optional": true, "secret": "Token", "icon": "🆔", "none": "(no token ID)", "saved": "token saved", "multiline": false },
+    { "id": "other", "label": "Other", "username": null, "optional": false, "secret": "Secret", "icon": "", "none": "", "saved": "secret saved", "multiline": true },
+    { "id": "github-app", "label": "GitHub App", "username": "App ID", "optional": false, "secret": "Private key (.pem)", "icon": "🐙", "none": "(no App ID)", "saved": "key saved", "multiline": true }
   ],
   "items": [
     { "item": { "id": "1", "name": "Food", "type": "login", "site": "food.example.org", "username": "alice@example.com" }, "rows": ["Login · food.example.org", "👤 alice@example.com · 🔒 secret saved"] },
@@ -19,6 +20,7 @@
     { "item": { "id": "5", "name": "NAS key", "type": "other", "site": "nas.example.net", "username": "kept", "hasTotp": true }, "rows": ["Other · nas.example.net", "🔒 secret saved · two-step code"] },
     { "item": { "id": "6", "name": "Old", "site": "old.example.org", "username": "alice" }, "rows": ["Login · old.example.org", "👤 alice · 🔒 secret saved"] },
     { "item": { "id": "7", "name": "Odd", "type": "ssh-key", "site": "odd.example.org", "username": "" }, "rows": ["Login · odd.example.org", "👤 (no username) · 🔒 secret saved"] },
-    { "item": { "id": "8", "name": "Proton Bridge", "type": "login", "site": "127.0.0.1", "username": "alice@proton.me", "insecureTls": true, "inComputer": true }, "rows": ["Login · 127.0.0.1", "👤 alice@proton.me · 🔒 secret saved · self-signed certificate OK · usable in its computer"] }
+    { "item": { "id": "8", "name": "Proton Bridge", "type": "login", "site": "127.0.0.1", "username": "alice@proton.me", "insecureTls": true, "inComputer": true }, "rows": ["Login · 127.0.0.1", "👤 alice@proton.me · 🔒 secret saved · self-signed certificate OK · usable in its computer"] },
+    { "item": { "id": "9", "name": "Issue Writer", "type": "github-app", "site": "api.github.com", "username": "5237335", "inComputer": true }, "rows": ["GitHub App · api.github.com", "🐙 5237335 · 🔒 key saved · usable in its computer"] }
   ]
 }

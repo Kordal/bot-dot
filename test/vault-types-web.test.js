@@ -19,7 +19,7 @@ const cut = (from, to) => {
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const page = vm.createContext({ esc });
-const NAMES = ['VAULT_TYPES', 'vaultType', 'vaultItemAddr', 'vaultItemLine', 'vaultTypeControl', 'vaultTypeFields', 'wireVaultType', 'vaultTypeBody'];
+const NAMES = ['VAULT_TYPES', 'vaultType', 'vaultItemAddr', 'vaultItemLine', 'vaultTypeControl', 'vaultTypeFields', 'wireSecretFile', 'wireVaultType', 'vaultTypeBody'];
 vm.runInContext(`${cut('const VAULT_TYPES = {', 'async function renderVault()')}\n${NAMES.map((n) => `this.${n} = ${n};`).join(' ')}`, page);
 const list = cut('async function renderVault()', 'function openLoginEditor(login)');
 const editor = cut('function openLoginEditor(login)', '// ---------- Bitwarden ----------');
@@ -27,14 +27,14 @@ const dialog = cut('function openLoginRequest(r)', 'async function saveLoginInBa
 
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 // The fields of a piece of markup: [[label, name]], in order.
-const fields = (html) => [...html.matchAll(/<label class="field">(.*?)<(?:input|select)[^>]* name="([a-z]+)"/gs)].map((m) => [text(m[1]), m[2]]);
+const fields = (html) => [...html.matchAll(/<label class="field">(.*?)<(?:input|select|textarea)[^>]* name="([a-zA-Z]+)"/gs)].map((m) => [text(m[1]), m[2]]);
 const at = (source, s) => { const i = source.indexOf(s); assert.ok(i >= 0, `it has ${s}`); return i; };
 
 // The words every app shows alike (its "about"); VaultTypesTest.kt holds the Android app's side.
 const WORDS = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'vault-types.json'), 'utf8'));
 
-test('web: the three types have the words of the shared table, and an item its two lines', () => {
-  const mine = Object.entries(page.VAULT_TYPES).map(([id, t]) => ({ id, label: t.label, username: t.username ?? null, optional: !!t.optional, secret: t.secret, icon: t.icon || '', none: t.none || '', saved: t.saved }));
+test('web: the four types have the words of the shared table, and an item its two lines', () => {
+  const mine = Object.entries(page.VAULT_TYPES).map(([id, t]) => ({ id, label: t.label, username: t.username ?? null, optional: !!t.optional, secret: t.secret, icon: t.icon || '', none: t.none || '', saved: t.saved, multiline: !!t.multiline }));
   assert.deepEqual(JSON.parse(JSON.stringify(mine)), WORDS.types);
   assert.ok(page.vaultTypeControl('login').includes(`>${WORDS.control}<select name="type">`));
   for (const { item, rows } of WORDS.items) assert.deepEqual([page.vaultItemAddr(item), page.vaultItemLine(item)], rows, item.name);
@@ -85,32 +85,61 @@ test('web: the list draws a login-kind item with these two lines, and a card and
 
 // ---------- the Type control and the fields that follow it ----------
 
-test('web: the Type control has Login, API token and Other, the type of the item or the request chosen', () => {
+test('web: the Type control has Login, API token, Other and GitHub App, the type of the item or the request chosen', () => {
   const options = (html) => [...html.matchAll(/<option value="([^"]*)"( selected)?>([^<]*)<\/option>/g)].map((m) => [m[1], m[3], !!m[2]]);
   const html = page.vaultTypeControl(undefined);
   assert.match(html, /^<label class="field">Type<select name="type">/);
-  assert.deepEqual(options(html), [['login', 'Login', true], ['api-token', 'API token', false], ['other', 'Other', false]], 'Login for a new item');
-  assert.deepEqual(options(page.vaultTypeControl('api-token')).map((o) => o[2]), [false, true, false]);
-  assert.deepEqual(options(page.vaultTypeControl('other')).map((o) => o[2]), [false, false, true]);
-  assert.deepEqual(options(page.vaultTypeControl('ssh-key')).map((o) => o[2]), [true, false, false], 'a type this page does not know: Login');
+  assert.deepEqual(options(html), [['login', 'Login', true], ['api-token', 'API token', false], ['other', 'Other', false], ['github-app', 'GitHub App', false]], 'Login for a new item');
+  assert.deepEqual(options(page.vaultTypeControl('api-token')).map((o) => o[2]), [false, true, false, false]);
+  assert.deepEqual(options(page.vaultTypeControl('other')).map((o) => o[2]), [false, false, true, false]);
+  assert.deepEqual(options(page.vaultTypeControl('github-app')).map((o) => o[2]), [false, false, false, true]);
+  assert.deepEqual(options(page.vaultTypeControl('ssh-key')).map((o) => o[2]), [true, false, false, false], 'a type this page does not know: Login');
 });
 
-test('web: the fields of each type: Login a username and a password, API token an optional token ID and a token, Other the secret alone', () => {
+test('web: the fields of each type: Login a username and a password, API token an optional token ID and a token, Other the secret alone, GitHub App its App ID and key', () => {
   assert.deepEqual(fields(page.vaultTypeFields('login')), [['Username or email', 'username'], ['Password', 'password']]);
   assert.deepEqual(fields(page.vaultTypeFields(undefined)), [['Username or email', 'username'], ['Password', 'password']], 'no type: a login');
   assert.deepEqual(fields(page.vaultTypeFields('api-token')), [['Token ID optional', 'username'], ['Token', 'password']]);
   assert.match(page.vaultTypeFields('api-token'), /Token ID <span class="hint">optional<\/span><input type="text" name="username"/);
   const other = page.vaultTypeFields('other', { username: 'kept-from-before' });
-  assert.deepEqual(fields(other), [['Secret', 'password']]);
+  assert.deepEqual(fields(other), [['Secret', 'password'], ['Or pick its file', 'secretFile']]);
   assert.doesNotMatch(other, /name="username"|kept-from-before/, 'no username field, and the stored one is not drawn');
   assert.match(other, /^<div class="row one" data-type-fields>/, 'one field, across the form');
   assert.match(css, /\.row\.one \{ grid-template-columns: 1fr; \}/);
-  for (const type of ['login', 'api-token', 'other']) {
+  const app = page.vaultTypeFields('github-app');
+  assert.deepEqual(fields(app), [['App ID add /installation ID if it is installed on several accounts', 'username'], ['Private key (.pem)', 'password'], ['Or pick its file', 'secretFile']]);
+  assert.match(app, /^<div class="row one" data-type-fields>/, 'the key under its App ID, across the form');
+  for (const type of ['login', 'api-token']) {
     const html = page.vaultTypeFields(type);
-    assert.equal((html.match(/<input /g) || []).length, type === 'other' ? 1 : 2);
+    assert.equal((html.match(/<input /g) || []).length, 2);
     assert.match(html, /<input type="password" name="password" autocomplete="new-password" required>/, `${type}: the secret is never drawn, and a new item needs one`);
-    assert.doesNotMatch(html, /token ID|Password, token or key|Username, email/, 'not the one form for everything');
+    assert.doesNotMatch(html, /token ID|Password, token or key|Username, email|<textarea/, 'not the one form for everything');
   }
+});
+
+test('web: Other and GitHub App take a secret of several lines, masked, pasted or read from its file', () => {
+  for (const type of ['other', 'github-app']) {
+    const html = page.vaultTypeFields(type);
+    assert.match(html, /<textarea name="password" class="mono masked" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false" required><\/textarea>/, `${type}: several lines, empty, and a new item needs one`);
+    assert.match(html, /<input type="file" name="secretFile">/);
+    assert.doesNotMatch(page.vaultTypeFields(type, { isNew: false }), /required/, 'a saved one keeps its secret');
+  }
+  assert.match(css, /textarea\.masked \{ -webkit-text-security: disc; \}/, 'hidden as a password field is');
+  // The file is read as it is, its line breaks too, and goes into the secret's box; one too big is refused.
+  const PEM = '-----BEGIN RSA PRIVATE KEY-----\nMIIEow\nAAAA\n-----END RSA PRIVATE KEY-----\n';
+  const form = { password: { value: '' }, secretFile: { value: 'C:\\fakepath\\key.pem', files: [{ size: PEM.length, text: async () => PEM }] } };
+  page.wireSecretFile(form);
+  return form.secretFile.onchange().then(async () => {
+    assert.equal(form.password.value, PEM, 'byte for byte');
+    assert.equal(form.secretFile.value, '', 'the file is not kept in the form');
+    const toasts = [];
+    page.toast = (t, bad) => toasts.push([t, bad]);
+    form.password.value = 'kept';
+    form.secretFile.files = [{ size: 64 * 1024 + 1, text: async () => 'x' }];
+    await form.secretFile.onchange();
+    assert.equal(form.password.value, 'kept');
+    assert.deepEqual(toasts, [['That file is too big for the Vault (64 KB at most).', true]]);
+  });
 });
 
 test('web: a saved item keeps its secret when the field is left empty; the username field starts with the stored one, escaped', () => {
@@ -148,11 +177,22 @@ test('web: the fields follow the choice at once, and what was typed stays', () =
   assert.equal(form.username.value, 'root@pam!botdot', 'the username is the token ID now');
   assert.equal(form.password.value, 'typed-secret', 'the secret stays in its field');
   assert.doesNotMatch(form.html, /typed-secret/, 'and is never written into the markup');
-  assert.deepEqual(choose('other'), [['Secret', 'password']]);
+  assert.deepEqual(choose('other'), [['Secret', 'password'], ['Or pick its file', 'secretFile']]);
   assert.equal(form.username, undefined);
   assert.equal(form.password.value, 'typed-secret');
   assert.deepEqual(choose('login'), [['Username or email', 'username'], ['Password', 'password']]);
   assert.equal(form.username.value, 'root@pam!botdot', 'back from Other: the username shows again');
+});
+
+test('web: GitHub App fills an empty address with api.github.com, and leaves one typed as it is', () => {
+  const { form, choose } = standIn('login', { username: '' });
+  form.site = { value: '' };
+  choose('github-app');
+  assert.equal(form.site.value, 'api.github.com');
+  form.site.value = 'github.example.com';
+  choose('other');
+  choose('github-app');
+  assert.equal(form.site.value, 'github.example.com', 'GitHub Enterprise Server: its own address');
 });
 
 test('web: a login changed to Other and back shows its stored username again', () => {

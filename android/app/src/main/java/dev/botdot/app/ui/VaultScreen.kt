@@ -210,7 +210,9 @@ private fun SshKeyEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: 
 }
 
 /** At most [limit] bytes of [input], as text: enough to tell a file that is too big. */
-private fun readAtMost(input: java.io.InputStream, limit: Int): String {
+private fun readAtMost(input: java.io.InputStream, limit: Int): String = String(bytesAtMost(input, limit), Charsets.UTF_8)
+
+private fun bytesAtMost(input: java.io.InputStream, limit: Int): ByteArray {
     val out = java.io.ByteArrayOutputStream()
     val chunk = ByteArray(8192)
     while (out.size() < limit) {
@@ -218,7 +220,32 @@ private fun readAtMost(input: java.io.InputStream, limit: Int): String {
         if (n < 0) break
         out.write(chunk, 0, n)
     }
-    return out.toString(Charsets.UTF_8.name())
+    return out.toByteArray()
+}
+
+/**
+ * A secret of several lines read from a file the owner picks (#155), in the Vault's editor and a login request's
+ * card: the system's file picker, the file's text as it is, or a sentence when it can't be read or is over 64 KB.
+ * Returns what opens the picker.
+ */
+@Composable
+internal fun rememberSecretFilePick(onText: (String) -> Unit, onError: (String) -> Unit): () -> Unit {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val bytes = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openInputStream(uri)?.use { bytesAtMost(it, VaultTypes.SECRET_FILE_MAX + 1) } }.getOrNull()
+            }
+            when {
+                bytes == null -> onError("Couldn't read that file.")
+                bytes.size > VaultTypes.SECRET_FILE_MAX -> onError("That file is too big for the Vault (64 KB at most).")
+                else -> onText(String(bytes, Charsets.UTF_8))
+            }
+        }
+    }
+    return { pick.launch(arrayOf("*/*")) }
 }
 
 /** The public key of the SSH key just added, to copy into a server's authorized_keys. */
@@ -301,18 +328,24 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var askDelete by remember { mutableStateOf(false) }
+    val pick = rememberSecretFilePick({ pw = it; error = null }) { error = it }
 
     AlertDialog(onDismissRequest = close, title = { Text(item?.let { "Edit ${it.name}" } ?: "Add to the Vault") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.OPTIONS) { type = it }
+            // A type with its own address (a GitHub App's api.github.com) fills an empty address field.
+            if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.options(features, item?.type)) { type = it; VaultTypes.of(it).site?.let { s -> if (site.isBlank()) site = s } }
             OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(site, { site = it.trim() }, label = { Text("Website or server") }, placeholder = { Text("pve.example.ts.net") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
             fields.username?.let { label ->
                 OutlinedTextField(user, { user = it }, label = { Text(label) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                if (type == VaultTypes.GITHUB_APP) Hint(VaultTypes.GITHUB_APP_HINT)
             }
-            PasswordField(pw, { pw = it }, fields.secret)
+            if (fields.multiline) {
+                SecretBox(pw, { pw = it }, fields.secret)
+                TextButton(onClick = pick) { Text("Pick its file", color = p.text) }
+            } else PasswordField(pw, { pw = it }, fields.secret)
             OutlinedTextField(hosts, { hosts = it }, label = { Text("Additional exact hosts") }, placeholder = { Text("api.example.com, auth.example.com") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
             Hint("Only these hosts may also receive it. Subdomains are not included automatically.")

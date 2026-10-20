@@ -89,7 +89,8 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   `run_with_ssh_key` while its agent lives can be read by any bot on the computer, through sudo. botdot
   still never puts a secret on a command line or in a file, and the Vault's "Usable in its computer"
   card says that every bot on the account's computer can read it. Saved logins used through
-  `api_request` never reach the computer.
+  `api_request` never reach the computer, and a GitHub App's private key never leaves botdot: a bot
+  gets only the installation tokens botdot makes from it, which expire within the hour (ADR 037).
 - **One Tailscale device, run as root, in userspace.** Every bot uses it. Its shields are up and the
   computer's firewall keeps botdot's control and screen ports from the tailnet; a bot with sudo could
   still open a port of its own to the tailnet, so limit the device with a tag.
