@@ -206,6 +206,8 @@ class VaultTypesTest {
         assertFalse(VaultTypes.editorFields("api-token", types, isNew = true).multiline)
         assertFalse("a server before the types: one line", VaultTypes.editorFields("other", null, isNew = true).multiline)
         assertEquals(64 * 1024, VaultTypes.SECRET_FILE_MAX)
+    }
+
     // Files (#157): added only with a server that takes them; listed by their name and size, never their content.
     @Test fun aFileIsAddedOnlyWithAServerThatTakesOneAndListedByItsNameAndSize() {
         assertTrue(VaultTypes.addsFiles(listOf("vault-ssh-key-add", "vault-files")))
