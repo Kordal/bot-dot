@@ -90,7 +90,7 @@ function installer(t, { dotenv = ANSWERED, given = {}, bins = {}, input = '', sy
   stand('docker', [
     `printf '%s\\t%s\\n' "\${DOCKER_HOST:-machine}" "$*" >> "${dockerLog}"`,
     ...dockerFirst,
-    `[ "$1" = pull ] && [ "$3" = "${failPull}" ] && exit 1`,
+    `[ "$1" = pull ] && [ "$3" = "${failPull}" ] && { echo 'failed to register layer: write /var/lib/docker/overlay2/l/x: no space left on device' >&2; exit 1; }`,
     noCompose ? `[ "$1" = compose ] && { echo "docker: 'compose' is not a docker command." >&2; exit 1; }` : '',
     `[ "$1" = run ] && [ "$4" = --entrypoint ] && [ "$5" = node ] && { shift 6; exec "${process.execPath}" "$@"; }`,
     `[ "$1" = run ] && [ "$5" = --entrypoint ] && [ "$6" = cat ] && { cat "${ROOT}$(echo "$8" | sed 's#^/opt/bot-dot##')"; exit; }`,
@@ -456,6 +456,52 @@ test('a rerun installs the newest signed images, into the machine\'s Docker and 
   assert.ok(at(`compose --project-directory ${done.dir}/accounts/ann exec -T --user 60000:60000 bot-dot node /opt/bot-dot/lib/update-install.js --clean`) > at(`compose --project-directory ${done.dir}/accounts/ann up -d --remove-orphans`), 'the cleanup comes after the new containers');
   // The stand-in gives the cleanup no answer: one warning, and the installer ends as always.
   assert.match(done.said, /Couldn't remove every old image now; the next update tries again\./);
+});
+
+test('an update makes room first: the images no container uses go before the new ones are downloaded (#190)', (t) => {
+  const was = `ghcr.io/kordal/bot-dot${PIN}`, desk = `ghcr.io/kordal/bot-dot-desktop${PIN}`;
+  const first = rerun(t, `BOT_DOT_IMAGE=${was}\nBOT_DOT_COMPUTER_IMAGE=${desk}\n`);
+  const done = installer(t, { again: first, dotenv: '', args: ['--update'] });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  const calls = done.docker.slice(first.docker.length);
+  const at = (host, re) => calls.findIndex((c) => c.host === host && re.test(c.call));
+  const cleanup = (sock) => new RegExp(`^run --rm --pull never --network none --user 0:0 -v ${sock}:/var/run/docker\\.sock --entrypoint node \\S+ /opt/bot-dot/lib/image-cleanup\\.js `);
+  const own = `unix://${done.run}/ann/docker.sock`;
+  // The account's Docker: by the new version's rule, keeping what the account runs now and what is about to come.
+  const inAccount = at('machine', cleanup(`${done.run}/ann/docker\\.sock`));
+  assert.ok(inAccount >= 0, calls.map((c) => c.call).join('\n'));
+  assert.ok(inAccount < at(own, new RegExp(`^pull -q ghcr\\.io/kordal/bot-dot@`)), 'before the account\'s download');
+  const args = calls[inAccount].call.split(" ");
+  assert.equal(args[12], `ghcr.io/kordal/bot-dot${SIGNED}`, 'run from the new version, already in the machine\'s Docker');
+  assert.deepEqual(args.slice(14), [`ghcr.io/kordal/bot-dot${SIGNED}`, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`, `ghcr.io/kordal/bot-dot${SIGNED}`, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`]);
+  // The machine's Docker: by the rule of the version it runs now, before the front door's download.
+  const inMachine = at('machine', cleanup('/var/run/docker\\.sock'));
+  assert.ok(inMachine >= 0 && inMachine < at('machine', /^pull -q ghcr\.io\/kordal\/bot-dot@/), 'before the machine\'s download');
+  const machine = calls[inMachine].call.split(' ');
+  assert.equal(machine[12], first.env.BOT_DOT_IMAGE, 'run from what the machine runs now');
+  assert.deepEqual(machine.slice(14), [first.env.BOT_DOT_IMAGE, first.env.BOT_DOT_COMPUTER_IMAGE]);
+  // The stand-in's cleanup answers nothing: a warning, and the update goes on.
+  assert.match(done.said, /Couldn't remove the old images first; the download goes on\./);
+});
+
+test('a first install has nothing to make room for', (t) => {
+  const fresh = installer(t, { dotenv: '', input: '1\nbotdot.example.com\nann\n' });
+  assert.equal(fresh.status, 0, fresh.stderr);
+  assert.ok(!fresh.calls.some((c) => c.includes('image-cleanup.js') && c.includes('docker.sock:/var/run/docker.sock --entrypoint node') && fresh.calls.indexOf(c) < fresh.calls.findIndex((x) => x.startsWith('pull -q ghcr.io/kordal/bot-dot@'))), 'no cleanup before the first download');
+});
+
+test("a download that fails says Docker's own reason, as far as the admin page (#190)", (t) => {
+  const server = `ghcr.io/kordal/bot-dot${SIGNED}`;
+  const done = rerun(t, '', {}, { failPull: server, refuse: true });
+  assert.match(done.stderr, new RegExp(`Couldn't download ${server.replace(/[.]/g, '\\.')}: failed to register layer: write \\S+: no space left on device\\.`));
+  // The same through root's step, for the admin page.
+  const { first } = withBob(t);
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');
+  const step = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], failPull: server });
+  assert.equal(step.status, 0, `${step.said}\n${step.stderr}`);
+  const update = JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8'));
+  assert.equal(update.state, 'failed');
+  assert.match(update.error, /no space left on device\.$/);
 });
 
 test('a computer image that could not be downloaded now is downloaded by botdot later', (t) => {
