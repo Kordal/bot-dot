@@ -150,7 +150,7 @@ grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new"
   // Detached, so without a terminal: the answers come from `input`, never from the terminal the tests run in.
   const result = spawnSync('/bin/sh', [script, ...args], {
     encoding: 'utf8', input, detached: true, timeout: 60_000,
-    env: { PATH: onlyStandIns ? bin : [bin, machineTools()].join(':'), HOME: top, STAND_IN_LOG: log, BOT_DOT_DIR: dir, BOT_DOT_ETC: etc, BOT_DOT_RUN: run, BOT_DOT_PROC: path.join(top, 'proc'), ...given },
+    env: { PATH: onlyStandIns ? bin : [bin, machineTools()].join(':'), HOME: top, STAND_IN_LOG: log, BOT_DOT_DIR: dir, BOT_DOT_ETC: etc, BOT_DOT_RUN: run, BOT_DOT_PROC: path.join(top, 'proc'), BOT_DOT_CGROUP: path.join(top, 'cgroup'), ...given },
   });
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '');
   const envOf = (f) => Object.fromEntries(read(f).split('\n').filter(Boolean).map((line) => [line.split('=')[0], line.slice(line.indexOf('=') + 1)]));
@@ -1114,7 +1114,7 @@ test("root's step measures the machine's load and each account's use, from outsi
   fs.writeFileSync(path.join(proc, 'meminfo'), 'MemTotal:        8000000 kB\nMemFree:         1000000 kB\nMemAvailable:    6000000 kB\n');
   const systemctl = (ns) => ['#!/bin/sh', 'echo "systemctl $*" >> "$STAND_IN_LOG"',
     // As systemd answers: each property asked, in systemd's own order (MemoryCurrent before CPUUsageNSec), not the order asked.
-    `[ "$1" = show ] && [ "$2" = -p ] && { case "$*" in *MemoryCurrent*) echo 1610612736 ;; esac; case "$*" in *CPUUsageNSec*) echo ${ns} ;; esac; exit 0; }`, '[ "$1" = show ] && exit 0', 'exit 0', ''].join('\n');
+    `[ "$1" = show ] && [ "$2" = -p ] && { case "$*" in *MemoryCurrent*) echo 1610612736 ;; esac; case "$*" in *ControlGroup*) echo /system.slice/botdot-account@ann.service ;; esac; case "$*" in *CPUUsageNSec*) echo ${ns} ;; esac; exit 0; }`, '[ "$1" = show ] && exit 0', 'exit 0', ''].join('\n');
   const measure = (ns, given = {}) => installer(t, { again: first, dotenv: null, script: path.join(first.dir, 'bin', 'install.sh'), args: ['--load'], bins: { systemctl: systemctl(ns) }, given });
   const once = measure(1_000_000_000);
   assert.equal(once.status, 0, `${once.said}\n${once.stderr}`);
@@ -1130,6 +1130,14 @@ test("root's step measures the machine's load and each account's use, from outsi
   assert.equal(ann.diskUsed, 10485760 * 1024);
   assert.equal(ann.full, false);
   assert.ok(Date.now() - Date.parse(ann.at) < 60_000);
+
+  // Its file cache is left out, as the machine's RAM leaves it out; its shared memory (gVisor's) stays in (#126).
+  const cg = path.join(first.top, 'cgroup', 'system.slice', 'botdot-account@ann.service');
+  fs.mkdirSync(cg, { recursive: true });
+  fs.writeFileSync(path.join(cg, 'memory.stat'), 'anon 268435456\nfile 1073741824\nkernel 67108864\nshmem 536870912\n');
+  assert.equal(measure(1_000_000_000).status, 0);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(load, 'account-ann.json'), 'utf8')).ram, 1610612736 - 536870912);
+  fs.rmSync(path.join(first.top, 'cgroup'), { recursive: true, force: true });
 
   // A full disk is marked.
   const full = measure(1_000_000_000, { STAND_IN_DISK_FREE: '1000' });

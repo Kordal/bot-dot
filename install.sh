@@ -77,6 +77,8 @@ RUN="${BOT_DOT_RUN:-/run/botdot-accounts}"
 ETC="${BOT_DOT_ETC:-/etc}"
 # Where the machine's processes and mounts are read (the installer's tests point it elsewhere).
 PROC="${BOT_DOT_PROC:-/proc}"
+# Where the accounts' cgroups are read (the installer's tests point it elsewhere).
+CGROUP="${BOT_DOT_CGROUP:-/sys/fs/cgroup}"
 # The front door's own user of the machine; its group alone is let into each account's socket folder.
 DOOR_USER=botdot-door
 DOOR_PORT=4700
@@ -212,7 +214,7 @@ num() { case "$1" in '' | *[!0-9.]* | *.*.*) printf 'null' ;; *) printf '%s' "$1
 
 # write_load: the machine's load, and each account's use of its share, measured from outside the accounts, for the
 # admin page: LOAD/machine.json and LOAD/account-<account>.json (lib/front-door/load.js reads them). CPU is how many CPUs the
-# account used since the last time (from its unit's CPU time), RAM what its unit holds, computers whether its one
+# account used since the last time (from its unit's CPU time), RAM what its unit holds less its file cache, computers whether its one
 # computer runs (1 or 0, in its own Docker), and its disk the image's size and use; `full` when less than FULL_BELOW is free.
 write_load() {
   [ -d "$DOOR" ] || return 0
@@ -237,6 +239,14 @@ write_load() {
       # One property at a time: systemctl prints several in its own order, not the order asked.
       ns="$(systemctl show -p CPUUsageNSec --value "botdot-account@$n.service" </dev/null 2>/dev/null || true)"
       ram="$(systemctl show -p MemoryCurrent --value "botdot-account@$n.service" </dev/null 2>/dev/null || true)"
+      case "$ram" in '' | *[!0-9]*) ram='' ;; esac
+      # Its file cache, which the kernel takes back when memory is short, is left out, as the machine's RAM leaves it
+      # out (MemAvailable): else an account showed more than the whole machine used (#126). Its shared memory stays
+      # in: under gVisor that is the sandboxes' own memory, which can't be taken back without swap.
+      cg="$(systemctl show -p ControlGroup --value "botdot-account@$n.service" </dev/null 2>/dev/null || true)"
+      if [ -n "$ram" ] && [ -n "$cg" ] && [ -r "$CGROUP$cg/memory.stat" ]; then
+        ram="$(awk -v r="$ram" '$1 == "file" { f = $2 } $1 == "shmem" { s = $2 } END { c = f - s; printf "%.0f", (c > 0 && c < r) ? r - c : r }' "$CGROUP$cg/memory.stat")"
+      fi
       case "$ns" in '' | *[!0-9]*) ns='' ;; esac
       if [ -n "$ns" ] && [ -f "$RUN/load/$n" ]; then
         cpu="$(awk -v n="$ns" -v t="$now" '{ if (t > $1 && n >= $2) printf "%.2f", (n - $2) / ((t - $1) * 1e9) }' "$RUN/load/$n")"
