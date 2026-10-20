@@ -72,6 +72,7 @@ import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -736,7 +737,7 @@ internal fun SecretBox(value: String, onChange: (String) -> Unit, label: String)
     OutlinedTextField(
         value = value, onValueChange = onChange, label = { Text(label) }, minLines = 3, maxLines = 6,
         visualTransformation = PasswordVisualTransformation(),
-        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
         modifier = Modifier.fillMaxWidth(),
     )
@@ -784,6 +785,8 @@ private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boole
     val confirming = OtherLogins.picked(others, picked)
     // Its answer is on its way to the server: nothing more to pick until the server has said yes or no.
     var sending by remember(r.id) { mutableStateOf(false) }
+    var fileError by remember(r.id) { mutableStateOf<String?>(null) }
+    val pick = rememberSecretFilePick({ pw = it; fileError = null }) { fileError = it }
     Card(who, "A login for ${r.site}") {
         if (confirming != null) OtherLoginConfirm(OtherLogins.confirm(r, confirming, who.name), onBack = { picked = null }, onYes = { picked = null; sending = true; onUseOther(confirming.id) { sending = false } })
         else {
@@ -811,7 +814,11 @@ private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boole
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
                     modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Username })
             }
-            if (fields.multiline) SecretBox(pw, { pw = it }, fields.secret) else PasswordField(pw, { pw = it }, fields.secret)
+            if (fields.multiline) {
+                SecretBox(pw, { pw = it }, fields.secret)
+                TextButton(onClick = pick) { Text("Pick its file", color = p.text) }
+                fileError?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
+            } else PasswordField(pw, { pw = it }, fields.secret)
             if (bitwardenLocked) PasswordField(master, { master = it }, "Bitwarden master password (it's locked)")
             Buttons("Save", { onSave(VaultTypes.sent(type, user, features), pw, master); pw = ""; master = "" }, "Decline", onDecline, enabled = pw.isNotEmpty())
         }

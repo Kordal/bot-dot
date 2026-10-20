@@ -626,6 +626,9 @@ test('a GitHub App is saved only with an App ID and a key it can sign with; a ch
   assert.equal(store.update(e.id, { username: '5237335/81' }).username, '5237335/81', 'its installation, the key kept');
   assert.throws(() => store.update(e.id, { password: 'oops' }), /isn't a private key/);
   assert.throws(() => store.update(e.id, { username: 'x' }), /App ID/);
+  const other = store.add({ site: 'api.github.com', password: 'not-a-key', type: 'other' });
+  assert.throws(() => store.update(other.id, { type: 'github-app', username: '5237335' }), /isn't a private key/, 'changed to a GitHub App, the secret it keeps is checked');
+  assert.equal(store.update(other.id, { type: 'github-app', username: '5237335', password: APP_KEY }).type, 'github-app');
   assert.equal(store.list()[0].username, '5237335/81', 'nothing of a refused change is kept');
 
   const { bw, writes } = await bitwarden(t);

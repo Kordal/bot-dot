@@ -47,7 +47,7 @@ test('the App ID, with an installation ID after a slash or not', () => {
 test('a save is refused without an App ID or with a key it cannot sign with, and a PKCS#1 or PKCS#8 RSA key is taken', () => {
   githubApp.check({ username: '5237335', password: PEM });
   githubApp.check({ username: '5237335', password: privateKey.export({ type: 'pkcs8', format: 'pem' }) });
-  githubApp.check({ username: '5237335/81' }); // a change that keeps the saved key
+  assert.throws(() => githubApp.check({ username: '5237335/81' }), /private key/, 'no key at all');
   assert.throws(() => githubApp.check({ username: 'kordal-issue-writer', password: PEM }), /App ID \(a number/);
   assert.throws(() => githubApp.check({ username: '5237335', password: PEM.replace(/\n/g, ' ') }), /isn't a private key/, 'a key whose line breaks were lost');
   assert.throws(() => githubApp.check({ username: '5237335', password: 'ghp_notakey' }), /isn't a private key/);
@@ -92,6 +92,21 @@ test('a token is kept until five minutes before it expires, then made again; ano
   assert.equal(await app.token({ ...APP, password: other }), 'ghs_token3_for_81');
 });
 
+test('an installation found and then refused is looked up again (the app was installed again)', async () => {
+  let installations = [{ id: 81, account: { login: 'Kordal' } }];
+  const calls = [];
+  const fetch = async (url, init) => {
+    calls.push(url);
+    const json = (code, body) => ({ status: code, ok: code < 400, json: async () => body });
+    if (url.endsWith('/app/installations?per_page=100')) return json(200, installations);
+    return url.includes('/81/') ? json(404, { message: 'Not Found' }) : json(201, { token: 'ghs_new', expires_at: new Date(Date.now() + 3_600_000).toISOString() });
+  };
+  const app = githubApp.create({ fetch });
+  await assert.rejects(app.token(APP), /GitHub said 404/);
+  installations = [{ id: 90, account: { login: 'Kordal' } }];
+  assert.equal(await app.token(APP), 'ghs_new');
+});
+
 test('an installation written after the App ID is used without looking it up', async () => {
   const gh = fakeGitHub({ installations: [] });
   const app = githubApp.create({ fetch: gh.fetch });
@@ -118,6 +133,15 @@ test('used as a login: its token in place of its key, with x-access-token as the
   assert.equal(await app.asLogin(login), login);
   // What run_with_login blanks out of a command's output is that token, in each form.
   assert.equal(hideLogin(used)('t=ghs_token1_for_81'), 't=[hidden]');
+});
+
+test('a key of several lines given to run_with_login (type Other) is blanked out whole, line by line, and as echo prints it', () => {
+  const hide = hideLogin({ username: '', password: PEM });
+  const lines = PEM.trim().split('\n');
+  assert.ok(!hide(PEM).includes(lines[1]));
+  assert.ok(!hide(lines.slice(1, 4).join('\n')).includes(lines[2]), 'head -3 of it');
+  assert.ok(!hide(lines.join(' ')).includes(lines[1]), 'an unquoted echo $BOTDOT_PASSWORD');
+  assert.equal(hide('-----BEGIN RSA PRIVATE KEY-----'), '-----BEGIN RSA PRIVATE KEY-----', 'its armour is no secret');
 });
 
 test('api_request with a GitHub App: {{token}} is its installation token, and only the token reaches the API', async (t) => {
