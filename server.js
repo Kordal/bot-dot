@@ -140,22 +140,34 @@ const CSP = [
   "font-src 'self'", "img-src 'self' data: blob: https:", "media-src 'self' data: blob:",
   "connect-src 'self'", "frame-src 'self'", "frame-ancestors 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'",
 ].join('; ');
+// The frame the page's diagrams are drawn in (public/diagram-frame.html, ADR 041): its own scripts, Mermaid's styles
+// and the page's font, and nothing else from anywhere, so a bot's diagram loads nothing while Mermaid draws it.
+const FRAME = path.join(PUBLIC, 'diagram-frame.html');
+const FRAME_CSP = [
+  "default-src 'none'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "font-src 'self'", "img-src data:",
+  "frame-ancestors 'self'", "base-uri 'none'", "form-action 'none'",
+].join('; ');
 
 // The page's own files, kept in memory with a gzip and a brotli copy (made once per version of each file).
 // The browser checks back each time (no-cache) and gets a 304 while the file hasn't changed.
+// /vendor/mermaid/ is botdot's own copy of Mermaid (12.2.0, unchanged), which the diagrams' frame loads when a reply
+// has a diagram (ADR 041): its one file is 5.5 MB, 1.6 MB with gzip.
+const MERMAID = path.join(__dirname, 'vendor', 'mermaid'), MERMAID_PATH = '/vendor/mermaid';
 const staticCache = new Map(); // file -> { key, etag, raw, gz, br }
-const STATIC_MAX = 4 * 1024 * 1024; // bigger files are streamed as they are
+const STATIC_MAX = 8 * 1024 * 1024; // bigger files are streamed as they are
+const BROTLI_BIG = 1024 * 1024; // above it brotli at quality 5: at its best it holds the server for seconds per MB
 async function serveStatic(req, res) {
   let rel;
   try { rel = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { throw httpError(400, 'Bad address'); }
-  const file = path.normalize(path.join(PUBLIC, rel === '/' ? 'index.html' : rel));
-  const st = file.startsWith(PUBLIC + path.sep) ? await fs.promises.stat(file).catch(() => null) : null;
+  const [root, sub] = rel.startsWith(`${MERMAID_PATH}/`) ? [MERMAID, rel.slice(MERMAID_PATH.length)] : [PUBLIC, rel];
+  const file = path.normalize(path.join(root, sub === '/' ? 'index.html' : sub));
+  const st = file.startsWith(root + path.sep) ? await fs.promises.stat(file).catch(() => null) : null;
   if (!st || st.isDirectory()) {
     res.writeHead(404);
     return res.end('Not found');
   }
   const type = MIME[path.extname(file)] || 'application/octet-stream';
-  const headers = { 'Content-Type': type, 'Cache-Control': 'no-cache', ...(type === 'text/html' ? { 'Content-Security-Policy': CSP } : {}) };
+  const headers = { 'Content-Type': type, 'Cache-Control': 'no-cache', ...(type === 'text/html' ? { 'Content-Security-Policy': file === FRAME ? FRAME_CSP : CSP } : {}) };
   if (st.size > STATIC_MAX) return sendFile(res, file, headers);
   const key = `${st.size}-${st.mtimeMs}`;
   let c = staticCache.get(file);
@@ -164,7 +176,7 @@ async function serveStatic(req, res) {
     const text = /^(text\/|application\/(json|manifest)|image\/svg)/.test(type);
     // A font halves with gzip; brotli would hold the server most of a second per font for a tenth more.
     const font = type === 'font/ttf';
-    c = { key, etag: `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`, raw, gz: text || font ? zlib.gzipSync(raw) : null, br: text ? zlib.brotliCompressSync(raw) : null };
+    c = { key, etag: `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`, raw, gz: text || font ? zlib.gzipSync(raw) : null, br: text ? zlib.brotliCompressSync(raw, raw.length > BROTLI_BIG ? { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } } : {}) : null };
     staticCache.set(file, c);
   }
   headers.ETag = c.etag;

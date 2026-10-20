@@ -7,6 +7,9 @@ Third-party code in this repository keeps its own licence:
 
 - vendor/novnc: noVNC 1.5.0, MPL-2.0 and others (see vendor/novnc/LICENSE.txt),
   including vendor/novnc/vendor/pako: pako, MIT (see vendor/novnc/vendor/pako/LICENSE)
+- vendor/mermaid: Mermaid 12.2.0, MIT, Copyright (c) 2014 - 2022 Knut Sveidqvist (see vendor/mermaid/LICENSE),
+  including the libraries its mermaid.min.js bundles under their own licences, listed in the file's last
+  comment ("Bundled license information"), among them DOMPurify 3.4.12, Apache-2.0 or MPL-2.0
 - public/fonts, android/app/src/main/assets/fonts, macos/BotDot/Resources/Fonts:
   Geist and Geist Mono, Copyright 2024 The Geist Project Authors,
   SIL Open Font License 1.1 (see OFL.txt in each folder)

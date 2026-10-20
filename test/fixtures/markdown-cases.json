@@ -1,5 +1,5 @@
 {
-  "about": "How a reply is read into blocks, the same on the web page (mdBlocks in public/app.js, test/markdown-web.test.js) and in the Android app (parseBlocks in Markdown.kt, MarkdownTest.kt). Each case is a source text and the flat list of blocks it becomes: heading (level, text), para (text), item (text, number or null, depth), quote (text), rule, code (text), table (rows). A rule changes here and in both apps together.",
+  "about": "How a reply is read into blocks, the same on the web page (mdBlocks in public/app.js, test/markdown-web.test.js) and in the Android app (parseBlocks in Markdown.kt, MarkdownTest.kt). Each case is a source text and the flat list of blocks it becomes: heading (level, text), para (text), item (text, number or null, depth), quote (text), rule, code (text, lang: the word after the opening fence, \"\" without one), table (rows). A rule changes here and in both apps together.",
   "cases": [
     {
       "name": "depth: an item further right than an open item is its child",
@@ -439,7 +439,8 @@
         },
         {
           "type": "code",
-          "text": "k"
+          "text": "k",
+          "lang": ""
         },
         {
           "type": "item",
@@ -727,7 +728,8 @@
       "blocks": [
         {
           "type": "code",
-          "text": "val x = 1\n  # not a heading"
+          "text": "val x = 1\n  # not a heading",
+          "lang": ""
         },
         {
           "type": "table",
@@ -926,6 +928,30 @@
           "text": "b",
           "number": null,
           "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "a code block keeps the word after its fence: a mermaid diagram is a code block named mermaid",
+      "source": "Here it is:\n\n```mermaid\nflowchart LR\n  A[Ask] --> B{\"OK?\"}\n```\n\n```kotlin\nval x = 1\n```\nAfter.",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Here it is:"
+        },
+        {
+          "type": "code",
+          "text": "flowchart LR\n  A[Ask] --> B{\"OK?\"}",
+          "lang": "mermaid"
+        },
+        {
+          "type": "code",
+          "text": "val x = 1",
+          "lang": "kotlin"
+        },
+        {
+          "type": "para",
+          "text": "After."
         }
       ]
     }

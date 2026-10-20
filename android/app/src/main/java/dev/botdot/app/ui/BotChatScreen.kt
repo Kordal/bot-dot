@@ -138,7 +138,9 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
 
     // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles. And where Quote
     // puts text selected in a message: this chat's message box (QuoteUi.kt).
-    CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId), LocalQuote provides remember(botId) { QuoteBox() }) {
+    // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
+    val api by app.api.collectAsState()
+    CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId), LocalQuote provides remember(botId) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "bot", botId) }) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },
