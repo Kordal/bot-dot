@@ -223,7 +223,7 @@ function updateStatus() {
   let update = null;
   if (last && ['updating', 'updated', 'failed'].includes(last.state)) {
     update = { state: last.state, at: when(last.at), from: short(last.from), to: short(last.to) };
-    if (last.state === 'failed') update.error = typeof last.error === 'string' ? last.error.replace(/[^\x20-\x7e]/g, ' ').slice(0, 300) : null;
+    if (last.state === 'failed') update.error = typeof last.error === 'string' ? last.error.replace(/[^\x20-\x7e]/g, ' ').slice(0, 500) : null;
     if (last.state === 'updating' && (!update.at || Date.now() - Date.parse(update.at) > UPDATE_STALE_MS)) {
       update = { ...update, state: 'failed', error: "The update didn't finish. Update again." };
     }

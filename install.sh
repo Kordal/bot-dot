@@ -674,14 +674,36 @@ check() {
   die "Refused $1: ${SIGNED:-it could not be checked}. Nothing was downloaded or started."
 }
 # pull NAME [DOCKER]: downloads it into the machine's Docker, or DOCKER (an account's), signing in with the token when
-# the registry wants one.
+# the registry wants one. A download that fails leaves Docker's last line of error in PULLED, so that what stops the
+# update says why ("no space left on device"), not only that it couldn't.
 pull() {
   into="${2:-$D}"
-  $into pull -q "$1" </dev/null >/dev/null 2>&1 && return 0
+  PULLED="$($into pull -q "$1" </dev/null 2>&1 >/dev/null)" && return 0
+  PULLED="$(printf '%s\n' "$PULLED" | sed '/^[[:space:]]*$/d' | tail -n 1)"
   [ -n "$TOKEN" ] || return 1
   printf '%s' "$TOKEN" | $D login "$REGISTRY" -u "$(owner_of "$IMAGE")" --password-stdin >/dev/null 2>&1 \
     || die "That token didn't work for $REGISTRY. Check that it has the read:packages scope."
-  $into pull -q "$1" </dev/null >/dev/null
+  PULLED="$($into pull -q "$1" </dev/null 2>&1 >/dev/null)" && return 0
+  PULLED="$(printf '%s\n' "$PULLED" | sed '/^[[:space:]]*$/d' | tail -n 1)"
+  return 1
+}
+# because: Docker's reason for the last failed download, after a colon, or nothing.
+because() { [ -z "${PULLED:-}" ] || printf ': %s' "$PULLED"; }
+# clean_images SOCKET RUNNER REFERENCE…: before a download, the botdot images no container of the Docker at SOCKET uses
+# go, by botdot's own rule (lib/image-cleanup.js, run from the image RUNNER in the machine's Docker); the images the
+# REFERENCEs name stay (#190). It says what it removed, and a cleanup that fails stops nothing. Its answer is read with
+# sed, not json(): before the machine's download, the image json() runs may not be here yet. Only botdot's signed
+# images: a self-built install cleans its own way (remove_unnamed).
+clean_images() {
+  ci_sock="$1" ci_runner="$2"
+  shift 2
+  [ -n "$REGISTRY" ] && [ -n "$ci_runner" ] && $D image inspect "$ci_runner" </dev/null >/dev/null 2>&1 || return 0
+  ci_out="$($D run --rm --pull never --network none --user 0:0 -v "$ci_sock:/var/run/docker.sock" --entrypoint node "$ci_runner" /opt/bot-dot/lib/image-cleanup.js "$@" </dev/null 2>/dev/null || true)"
+  ci_n="$(printf '%s' "$ci_out" | sed -n 's/.*"removed":\([0-9]*\).*/\1/p')"
+  case "$ci_out" in *'"failed":0'*) ;; *) warn "Couldn't remove the old images first; the download goes on."; return 0 ;; esac
+  [ "${ci_n:-0}" -gt 0 ] || return 0
+  ci_bytes="$(printf '%s' "$ci_out" | sed -n 's/.*"bytes":\([0-9]*\).*/\1/p')"
+  ok "Made room first: removed $ci_n old image$([ "$ci_n" = 1 ] || printf s)$([ "${ci_bytes:-0}" -lt 50000000 ] || printf ' (%s GB freed)' "$(awk -v b="$ci_bytes" 'BEGIN { printf "%.1f", b / 1e9 }')")"
 }
 
 REGISTRY="$(registry_of "$IMAGE")"
@@ -699,12 +721,12 @@ if [ "$MODE" = requested ]; then
   elif [ -n "$COMPUTER_IMAGE" ] && [ -z "$(registry_of "$COMPUTER_IMAGE")" ] && $D image inspect "$COMPUTER_IMAGE" </dev/null >/dev/null 2>&1; then
     COMPUTER_READY=load
   fi
-  $D image inspect "$IMAGE" </dev/null >/dev/null 2>&1 || { [ -n "$REGISTRY" ] && pull "$IMAGE"; } || die "The image $IMAGE isn't on this machine: run the installer again."
+  $D image inspect "$IMAGE" </dev/null >/dev/null 2>&1 || { [ -n "$REGISTRY" ] && pull "$IMAGE"; } || die "The image $IMAGE isn't on this machine$(because): run the installer again."
 elif [ -n "$REGISTRY" ]; then
   TOKEN="$(get_env "$ENV" BOT_DOT_REGISTRY_TOKEN)"
   [ -f "$SOURCE/lib/signed-image.js" ] || die "The installer checks the signature of botdot's images with botdot's source, and it isn't next to this installer. Get the source and run the install.sh in it."
-  $D image inspect "$CHECK_NODE" </dev/null >/dev/null 2>&1 || $D pull -q "$CHECK_NODE" </dev/null >/dev/null \
-    || die "Couldn't download $CHECK_NODE, which checks the signature of botdot's images."
+  $D image inspect "$CHECK_NODE" </dev/null >/dev/null 2>&1 || pull "$CHECK_NODE" \
+    || die "Couldn't download $CHECK_NODE, which checks the signature of botdot's images$(because)."
   check "$IMAGE" server
   SERVER_SIGNED="$SIGNED"
   # The bots' computer is downloaded into each account now, so the first bot that needs one doesn't wait for it.
@@ -714,8 +736,10 @@ elif [ -n "$REGISTRY" ]; then
     check "$COMPUTER_IMAGE" desktop
     COMPUTER_SIGNED="$SIGNED"
   fi
+  # Room first, in the machine's Docker too, by the rule of the version it runs now (#190).
+  clean_images /var/run/docker.sock "$(get_env "$ENV" BOT_DOT_IMAGE)" "$(get_env "$ENV" BOT_DOT_IMAGE)" "$(get_env "$ENV" BOT_DOT_COMPUTER_IMAGE)"
   say "Downloading botdot (about 1.5 GB the first time)…"
-  pull "$SERVER_SIGNED" || die "Couldn't download $SERVER_SIGNED."
+  pull "$SERVER_SIGNED" || die "Couldn't download $SERVER_SIGNED$(because)."
   # botdot also needs it to download newer computer images by itself.
   [ -n "$TOKEN" ] && set_env "$ENV" BOT_DOT_REGISTRY_TOKEN "$TOKEN"
   # Pinned by digest in .env, as an update pins it: botdot runs what was checked.
@@ -779,14 +803,18 @@ unset BOT_DOT_IMAGE BOT_DOT_COMPUTER_IMAGE
 json() { $D run --rm -i --entrypoint node "$IMAGE" -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);process.stdout.write(String(($1)??''))}catch{}})"; }
 
 # hand_images NAME: botdot's images in the account NAME's own Docker ($A): from the registry, pinned by the digests
-# checked above, or the self-built ones from the machine's Docker, when the account's differ.
+# checked above, after the images it no longer uses went (clean_images), or the self-built ones from the machine's
+# Docker, when the account's differ.
 # same_image IMAGE: the account's Docker ($A) has the machine's IMAGE already, the same build.
 same_image() {
   have="$($A image inspect --format '{{.Id}}' "$1" </dev/null 2>/dev/null || true)"
   [ -n "$have" ] && [ "$have" = "$($D image inspect --format '{{.Id}}' "$1" </dev/null 2>/dev/null || true)" ]
 }
 hand_images() {
-  if [ -n "$REGISTRY" ]; then pull "$IMAGE" "$A" || die "Couldn't download $IMAGE for the account $1."
+  if [ -n "$REGISTRY" ]; then
+    # Room first: the images this account's Docker no longer uses go before the new ones come (#190).
+    clean_images "$RUN/$1/docker.sock" "$IMAGE" "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)" "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_COMPUTER_IMAGE)" "$IMAGE" "$COMPUTER_IMAGE"
+    pull "$IMAGE" "$A" || die "Couldn't download $IMAGE for the account $1$(because)."
   elif ! same_image "$IMAGE"; then
     $D save "$IMAGE" </dev/null | $A load -q >/dev/null || die "Couldn't hand $IMAGE to the account $1."
   fi
@@ -1234,7 +1262,7 @@ update_all() {
     ok "botdot is updated, the front door and every account"
   else
     # The installer's last ✗ line, as plain text.
-    why="$(tr -d '\033' < "$DIR/update.log" | sed -n 's/\[[0-9;]*m//g; s/^✗ //p' | tail -n 1 | tr -d '"\\' | tr -c "A-Za-z0-9 .,:;()/_@+='-" ' ' | sed 's/ *$//' | cut -c1-300)"
+    why="$(tr -d '\033' < "$DIR/update.log" | sed -n 's/\[[0-9;]*m//g; s/^✗ //p' | tail -n 1 | tr -d '"\\' | tr -c "A-Za-z0-9 .,:;()/_@+='-" ' ' | sed 's/ *$//' | cut -c1-500)"
     write_status update.json "{\"state\":\"failed\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\",\"error\":\"${why:-See $DIR/update.log}\"}"
     warn "The update stopped: ${why:-see $DIR/update.log}"
   fi
