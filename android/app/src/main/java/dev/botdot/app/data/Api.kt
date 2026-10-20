@@ -270,6 +270,16 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun setVaultBots(id: String, bots: List<String>) { send("PUT", "/vault/${enc(id)}", buildJsonObject { put("allowedBots", strings(bots)) }) }
     suspend fun deleteVaultItem(id: String) { send("DELETE", "/vault/${enc(id)}") }
 
+    /**
+     * Adds an SSH key to Bitwarden's bot-dot folder (`vault-ssh-key-add`): an OpenSSH private key, pasted or read from
+     * its file, or a new one botdot makes when [privateKey] is null. The answer has its public key, never the private one.
+     */
+    suspend fun addSshKey(name: String, privateKey: String?, bots: List<String>): VaultItem = json.decodeFromString(send("POST", "/vault/ssh-keys", buildJsonObject {
+        put("name", name)
+        if (privateKey != null) put("privateKey", privateKey) else put("generate", true)
+        put("allowedBots", strings(bots))
+    }))
+
     /** Connects Bitwarden with its API key (server: us, eu, or custom with its address). */
     suspend fun setUpBitwarden(server: String, serverUrl: String, clientId: String, clientSecret: String) {
         send("POST", "/vault/bitwarden/setup", buildJsonObject { put("server", server); put("serverUrl", serverUrl); put("clientId", clientId); put("clientSecret", clientSecret) })

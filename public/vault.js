@@ -82,7 +82,7 @@ async function renderVault() {
     ${SUB_BACK}
     <div class="section-head">
       <div><h1>Vault</h1><p>${bw.configured ? `Your Bitwarden's <b>bot-dot</b> folder: logins, cards, identities and SSH keys your bots can use without ever seeing them.` : 'Saved logins your bots can use without ever seeing the password.'}</p></div>
-      ${locked ? '' : '<button class="btn primary" id="add-login">＋ Add</button>'}
+      ${locked ? '' : `<div class="vault-add">${bw.unlocked ? '<button class="btn" id="add-ssh-key">＋ SSH key</button>' : ''}<button class="btn primary" id="add-login">＋ Add</button></div>`}
     </div>
     ${!bw.configured ? (bw.installed === false ? '<div class="req-note">To use Bitwarden, install its command-line tool first: <span class="mono">brew install bitwarden-cli</span>, then reload.</div>' : bitwardenSetupHTML()) : `
     <div class="card bw-bar">
@@ -113,6 +113,8 @@ async function renderVault() {
       : `<div class="card empty"><div class="big">🔐</div>${bw.configured ? 'Nothing in the bot-dot folder yet. Move the logins, cards and identities bots may use into that folder in Bitwarden, or add a login here.' : 'No saved logins yet. Add one so a bot can sign in to a site for you.'}</div>`}`}`;
   const add = $('#add-login');
   if (add) add.onclick = () => openLoginEditor();
+  const addKey = $('#add-ssh-key');
+  if (addKey) addKey.onclick = () => openSshKeyEditor();
   $$('[data-edit-login]').forEach((b) => (b.onclick = () => {
     const l = logins.find((x) => x.id === b.dataset.editLogin);
     return (l.kind || 'login') === 'login' ? openLoginEditor(l) : openItemBots(l);
@@ -362,4 +364,74 @@ function openItemBots(item) {
     e.preventDefault();
     await whileBusy($('.modal-foot .primary', m), 'Saving…', async () => { try { await api(`/vault/${item.id}`, { method: 'PUT', body: { allowedBots: $$('input[name=bot]:checked', m).map((c) => c.value) } }); m.close(); toast('Saved'); renderVault(); } catch (err) { toast(err.message, true); } });
   };
+}
+
+// An SSH key the owner adds (#160, docs/api.md `POST /api/vault/ssh-keys`): an OpenSSH private key pasted or read from
+// its file, or a new one botdot makes. The private key goes to the server once and is never shown again; the public
+// key comes back, with a copy button, for a server's authorized_keys.
+function openSshKeyEditor() {
+  const m = openModal(`
+    <form id="ssh-key-form" autocomplete="off">
+      <div class="modal-head"><h2>🗝️ Add an SSH key</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-body">
+        <label class="field">Name<input type="text" name="name" placeholder="e.g. Home servers" maxlength="100" required></label>
+        <label class="field">Private key <span class="hint">OpenSSH format, without a passphrase. Leave empty to generate a new key</span><textarea name="privateKey" class="mono" rows="6" spellcheck="false" autocapitalize="off" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
+        <label class="field">Or pick its file <input type="file" name="keyFile"></label>
+        <div class="req-note">Saved in your Bitwarden's bot-dot folder as an SSH key. Bots use it for SSH from the account's computer and never see it, and you can't see it here again.</div>
+        <fieldset>
+          <legend>Bots that may use it</legend>
+          <div class="tool-toggles">${state.bots.map((b) => `<label><input type="checkbox" name="bot" value="${esc(b.id)}">${botLabel(b)}</label>`).join('')}</div>
+        </fieldset>
+        <div class="req-error" role="alert" hidden></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" data-dismiss>Cancel</button>
+        <button class="btn primary" type="submit">Generate new key</button>
+      </div>
+    </form>`);
+  const form = $('#ssh-key-form', m);
+  const submit = $('button[type=submit]', form);
+  const label = () => { submit.textContent = form.privateKey.value.trim() ? 'Add key' : 'Generate new key'; };
+  form.privateKey.oninput = label;
+  form.keyFile.onchange = async () => {
+    const file = form.keyFile.files[0];
+    form.keyFile.value = '';
+    if (!file) return;
+    if (file.size > 64 * 1024) { toast('That file is too big for an SSH private key.', true); return; }
+    form.privateKey.value = await file.text();
+    if (!form.name.value.trim()) form.name.value = file.name;
+    label();
+  };
+  m.addEventListener('close', () => { form.privateKey.value = ''; }, { once: true });
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const refused = $('.req-error', form);
+    refused.hidden = true;
+    const privateKey = form.privateKey.value.trim();
+    const body = { name: form.name.value.trim(), allowedBots: $$('input[name=bot]:checked', form).map((c) => c.value), ...(privateKey ? { privateKey } : { generate: true }) };
+    await whileBusy(submit, privateKey ? 'Adding…' : 'Generating…', async () => { try {
+      const key = await api('/vault/ssh-keys', { method: 'POST', body });
+      form.privateKey.value = '';
+      m.close();
+      renderVault();
+      openSshPublicKey(key, !privateKey);
+    } catch (err) {
+      // Refused: the server's sentence, in the form, which stays open with what was given.
+      refused.textContent = err.message;
+      refused.hidden = false;
+    } });
+  };
+}
+
+// The public key of the SSH key just added, to copy into a server's authorized_keys.
+function openSshPublicKey(key, generated) {
+  const m = openModal(`
+    <div class="modal-head"><h2>🗝️ ${esc(key.name)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body">
+      <p class="muted wrap-any" style="margin:0">${generated ? 'botdot made this key and saved it in Bitwarden.' : 'Saved in Bitwarden.'} To let it in, add its public key to <span class="mono">~/.ssh/authorized_keys</span> on the server.</p>
+      <label class="field">Public key<textarea class="mono" rows="4" readonly>${esc(key.publicKey)}</textarea></label>
+      <div class="faint wrap-any">${esc(key.fingerprint)}</div>
+    </div>
+    <div class="modal-foot"><button type="button" class="btn" data-dismiss>Done</button><button type="button" class="btn primary" id="copy-public-key">Copy public key</button></div>`);
+  $('#copy-public-key', m).onclick = async () => toast((await copyText(key.publicKey)) ? 'Copied' : "Couldn't copy");
 }
