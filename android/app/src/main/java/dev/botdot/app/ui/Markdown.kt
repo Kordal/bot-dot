@@ -192,7 +192,8 @@ internal sealed interface Block {
     data object Rule : Block
 }
 
-private val FENCE = Regex("""^```(\w*)""")
+/** A fence line's word, as the web page reads it: only a word, alone on the line after the backticks. */
+private val FENCE = Regex("""^```(\w*)$""")
 private val ITEM = Regex("""^(\s*)(?:[-*•+]|(\d{1,9})[.)])\s+(.*)$""")
 private val HEADING = Regex("""^(#{1,6})\s+(.*)$""")
 private val BOLD_LINE = Regex("""^\*\*([^*]+)\*\*:?\s*$""")
@@ -230,7 +231,7 @@ internal fun parseBlocks(src: String): List<Block> {
         when {
             t.startsWith("```") -> {
                 flush(); endList()
-                val lang = FENCE.find(t)!!.groupValues[1]
+                val lang = FENCE.find(t)?.groupValues?.get(1).orEmpty()
                 val code = StringBuilder()
                 i++
                 while (i < lines.size && !lines[i].trim().startsWith("```")) { code.appendLine(lines[i]); i++ }

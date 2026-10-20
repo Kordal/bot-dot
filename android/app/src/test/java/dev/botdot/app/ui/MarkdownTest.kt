@@ -89,6 +89,8 @@ class MarkdownTest {
         assertEquals(null, webLinkUnder(Block.Code("x"), web))
         assertEquals(null, webLinkUnder(Block.Para("mermaid"), web))
         assertEquals(null, webLinkUnder(diagram, null))
+        // A fence's word counts only alone on its line, as on the web page: no diagram, no link.
+        assertEquals(Block.Code("A --> B", ""), parseBlocks("```mermaid please\nA --> B\n```").single())
     }
 
     @Test fun codeIsKeptAsWritten() {

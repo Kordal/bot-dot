@@ -11,7 +11,7 @@
 (function (root) {
 
 const FRAME = '/diagram-frame.html';
-const WAIT_MS = 20000; // a frame that says nothing by then did not load
+const WAIT_MS = 20000; // a frame that says nothing by then did not load, or is stuck
 
 let frame = null; // the promise of the frame, ready to draw; a frame that failed is made again by the next block
 const asked = new Map(); // a drawing asked of the frame, by its id -> what to do with the answer
@@ -55,7 +55,14 @@ function svgOf(doc, source) {
   if (!svg) {
     svg = load(doc).then((el) => new Promise((resolve, reject) => {
       const id = ++count;
-      asked.set(id, { from: el.contentWindow, resolve, reject });
+      // A frame that does not answer is stuck: the next block gets a new one, and this source is tried again then.
+      const timer = setTimeout(() => {
+        asked.delete(id);
+        drawings.delete(source);
+        if (el.isConnected) { frame = null; el.remove(); }
+        reject(new Error(`${FRAME} did not answer`));
+      }, WAIT_MS);
+      asked.set(id, { from: el.contentWindow, resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
       el.contentWindow.postMessage({ id, source }, root.location.origin);
     }), (e) => { drawings.delete(source); throw e; });
     drawings.set(source, svg);
@@ -63,12 +70,13 @@ function svgOf(doc, source) {
   return svg;
 }
 
-// What only the drawing's own parts may name: its markers and gradients (url(#…), #…), never another address.
-const AWAY = /url\(\s*(?!['"]?#)[^)]*\)|@import/i;
+// What reaches another address from a style or an attribute: a url() but the drawing's own (url(#…)), CSS's other
+// ways to name a picture, @import, and any escape (\75 rl(…) is url(…)): Mermaid's own markup has none of them.
+const AWAY = /url\(\s*(?!['"]?#)|(?:image-set|image|cross-fade|element|paint)\s*\(|@import|\\/i;
 const LINKS = new Set(['href', 'xlink:href', 'src', 'srcset', 'action', 'formaction', 'background', 'poster', 'data']);
 // A drawing, still inert in its <template>, without what would load or open anything: no picture, frame or media,
-// no link (a group or a span in its place keeps what it holds where it was), no handler, and no address but its own in
-// an attribute or a style.
+// no link (a group or a span in its place keeps what it holds where it was), no handler, no attribute that names an
+// address but the drawing's own, and no style sheet that could.
 const SVG_NS = 'http://www.w3.org/2000/svg';
 function scrub(content) {
   for (const el of content.querySelectorAll('img, image, picture, video, audio, source, track, iframe, frame, object, embed, script, link, meta, base, feImage')) el.remove();
@@ -84,7 +92,7 @@ function scrub(content) {
       if (n.startsWith('on') || (LINKS.has(n) && !value.trim().startsWith('#')) || AWAY.test(value)) el.removeAttribute(name);
     }
   }
-  for (const style of content.querySelectorAll('style')) style.textContent = style.textContent.replace(new RegExp(AWAY.source, 'gi'), 'none');
+  for (const style of content.querySelectorAll('style')) if (AWAY.test(style.textContent)) style.remove(); // its colours go too
   return content;
 }
 
@@ -143,5 +151,5 @@ function watch(el) {
   draw(el);
 }
 
-root.Diagrams = { draw, watch };
+root.Diagrams = { draw, watch, scrub };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

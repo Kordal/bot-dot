@@ -82,7 +82,8 @@ function load() {
   const doc = page();
   const errors = [], listeners = [];
   const ctx = vm.createContext({
-    document: doc, console: { error: (...a) => errors.push(a.join(' ')) }, setTimeout, clearTimeout, location: { origin: ORIGIN },
+    document: doc, console: { error: (...a) => errors.push(a.join(' ')) }, location: { origin: ORIGIN },
+    setTimeout: (...a) => setTimeout(...a), clearTimeout: (...a) => clearTimeout(...a), // the test's, which a test may mock
     addEventListener: (type, fn) => { if (type === 'message') listeners.push(fn); },
     removeEventListener: (type, fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); },
   });
@@ -186,7 +187,7 @@ test('a block Mermaid cannot read stays its code with a note, says why in the co
 });
 
 test('only the frame answers: a message from anywhere else draws nothing', async () => {
-  const { doc, Diagrams, frame, ready, message } = load();
+  const { doc, Diagrams, frame, ready, message, answer } = load();
   const md = reply(doc, 'flowchart LR\n  A --> B');
   Diagrams.draw(md);
   message({}, { ready: true }); // another window says it is ready
@@ -198,6 +199,9 @@ test('only the frame answers: a message from anywhere else draws nothing', async
   message({}, { id, svg: '<svg>not from the frame</svg>' });
   await settle();
   assert.equal(figureOf(md), undefined);
+  answer(); // the frame's own answer still counts
+  await settle();
+  assert.match(figureOf(md).children[0].innerHTML, /^<svg id="diagram-\d+">flowchart/);
 });
 
 test('a thread drawn again draws no diagram again, and a block gone before its drawing came is left alone', async () => {
@@ -224,6 +228,30 @@ test('a thread drawn again draws no diagram again, and a block gone before its d
   assert.ok(figureOf(again));
   assert.equal(drawn.filter((s) => s === 'flowchart LR\n  A --> B').length, 1, 'the same source is drawn once');
   assert.equal(figureOf(again).children[0].innerHTML, figureOf(first).children[0].innerHTML);
+});
+
+test('a frame that does not answer leaves the code with the note, and the next block makes a new frame and tries again', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { doc, Diagrams, frame, ready, answer, errors } = load();
+  const md = reply(doc, 'flowchart LR\n  A --> B');
+  Diagrams.draw(md);
+  const stuck = frame();
+  ready();
+  await settle();
+  assert.equal(stuck.contentWindow.sent.length, 1, 'asked, never answered');
+  t.mock.timers.tick(20000);
+  await settle();
+  assert.equal(noteOf(md).textContent, 'Diagram could not be drawn');
+  assert.match(errors[0], /diagram-frame\.html did not answer/);
+  assert.equal(stuck.parent, null, 'the stuck frame is taken away');
+  const next = reply(doc, 'flowchart LR\n  A --> B');
+  Diagrams.draw(next);
+  assert.equal(doc.frames.length, 2);
+  ready();
+  await settle();
+  answer();
+  await settle();
+  assert.ok(figureOf(next), 'the same source, drawn by the new frame');
 });
 
 test('a frame without Mermaid leaves the code with the note, and the next block makes a new frame', async () => {
@@ -296,6 +324,92 @@ test('the frame loads only its own scripts: Mermaid, then diagram-frame.js', () 
   const html = read('diagram-frame.html');
   assert.deepEqual([...html.matchAll(/<script src="([^"]+)"><\/script>/g)].map((m) => m[1]), ['/vendor/mermaid/mermaid.min.js', '/diagram-frame.js']);
   assert.doesNotMatch(html, /<script>/, 'no script of its own in the page');
+});
+
+// A drawing as the frame might send it, as a tree: tag, attributes, children (text is a string). The SVG namespace
+// unless `html`; querySelectorAll knows a list of tags and '*'.
+const SVG = 'http://www.w3.org/2000/svg', HTML = 'http://www.w3.org/1999/xhtml';
+function tree() {
+  const doc = {};
+  const node = (tag, attrs = {}, kids = [], ns = SVG) => {
+    const el = {
+      localName: tag, namespaceURI: ns, ownerDocument: doc, parent: null, childNodes: [], _attrs: new Map(Object.entries(attrs)), _text: '',
+      get attributes() { return [...this._attrs].map(([name, value]) => ({ name, value })); },
+      getAttribute(n) { return this._attrs.has(n) ? this._attrs.get(n) : null; },
+      setAttribute(n, v) { this._attrs.set(n, String(v)); },
+      removeAttribute(n) { this._attrs.delete(n); },
+      get textContent() { return this._text + this.childNodes.map((c) => c.textContent).join(''); },
+      set textContent(v) { this._text = v; this.childNodes = []; },
+      append(...ks) { for (const k of ks) { k.parent?.childNodes.splice(k.parent.childNodes.indexOf(k), 1); k.parent = this; this.childNodes.push(k); } },
+      remove() { this.parent?.childNodes.splice(this.parent.childNodes.indexOf(this), 1); this.parent = null; },
+      replaceWith(k) { const sib = this.parent.childNodes; k.parent?.childNodes.splice(k.parent.childNodes.indexOf(k), 1); k.parent = this.parent; sib[sib.indexOf(this)] = k; this.parent = null; },
+      querySelectorAll(sel) {
+        const tags = sel.split(',').map((s) => s.trim().toLowerCase());
+        const out = [];
+        const walk = (e) => { for (const c of e.childNodes) { if (c.localName && (tags.includes('*') || tags.includes(c.localName.toLowerCase()))) out.push(c); if (c.childNodes) walk(c); } };
+        walk(this);
+        return out;
+      },
+    };
+    for (const k of kids) el.append(typeof k === 'string' ? { textContent: k, parent: null } : k);
+    return el;
+  };
+  doc.createElementNS = (ns, tag) => node(tag, {}, [], ns);
+  return node;
+}
+const tagsIn = (el) => el.querySelectorAll('*').map((e) => e.localName);
+const attrsIn = (el) => el.querySelectorAll('*').flatMap((e) => e.attributes.map((a) => `${e.localName} ${a.name}=${a.value}`));
+
+test("the drawing is cleaned before it is shown: nothing that loads, opens or runs, and Mermaid's own parts kept", () => {
+  const { Diagrams } = load();
+  const h = tree();
+  const label = h('foreignObject', {}, [h('div', { style: 'display: table; white-space: nowrap;' }, [
+    h('span', { class: 'nodeLabel' }, [h('p', {}, [
+      h('img', { src: 'https://example.invalid/a.png' }, [], HTML),
+      h('b', { onmouseover: 'window.__ran=1' }, ['bold'], HTML),
+      h('span', { style: "background:url(https://example.invalid/c.png)" }, ['styled'], HTML),
+      h('span', { style: 'background:image-set("https://example.invalid/d.png" 1x)' }, ['set'], HTML),
+      h('span', { style: 'background:\\75 rl(https://example.invalid/e.png)' }, ['escaped'], HTML),
+      h('a', { href: 'javascript:window.__ran=2' }, ['link'], HTML),
+    ], HTML)], HTML)], HTML)]);
+  const svg = h('svg', { id: 'diagram-1', viewBox: '0 0 300 100' }, [
+    h('style', {}, ['#diagram-1 .node rect{fill:#1f2020;stroke:#ccc;} #diagram-1 .neo{stroke:url(#diagram-1-gradient);}']),
+    h('a', { 'xlink:href': 'https://example.invalid/', transform: 'translate(280, 44)' }, [h('g', { class: 'node clickable' }, [h('rect', { width: '10' }), label])]),
+    h('path', { 'marker-end': 'url(#diagram-1_flowchart-pointEnd)', fill: 'url(https://example.invalid/f.svg)' }),
+    h('image', { href: 'https://example.invalid/g.png' }),
+    h('use', { href: '#diagram-1-gradient' }),
+    h('use', { href: 'https://example.invalid/h.svg#x' }),
+    h('script', {}, ['window.__ran=3']),
+  ]);
+  const content = h('#fragment', {}, [svg]);
+  assert.equal(Diagrams.scrub(content), content);
+  const tags = tagsIn(content);
+  for (const gone of ['img', 'image', 'script', 'a']) assert.ok(!tags.includes(gone), `no ${gone}`);
+  const attrs = attrsIn(content);
+  assert.deepEqual(attrs.filter((a) => /example\.invalid|javascript:|onmouseover|image-set|\\/.test(a)), [], 'no outside address, handler or escape');
+  // A link became a group in its place, with its transform; the label's words stay.
+  const g = svg.childNodes[1];
+  assert.equal(g.localName, 'g');
+  assert.equal(g.namespaceURI, SVG);
+  assert.equal(g.getAttribute('transform'), 'translate(280, 44)');
+  assert.equal(g.getAttribute('xlink:href'), null);
+  assert.match(content.textContent, /bold.*styled.*set.*escaped.*link/s);
+  // Mermaid's own: its style sheet, its markers and gradients, its layout.
+  assert.ok(attrs.includes('path marker-end=url(#diagram-1_flowchart-pointEnd)'));
+  assert.ok(attrs.includes('use href=#diagram-1-gradient'));
+  assert.ok(attrs.includes('div style=display: table; white-space: nowrap;'));
+  assert.ok(tags.includes('style'));
+});
+
+test('a style sheet that could reach another address goes whole', () => {
+  const { Diagrams } = load();
+  for (const css of ['.x{background:url(https://example.invalid/a.png)}', '@import "https://example.invalid/b.css";', '@\\69mport "x.css";',
+    '.x{background:\\75 rl(https://example.invalid/c.png)}', '.x{background:-webkit-image-set("https://example.invalid/d.png" 1x)}', '@font-face{src:url(https://example.invalid/f.ttf)}']) {
+    const h = tree();
+    const content = h('#fragment', {}, [h('svg', {}, [h('style', {}, [css]), h('rect')])]);
+    Diagrams.scrub(content);
+    assert.deepEqual(tagsIn(content), ['svg', 'rect'], css);
+  }
 });
 
 test('a diagram has room on the page: its drawing fits the bubble, what is hidden is not shown, the frame is out of sight', () => {

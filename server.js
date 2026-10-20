@@ -152,14 +152,14 @@ const FRAME_CSP = [
 // The browser checks back each time (no-cache) and gets a 304 while the file hasn't changed.
 // /vendor/mermaid/ is botdot's own copy of Mermaid (12.2.0, unchanged), which the diagrams' frame loads when a reply
 // has a diagram (ADR 041): its one file is 5.5 MB, 1.6 MB with gzip.
-const MERMAID = path.join(__dirname, 'vendor', 'mermaid');
+const MERMAID = path.join(__dirname, 'vendor', 'mermaid'), MERMAID_PATH = '/vendor/mermaid';
 const staticCache = new Map(); // file -> { key, etag, raw, gz, br }
 const STATIC_MAX = 8 * 1024 * 1024; // bigger files are streamed as they are
 const BROTLI_BIG = 1024 * 1024; // above it brotli at quality 5: at its best it holds the server for seconds per MB
 async function serveStatic(req, res) {
   let rel;
   try { rel = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { throw httpError(400, 'Bad address'); }
-  const [root, sub] = rel.startsWith('/vendor/mermaid/') ? [MERMAID, rel.slice('/vendor/mermaid'.length)] : [PUBLIC, rel];
+  const [root, sub] = rel.startsWith(`${MERMAID_PATH}/`) ? [MERMAID, rel.slice(MERMAID_PATH.length)] : [PUBLIC, rel];
   const file = path.normalize(path.join(root, sub === '/' ? 'index.html' : sub));
   const st = file.startsWith(root + path.sep) ? await fs.promises.stat(file).catch(() => null) : null;
   if (!st || st.isDirectory()) {
