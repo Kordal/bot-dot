@@ -5,12 +5,12 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, cut, esc } = require('./web-page');
+const { read, cut, esc, noDrafts } = require('./web-page');
 
 function chat() {
   const lib = vm.createContext({});
   vm.runInContext(read('unread.js'), lib);
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...noDrafts,
     esc, Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: (at) => `t(${at})`, dur: () => '2 s',
     notesFoldHTML: () => '', filesHTML: (list) => (list?.length ? `<files ${list.map((f) => f.name).join(',')}>` : ''), botFilesHTML: () => '', copyBtn: () => '<copy>',
@@ -45,7 +45,7 @@ test('web: the feed\'s `run_steered` reads the runs again', () => {
 });
 
 test('web: in a Chief chat the messages a reply read stand before it, as the owner\'s, with "Steered" and no buttons', () => {
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...noDrafts,
     esc, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, msgTime: (at) => `t(${at})`, copyBtn: () => '<copy>', escMentions: (t) => esc(t),
     filesHTML: (list) => (list?.length ? `<files ${list.map((f) => f.name).join(',')}>` : ''),
     userBubble: (m) => `<user ${esc(m.text)}>`, suggestionBubble: () => '', reportBubble: () => '', chiefBubble: (m) => `<chief ${esc(m.text)}>`,

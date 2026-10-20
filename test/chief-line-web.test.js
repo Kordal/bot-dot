@@ -8,7 +8,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, thread } = require('./web-page');
+const { app, read, cut, esc, element, thread, noDrafts } = require('./web-page');
 
 const css = read('style.css');
 const lib = vm.createContext({});
@@ -44,7 +44,7 @@ function chiefChat({ reply = async () => ({ ok: true }) } = {}) {
   t.thread.dataset.chat = 'c1';
   const state = { runs: [], chatId: 'c1' };
   const calls = [];
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...noDrafts,
     OpeningLine, Unread: lib.Unread, openingLines: OpeningLine.keeper(), state, CHIEF_COLOR: CHIEF, 
     chiefTurns: new Map(), botById: () => null, updateChatQueued() {}, stopRun: () => assert.fail('no run is stopped from the Chief\'s line'),
     api: async (path, opts = {}) => { calls.push(`${opts.method || 'GET'} ${path}`); return reply(path); },
@@ -140,7 +140,7 @@ function following({ row = true } = {}) {
   const t = { dataset: { chat: 'c1' }, scrollHeight: 0, scrollTop: 0, clientHeight: 0, added: [], insertAdjacentHTML(where, html) { this.added.push(html); } };
   const state = { chatId: 'c1', chatStream: null, chatReload: false };
   const did = { placed: 0, shown: [], needs: 0, busy: [] };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...noDrafts,
     JSON, state, chiefTurns: new Map([['c1', '']]), openingLines: OpeningLine.keeper(), OpeningLine,
     $: (sel) => (sel === '#chat-thread' ? t : null), $$: (sel) => (sel === '[data-pending]' && pending ? [pending] : []),
     EventSource: class { constructor(url) { this.url = url; this.closed = false; streams.push(this); } close() { this.closed = true; } },
@@ -213,7 +213,7 @@ function feed({ view = 'chief', chatId = 'c1', stream = null, sending = false } 
   const form = {};
   const state = { view, chatId, chatStream: stream, chatReload: false };
   const did = { shown: [], placed: 0 };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...noDrafts,
     JSON, window: { EventSource: true }, state, setTimeout: () => 0, clearTimeout() {},
     chiefTurns: new Map(), openingLines: OpeningLine.keeper(), sendingIn: new WeakSet(sending ? [form] : []),
     $: (sel) => (sel === '#view-chief form' ? form : null),

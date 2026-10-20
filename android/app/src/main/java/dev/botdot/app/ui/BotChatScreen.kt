@@ -209,7 +209,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         YourSide(r, open = r.id in opened)
                         if (new && mine) NewLine(bot?.color)
                         val theirs = @Composable {
-                            TheirSide(r, open = r.id in opened, features = features,
+                            TheirSide(r, open = r.id in opened, features = features, draft = vm.draft?.takeIf { it.first == r.id }?.second,
                                 learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> onLearned; null -> null } })
                             if (r.id == runs.firstOrNull()?.id && r.status == "success") {
                                 Choices(r.choices) { text, key -> sendFrom(text, key) }
@@ -257,7 +257,7 @@ private fun YourSide(r: Run, open: Boolean = false) {
 }
 
 @Composable
-private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String>? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList()) {
+private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String>? = null, draft: String? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList()) {
     val p = LocalPaper.current
     val footer = shortTime(r.endedAt ?: r.startedAt)
     // What it learned is the server's line where the server writes it (`memory-chips`): printed whole. Before, cut as it was.
@@ -277,7 +277,9 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
         FigureText(buildAnnotatedString { append("Messaged "); bots(to.map { named(w?.bot(it.id), it.name, it.color) }); append(how) }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
     }
     when (r.status) {
-        "running" -> BotFilesRow(r.files) // no bubble while it works: the status line says it; only what it attached so far
+        // No bubble while it works: the status line says it; only what it attached so far. From a server with drafts,
+        // the reply as it is written so far stands in the reply's place and grows there (ReplyDraft).
+        "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble { Column { MarkdownText(draftSource(draft)); BotFilesRow(r.files) } }
         "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
             Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); BotFilesRow(r.files) }
         }

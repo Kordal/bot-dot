@@ -7,7 +7,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut } = require('./web-page');
+const { app, read, cut, noDrafts } = require('./web-page');
 
 const lib = vm.createContext({});
 vm.runInContext(read('unread.js'), lib);
@@ -51,7 +51,7 @@ function page(features, runs = [RUN]) {
   const es = { addEventListener: (type, fn) => { heard[type] = fn; } };
   const streams = [];
   class EventSource { constructor(url) { this.url = url; this.closed = false; streams.push(this); } close() { this.closed = true; } }
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...noDrafts,
     JSON, OpeningLine, Unread: lib.Unread, openingLines, state, es, EventSource, CHIEF_COLOR: '#d85a30', chiefTurns: new Map(),
     botById: (id) => state.bots.find((b) => b.id === id) || null, stopRun() {}, updateChatQueued() {},
     renderContacts: () => { drawn.contacts++; }, refresh: () => { drawn.refreshed++; },
@@ -209,8 +209,8 @@ function watching(features) {
   const streams = [];
   class EventSource { constructor(url) { this.url = url; this.closed = false; streams.push(this); } close() { this.closed = true; } }
   const got = { lines: [], files: [], ended: 0 };
-  const ctx = vm.createContext({ JSON, OpeningLine, EventSource, state: { features } });
-  vm.runInContext(`${cut('function watchRun(runId, onEnd, onFile, onLine) {', '// ---------- live screen preview')}\nthis.watchRun = watchRun;`, ctx);
+  const ctx = vm.createContext({ ...noDrafts, JSON, OpeningLine, EventSource, state: { features } });
+  vm.runInContext(`${cut('function watchRun(runId, onEnd, onFile, onLine, onDraft) {', '// ---------- live screen preview')}\nthis.watchRun = watchRun;`, ctx);
   ctx.watchRun('r1', () => got.ended++, (file) => got.files.push(file), (text) => got.lines.push(text));
   const emit = (ev) => streams[0].onmessage({ data: JSON.stringify(ev) });
   return { got, streams, emit };

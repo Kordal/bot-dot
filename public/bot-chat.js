@@ -38,7 +38,8 @@ function botThreadHTML(bot, runs, newFirst = null) {
     let reply;
     if (r.status === 'running') {
       // No bubble while it works: the status line under the chat says it (placeStatusLines). Only what it attached so far.
-      reply = `<div class="bubble-row from-bot" data-live="${esc(r.id)}">${botFilesHTML(r.files)}</div>`;
+      // From a server with drafts, the reply as it is written so far stands here, and grows in place (replyDrafts).
+      reply = `<div class="bubble-row from-bot" data-live="${esc(r.id)}">${draftHTML(replyDrafts.of(r.id), true)}${botFilesHTML(r.files)}</div>`;
     } else {
       const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
       const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || 'Done. (No written reply.)';
@@ -222,11 +223,11 @@ function tookRun(botId, run, text, attachments) {
 }
 
 // A bot's running run as it happens: a file it attaches shows at once, its line goes to the status line as the
-// server says it (its steps are not put in words here), then refresh when it ends.
+// server says it (its steps are not put in words here), its reply draft into its row, then refresh when it ends.
 function followBotRun(run) {
   if (state.botStream) { state.botStream.close(); state.botStream = null; }
   if (!run) return;
-  const es = watchRun(run.id, () => { state.botStream = null; refresh(); }, (file) => {
+  const es = watchRun(run.id, () => { state.botStream = null; replyDrafts.end(run.id); refresh(); }, (file) => {
     const live = $(`[data-live="${CSS.escape(run.id)}"]`);
     if (!live || $(`a[href="${CSS.escape(fileHref(file))}"]`, live)) return; // shown already (the stream replays)
     const list = $('.bubble-files', live);
@@ -235,20 +236,22 @@ function followBotRun(run) {
     else live.insertAdjacentHTML('beforeend', html);
     const t = $('#bot-thread');
     if (t && t.scrollHeight - t.scrollTop - t.clientHeight < 200) t.scrollTop = t.scrollHeight;
-  }, (line) => { if (openingLines.say(`bot:${run.botId}`, line, run.id)) { renderContacts(); placeStatusLines(); } });
+  }, (line) => { if (openingLines.say(`bot:${run.botId}`, line, run.id)) { renderContacts(); placeStatusLines(); } },
+  (text) => replyDrafts.say(run.id, text, () => [$(`[data-live="${CSS.escape(run.id)}"]`), $('#bot-thread')]));
   state.botStream = es;
 }
 
 // Follow a running run (the stream replays what already happened first). onEnd() when the run finishes;
 // onFile(file) for a file it attached; onLine(text) with its line, each time the server says one: its working
 // line, or its opening line from a server without the working line. Its steps are not read: the words for what
-// a run is doing are the server's.
-function watchRun(runId, onEnd, onFile, onLine) {
+// a run is doing are the server's. onDraft(text) with its reply draft, from a server that has drafts ('' for none).
+function watchRun(runId, onEnd, onFile, onLine, onDraft) {
   const es = new EventSource(`/api/runs/${runId}/stream`);
   es.onmessage = (msg) => {
     const ev = JSON.parse(msg.data);
     if (ev.type === 'file') onFile?.(ev.file); // a file it attached: shown at once
     if (OpeningLine.says(ev.type, state.features)) onLine?.(ev.text);
+    if (ev.type === 'reply_draft' && showsDrafts()) onDraft?.(String(ev.text ?? ''));
     if (ev.type === 'run_end') { es.close(); onEnd?.(); }
   };
   es.onerror = () => es.close();

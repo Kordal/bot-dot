@@ -181,7 +181,8 @@ test('web: a working bot is one line with Stop: its opening line, or "Working" u
 
 test('web: a running run draws no bubble: no typing dots, no steps, no Details, only what it attached', () => {
   const running = app.slice(app.indexOf("if (r.status === 'running') {", app.indexOf('function botThreadHTML')), app.indexOf("const failed = ['error', 'stopped', 'interrupted']"));
-  assert.match(running, /reply = `<div class="bubble-row from-bot" data-live="\$\{esc\(r\.id\)\}">\$\{botFilesHTML\(r\.files\)\}<\/div>`;/);
+  // From a server with drafts the reply as it is written stands there too (test/reply-draft-web.test.js).
+  assert.match(running, /reply = `<div class="bubble-row from-bot" data-live="\$\{esc\(r\.id\)\}">\$\{draftHTML\(replyDrafts\.of\(r\.id\), true\)\}\$\{botFilesHTML\(r\.files\)\}<\/div>`;/);
   assert.doesNotMatch(running, /bubble from-bot|typing|steps|data-details|data-stop-run|activity/);
   assert.match(css, /\[data-live\]:empty \{ display: none; \}/);
   const follow = app.slice(app.indexOf('function followBotRun'), app.indexOf('function watchRun('));

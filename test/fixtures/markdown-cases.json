@@ -929,5 +929,171 @@
         }
       ]
     }
+  ],
+  "streamAbout": "A reply draft as it is drawn while it still grows (docs/api.md, \"The reply draft\"): each case is a draft and the blocks of what is drawn of it, the same on the web page (draftSource, then mdBlocks, in public/app.js) and in the Android app (draftSource, then parseBlocks, in Markdown.kt). A whole draft is drawn as the reply is.",
+  "stream": [
+    {
+      "name": "a row being written waits: only the whole rows are drawn",
+      "source": "| Host | Free |\n|---|---|\n| pve | 41% |\n| nas | 1",
+      "blocks": [
+        {
+          "type": "table",
+          "rows": [
+            [
+              "Host",
+              "Free"
+            ],
+            [
+              "pve",
+              "41%"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a whole row whose line has not ended waits too",
+      "source": "| Host | Free |\n|---|---|\n| pve | 41% |",
+      "blocks": [
+        {
+          "type": "table",
+          "rows": [
+            [
+              "Host",
+              "Free"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a separator row being written: the head row alone, above the text before it",
+      "source": "Disks:\n\n| Host | Free |\n|--",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Disks:"
+        },
+        {
+          "type": "table",
+          "rows": [
+            [
+              "Host",
+              "Free"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "name": "a code block not closed yet is code: no heading, list or paragraph in it",
+      "source": "Run:\n```sh\n# not a heading\n- not a list\n\nnot a paragraph",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Run:"
+        },
+        {
+          "type": "code",
+          "text": "# not a heading\n- not a list\n\nnot a paragraph"
+        }
+      ]
+    },
+    {
+      "name": "a fence being opened waits",
+      "source": "Run:\n```s",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Run:"
+        }
+      ]
+    },
+    {
+      "name": "a fence being closed waits",
+      "source": "```\ncode\n``",
+      "blocks": [
+        {
+          "type": "code",
+          "text": "code"
+        }
+      ]
+    },
+    {
+      "name": "a mermaid block is code until its fence closes",
+      "source": "The flow:\n```mermaid\ngraph TD\n  A-->B",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "The flow:"
+        },
+        {
+          "type": "code",
+          "text": "graph TD\n  A-->B"
+        }
+      ]
+    },
+    {
+      "name": "an unbalanced ** stays text",
+      "source": "It is **very",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "It is **very"
+        }
+      ]
+    },
+    {
+      "name": "an unbalanced [ stays text",
+      "source": "See [the page",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "See [the page"
+        }
+      ]
+    },
+    {
+      "name": "a link being written stays text",
+      "source": "See [the page](https://exa",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "See [the page](https://exa"
+        }
+      ]
+    },
+    {
+      "name": "a whole draft is drawn as the reply is",
+      "source": "## Done\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n```js\nx\n```\nEnd.",
+      "blocks": [
+        {
+          "type": "heading",
+          "level": 2,
+          "text": "Done"
+        },
+        {
+          "type": "table",
+          "rows": [
+            [
+              "A",
+              "B"
+            ],
+            [
+              "1",
+              "2"
+            ]
+          ]
+        },
+        {
+          "type": "code",
+          "text": "x"
+        },
+        {
+          "type": "para",
+          "text": "End."
+        }
+      ]
+    }
   ]
 }

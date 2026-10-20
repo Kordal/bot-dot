@@ -20,6 +20,7 @@ import dev.botdot.app.data.Queued
 import dev.botdot.app.data.TakenBack
 import dev.botdot.app.data.Ratings
 import dev.botdot.app.data.Run
+import dev.botdot.app.data.ReplyDraft
 import dev.botdot.app.data.RunEvent
 import dev.botdot.app.data.str
 import kotlinx.coroutines.CancellationException
@@ -250,7 +251,11 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         viewModelScope.launch { runCatching { app.api.value?.stopRun(r.id) }; refresh() }
     }
 
-    // Follow the run that's going on now: what it attaches, its line as it changes, its end.
+    /** The reply of the run at work as it is written so far, by its run (ReplyDraft): drawn in its place. */
+    var draft by mutableStateOf<Pair<String, String>?>(null)
+        private set
+
+    // Follow the run that's going on now: what it attaches, its line as it changes, its draft, its end.
     private var following: String? = null
     private var stream: Job? = null
     private fun follow() {
@@ -260,14 +265,16 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         if (r?.id == following) return
         following = r?.id
         stream?.cancel()
+        draft = null // the run it was of ended: its reply stands in its place
         if (r == null) return
         stream = viewModelScope.launch {
             runCatching {
                 app.api.value?.runStream(r.id)?.collect { ev ->
                     when (ev) {
                         is RunEvent.Step -> Unit // a working bot is its status line: the steps are in the run's details
-                        is RunEvent.Text -> Unit // the reply shows when it's done
-                        is RunEvent.End -> kicks.tryEmit(Unit)
+                        is RunEvent.Text -> Unit // the reply shows when it's done, or grows as its draft
+                        is RunEvent.Draft -> if (ReplyDraft.shows(app.store.version.value.value?.features)) draft = ev.text.takeIf { it.isNotEmpty() }?.let { r.id to it }
+                        is RunEvent.End -> { draft = null; kicks.tryEmit(Unit) }
                         is RunEvent.File -> kicks.tryEmit(Unit) // show it now: a QR code to scan can't wait for the reply
                         is RunEvent.Line -> app.store.lines.streamed("bot:$botId", ev, r.id)
                     }
@@ -514,6 +521,10 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
 
     val busy: Boolean get() = chat?.busy == true || chat?.messages?.lastOrNull()?.pending == true
 
+    /** The Chief's reply as it is written so far (ReplyDraft), "" for none: drawn in the place of the reply that is pending. */
+    var draft by mutableStateOf("")
+        private set
+
     // While the Chief replies: what it's doing, from its stream.
     private var following: String? = null
     private var stream: Job? = null
@@ -532,6 +543,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
         following = id
         stream?.cancel()
         activity.clear()
+        draft = ""
         if (id == null) return
         label?.let { activity += it }
         stream = viewModelScope.launch {
@@ -540,7 +552,8 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
                     when (type) {
                         "activity" -> activity += OpeningLine.chiefActivity(o)
                         "opening_line" -> app.store.lines.say("chief:$id", o.str("text"))
-                        "done" -> { activity.clear(); app.store.lines.end("chief:$id") } // the reply is here, or it couldn't finish
+                        "reply_draft" -> if (ReplyDraft.shows(app.store.version.value.value?.features)) draft = o.str("text")
+                        "done" -> { activity.clear(); draft = ""; app.store.lines.end("chief:$id") } // the reply is here, or it couldn't finish
                         "action" -> kick(whole = false) // persisted actions are clickable even while the Chief waits
                         "steered" -> kick(whole = false) // the reply read a message the owner steered into it (ADR 040)
                     }

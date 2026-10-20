@@ -16,9 +16,12 @@ import java.io.File
 
 class MarkdownTest {
     // The rules the web page shares (test/fixtures/markdown-cases.json): each case is a text and its blocks.
-    private val cases = Json.parseToJsonElement(
+    private val fixture = Json.parseToJsonElement(
         File(System.getProperty("markdownCases") ?: "../../test/fixtures/markdown-cases.json").readText(),
-    ).jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
+    ).jsonObject
+    private val cases = fixture.getValue("cases").jsonArray.map { it.jsonObject }
+    // A reply draft as it is drawn while it still grows (docs/api.md, "The reply draft"): its draft and its blocks.
+    private val stream = fixture.getValue("stream").jsonArray.map { it.jsonObject }
 
     private fun JsonObject.text() = getValue("text").jsonPrimitive.content
     private fun block(b: JsonObject): Block = when (val type = b.getValue("type").jsonPrimitive.content) {
@@ -37,6 +40,22 @@ class MarkdownTest {
         cases.forEach { c ->
             assertEquals(c.getValue("name").jsonPrimitive.content, c.getValue("blocks").jsonArray.map { block(it.jsonObject) }, parseBlocks(c.getValue("source").jsonPrimitive.content))
         }
+    }
+
+    @Test fun everyStreamCaseOfTheSharedFixtureIsDrawnAsItsBlocks() {
+        assertTrue(stream.size >= 10)
+        stream.forEach { c ->
+            assertEquals(c.getValue("name").jsonPrimitive.content, c.getValue("blocks").jsonArray.map { block(it.jsonObject) }, parseBlocks(draftSource(c.getValue("source").jsonPrimitive.content)))
+        }
+    }
+
+    @Test fun aDraftCutMidTableOrInsideAFenceNeverDrawsBroken() {
+        assertEquals(listOf(Block.Table(listOf(listOf("Host", "Free"), listOf("pve", "41%")))), parseBlocks(draftSource("| Host | Free |\n|---|---|\n| pve | 41% |\n| nas | 1")))
+        assertEquals(listOf(Block.Code("# rm -rf\n- x")), parseBlocks(draftSource("```sh\n# rm -rf\n- x")))
+        assertEquals(listOf(Block.Code("graph TD\nA-->B")), parseBlocks(draftSource("```mermaid\ngraph TD\nA-->B")))
+        // A whole reply is drawn as it is without drafts.
+        val whole = "## Done\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n```js\nx\n```\nEnd. **Bold** and [a link](https://example.com)."
+        assertEquals(parseBlocks(whole), parseBlocks(draftSource(whole)))
     }
 
     @Test fun aSubItemsTextStartsRightOfItsParentsText() {

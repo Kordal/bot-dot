@@ -10,6 +10,7 @@
 // run fail; and while hold-<Bot> exists its runs are held as `hold` holds every run.
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const args = process.argv.slice(2);
 // Signed in, unless $FAKE_OUT/signed-out exists (a test writes and removes it). While $FAKE_OUT/auth-fails exists the
@@ -95,9 +96,59 @@ const finish = () => {
   try { result = fs.readFileSync(path.join(OUT, own('result', '.txt')), 'utf8'); } catch { /* the default */ }
   let denials = []; // the tools its settings refused, as Claude Code reports them: $FAKE_OUT/denials.json
   try { denials = JSON.parse(fs.readFileSync(path.join(OUT, 'denials.json'), 'utf8')); } catch { /* none */ }
-  console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, num_turns: 1, duration_ms: 5, permission_denials: denials }));
-  process.exit(0);
+  const end = () => {
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, num_turns: 1, duration_ms: 5, permission_denials: denials }));
+    process.exit(0);
+  };
+  let stream = null;
+  try { stream = JSON.parse(fs.readFileSync(path.join(OUT, own('stream', '.json')), 'utf8')); } catch { /* the reply comes whole */ }
+  if (stream) streamed(stream, result, end); else end();
 };
+// A reply written as Claude Code writes it with --include-partial-messages, while $FAKE_OUT/stream.json (or
+// stream-<Bot>.json) exists: { chunk, everyMs, before: [text, …], partial, pauseAfter, endMs }. Each text of `before` is a
+// message of its own that a tool call (Bash) follows, then the reply is a message whose text comes in `text_delta`s of
+// `chunk` characters, `everyMs` apart, and ends its turn; each message then comes whole (`assistant`), as Claude Code
+// sends it too. partial: false leaves the partial lines out (a Claude Code without the flag); after `pauseAfter`
+// deltas the reply waits while $FAKE_OUT/stream-hold exists, and its result line comes `endMs` after its last line.
+// The partial lines come only when botdot asked for them.
+function streamed({ chunk = 8, everyMs = 20, before = [], partial = true, pauseAfter = -1, endMs = 250 }, reply, end) {
+  const partials = partial && args.includes('--include-partial-messages');
+  const line = (ev) => console.log(JSON.stringify({ ...ev, session_id: `fake-${n}`, parent_tool_use_id: null }));
+  const say = (event) => { if (partials) line({ type: 'stream_event', event, uuid: crypto.randomUUID() }); };
+  const steps = []; // what is written, in order: [what, how long to wait before it]; 'pause' waits for stream-hold
+  const message = (text, tool) => {
+    steps.push([() => say({ type: 'message_start', message: { role: 'assistant', content: [] } })]);
+    steps.push([() => say({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })]);
+    for (let i = 0; i < text.length; i += chunk) {
+      const piece = text.slice(i, i + chunk);
+      steps.push([() => say({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: piece } }), everyMs]);
+      if (!tool && i / chunk + 1 === pauseAfter) steps.push(['pause']);
+    }
+    steps.push([() => say({ type: 'content_block_stop', index: 0 })]);
+    const content = [{ type: 'text', text }];
+    if (tool) {
+      steps.push([() => say({ type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: tool, name: 'Bash', input: {} } })]);
+      steps.push([() => say({ type: 'content_block_stop', index: 1 })]);
+      content.push({ type: 'tool_use', id: tool, name: 'Bash', input: { command: 'true' } });
+    }
+    steps.push([() => say({ type: 'message_delta', delta: { stop_reason: tool ? 'tool_use' : 'end_turn' } })]);
+    steps.push([() => say({ type: 'message_stop' })]);
+    steps.push([() => line({ type: 'assistant', message: { role: 'assistant', content } })]);
+    if (tool) steps.push([() => line({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: tool, content: '' }] } })]);
+  };
+  before.forEach((text, i) => message(text, `tool-${i}`));
+  message(reply, null);
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  (async () => {
+    for (const [step, ms = 0] of steps) {
+      if (step === 'pause') { while (fs.existsSync(path.join(OUT, 'stream-hold'))) await wait(20); continue; }
+      if (ms) await wait(ms);
+      step();
+    }
+    await wait(endMs);
+    end();
+  })();
+}
 const released = () => !(fs.existsSync(path.join(OUT, 'hold')) || (who && fs.existsSync(path.join(OUT, `hold-${who}`)))) || fs.existsSync(path.join(OUT, `done-${n}`));
 // The record is written once the whole prompt is in, so a test never sees a run with its stdin missing.
 process.stdin.on('data', (c) => { rec.stdin += c; });

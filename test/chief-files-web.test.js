@@ -6,10 +6,10 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, cut, esc } = require('./web-page');
+const { read, cut, esc, noDrafts } = require('./web-page');
 
 const css = read('style.css');
-const page = vm.createContext({
+const page = vm.createContext({ ...noDrafts,
   esc, state: { features: [], bots: [{ id: 'surf', name: 'Web Surfer', computer: 'none' }], runs: [] }, CHIEF_COLOR: '#d85a30',
   msgTime: () => '09:12', copyBtn: () => '<copy>', choicesHTML: () => '', questionsHTML: () => '', botLabel: (b) => `<bot:${b.name}>`,
 });
