@@ -250,6 +250,11 @@ test("the browser's bridge takes secrets only on its socket, and its port only o
   assert.deepEqual(out.typed, ['synthetic-secret'], 'only the secret from the socket was typed');
   assert.deepEqual(out.is_open_closed, { ok: true, open: false }, 'open_browser asks whether its own Camoufox is open (#105)');
   assert.deepEqual(out.is_open, { ok: true, open: true });
+  assert.equal(out.prefs['signon.rememberSignons'], false, 'no typed password is stored');
+  assert.deepEqual([out.prefs['fission.autostart'], out.prefs['dom.ipc.processCount'], out.prefs['dom.ipc.processPrelaunch.enabled'],
+    out.prefs['network.process.enabled']], [false, 1, false, false], 'one content process and no spare or Socket process (#152)');
+  assert.equal(out.prefs['browser.cache.memory.capacity'], 16384, 'a small memory cache (#152)');
+  assert.equal(out.prefs['browser.sessionhistory.max_total_viewers'], 0, 'no pages kept for Back (#152)');
 });
 
 // Each bot's screen has a bridge of its own (#105): its socket, log and port follow the screen's display, and its

@@ -179,4 +179,11 @@ class VaultTypesTest {
         assertEquals("Bots that may pay with this card. You still approve every payment.", VaultTypes.itemBotsHint("card"))
         assertEquals("Bots that may type these details into forms.", VaultTypes.itemBotsHint("identity"))
     }
+
+    // Adding an SSH key from the app (#160): only with a server that takes one.
+    @Test fun anSshKeyIsAddedOnlyWithAServerThatTakesOne() {
+        assertTrue(VaultTypes.addsSshKeys(listOf("vault-ssh-keys", "vault-ssh-key-add")))
+        assertFalse(VaultTypes.addsSshKeys(listOf("vault-ssh-keys")))
+        assertFalse(VaultTypes.addsSshKeys(null))
+    }
 }

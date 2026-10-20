@@ -1024,6 +1024,8 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .bot-msg-label { color: var(--muted); font-size: 13.5px; padding: 0 6px; }
 .bubble-row.from-bot .bot-msg-label { align-self: flex-start; }
 .suggestion-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.vault-add { display: flex; gap: 8px; flex-wrap: wrap; }
+.wrap-any, .vault-item .bot-meta { overflow-wrap: anywhere; min-width: 0; }
 .bubble.from-other-bot.suggestion-msg, .bubble.from-other-bot.report-msg { white-space: normal; }
 /* As wide as its column at most: a code block or a long line scrolls or wraps inside it, not off to the left under the bot list. */
 .from-bot-msg > .bubble.from-other-bot { max-width: 100%; }
