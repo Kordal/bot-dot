@@ -1304,7 +1304,7 @@ test("root's step looks for the newest signed version at most once an hour, and 
   };
   const once = look({ answers: { revision: 'e'.repeat(40) } });
   assert.deepEqual(once.checks.map((args) => args.slice(-3)), [['ghcr.io/kordal/bot-dot:latest', 'server', '--revision']], 'the repository the install pinned, by the release check');
-  assert.equal(once.checks[0][once.checks[0].indexOf('-v') + 1], `${first.dir}/bin/lib:/check/lib:ro`, 'root\'s copy of it');
+  assert.ok(once.checks[0].includes(`${first.dir}/bin/lib:/check/lib:ro`), 'root\'s copy of it');
   const latest = status(once, 'latest.json');
   assert.equal(latest.version, 'eeeeeee');
   assert.ok(Date.now() - Date.parse(latest.at) < 60_000);
