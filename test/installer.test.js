@@ -550,6 +550,8 @@ test('an update stops before any download when an account\'s disk is short of ro
   const update = JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8'));
   assert.equal(update.state, 'failed');
   assert.equal(update.error, 'The account ann needs 7.0 GB free for this update and has 1.1 GB. Give it a bigger disk share, or update or reset its computer so the old computer image can go, then update again. No account was changed.');
+  assert.equal(update.phase, 'preflight', 'the admin page names the phase it stopped in (#195)');
+  assert.equal(update.account, 'ann');
   const since = step.docker.slice(before);
   assert.ok(since.some((c) => /lib\/image-layers\.js ghcr\.io\/kordal\/bot-dot@/.test(c.call)), 'the registry is asked for the signed image\'s layers');
   assert.ok(since.some((c) => c.call.includes(`-v ${first.run}/ann/docker.sock:/var/run/docker.sock`) && c.call.includes('image-cleanup.js')), 'after the account\'s unused images went');
@@ -1045,9 +1047,72 @@ test("the admin page's update takes the newest signed release of the repositorie
 });
 
 test('an update asks nothing: what needs an answer stops it, and says to run the installer', (t) => {
-  const done = installer(t, { dotenv: '', args: ['--update'], input: '1\nbotdot.example.com\nann\n' });
-  assert.equal(done.status, 1);
-  assert.match(done.stderr, /The update needs an answer to ".+", so it stopped\. Run the installer yourself: sudo sh install\.sh/);
+  const none = installer(t, { dotenv: '', args: ['--update'], input: '1\nbotdot.example.com\nann\n' });
+  assert.equal(none.status, 1);
+  assert.match(none.stderr, /botdot isn't installed here/);
+  assert.doesNotMatch(none.said, /How will people reach botdot/);
+  const unanswered = installer(t, { dotenv: 'TZ=UTC\nBOT_DOT_REACH=public\n', args: ['--update'], input: 'botdot.example.com\nann\n' });
+  assert.equal(unanswered.status, 1);
+  assert.match(unanswered.stderr, /doesn't say how people reach botdot or the admin's name, so the update stopped\. Run the installer yourself: sudo sh install\.sh/);
+  assert.doesNotMatch(unanswered.said, /The domain botdot answers on/);
+  assert.ok(!unanswered.calls.some((c) => /^compose .* up/.test(c)), 'nothing was started');
+});
+
+test("an update runs none of the install's interactive steps: Docker, gVisor, Caddy, Tailscale, the admin's link (#195)", (t) => {
+  const first = installer(t, { dotenv: '', input: '2\nann\n' });
+  assert.equal(first.status, 0, `${first.said}\n${first.stderr}`);
+  const seen = first.system.length;
+  const done = installer(t, { again: first, dotenv: '', args: ['--update'] });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  const system = done.system.slice(seen);
+  assert.doesNotMatch(system, /^tailscale /m, 'Tailscale is neither asked nor served again');
+  assert.doesNotMatch(system, /^apt-get /m);
+  assert.doesNotMatch(system, /^curl .*(get\.docker\.com|tailscale\.com|gvisor\.dev)/m);
+  assert.doesNotMatch(done.said, /sign-up|Done\. botdot is at|Reachable on your tailnet/);
+  assert.match(done.said, /The front door is running/, 'the front door runs the new version');
+});
+
+test("the admin's update runs in phases of its own: the front door moves last, and what it replaced goes after it (#195)", (t) => {
+  const { first } = withBob(t);
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');
+  const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], dockerFirst: roomAnswers() });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  const log = fs.readFileSync(path.join(first.dir, 'update.log'), 'utf8');
+  const phases = [...log.matchAll(/^== (.+)$/gm)].map((m) => m[1]);
+  assert.deepEqual(phases, ['check', 'clean', 'clean (ann)', 'preflight (ann)', 'clean (bob)', 'preflight (bob)', 'download', 'preflight',
+    'download (ann)', 'download (bob)', 'switch (ann)', 'switch (bob)', 'front-door', 'clean (ann)', 'clean (bob)', 'clean', 'done'], log);
+  const update = JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8'));
+  assert.equal(update.state, 'updated');
+  assert.equal(update.log, undefined, 'the log goes to the admin page only when the update stopped');
+});
+
+test('each phase is in update.json as it starts, and an update that stops names its phase and the last lines of its log (#195)', (t) => {
+  const { first } = withBob(t);
+  const status = path.join(first.dir, 'front-door', 'status');
+  // The stand-in docker writes down what update.json said at each download, and bob's account's download fails.
+  const seen = path.join(first.top, 'phases');
+  const dockerFirst = [
+    `[ "$1" = pull ] && { cat "${status}/update.json" >> "${seen}" 2>/dev/null; true; }`,
+    '[ "$1" = pull ] && case "${DOCKER_HOST:-}" in *bob*) echo \'failed to register layer: write /var/lib/docker/overlay2/l/x: no space left on device\' >&2; exit 1 ;; esac',
+  ];
+  const before = fs.readFileSync(path.join(first.top, 'docker.log'), 'utf8').split('\n').filter(Boolean).length;
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');
+  const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], dockerFirst });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  const during = fs.readFileSync(seen, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  assert.ok(during.some((u) => u.state === 'updating' && u.phase === 'download' && u.account === 'ann'), JSON.stringify(during));
+  assert.ok(during.every((u) => u.state === 'updating' && !Number.isNaN(Date.parse(u.at))));
+  const update = JSON.parse(fs.readFileSync(path.join(status, 'update.json'), 'utf8'));
+  // bob is kept on the version it ran (#194), and the update ends failed once the rest is done.
+  assert.equal(update.state, 'failed');
+  assert.equal(update.phase, 'done');
+  assert.match(update.error, /Not every account was updated: bob/);
+  assert.match(update.accounts.find((a) => a.name === 'bob').error, /no space left on device/);
+  assert.ok(Array.isArray(update.log) && update.log.length > 0 && update.log.length <= 40);
+  assert.ok(update.log.every((line) => typeof line === 'string' && /^[\x20-\x7e]*$/.test(line) && line.length <= 300), 'plain lines, no colours');
+  assert.match(update.log.at(-1), /^x Not every account was updated: bob/);
+  assert.ok(update.log.includes('== download (bob)'));
+  assert.ok(!done.docker.slice(before).some((c) => c.host.includes('/bob/') && /^compose .* up -d/.test(c.call)), 'bob was not restarted');
 });
 
 test("the admin's update: root's step updates the front door and every account, and says how it went", (t) => {
@@ -1073,7 +1138,7 @@ test("an update that fails says so to the admin page, with the installer's reaso
   const requests = path.join(first.dir, 'front-door', 'requests');
   fs.writeFileSync(path.join(requests, 'UPDATE'), '');
   // The installer's copy of root's step stops at once: an unknown option, as a broken copy would.
-  fs.writeFileSync(path.join(first.dir, 'bin', 'install.sh'), fs.readFileSync(path.join(first.dir, 'bin', 'install.sh'), 'utf8').replace('--update) UNATTENDED=1 ;;', '--update) die "Couldn\'t download ghcr.io/kordal/bot-dot." ;;'));
+  fs.writeFileSync(path.join(first.dir, 'bin', 'install.sh'), fs.readFileSync(path.join(first.dir, 'bin', 'install.sh'), 'utf8').replace('--update) MODE=update UNATTENDED=1 ;;', '--update) die "Couldn\'t download ghcr.io/kordal/bot-dot." ;;'));
   const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'] });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   const update = JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8'));

@@ -94,6 +94,11 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   say that every bot on the account's computer can read it. Saved logins used through
   `api_request` never reach the computer, and a GitHub App's private key never leaves botdot: a bot
   gets only the installation tokens botdot makes from it, which expire within the hour (ADR 037).
+- **The Chief makes an SSH key but never reads it.** When the owner asks in its chat, the Chief has
+  botdot make a new ed25519 key in the Vault and share it with the bots the owner names (#181). botdot
+  generates the key and hands it to Bitwarden on stdin; the Chief gets back its name, public key,
+  fingerprint and bots, never the private key, and it cannot send a key of its own. It does this only
+  in a turn the owner started, and after it read the web in that chat only on the owner's OK on a card.
 - **One Tailscale device, run as root, in userspace.** Every bot uses it. Its shields are up and the
   computer's firewall keeps botdot's control and screen ports from the tailnet; a bot with sudo could
   still open a port of its own to the tailnet, so limit the device with a tag.

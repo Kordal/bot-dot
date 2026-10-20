@@ -283,8 +283,8 @@ test('run_with_ssh_key: for a shared SSH key only; the Vault, the Chief and the 
   const chief = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey });
   const listed = await chief.json('list_vault');
   assert.deepEqual(listed, [
-    { name: 'Tailnet servers', type: 'ssh-key', fingerprint: FINGERPRINT, allowedBots: ['Ops'] },
-    { name: 'Backup box', type: 'ssh-key', fingerprint: FINGERPRINT, allowedBots: [] },
+    { name: 'Tailnet servers', type: 'ssh-key', publicKey: PUBLIC_KEY, fingerprint: FINGERPRINT, allowedBots: ['Ops'] },
+    { name: 'Backup box', type: 'ssh-key', publicKey: PUBLIC_KEY, fingerprint: FINGERPRINT, allowedBots: [] },
   ]);
 
   const held = await heldRun(srv, ops);

@@ -216,12 +216,18 @@ const readStatus = (name) => {
 };
 const short = (v) => (typeof v === 'string' && /^[0-9a-f]{7,12}$/.test(v) ? v : null);
 const when = (v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
-// What the admin page shows: { version, selfBuilt, asked, update: { state, at, from, to, error?, accounts? } | null,
-// newest: { version, at } | null }.
+// The phases root's step names while it updates (#195), in their order; clean, preflight, download and switch are
+// done account by account, and name the account too.
+const UPDATE_PHASES = ['check', 'clean', 'preflight', 'download', 'switch', 'front-door', 'done'];
+const UPDATE_LOG_LINES = 40;
+// What the admin page shows: { version, selfBuilt, asked, update: { state, at, from, to, error?, accounts?, phase?,
+// account?, log? } | null, newest: { version, at } | null }.
 // Only what root's step wrote, checked field by field: the version is a short revision, a state one of three, an error
-// a line, and each account's result (#194) a name, updated, kept (with the version it runs) or failed, and a line why
-// when it wasn't updated. newest is the newest signed release root's step found (latest.json, at most once an hour,
-// #193), none for images built on the machine.
+// a line, each account's result (#194) a name, updated, kept (with the version it runs) or failed, and a line why
+// when it wasn't updated, a phase one of UPDATE_PHASES with the account it was at, and the log (only of a failed
+// update) at most its last 40 lines of plain text. A field root's step left out, or wrote wrong, is left out. newest is
+// the newest signed release root's step found (latest.json, at most once an hour, #193), none for images built on the
+// machine.
 const line = (v, max) => (typeof v === 'string' ? v.replace(/[^\x20-\x7e]/g, ' ').slice(0, max) : null);
 const accountResults = (list) => (Array.isArray(list) ? list : [])
   .filter((a) => a && typeof a.name === 'string' && store.ACCOUNT_NAME.test(a.name) && ['updated', 'kept', 'failed'].includes(a.result))
@@ -238,6 +244,14 @@ function updateStatus() {
     update = { state: last.state, at: when(last.at), from: short(last.from), to: short(last.to) };
     if (last.state === 'failed') update.error = line(last.error, 500);
     if (last.state !== 'updating' && Array.isArray(last.accounts)) update.accounts = accountResults(last.accounts);
+    if (last.state !== 'updated' && UPDATE_PHASES.includes(last.phase)) {
+      update.phase = last.phase;
+      if (typeof last.account === 'string' && store.ACCOUNT_NAME.test(last.account)) update.account = last.account;
+    }
+    if (last.state === 'failed' && Array.isArray(last.log)) {
+      const log = last.log.filter((l) => typeof l === 'string').slice(-UPDATE_LOG_LINES).map((l) => line(l, 300).trimEnd());
+      if (log.length) update.log = log;
+    }
     if (last.state === 'updating' && (!update.at || Date.now() - Date.parse(update.at) > UPDATE_STALE_MS)) {
       update = { ...update, state: 'failed', error: "The update didn't finish. Update again." };
     }

@@ -34,12 +34,15 @@
 # The admin page's Update asks with an empty file named UPDATE, which no account can be named (and which, unlike a
 # hidden file, wakes systemd's DirectoryNotEmpty): root's step then runs its copy of this installer as an update,
 # which hands over to the installer in the image it installs (ADR 036), asks nothing and stops at anything it would
-# have to ask, and says how it went in BOT_DOT_DIR/front-door/status (update.json; its output in BOT_DOT_DIR/update.log):
+# have to ask, and says how it went in BOT_DOT_DIR/front-door/status (update.json: its phase, and after a failure the
+# last lines of its output, all of which is in BOT_DOT_DIR/update.log):
 #
 #   sh BOT_DOT_DIR/bin/install.sh --update
 #
-# It downloads the newest signed release of the repositories .env pins (or takes the images built on this machine)
-# into the machine's Docker and every account's first, then restarts the front door and every account on it.
+# It is not the install again but phases of its own (ADR 045): check the newest signed release of the repositories
+# .env pins (or the images built on this machine), clean, preflight, download into the machine's Docker and every
+# account's, switch each account to it, then the front door, and clean what it replaced. It never installs Docker,
+# gVisor or Tailscale, never asks how botdot is reached, and makes no sign-up link.
 #
 # Each account has a share of the machine that the admin sets on the admin page (ADR 028, #471): CPUs and RAM are hard
 # limits on its unit (systemctl set-property) and the limits of its one computer, which its docker-helper reads (a file
@@ -192,14 +195,25 @@ say_newest() {
 # version_now: the version root's step last said the front door and every account run.
 version_now() { sed -n 's/.*"version":"\([0-9a-f]*\)".*/\1/p' "$DOOR/status/version.json" 2>/dev/null || true; }
 
+# phase NAME [ACCOUNT]: the update is in its phase NAME (check, clean, preflight, download, switch, front-door, done),
+# for the account ACCOUNT when it is one account's. Said in its log, and written to update.json as it starts, so the
+# admin page shows it while the update runs and names it when it stops (#195). Only an update root's step started for
+# the admin page (BOT_DOT_UPDATE_AT: when it started, BOT_DOT_UPDATE_FROM: the version before) writes update.json.
+phase() {
+  [ "$MODE" = update ] || return 0
+  say "== $1${2:+ ($2)}"
+  [ -n "${BOT_DOT_UPDATE_AT:-}" ] || return 0
+  write_status update.json "{\"state\":\"updating\",\"at\":\"$BOT_DOT_UPDATE_AT\",\"from\":\"${BOT_DOT_UPDATE_FROM:-}\",\"phase\":\"$1\"${2:+,\"account\":\"$2\"}}"
+}
+
 # install: install or update (the default). requested: root's step that makes the accounts the front door asked for.
-# --update: the update the admin asked for on the admin page, which root's step runs: an install again, that asks
-# nothing (#473).
+# update (--update): the update the admin asked for on the admin page, which root's step runs: phases of its own, not
+# the install again, that ask nothing (#473, #195, ADR 045).
 MODE=install
 case "${1:-}" in
   '') ;;
   --requested) MODE=requested ;;
-  --update) UNATTENDED=1 ;;
+  --update) MODE=update UNATTENDED=1 ;;
   --load) MODE=load ;;
   --uninstall) MODE=uninstall ;;
   *) die "Unknown option $1. Run it as: sudo sh install.sh" ;;
@@ -666,7 +680,7 @@ ROOTLESS="$(command -v dockerd-rootless.sh)"
 RUNSC="$(command -v runsc)"
 # Ubuntu 24.04 lets a program make the user namespace rootless Docker needs only when AppArmor names it.
 KIT="$(command -v rootlesskit 2>/dev/null || true)"
-if [ "$MODE" = install ] && [ -n "$KIT" ] && command -v apparmor_parser >/dev/null 2>&1 && [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1 ] \
+if { [ "$MODE" = install ] || [ "$MODE" = update ]; } && [ -n "$KIT" ] && command -v apparmor_parser >/dev/null 2>&1 && [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1 ] \
   && ! grep -rqs "$KIT" "$ETC/apparmor.d/" 2>/dev/null; then
   printf '# botdot (install.sh): rootless Docker for each account needs user namespaces.\nabi <abi/4.0>,\ninclude <tunables/global>\n\nprofile botdot-rootlesskit %s flags=(unconfined) {\n  userns,\n}\n' "$KIT" > "$ETC/apparmor.d/botdot-rootlesskit"
   apparmor_parser -r "$ETC/apparmor.d/botdot-rootlesskit" </dev/null || die "AppArmor didn't take the profile that lets rootless Docker run ($KIT)."
@@ -777,7 +791,9 @@ room_for_accounts() {
     [ -f "$ACCOUNTS/$rf/compose.yaml" ] || continue
     rf_docker="env DOCKER_HOST=unix://$RUN/$rf/docker.sock docker"
     $rf_docker info </dev/null >/dev/null 2>&1 || continue
+    phase clean "$rf"
     clean_images "$RUN/$rf/docker.sock" "$rf_runner" "$(get_env "$ACCOUNTS/$rf/.env" BOT_DOT_IMAGE)" "$(get_env "$ACCOUNTS/$rf/.env" BOT_DOT_COMPUTER_IMAGE)" "$SERVER_SIGNED" "$COMPUTER_SIGNED"
+    phase preflight "$rf"
     rf_ids="$($rf_docker image ls -q --no-trunc </dev/null 2>/dev/null | sort -u || true)"
     # shellcheck disable=SC2086 # one id per word
     rf_have="$([ -z "$rf_ids" ] || $rf_docker image inspect --format '{{range .RootFS.Layers}}{{println .}}{{end}}' $rf_ids </dev/null 2>/dev/null || true)"
@@ -831,6 +847,7 @@ if [ "$MODE" = requested ]; then
   $D image inspect "$IMAGE" </dev/null >/dev/null 2>&1 || { [ -n "$REGISTRY" ] && pull "$IMAGE"; } || die "The image $IMAGE isn't on this machine$(because): run the installer again."
 elif [ -n "$REGISTRY" ]; then
   TOKEN="$(get_env "$ENV" BOT_DOT_REGISTRY_TOKEN)"
+  phase check
   [ -f "$SOURCE/lib/signed-image.js" ] || die "The installer checks the signature of botdot's images with botdot's source, and it isn't next to this installer. Get the source and run the install.sh in it."
   $D image inspect "$CHECK_NODE" </dev/null >/dev/null 2>&1 || pull "$CHECK_NODE" \
     || die "Couldn't download $CHECK_NODE, which checks the signature of botdot's images$(because)."
@@ -848,11 +865,14 @@ elif [ -n "$REGISTRY" ]; then
   if [ -n "$UNATTENDED" ] && runs_signed; then
     say_newest "$(version_now)"
     ok "It was the newest already: the front door and every account run it, so nothing was restarted"
+    phase done
     exit 0
   fi
   # Room first, in the machine's Docker too, by the rule of the version it runs now (#190).
+  phase clean
   clean_images /var/run/docker.sock "$(get_env "$ENV" BOT_DOT_IMAGE)" "$(get_env "$ENV" BOT_DOT_IMAGE)" "$(get_env "$ENV" BOT_DOT_COMPUTER_IMAGE)"
   room_for_accounts
+  phase download
   say "Downloading botdot (about 1.5 GB the first time)…"
   pull "$SERVER_SIGNED" || die "Couldn't download $SERVER_SIGNED$(because)."
   # botdot also needs it to download newer computer images by itself.
@@ -863,6 +883,7 @@ elif [ -n "$REGISTRY" ]; then
   if [ -n "$COMPUTER_SIGNED" ]; then COMPUTER_IMAGE="$COMPUTER_SIGNED"; COMPUTER_READY=pull; fi
 else
   # Self-built: nothing is signed in to or downloaded.
+  phase check
   $D image inspect "$IMAGE" </dev/null >/dev/null 2>&1 || die "The image $IMAGE isn't on this machine. Build it in botdot's source with: make images"
   ok "Using the local image $IMAGE"
   if [ -n "$(registry_of "$COMPUTER_IMAGE")" ]; then :
@@ -893,6 +914,7 @@ if [ -n "$UNATTENDED" ] && [ "$SOURCE" = "$BIN" ] && [ -z "${BOT_DOT_HANDED_OVER
   # An image from before the installer was in it, or the same installer: this copy goes on.
   rm -f "$BIN/install.sh.new"
 fi
+phase preflight
 ACCOUNT_COMPOSE="$(image_file compose.yaml)" || die "Couldn't read compose.yaml from the image."
 # An installer older than the image (a run from a source not pulled, or an image from before it carried its installer)
 # would set up the accounts' Docker without a runtime the new compose names: compose would then stop each account half
@@ -903,13 +925,17 @@ for r in $(printf '%s\n' "$ACCOUNT_COMPOSE" | sed -n 's/^[[:space:]]*runtime:[[:
     *) die "The image's compose.yaml needs the runtime $r, which this installer doesn't set up: it is older than the image. Take the installer of the same version (git pull in botdot's source) and run it again. Nothing was changed." ;;
   esac
 done
-if [ "$MODE" = install ]; then
+# door_files: the front door's compose file, from the image, and the images .env pins. An update writes them in its
+# phase front-door, after every account moved: until then the front door, and an account a sign-up link makes, stay on
+# the version before.
+door_files() {
   image_file compose.front-door.yaml > "$DOOR/compose.yaml.new" || die "Couldn't read compose.front-door.yaml from the image."
   mv "$DOOR/compose.yaml.new" "$DOOR/compose.yaml"
   [ "$IMAGE" = "$IMAGES/bot-dot:latest" ] || set_env "$ENV" BOT_DOT_IMAGE "$IMAGE"
   # Only the pin of an earlier run stays when the newer computer could not be downloaded now.
   set_env "$ENV" BOT_DOT_COMPUTER_IMAGE "$COMPUTER_IMAGE"
-fi
+}
+[ "$MODE" != install ] || door_files
 # From here .env names the images: the names this run was given would beat it in compose, and a tag there
 # would be downloaded unchecked.
 unset BOT_DOT_IMAGE BOT_DOT_COMPUTER_IMAGE
@@ -960,6 +986,17 @@ remove_unnamed() {
   done
 }
 
+# runtimes_ok NAME: the account NAME's Docker ($A) runs its containers under gVisor, with every runtime the version's
+# compose file names (runsc-uds). A Docker without one stops the account's server half updated ("unknown or invalid
+# runtime name"), so the installer stops before it writes the new compose file.
+runtimes_ok() {
+  [ "$($A info --format '{{.DefaultRuntime}}' </dev/null 2>/dev/null)" = runsc ] || die "The account $1's Docker doesn't run its containers under gVisor."
+  have=" $($A info --format '{{range $k, $v := .Runtimes}}{{$k}} {{end}}' </dev/null 2>/dev/null) "
+  for rt in $(printf '%s\n' "$ACCOUNT_COMPOSE" | sed -n 's/^ *runtime: *\([A-Za-z0-9_.-]*\).*/\1/p' | sort -u); do
+    case "$have" in *" $rt "*) ;; *) die "The account $1's Docker has no $rt runtime, which this version's compose file needs.$( [ -n "$SYSTEMD" ] && printf ' Restart it (systemctl restart botdot-account@%s) and run this again.' "$1" || printf ' Restart it and run this again.')" ;; esac
+  done
+}
+
 # ---------------------------------------------------------------------------------------------
 # 3. How people reach botdot, and the admin's account
 
@@ -977,6 +1014,17 @@ host_time_zone() {
 [ -n "$(get_env "$ENV" TZ)" ] || set_env "$ENV" TZ "$(host_time_zone)"
 TZ_NAME="$(get_env "$ENV" TZ)"
 [ "$MODE" != install ] || ok "Time zone $TZ_NAME (change TZ in $ENV)"
+
+# An update asks nothing, here neither: how people reach botdot and the admin's name are what the install answered.
+if [ "$MODE" = update ]; then
+  REACH="$(get_env "$ENV" BOT_DOT_REACH)"
+  DOMAIN="$(get_env "$ENV" BOT_DOT_DOMAIN)"
+  ORIGIN="$(get_env "$ENV" FRONT_DOOR_ORIGIN)"
+  NAME="${ORIGIN#https://}"
+  ADMIN="$(get_env "$ENV" FRONT_DOOR_ADMIN)"
+  { [ "$REACH" = tailnet ] || { [ "$REACH" = public ] && [ -n "$DOMAIN" ]; }; } && [ -n "$NAME" ] && valid_account "$ADMIN" \
+    || die "$ENV doesn't say how people reach botdot or the admin's name, so the update stopped. Run the installer yourself: sudo sh install.sh"
+fi
 
 if [ "$MODE" = install ]; then
 
@@ -1047,23 +1095,38 @@ if [ -z "$ADMIN" ]; then
 fi
 valid_account "$ADMIN" || die "BOT_DOT_ADMIN: an account's name is $ACCOUNT_RULE."
 set_env "$ENV" FRONT_DOOR_ADMIN "$ADMIN"
+fi
 
+# running_accounts: each account whose Docker runs now, one name a line. A stopped (suspended) one gets the new version
+# when it is resumed.
+running_accounts() {
+  for ra in "$ACCOUNTS"/*/; do
+    ra="$(basename "$ra")"
+    valid_account "$ra" && [ -f "$ACCOUNTS/$ra/compose.yaml" ] || continue
+    env DOCKER_HOST="unix://$RUN/$ra/docker.sock" docker info </dev/null >/dev/null 2>&1 || continue
+    printf '%s\n' "$ra"
+  done
+}
+
+if [ "$MODE" = install ] || [ "$MODE" = update ]; then
 # The new version goes into every running account's Docker before anything restarts (#473). An account whose download
 # fails keeps the version it runs, and the others go on (#194): its reason waits in HELD for each_account. A stopped
-# (suspended) account gets it when it is resumed.
+# (suspended) account gets it when it is resumed. Each account's room was made and checked before the machine's
+# download (room_for_accounts: an update's phases clean and preflight).
 HELD="$RUN/update-held"
 rm -rf "$HELD"
 mkdir -p "$HELD"
-for other in "$ACCOUNTS"/*/; do
-  other="$(basename "$other")"
-  [ -f "$ACCOUNTS/$other/compose.yaml" ] || continue
+for other in $(running_accounts); do
   A="env DOCKER_HOST=unix://$RUN/$other/docker.sock docker"
-  $A info </dev/null >/dev/null 2>&1 || continue
+  phase download "$other"
   set +e
   ( set -e; ACCOUNT_WHY="$HELD/$other"; hand_images "$other" ) || [ -s "$HELD/$other" ] \
     || printf 'kept\tThe new version could not be put in its Docker.\n' > "$HELD/$other"
   set -e
 done
+fi
+
+if [ "$MODE" = install ] || [ "$MODE" = update ]; then
 
 # ---------------------------------------------------------------------------------------------
 # 4. The front door
@@ -1108,14 +1171,19 @@ else
 fi
 
 DOOR_COMPOSE="$D compose --project-directory $DOOR"
-$DOOR_COMPOSE up -d --remove-orphans </dev/null >/dev/null 2>&1 || $DOOR_COMPOSE up -d --remove-orphans </dev/null
-i=0
-until curl -fsS -o /dev/null -H "Host: $NAME" "http://127.0.0.1:$DOOR_PORT/api/version" 2>/dev/null; do
-  i=$((i + 1))
-  [ "$i" -lt 60 ] || die "The front door didn't start. See what went wrong with: cd $DOOR && docker compose logs front-door"
-  sleep 1
-done
-ok "The front door is running"
+# start_door: the front door (and Caddy) on what .env names, until it answers. An update starts it in its phase
+# front-door, after the accounts.
+start_door() {
+  $DOOR_COMPOSE up -d --remove-orphans </dev/null >/dev/null 2>&1 || $DOOR_COMPOSE up -d --remove-orphans </dev/null
+  i=0
+  until curl -fsS -o /dev/null -H "Host: $NAME" "http://127.0.0.1:$DOOR_PORT/api/version" 2>/dev/null; do
+    i=$((i + 1))
+    [ "$i" -lt 60 ] || die "The front door didn't start. See what went wrong with: cd $DOOR && docker compose logs front-door"
+    sleep 1
+  done
+  ok "The front door is running"
+}
+[ "$MODE" != install ] || start_door
 fi
 
 # ---------------------------------------------------------------------------------------------
@@ -1124,7 +1192,7 @@ fi
 # The unit that starts an account's rootless Docker as its own user, when systemd runs this machine. It mounts the
 # account's disk as its home first (as root, `+`), and doesn't start without it: rootless Docker would fill the bare
 # folder beneath. Its CPU and RAM share are set on it (systemctl set-property, kept in /etc/systemd/system.control).
-if [ -n "$SYSTEMD" ] && [ "$MODE" = install ]; then
+if [ -n "$SYSTEMD" ] && { [ "$MODE" = install ] || [ "$MODE" = update ]; }; then
   cat > "$ETC/systemd/system/botdot-account@.service.new" <<UNIT
 # botdot (install.sh): the rootless Docker of the account %i, as its own Linux user, botdot-%i (ADR 028).
 [Unit]
@@ -1290,13 +1358,7 @@ JSON
     [ "$i" -lt 60 ] || die "The account $name's rootless Docker didn't start.$( [ -n "$SYSTEMD" ] && printf ' See: journalctl -u botdot-account@%s' "$name" || printf ' See: %s/docker.log' "$home")"
     sleep 1
   done
-  [ "$($A info --format '{{.DefaultRuntime}}' </dev/null 2>/dev/null)" = runsc ] || die "The account $name's Docker doesn't run its containers under gVisor."
-  # Every runtime the version's compose file names (runsc-uds): a Docker without one stops the account's server half
-  # updated ("unknown or invalid runtime name"), so the installer stops here, before it writes the new compose file.
-  have=" $($A info --format '{{range $k, $v := .Runtimes}}{{$k}} {{end}}' </dev/null 2>/dev/null) "
-  for rt in $(printf '%s\n' "$ACCOUNT_COMPOSE" | sed -n 's/^ *runtime: *\([A-Za-z0-9_.-]*\).*/\1/p' | sort -u); do
-    case "$have" in *" $rt "*) ;; *) die "The account $name's Docker has no $rt runtime, which this version's compose file needs.$( [ -n "$SYSTEMD" ] && printf ' Restart it (systemctl restart botdot-account@%s) and run this again.' "$name" || printf ' Restart it and run this again.')" ;; esac
-  done
+  runtimes_ok "$name"
 
   # Its socket folder: botdot's server user (60000 in its containers) owns it, and the front door's group may only
   # pass through it to the socket. Nobody else, and none of the account's bots, gets in.
@@ -1343,9 +1405,16 @@ JSON
   fi
   rm -f "$home/compose.yaml.before" "$home/.env.before"
   ok "The account $name is running"
-  remove_unnamed
+  # An update removes what it replaced in its phase clean, once the front door runs the new version too.
+  [ "$MODE" = update ] || clean_account "$name"
+}
 
-  # The images this run replaced go now. botdot decides which (lib/image-cleanup.js); this script removes none.
+# clean_account NAME: the images this run replaced in the account NAME's Docker go. botdot decides which
+# (lib/image-cleanup.js); this script removes none.
+clean_account() {
+  home="$ACCOUNTS/$1"
+  A="env DOCKER_HOST=unix://$RUN/$1/docker.sock docker"
+  remove_unnamed
   CLEANED="$($A compose --project-directory "$home" exec -T --user 60000:60000 bot-dot node /opt/bot-dot/lib/update-install.js --clean </dev/null 2>/dev/null || true)"
   CLEANED="$(printf '%s' "$CLEANED" | json 'j.failed ? "" : j.removed ? "Removed " + j.removed + " old image" + (j.removed === 1 ? "" : "s") + (j.bytes >= 5e7 ? " (" + (j.bytes / 1e9).toFixed(1) + " GB freed)" : j.bytes >= 5e5 ? " (" + Math.round(j.bytes / 1e6) + " MB freed)" : "") : "No old images to remove"' || true)"
   if [ -n "$CLEANED" ]; then ok "$CLEANED"
@@ -1402,9 +1471,10 @@ settle() {
 # one still there, is read here, and one made after that is a request of its own. Each request goes, done or not; why
 # one wasn't is in this step's log.
 #
-# The admin page's update (#473) is the request named UPDATE, which no account can be named: the installer runs again
-# from this copy (--update), asking nothing, and moves the front door and every account to the newest version together.
-# What it did is in update.json beside version.json, for the admin page, and all it said in BOT_DOT_DIR/update.log.
+# The admin page's update (#473) is the request named UPDATE, which no account can be named: this copy runs the update
+# (--update), in phases that ask nothing, and moves the front door and every account to the newest version (ADR 045).
+# What it did is in update.json beside version.json, for the admin page: the phase it is in, and after a failure the
+# phase it stopped in and the last lines of all it said, which is in BOT_DOT_DIR/update.log.
 UPDATE=UPDATE
 # plain_line N: its input as one line of plain text of at most N characters, for update.json.
 plain_line() { tr -d '"\\' | tr -c "A-Za-z0-9 .,:;()/_@+='-" ' ' | sed 's/ *$//' | cut -c1-"$1"; }
@@ -1427,13 +1497,21 @@ account_results() {
   done < "$1"
   printf ']'
 }
+# log_tail: the last 40 lines of the update's log that say something, as a JSON list of plain lines: no colours, nothing
+# but printable ASCII, at most 300 characters each.
+log_tail() {
+  tr -d '\033\r' < "$DIR/update.log" | sed 's/\[[0-9;]*m//g; s/✓/ok/g; s/✗/x/g; s/…/.../g' | LC_ALL=C tr -c '\040-\176\n' ' ' \
+    | sed 's/[[:space:]]*$//; /^$/d' | tail -n 40 | cut -c1-300 | sed 's/\\/\\\\/g; s/"/\\"/g' \
+    | awk 'BEGIN { printf "[" } { printf "%s\"%s\"", (NR > 1 ? "," : ""), $0 } END { printf "]" }'
+}
 update_all() {
   from="$(version_now)"
-  write_status update.json "{\"state\":\"updating\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\"}"
+  at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  write_status update.json "{\"state\":\"updating\",\"at\":\"$at\",\"from\":\"$from\"}"
   set +e
   results="$RUN/update-results"
   rm -f "$results"
-  BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" BOT_DOT_UPDATE_RESULTS="$results" sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
+  BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" BOT_DOT_UPDATE_RESULTS="$results" BOT_DOT_UPDATE_AT="$at" BOT_DOT_UPDATE_FROM="$from" sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
   updated=$?
   set -e
   chmod 600 "$DIR/update.log"
@@ -1445,7 +1523,9 @@ update_all() {
   else
     # The installer's last ✗ line, as plain text.
     why="$(tr -d '\033' < "$DIR/update.log" | sed -n 's/\[[0-9;]*m//g; s/^✗ //p' | tail -n 1 | plain_line 500)"
-    write_status update.json "{\"state\":\"failed\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\",\"error\":\"${why:-See $DIR/update.log}\"$accounts}"
+    # The phase it stopped in, as it wrote it last (none from an installer before phases).
+    stopped="$(sed -n 's/.*\("phase":"[a-z-]*"\(,"account":"[a-z0-9-]*"\)\{0,1\}\).*/,\1/p' "$DOOR/status/update.json" 2>/dev/null || true)"
+    write_status update.json "{\"state\":\"failed\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\",\"error\":\"${why:-The update stopped without saying why}\"$accounts$stopped,\"log\":$(log_tail)}"
     warn "The update stopped: ${why:-see $DIR/update.log}"
   fi
 }
@@ -1531,6 +1611,7 @@ each_account() {
 }
 
 state="$(door_state "$ADMIN")"
+phase switch "$ADMIN"
 # shellcheck disable=SC2086 # its share's three numbers, after its state
 each_account "$ADMIN" ${state#* }
 for other in "$ACCOUNTS"/*/; do
@@ -1542,10 +1623,25 @@ for other in "$ACCOUNTS"/*/; do
     suspended*) ok "The account $other is suspended, so it stays stopped" ;;
     deleted) erase_account "$other" ;;
     # shellcheck disable=SC2086 # its share's three numbers, after its state
-    *) each_account "$other" ${state#* } ;;
+    *) phase switch "$other"; each_account "$other" ${state#* } ;;
   esac
 done
 rm -rf "$HELD"
+
+# An update moves the front door last, once every account it could update runs the new version, and then removes in
+# each of them what it replaced.
+if [ "$MODE" = update ]; then
+  phase front-door
+  door_files
+  start_door
+  for other in $(running_accounts); do
+    # One kept on the version it ran keeps its old images too (#194).
+    case ", $NOT_UPDATED, " in *", $other, "*) continue ;; esac
+    phase clean "$other"
+    clean_account "$other"
+  done
+  phase clean
+fi
 
 # The images this run replaced in the machine's own Docker, the front door's, go as in each account's: botdot's rule
 # decides which (lib/image-cleanup.js), run from the image now installed. Images built on this machine are the admin's.
@@ -1650,6 +1746,14 @@ elif ! { [ -f "$RUN/requests.pid" ] && kill -0 "$(cat "$RUN/requests.pid")" 2>/d
   nohup sh -c "i=0; while :; do [ -z \"\$(ls -A '$REQUESTS' 2>/dev/null)\" ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --requested; [ \$((i % 20)) != 0 ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --load; i=\$((i + 1)); sleep 3; done" >> "$DIR/requests.log" 2>&1 </dev/null 9>&- &
   echo "$!" > "$RUN/requests.pid"
   warn "This machine has no systemd, so the accounts sign-up links make are made by a loop started now, which doesn't start again after a restart. Run this installer again after one. Its log: $DIR/requests.log"
+fi
+
+# An update ends here: how people reach botdot and the admin's link are the install's.
+if [ "$MODE" = update ]; then
+  phase done
+  # The accounts this run couldn't update, once the rest is done (#194).
+  [ -z "$NOT_UPDATED" ] || die "Not every account was updated: $NOT_UPDATED. The others run the new version."
+  exit 0
 fi
 
 # ---------------------------------------------------------------------------------------------
