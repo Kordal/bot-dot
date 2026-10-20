@@ -99,6 +99,8 @@ botdot has one look, dark, on the web and on Android. A bot's head shows its sta
 
 The web page works on any phone. The [Android app](android/README.md) adds notifications with **Reply** and **Approve**, sharing files to a bot from any app, and the keypad on tablets and foldables. For the first install, download the `.apk` from the newest `android-v…` release on the [Releases page](https://github.com/Kordal/bot-dot/releases); after that, botdot carries the newest app and phones update themselves from your server. There is no iOS app: on an iPhone, use the web page.
 
+**Install it as an app.** The web page installs in its own window, with its own icon: in Chrome or Edge (computer or Android), choose **Install app** in botdot's Settings or the install icon in the address bar; in Safari on a Mac, **File → Add to Dock**; on an iPhone or iPad, **Share → Add to Home Screen** (which is also where notifications work on iOS).
+
 ## How it works
 
 - **One server holds the truth.** The botdot server (Node.js, no dependencies) keeps the bots, their jobs, the Board and the chats. The web page and the Android app are windows onto its [API](docs/api.md).

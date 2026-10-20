@@ -440,6 +440,7 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 
 /* settings */
 .settings-card { padding: 18px 20px; margin-bottom: 14px; display: grid; gap: 12px; }
+.settings-card[hidden] { display: none; }
 .settings-hint { margin: -4px 0 0; font-size: 13px; line-height: 1.55; }
 .llm-fields { display: grid; gap: 10px; }
 .llm-note { font-size: 12.5px; color: var(--muted); line-height: 1.5; min-height: 1em; }
