@@ -33,7 +33,7 @@ test('web: still asked, unchanged', () => {
     ['deleting a skill', /confirm\(`Delete the skill "\$\{k\.name\}"\? Bots that have it will stop using it\.`\)/],
     ['removing a job in the jobs panel', /if \(!confirm\('Remove this job\?'\)\) return;/],
     ['Decline on a job\'s card in Needs you, of a server whose button does not say that it removes', /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) whileBusy\(no, 'Declining…', \(\) => decide\(x, false\)\);/],
-    ['Always allow', /confirm\('Allow this exact connector action for this bot in future runs, with any arguments\?'\)/],
+    ['Always allow', /confirm\(x\.a\.chief \? `Allow this exact connector action for \$\{CHIEF_BOT\.name\} from now on, with any arguments\?` : 'Allow this exact connector action for this bot in future runs, with any arguments\?'\)/],
     ['Always approve', /confirm\(scriptWarning\(x\.bot\.name, x\.job\.name\)\)/],
     ['disconnecting an app', /confirm\(`Disconnect \$\{c\?\.app\?\.name \|\| c\?\.toolkit\}\?/],
     ['signing out of Claude', /confirm\(`Sign out of Claude\? Bots can't run until you sign in again\./],

@@ -352,8 +352,9 @@ async function sharedByBot(srv, bot, text) {
 // with (GMAIL_READ), actions that write (any name that starts with GMAIL_SEND) and, by any other name, an action
 // Composio describes with no hint at all. Start it before the server and hand `env` to startServer; then
 // `await app.connect(srv)` gives the server its key. executed: what was run through it, oldest first, each
-// { action, args }. Every action answers { done: true }.
-async function fakeConnectedApp() {
+// { action, args }. Every action answers { done: true }. connected: the apps Composio lists as connected, by slug
+// (none unless given; change the list to connect or disconnect one): what the Chief is given (ADR 047).
+async function fakeConnectedApp({ connected = [] } = {}) {
   const executed = [];
   const server = http.createServer((req, res) => {
     let body = '';
@@ -364,6 +365,7 @@ async function fakeConnectedApp() {
         executed.push({ action: req.url.split('/').at(-1), args: JSON.parse(body).arguments });
         return res.end(JSON.stringify({ successful: true, data: { done: true } }));
       }
+      if (req.url.startsWith('/connected_accounts')) return res.end(JSON.stringify({ items: connected.map((slug) => ({ id: `ca_${slug}`, toolkit: { slug }, status: 'ACTIVE' })) }));
       if (req.url.startsWith('/tools/')) {
         const slug = req.url.split('/').at(-1);
         return res.end(JSON.stringify({ slug, toolkit: { slug: 'gmail' }, no_auth: true, tags: slug === 'GMAIL_READ' ? ['readOnlyHint'] : slug.startsWith('GMAIL_SEND') ? ['createHint'] : [] }));
@@ -375,6 +377,7 @@ async function fakeConnectedApp() {
   return {
     env: { COMPOSIO_API_URL: `http://127.0.0.1:${server.address().port}` },
     executed,
+    connected,
     connect: async (srv) => { const r = await srv.api('/connectors/key', { method: 'PUT', body: { key: 'fixture-key' } }); if (r.status !== 200) throw new Error(`Couldn't connect the stand-in app: ${JSON.stringify(r.data)}`); },
     close: () => { server.closeAllConnections?.(); server.close(); },
   };

@@ -93,9 +93,27 @@ B.onLoginNames((botId) => store().forBot(botId).map((x) => ({ name: x.name, kind
 B.onWaitingOnCards((bot) => asks.list().filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)
   : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`] : [])));
 // The owner's OK for a write in a connected app: the run waits for it, and a late yes starts the bot again (ADR 010).
-const connectorApprovals = require('./lib/connector-approvals').create(B.DATA_DIR, { asks, active: B.isActive, bot: B.bots.get, whatCarriesOn: (ask) => B.whatCarriesOn(ask), carryOn: (found, answers) => B.carryOn(found, answers), appName: B.appName, groupOfRun: B.groupOfRun });
+// The Chief is a caller too, in the turns the owner started, and a late yes on its card starts its turn (ADR 047).
+const connectorApprovals = require('./lib/connector-approvals').create(B.DATA_DIR, {
+  asks, active: B.isActive, bot: B.bots.get, whatCarriesOn: (ask) => B.whatCarriesOn(ask), carryOn: (found, answers) => B.carryOn(found, answers), appName: B.appName, groupOfRun: B.groupOfRun,
+  chiefApps: () => B.connectors.knownApps(), chiefFits: (ask) => chief.lateYesFits(ask.chatId, ask.at), chiefCarryOn: (ask, grant) => chief.doAgain(ask, grant), chiefName: () => chief.named().name,
+});
 B.onRunStarted((meta, carried) => connectorApprovals.runStarted(meta, carried));
 B.onRunEnded((meta) => connectorApprovals.runEnded(meta));
+// A Chief turn gets connected apps when the owner started it, or when a late yes on its card did (ADR 047): every
+// app with a working connection as the turn starts, and none when Composio is not set up or nothing is connected.
+chief.connectorsWith({
+  // Before Composio has answered once since botdot started, a late yes's turn is given the app of its grant: its call
+  // asks Composio all the same.
+  open: ({ chatId, grants }) => {
+    const apps = B.connectors.knownApps() ?? [...new Set(grants.map((g) => g.app))];
+    return apps.length ? { ...connectorApprovals.openChief({ chatId, grants }), apps } : null;
+  },
+  close: (session, ended) => connectorApprovals.closeChief(session.turnId, ended),
+  chatGone: (chatId) => connectorApprovals.chatGone(chatId),
+});
+// The apps that are connected, known as a Chief turn starts: asked of Composio now, and from then on as it is read.
+if (B.connectors.configured()) B.connectors.connections().catch((e) => console.error(`[connectors] ${e.message}`));
 // What the route modules share (lib/routes/shared.js): how an ask, a job and a run are shown, and what follows the
 // owner's answer. Made before anything describes an ask (asks above).
 const shared = require('./lib/routes/shared').create({ asks, connectorApprovals, audit });
@@ -195,7 +213,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -373,19 +391,20 @@ function chiefChatOf(req, by) {
 // all", "Go on", its pages) are not here: they stay the owner's. Of the Vault it may make a new SSH key for the bots
 // (vault/ssh-keys), change an SSH key's bots and name (vault/:id) and ask the owner to remove an entry on a card
 // (vault/remove), only in a turn the owner started and never with a key of its own, which the routes check (#181,
-// #182, #183).
+// #182, #183). Of connected apps it may call the routes of a session, which take only the token of a turn that has
+// one (ADR 047), and list and remove its own lasting grants, never add one.
 const CHIEF_ROUTES = [
-  ['GET', /^(bots|skills|connectors|runs|memory|chief\/reminders|chief\/memory|vault|dashboard|tools|tools\/find|group-chats)$/],
+  ['GET', /^(bots|skills|connectors|runs|memory|chief\/reminders|chief\/memory|chief\/connector-actions|vault|dashboard|tools|tools\/find|group-chats)$/],
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
   ['GET', /^runs\/[^/]+\/wait$/],
   ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup$/],
   ['GET', /^bots\/[^/]+\/computer\/(status|logs)$/],
   ['GET', /^computer\/status$/],
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
-  ['POST', /^(bots|skills|asks|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart))$/],
+  ['POST', /^(bots|skills|asks|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|connectors\/session\/(actions|run|wait))$/],
   ['POST', /^(bots\/[^/]+\/(run|jobs|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['PUT', /^(bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
-  ['DELETE', /^(bots\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
+  ['DELETE', /^(chief\/connector-actions|bots\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
 const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method && re.test(parts.join('/')));
 
@@ -399,7 +418,9 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // proposals (the owner picks them), and the steer hook reading the owner's own messages (ADR 040). A new SSH key
 // (vault/ssh-keys) and a change to one (vault/:id) wait too, but their routes hold them themselves, after their own
 // refusals, so a call they refuse never becomes a card (lib/routes/vault.js).
-const FREE_AFTER_WEB = /^(asks|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
+// A connected app's actions follow their own grants (ADR 047): a write waits on its own card, and an "Always allow"
+// lets it through also after the web. Removing a lasting grant of the Chief's only takes trust away.
+const FREE_AFTER_WEB = /^(asks|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'));
 // What the held request does, as the title of its card: "Make the bot “Leaker”", "Give Scout a task".
 function heldTitle(method, parts, body) {
@@ -592,6 +613,8 @@ function gate(req) {
   const p = pathOf(req);
   if (chief.isKey(req.headers['x-chief-key'])) return null;
   if (BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) && B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token'])) return null;
+  // The tools of a Chief turn that has connected apps, with that turn's own token (ADR 047): only their routes.
+  if ((p === '/api/connectors/session' || p.startsWith('/api/connectors/session/')) && connectorApprovals.chiefSession(req.headers['x-run-token'])) return null;
   if (p === '/api/version' && req.method === 'GET') return null;
   return 'botdot is reached through its front door.';
 }
