@@ -761,7 +761,7 @@ fun Ask.standsInChat(scope: String): Boolean = when {
     group != null -> groupOfChat(scope) == group?.id // asked in a group: at the end of that group's chat, and in no other
     groupOfChat(scope) != null -> false
     ToolCard.isTool(this) || (kind == "bot-change" && byChief) -> scope == "chief" || bot?.id == scope
-    scope == "chief" -> (kind == "skill" && bot == null) || kind == "chief-action"
+    scope == "chief" -> ((kind == "skill" || kind == "vault-remove") && bot == null) || kind == "chief-action"
     else -> bot?.id == scope
 }
 

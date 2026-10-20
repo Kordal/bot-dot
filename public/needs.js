@@ -396,7 +396,7 @@ const chatDecided = new Map(); // chat and key -> { scope, title, label }: decid
 const answeredAway = new Map(); // chat and key -> { scope, title, label }
 const fromChief = (x) => (x.kind === 'job' ? (changeOf(x.job) ? changeOf(x.job).by : x.job.changedBy) === 'chief'
   : x.kind === 'tile' ? (changeOf(x.t) ? changeOf(x.t).by : x.t.changedBy) !== 'bot'
-  : x.kind === 'ask' ? (x.a.kind === 'skill' && !x.a.botId) || x.a.kind === 'chief-action'
+  : x.kind === 'ask' ? (['skill', 'vault-remove'].includes(x.a.kind) && !x.a.botId) || x.a.kind === 'chief-action'
   : x.kind === 'login' || x.kind === 'pay' ? x.r.from === 'chief' : false);
 const inBothChats = (x) => x.kind === 'ask' && (ToolCard.is(x.a) || (x.a.kind === 'bot-change' && x.a.by === 'chief'));
 function chatNeeds(scope) {

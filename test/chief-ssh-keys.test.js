@@ -1,4 +1,4 @@
-// The Chief makes an SSH key by chat (#181, part of #180), and shares, unshares and renames one (#182): a new ed25519 key in the owner's Bitwarden, shared with
+// The Chief makes an SSH key by chat (#181, part of #180), shares, unshares and renames one (#182), and asks to remove an entry (#183): a new ed25519 key in the owner's Bitwarden, shared with
 // the bots the owner names, and read back with its public key and fingerprint; its private key reaches no tool's
 // answer, no chat and no log. Through the real server, the Chief's own MCP server, the stand-in for Claude and the
 // stand-in for bw. docs/api.md, "The Vault's items".
@@ -79,7 +79,7 @@ async function ownerTurn(t, text) {
 }
 
 test('create_ssh_key is a tool of the owner\'s turns alone, reads nothing, and the Chief is told when to use it', () => {
-  assert.deepEqual(VAULT_WRITES, ['create_ssh_key', 'update_vault_item']);
+  assert.deepEqual(VAULT_WRITES, ['create_ssh_key', 'update_vault_item', 'remove_vault_item']);
   assert.ok(OWNERS_TURN_ONLY.includes('create_ssh_key'));
   assert.ok(TOOLS.some((x) => x.name === 'create_ssh_key'));
   assert.equal(readKind('mcp__botdot__create_ssh_key'), null, 'its answer is botdot\'s own words and the key\'s public half');
@@ -297,4 +297,80 @@ test('after a web search, a change to an SSH key waits on a card, and the owner\
   srv.reply('Done.');
   srv.unhold();
   assert.deepEqual((await sshItems()).find((i) => i.id === hardened.id).allowedBots, [scout.id, other.id, infra.id]);
+});
+
+// ---------- removing an entry (#183) ----------
+
+const removeCards = async () => (await srv.api('/asks?vault-remove=1')).data.filter((a) => a.kind === 'vault-remove' && a.botId === null);
+
+test('the Chief asks to remove an SSH key: a card, nothing removed before the yes, then Bitwarden\'s Trash; a no keeps it and the Chief is told', async (t) => {
+  const doomed = (await srv.api('/vault/ssh-keys', { method: 'POST', body: { name: 'Old VPS key', generate: true } })).data;
+  const turn = await ownerTurn(t, 'Remove Old VPS key.');
+  assert.ok((await names(turn.tools)).includes('remove_vault_item'));
+  const asked = await turn.call('remove_vault_item', { entry: 'Old VPS key', reason: 'The VPS is gone.' });
+  assert.equal(asked.asked, 'Old VPS key');
+  assert.match(asked.say, /waits for the user's OK/);
+  const [card] = await removeCards();
+  assert.deepEqual([card.itemId, card.chatId, card.title, card.yesOn], [doomed.id, turn.chat.id, 'Let the Chief remove “Old VPS key” from the Vault?', 'card']);
+  assert.ok(card.parts.some((p) => p.label === 'Asked by' && p.now === 'the Chief'));
+  assert.ok((await sshItems()).some((i) => i.id === doomed.id), 'still there before the yes');
+  // Asked again while its card waits: the same card.
+  await turn.call('remove_vault_item', { entry: 'Old VPS key', reason: 'The VPS is gone.' });
+  assert.equal((await removeCards()).length, 1);
+  await turn.end();
+
+  srv.hold();
+  const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
+  assert.equal(yes.status, 200, JSON.stringify(yes.data));
+  await waitFor(async () => !(await sshItems()).some((i) => i.id === doomed.id), { what: 'the key to go' });
+  assert.ok(!items().some((i) => i.id === doomed.id), "gone from the bot-dot folder (the stand-in's Trash)");
+  const told = await srv.nextRun((x) => isChief(x) && x.stdin.includes('Old VPS key'), 'the Chief told of the yes');
+  assert.match(told.stdin, /“Old VPS key” is in Bitwarden's Trash now/);
+  srv.release(told);
+  srv.reply('Removed.');
+  srv.unhold();
+
+  // A no: nothing is removed, and the chat says it was declined.
+  const kept = (await srv.api('/vault/ssh-keys', { method: 'POST', body: { name: 'Keep me', generate: true } })).data;
+  const again = await ownerTurn(t, 'Remove Keep me.');
+  await again.call('remove_vault_item', { entry: 'Keep me', reason: 'Not needed.' });
+  await again.end();
+  const [no] = await removeCards();
+  assert.equal((await srv.api(`/asks/${no.id}`, { method: 'POST', body: { yes: false } })).status, 200);
+  assert.ok((await sshItems()).some((i) => i.id === kept.id), 'still there after the no');
+  await waitFor(async () => (await chatNow(again.chat)).messages.some((m) => m.text === 'Declined: removing “Keep me” from the Vault.'), { what: 'the decline in the chat' });
+  // Asked again in the week after the no: refused with a sentence, no card.
+  const late = await ownerTurn(t, 'Remove Keep me after all.');
+  assert.equal((await late.call('remove_vault_item', { entry: 'Keep me', reason: 'Really.' })).error, `Error: ${VAULT_SAY.remove.declined}`);
+  assert.equal((await removeCards()).length, 0);
+  await late.end();
+});
+
+test('remove_vault_item: only in a turn the owner started, and for an entry the Vault lists', async (t) => {
+  const plain = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey });
+  assert.ok(!(await names(plain)).includes('remove_vault_item'));
+  const chat = await newChat();
+  for (const headers of [{}, { 'X-Chief-Chat': chat.id }]) {
+    const r = await srv.asChief('/vault/remove', { method: 'POST', body: { entry: 'Hardened', reason: 'x' }, headers });
+    assert.deepEqual([r.status, r.data.error], [403, VAULT_SAY.notNowRemove]);
+  }
+  const turn = await ownerTurn(t, 'Remove Nothing.');
+  assert.equal((await turn.call('remove_vault_item', { entry: 'Nothing such', reason: 'x' })).error, 'Error: No entry called "Nothing such" in the Vault. Use the name list_vault shows.');
+  const none = await srv.asChief('/vault/remove', { method: 'POST', body: { reason: 'x' }, headers: { 'X-Chief-Chat': turn.chat.id } });
+  assert.deepEqual([none.status, none.data.error], [400, VAULT_SAY.remove.noEntry]);
+  assert.equal((await removeCards()).length, 0);
+  // With Bitwarden locked: one sentence, no card.
+  await srv.api('/vault/bitwarden/lock', { method: 'POST' });
+  assert.equal((await turn.call('remove_vault_item', { entry: 'Hardened', reason: 'x' })).error, `Error: ${VAULT_SAY.remove.locked}`);
+  await unlock();
+  assert.equal((await removeCards()).length, 0);
+  await turn.end();
+  assert.ok((await srv.api('/version')).data.features.includes('chief-vault-remove'));
+});
+
+test("the Chief's card to remove an entry stands in the Chief's chats, on the web page and in the Android app", () => {
+  const web = fs.readFileSync(path.join(__dirname, '..', 'public', 'needs.js'), 'utf8');
+  assert.match(web, /\['skill', 'vault-remove'\]\.includes\(x\.a\.kind\) && !x\.a\.botId/);
+  const android = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
+  assert.match(android, /scope == "chief" -> \(\(kind == "skill" \|\| kind == "vault-remove"\) && bot == null\)/);
 });
