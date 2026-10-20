@@ -65,6 +65,10 @@ object VaultTypes {
     fun sshKeyRows(i: VaultItem): List<String> =
         listOf("SSH key", (i.fingerprint?.takeIf { it.isNotBlank() }?.let { "$it · " } ?: "") + "🔒 for SSH on a bot's computer, never shown to it")
 
+    /** The owner adds an SSH key from the app (`vault-ssh-key-add`, #160): only with a server that takes one. */
+    const val SSH_KEY_ADD_FEATURE = "vault-ssh-key-add"
+    fun addsSshKeys(features: Collection<String>?): Boolean = features != null && SSH_KEY_ADD_FEATURE in features
+
     /** Above the bots of a card, an identity or an SSH key: what sharing it lets a bot do. */
     fun itemBotsHint(kind: String): String = when (kind) {
         "card" -> "Bots that may pay with this card. You still approve every payment."
