@@ -36,3 +36,15 @@ test('web: after a failure the buttons are as they were, and can be pressed agai
   assert.deepEqual([yes.disabled, no.disabled], [false, false]);
   assert.equal(await whileBusy(no, 'Declining…', async () => 'again'), 'again');
 });
+
+test('web: with a spinner the button turns one while it works, and drops it after, also after a failure (#154)', async () => {
+  const { yes } = buttons();
+  let seen;
+  await whileBusy(yes, 'Creating connection…', async () => { seen = [yes.textContent, yes.classList.contains('spin')]; }, true);
+  assert.deepEqual(seen, ['Creating connection…', true]);
+  assert.deepEqual([yes.textContent, yes.classList.contains('spin')], ['Approve', false]);
+  await assert.rejects(whileBusy(yes, 'Creating connection…', async () => { throw new Error('Bitwarden is locked'); }, true), /locked/);
+  assert.deepEqual([yes.textContent, yes.classList.contains('spin'), yes.disabled], ['Approve', false, false]);
+  await whileBusy(yes, 'Approving…', async () => { seen = [yes.textContent, yes.classList.contains('spin')]; });
+  assert.deepEqual(seen, ['Approving…', false], 'without it, none');
+});

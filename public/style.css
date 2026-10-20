@@ -340,6 +340,10 @@ button.chip:hover { color: var(--text); }
 .btn.ghost:hover { background: var(--sunk); }
 .btn.sm { padding: 4px 11px; font-size: 12.5px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
+/* A yes that makes a webhook (#154): a spinner turns before "Creating connection…" until the answer comes. */
+.btn.spin:disabled { opacity: .7; }
+.btn.spin::before { content: ''; width: .9em; height: .9em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: btn-spin .8s linear infinite; flex: none; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
 .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
 .empty .big { font-size: 34px; margin-bottom: 8px; }

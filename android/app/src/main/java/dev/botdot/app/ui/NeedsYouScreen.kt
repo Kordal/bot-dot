@@ -22,6 +22,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -40,6 +43,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -679,8 +684,14 @@ private fun Body(text: String, mono: Boolean = false) {
 private val answers = mutableIntStateOf(0)
 private fun answered() { answers.intValue++ }
 
-/** What a card's button says while its answer is on its way: "Approving…" for "Approve", as on the web page. */
-internal fun busyWord(label: String): String = when (label) {
+/** What the yes of a card that makes a webhook says while its answer is on its way (#154). */
+internal const val CREATING_CONNECTION = "Creating connection…"
+
+/**
+ * What a card's button says while its answer is on its way: "Approving…" for "Approve", as on the web page. [connects]:
+ * it is the yes of a card that makes a webhook ([dev.botdot.app.data.Job.createsConnection]): "Creating connection…".
+ */
+internal fun busyWord(label: String, connects: Boolean = false): String = if (connects) CREATING_CONNECTION else when (label) {
     "Approve", "Always approve" -> "Approving…"
     "Allow", "Allow once", "Always allow" -> "Allowing…"
     "Decline" -> "Declining…"
@@ -697,18 +708,33 @@ internal fun busyWord(label: String): String = when (label) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, onSecondary: () -> Unit, enabled: Boolean = true, onAlways: (() -> Unit)? = null) {
+private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, onSecondary: () -> Unit, enabled: Boolean = true, onAlways: (() -> Unit)? = null, connects: Boolean = false) {
     val p = LocalPaper.current
     var pressed by remember { mutableStateOf<String?>(null) }
     val sent = answers.intValue
     LaunchedEffect(sent) { pressed = null }
     val press = { label: String, action: () -> Unit -> { if (pressed == null) { pressed = label; action() } } }
-    val word = { label: String -> if (pressed == label) busyWord(label) else label }
+    // A yes of a card that makes a webhook ([connects]) turns a spinner in its button while it says so.
+    val spins = { label: String -> connects && pressed == label && label != secondary }
+    val word = { label: String -> if (pressed == label) busyWord(label, spins(label)) else label }
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
         OutlinedButton(onClick = press(secondary, onSecondary), enabled = pressed == null) { Text(word(secondary), color = p.text) }
-        if (onAlways != null) OutlinedButton(onClick = press("Always approve", onAlways), enabled = pressed == null) { Text(word("Always approve"), color = p.text) }
-        Button(onClick = press(primary, onPrimary), enabled = enabled && pressed == null, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(word(primary)) }
+        if (onAlways != null) OutlinedButton(onClick = press("Always approve", onAlways), enabled = pressed == null) {
+            if (spins("Always approve")) ButtonSpinner(p.text)
+            Text(word("Always approve"), color = p.text)
+        }
+        Button(onClick = press(primary, onPrimary), enabled = enabled && pressed == null, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) {
+            if (spins(primary)) ButtonSpinner(LocalContentColor.current)
+            Text(word(primary))
+        }
     }
+}
+
+/** A small spinner before a pressed button's words (#154). */
+@Composable
+private fun ButtonSpinner(color: Color) {
+    CircularProgressIndicator(Modifier.size(14.dp), color = color, strokeWidth = 2.dp)
+    Spacer(Modifier.width(8.dp))
 }
 
 @Composable
@@ -884,7 +910,7 @@ private fun JobApproval(who: Named?, j: Job, then: String?, onAlways: () -> Unit
         if (j.assessment.isNotBlank() && open) Muted(j.assessment)
         ThenLine(card.line)
         ThenLine(then)
-        Buttons(card.yes, onApprove, card.no, onDecline, onAlways = onAlways)
+        Buttons(card.yes, onApprove, card.no, onDecline, onAlways = onAlways, connects = j.createsConnection)
     }
 }
 

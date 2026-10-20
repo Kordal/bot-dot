@@ -460,20 +460,23 @@ test('web: a yes in the dialog looks first whether the job is still what the dia
 
 // The page's own wiring of a card's buttons, with stand-ins for the card, the browser's question and decide.
 function wired(x, { agrees = true } = {}) {
-  const asked = [], decided = [];
+  const asked = [], decided = [], busy = [];
+  let pressed = null;
   const buttons = { '[data-need-yes]': element(), '[data-need-no]': element(), '[data-need-always]': element() };
   const card = element(buttons, { dataset: { need: x.key } });
   const ctx = vm.createContext({
     $: (sel, el) => el.querySelector(sel), $$: () => [card], needsOpen: new Set(), openNeed() {}, ToolCard: { is: () => false }, tileScripts: () => [], AI_WHEN_TEXT: {},
-    confirm: (q) => { asked.push(q); return agrees; }, decide: (...a) => decided.push(a.slice(1)), whileBusy,
+    confirm: (q) => { asked.push(q); return agrees; }, decide: (...a) => { decided.push(a.slice(1)); busy.push([pressed.textContent, pressed.classList.contains('spin')]); }, whileBusy,
   });
   vm.runInContext(`${cut('// A change that waits beside an approved job or tile', 'function pendingJobs() {')}
     ${cut('// Words of the server\'s that a card draws', '// Who carries on after a yes')}
     ${cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat')}
     ${cut('// "Always approve" a script job', '// A job in one line')}
     wireNeedCards({}, [${JSON.stringify(x)}]);`, ctx);
-  const tap = (which) => { buttons[`[data-need-${which}]`].onclick(); return { asked: asked.splice(0), decided: plain(decided.splice(0)) }; };
-  return { tap };
+  const tap = (which) => { pressed = buttons[`[data-need-${which}]`]; pressed.onclick(); return { asked: asked.splice(0), decided: plain(decided.splice(0)) }; };
+  // What the pressed button said while its answer was on its way, and whether a spinner turned in it.
+  const said = () => plain(busy.splice(0));
+  return { tap, said };
 }
 
 test('web: the no on a card asks nothing when the button says what it does; "Always approve" warns before a script, also one a change brings', () => {
@@ -494,6 +497,47 @@ test('web: the no on a card asks nothing when the button says what it does; "Alw
     assert.deepEqual(wired(item(job), { agrees: false }).tap('always').decided, [], 'not without the owner\'s yes to the warning');
   }
   assert.deepEqual(wired(item(SCRIPT)).tap('yes'), { asked: [], decided: [[true]] });
+});
+
+// A change that makes a webhook (#154): a call turned on or switched, or an address to tell when a run ends.
+const CALL = { ...CHANGED, change: { ...CHANGE, call: true, summary: 'Anything that can reach this machine and has the job\'s key can run this job now.' } };
+const NOTIFY = { ...CHANGED, change: { ...CHANGE, notifyUrl: 'https://example.com/hook' } };
+
+test('web: the yes of a webhook card says "Creating connection…" with a spinner; any other card keeps "Approving…"', () => {
+  const item = (job) => ({ key: `job:${job.id}`, kind: 'job', bot: CODER, job });
+  for (const job of [CALL, NOTIFY, { ...CALL, change: { ...CALL.change, callMode: 'signed' } }, { ...CALL, call: true, change: { ...CALL.change, callMode: 'signed' } }]) {
+    for (const which of ['yes', 'always']) {
+      const w = wired(item(job));
+      w.tap(which);
+      assert.deepEqual(w.said(), [['Creating connection…', true]], `${which} of ${JSON.stringify(job.change)}`);
+    }
+  }
+  // A job change (the screenshot's card), a new job, and a change of a job that takes calls or has its address already.
+  for (const job of [CHANGED, AI, { ...CALL, call: true }, { ...NOTIFY, notifyUrl: 'https://example.com/hook' }]) {
+    const w = wired(item(job));
+    w.tap('yes');
+    assert.deepEqual(w.said(), [['Approving…', false]]);
+  }
+  const w = wired({ key: 'ask:p1', kind: 'ask', bot: CODER, a: { id: 'p1', kind: 'permission' } });
+  w.tap('yes');
+  assert.deepEqual(w.said(), [['Approving…', false]], 'a permission keeps it');
+});
+
+test('web: the job dialog\'s yes on a webhook change says "Creating connection…" with a spinner too, and drops both after the answer', async () => {
+  const p = panel();
+  const bot = { ...CODER, jobs: [CALL] };
+  p.ctx.state.bots = [bot];
+  p.openJobApproval(bot, CALL);
+  p.ctx.jobs = [CALL];
+  const yes = p.modal.querySelector('#job-approve');
+  yes.textContent = 'Approve the change';
+  let seen;
+  p.ctx.answer = { ok: true };
+  const realApi = p.ctx.api;
+  p.ctx.api = async (url, opts) => { if (opts) seen = [yes.textContent, yes.classList.contains('spin')]; return realApi(url, opts); };
+  await yes.onclick();
+  assert.deepEqual(seen, ['Creating connection…', true]);
+  assert.deepEqual([yes.textContent, yes.classList.contains('spin')], ['Approve the change', false]);
 });
 
 // ---------- Asks ----------

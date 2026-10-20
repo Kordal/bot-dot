@@ -374,9 +374,10 @@ function wireNeedCards(root, items) {
     const x = byKey.get(el.dataset.need);
     if (!x) return;
     const yes = $('[data-need-yes]', el), no = $('[data-need-no]', el), op = $('[data-need-open]', el), always = $('[data-need-always]', el);
-    // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds).
-    if (yes) yes.onclick = () => whileBusy(yes, 'Approving…', () => decide(x, true));
-    if (always) always.onclick = () => { if (x.a?.kind === 'connector-action') { if (confirm('Allow this exact connector action for this bot in future runs, with any arguments?')) whileBusy(always, 'Approving…', () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileBusy(always, 'Approving…', () => decide(x, true, true, true)); };
+    // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a webhook's yes
+    // says "Creating connection…" with a spinner.
+    if (yes) yes.onclick = () => whileApproving(yes, x.job, () => decide(x, true));
+    if (always) always.onclick = () => { if (x.a?.kind === 'connector-action') { if (confirm('Allow this exact connector action for this bot in future runs, with any arguments?')) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => { if (!asksBeforeNo(x) || confirm('Remove this job?')) whileBusy(no, 'Declining…', () => decide(x, false)); };
     if (op) op.onclick = () => openNeed(x);
     el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };

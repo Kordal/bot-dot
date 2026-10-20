@@ -112,6 +112,17 @@ data class Job(
      * job is answered on its card, where the script shows, and never by "Approve all".
      */
     val touchesScript: Boolean get() = kind == "script" || change?.runsScript == true
+
+    /**
+     * Whether a yes makes a connection (a webhook, #154): its waiting change turns calls on, switches how they are let
+     * in, or gives an address to tell when a run ends. Its key or secret is made in the Vault, which takes seconds; the
+     * pressed button then says "Creating connection…" with a spinner, as on the web page.
+     */
+    val createsConnection: Boolean get() {
+        val c = change?.takeIf { approved } ?: return false
+        val mode = { m: String? -> if (m == "signed") "signed" else "bearer" }
+        return (c.call == true && (!call || mode(c.callMode) != mode(callMode))) || (!c.notifyUrl.isNullOrEmpty() && c.notifyUrl != notifyUrl)
+    }
 }
 
 /**
@@ -125,6 +136,7 @@ data class JobChange(
     val name: String? = null, val kind: String? = null, val words: String? = null,
     val prompt: String? = null, val script: String? = null, val by: String? = null,
     val notify: String? = null, val aiWhen: String? = null, val at: String? = null, val summary: String? = null,
+    val call: Boolean? = null, val callMode: String? = null, val notifyUrl: String? = null,
 ) {
     /** The job as proposed runs a script: it says so, or it carries one. The card then shows that script. */
     val runsScript: Boolean get() = kind == "script" || !script.isNullOrBlank()
@@ -134,7 +146,10 @@ data class JobChange(
         fun of(v: JsonElement?): JobChange? {
             val o = v as? JsonObject ?: return null
             val whole = { key: String -> (o[key] as? JsonPrimitive)?.takeIf { it.isString }?.content }
-            return JobChange(o["name"].textOrNull(), o["kind"].textOrNull(), o["when"].textOrNull(), whole("prompt"), whole("script"), o["by"].textOrNull(), o["notify"].textOrNull(), o["aiWhen"].textOrNull(), o["at"].textOrNull(), whole("summary")?.trim()?.ifEmpty { null })
+            return JobChange(
+                o["name"].textOrNull(), o["kind"].textOrNull(), o["when"].textOrNull(), whole("prompt"), whole("script"), o["by"].textOrNull(), o["notify"].textOrNull(), o["aiWhen"].textOrNull(), o["at"].textOrNull(), whole("summary")?.trim()?.ifEmpty { null },
+                (o["call"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull, o["callMode"].textOrNull(), o["notifyUrl"].textOrNull(),
+            )
         }
     }
 }
