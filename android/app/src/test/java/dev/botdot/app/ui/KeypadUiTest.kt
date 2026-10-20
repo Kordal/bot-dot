@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotSelected
@@ -17,6 +20,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -187,6 +191,52 @@ class KeypadUiTest {
         drag("Reviewer", onto = ASK_FOR_A_BOT)
         assertEquals(4, sent.size)
         rule.onNodeWithText("The Chief's chat").assertIsDisplayed() // and no chat was opened
+    }
+
+    @Test @Config(qualifiers = "w840dp-h600dp")
+    fun at840TappingAPagesHeadingFoldsItAndTheDigitsCountOnlyTheKeysShown() {
+        val relay = KeyRelay()
+        val opened = mutableListOf<String>()
+        val working = listOf(bots[0].copy(running = true), bots[1], bots[2]) // Coder works
+        val withWork = Keypad.pages(working, emptyList())
+        rule.setContent {
+            var folded by remember { mutableStateOf(setOf<String>()) }
+            val fold = { page: Keypad.Page -> Keypad.foldName(page)?.let { folded = if (it in folded) folded - it else folded + it }; Unit }
+            KeypadKeys(relay, withWork, keysShown = true, onKey = { opened += it.id }, onChief = {}, onSearch = {}, folded = folded)
+            Row(Modifier.fillMaxSize()) {
+                HomePanes(Keypad.home(840), 840, listShown = true,
+                    keypad = { m -> KeypadView(withWork, active = null, look = ::look, onKey = {}, onAsk = {}, modifier = m, folded = folded, onFold = fold) },
+                    list = {},
+                ) { m -> Box(m) { Text("The Chief's chat") } }
+            }
+        }
+        rule.onNodeWithTag(FOLDED_BUSY).assertDoesNotExist()
+        rule.onNodeWithText("HOME").performClick()
+        rule.onNodeWithText("Cook").assertDoesNotExist()
+        rule.onNodeWithText("HOME").assertIsDisplayed() // its heading and its count stay
+        rule.onNodeWithText(ASK_FOR_A_BOT).assertIsDisplayed()
+        rule.runOnUiThread { relay.handler!!(Keypad.Press("1"), false) }
+        assertEquals("1 is the first key shown: Coder on Work", listOf("coder"), opened)
+        rule.onNodeWithText("WORK").performClick()
+        rule.onNodeWithText("Coder").assertDoesNotExist()
+        rule.onNodeWithTag(FOLDED_BUSY).assertIsDisplayed() // folded, Work says Coder is working
+        assertEquals(false, relay.handler!!(Keypad.Press("1"), false)) // no key is shown
+        rule.onNodeWithText("HOME").performClick()
+        rule.onNodeWithText("Cook").assertIsDisplayed()
+    }
+
+    @Test @Config(qualifiers = "w390dp-h800dp")
+    fun onAPhoneTappingACategorysHeadingFoldsItsPage() {
+        rule.setContent {
+            var folded by remember { mutableStateOf(setOf("Work")) } // folded in the list
+            KeypadSections(pages, ::look, onKey = {}, onChief = {}, modifier = Modifier.fillMaxSize(), folded = folded,
+                onFold = { page -> Keypad.foldName(page)?.let { folded = if (it in folded) folded - it else folded + it } })
+        }
+        rule.onNodeWithText("WORK").assertIsDisplayed()
+        rule.onNodeWithText("Coder").assertDoesNotExist()
+        rule.onNodeWithText("Cook").assertIsDisplayed()
+        rule.onNodeWithText("WORK").performClick()
+        rule.onNodeWithText("Coder").assertIsDisplayed()
     }
 
     /** A phone's home, as MainActivity lays it out below 600 dp: the sections are the NavHost's home, and a chat takes the whole screen. */

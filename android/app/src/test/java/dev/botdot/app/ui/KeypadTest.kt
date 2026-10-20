@@ -183,6 +183,22 @@ class KeypadTest {
         assertEquals("""{"category":"Home","order":3,"pinned":0}""", ListLayout.change(inside("Home", 3), group = true, pinned = true).toString())
     }
 
+    // Folding a page (#171): with the list's folded categories, "" for Other; Pinned never folds
+
+    @Test fun aFoldedCategoryOrOtherShowsNoKeyAndTheDigitsCountOnlyTheKeysShown() {
+        val pages = Keypad.pages(listOf(bot("news", pinned = 1), bot("cook", "Home"), bot("lights", "Home"), bot("saver", "Money"), bot("loose")), emptyList())
+        assertEquals(listOf(null, "Home", "Money", ""), pages.map(Keypad::foldName))
+        assertEquals(listOf(false, true, false, true), pages.map { Keypad.isFolded(it, setOf("Home", "")) })
+        assertEquals(listOf("news", "saver"), Keypad.shownKeys(pages, setOf("Home", "")).map { it.id })
+        assertEquals(listOf("news", "cook", "lights", "saver", "loose"), Keypad.shownKeys(pages, emptySet()).map { it.id })
+        assertEquals("a category named Pinned is not the Pinned page", false, Keypad.isFolded(pages[0], setOf("Pinned")))
+    }
+
+    @Test fun aKeyDroppedOnAFoldedPagesHeadingGoesLastThere() {
+        val pages = Keypad.pages(listOf(bot("cook", "Home", order = 1), bot("lights", "Home", order = 2), bot("saver", "Money")), emptyList())
+        assertEquals(inside("Home", 3), Keypad.move(pages, pages[1].keys.single(), to = 0))
+    }
+
     // Width
 
     @Test fun theKeypadIsTheHomeFrom840AndTheListFrom600() {

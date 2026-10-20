@@ -41,7 +41,8 @@ function holder() {
 }
 
 // The page: its state, the keypad's elements, and what it asked for. shown: whether the stylesheet shows the keypad.
-function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 'chief', botId = null, shown = true, features = ['groups'] } = {}) {
+// folded: the list's folded categories, as localStorage holds them ('\u0000' is Other).
+function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 'chief', botId = null, shown = true, features = ['groups'], folded = [] } = {}) {
   const state = { features, bots: JSON.parse(JSON.stringify(bots)), groups: JSON.parse(JSON.stringify(groups)), runs, dash, view, botId, groupId: null, chats: [{ id: 'c1' }] };
   const said = { views: [], chief: [], focused: 0, puts: [], toasts: [] };
   const lib = vm.createContext({});
@@ -57,6 +58,7 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
     tintOf: (c) => c || '#888', CHIEF_COLOR: '#d85a30', chiefFigure: () => '<div class="avatar head chief"></div>',
     setView: (v, sub) => said.views.push([v, sub]), openChiefChat: (id) => said.chief.push(id),
     api: async (path, { method, body }) => { said.puts.push([method, path, JSON.parse(JSON.stringify(body))]); return {}; }, toast: (t) => said.toasts.push(t), refresh: () => {},
+    localStorage: (() => { const m = new Map([['botdot.groups.folded', JSON.stringify(folded)]]); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, String(v)) }; })(),
     getComputedStyle: (el) => ({ display: el.display }), requestAnimationFrame: (f) => f(), setTimeout: (f) => f(),
     $: (sel) => doc[sel] ?? null, $$: (sel, root) => (root ? root.querySelectorAll(sel) : []),
   });
@@ -65,7 +67,7 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
     ${cut('const plain = (t) =>', '// ---------- the list\'s width ----------')}
     ${cut('function contactLine(b, r, working)', 'function drawContacts() {')}
     ${cut('// ---------- the keypad', '// ---------- search in every chat ----------')}
-    ${cut('// The order you gave the bots: pinned ones', '// Drag a bot or a group anywhere')}
+    ${cut('function foldedGroups()', '// Drag a bot or a group anywhere')}
     ${cut('// Put the pinned ones in order again', '// Chips for picking')}
     const renderContacts = () => drawKeypad();
     ${cut('// The tiles of the Board', '// The strip at the top of the list')}
@@ -91,7 +93,9 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
 // The keys drawn: [number, name, line], in order, across the pages.
 const keysOf = (h) => [...h.matchAll(/<button class="key[^"]*" data-key="\d+"[^>]*>([\s\S]*?)<\/button>/g)].map(([, inner]) => texts(inner));
 // The pages' headings drawn: [name, count, the dot's colour or ''].
-const headsOf = (h) => [...h.matchAll(/<h3 class="kp-page-head" data-page="\d+">([^<]*)<b>(\d+)<\/b>(?:<i class="kp-dot" style="--c:([^"]*)"><\/i>)?<\/h3>/g)].map((m) => [m[1].trim(), m[2], m[3] || '']);
+// A heading's [name, count, the dot's colour or '']: a category's stands in its fold button, after the chevron.
+const headOf = (inner) => { const m = inner.replace(/<span class="chev[^"]*">▾<\/span>/, '').replace(/<\/?button[^>]*>|<i class="kp-busy"><\/i>/g, '').match(/^([^<]*)<b>(\d+)<\/b>(?:<i class="kp-dot" style="--c:([^"]*)"><\/i>)?$/); return [m[1].trim(), m[2], m[3] || '']; };
+const headsOf = (h) => [...h.matchAll(/<h3 class="kp-page-head" data-page="\d+">([\s\S]*?)<\/h3>/g)].map((m) => headOf(m[1]));
 // The keys of page `n`: [number, name, line].
 const pageKeysOf = (h, n) => keysOf(h.split(/<section class="kp-page[^"]*">/)[n + 1] || '');
 
@@ -291,11 +295,69 @@ test('web: a key dropped where it is, or on its own page\'s heading when it is l
   assert.deepEqual(p.said.views, [], 'and opens nothing');
 });
 
+// ---------- folding a page (#171) ----------
+// A category's heading folds its page as the list's category heading does, with the list's folded names.
+
+const foldedNow = (p) => JSON.parse(p.ctx.localStorage.getItem('botdot.groups.folded'));
+const chevOf = (h, n) => (h.match(new RegExp(`data-page-fold="${n}"[^>]*><span class="chev([^"]*)">`)) || [])[1];
+
+test('web: clicking a category\'s heading folds its page: the heading and its count stay, its keys go; again shows them', () => {
+  const p = page();
+  assert.equal(chevOf(p.keys(), 1), '', 'open, with the list\'s chevron');
+  assert.match(p.keys(), /data-page-fold="1" aria-expanded="true" title="Hide this category"/);
+  p.doc['#kp-keys'].click('page-fold', '1');
+  assert.deepEqual(foldedNow(p), ['Home'], 'in the list\'s folded names');
+  assert.deepEqual(headsOf(p.keys()), [['Pinned', '1', ''], ['Home', '3', ''], ['Money', '1', '#1d9e75']], 'every heading with its count and dot');
+  assert.equal(chevOf(p.keys(), 1), ' closed');
+  assert.match(p.keys(), /<section class="kp-page folded"><h3 class="kp-page-head" data-page="1">/);
+  assert.deepEqual(pageKeysOf(p.keys(), 1), [], 'no key of Home');
+  assert.deepEqual(keysOf(p.keys()).map((k) => k.split(' ').slice(0, 3).join(' ')), ['1 Garden Log', '2 Inbox Sweeper'], 'the digits count the keys shown');
+  p.doc['#kp-keys'].click('page-fold', '1');
+  assert.deepEqual(foldedNow(p), []);
+  assert.equal(pageKeysOf(p.keys(), 1).length, 3);
+});
+
+test('web: Pinned has no fold; a category folded in the list is folded on the keypad and on a phone, Other too', () => {
+  const bots = [...BOTS, { id: 'notes', name: 'Notes', color: '#888780', state: 'idle', group: '', order: 1 }];
+  const p = page({ bots, folded: ['Money', '\u0000'] });
+  assert.doesNotMatch(p.keys(), /data-page-fold="0"/, 'Pinned holds the Chief and stays open');
+  assert.deepEqual(headsOf(p.keys()).map((h) => h.slice(0, 2)), [['Pinned', '1'], ['Home', '3'], ['Money', '1'], ['Other', '1']]);
+  assert.deepEqual([2, 3].map((n) => pageKeysOf(p.keys(), n)), [[], []]);
+  assert.match(p.keys(), /<section class="kp-page folded">[\s\S]*?Other[\s\S]*?<div class="kp-page-keys"><button class="key key-ask" data-key-ask>/, 'the last place stays');
+  assert.deepEqual(sectionsOf(p.sections()).map((h) => h.slice(0, 2)), [['Pinned', '1'], ['Home', '3'], ['Money', '1'], ['Other', '1']]);
+  assert.deepEqual(phoneKeysOf(p.sections(), 2), [], 'folded on a phone too');
+  assert.deepEqual(phoneKeysOf(p.sections(), 3), []);
+  p.doc['#kp-sections'].click('section-fold', '3');
+  assert.deepEqual(foldedNow(p), ['Money'], 'a phone\'s heading unfolds it');
+  assert.deepEqual(phoneKeysOf(p.sections(), 3), ['Notes No messages yet']);
+  assert.deepEqual(pageKeysOf(p.keys(), 3), ['5 Notes No messages yet'], 'and the wide keypad with it');
+});
+
+test('web: a folded page shows the busy dot while one of its bots works, and keeps the dot of a bot that asks', () => {
+  const p = page({ folded: ['Home', 'Money'] });
+  assert.match(p.keys(), /data-page-fold="1"[^>]*>[\s\S]*?<b>3<\/b><i class="kp-busy"><\/i><\/button>/, 'News Watcher runs');
+  assert.deepEqual(headsOf(p.keys())[2], ['Money', '1', '#1d9e75']);
+  assert.doesNotMatch(page().keys(), /kp-busy/, 'not on an open page: its keys show it');
+});
+
+test('web: with a query no page is folded; a digit opens the first key shown; a key dropped on a folded heading goes there', () => {
+  const p = page({ folded: ['Home'] });
+  p.doc['#contact-search'].value = 'news';
+  p.ctx.drawKeypad();
+  assert.equal(pageKeysOf(p.keys(), 1).length, 3, 'searching shows them');
+  p.doc['#contact-search'].value = '';
+  p.ctx.drawKeypad();
+  assert.ok(p.key('2'));
+  assert.deepEqual(p.said.views, [['bot', 'inbox']], 'not a hidden key of Home');
+  assert.ok(dragKey(p, 1, { page: 1 }));
+  assert.deepEqual(p.said.puts.at(-1), ['PUT', '/bots/inbox', { group: 'Home', order: 3 }], 'last in Home, as onto an open heading');
+});
+
 // ---------- on a phone (#498) ----------
 // The same pages, one under the other: each a section with its name and count, its keys in rows of three.
 
 // The sections drawn: [name, count, the dot's colour or ''].
-const sectionsOf = (h) => [...h.matchAll(/<section class="kp-section" data-section="\d+"><h3 class="kp-sec-head">([^<]*)<b>(\d+)<\/b>(?:<i class="kp-dot" style="--c:([^"]*)"><\/i>)?<\/h3>/g)].map((m) => [m[1].trim(), m[2], m[3] || '']);
+const sectionsOf = (h) => [...h.matchAll(/<section class="kp-section[^"]*" data-section="\d+"><h3 class="kp-sec-head">([\s\S]*?)<\/h3>/g)].map((m) => headOf(m[1]));
 // The keys of one section: [name and line], in order.
 const phoneKeysOf = (h, n) => [...h.matchAll(new RegExp(`<button class="key[^"]*" data-section-key="${n}\\.\\d+"[^>]*>([\\s\\S]*?)<\\/button>`, 'g'))].map(([, inner]) => texts(inner));
 

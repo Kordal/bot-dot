@@ -80,6 +80,15 @@ internal object Keypad {
         return pages.filter { it.keys.isNotEmpty() }
     }
 
+    /** The name a page folds under in the list's folded categories (#171): its category, "" for Other; Pinned never folds. */
+    fun foldName(page: Page): String? = when (page.kind) { Kind.PINNED -> null; Kind.CATEGORY -> page.name; Kind.OTHER -> "" }
+
+    /** [page] is folded: only its heading shows, as the list's category with the same name in [folded]. */
+    fun isFolded(page: Page, folded: Set<String>): Boolean = foldName(page)?.let { it in folded } == true
+
+    /** The keys shown, in reading order across the pages: a folded page's are not, so the digits do not count them. */
+    fun shownKeys(pages: List<Page>, folded: Set<String>): List<Key> = pages.filterNot { isFolded(it, folded) }.flatMap { it.keys }
+
     /**
      * Where a dragged key lands (#499): [key] dropped on the page at [to], on its key at [at] (it takes that one's
      * place) or on its heading (no [at]: last there, on its own page too, #516). The place is the one the list's drag gives a row, counted among its

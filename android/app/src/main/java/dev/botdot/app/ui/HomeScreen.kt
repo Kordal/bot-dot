@@ -287,7 +287,9 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     if (keypad) KeypadKeys(keys, pages, keysShown = q.isEmpty(), onKey = openKey,
         // Esc: the Chief's chat again, and out of the message box it was typed in.
         onChief = { focusManager.clearFocus(); onChief() },
-        onSearch = { searching = true; askSearch++ })
+        onSearch = { searching = true; askSearch++ }, folded = folded)
+    // A category's page folds with the list's category of the same name (#171): one setting, on this phone.
+    val foldPage = { page: Keypad.Page -> Keypad.foldName(page)?.let { name -> scope.launch { app.settings.toggleFolded(name) } }; Unit }
     val config = LocalConfiguration.current
     val keyboard = config.keyboard == Configuration.KEYBOARD_QWERTY && config.hardKeyboardHidden == Configuration.HARDKEYBOARDHIDDEN_NO
 
@@ -328,7 +330,8 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             AboveKeys()
             KeypadView(pages, active, ::look, onKey = openKey, onAsk = onNew, modifier = Modifier.weight(1f), hint = KEYPAD_HINT.takeIf { keyboard },
                 // A key dragged to another place or page: saved as the list's drag saves a row.
-                onMove = { k, place -> save(k.id, ListLayout.change(place, group = k is Keypad.Key.OfGroup, pinned = k.pinned)) })
+                onMove = { k, place -> save(k.id, ListLayout.change(place, group = k is Keypad.Key.OfGroup, pinned = k.pinned)) },
+                folded = folded, onFold = foldPage)
         }
         // A phone's sections, while the search finds nothing to show in their place; pulled down, everything again.
         else if (sections && q.isEmpty()) PullToRefreshBox(
@@ -336,7 +339,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } },
             modifier = Modifier.fillMaxSize(),
         ) {
-            KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0) {
+            KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0, folded = folded, onFold = foldPage) {
                 AboveKeys()
                 if (bots != null && pages.isEmpty()) Text("No bots yet. Ask the Chief of Staff to make one.", color = p.muted, modifier = Modifier.padding(20.dp))
             }
