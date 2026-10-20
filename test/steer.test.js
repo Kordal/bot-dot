@@ -5,8 +5,7 @@
 // and released: no test here waits for a time to pass.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { execFileSync } = require('child_process');
-const { startServer, restartServer, makeBot, heldRun, self, waitFor, feed, readData, setQueue, sleep } = require('./helpers');
+const { startServer, restartServer, makeBot, heldRun, self, hookCall, waitFor, feed, readData, setQueue, sleep } = require('./helpers');
 
 let srv;
 before(async () => { srv = await startServer(); });
@@ -20,8 +19,8 @@ const botOf = async (on, bot) => (await on.api(`/bots/${bot.id}`)).data;
 const waitingIn = (on, bot) => (readData(on.data, 'queue.json').queues[bot.id] || []);
 const ranAll = (on, bot, n) => waitFor(async () => { const r = await runsOf(on, bot); return r.length === n && r.every((x) => x.status !== 'running') ? r : null; }, { timeout: 30_000, what: `${n} runs of ${bot.name}` });
 const isRunOf = (bot) => (x) => x.args.includes(`${bot.emoji} ${bot.name}`);
-// What the hook asks after a tool call of the run: the context Claude is handed, or nothing.
-const toolCall = async (on, token) => (await self(on, token, 'steer')).data;
+// What the hook asks after a tool call of the run: the context Claude is handed, or null for nothing.
+const toolCall = async (on, token) => (await self(on, token, 'steer')).data.hookSpecificOutput?.additionalContext ?? null;
 const upload = async (on, bot, name = 'where.txt') => (await on.api(`/uploads?to=bot:${bot.id}`, { method: 'POST', raw: Buffer.from('host: staging-vm\n'), headers: { 'X-File-Name': name } })).data;
 
 test('the features name it', async () => {
@@ -39,7 +38,7 @@ test('a steered message is read by the run that is going at its next tool call, 
   const w = (await send(srv, bot, { prompt: 'staging-vm access mozesz dostac od Homelab Admin', attachments: [file], key: 'steer-key-1' })).data;
   assert.equal(w.status, 'queued');
   // Nothing was steered yet: a tool call reads nothing.
-  assert.deepEqual(await toolCall(srv, h.token), { ok: true, steered: 0 });
+  assert.equal(await toolCall(srv, h.token), null);
 
   const s = await steer(srv, bot, w.id);
   assert.equal(s.status, 200, JSON.stringify(s.data));
@@ -53,12 +52,11 @@ test('a steered message is read by the run that is going at its next tool call, 
 
   // The run's next tool call: the hook is answered with the message, in botdot's words, and its file.
   const read = await toolCall(srv, h.token);
-  assert.equal(read.steered, 1);
-  assert.match(read.context, /The owner has sent you a message while you work/);
-  assert.ok(read.context.includes('staging-vm access mozesz dostac od Homelab Admin'));
-  assert.ok(read.context.includes(file.file), 'told of its file');
+  assert.match(read, /The owner has sent you a message while you work/);
+  assert.ok(read.includes('staging-vm access mozesz dostac od Homelab Admin'));
+  assert.ok(read.includes(file.file), 'told of its file');
   // Read once: the next tool call reads nothing.
-  assert.deepEqual(await toolCall(srv, h.token), { ok: true, steered: 0 });
+  assert.equal(await toolCall(srv, h.token), null);
   // It left the list, and is on the run's record, in order, with when it was sent and read.
   assert.deepEqual((await botOf(srv, bot)).queued, []);
   assert.deepEqual(waitingIn(srv, bot), []);
@@ -106,7 +104,7 @@ test('Take back after Steer, before the run read it: the text and files come bac
   assert.equal((await steer(srv, bot, w.id)).status, 200);
   const back = await takeBack(srv, bot, w.id);
   assert.deepEqual([back.status, back.data.text, back.data.attachments.map((a) => a.file)], [200, 'Never mind this', [file.file]]);
-  assert.deepEqual(await toolCall(srv, h.token), { ok: true, steered: 0 });
+  assert.equal(await toolCall(srv, h.token), null);
   assert.equal((await steer(srv, bot, w.id)).status, 404);
   srv.unhold();
   srv.release(h.rec);
@@ -138,7 +136,7 @@ test('a run that cannot be steered, or a bot that is free, answers 409 and the m
   t.diagnostic('the run the Chief asked for ended, and the message ran as its own run');
 });
 
-test('the run is given the hook, which hands Claude what was steered and says nothing when nothing was', async () => {
+test('the run is given an http hook, which hands Claude what was steered and says nothing when nothing was', async () => {
   const bot = await makeBot(srv, { name: 'Hooked', emoji: '🪝' });
   const h = await heldRun(srv, bot, 'Work with hooks');
   const at = h.rec.args.indexOf('--settings');
@@ -146,17 +144,21 @@ test('the run is given the hook, which hands Claude what was steered and says no
   const hooks = h.rec.settings?.hooks?.PostToolUse;
   assert.equal(hooks?.length, 1);
   assert.equal(hooks[0].matcher, '*');
-  const { command } = hooks[0].hooks[0];
-  assert.match(command, /steer-hook\.js/);
-  assert.ok(!command.includes(h.token) || h.rec.settingsMode === 0o600, 'its key only in a private file');
-  const run = () => execFileSync('/bin/sh', ['-c', command], { input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Bash' }), encoding: 'utf8' });
-  assert.equal(run(), '', 'nothing steered: nothing said');
+  const hook = hooks[0].hooks[0];
+  assert.deepEqual([hook.type, new URL(hook.url).hostname, new URL(hook.url).pathname], ['http', '127.0.0.1', '/api/self/session/steer']);
+  assert.deepEqual(hook.headers, { 'X-Run-Token': h.token, 'X-Bot-Dot': '1' });
+  assert.equal(h.rec.settingsMode, 0o600, 'its key only in a private file');
+  assert.ok(!h.rec.args.some((a) => a.includes(h.token)), 'and on no command line');
+  // Claude Code posts the call with the tool's output, which can be larger than any body botdot reads.
+  const call = { hook_event_name: 'PostToolUse', tool_name: 'Read', tool_response: 'x'.repeat(2e6) };
+  assert.deepEqual(await hookCall(h.rec.settings, call), {}, 'nothing steered: nothing said');
   const w = (await send(srv, bot, { prompt: 'Use port 2222' })).data;
   await steer(srv, bot, w.id);
-  const out = JSON.parse(run());
+  const out = await hookCall(h.rec.settings, call);
+  assert.deepEqual(Object.keys(out), ['hookSpecificOutput']);
   assert.equal(out.hookSpecificOutput.hookEventName, 'PostToolUse');
   assert.ok(out.hookSpecificOutput.additionalContext.includes('Use port 2222'));
-  assert.equal(run(), '');
+  assert.deepEqual(await hookCall(h.rec.settings, call), {}, 'read once');
   srv.unhold();
   srv.release(h.rec);
   await ranAll(srv, bot, 1);
@@ -203,7 +205,7 @@ test('after a restart a message the run read stays read: it starts nothing, and 
     const w = (await send(s2, bot, { prompt: 'Read before the restart', key: 'read-key-1' })).data;
     const waited = waitingIn(s2, bot);
     assert.equal((await steer(s2, bot, w.id)).status, 200);
-    assert.equal((await toolCall(s2, h.token)).steered, 1);
+    assert.match(await toolCall(s2, h.token), /Read before the restart/);
     await s2.stop();
     s2.unhold();
     // A crash after the run's record was written and before the queue was: the message is in both.
