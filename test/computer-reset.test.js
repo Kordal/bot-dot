@@ -149,3 +149,29 @@ test("a bot's old computer: its screen says it is kept, stopped; its home is cop
   assert.equal(none.status, 409);
   assert.match(none.data.error, /no old computer/);
 });
+
+test("a computer made again or erased takes the unused desktop images with it, after its answer (#191)", async () => {
+  const { createServer } = require('../lib/docker-helper');
+  const answers = { updateAll: 'updated', resetAll: 'none', reset: 'erased', restartAll: 'restarted' };
+  const computers = Object.fromEntries(Object.entries(answers).map(([op, value]) => [op, async () => value]));
+  let cleaned = 0;
+  const server = createServer({ computers, updates: { clean: async () => { cleaned++; throw new Error('Docker did not answer'); } } });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const call = (operation, args = []) => new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: server.address().port, path: '/call', method: 'POST' }, (res) => {
+      let body = ''; res.on('data', (d) => { body += d; }); res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(body) }));
+    });
+    req.on('error', reject);
+    req.end(JSON.stringify({ operation, args }));
+  });
+  try {
+    assert.deepEqual(await call('updateAll'), { status: 200, body: { value: 'updated' } }, 'a cleanup that fails changes nothing of the answer');
+    assert.equal(cleaned, 1);
+    await call('reset', ['pc']);
+    assert.equal(cleaned, 2, "a bot's old computer erased");
+    await call('resetAll');
+    assert.equal(cleaned, 2, 'nothing was erased: nothing to clean');
+    await call('restartAll');
+    assert.equal(cleaned, 2, 'a restart keeps its image');
+  } finally { server.close(); }
+});
