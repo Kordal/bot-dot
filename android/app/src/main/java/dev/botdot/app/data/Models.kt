@@ -1251,6 +1251,9 @@ data class VaultItem(
     // An SSH key of Bitwarden (kind "ssh-key", `vault-ssh-keys`): its fingerprint and public key, never the private key.
     val fingerprint: String? = null,
     val publicKey: String? = null,
+    // A file of Bitwarden (kind "file", `vault-files`, #157): its file name and size in bytes, never its content.
+    val fileName: String? = null,
+    val size: Long? = null,
 )
 
 /**
