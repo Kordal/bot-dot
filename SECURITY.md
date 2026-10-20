@@ -88,7 +88,7 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   types into a browser, a login handed to `run_with_login`, an SSH key lent through
   `run_with_ssh_key` while its agent lives and a file of the Vault handed to `run_with_file` while its
   command runs can be read by any bot on the computer, through sudo. botdot never puts a secret on a
-  command line. It puts one in a file only for `run_with_file` ([ADR 038](docs/adr/038-a-saved-file-is-in-the-computer-for-one-command.md)):
+  command line. It puts one in a file only for `run_with_file` ([ADR 039](docs/adr/039-a-saved-file-is-in-the-computer-for-one-command.md)):
   a 0600 file in a 0700 folder of the bot user's, for that one command, removed when it ends, fails or
   runs out of time, and at most 64 KB. The Vault's "Usable in its computer" card and its file dialog
   say that every bot on the account's computer can read it. Saved logins used through
