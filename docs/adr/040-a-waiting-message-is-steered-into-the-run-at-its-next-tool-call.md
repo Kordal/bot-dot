@@ -7,7 +7,7 @@
 
 [ADR 011](011-a-bot-does-one-thing-at-a-time-and-the-owners-message-waits.md) keeps the owner's message to a working bot on the botdot server and starts it as its own run when the bot is free: "A message waits for the next run or turn. It is not handed to one that is going." It rejected handing it over (`claude -p --input-format stream-json`, as Claude Code and Codex steer a turn) for that milestone. The only way to get a waiting message read sooner is Stop, which throws away the work the run did.
 
-On 2026-10-20 the owner asked for a second way: a "Steer" button under a waiting message, next to "Take back". A press hands that message to the run that is going, which reads it at its next tool call and changes course in the same run. Without a press a message waits as before. The issue covers the bots and the Chief; this decision is for the bots, and the Chief follows under its own heading.
+On 2026-10-20 the owner asked for a second way: a "Steer" button under a waiting message, next to "Take back". A press hands that message to the run that is going, which reads it at its next tool call and changes course in the same run. Without a press a message waits as before. It covers the bots and the Chief (under its own heading below).
 
 A spike on Claude Code 2.1.304 (`claude -p`, Haiku) tried the two ways to get a message into a turn that is going:
 
@@ -25,7 +25,15 @@ A spike on Claude Code 2.1.304 (`claude -p`, Haiku) tried the two ways to get a 
 - **Which runs can be steered.** A run in the bot's own chat that answers the owner: the owner's message, a Board tile's request, a job's run, a run that carries on. Not a turn in a group (another chat), a teammate's message or a run the Chief asked for (their reply goes to who asked), nor a run without tools, as the memory review or a new bot's first message (no tool call comes). Steer on a bot whose run can't take it answers `409` with a sentence, and the message keeps waiting.
 - **What the apps see.** A waiting message that was steered has `steering: true` in `queued`, and the apps show "Steering…" in place of "Waits until … is free", with Take back. A run that read one is announced on the feed (`run_steered`, with the run's `steered`), and `steered` is on the run in every answer. `features` has `steer`; an app that does not find it shows no button.
 
-Resolved for the Chief by its own ticket, under its own heading here.
+### The Chief
+
+The same press in a Chief chat, under a message that waits behind the Chief's reply (ADR 011, "Resolved by BUSY-002"): `POST /api/chief/chats/:id/queued/:queuedId/steer`, feature `chief-steer`.
+
+- **Only a reply the owner started takes it.** Such a turn is started with the hook too, with the Chief's key and its chat in a private settings file; the hook asks `POST /api/chief/steer`, the Chief's own route. A turn botdot started (a bot's result, a reminder, an answered card) has no hook and answers `409`: it has read text that is not the owner's and is not given the tools that write memory (ADR 017), so the owner's words wait for a turn of their own.
+- **Read, it is on the reply.** The reply gets `steered`, as a bot's run does, and the chat draws those messages before the reply. They are not put into the chat as messages of their own: the reply's place in the chat stays what it was, and with it the ids that point at it (ratings, the memory index). The Chief's session has the message from the hook's context, so a later turn that resumes it knows it.
+- **The chat first, then the waiting list**, as for a bot: a crash between the two leaves the message in both, and botdot does not start it again, since the chat holds it.
+- **Not read before the reply ends: it starts as its own turn,** first among what waits, as any message of the owner's. After a restart the same.
+- **Groups** stay out: a group keeps its own waiting list (ADR 019).
 
 ## Alternatives
 
@@ -41,4 +49,5 @@ Resolved for the Chief by its own ticket, under its own heading here.
 - A run that makes no more tool calls before its reply never reads it: the message then starts as its own run, as if it had not been steered.
 - The message is part of the run that read it: Stop on that run stops it with it, and the message is not started again.
 - The hook's text is context for Claude, marked as botdot's handing over of the owner's words. Claude Code shows it to the model as hook output, not as a user turn.
-- Groups are not covered: a group keeps its own waiting list (ADR 019). The Chief comes under its own heading here.
+- Groups are not covered: a group keeps its own waiting list (ADR 019).
+- In a Chief chat a turn botdot started can't be steered: the owner's message waits for the reply to end, as before.

@@ -458,6 +458,12 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun stopChief(chatId: String) { send("POST", "/chief/chats/${enc(chatId)}/stop") }
     /** "Take back" on a message that waits in a Chief chat, as [takeBack]. */
     suspend fun takeBackFromChief(chatId: String, queuedId: String): TakenBack = TakenBack.of(send("DELETE", "/chief/chats/${enc(chatId)}/queued/${enc(queuedId)}"))
+
+    /** As [steer], for a message that waits in a Chief chat (`chief-steer`): the reply that is going reads it. */
+    suspend fun steerChief(chatId: String, queuedId: String): List<Queued> {
+        val answer = send("POST", "/chief/chats/${enc(chatId)}/queued/${enc(queuedId)}/steer")
+        return Queued.list(runCatching { JSON.parseToJsonElement(answer) as? JsonObject }.getOrNull()?.get("queued"))
+    }
     suspend fun dismissSuggestion(chatId: String) { send("POST", "/chief/chats/${enc(chatId)}/dismiss") }
     /** Rate the unasked message at [index] of the whole chat: "up", "down", or null to clear it (Ratings). */
     suspend fun rate(chatId: String, index: Int, rating: String?) {

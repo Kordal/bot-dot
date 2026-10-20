@@ -472,6 +472,25 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
         }
     }
 
+    /** As [BotChatModel.steer], for a message that waits in this chat: the Chief's reply that is going reads it. */
+    fun steer(q: Queued) {
+        val id = chatId ?: return
+        if (!taking.add(q.id)) return
+        viewModelScope.launch {
+            try {
+                (app.api.value ?: throw ApiException(NOT_CONNECTED)).steerChief(id, q.id)
+                chat?.takeIf { it.id == id }?.let { c -> chat = c.copy(queuedValue = steered(c.queuedValue, q.id)) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                outbox.steerFailed(e)
+            } finally {
+                taking.remove(q.id)
+            }
+            refresh()
+        }
+    }
+
     /**
      * A tap on 👍 or 👎 under the unasked message at [index] of the whole chat: filled at once, then sent. When botdot
      * refuses it or can't be reached, the thumbs go back to what they were (unless a later tap or the feed has changed
@@ -523,6 +542,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
                         "opening_line" -> app.store.lines.say("chief:$id", o.str("text"))
                         "done" -> { activity.clear(); app.store.lines.end("chief:$id") } // the reply is here, or it couldn't finish
                         "action" -> kick(whole = false) // persisted actions are clickable even while the Chief waits
+                        "steered" -> kick(whole = false) // the reply read a message the owner steered into it (ADR 040)
                     }
                 }
             }
@@ -669,6 +689,12 @@ const val STEER = "steer"
 
 /** Whether a bot's waiting message has "Steer": the botdot this app talks to announces it. */
 internal fun canSteer(features: Collection<String>?): Boolean = features != null && STEER in features
+
+/** The feature of "Steer" under a message that waits in a Chief chat (ADR 040). */
+const val CHIEF_STEER = "chief-steer"
+
+/** Whether a Chief chat's waiting message has "Steer". */
+internal fun canSteerChief(features: Collection<String>?): Boolean = features != null && CHIEF_STEER in features
 
 /** Under a message that the owner steered into the run that is going, until that run read it. */
 internal const val STEERING = "Steering…"

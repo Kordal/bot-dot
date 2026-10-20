@@ -441,11 +441,11 @@ test('web: with `steer` a bot\'s waiting message has Steer beside Take back, and
   assert.match(html, /<span>Waits until Fleet Doctor is free<\/span><button type="button" data-steer="q2">Steer<\/button>/, 'the other still waits, with its own Steer');
   assert.equal((html.match(/data-steer=/g) || []).length, 1);
   // Refused (the run can't take it, or it started): the server's sentence above the box, and the chat read again.
-  answers.push(() => { throw refused("Fleet Doctor is working on a task of the Chief's. This starts when it is free.", 409); });
+  answers.push(() => { throw refused("Fleet Doctor is working on a request of the Chief's. This starts when it is free.", 409); });
   await p.bot.find.$$('[data-steer]', p.waiting(p.bot))[0].onclick();
-  assert.equal(p.boxes.bot.line(), "Fleet Doctor is working on a task of the Chief's. This starts when it is free.");
+  assert.equal(p.boxes.bot.line(), "Fleet Doctor is working on a request of the Chief's. This starts when it is free.");
   assert.equal(p.said.refreshed, 1);
-  // The Chief's chat has no Steer in this version, and neither has a server without `steer`.
+  // The Chief's chat has none from a server without `chief-steer`, and a bot's none from one without `steer`.
   p.chief.thread.dataset.chat = 'c1';
   p.ctx.chiefQueued.set('c1', [queued('q7', 'Later')]);
   p.ctx.placeStatusLines();
@@ -454,4 +454,29 @@ test('web: with `steer` a bot\'s waiting message has Steer beside Take back, and
   old.doctor.queued = [{ ...queued('q1', SECOND), steering: true }];
   old.ctx.placeStatusLines();
   assert.match(old.waiting(old.bot).innerHTML, /<span>Waits until Fleet Doctor is free<\/span><button type="button" data-take-back="q1">Take back<\/button>/);
+});
+
+test('web: with `chief-steer` a Chief chat\'s waiting message has Steer too: pressed, it is marked; refused, the server\'s sentence and the chat read again', async () => {
+  const answers = [];
+  const p = page({ features: ['message-waits', 'chief-steer'], reply: async (path) => answers.shift()(path) });
+  p.chief.thread.dataset.chat = 'c1';
+  p.ctx.chiefTurns.set('c1', 'Thinking');
+  p.ctx.chiefQueued.set('c1', [queued('q7', 'Also book the dentist')]);
+  p.ctx.placeStatusLines();
+  assert.match(p.waiting(p.chief).innerHTML, /<span>Waits until the Chief is free<\/span><button type="button" data-steer="q7">Steer<\/button><button type="button" data-take-back="q7">Take back<\/button>/);
+  answers.push(() => ({ queued: [{ ...queued('q7', 'Also book the dentist'), steering: true }] }));
+  await p.chief.find.$$('[data-steer]', p.waiting(p.chief))[0].onclick();
+  assert.deepEqual(p.said.calls.slice(-1), ['POST /chief/chats/c1/queued/q7/steer']);
+  assert.match(p.waiting(p.chief).innerHTML, /<span>Steering…<\/span><button type="button" data-take-back="q7">Take back<\/button>/);
+  p.ctx.chiefQueued.set('c1', [queued('q8', 'One more')]);
+  p.ctx.placeStatusLines();
+  answers.push(() => { throw refused('Chief of Staff is answering something botdot brought it, not your message. This starts when it is free.', 409); });
+  await p.chief.find.$$('[data-steer]', p.waiting(p.chief))[0].onclick();
+  assert.equal(p.boxes.chief.line(), 'Chief of Staff is answering something botdot brought it, not your message. This starts when it is free.');
+  assert.deepEqual(p.said.shown, ['c1'], 'the chat is read again');
+  // A bot's chat keeps its own feature: without `steer`, no Steer there.
+  p.state.runs = [working];
+  p.doctor.queued = [queued('q1', SECOND)];
+  p.ctx.placeStatusLines();
+  assert.doesNotMatch(p.waiting(p.bot).innerHTML, /data-steer/);
 });

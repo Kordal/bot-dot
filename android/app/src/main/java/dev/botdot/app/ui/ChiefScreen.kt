@@ -193,7 +193,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                         if (sent != null && !busy) SentBubble(sent, above = true, sentArrives)
                         if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.chiefLine(lines["chief:$chatId"], activity.lastOrNull(), busy), sent), CHIEF_COLOR, onStop = if (busy) ({ vm.stop() }) else null, room = true)
                         else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines["chief:$chatId"].takeIf { busy }, working = false), sent), CHIEF_COLOR)
-                        WaitingMessages(vm.queued, "the Chief") { vm.takeBack(it) }
+                        WaitingMessages(vm.queued, "the Chief", onSteer = if (canSteerChief(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                         if (sent != null && busy) SentBubble(sent, above = false, sentArrives)
                         ChatNeeds(app, "chief", onNeeds, chiefChat = chatId)
                     }
@@ -248,6 +248,8 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                         }
                         val index = first + messages.size - 1 - i // its place in the whole chat
                         val approval = remember { messageKey() } // one key for the plan's Approve while it is shown
+                        // What the owner steered into this reply while the Chief worked (ADR 040), before it, in the order read.
+                        if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
                         Message(m, if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays,
                             onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
                             onDismiss = { vm.dismiss() },
