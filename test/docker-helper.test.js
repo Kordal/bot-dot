@@ -50,7 +50,8 @@ test('the Docker helper accepts fixed computer operations and rejects arbitrary 
   for (const value of [{ operation: 'resetAll', args: [] }, { operation: 'updateAll', args: [] }, { operation: 'copyOld', args: ['test-bot'] }]) {
     assert.equal((await call(value)).status, 200, JSON.stringify(value));
   }
-  assert.deepEqual(calls, ['test-bot', ['clean'], ['resetAll'], ['updateAll'], ['copyOld', 'test-bot']]);
+  // A computer erased or made again is followed by the cleanup of the desktop it ran on (#191).
+  assert.deepEqual(calls, ['test-bot', ['clean'], ['resetAll'], ['clean'], ['updateAll'], ['clean'], ['copyOld', 'test-bot']]);
 });
 
 test("owner edits and power settings never turn off the account's computer (#104)", async (t) => {
