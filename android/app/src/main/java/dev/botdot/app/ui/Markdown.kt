@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -60,9 +61,21 @@ object SearchMarks {
     fun mark(s: String): AnnotatedString = mark(AnnotatedString(s))
 }
 
-/** Enough Markdown for bots' replies: headings, lists, quotes, code, tables, bold, links. */
+/** Where the chat on screen opens on the web page ([chatOnWeb]). A chat gives it to its messages; a board tile or a
+ *  skill is in no chat and has none. */
+val LocalChatOnWeb = compositionLocalOf<String?> { null }
+
+/** A chat's address on the web page, which opens it from `#chief/<chatId>`, `#bot/<id>` or `#group/<id>` (public/boot.js). */
+internal fun chatOnWeb(baseUrl: String, kind: String, id: String) = baseUrl.trimEnd('/') + "/#$kind/" + id
+
+/** The link under a block: the app draws no diagram, so a `mermaid` block is its code with "Open on web" under it,
+ *  where the web page draws it (#177). Only in a chat: null for any other block or without [onWeb]. */
+internal fun webLinkUnder(b: Block, onWeb: String?): String? = onWeb?.takeIf { b is Block.Code && b.lang == "mermaid" }
+
+/** Enough Markdown for bots' replies: headings, lists, quotes, code, tables, bold, links. [onWeb]: where this chat
+ *  opens on the web page, for the link under a diagram's code ([webLinkUnder]). */
 @Composable
-fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier) {
+fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current) {
     val p = LocalPaper.current
     val blocks = remember(text) { parseBlocks(text) }
     // Its styled text, made once (and again only when the text, the searched words or the colours change), not on
@@ -96,8 +109,14 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                     }
                     is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
                         modifier = above.padding(start = 10.dp))
-                    is Block.Code -> Text(b.text, fontFamily = GeistMono, fontSize = 12.5.sp, color = color,
-                        modifier = above.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp)).horizontalScroll(rememberScrollState()).padding(10.dp))
+                    is Block.Code -> {
+                        Text(b.text, fontFamily = GeistMono, fontSize = 12.5.sp, color = color,
+                            modifier = above.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp)).horizontalScroll(rememberScrollState()).padding(10.dp))
+                        webLinkUnder(b, onWeb)?.let { url ->
+                            Text(buildAnnotatedString { withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = p.muted, textDecoration = TextDecoration.Underline)))) { append("Open on web") } },
+                                fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
                     is Block.Table -> Box(above) { Table(b.rows, st, color, p) }
                     Block.Rule -> Box(above.fillMaxWidth().height(1.dp).background(p.line2))
                 }
@@ -167,11 +186,13 @@ internal sealed interface Block {
     data class Para(val text: String) : Block
     data class Item(val text: String, val number: Int?, val indent: Int) : Block
     data class Quote(val text: String) : Block
-    data class Code(val text: String) : Block
+    /** [lang]: the word after the opening fence ("mermaid", "kotlin"), "" without one. */
+    data class Code(val text: String, val lang: String = "") : Block
     data class Table(val rows: List<List<String>>) : Block
     data object Rule : Block
 }
 
+private val FENCE = Regex("""^```(\w*)""")
 private val ITEM = Regex("""^(\s*)(?:[-*•+]|(\d{1,9})[.)])\s+(.*)$""")
 private val HEADING = Regex("""^(#{1,6})\s+(.*)$""")
 private val BOLD_LINE = Regex("""^\*\*([^*]+)\*\*:?\s*$""")
@@ -209,10 +230,11 @@ internal fun parseBlocks(src: String): List<Block> {
         when {
             t.startsWith("```") -> {
                 flush(); endList()
+                val lang = FENCE.find(t)!!.groupValues[1]
                 val code = StringBuilder()
                 i++
                 while (i < lines.size && !lines[i].trim().startsWith("```")) { code.appendLine(lines[i]); i++ }
-                out += Block.Code(code.toString().trimEnd())
+                out += Block.Code(code.toString().trimEnd(), lang)
             }
             isTable(t) -> {
                 // Tables, without the separator row.

@@ -483,6 +483,16 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .md code { background: var(--sunk); padding: 1px 5px; border-radius: 5px; }
 .md pre { background: var(--sunk); padding: 10px 12px; border-radius: 10px; overflow: auto; }
 .md pre code { background: none; padding: 0; }
+/* A diagram (diagrams.js): the drawing as wide as the bubble allows, "Show code" under it; the note of one that
+   could not be drawn under its code. */
+.md .diagram { margin: .6em 0; }
+.md .diagram [hidden] { display: none; }
+.md .diagram-svg { overflow-x: auto; }
+.md .diagram-svg svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.md .diagram-toggle { display: block; margin-top: 4px; padding: 0; border: 0; background: none; color: var(--muted); font-size: 12.5px; text-decoration: underline; cursor: pointer; }
+.md .diagram-note { margin-top: 4px; color: var(--muted); font-size: 12.5px; }
+/* Where Mermaid draws: out of sight, but laid out, as Mermaid measures its text. */
+.diagram-frame { position: fixed; left: -10000px; top: 0; width: 1200px; height: 800px; border: 0; visibility: hidden; pointer-events: none; }
 .md table { border-collapse: collapse; font-size: 13px; }
 .md td, .md th { border: 1px solid var(--line); padding: 4px 8px; }
 .md a { text-underline-offset: 2px; }
