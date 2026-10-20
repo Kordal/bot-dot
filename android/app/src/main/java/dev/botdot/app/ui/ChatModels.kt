@@ -274,7 +274,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
                         is RunEvent.Step -> Unit // a working bot is its status line: the steps are in the run's details
                         is RunEvent.Text -> Unit // the reply shows when it's done, or grows as its draft
                         is RunEvent.Draft -> if (ReplyDraft.shows(app.store.version.value.value?.features)) draft = ev.text.takeIf { it.isNotEmpty() }?.let { r.id to it }
-                        is RunEvent.End -> { draft = null; kicks.tryEmit(Unit) }
+                        is RunEvent.End -> kicks.tryEmit(Unit) // the draft stays until the reply that takes its place is read (follow)
                         is RunEvent.File -> kicks.tryEmit(Unit) // show it now: a QR code to scan can't wait for the reply
                         is RunEvent.Line -> app.store.lines.streamed("bot:$botId", ev, r.id)
                     }
@@ -535,7 +535,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
         val saved = chat?.messages?.lastOrNull { it.pending }?.activity
         val label = OpeningLine.chiefActivity(saved).ifEmpty { null }
         if (id == following) {
-            if (id == null) activity.clear()
+            if (id == null) { activity.clear(); draft = "" }
             // A refresh may have started before a newer SSE status arrived. Only seed when
             // starting a stream; the existing stream remains authoritative while following.
             return
@@ -553,7 +553,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
                         "activity" -> activity += OpeningLine.chiefActivity(o)
                         "opening_line" -> app.store.lines.say("chief:$id", o.str("text"))
                         "reply_draft" -> if (ReplyDraft.shows(app.store.version.value.value?.features)) draft = o.str("text")
-                        "done" -> { activity.clear(); draft = ""; app.store.lines.end("chief:$id") } // the reply is here, or it couldn't finish
+                        "done" -> { activity.clear(); app.store.lines.end("chief:$id") } // the reply is here, or it couldn't finish; its draft stands until it is read
                         "action" -> kick(whole = false) // persisted actions are clickable even while the Chief waits
                         "steered" -> kick(whole = false) // the reply read a message the owner steered into it (ADR 040)
                     }

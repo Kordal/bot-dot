@@ -344,7 +344,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
         snapshotFlow { listState.layoutInfo.let { (it.visibleItemsInfo.lastOrNull()?.index ?: 0) >= it.totalItemsCount - 4 } }
             .collect { near -> if (near) vm.loadOlder() }
     }
-    LaunchedEffect(vm) { vm.followDrafts() } // its turns' drafts, while the chat is on screen
+    LaunchedEffect(vm, ReplyDraft.shows(features)) { vm.followDrafts() } // its turns' drafts, while the chat is on screen; again once the features are known
     DisposableEffect(groupId) {
         app.notifier.visibleChat = chatKey
         onDispose { if (app.notifier.visibleChat == chatKey) app.notifier.visibleChat = null }

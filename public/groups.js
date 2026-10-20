@@ -628,7 +628,7 @@ function drawGroupDrafts() {
     if (!text) continue;
     const row = $(`[data-draft="${CSS.escape(runId)}"]`, box);
     const bubble = row && $('.draft', row);
-    if (bubble) bubble.innerHTML = `<div class="md">${md(draftSource(text))}</div>`;
+    if (bubble) bubble.innerHTML = draftMd(text);
     else box.insertAdjacentHTML('beforeend', groupDraftHTML(runId, botId));
   }
   if (near) thread.scrollTop = thread.scrollHeight;

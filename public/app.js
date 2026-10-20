@@ -582,8 +582,9 @@ new MutationObserver((changes) => {
 // reply is drawn as it always was. There is no animation: the text is drawn again, at most once a frame.
 const showsDrafts = () => state.features.includes('reply-draft');
 // The draft's bubble, or '' for none. alone: in a stack of its own, as a reply's bubble stands, for a row that has none.
+const draftMd = (text) => `<div class="md">${md(draftSource(text))}</div>`;
 const draftHTML = (text, alone = false) => {
-  const bubble = text ? `<div class="bubble from-bot draft"><div class="md">${md(draftSource(text))}</div></div>` : '';
+  const bubble = text ? `<div class="bubble from-bot draft">${draftMd(text)}</div>` : '';
   return bubble && alone ? `<div class="stack draft-stack">${bubble}</div>` : bubble;
 };
 // The drafts the page holds, by their reply (a run's id, or chief:<chat>): kept so that a chat drawn again keeps
@@ -601,7 +602,7 @@ const replyDrafts = (() => {
     const own = $('.draft-stack', row); // the stack put in for it, in a row that had none
     const box = own || $('.stack', row);
     const old = box && $('.draft', box);
-    if (old && text) old.innerHTML = `<div class="md">${md(draftSource(text))}</div>`;
+    if (old && text) old.innerHTML = draftMd(text);
     else if (old) (own || old).remove();
     else if (text) (box || row).insertAdjacentHTML('afterbegin', draftHTML(text, !box));
     if (near && thread) thread.scrollTop = thread.scrollHeight;
