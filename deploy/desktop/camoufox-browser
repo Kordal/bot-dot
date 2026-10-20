@@ -324,6 +324,15 @@ def run_browser(url):
             # reads what it downloads, and this user's home stays closed to it.
             "browser.download.dir": "/home/box/Downloads",
             "browser.download.folderList": 2,
+            # Less memory (#152): gVisor never gives back what the browser once took, and the guest sees all of
+            # the machine's RAM, so Firefox never thinks memory is short. One content process for every site, no
+            # spare one kept waiting, networking in the main process, and small caches.
+            "fission.autostart": False,
+            "dom.ipc.processCount": 1,
+            "dom.ipc.processPrelaunch.enabled": False,
+            "network.process.enabled": False,
+            "browser.cache.memory.capacity": 16384,  # KB, instead of sized from the machine's RAM
+            "browser.sessionhistory.max_total_viewers": 0,  # Back loads the page again instead of keeping it
         },
     ) as context:
         browser_open.set()
