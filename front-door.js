@@ -120,8 +120,14 @@ const FONTS = Object.fromEntries(['Geist.ttf', 'GeistMono.ttf'].flatMap((f) => {
 // and its icons without cookies, and the service worker keeps the offline page. Read once at start, the same files
 // every account's botdot server serves, with nothing of an account in them.
 const INSTALL_TYPES = { '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.html': 'text/html; charset=utf-8' };
-const INSTALL_FILES = Object.fromEntries(['manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
-  'apple-touch-icon.png', 'screenshot-wide.png', 'screenshot-narrow.png', 'offline.html'].flatMap((f) => {
+// The manifest's icons and screenshots are taken from it, so a new one needs no change here.
+const installNames = () => {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'manifest.webmanifest'), 'utf8'));
+    return [...(m.icons || []), ...(m.screenshots || [])].map((i) => new URL(i.src, 'http://x').pathname.slice(1));
+  } catch { return []; }
+};
+const INSTALL_FILES = Object.fromEntries([...new Set(['manifest.webmanifest', 'apple-touch-icon.png', 'offline.html', ...installNames()])].flatMap((f) => {
   try {
     const body = fs.readFileSync(path.join(__dirname, 'public', f));
     return [[`/${f}`, { body, type: INSTALL_TYPES[path.extname(f)], etag: `"${crypto.createHash('sha256').update(body).digest('base64url').slice(0, 16)}"` }]];

@@ -62,8 +62,6 @@ document.addEventListener('click', (e) => {
   });
   followFeed();
   if (state.feed) followGroups(state.feed); // what happens in the groups (groups.js)
-  // The service worker on every load (install.js): the offline page, and the notifications below.
-  Install.register(window);
   // Notifications on this device (push.js): botdot is given this browser's subscription again, and a tap on one
   // of them opens what it is about.
   if (state.features.includes('web-push') && Push.supported(window)) {

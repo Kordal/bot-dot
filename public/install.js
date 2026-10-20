@@ -2,7 +2,8 @@
 // with `beforeinstallprompt`, which is kept here (from the page's first moment, as it can come before Settings is
 // drawn) for the button's tap. Safari has no such event: on an iPhone or iPad the card says to use Share → Add to Home
 // Screen, on a Mac File → Add to Dock. Opened as an installed app, there is nothing to install and no card.
-// It also registers the service worker (sw.js) on every load: the offline page and notifications need it.
+// It also registers the service worker (sw.js) as the page loads, before anything can fail: the offline page and
+// notifications need it.
 // A plain <script>, as window.Install; the tests load it the same way.
 
 (function (root) {
@@ -73,6 +74,6 @@ const api = { isIos, isMacSafari, standalone, watch, state, install, onChange, r
 if (typeof module === 'object' && module.exports) module.exports = api;
 else {
   root.Install = api;
-  if (root.addEventListener) watch(root);
+  if (root.addEventListener) { watch(root); register(root); }
 }
 })(typeof globalThis !== 'undefined' ? globalThis : this);

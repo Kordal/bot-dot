@@ -115,8 +115,9 @@ function worker({ online = true } = {}) {
   const run = async (type, e) => {
     let waited; let answer;
     handlers[type]({ ...e, waitUntil: (p) => { waited = p; }, respondWith: (p) => { answer = p; } });
+    const out = answer === undefined ? undefined : await answer;
     await waited;
-    return answer === undefined ? undefined : await answer;
+    return out;
   };
   return { run, stores, fetched, setOnline: (v) => { online = v; } };
 }
@@ -134,8 +135,12 @@ test('the service worker keeps only the offline page, shows it for a page that f
   assert.equal(await w.run('fetch', { request: { mode: 'no-cors', url: '/app.js' } }), undefined);
 });
 
-test('the service worker installs offline too, and a failed page without the offline page fails as before', async () => {
+test('the service worker installs offline too, a failed page without the offline page fails as before, and the next page keeps it', async () => {
   const w = worker({ online: false });
   await w.run('install', {});
   assert.equal(await w.run('fetch', { request: { mode: 'navigate', url: '/' } }), 'network error');
+  w.setOnline(true);
+  assert.equal(await w.run('fetch', { request: { mode: 'navigate', url: '/' } }), 'page /', 'the next page that loads keeps it');
+  w.setOnline(false);
+  assert.equal(await w.run('fetch', { request: { mode: 'navigate', url: '/' } }), 'kept /offline.html');
 });

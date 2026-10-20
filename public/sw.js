@@ -17,14 +17,23 @@ function hashOf(target) {
   return '#chief';
 }
 
-// The offline page: kept at install, under a name that changes with it; older names go when this worker takes over.
+// The offline page: kept at install, under a name that changes with it (a new offline.html needs a new name here);
+// older names go when this worker takes over.
 const OFFLINE = '/offline.html';
 const KEPT = 'botdot-offline-1';
+
+// The offline page, kept unless it is already. Never fails: without it a failed page fails as it would without botdot.
+const keep = async () => {
+  try {
+    if (await caches.match(OFFLINE, { cacheName: KEPT })) return;
+    await (await caches.open(KEPT)).add(new Request(OFFLINE, { cache: 'reload' }));
+  } catch { /* no connection: the next page that loads tries again */ }
+};
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   // A worker installs even when the page can't be kept now: failing here would take push away with it.
-  e.waitUntil(caches.open(KEPT).then((c) => c.add(new Request(OFFLINE, { cache: 'reload' }))).catch(() => {}));
+  e.waitUntil(keep());
 });
 self.addEventListener('activate', (e) => e.waitUntil((async () => {
   for (const name of await caches.keys()) if (name !== KEPT) await caches.delete(name);
@@ -34,7 +43,10 @@ self.addEventListener('activate', (e) => e.waitUntil((async () => {
 // A page that can't be loaded: the offline page in its place. Only pages: a script, a picture or the API fails as before.
 self.addEventListener('fetch', (e) => {
   if (e.request.mode !== 'navigate') return;
-  e.respondWith(fetch(e.request).catch(async () => (await caches.match(OFFLINE, { cacheName: KEPT })) || Response.error()));
+  e.respondWith(fetch(e.request).then((page) => {
+    e.waitUntil(keep()); // kept now if the install couldn't
+    return page;
+  }, async () => (await caches.match(OFFLINE, { cacheName: KEPT })) || Response.error()));
 });
 
 self.addEventListener('push', (e) => {
