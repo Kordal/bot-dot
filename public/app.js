@@ -329,7 +329,7 @@ document.addEventListener('click', async (e) => {
 
 // A button whose answer waits on the server (Bitwarden can take several seconds): it says `words` ("Approving…"),
 // and it and the buttons beside it can't be pressed again, until `work` ends. A second press meanwhile does nothing.
-// With `spin`, a spinner turns in it too: a yes that makes a webhook's key or secret in the Vault (#154).
+// With `spin`, a spinner turns in it too: a yes that makes a call's key or a notify address's secret in the Vault (#154).
 async function whileBusy(button, words, work, spin = false) {
   if (!button) return work();
   if (button.dataset.busy) return undefined;
@@ -344,7 +344,7 @@ async function whileBusy(button, words, work, spin = false) {
     delete button.dataset.busy;
     beside.forEach((b, i) => { b.disabled = before[i]; });
     button.textContent = was;
-    button.classList.remove('spin');
+    if (spin) button.classList.remove('spin');
   }
 }
 

@@ -499,11 +499,11 @@ test('web: the no on a card asks nothing when the button says what it does; "Alw
   assert.deepEqual(wired(item(SCRIPT)).tap('yes'), { asked: [], decided: [[true]] });
 });
 
-// A change that makes a webhook (#154): a call turned on or switched, or an address to tell when a run ends.
+// A change that makes a connection (#154): a call turned on or switched, or an address to tell when a run ends.
 const CALL = { ...CHANGED, change: { ...CHANGE, call: true, summary: 'Anything that can reach this machine and has the job\'s key can run this job now.' } };
 const NOTIFY = { ...CHANGED, change: { ...CHANGE, notifyUrl: 'https://example.com/hook' } };
 
-test('web: the yes of a webhook card says "Creating connection…" with a spinner; any other card keeps "Approving…"', () => {
+test('web: the yes of a card that turns on a call or a notify address says "Creating connection…" with a spinner; any other card keeps "Approving…"', () => {
   const item = (job) => ({ key: `job:${job.id}`, kind: 'job', bot: CODER, job });
   for (const job of [CALL, NOTIFY, { ...CALL, change: { ...CALL.change, callMode: 'signed' } }, { ...CALL, call: true, change: { ...CALL.change, callMode: 'signed' } }]) {
     for (const which of ['yes', 'always']) {
@@ -523,7 +523,7 @@ test('web: the yes of a webhook card says "Creating connection…" with a spinne
   assert.deepEqual(w.said(), [['Approving…', false]], 'a permission keeps it');
 });
 
-test('web: the job dialog\'s yes on a webhook change says "Creating connection…" with a spinner too, and drops both after the answer', async () => {
+test('web: the job dialog\'s yes on a change that turns on a call says "Creating connection…" with a spinner too, and drops both after the answer', async () => {
   const p = panel();
   const bot = { ...CODER, jobs: [CALL] };
   p.ctx.state.bots = [bot];

@@ -114,7 +114,7 @@ data class Job(
     val touchesScript: Boolean get() = kind == "script" || change?.runsScript == true
 
     /**
-     * Whether a yes makes a connection (a webhook, #154): its waiting change turns calls on, switches how they are let
+     * Whether a yes makes a connection (#154: a call or an address to tell): its waiting change turns calls on, switches how they are let
      * in, or gives an address to tell when a run ends. Its key or secret is made in the Vault, which takes seconds; the
      * pressed button then says "Creating connection…" with a spinner, as on the web page.
      */

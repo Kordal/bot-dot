@@ -684,12 +684,12 @@ private fun Body(text: String, mono: Boolean = false) {
 private val answers = mutableIntStateOf(0)
 private fun answered() { answers.intValue++ }
 
-/** What the yes of a card that makes a webhook says while its answer is on its way (#154). */
+/** What the yes of a card that turns on a call or a notify address says while its answer is on its way (#154). */
 internal const val CREATING_CONNECTION = "Creating connection…"
 
 /**
  * What a card's button says while its answer is on its way: "Approving…" for "Approve", as on the web page. [connects]:
- * it is the yes of a card that makes a webhook ([dev.botdot.app.data.Job.createsConnection]): "Creating connection…".
+ * it is the yes of a card that turns on a call or a notify address ([dev.botdot.app.data.Job.createsConnection]): "Creating connection…".
  */
 internal fun busyWord(label: String, connects: Boolean = false): String = if (connects) CREATING_CONNECTION else when (label) {
     "Approve", "Always approve" -> "Approving…"
@@ -714,7 +714,7 @@ private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, o
     val sent = answers.intValue
     LaunchedEffect(sent) { pressed = null }
     val press = { label: String, action: () -> Unit -> { if (pressed == null) { pressed = label; action() } } }
-    // A yes of a card that makes a webhook ([connects]) turns a spinner in its button while it says so.
+    // A yes of a card that turns on a call or a notify address ([connects]) turns a spinner in its button while it says so.
     val spins = { label: String -> connects && pressed == label && label != secondary }
     val word = { label: String -> if (pressed == label) busyWord(label, spins(label)) else label }
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {

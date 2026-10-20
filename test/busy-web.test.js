@@ -40,8 +40,13 @@ test('web: after a failure the buttons are as they were, and can be pressed agai
 test('web: with a spinner the button turns one while it works, and drops it after, also after a failure (#154)', async () => {
   const { yes } = buttons();
   let seen;
-  await whileBusy(yes, 'Creating connection…', async () => { seen = [yes.textContent, yes.classList.contains('spin')]; }, true);
+  let sent = 0;
+  await whileBusy(yes, 'Creating connection…', async () => {
+    seen = [yes.textContent, yes.classList.contains('spin')];
+    assert.equal(await whileBusy(yes, 'Creating connection…', async () => { sent++; }, true), undefined, 'a second press meanwhile');
+  }, true);
   assert.deepEqual(seen, ['Creating connection…', true]);
+  assert.equal(sent, 0, 'the second press sent nothing');
   assert.deepEqual([yes.textContent, yes.classList.contains('spin')], ['Approve', false]);
   await assert.rejects(whileBusy(yes, 'Creating connection…', async () => { throw new Error('Bitwarden is locked'); }, true), /locked/);
   assert.deepEqual([yes.textContent, yes.classList.contains('spin'), yes.disabled], ['Approve', false, false]);

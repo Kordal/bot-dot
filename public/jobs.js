@@ -261,7 +261,7 @@ const changeOf = (x) => (x && x.approved !== false && x.change && typeof x.chang
 const jobWaits = (j) => !j.approved || !!changeOf(j);
 // Whether a yes on a waiting job approves a script: the job runs one, or its change says it would or carries one.
 const touchesScript = (j) => j.kind === 'script' || changeOf(j)?.kind === 'script' || (typeof changeOf(j)?.script === 'string' && !!changeOf(j).script.trim());
-// Whether a yes on a waiting job makes a connection (a webhook, #154): its change turns calls on, switches how they are
+// Whether a yes on a waiting job makes a connection (#154: a call or an address to tell): its change turns calls on, switches how they are
 // let in, or gives an address to tell when a run ends. Its key or secret is made in the Vault, which takes seconds.
 const callModeIn = (x) => (x.callMode === 'signed' ? 'signed' : 'bearer');
 const createsConnection = (j) => {
@@ -269,7 +269,7 @@ const createsConnection = (j) => {
   if (!c) return false;
   return (c.call === true && (!j.call || callModeIn(c) !== callModeIn(j))) || (typeof c.notifyUrl === 'string' && !!c.notifyUrl && c.notifyUrl !== j.notifyUrl);
 };
-// A yes on a waiting job, pressed: "Creating connection…" with a spinner when it makes a webhook, else "Approving…".
+// A yes on a waiting job, pressed: "Creating connection…" with a spinner when it turns on a call or a notify address, else "Approving…".
 const whileApproving = (button, j, work) => (createsConnection(j) ? whileBusy(button, 'Creating connection…', work, true) : whileBusy(button, 'Approving…', work));
 
 function pendingJobs() {

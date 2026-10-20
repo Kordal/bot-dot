@@ -21,8 +21,8 @@ class BusyWordTest {
         assertEquals("Turn it on…", busyWord("Turn it on"))
     }
 
-    // The yes of a card that makes a webhook says "Creating connection…", whatever the server's words on it (#154).
-    @Test fun aWebhooksYesSaysItCreatesTheConnection() {
+    // The yes of a card that turns on a call or a notify address says "Creating connection…", whatever the server's words on it (#154).
+    @Test fun aCallOrNotifyYesSaysItCreatesTheConnection() {
         assertEquals("Creating connection…", busyWord("Approve the change", connects = true))
         assertEquals("Creating connection…", busyWord("Approve", connects = true))
         assertEquals("Creating connection…", busyWord("Always approve", connects = true))
@@ -33,7 +33,7 @@ class BusyWordTest {
         job.copy(changeValue = buildJsonObject { put("name", "Mailbox opened"); put("by", "bot"); build() })
 
     // A change that turns calls on, switches their mode or gives a notify address makes a connection; any other does not.
-    @Test fun onlyAChangeThatMakesAWebhookCreatesAConnection() {
+    @Test fun onlyAChangeThatTurnsOnACallOrNotifyAddressCreatesAConnection() {
         assertTrue(changed { put("call", true) }.createsConnection)
         assertTrue(changed { put("call", true); put("callMode", "signed") }.createsConnection)
         assertTrue("bearer to signed", changed(approved.copy(call = true)) { put("call", true); put("callMode", "signed") }.createsConnection)
