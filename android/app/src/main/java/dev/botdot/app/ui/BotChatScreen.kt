@@ -187,7 +187,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         if (sent != null && running == null) SentBubble(sent, above = true, sentArrives)
                         if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.botLine(lines[chatKey], running, waiting), sent), bot?.color, still = waiting, onStop = if (running != null) ({ vm.stop() }) else null, room = true)
                         else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines[chatKey], running != null, waiting), sent), bot?.color, still = waiting)
-                        WaitingMessages(vm.queued, bot?.name ?: "it") { vm.takeBack(it) }
+                        WaitingMessages(vm.queued, bot?.name ?: "it", onSteer = if (canSteer(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                         if (sent != null && running != null) SentBubble(sent, above = false, sentArrives)
                         ChatNeeds(app, botId, onNeeds)
                     }
@@ -252,6 +252,8 @@ private fun YourSide(r: Run, open: Boolean = false) {
         Unread.Asked.USUAL -> Chip("▶ Ran its main assignment")
         Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments)
     }
+    // What the owner steered into it while it worked (ADR 040), after its request, in the order read.
+    r.steered.forEach { SteeredMessage(it) }
 }
 
 @Composable

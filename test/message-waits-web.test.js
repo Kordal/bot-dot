@@ -72,7 +72,7 @@ function page({ features = ['message-waits'], reply = async () => ({}) } = {}) {
     ${cut('const chatParts = ', '// What the page knows about')}
     ${cut('// ---------- a message that waits ----------', '// ---------- a working bot\'s opening line ----------')}
     ${cut('function placeStatusLines() {', '// Stop a run.')}
-    Object.assign(this, { wireComposer, setSendBusy, sendToChief, runBot, placeStatusLines, setQueued, queuedList, queuedIn, takeBack });`, ctx);
+    Object.assign(this, { wireComposer, setSendBusy, sendToChief, runBot, placeStatusLines, setQueued, queuedList, queuedIn, takeBack, steerQueued });`, ctx);
   ctx.wireComposer(boxes.bot.form, (text, files, key) => ctx.runBot('doctor', text, files, key), () => 'bot:doctor');
   ctx.wireComposer(boxes.chief.form, ctx.sendToChief, () => 'chief');
   const waiting = (t) => t.thread.children.find((n) => n.className === 'chat-queued') || null;
@@ -421,4 +421,37 @@ test('web: the look: the same bubble at half strength, its line under it at the 
   assert.match(css, /\.bubble-row\.from-me \.bubble-meta \{ justify-content: flex-end; \}/);
   assert.match(css, /\.bubble-meta \{[^}]*flex-wrap: wrap;/, 'at phone width the line wraps under the bubble');
   assert.match(css, /\.stack\.mine \{ align-items: flex-end; max-width: 76%; \}/);
+});
+
+test('web: with `steer` a bot\'s waiting message has Steer beside Take back, and a steered one says "Steering…" with Take back alone (ADR 040)', async () => {
+  const answers = [];
+  const p = page({ features: ['message-waits', 'steer'], reply: async (path) => answers.shift()(path) });
+  p.state.runs = [working];
+  p.doctor.queued = [queued('q1', SECOND), queued('q2', 'Not steered')];
+  p.ctx.placeStatusLines();
+  let html = p.waiting(p.bot).innerHTML;
+  assert.match(html, /<div class="bubble-meta"><span>Waits until Fleet Doctor is free<\/span><button type="button" data-steer="q1">Steer<\/button><button type="button" data-take-back="q1">Take back<\/button><\/div>/);
+  // Pressed: the server's list comes back with it marked, and it is drawn so.
+  answers.push(() => ({ queued: [{ ...queued('q1', SECOND), steering: true }, queued('q2', 'Not steered')] }));
+  const [steer] = p.bot.find.$$('[data-steer]', p.waiting(p.bot));
+  await steer.onclick();
+  assert.deepEqual(p.said.calls.slice(-1), ['POST /bots/doctor/queued/q1/steer']);
+  html = p.waiting(p.bot).innerHTML;
+  assert.match(html, /<div class="bubble from-me waits">Also check that tonight&#39;s backup has enough room\.<\/div>\s*<div class="bubble-meta"><span>Steering…<\/span><button type="button" data-take-back="q1">Take back<\/button><\/div>/);
+  assert.match(html, /<span>Waits until Fleet Doctor is free<\/span><button type="button" data-steer="q2">Steer<\/button>/, 'the other still waits, with its own Steer');
+  assert.equal((html.match(/data-steer=/g) || []).length, 1);
+  // Refused (the run can't take it, or it started): the server's sentence above the box, and the chat read again.
+  answers.push(() => { throw refused("Fleet Doctor is working on a task of the Chief's. This starts when it is free.", 409); });
+  await p.bot.find.$$('[data-steer]', p.waiting(p.bot))[0].onclick();
+  assert.equal(p.boxes.bot.line(), "Fleet Doctor is working on a task of the Chief's. This starts when it is free.");
+  assert.equal(p.said.refreshed, 1);
+  // The Chief's chat has no Steer in this version, and neither has a server without `steer`.
+  p.chief.thread.dataset.chat = 'c1';
+  p.ctx.chiefQueued.set('c1', [queued('q7', 'Later')]);
+  p.ctx.placeStatusLines();
+  assert.doesNotMatch(p.waiting(p.chief).innerHTML, /data-steer/);
+  const old = page();
+  old.doctor.queued = [{ ...queued('q1', SECOND), steering: true }];
+  old.ctx.placeStatusLines();
+  assert.match(old.waiting(old.bot).innerHTML, /<span>Waits until Fleet Doctor is free<\/span><button type="button" data-take-back="q1">Take back<\/button>/);
 });

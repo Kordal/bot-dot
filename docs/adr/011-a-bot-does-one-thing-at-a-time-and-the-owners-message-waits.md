@@ -19,7 +19,7 @@ A Chief turn is one `claude -p` process with one prompt on its input, closed at 
 - **The owner's messages start first.** Before anything else that waits for that bot, in the order they were sent, each as its own run. They have their own limit of ten per bot, apart from the ten of the other work, so a full queue of jobs never refuses the owner.
 - **The same for a Chief chat.** An owner's message to a chat whose reply is going waits in that chat's list and starts when the reply ends, before the turns botdot starts.
 - **What waits is data the server hands out.** Each bot and each Chief chat lists the owner's waiting messages; a feed event says when a list changes; a route takes one back and answers with its text and files.
-- **A message waits for the next run or turn.** It is not handed to one that is going.
+- **A message waits for the next run or turn.** It is not handed to one that is going, unless the owner presses Steer on it: then the run reads it at its next tool call ([ADR 040](040-a-waiting-message-is-steered-into-the-run-at-its-next-tool-call.md), for a bot).
 - **The Chief stops waiting when the owner writes.** A Chief turn that only waits for a bot's run (`wait_for_run`) is told at once that the owner wrote, and ends; the run goes on.
 
 Resolved by BUSY-001, for a bot. A Chief chat gets the same names from BUSY-002, under its own heading here.
@@ -61,7 +61,7 @@ Resolved by BUSY-004 and BUSY-009: the hold while Claude is signed out.
 
 ## Alternatives
 
-- **Hand the message to the turn that is going** (`claude -p --input-format stream-json`, as Claude Code and Codex steer a turn). It needs a Claude process that stays open per chat, and does nothing for a bot, whose run is fresh per message. Not chosen for this milestone; the queue is needed either way.
+- **Hand the message to the turn that is going** (`claude -p --input-format stream-json`, as Claude Code and Codex steer a turn). It needs a Claude process that stays open per chat, and does nothing for a bot, whose run is fresh per message. Not chosen for this milestone; the queue is needed either way. Since [ADR 040](040-a-waiting-message-is-steered-into-the-run-at-its-next-tool-call.md) the owner's press on Steer hands one waiting message to a bot's run at its next tool call, through a hook rather than an open stdin.
 - **Keep the waiting message in the app** and send it when the bot is free. It is lost when the app is closed, is not seen on the other device, and each app would decide "busy" for itself, against "one botdot server holds the truth".
 - **Refuse while busy, everywhere.** One rule, and the opposite of the owner's priority.
 - **One queue, first in, first out.** The owner would wait behind jobs and reviews, and be refused when ten of them wait.

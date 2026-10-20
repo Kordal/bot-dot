@@ -93,6 +93,18 @@ class QueuedAnswerTest {
         assertEquals(TakenBack("kept", emptyList()), TakenBack.of("""{"text":"kept","attachments":"none"}"""))
     }
 
+    @Test fun steerAnswersTheListWithItMarkedOrTheServersSentence() = runBlocking {
+        server.enqueue(json("""{"queued":[{"id":"q 1","text":"Use port 2222","attachments":[],"at":"2026-10-20T10:00:00.000Z","steering":true}]}"""))
+        assertEquals(listOf(Queued("q 1", "Use port 2222", emptyList(), "2026-10-20T10:00:00.000Z", steering = true)), api.steer("fleet doctor", "q 1"))
+        server.takeRequest().let { assertEquals("POST" to "/api/bots/fleet%20doctor/queued/q%201/steer", it.method to it.target) }
+        server.enqueue(json("""{"error":"Doctor is answering a teammate. This starts when it is free."}""", 409))
+        val no = runCatching { api.steer("doctor", "q1") }.exceptionOrNull() as ApiException
+        assertEquals(Triple("Doctor is answering a teammate. This starts when it is free.", 409, true), Triple(no.message, no.status, no.said))
+        // Steered, and the answer broke: nothing to read, no error.
+        server.enqueue(json("not json"))
+        assertEquals(emptyList<Queued>(), api.steer("doctor", "q1"))
+    }
+
     @Test fun runNowAnswersStartedQueuedOrSkipped() = runBlocking {
         server.enqueue(json("""{"started":"ai","run":{"id":"r1"}}"""))
         assertEquals(RunNow.Started, api.runJob("doctor", "j1"))

@@ -200,7 +200,8 @@ document.addEventListener('animationend', (e) => { if (e.animationName === 'arri
 // ---------- a message that waits ----------
 
 // The owner's messages that wait their turn (docs/api.md, "A message that waits"): a list as the server hands
-// it out, oldest first, each `{ id, text, attachments, at }`. Anything else in it is left out.
+// it out, oldest first, each `{ id, text, attachments, at }`, and `steering` once the owner steered it into the
+// run that is going (ADR 040). Anything else in it is left out.
 const queuedList = (list) => (Array.isArray(list) ? list : []).filter((q) => q && typeof q.id === 'string' && q.id);
 // Those of a chat, "bot:<id>" or "chief:<chatId>": a bot's come with the bots, a Chief chat's with the chat,
 // and both with the feed's `queued`. The page keeps none of its own: what it draws is the server's list.
@@ -216,15 +217,20 @@ function setQueued(chat, list) {
   else return;
   placeStatusLines();
 }
-// One waiting message: the owner's bubble, faded, with what it waits for and the way back.
+// One waiting message: the owner's bubble, faded, with what it waits for and the way back. In a bot's chat, also
+// Steer (ADR 040): the run that is going reads it at its next tool call; until then it shows "Steering…".
+const canSteer = (kind) => kind === 'bot' && state.features.includes('steer');
 function queuedHTML(q, chat) {
   const [kind, id] = chatParts(chat);
   const who = kind === 'chief' ? 'the Chief' : botById(id)?.name || 'the bot';
   const text = typeof q.text === 'string' ? q.text : '';
   const files = filesHTML(Array.isArray(q.attachments) ? q.attachments : []);
+  const steering = canSteer(kind) && q.steering === true;
+  const line = steering ? 'Steering…' : `Waits until ${who} is free`;
+  const steer = canSteer(kind) && !steering ? `<button type="button" data-steer="${esc(q.id)}">Steer</button>` : '';
   return `<div class="bubble-row from-me"><div class="stack mine">
     <div class="bubble from-me waits">${escMentions(text, kind === 'chief' ? CHIEF_BOT.id : id)}${files}</div>
-    <div class="bubble-meta"><span>Waits until ${esc(who)} is free</span><button type="button" data-take-back="${esc(q.id)}">Take back</button></div>
+    <div class="bubble-meta"><span>${esc(line)}</span>${steer}<button type="button" data-take-back="${esc(q.id)}">Take back</button></div>
   </div></div>`;
 }
 // The waiting messages of a chat, at its end: after the working line and before the cards, which stay last
@@ -239,14 +245,30 @@ function updateChatQueued(thread, chat, sent = null, arrives = false) {
   if (!box) { box = document.createElement('div'); box.className = 'chat-queued'; }
   const cards = $('.chat-needs', thread);
   if (cards ? box.nextElementSibling !== cards : box !== thread.lastElementChild) { if (cards) cards.before(box); else thread.append(box); }
-  const sig = JSON.stringify([chat, list.map((q) => [q.id, q.text, q.attachments]), mentionSig(), sent]);
+  const sig = JSON.stringify([chat, list.map((q) => [q.id, q.text, q.attachments, q.steering === true]), mentionSig(), sent]);
   if (box.dataset.sig === sig) return;
   const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160;
   box.dataset.sig = sig;
   box.innerHTML = list.map((q) => queuedHTML(q, chat)).join('') + (sent ? sentHTML(sent, chat) : '');
   $$('[data-take-back]', box).forEach((b) => (b.onclick = () => takeBack(chat, b.dataset.takeBack, b)));
+  $$('[data-steer]', box).forEach((b) => (b.onclick = () => steerQueued(chat, b.dataset.steer, b)));
   if (sent && arrives) arrive($('[data-sent]', box));
   if (atBottom) thread.scrollTop = thread.scrollHeight;
+}
+// Steer a waiting message into the run that is going (ADR 040): the server's list comes back with it marked. When
+// it started meanwhile, or the run can't take it (409), the line above the message box says why, in the server's words.
+async function steerQueued(chat, queuedId, button) {
+  const [, id] = chatParts(chat);
+  if (button) button.disabled = true;
+  try {
+    const back = await api(`/bots/${encodeURIComponent(id)}/queued/${encodeURIComponent(queuedId)}/steer`, { method: 'POST' });
+    setQueued(chat, back?.queued);
+  } catch (e) {
+    if (button) button.disabled = false;
+    if (e.status === 409) { showBoxNote(chatOpenIs(chat) ? $('#view-bot form') : null, e.message); await refresh(); return; }
+    toast(e.message, true);
+    if (e.status === 404) await refresh();
+  }
 }
 // Take a waiting message back: its text and files are in the message box again, and it starts nothing. When its
 // turn came first (409), the line above the box says so and the chat shows what started.

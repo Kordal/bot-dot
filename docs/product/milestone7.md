@@ -69,7 +69,7 @@ Taken on 2026-10-06, on the prototype in the browser pane at phone and desktop w
 
 ## Exclusions
 
-- A message that reaches a run or a turn already going. It waits for the next one; steering a turn in progress needs a Claude process that stays open and its own ADR.
+- A message that reaches a run or a turn already going. It waits for the next one; steering a turn in progress came later, by the owner's press on Steer ([ADR 040](../adr/040-a-waiting-message-is-steered-into-the-run-at-its-next-tool-call.md), #173).
 - A shorter wait of the Chief for a bot. The wait stays at 240 seconds, 540 at most: it no longer locks the chat, since the owner's message ends it.
 - Stop that follows a hand-off: a teammate's run that the stopped run asked for goes on. So does a run an earlier turn of the Chief started.
 - Catching up a repeating job after botdot was off or Claude was signed out. It says why it did not run, and runs at its next time.

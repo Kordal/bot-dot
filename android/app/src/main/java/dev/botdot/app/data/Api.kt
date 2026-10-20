@@ -166,6 +166,16 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** "Take back" on a message that waits for a bot: it is gone from the server, and its text and files come back. 409 once it has started. */
     suspend fun takeBack(botId: String, queuedId: String): TakenBack = TakenBack.of(send("DELETE", "/bots/${enc(botId)}/queued/${enc(queuedId)}"))
 
+    /**
+     * "Steer" on a message that waits for a bot (`steer`, ADR 040): the run that is going reads it at its next tool
+     * call. Answers the bot's waiting messages as they are now, that one with `steering`. 409 with the server's
+     * sentence when it started, or the run can't take it.
+     */
+    suspend fun steer(botId: String, queuedId: String): List<Queued> {
+        val answer = send("POST", "/bots/${enc(botId)}/queued/${enc(queuedId)}/steer")
+        return Queued.list(runCatching { JSON.parseToJsonElement(answer) as? JsonObject }.getOrNull()?.get("queued"))
+    }
+
     /** A run as it happens: steps, text, and its end. Replays what already happened first. */
     fun runStream(runId: String): Flow<RunEvent> = sse("/runs/${enc(runId)}/stream?simple") { _, data ->
         val o = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return@sse null

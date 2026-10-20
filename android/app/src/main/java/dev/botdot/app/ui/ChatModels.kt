@@ -223,6 +223,28 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         }
     }
 
+    /**
+     * "Steer" on a message that waits (ADR 040): the run that is going reads it at its next tool call, and until then
+     * it shows "Steering…". When botdot refused (the run can't take it, or it has started), the box's line says why.
+     */
+    fun steer(q: Queued) {
+        if (!taking.add(q.id)) return
+        viewModelScope.launch {
+            try {
+                (app.api.value ?: throw ApiException(NOT_CONNECTED)).steer(botId, q.id)
+                app.store.bots.update { all -> all.map { if (it.id == botId) it.copy(queuedValue = steered(it.queuedValue, q.id)) else it } }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                outbox.steerFailed(e)
+                refresh()
+            } finally {
+                taking.remove(q.id)
+            }
+            app.store.bots.refresh()
+        }
+    }
+
     fun stop() {
         val r = all.firstOrNull { it.isRunning } ?: return
         viewModelScope.launch { runCatching { app.api.value?.stopRun(r.id) }; refresh() }
@@ -642,6 +664,41 @@ internal fun takeBackNote(e: Throwable): String {
     }
 }
 
+/** The feature of "Steer" under a bot's waiting message (ADR 040): without it there is no button. */
+const val STEER = "steer"
+
+/** Whether a bot's waiting message has "Steer": the botdot this app talks to announces it. */
+internal fun canSteer(features: Collection<String>?): Boolean = features != null && STEER in features
+
+/** Under a message that the owner steered into the run that is going, until that run read it. */
+internal const val STEERING = "Steering…"
+
+/**
+ * The line above the message box after a "Steer" that did not go. 409: botdot's own sentence (the run can't take it,
+ * or it has already started), else "It has already started."; a 404: it no longer waits; no answer: botdot was not
+ * reached; any other answer with its status. The message waits as it did.
+ */
+internal fun steerNote(e: Throwable): String {
+    val api = e as? ApiException
+    val said = api?.message?.trim().orEmpty()
+    return when {
+        api != null && api.said && said.isNotEmpty() -> said
+        api?.status == 409 -> ALREADY_STARTED
+        api?.status == 404 -> "It is no longer waiting."
+        api == null || api.status == 0 || api.status == 502 || api.status == 503 -> "Not steered: can't reach botdot."
+        else -> "Not steered: botdot couldn't do that (${api.status})."
+    }
+}
+
+/** A list of what waits, as it came, with the entry [id] marked as steered: here, before the server's list says so. */
+internal fun steered(list: kotlinx.serialization.json.JsonElement?, id: String): kotlinx.serialization.json.JsonElement? =
+    (list as? kotlinx.serialization.json.JsonArray)?.let { all ->
+        kotlinx.serialization.json.JsonArray(all.map { e ->
+            val o = e as? JsonObject
+            if (o != null && o.str("id") == id) JsonObject(o + ("steering" to kotlinx.serialization.json.JsonPrimitive(true))) else e
+        })
+    } ?: list
+
 /** A list of what waits, as it came, without the entry [id]: taken back here, before the server's list says so. */
 internal fun without(list: kotlinx.serialization.json.JsonElement?, id: String): kotlinx.serialization.json.JsonElement? =
     (list as? kotlinx.serialization.json.JsonArray)?.let { all ->
@@ -800,6 +857,9 @@ class Outbox {
             return false
         }
     }
+
+    /** "Steer" on a message that waits did not go ([steerNote]): the line says why; the message waits as it did. */
+    fun steerFailed(e: Throwable) { note = steerNote(e) }
 
     /** The box takes the failed message back. */
     fun take(): FailedSend? = back.also { back = null }

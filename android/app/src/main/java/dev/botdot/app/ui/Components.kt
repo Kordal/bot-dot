@@ -385,7 +385,11 @@ fun WordButton(word: String, color: Color, onClick: () -> Unit) {
  * what it waits for and "Take back", which puts it in the message box again. [who]: the bot's name, or "the Chief".
  */
 @Composable
-fun WaitingMessage(q: dev.botdot.app.data.Queued, who: String, onTakeBack: () -> Unit) = WaitingMessage(q.text, q.attachments, waitsUntil(who), onTakeBack)
+fun WaitingMessage(q: dev.botdot.app.data.Queued, who: String, onSteer: (() -> Unit)? = null, onTakeBack: () -> Unit) {
+    // Steered (ADR 040): "Steering…" until the run read it, and Take back alone; else "Steer" beside Take back, where the server has it.
+    val steering = onSteer != null && q.steering
+    WaitingMessage(q.text, q.attachments, if (steering) STEERING else waitsUntil(who), onSteer.takeUnless { steering }, onTakeBack)
+}
 
 /**
  * The owner's message from Send until the botdot server answered ([SentMessage]): their bubble at half strength, as
@@ -399,23 +403,37 @@ fun SentBubble(m: SentMessage, above: Boolean, modifier: Modifier = Modifier) {
 
 /** A waiting message with its words given: [waits] says what it waits for (in a group: for which members). */
 @Composable
-fun WaitingMessage(text: String, attachments: List<Attachment>, waits: String, onTakeBack: () -> Unit) {
+fun WaitingMessage(text: String, attachments: List<Attachment>, waits: String, onSteer: (() -> Unit)? = null, onTakeBack: () -> Unit) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         Box(Modifier.alpha(0.5f)) { MyBubble(text, attachments) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(waits, color = p.faint, fontSize = 12.sp)
+            if (onSteer != null) WordButton("Steer", p.muted, onSteer)
             WordButton("Take back", p.muted, onTakeBack)
         }
     }
 }
 
-/** The owner's messages that wait in a chat, oldest first, under its working line. */
+/** The owner's messages that wait in a chat, oldest first, under its working line. [onSteer]: "Steer" under each (ADR 040), or none. */
 @Composable
-fun WaitingMessages(queued: List<dev.botdot.app.data.Queued>, who: String, onTakeBack: (dev.botdot.app.data.Queued) -> Unit) {
+fun WaitingMessages(queued: List<dev.botdot.app.data.Queued>, who: String, onSteer: ((dev.botdot.app.data.Queued) -> Unit)? = null, onTakeBack: (dev.botdot.app.data.Queued) -> Unit) {
     if (queued.isEmpty()) return
     Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        queued.forEach { q -> androidx.compose.runtime.key(q.id) { WaitingMessage(q, who) { onTakeBack(q) } } }
+        queued.forEach { q -> androidx.compose.runtime.key(q.id) { WaitingMessage(q, who, onSteer?.let { steer -> { steer(q) } }) { onTakeBack(q) } } }
+    }
+}
+
+/**
+ * A message of the owner that a run read while it worked (ADR 040): their bubble, after the run's request, and under
+ * it "Steered" with when it was sent. No buttons: it is part of that run.
+ */
+@Composable
+fun SteeredMessage(m: dev.botdot.app.data.Steered) {
+    val p = LocalPaper.current
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+        MyBubble(m.text, m.attachments)
+        Text(m.at?.let { "Steered · ${shortTime(it)}" } ?: "Steered", color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp, end = 6.dp))
     }
 }
 
