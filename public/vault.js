@@ -204,11 +204,10 @@ function openLoginEditor(login) {
 
 // ---------- Bitwarden ----------
 
-// What sharing a file means (#157): it is written in the computer for the length of one command.
-const FILE_SHARE_NOTE = "Bots that may use this file in a command on the account's computer. botdot puts it there for that one command and removes it afterwards, but every bot on that computer could read it meanwhile.";
-
 const bwUi = { prompted: false, snoozed: new Set() };
 const KIND_ICON = { login: '🔑', card: '💳', identity: '🪪', 'ssh-key': '🗝️', file: '📄' };
+// What sharing a file means (#157): it is written in the computer for the length of one command.
+const FILE_SHARE_NOTE = "Bots that may use this file in a command on the account's computer. botdot puts it there for that one command and removes it afterwards, but every bot on that computer could read it meanwhile.";
 // What sharing a card, an identity, an SSH key or a file lets a bot do, above its bots.
 const ITEM_BOTS_HINT = {
   card: 'Bots that may pay with this card. You still approve every payment in a pop-up.',
