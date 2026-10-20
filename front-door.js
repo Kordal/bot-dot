@@ -21,8 +21,9 @@
 //                     one empty file per account, named as it, which install.sh's root step takes, reading what the
 //                     account should be from this front door's data (docs/DECISIONS.md, 2026-10-16, #467, #470); and
 //                     the admin page's update, as a file named UPDATE, which no account can be named (#473)
-// FRONT_DOOR_STATUS   the folder where root's step says back what it did: version.json (the version installed) and
-//                     update.json (the last update), which only root writes and the admin page shows (#473)
+// FRONT_DOOR_STATUS   the folder where root's step says back what it did: version.json (the version installed),
+//                     update.json (the last update) and latest.json (the newest signed version, #193), which only
+//                     root writes and the admin page shows (#473)
 // FRONT_DOOR_LOAD     the folder where root's step writes the machine's load and each account's use of its share
 //                     (install.sh --load), which the admin page shows (lib/front-door/load.js)
 // FRONT_DOOR_HOST, FRONT_DOOR_PORT   where it listens (default 127.0.0.1:4700), behind Caddy or Tailscale Serve
@@ -215,10 +216,12 @@ const readStatus = (name) => {
 };
 const short = (v) => (typeof v === 'string' && /^[0-9a-f]{7,12}$/.test(v) ? v : null);
 const when = (v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
-// What the admin page shows: { version, selfBuilt, asked, update: { state, at, from, to, error?, accounts? } | null }.
+// What the admin page shows: { version, selfBuilt, asked, update: { state, at, from, to, error?, accounts? } | null,
+// newest: { version, at } | null }.
 // Only what root's step wrote, checked field by field: the version is a short revision, a state one of three, an error
 // a line, and each account's result (#194) a name, updated, kept (with the version it runs) or failed, and a line why
-// when it wasn't updated.
+// when it wasn't updated. newest is the newest signed release root's step found (latest.json, at most once an hour,
+// #193), none for images built on the machine.
 const line = (v, max) => (typeof v === 'string' ? v.replace(/[^\x20-\x7e]/g, ' ').slice(0, max) : null);
 const accountResults = (list) => (Array.isArray(list) ? list : [])
   .filter((a) => a && typeof a.name === 'string' && store.ACCOUNT_NAME.test(a.name) && ['updated', 'kept', 'failed'].includes(a.result))
@@ -227,6 +230,8 @@ const accountResults = (list) => (Array.isArray(list) ? list : [])
     : { name: a.name, result: a.result, ...(a.result === 'kept' && short(a.version) ? { version: a.version } : {}), error: line(a.error, 300) }));
 function updateStatus() {
   const installed = readStatus('version.json') || {};
+  const latest = readStatus('latest.json') || {};
+  const newest = installed.selfBuilt !== true && short(latest.version) && when(latest.at) ? { version: short(latest.version), at: when(latest.at) } : null;
   const last = readStatus('update.json');
   let update = null;
   if (last && ['updating', 'updated', 'failed'].includes(last.state)) {
@@ -238,7 +243,7 @@ function updateStatus() {
     }
   }
   const asked = !!REQUESTS && fs.existsSync(path.join(REQUESTS, UPDATE));
-  return { version: short(installed.version), selfBuilt: installed.selfBuilt === true, asked, update };
+  return { version: short(installed.version), selfBuilt: installed.selfBuilt === true, asked, update, newest };
 }
 function askForUpdate() {
   if (!REQUESTS) return false;

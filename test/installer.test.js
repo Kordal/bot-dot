@@ -1268,6 +1268,89 @@ test('without systemd the CPU and RAM share are said not to be applied', (t) => 
   assert.equal(fs.readFileSync(path.join(done.dir, 'accounts', 'ann', 'share', 'share.json'), 'utf8'), '{"cpu":2,"ram":5}\n', 'its computer is sized all the same');
 });
 
+// --- Whether a newer version exists, and an update with nothing new (#193) ---------------------------------------
+
+const status = (done, name) => { try { return JSON.parse(fs.readFileSync(path.join(done.dir, 'front-door', 'status', name), 'utf8')); } catch { return null; } };
+// The stand-in Docker runs every compose service on IMAGE, as `docker ps` lists them; ACCOUNT's on OLD.
+const running = (image, { account = '', old = '' } = {}) => [
+  `[ "$1" = ps ] && [ "$2" = --format ] && { i='${image}'; case "\${DOCKER_HOST:-}" in *'/${account || '-'}/'*) i='${old}' ;; esac; for s in front-door bot-dot docker-helper; do echo "$s $i"; done; exit 0; }`,
+];
+
+test('an install says the signed release it installed is the newest, and a self-built one has none', (t) => {
+  const done = rerun(t);
+  const latest = status(done, 'latest.json');
+  assert.ok(latest, 'latest.json is written');
+  assert.equal(latest.version, status(done, 'version.json').version);
+  assert.ok(Date.now() - Date.parse(latest.at) < 60_000);
+  assert.equal(fs.statSync(path.join(done.dir, 'front-door', 'status', 'latest.json')).mode & 0o777, 0o644, 'root\'s, read by the front door');
+  const self = rerun(t, '', SELF);
+  assert.equal(status(self, 'latest.json'), null);
+});
+
+test("root's step looks for the newest signed version at most once an hour, and keeps the last one found", (t) => {
+  const first = rerun(t);
+  const look = (options = {}) => {
+    const done = installer(t, { again: first, dotenv: null, script: path.join(first.dir, 'bin', 'install.sh'), args: ['--load'], ...options });
+    assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+    return done;
+  };
+  const once = look({ answers: { revision: 'e'.repeat(40) } });
+  assert.deepEqual(once.checks.map((args) => args.slice(-3)), [['ghcr.io/kordal/bot-dot:latest', 'server', '--revision']], 'the repository the install pinned, by the release check');
+  assert.equal(once.checks[0][once.checks[0].indexOf('-v') + 1], `${first.dir}/bin/lib:/check/lib:ro`, 'root\'s copy of it');
+  const latest = status(once, 'latest.json');
+  assert.equal(latest.version, 'eeeeeee');
+  assert.ok(Date.now() - Date.parse(latest.at) < 60_000);
+
+  assert.deepEqual(look().checks, [], 'not again within the hour');
+
+  // An hour later the check is refused: the last version found stays.
+  fs.rmSync(path.join(first.run, 'load', 'latest'));
+  const refused = look({ signed: { 'ghcr.io/kordal/bot-dot:latest': 'it has no botdot signature' } });
+  assert.equal(refused.checks.length, 1);
+  assert.equal(status(refused, 'latest.json').version, 'eeeeeee');
+
+  // A self-built install has no signed release to look for.
+  const self = rerun(t, '', SELF);
+  const none = installer(t, { again: self, dotenv: null, script: path.join(self.dir, 'bin', 'install.sh'), args: ['--load'] });
+  assert.equal(none.status, 0, none.stderr);
+  assert.deepEqual(none.checks, []);
+  assert.equal(status(none, 'latest.json'), null);
+});
+
+test("an update that finds what every account and the front door run already restarts nothing, and says it was the newest", (t) => {
+  const { first } = withBob(t);
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');
+  const before = fs.readFileSync(path.join(first.top, 'docker.log'), 'utf8').split('\n').filter(Boolean).length;
+  const was = status(first, 'version.json').version;
+  const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], dockerFirst: running(`ghcr.io/kordal/bot-dot${SIGNED}`) });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  const log = fs.readFileSync(path.join(first.dir, 'update.log'), 'utf8');
+  assert.match(log, /It was the newest already: the front door and every account run it, so nothing was restarted/);
+  const since = done.docker.slice(before).map((c) => c.call);
+  assert.deepEqual(since.filter((c) => /^(compose|pull|load|save|stop|rm)\b/.test(c) && c !== 'compose version'), [], 'nothing downloaded, started or stopped');
+  const update = status(done, 'update.json');
+  assert.equal(update.state, 'updated', log);
+  assert.equal(update.from, was);
+  assert.equal(update.to, was, 'from equal to to: "It was the newest already"');
+  assert.equal(status(done, 'latest.json').version, was, 'and it is the newest there is');
+});
+
+test('an update with something new to run still updates: an account on an older image, or a pin that is not the newest', (t) => {
+  const { first, upIn } = withBob(t);
+  const bobOld = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: running(`ghcr.io/kordal/bot-dot${SIGNED}`, { account: 'bob', old: `ghcr.io/kordal/bot-dot${PIN}` }) });
+  assert.equal(bobOld.status, 0, `${bobOld.said}\n${bobOld.stderr}`);
+  assert.doesNotMatch(bobOld.said, /It was the newest already/);
+  const since = { docker: bobOld.docker.slice(first.docker.length) };
+  assert.ok(upIn(since, 'ann') && upIn(since, 'bob'), 'every account is started on it');
+
+  // The front door's .env pins another desktop: the update goes on, though every server runs the newest.
+  const env = path.join(first.dir, 'front-door', '.env');
+  fs.writeFileSync(env, fs.readFileSync(env, 'utf8').replace(/^BOT_DOT_COMPUTER_IMAGE=.*$/m, `BOT_DOT_COMPUTER_IMAGE=ghcr.io/kordal/bot-dot-desktop${PIN}`));
+  const desktop = installer(t, { again: first, dotenv: null, args: ['--update'], dockerFirst: running(`ghcr.io/kordal/bot-dot${SIGNED}`) });
+  assert.equal(desktop.status, 0, `${desktop.said}\n${desktop.stderr}`);
+  assert.doesNotMatch(desktop.said, /It was the newest already/);
+});
+
 test("an account's home made before disk shares keeps it, and the installer says it has none", (t) => {
   const first = rerun(t);
   fs.rmSync(path.join(first.dir, 'disks', 'ann.img'));

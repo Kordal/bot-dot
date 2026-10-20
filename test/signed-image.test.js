@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
 const { canonical } = require('../lib/release-manifest');
-const { signedImage, refusal } = require('../lib/signed-image');
+const { signedRelease, signedImage, refusal } = require('../lib/signed-image');
 
 const fixture = fs.readFileSync(path.join(__dirname, 'fixtures/release-signing/private.pem'));
 const publicKey = fs.readFileSync(path.join(__dirname, 'fixtures/release-signing/public.der.b64'), 'utf8').trim();
@@ -22,6 +22,13 @@ const reason = async (promise) => { try { await promise; } catch (error) { retur
 test('a release signed with the pinned key gives the signed image, pinned by its digest', async () => {
   assert.equal(await check(release()), `ghcr.io/kordal/bot-dot@sha256:${DIGEST}`);
   assert.equal(await check(release(), `ghcr.io/kordal/bot-dot@sha256:${'c'.repeat(64)}`), `ghcr.io/kordal/bot-dot@sha256:${DIGEST}`, 'whichever tag or digest the name had');
+});
+
+test('the signed release also says the source revision it was built from, for "Version X is available" (#193)', async () => {
+  const m = await signedRelease('ghcr.io/kordal/bot-dot:latest', 'server', { publicKey, remoteRelease: async () => release({ revision: 'd'.repeat(40) }) });
+  assert.equal(m.file, `ghcr.io/kordal/bot-dot@sha256:${DIGEST}`);
+  assert.equal(m.revision, 'd'.repeat(40));
+  await assert.rejects(signedRelease('ghcr.io/kordal/bot-dot:latest', 'server', { publicKey, remoteRelease: async () => ({ ...release(), revision: 'e'.repeat(40) }) }), /The release signature is invalid/, 'the revision is signed too');
 });
 
 test('the registry is asked for the release of the image named', async () => {
@@ -67,6 +74,10 @@ test('the command says why it refused, and needs an image and which of botdot\'s
   assert.equal(local.status, 1);
   assert.match(local.stdout, /^it could not be checked \(.+\)\n$/);
   assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest'], { input: '', stdio: 'pipe' }), /Usage/);
+  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest', 'server', '--other'], { input: '', stdio: 'pipe' }), /Usage/);
+  const asked = spawnSync(process.execPath, [file, 'bot-dot:dev', 'server', '--revision'], { input: '', encoding: 'utf8' });
+  assert.equal(asked.status, 1, 'with --revision, a refusal is said as without it');
+  assert.match(asked.stdout, /^it could not be checked \(.+\)\n$/);
 });
 
 // #466: a botdot from before accounts reads its updates from the `release` tag. A version with accounts is installed

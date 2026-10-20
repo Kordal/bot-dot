@@ -58,7 +58,7 @@ test('before root\'s step said anything, the page knows no version and no update
   const was = seen();
   const u = await b.get('/admin/update');
   assert.equal(u.status, 200, u.text);
-  assert.deepEqual(u.data, { version: null, selfBuilt: false, asked: false, update: null });
+  assert.deepEqual(u.data, { version: null, selfBuilt: false, asked: false, update: null, newest: null });
   assert.equal(seen(), was, 'no botdot server saw it');
 });
 
@@ -67,7 +67,7 @@ test('the version and the last update are what root\'s step wrote, field by fiel
   said('version.json', { version: 'abc1234', selfBuilt: true, at: '2026-10-16T10:00:00Z' });
   said('update.json', { state: 'updated', at: '2026-10-16T10:05:00Z', from: '0123456', to: 'abc1234', extra: 'not shown' });
   let u = (await b.get('/admin/update')).data;
-  assert.deepEqual(u, { version: 'abc1234', selfBuilt: true, asked: false, update: { state: 'updated', at: '2026-10-16T10:05:00.000Z', from: '0123456', to: 'abc1234' } });
+  assert.deepEqual(u, { version: 'abc1234', selfBuilt: true, asked: false, update: { state: 'updated', at: '2026-10-16T10:05:00.000Z', from: '0123456', to: 'abc1234' }, newest: null });
 
   said('update.json', { state: 'failed', at: '2026-10-16T10:05:00Z', from: 'abc1234', to: 'abc1234', error: 'Couldn\'t download it.\u001b[31m' });
   u = (await b.get('/admin/update')).data;
@@ -78,7 +78,7 @@ test('the version and the last update are what root\'s step wrote, field by fiel
   said('version.json', { version: '<b>1.0</b>', selfBuilt: 'yes' });
   said('update.json', { state: 'done', at: 'never' });
   u = (await b.get('/admin/update')).data;
-  assert.deepEqual(u, { version: null, selfBuilt: false, asked: false, update: null });
+  assert.deepEqual(u, { version: null, selfBuilt: false, asked: false, update: null, newest: null });
   said('update.json', 'not JSON');
   assert.equal((await b.get('/admin/update')).data.update, null);
 });
@@ -108,6 +108,36 @@ test('the admin page names the accounts an update kept back (#194)', async () =>
   const script = (await b.get('/front-door/admin.js')).text;
   assert.match(script, / was kept on /);
   assert.match(script, /doesn't run: /);
+});
+
+test('the newest signed version is what root\'s step last found, field by field, and none for a self-built install (#193)', async () => {
+  const b = await admin();
+  said('version.json', { version: 'abc1234', selfBuilt: false, at: '2026-10-16T10:00:00Z' });
+  said('latest.json', { version: 'def5678', at: '2026-10-20T17:00:00Z', extra: 'not shown' });
+  let u = (await b.get('/admin/update')).data;
+  assert.equal(u.version, 'abc1234');
+  assert.deepEqual(u.newest, { version: 'def5678', at: '2026-10-20T17:00:00.000Z' });
+
+  said('latest.json', { version: 'abc1234', at: '2026-10-20T17:00:00Z' });
+  assert.deepEqual((await b.get('/admin/update')).data.newest, { version: 'abc1234', at: '2026-10-20T17:00:00.000Z' });
+
+  // Anything else is not taken as it is.
+  for (const bad of [{ version: '<b>9</b>', at: '2026-10-20T17:00:00Z' }, { version: 'def5678', at: 'never' }, { version: 'def5678' }, 'not JSON']) {
+    said('latest.json', bad);
+    assert.equal((await b.get('/admin/update')).data.newest, null, JSON.stringify(bad));
+  }
+  // Self-built: there is no signed release to compare with.
+  said('latest.json', { version: 'def5678', at: '2026-10-20T17:00:00Z' });
+  said('version.json', { version: 'abc1234', selfBuilt: true, at: '2026-10-16T10:00:00Z' });
+  assert.equal((await b.get('/admin/update')).data.newest, null);
+  fs.rmSync(path.join(status, 'latest.json'));
+});
+
+test('the admin page says whether a newer version is available', async () => {
+  const b = await admin();
+  const script = (await b.get('/front-door/admin.js')).text;
+  assert.match(script, /' Version ' \+ u\.newest\.version \+ ' is available\.'/);
+  assert.match(script, /' This is the newest version\.'/);
 });
 
 test('an update root\'s step never ended (the machine restarted) shows as stopped, not as going on forever', async () => {
