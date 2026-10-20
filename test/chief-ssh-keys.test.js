@@ -311,8 +311,8 @@ test('the Chief asks to remove an SSH key: a card, nothing removed before the ye
   assert.equal(asked.asked, 'Old VPS key');
   assert.match(asked.say, /waits for the user's OK/);
   const [card] = await removeCards();
-  assert.deepEqual([card.itemId, card.chatId, card.title, card.yesOn], [doomed.id, turn.chat.id, 'Let the Chief of Staff remove “Old VPS key” from the Vault?', 'card']);
-  assert.ok(card.parts.some((p) => p.label === 'Asked by' && p.now === 'Chief of Staff'));
+  assert.deepEqual([card.itemId, card.chatId, card.title, card.yesOn], [doomed.id, turn.chat.id, 'Let the Chief remove “Old VPS key” from the Vault?', 'card']);
+  assert.ok(card.parts.some((p) => p.label === 'Asked by' && p.now === 'the Chief'));
   assert.ok((await sshItems()).some((i) => i.id === doomed.id), 'still there before the yes');
   // Asked again while its card waits: the same card.
   await turn.call('remove_vault_item', { entry: 'Old VPS key', reason: 'The VPS is gone.' });
@@ -341,7 +341,7 @@ test('the Chief asks to remove an SSH key: a card, nothing removed before the ye
   await waitFor(async () => (await chatNow(again.chat)).messages.some((m) => m.text === 'Declined: removing “Keep me” from the Vault.'), { what: 'the decline in the chat' });
   // Asked again in the week after the no: refused with a sentence, no card.
   const late = await ownerTurn(t, 'Remove Keep me after all.');
-  assert.equal((await late.call('remove_vault_item', { entry: 'Keep me', reason: 'Really.' })).error, `Error: ${VAULT_SAY.removeDeclined}`);
+  assert.equal((await late.call('remove_vault_item', { entry: 'Keep me', reason: 'Really.' })).error, `Error: ${VAULT_SAY.remove.declined}`);
   assert.equal((await removeCards()).length, 0);
   await late.end();
 });
@@ -355,13 +355,22 @@ test('remove_vault_item: only in a turn the owner started, and for an entry the 
     assert.deepEqual([r.status, r.data.error], [403, VAULT_SAY.notNowRemove]);
   }
   const turn = await ownerTurn(t, 'Remove Nothing.');
-  assert.match((await turn.call('remove_vault_item', { entry: 'Nothing such', reason: 'x' })).error, /Nothing such/);
+  assert.equal((await turn.call('remove_vault_item', { entry: 'Nothing such', reason: 'x' })).error, 'Error: No entry called "Nothing such" in the Vault. Use the name list_vault shows.');
+  const none = await srv.asChief('/vault/remove', { method: 'POST', body: { reason: 'x' }, headers: { 'X-Chief-Chat': turn.chat.id } });
+  assert.deepEqual([none.status, none.data.error], [400, VAULT_SAY.remove.noEntry]);
   assert.equal((await removeCards()).length, 0);
   // With Bitwarden locked: one sentence, no card.
   await srv.api('/vault/bitwarden/lock', { method: 'POST' });
-  assert.equal((await turn.call('remove_vault_item', { entry: 'Hardened', reason: 'x' })).error, `Error: ${VAULT_SAY.lockedRemove}`);
+  assert.equal((await turn.call('remove_vault_item', { entry: 'Hardened', reason: 'x' })).error, `Error: ${VAULT_SAY.remove.locked}`);
   await unlock();
   assert.equal((await removeCards()).length, 0);
   await turn.end();
   assert.ok((await srv.api('/version')).data.features.includes('chief-vault-remove'));
+});
+
+test("the Chief's card to remove an entry stands in the Chief's chats, on the web page and in the Android app", () => {
+  const web = fs.readFileSync(path.join(__dirname, '..', 'public', 'needs.js'), 'utf8');
+  assert.match(web, /\['skill', 'vault-remove'\]\.includes\(x\.a\.kind\) && !x\.a\.botId/);
+  const android = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
+  assert.match(android, /scope == "chief" -> \(\(kind == "skill" \|\| kind == "vault-remove"\) && bot == null\)/);
 });
