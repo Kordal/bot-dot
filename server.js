@@ -195,7 +195,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -370,7 +370,8 @@ function chiefChatOf(req, by) {
 // for notes: the Chief's notes go through /api/chief/memory, which is guarded (chiefMemory, ADR 017).
 // Of a group (group-chats) it may list, make, rename and change the members, the last three only in a turn the
 // owner started, which the route checks. Deleting a group and every route of a group's chat (its messages, "Stop
-// all", "Go on", its pages) are not here: they stay the owner's.
+// all", "Go on", its pages) are not here: they stay the owner's. Of the Vault it may make a new SSH key for the bots
+// (vault/ssh-keys), only in a turn the owner started and never with a key of its own, which the route checks (#181).
 const CHIEF_ROUTES = [
   ['GET', /^(bots|skills|connectors|runs|memory|chief\/reminders|chief\/memory|vault|dashboard|tools|tools\/find|group-chats)$/],
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
@@ -379,7 +380,7 @@ const CHIEF_ROUTES = [
   ['GET', /^bots\/[^/]+\/computer\/(status|logs)$/],
   ['GET', /^computer\/status$/],
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
-  ['POST', /^(bots|skills|asks|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|vault\/requests|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart))$/],
+  ['POST', /^(bots|skills|asks|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|vault\/requests|vault\/ssh-keys|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart))$/],
   ['POST', /^(bots\/[^/]+\/(run|jobs|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['PUT', /^(bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
   ['DELETE', /^(bots\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
@@ -393,8 +394,10 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // already or is guarded on its own: asking for a skill or a tool (a card), asking for a login (a card), asking for a
 // reset of the account's computer (a card of its own, lib/routes/computers.js), the
 // Chief's notes (they are "outside" after a read and a forget waits, ADR 017), stopping a run, the checkup's
-// proposals (the owner picks them), and the steer hook reading the owner's own messages (ADR 040).
-const FREE_AFTER_WEB = /^(asks|computer\/reset|vault\/requests|chief\/memory|chief\/steer|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
+// proposals (the owner picks them), and the steer hook reading the owner's own messages (ADR 040). A new SSH key
+// (vault/ssh-keys) waits too, but its route holds it itself, after its own refusals, so a call it refuses never
+// becomes a card (lib/routes/vault.js).
+const FREE_AFTER_WEB = /^(asks|computer\/reset|vault\/requests|vault\/ssh-keys|chief\/memory|chief\/steer|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'));
 // What the held request does, as the title of its card: "Make the bot “Leaker”", "Give Scout a task".
 function heldTitle(method, parts, body) {
@@ -419,6 +422,7 @@ function heldTitle(method, parts, body) {
     [/^skills\/[^/]+$/, 'PUT', () => `Change the skill ${quoted(decoded(parts[1]))}`],
     [/^group-chats$/, 'POST', () => `Make the group ${quoted(body?.name)}`],
     [/^group-chats\/[^/]+$/, 'PUT', () => `Change the group ${quoted(B.groups.get(parts[1])?.name || parts[1])}`],
+    [/^vault\/ssh-keys$/, 'POST', () => `Make the SSH key ${quoted(body?.name)}`],
     [/^chief\/reminders$/, 'POST', () => `Set a reminder: ${quoted(body?.text)}`],
     [/^chief\/reminders\/[^/]+$/, 'DELETE', () => 'Cancel a reminder'],
     [/^(bots\/[^/]+\/)?computer\/restart$/, 'POST', () => "Restart the account's computer"],
@@ -435,8 +439,9 @@ function heldTitle(method, parts, body) {
 }
 // The request waits on a card in Needs you (an ask of kind "chief-action"), and the Chief is told so: nothing was
 // done. Its answer has `held: true`, which the Chief's tools pass on as it is (mcp-server.js).
-async function holdAfterWeb(req, res, method, parts, chatId, turn) {
-  const body = method === 'DELETE' ? {} : await readBody(req);
+// read: the body, when the route has read it already.
+async function holdAfterWeb(req, res, method, parts, chatId, turn, read = null) {
+  const body = read || (method === 'DELETE' ? {} : await readBody(req));
   const a = asks.add({ kind: 'chief-action', botId: null, chatId, method, path: parts.join('/'), body, title: heldTitle(method, parts, body), startedBy: turn.startedBy });
   return send(res, 202, { held: true, id: a.id, say: "Not done yet: you read the web in this chat, so this waits for the user's OK on a card in Needs you. When they approve, botdot does it exactly as you sent it and tells you in this chat. Tell the user in one line that it waits for them; don't send it again." });
 }
@@ -496,7 +501,7 @@ function tellChiefOfHeld(a, { answer, error }) {
 const ctx = { ACCOUNT, audit, callKeys, callRefusals, keys, vault, bitwarden, store, readyForSecrets, setup, updates,
   UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, backups, connectedApps, tools, chiefReview, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, macApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
-  chiefChatOf, doHeldAction, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; }, ...shared };
+  chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; }, ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
 ctx.computerRoutes = require('./lib/routes/computers').create(ctx);
 ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
