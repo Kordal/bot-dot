@@ -396,4 +396,12 @@ function fakeDocker() {
   return { bin, calls, answer: (file, text) => (text === null ? fs.rmSync(path.join(out, file), { force: true }) : fs.writeFileSync(path.join(out, file), text)), remove: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
-module.exports = { vaultSecret, startServer, freePort, restartServer, readData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
+// One tool call's steer hook, as Claude Code runs an `http` hook (ADR 040): the call's details posted as JSON to its
+// url with its headers. Answers the parsed body of a 2xx answer, or null (Claude Code then goes on as it was).
+async function hookCall(settings, input = { hook_event_name: 'PostToolUse', tool_name: 'Read' }) {
+  const hook = settings.hooks.PostToolUse[0].hooks[0];
+  const res = await fetch(hook.url, { method: 'POST', headers: { ...hook.headers, 'Content-Type': 'application/json' }, body: JSON.stringify(input) });
+  return res.ok ? res.json() : null;
+}
+
+module.exports = { vaultSecret, hookCall, startServer, freePort, restartServer, readData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };

@@ -5,8 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
-const { startServer, restartServer, waitFor, feed, readData } = require('./helpers');
+const { startServer, restartServer, waitFor, feed, readData, hookCall } = require('./helpers');
 
 let srv;
 before(async () => { srv = await startServer(); });
@@ -23,10 +22,7 @@ const quiet = (id, on = srv) => waitFor(async () => { const c = await chatOf(id,
 const onDisk = (on = srv) => (fs.existsSync(path.join(on.data, 'chief-waiting-turns.json')) ? readData(on.data, 'chief-waiting-turns.json') : {});
 const upload = async (name, text) => (await srv.api('/uploads?to=chief', { method: 'POST', raw: Buffer.from(text), headers: { 'X-File-Name': name } })).data;
 // A tool call of the turn: its hook, as Claude Code runs it, and what it hands Claude (null for nothing).
-const toolCall = (turn) => {
-  const out = execFileSync('/bin/sh', ['-c', turn.settings.hooks.PostToolUse[0].hooks[0].command], { input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Read' }), encoding: 'utf8' });
-  return out ? JSON.parse(out).hookSpecificOutput : null;
-};
+const toolCall = async (turn) => (await hookCall(turn.settings)).hookSpecificOutput || null;
 
 test('a message steered into the Chief\'s reply is read at its next tool call, in the same turn, and stands on that reply', async (t) => {
   const events = feed(srv);
@@ -38,7 +34,9 @@ test('a message steered into the Chief\'s reply is read at its next tool call, i
   const turn = await chiefTurn(srv, 'the first turn');
   assert.equal(turn.settings?.hooks?.PostToolUse?.length, 1, 'a turn the owner started is given the hook');
   assert.equal(turn.settingsMode, 0o600, 'in a private file: it holds the Chief\'s key');
-  assert.equal(toolCall(turn), null, 'nothing steered: nothing said');
+  const hook = turn.settings.hooks.PostToolUse[0].hooks[0];
+  assert.deepEqual([hook.type, new URL(hook.url).pathname, hook.headers['X-Chief-Chat'], hook.headers['X-Bot-Dot']], ['http', '/api/chief/steer', id, '1']);
+  assert.equal(await toolCall(turn), null, 'nothing steered: nothing said');
 
   const file = await upload('dentist.txt', 'Dr. Lee, Friday 9:00');
   const w = (await say(id, { text: 'Also book the dentist', attachments: [file], key: 'steer-chief-key1' })).data.queued[0];
@@ -50,12 +48,12 @@ test('a message steered into the Chief\'s reply is read at its next tool call, i
   assert.equal(onDisk()[id][0].steering, true, 'marked on disk');
   assert.equal((await steer(id, w.id)).status, 200, 'pressed again: steered once');
 
-  const read = toolCall(turn);
+  const read = await toolCall(turn);
   assert.equal(read.hookEventName, 'PostToolUse');
   assert.match(read.additionalContext, /I sent you another message while you work, and pressed Steer/);
   assert.ok(read.additionalContext.includes('Also book the dentist'));
   assert.ok(read.additionalContext.includes(file.file), 'told of its file');
-  assert.equal(toolCall(turn), null, 'read once');
+  assert.equal(await toolCall(turn), null, 'read once');
   const said = await events.wait('chief_steered', (d) => d.chatId === id);
   assert.deepEqual(said.data.steered.map((x) => x.id), [w.id]);
   const going = await chatOf(id);
@@ -116,7 +114,7 @@ test('after a restart a steered message the reply did not read starts once; one 
   const unread = (await say(id, 'Not read', own)).data.queued[1];
   const waited = onDisk(own)[id];
   assert.equal((await steer(id, read.id, own)).status, 200);
-  assert.equal(toolCall(turn).additionalContext.includes('Read before'), true);
+  assert.equal((await toolCall(turn)).additionalContext.includes('Read before'), true);
   assert.equal((await steer(id, unread.id, own)).status, 200);
   // A crash after the reply was saved with it and before the list was: the read one is in both.
   own = await restartServer(own, (data) => {

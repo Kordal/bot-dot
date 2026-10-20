@@ -51,3 +51,11 @@ The same press in a Chief chat, under a message that waits behind the Chief's re
 - The hook's text is context for Claude, marked as botdot's handing over of the owner's words. Claude Code shows it to the model as hook output, not as a user turn.
 - Groups are not covered: a group keeps its own waiting list (ADR 019).
 - In a Chief chat a turn botdot started can't be steered: the owner's message waits for the reply to end, as before.
+
+Amended by [#206](https://github.com/Kordal/bot-dot/issues/206) (2026-10-20), the hook's form:
+
+- **The hook is an `http` hook, not a command.** The settings file holds `{ "type": "http", "url": "http://127.0.0.1:<port>/api/self/session/steer", "headers": { "X-Run-Token": …, "X-Bot-Dot": "1" }, "timeout": 10 }` (the Chief's: `/api/chief/steer` with `X-Chief-Key` and `X-Chief-Chat`). Claude Code posts each call to it itself, so no `sh` and `node lib/steer-hook.js` start after every tool call: measured 0.15 s plain and 0.24 s under gVisor per call, before any HTTP ([#203](https://github.com/Kordal/bot-dot/issues/203)). `lib/steer-hook.js` is gone.
+- **The route answers in Claude Code's hook output.** `{ "hookSpecificOutput": { "hookEventName": "PostToolUse", "additionalContext": … } }` when something was steered, `{}` when nothing was. What Claude Code posts (the call, with the tool's output) is not read: it can be larger than any body botdot reads.
+- **The key stays off every command line,** in the private settings file only, as before.
+- **botdot not answering leaves the run as it was:** Claude Code takes a refused connection, a timeout or an answer that is not 2xx as a hook error that does not stop the run, as the script did by saying nothing.
+- The consequence "a small Node process after each tool call" no longer holds: each tool call is one local HTTP request.
