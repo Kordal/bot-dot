@@ -223,12 +223,14 @@ function renderSettings() {
         ? custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')
         : '<p class="muted settings-hint" style="margin:0">None: every bot uses the default. Change a bot in its settings (⚙ in its chat).</p>'}
     </div>
+    <div class="card settings-card bs-rows" id="install-card" hidden></div>
     ${pushCardHTML()}
     <div class="card settings-card" id="backups-card">
       <h3 class="page-sub" style="margin-top:0">Backups</h3>
       <p class="muted settings-hint" style="margin:0">Checking…</p>
     </div>
     ${signOutCardHTML()}`;
+  drawInstallCard();
   wirePushCard(root);
   const signOut = $('#sign-out-everywhere', root);
   if (signOut) signOut.onclick = signOutEverywhere;
@@ -258,6 +260,31 @@ function renderSettings() {
     } catch (err) { toast(err.message, true); }
   };
 }
+
+// ---------- installing the app ----------
+
+// Settings → "Install app" (issue #163, install.js): the browser's own install dialog where it offers one (Chrome,
+// Edge), the way to do it in Safari, and nothing once botdot is installed or opened as the app.
+const INSTALL_HINTS = {
+  ios: 'Tap Share, then “Add to Home Screen”.',
+  'mac-safari': 'In Safari’s menu: File, then “Add to Dock”.',
+};
+function drawInstallCard() {
+  const card = $('#install-card');
+  if (!card) return;
+  const how = Install.state(window);
+  card.hidden = !how;
+  if (!how) { card.innerHTML = ''; return; }
+  card.innerHTML = `
+      <div class="bs-row">
+        <span class="bs-icon">📲</span>
+        <div class="grow"><b>Install app</b><div class="faint">${how === 'button' ? 'botdot in its own window, with its own icon.' : esc(INSTALL_HINTS[how])}</div></div>
+        ${how === 'button' ? '<button type="button" class="btn sm" id="install-app">Install</button>' : ''}
+      </div>`;
+  const button = $('#install-app', card);
+  if (button) button.onclick = () => Install.install(window).catch(() => false);
+}
+Install.onChange(window, drawInstallCard);
 
 // ---------- notifications on this device ----------
 
