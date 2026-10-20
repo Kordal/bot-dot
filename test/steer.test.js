@@ -6,7 +6,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('child_process');
-const { startServer, restartServer, makeBot, heldRun, self, waitFor, feed, readData, sleep } = require('./helpers');
+const { startServer, restartServer, makeBot, heldRun, self, waitFor, feed, readData, setQueue, sleep } = require('./helpers');
 
 let srv;
 before(async () => { srv = await startServer(); });
@@ -123,7 +123,7 @@ test('a run that cannot be steered, or a bot that is free, answers 409 and the m
   const w = (await send(srv, bot, { prompt: 'Mine' })).data;
   const s = await steer(srv, bot, w.id);
   assert.equal(s.status, 409);
-  assert.match(s.data.error, /Chief Worker is working on a task of the Chief's/);
+  assert.match(s.data.error, /Chief Worker is working on a request of the Chief's/);
   assert.deepEqual((await botOf(srv, bot)).queued.map((q) => [q.id, q.steering]), [[w.id, undefined]]);
   // The Chief's tools may not steer the owner's message.
   assert.equal((await srv.asChief(`/bots/${bot.id}/queued/${w.id}/steer`, { method: 'POST' })).status, 403);
@@ -192,5 +192,29 @@ test('after a restart a steered message that was not read is not lost and not de
     assert.deepEqual(runs.map((r) => [r.id, r.status]).sort(), [[h.run.id, 'interrupted'], [w.id, 'success']].sort());
     await sleep(300);
     assert.equal((await runsOf(s2, bot)).length, 2);
+  } finally { s2.unhold(); await s2.stop(); }
+});
+
+test('after a restart a message the run read stays read: it starts nothing, and Steer, Take back and its key find that run', async () => {
+  let s2 = await startServer();
+  try {
+    const bot = await makeBot(s2, { name: 'Read Before', emoji: '📖' });
+    const h = await heldRun(s2, bot, 'Cut off after reading');
+    const w = (await send(s2, bot, { prompt: 'Read before the restart', key: 'read-key-1' })).data;
+    const waited = waitingIn(s2, bot);
+    assert.equal((await steer(s2, bot, w.id)).status, 200);
+    assert.equal((await toolCall(s2, h.token)).steered, 1);
+    await s2.stop();
+    s2.unhold();
+    // A crash after the run's record was written and before the queue was: the message is in both.
+    s2 = await restartServer(s2, (data) => setQueue(data, (q) => { q.queues[bot.id] = waited.map((x) => ({ ...x, steering: h.run.id })); }));
+    const runs = await ranAll(s2, bot, 1);
+    assert.deepEqual(runs.map((r) => [r.id, r.status, r.steered.map((x) => x.id)]), [[h.run.id, 'interrupted', [w.id]]]);
+    assert.deepEqual((await botOf(s2, bot)).queued, []);
+    assert.deepEqual([(await steer(s2, bot, w.id)).status, (await takeBack(s2, bot, w.id)).status], [409, 409]);
+    const again = await send(s2, bot, { prompt: 'Read before the restart', key: 'read-key-1' });
+    assert.deepEqual([again.status, again.data.id], [200, h.run.id]);
+    await sleep(300);
+    assert.equal((await runsOf(s2, bot)).length, 1);
   } finally { s2.unhold(); await s2.stop(); }
 });

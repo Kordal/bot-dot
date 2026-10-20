@@ -134,6 +134,10 @@ _Avoid_: recommendation, suggestion, finding
 The time up to which the user has read a chat, kept by the botdot server. A chat is read while an app shows it and is in front.
 _Avoid_: last seen, read receipt
 
+**Steer**:
+The owner's press on a waiting message of a working bot: the run that is going reads it at its next tool call, in place of starting it as a run of its own later. Until then it shows "Steering…" and can still be taken back (ADR 040).
+_Avoid_: interrupt (Stop ends the run), inject, push
+
 ### Memory
 
 **Note**:
