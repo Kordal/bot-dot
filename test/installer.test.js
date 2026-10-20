@@ -471,7 +471,7 @@ test('an update makes room first: the images no container uses go before the new
   const inAccount = at('machine', cleanup(`${done.run}/ann/docker\\.sock`));
   assert.ok(inAccount >= 0, calls.map((c) => c.call).join('\n'));
   assert.ok(inAccount < at(own, new RegExp(`^pull -q ghcr\\.io/kordal/bot-dot@`)), 'before the account\'s download');
-  const args = calls[inAccount].call.split(" ");
+  const args = calls[inAccount].call.split(' ');
   assert.equal(args[12], `ghcr.io/kordal/bot-dot${SIGNED}`, 'run from the new version, already in the machine\'s Docker');
   assert.deepEqual(args.slice(14), [`ghcr.io/kordal/bot-dot${SIGNED}`, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`, `ghcr.io/kordal/bot-dot${SIGNED}`, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`]);
   // The machine's Docker: by the rule of the version it runs now, before the front door's download.
@@ -484,10 +484,24 @@ test('an update makes room first: the images no container uses go before the new
   assert.match(done.said, /Couldn't remove the old images first; the download goes on\./);
 });
 
-test('a first install has nothing to make room for', (t) => {
+test('a first install has nothing to make room for in the machine\'s Docker', (t) => {
   const fresh = installer(t, { dotenv: '', input: '1\nbotdot.example.com\nann\n' });
   assert.equal(fresh.status, 0, fresh.stderr);
-  assert.ok(!fresh.calls.some((c) => c.includes('image-cleanup.js') && c.includes('docker.sock:/var/run/docker.sock --entrypoint node') && fresh.calls.indexOf(c) < fresh.calls.findIndex((x) => x.startsWith('pull -q ghcr.io/kordal/bot-dot@'))), 'no cleanup before the first download');
+  const download = fresh.calls.findIndex((c) => c.startsWith('pull -q ghcr.io/kordal/bot-dot@'));
+  const cleanup = fresh.calls.findIndex((c) => c.includes('-v /var/run/docker.sock:/var/run/docker.sock') && c.includes('image-cleanup.js'));
+  assert.ok(download >= 0);
+  assert.ok(cleanup === -1 || cleanup > download, 'nothing runs before the first download');
+});
+
+test('what the room made first is said: how many images went and how much space came back', (t) => {
+  const first = rerun(t);
+  const answer = (json) => `case "$*" in *image-cleanup.js*) echo '${json}'; exit 0 ;; esac`;
+  const freed = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: [answer('{"removed":3,"skipped":0,"failed":0,"bytes":7400000000}')] });
+  assert.equal(freed.status, 0, freed.stderr);
+  assert.match(freed.said, /Made room first: removed 3 old images \(7\.4 GB freed\)/);
+  const none = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: [answer('{"removed":0,"skipped":1,"failed":0,"bytes":0}')] });
+  assert.equal(none.status, 0, none.stderr);
+  assert.doesNotMatch(none.said, /Made room first|Couldn't remove the old images first/);
 });
 
 test("a download that fails says Docker's own reason, as far as the admin page (#190)", (t) => {
