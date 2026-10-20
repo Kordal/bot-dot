@@ -819,7 +819,15 @@ hand_images() {
     $D save "$IMAGE" </dev/null | $A load -q >/dev/null || die "Couldn't hand $IMAGE to the account $1."
   fi
   case "$COMPUTER_READY" in
-    pull) pull "$COMPUTER_IMAGE" "$A" && ok "Bots' computer image is up to date" || warn "Couldn't download the bots' computer now; botdot tries again when a bot needs it." ;;
+    # Only into an account without a computer: one that has it is kept on the image it was made from (ADR 035), so a
+    # newer one downloaded at every update only filled its disk, about 7 GB each (#191). .env pins it, and botdot
+    # downloads it when the computer is updated or reset, then removes the old one.
+    pull)
+      if [ -n "$($A ps -aq --filter label=botdot.computer=account </dev/null 2>/dev/null || true)" ]; then
+        ok "The bots' computer keeps its image; its Update or reset takes the newest"
+      else
+        pull "$COMPUTER_IMAGE" "$A" && ok "Bots' computer image is up to date" || warn "Couldn't download the bots' computer now; botdot tries again when a bot needs it."
+      fi ;;
     load)
       if ! same_image "$COMPUTER_IMAGE"; then
         $D save "$COMPUTER_IMAGE" </dev/null | $A load -q >/dev/null || warn "Couldn't hand $COMPUTER_IMAGE to the account $1; botdot builds it when a bot first needs one."
