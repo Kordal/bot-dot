@@ -189,8 +189,13 @@ function drawContacts() {
 const openChief = () => openChiefChat((state.chats.find((c) => Unread.count(c)) || state.chats[0])?.id || null);
 
 const keypadPages = () => Keypad.pages(state.bots, state.groups);
-// Every key in reading order, page after page, with its page and its place there: the digits count them so.
-const keypadKeys = (pages) => pages.flatMap((p, page) => p.keys.map((x, at) => ({ x, page, at })));
+// A category's page folds as the list's category does (#171), with the list's folded names: folding it in one folds it
+// in the other. Pinned never folds; while searching nothing is folded.
+const pageFoldName = (p) => (p.kind === 'other' ? '\u0000' : p.name);
+const pageFolded = (p, folded = foldedGroups()) => p.kind !== 'pinned' && !($('#contact-search')?.value || '').trim() && folded.has(pageFoldName(p));
+// Every key shown in reading order, page after page, with its page and its place there: the digits count them so. A
+// folded page's keys are not shown, so not counted.
+const keypadKeys = (pages) => { const folded = foldedGroups(); return pages.flatMap((p, page) => (pageFolded(p, folded) ? [] : p.keys.map((x, at) => ({ x, page, at })))); };
 const keypadShown = () => getComputedStyle($('#keypad')).display !== 'none';
 // A key's line, its class and what stands after its name: the list's, with "Asks you" for a bot that asks.
 function keyLine(x) {
@@ -238,8 +243,9 @@ function drawKeypad() {
   drawBoardLine($('#kp-board'));
   const ask = '<button class="key key-ask" data-key-ask>Ask the Chief for a bot</button>';
   const keysOf = (i) => all.map((k, n) => (k.page === i ? keyHTML(k.x, n) : '')).join('');
-  keys.innerHTML = pages.map((p, i) => `<section class="kp-page${i === 0 ? ' kp-pinned' : ''}"><h3 class="kp-page-head" data-page="${i}">${esc(p.name)} <b>${p.keys.length}</b>${pageDot(p)}</h3><div class="kp-page-keys">${i === 0 ? chiefKeyHTML() : ''}${keysOf(i)}${i === pages.length - 1 ? ask : ''}</div></section>`).join('');
+  keys.innerHTML = pages.map((p, i) => `<section class="kp-page${i === 0 ? ' kp-pinned' : ''}${pageFolded(p) ? ' folded' : ''}"><h3 class="kp-page-head" data-page="${i}">${pageHead(p, `data-page-fold="${i}"`)}</h3><div class="kp-page-keys">${i === 0 ? chiefKeyHTML() : ''}${keysOf(i)}${i === pages.length - 1 ? ask : ''}</div></section>`).join('');
   $$('[data-key]', keys).forEach((el) => (el.onclick = () => openKey(all[Number(el.dataset.key)].x)));
+  $$('[data-page-fold]', keys).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.pageFold)])));
   $$('[data-key-chief]', keys).forEach((el) => (el.onclick = openChief));
   $$('[data-key-ask]', keys).forEach((el) => (el.onclick = askChief));
   wireKeyDrags(pages, all, keys);
@@ -250,6 +256,16 @@ function pageDot(p) {
   const dot = p.keys.map(askColor).find(Boolean);
   return dot ? `<i class="kp-dot" style="--c:${Unread.tint(dot)}"></i>` : '';
 }
+// What a page's heading holds: its name, its count and its dot. A category's is a button that folds it (#171), with the
+// list's chevron, and folded it also shows the list's busy dot while one of its bots works. `fold`: the button's data.
+function pageHead(p, fold) {
+  const head = `${esc(p.name)} <b>${p.keys.length}</b>${pageDot(p)}`;
+  if (p.kind === 'pinned') return head;
+  const folded = pageFolded(p);
+  const busy = folded && p.keys.some((x) => !x.members && x.running);
+  return `<button class="kp-fold" ${fold} aria-expanded="${!folded}" title="${folded ? 'Show' : 'Hide'} this category"><span class="chev${folded ? ' closed' : ''}">▾</span>${head}${busy ? '<i class="kp-busy"></i>' : ''}</button>`;
+}
+const foldPage = (p) => { if (p) { toggleGroupFold(pageFoldName(p)); renderContacts(); } };
 // The Chief's chat, ready to write in.
 const askChief = () => { openChief(); requestAnimationFrame(() => $('#view-chief textarea')?.focus()); };
 // A phone's home (#498): the Board line, every page as a section of keys under its name and count, and the Chief's
@@ -258,7 +274,8 @@ function drawKeypadSections(pages) {
   const sections = $('#kp-sections'), chief = $('#kp-chief');
   if (!sections) return;
   drawBoardLine($('#kp-phone-board'));
-  sections.innerHTML = pages.map((p, n) => `<section class="kp-section" data-section="${n}"><h3 class="kp-sec-head">${esc(p.name)} <b>${p.keys.length}</b>${pageDot(p)}</h3><div class="kp-sec-keys">${p.keys.map((x, i) => keyHTML(x, i, n)).join('')}</div></section>`).join('');
+  sections.innerHTML = pages.map((p, n) => `<section class="kp-section${pageFolded(p) ? ' folded' : ''}" data-section="${n}"><h3 class="kp-sec-head">${pageHead(p, `data-section-fold="${n}"`)}</h3><div class="kp-sec-keys">${pageFolded(p) ? '' : p.keys.map((x, i) => keyHTML(x, i, n)).join('')}</div></section>`).join('');
+  $$('[data-section-fold]', sections).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.sectionFold)])));
   $$('[data-section-key]', sections).forEach((el) => (el.onclick = () => { const [n, i] = el.dataset.sectionKey.split('.').map(Number); openKey(pages[n].keys[i]); }));
   chief.innerHTML = `<span>Ask the Chief…</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}`;
   chief.onclick = askChief;

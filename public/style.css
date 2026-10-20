@@ -1226,6 +1226,14 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .key.drag-ghost { opacity: .35; }
 .key.drop-on { border-color: var(--text); }
 .kp-page-head.drop-on { color: var(--text); border-bottom-color: var(--text); }
+/* A category's heading folds its page (#171), as the list's does: the list's chevron, and folded a green dot while one
+   of its bots works. The keypad adds no motion, so neither turns nor pulses. */
+.kp-fold { display: flex; align-items: center; gap: 0; border: 0; padding: 0; background: transparent; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; cursor: pointer; }
+.kp-fold:hover { color: var(--text); }
+.kp-fold .chev { display: inline-block; width: 10px; margin-right: 6px; font-size: 10px; }
+.kp-fold .chev.closed { transform: rotate(-90deg); }
+.kp-busy { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-left: 6px; }
+.kp-page.folded .kp-page-keys:empty, .kp-section.folded .kp-sec-keys { display: none; }
 
 /* ---------- the keypad on a phone: its home below the list's phone width (list.js, drawKeypadSections; #498) ----------
    The pages stand one under the other, each a section of keys in rows of three, under the Board's values and over

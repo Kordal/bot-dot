@@ -38,6 +38,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -119,12 +120,15 @@ private data class Aim(val page: Int, val at: Int?)
  * beside it, which stays lit. [hint]: the keys of a hardware keyboard, while one is attached. [onAsk]: the last place,
  * which asks the Chief for a bot. [onMove]: a key pressed and held, then dragged onto another key or onto a page's
  * heading, and the place it is to have there ([Keypad.move]); nothing is called when it would stay where it is.
+ * [folded]: the list's folded categories, whose pages show only their heading (#171); [onFold]: a category's heading
+ * tapped, to fold or open it.
  */
 @Composable
 internal fun KeypadView(
     pages: List<Keypad.Page>, active: String?, look: (Keypad.Key) -> KeyLook,
     onKey: (Keypad.Key) -> Unit, onAsk: () -> Unit, modifier: Modifier = Modifier, hint: String? = null,
     onMove: ((Keypad.Key, ListLayout.Place) -> Unit)? = null,
+    folded: Set<String> = emptySet(), onFold: ((Keypad.Page) -> Unit)? = null,
 ) {
     val p = LocalPaper.current
     val drag = remember { KeyDrag() }
@@ -159,14 +163,16 @@ internal fun KeypadView(
             var number = 0
             pages.forEachIndexed { i, page ->
                 val aimed = aim == Aim(i, null) // a key dragged over it would go last on this page
+                val isFolded = Keypad.isFolded(page, folded)
                 item(key = "page:${page.kind}:${page.name}", span = { GridItemSpan(maxLineSpan) }) {
                     DisposableEffect(i) { onDispose { drag.heads.remove(i) } }
-                    Column(Modifier.onGloballyPositioned { drag.heads[i] = it.boundsInRoot() }.padding(start = 4.dp, top = if (i == 0) 0.dp else 12.dp)) {
-                        PageLabel(page, look, if (aimed) p.text else p.faint)
+                    Column(Modifier.onGloballyPositioned { drag.heads[i] = it.boundsInRoot() }.folding(page, isFolded, onFold).padding(start = 4.dp, top = if (i == 0) 0.dp else 12.dp)) {
+                        PageLabel(page, look, if (aimed) p.text else p.faint, isFolded.takeIf { folds(page, onFold) })
                         Spacer(Modifier.height(9.dp))
                         Box(Modifier.height(if (aimed) 2.dp else 1.dp).fillMaxWidth().background(if (aimed) p.text else p.line))
                     }
                 }
+                if (isFolded) return@forEachIndexed // its keys are not shown, nor counted by the digits
                 val first = number
                 itemsIndexed(page.keys, key = { _, k -> k.id }) { n, k ->
                     DisposableEffect(k.id) { onDispose { drag.keys.remove(k.id) } }
@@ -181,17 +187,34 @@ internal fun KeypadView(
     }
 }
 
-/** A page's name and how many keys it has, and a dot in the colour of a bot on it that asks: over its keys on the keypad and on a phone. */
+/**
+ * A page's name and how many keys it has, and a dot in the colour of a bot on it that asks: over its keys on the keypad
+ * and on a phone. [folded]: a category's heading that folds (#171), with the list's chevron (null: Pinned, or nothing
+ * folds); folded, a green dot also says one of its bots is working, as in the list.
+ */
 @Composable
-private fun PageLabel(page: Keypad.Page, look: (Keypad.Key) -> KeyLook, color: Color) {
+private fun PageLabel(page: Keypad.Page, look: (Keypad.Key) -> KeyLook, color: Color, folded: Boolean? = null) {
     val p = LocalPaper.current
     val asks = page.keys.map(look).firstOrNull { it.asks }
     Row(verticalAlignment = Alignment.CenterVertically) {
+        if (folded != null) Text("▾", color = p.faint, fontSize = 11.sp, modifier = Modifier.padding(end = 6.dp).rotate(if (folded) -90f else 0f))
         Text(page.name.uppercase(), color = color, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp, maxLines = 1)
         Text("${page.keys.size}", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(start = 6.dp))
         if (asks != null) Box(Modifier.padding(start = 6.dp).size(5.dp).clip(CircleShape).background(parseColor(asks.color, p.faint)))
+        if (folded == true && page.keys.any { it is Keypad.Key.OfBot && it.bot.running }) Box(Modifier.padding(start = 6.dp).size(6.dp).clip(CircleShape).background(p.ok).testTag(FOLDED_BUSY))
     }
 }
+
+/** The tag of the green dot on a folded page's heading while one of its bots works (KeypadUiTest). */
+internal const val FOLDED_BUSY = "folded-busy"
+
+/** [page]'s heading folds it: a category's (Other's too) where folding is offered, never Pinned's. */
+private fun folds(page: Keypad.Page, onFold: ((Keypad.Page) -> Unit)?) = onFold != null && Keypad.foldName(page) != null
+
+/** A category's heading taps to fold or open its page (#171), as the list's does; Pinned's does not. */
+private fun Modifier.folding(page: Keypad.Page, folded: Boolean, onFold: ((Keypad.Page) -> Unit)?): Modifier =
+    if (!folds(page, onFold)) this
+    else clickable(onClickLabel = if (folded) "Show this category" else "Hide this category") { onFold?.invoke(page) }
 
 /** The tag of the keypad's pages, which scroll (KeypadUiTest). */
 internal const val KEYPAD_PAGES = "keypad-pages"
@@ -277,11 +300,13 @@ private val SECTION_KEY_HEIGHT = 108.dp
  * (and the dot of a bot on it that asks) with its keys in rows of three and no digits; above them [header] (Needs
  * you, the Board), below them the Chief's message box ([onChief]; [chiefUnread]: its new replies). A key opens its
  * chat ([onKey]) full screen, as a row of the list does, and Back returns here. A phone's keys answer no keyboard.
+ * [folded] and [onFold]: a category's page folds as on the keypad (#171).
  */
 @Composable
 internal fun KeypadSections(
     pages: List<Keypad.Page>, look: (Keypad.Key) -> KeyLook, onKey: (Keypad.Key) -> Unit, onChief: () -> Unit,
-    modifier: Modifier = Modifier, chiefUnread: Int = 0, header: @Composable () -> Unit = {},
+    modifier: Modifier = Modifier, chiefUnread: Int = 0, folded: Set<String> = emptySet(), onFold: ((Keypad.Page) -> Unit)? = null,
+    header: @Composable () -> Unit = {},
 ) {
     val p = LocalPaper.current
     Column(modifier) {
@@ -291,10 +316,13 @@ internal fun KeypadSections(
             verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             for (page in pages) {
+                val isFolded = Keypad.isFolded(page, folded)
                 item(key = "page:${page.kind}:${page.name}", span = { GridItemSpan(maxLineSpan) }) {
-                    Box(Modifier.padding(start = 4.dp, top = 14.dp, bottom = 2.dp)) { PageLabel(page, look, p.faint) }
+                    Box(Modifier.folding(page, isFolded, onFold).padding(start = 4.dp, top = 14.dp, bottom = 2.dp)) {
+                        PageLabel(page, look, p.faint, isFolded.takeIf { folds(page, onFold) })
+                    }
                 }
-                items(page.keys, key = { it.id }) { k -> SectionKey(look(k)) { onKey(k) } }
+                if (!isFolded) items(page.keys, key = { it.id }) { k -> SectionKey(look(k)) { onKey(k) } }
             }
         }
         val shape = RoundedCornerShape(16.dp)
@@ -339,18 +367,20 @@ internal class KeyRelay {
 /**
  * Answers the presses [relay] hands on while this keypad is on screen ([Keypad.action]): a digit opens that key,
  * counted across the pages ([onKey]), Esc opens the Chief's chat ([onChief]), Ctrl+K puts the owner in the search box
- * ([onSearch]). [keysShown]: the keys are on screen, not what the search found.
+ * ([onSearch]). [keysShown]: the keys are on screen, not what the search found. [folded]: the folded categories,
+ * whose keys are not on screen, so not counted (#171).
  */
 @Composable
-internal fun KeypadKeys(relay: KeyRelay?, pages: List<Keypad.Page>, keysShown: Boolean, onKey: (Keypad.Key) -> Unit, onChief: () -> Unit, onSearch: () -> Unit) {
+internal fun KeypadKeys(relay: KeyRelay?, pages: List<Keypad.Page>, keysShown: Boolean, onKey: (Keypad.Key) -> Unit, onChief: () -> Unit, onSearch: () -> Unit, folded: Set<String> = emptySet()) {
     val now by rememberUpdatedState(pages)
+    val foldedNow by rememberUpdatedState(folded)
     val shown by rememberUpdatedState(keysShown)
     val open by rememberUpdatedState(onKey)
     val chief by rememberUpdatedState(onChief)
     val search by rememberUpdatedState(onSearch)
     DisposableEffect(relay) {
         val handler: (Keypad.Press, Boolean) -> Boolean = { press, typing ->
-            val keys = if (shown) now.flatMap { it.keys } else emptyList()
+            val keys = if (shown) Keypad.shownKeys(now, foldedNow) else emptyList()
             when (val action = Keypad.action(press, typing, keys.size)) {
                 is Keypad.Action.Open -> { open(keys[action.number - 1]); true }
                 Keypad.Action.Chief -> { chief(); true }
