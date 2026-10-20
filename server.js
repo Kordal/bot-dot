@@ -394,8 +394,10 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // already or is guarded on its own: asking for a skill or a tool (a card), asking for a login (a card), asking for a
 // reset of the account's computer (a card of its own, lib/routes/computers.js), the
 // Chief's notes (they are "outside" after a read and a forget waits, ADR 017), stopping a run, the checkup's
-// proposals (the owner picks them), and the steer hook reading the owner's own messages (ADR 040).
-const FREE_AFTER_WEB = /^(asks|computer\/reset|vault\/requests|chief\/memory|chief\/steer|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
+// proposals (the owner picks them), and the steer hook reading the owner's own messages (ADR 040). A new SSH key
+// (vault/ssh-keys) waits too, but its route holds it itself, after its own refusals, so a call it refuses never
+// becomes a card (lib/routes/vault.js).
+const FREE_AFTER_WEB = /^(asks|computer\/reset|vault\/requests|vault\/ssh-keys|chief\/memory|chief\/steer|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'));
 // What the held request does, as the title of its card: "Make the bot “Leaker”", "Give Scout a task".
 function heldTitle(method, parts, body) {
@@ -437,8 +439,9 @@ function heldTitle(method, parts, body) {
 }
 // The request waits on a card in Needs you (an ask of kind "chief-action"), and the Chief is told so: nothing was
 // done. Its answer has `held: true`, which the Chief's tools pass on as it is (mcp-server.js).
-async function holdAfterWeb(req, res, method, parts, chatId, turn) {
-  const body = method === 'DELETE' ? {} : await readBody(req);
+// read: the body, when the route has read it already.
+async function holdAfterWeb(req, res, method, parts, chatId, turn, read = null) {
+  const body = read || (method === 'DELETE' ? {} : await readBody(req));
   const a = asks.add({ kind: 'chief-action', botId: null, chatId, method, path: parts.join('/'), body, title: heldTitle(method, parts, body), startedBy: turn.startedBy });
   return send(res, 202, { held: true, id: a.id, say: "Not done yet: you read the web in this chat, so this waits for the user's OK on a card in Needs you. When they approve, botdot does it exactly as you sent it and tells you in this chat. Tell the user in one line that it waits for them; don't send it again." });
 }
@@ -498,7 +501,7 @@ function tellChiefOfHeld(a, { answer, error }) {
 const ctx = { ACCOUNT, audit, callKeys, callRefusals, keys, vault, bitwarden, store, readyForSecrets, setup, updates,
   UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, backups, connectedApps, tools, chiefReview, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, macApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
-  chiefChatOf, doHeldAction, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; }, ...shared };
+  chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; }, ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
 ctx.computerRoutes = require('./lib/routes/computers').create(ctx);
 ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);

@@ -101,7 +101,7 @@ test('in a turn the owner started the Chief makes an SSH key, shared with the bo
   assert.deepEqual(await sshItems(), [], 'nothing made while it was locked');
 
   // Refusals: no such bot, the Chief itself.
-  assert.equal((await turn.call('create_ssh_key', { name: 'X', bots: ['Ghost'] })).error, 'Error: There is no bot "Ghost". Nothing was made or changed.');
+  assert.equal((await turn.call('create_ssh_key', { name: 'X', bots: ['Ghost'] })).error, 'Error: There is no bot "Ghost". Nothing was made.');
   assert.equal((await turn.call('create_ssh_key', { name: 'X', bots: ['me'] })).error, `Error: ${VAULT_SAY.self}`);
   const headers = { 'X-Chief-Chat': turn.chat.id };
   const ghost = await srv.asChief('/vault/ssh-keys', { method: 'POST', body: { name: 'X', allowedBots: ['nobot'] }, headers });
@@ -166,7 +166,17 @@ test('after a web search in the chat, create_ssh_key waits on a card and makes n
   assert.ok(!(await sshItems()).some((i) => i.name === 'Hardened'), 'nothing made');
   const card = (await srv.api('/asks?chief-action=1')).data.find((a) => a.kind === 'chief-action' && a.chatId === turn.chat.id);
   assert.equal(card.title, 'Make the SSH key “Hardened”');
-  assert.ok(!JSON.stringify(card).includes(BEGIN));
+  assert.deepEqual(card.rows.map((r) => r.label).sort(), ['Allowed bots', 'Name'].sort(), JSON.stringify(card.rows));
+  // What the route refuses is refused there too, before any card: a key of the Chief's own above all.
+  const headers = { 'X-Chief-Chat': turn.chat.id };
+  const pasted = await srv.asChief('/vault/ssh-keys', { method: 'POST', body: { name: 'Mine', privateKey: sshKeys.generate('x').privateKey }, headers });
+  assert.deepEqual([pasted.status, pasted.data.error], [400, VAULT_SAY.noPaste]);
+  const ghost = await srv.asChief('/vault/ssh-keys', { method: 'POST', body: { name: 'X', allowedBots: ['nobot'] }, headers });
+  assert.equal(ghost.status, 400);
+  const empty = await srv.asChief('/vault/ssh-keys', { method: 'POST', body: null, headers });
+  assert.deepEqual([empty.status, empty.data.error], [400, 'Give the SSH key a name. Nothing was made.']);
+  const cards = (await srv.api('/asks?chief-action=1')).data.filter((a) => a.kind === 'chief-action' && a.chatId === turn.chat.id);
+  assert.deepEqual(cards.map((a) => a.id), [card.id], 'the refused calls made no card');
   await turn.end('It waits for you.');
 
   srv.hold();
