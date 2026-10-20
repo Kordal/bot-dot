@@ -102,7 +102,7 @@ test('what the owner saw under a reply, and a run that did not finish', () => {
   assert.match(block, /Shall I send it\?\n\(under it the owner saw these answers as buttons: Send it \| Cancel\)\n\(you attached: draft\.pdf\)/);
   assert.match(block, /\(with files: a\.png, uploads\/b\.txt\)\nYou replied:\nI need two things\.\n\(under it the owner saw a card with these questions: Which account\? \| Which day\?\)/);
   assert.match(block, /\[run stopped [^\]]+\][^\n]*\nA question\nYou replied:\nYour run did not finish\. The owner was shown: “You stopped this run before it finished\.”/);
-  assert.match(block, /\[run limit [^\n]*\nA question\nYou replied:\nYour run did not finish\. The owner was shown: “I stopped after 60 minutes/);
+  assert.match(block, /\[run limit [^\n]*\nA question\nYou replied:\nYour run did not finish\. The owner was shown: “I stopped after 4 hours/);
   // The sentence is the one the apps show, with how often a job failed since.
   assert.match(build([run({ status: 'error', error: 'boom', trigger: 'schedule', jobName: 'J', reporting: 'delivered', row: { failures: 3, since: new Date(NOW).toISOString() } })]), /The owner was shown: “Failed 3 times since \d\d:\d\d\. Something went wrong and I couldn't finish\. It said: “boom”\. The details show everything that happened\.”/);
   assert.match(build([run({ id: 'main', customPrompt: false, prompt: 'Do the test task.', result: '' })]), /\[run main [^\]]+\] Asked by the owner:\n\(to run your main assignment\)\nYou replied:\n\(you wrote no reply\)/);

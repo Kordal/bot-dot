@@ -1,4 +1,4 @@
-// A bot's run and a Chief's turn that go on for 60 minutes are ended (BUSY-003, ADR 012): the run is a failed run
+// A bot's run and a Chief's turn that go on for 4 hours are ended (BUSY-003, ADR 012, ADR 043): the run is a failed run
 // with `endedBy: "limit"`, the reply has the same sentence, and what waits behind either starts. The limit is one
 // constant on the server; these servers have it at a second or two (BOT_DOT_RUN_LIMIT_MS). It counts from the
 // run's start, the time the run waits for the owner included: a run that is ended while it waits for an OK keeps
@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const { startServer, makeBot, heldRun, feed, waitFor, fakeConnectedApp, connectorEnv } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
-const LIMIT = 'I stopped after 60 minutes: this took too long. Send it again, or break it into smaller pieces.';
+const LIMIT = 'I stopped after 4 hours: this took too long. Send it again, or break it into smaller pieces.';
 const SHORT_MS = 1200;
 const LONGER_MS = 2500; // room to make a card before it ends
 

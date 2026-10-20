@@ -314,7 +314,7 @@ test('web: the page\'s own table is for a run without the server\'s `problem`, a
   assert.equal(p({ status: 'stopped', endedBy: 'owner' }), 'You stopped this run before it finished.');
   assert.equal(p({ status: 'stopped', endedBy: 'chief' }), 'The Chief stopped this run before it finished.');
   assert.equal(p({ status: 'error', endedBy: 'signout' }), 'This run was stopped because Claude was signed out.');
-  assert.equal(p({ status: 'error', endedBy: 'limit' }), 'I stopped after 60 minutes: this took too long. Send it again, or break it into smaller pieces.');
+  assert.equal(p({ status: 'error', endedBy: 'limit' }), 'I stopped after 4 hours: this took too long. Send it again, or break it into smaller pieces.');
   // Someone the page does not know: nobody is named, and never the owner.
   for (const who of ['schedule', 'toString', 'constructor']) {
     assert.equal(p({ status: 'stopped', endedBy: who }), 'This run was stopped before it finished.', who);
@@ -342,7 +342,7 @@ test('web: an ended run draws the server\'s `problem`: who stopped it, in the se
     owner: 'You stopped this run before it finished.',
     chief: 'The Chief stopped this run before it finished.',
     signout: 'This run was stopped because Claude was signed out.',
-    limit: 'I stopped after 60 minutes: this took too long. Send it again, or break it into smaller pieces.',
+    limit: 'I stopped after 4 hours: this took too long. Send it again, or break it into smaller pieces.',
   };
   for (const [endedBy, problem] of Object.entries(sentences)) {
     const status = ['owner', 'chief'].includes(endedBy) ? 'stopped' : 'error';
