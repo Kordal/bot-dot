@@ -67,7 +67,7 @@ test('nonroot backup and restore preserve files created privately by a bot', { s
 });
 
 test('brokered Claude keeps private MCP settings and can use a skill and owner upload', {skip:!CAN&&'needs isolated Linux root',timeout:30000},async()=>{
- const {makeBot,heldRun,self}=require('./helpers');const srv=await startServer({broker:true,env:{BOT_DOT_SEPARATE_USERS:'1'}});
+ const {makeBot,heldRun,self,waitFor}=require('./helpers');const srv=await startServer({broker:true,env:{BOT_DOT_SEPARATE_USERS:'1'}});
  try{
   assert.equal((await srv.api('/skills',{method:'POST',body:{name:'safe-report',description:'Report layout',instructions:'Use short paragraphs.'}})).status,201);
   const bot=await makeBot(srv,{name:'Writer',skills:['safe-report']});
@@ -85,7 +85,7 @@ test('brokered Claude keeps private MCP settings and can use a skill and owner u
   const downloaded=await fetch(`${srv.base}/api/files/${run.id}/${attachment.data.file.name}`);
   assert.equal(await downloaded.text(),'Private upload');
   srv.release(rec);assert.equal((await srv.finished(run.id)).status,'success');
-  assert.ok(!fs.existsSync(rec.promptFile.path),'the prompt file is gone when the run has ended');
+  await waitFor(()=>!fs.existsSync(rec.promptFile.path),{what:'the prompt file to go once its Claude Code has exited'});
  }finally{await srv.stop()}
 });
 

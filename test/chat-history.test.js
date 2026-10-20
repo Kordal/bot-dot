@@ -216,9 +216,10 @@ test('an answer sent to a working bot keeps what it answers while it waits, thro
   assert.equal(readData(srv.data, 'queue.json').queues[bot.id][0].answers, first.run.id, 'on disk with the message');
   assert.equal((await srv.api(`/runs/${w.data.id}`)).data.answers, first.run.id);
 
-  srv.unhold();
+  // Restarted while the run goes: it is cut off, and the answer starts after the restart, not as the run ends.
   srv = await restartServer(srv);
   srv.reply('Sent.');
+  srv.unhold();
   const ran = await srv.finished(w.data.id);
   assert.deepEqual([ran.status, ran.answers, ran.prompt], ['success', first.run.id, 'Send it']);
   assert.equal((await srv.api(`/runs/${h.run.id}`)).data.status, 'interrupted');

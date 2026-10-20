@@ -217,6 +217,8 @@ function assertPrivate(rec, what) {
   assert.ok(rec.args.includes('--strict-mcp-config'), `${what}: only botdot's MCP servers`);
 }
 const gone = (rec) => !fs.existsSync(rec.promptFile.path);
+// A run or a turn that replied ends on its result, and its file goes once its Claude Code has exited, a moment later (#207).
+const goneSoon = (rec, what = 'the file to go') => waitFor(() => gone(rec), { what });
 
 test("a bot's run gets its prompt in a private file that is gone when the run ends, with Claude Code's own memory off and its skills loaded", async () => {
   assert.equal((await srv.api('/skills', { method: 'POST', body: { name: 'weekly-report', description: 'How the weekly report looks.', instructions: 'Headings, then bullets.' } })).status, 201);
@@ -236,7 +238,7 @@ test("a bot's run gets its prompt in a private file that is gone when the run en
   srv.release(h.rec);
   assert.equal((await srv.finished(h.run.id)).status, 'success');
   srv.unhold();
-  assert.ok(gone(h.rec), 'gone after a reply');
+  await goneSoon(h.rec, 'gone after a reply');
 
   // After a failure, and after a Stop.
   fs.writeFileSync(path.join(srv.out, 'fail.txt'), 'The disk is full');
@@ -263,7 +265,7 @@ test('the weekly review, a Chief turn and a look are started the same way', asyn
   srv.release(review);
   await srv.finished(started.run.id);
   srv.unhold();
-  assert.ok(gone(review), "the review's file is gone");
+  await goneSoon(review, "the review's file to go");
 
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
   await note(srv, '_shared', 'IBIS The owner lives in Ghent.');
@@ -277,11 +279,11 @@ test('the weekly review, a Chief turn and a look are started the same way', asyn
   assertPrivate(turn, 'a Chief turn');
   assert.match(turn.system, /IBIS The owner lives in Ghent\./);
   assert.match(turn.system, NOW, "a new session's instructions say the date and the time zone");
-  assert.ok(gone(turn), "the turn's file is gone");
+  await goneSoon(turn, "the turn's file to go");
   const next = await say('And now?');
   assert.ok(next.args.includes('--resume'));
   assert.match(next.stdin, NOW, "a resumed session's per-turn note says them");
-  assert.ok(gone(next));
+  await goneSoon(next);
 
   // After a failure, and after a Stop.
   fs.writeFileSync(path.join(srv.out, 'fail.txt'), 'The disk is full');
