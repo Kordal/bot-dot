@@ -1,6 +1,6 @@
 # ADR-012: A run keeps who ended it, and a Stop ends what its turn started
 
-- **Status:** Accepted; its 60 minutes superseded by [ADR 043](043-a-run-is-ended-when-it-is-silent-not-when-it-is-long.md)
+- **Status:** Accepted; its 60 minutes superseded by [ADR 043](043-a-run-is-ended-when-it-is-silent-not-when-it-is-long.md); a Stop after the result line by [ADR 046](046-a-run-ends-on-its-result-line-not-when-its-process-exits.md)
 - **Owning task:** BUSY-003
 
 ## Context

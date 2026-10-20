@@ -4,6 +4,8 @@
 // from its private file and that file's path and mode, the CLAUDE_CODE_ variables of its environment, stdin), then
 // answers with $FAKE_OUT/result.txt (or "Done."), with the refused tools in $FAKE_OUT/denials.json, or fails with $FAKE_OUT/fail.txt on stderr, or ends with no result line at all while $FAKE_OUT/no-result exists. While $FAKE_OUT/hold exists, a run keeps going until
 // $FAKE_OUT/done-<n> appears, so a test can use its run token meanwhile. A run ends when the process that started it is gone.
+// While $FAKE_OUT/linger exists, a run that wrote its result line stays on until the file is gone, as Claude Code takes
+// a moment to exit (#207); $FAKE_OUT/error-result.txt makes the result line an error with that text (is_error).
 // One bot of several (a group's members): a file named for the bot goes before the one for all. The bot is named as a
 // mention names it, its name without spaces and signs ("Issue Writer" is IssueWriter): result-<Bot>.txt is its
 // reply, so "PASS" there makes it pass and "@Reviewer have a look" makes it name a member; fail-<Bot>.txt makes its
@@ -96,9 +98,15 @@ const finish = () => {
   try { result = fs.readFileSync(path.join(OUT, own('result', '.txt')), 'utf8'); } catch { /* the default */ }
   let denials = []; // the tools its settings refused, as Claude Code reports them: $FAKE_OUT/denials.json
   try { denials = JSON.parse(fs.readFileSync(path.join(OUT, 'denials.json'), 'utf8')); } catch { /* none */ }
+  let failed = null;
+  try { failed = fs.readFileSync(path.join(OUT, 'error-result.txt'), 'utf8'); } catch { /* it succeeds */ }
   const end = () => {
-    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, num_turns: 1, duration_ms: 5, permission_denials: denials }));
-    process.exit(0);
+    console.log(JSON.stringify(failed === null
+      ? { type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, num_turns: 1, duration_ms: 5, permission_denials: denials }
+      : { type: 'result', subtype: 'success', is_error: true, result: failed, session_id: `fake-${n}`, total_cost_usd: 0.01, num_turns: 1, duration_ms: 5 }));
+    const gone = () => { if (!fs.existsSync(path.join(OUT, 'linger'))) process.exit(failed === null ? 0 : 1); };
+    gone();
+    setInterval(gone, 20);
   };
   let stream = null;
   try { stream = JSON.parse(fs.readFileSync(path.join(OUT, own('stream', '.json')), 'utf8')); } catch { /* the reply comes whole */ }

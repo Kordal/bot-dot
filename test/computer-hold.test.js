@@ -47,8 +47,19 @@ async function run(bot, { keepOn = false, uses = true, ...how } = {}) {
   if (uses) await B.computerForRun(meta.id);
   if (keepOn) await B.keepComputerOn(meta.id);
   letGo();
-  return ended(meta.id);
+  const meta2 = await ended(meta.id);
+  await exited();
+  return meta2;
 }
+
+// Its computer is turned off once its Claude Code has exited, a moment after its run ended (#207): when what that
+// process used, its prompt file first, is gone.
+const exited = async () => {
+  await waitFor(() => fs.readdirSync(out).filter((f) => /^run-.*\.json$/.test(f)).every((f) => {
+    try { const r = JSON.parse(fs.readFileSync(path.join(out, f), 'utf8')); return !r.promptFile || !fs.existsSync(r.promptFile.path); } catch { return false; }
+  }), { what: 'Claude Code to exit' });
+  await new Promise((r) => setImmediate(r));
+};
 
 test('a run that called keep_computer_on leaves its computer on when it ends', async () => {
   const bot = B.bots.create({ name: 'Mail Keeper', prompt: 'Keep the mail.', computer: 'linux' });
