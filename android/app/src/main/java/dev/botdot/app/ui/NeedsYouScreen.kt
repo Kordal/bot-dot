@@ -730,6 +730,18 @@ internal fun PasswordField(value: String, onChange: (String) -> Unit, label: Str
     )
 }
 
+/** A secret of several lines (a private key, #155): masked as a password is, its line breaks kept. */
+@Composable
+internal fun SecretBox(value: String, onChange: (String) -> Unit, label: String) {
+    OutlinedTextField(
+        value = value, onValueChange = onChange, label = { Text(label) }, minLines = 3, maxLines = 6,
+        visualTransformation = PasswordVisualTransformation(),
+        textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
 @Composable
 private fun BitwardenCard(bw: BitwardenStatus, who: Named?, error: String?, onUnlock: (String) -> Unit) {
     var pw by remember { mutableStateOf("") }
@@ -793,13 +805,13 @@ private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boole
             }
             if (usable.isNotEmpty()) Muted("Or save a new one:")
             else Muted("It goes straight into your vault${if (bitwardenLocked) " (Bitwarden)" else ""}. The bot never sees the password.")
-            if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.OPTIONS, onType)
+            if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.options(features, r.type), onType)
             fields.username?.let { label ->
                 OutlinedTextField(user, onUser, label = { Text(label) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
                     modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Username })
             }
-            PasswordField(pw, { pw = it }, fields.secret)
+            if (fields.multiline) SecretBox(pw, { pw = it }, fields.secret) else PasswordField(pw, { pw = it }, fields.secret)
             if (bitwardenLocked) PasswordField(master, { master = it }, "Bitwarden master password (it's locked)")
             Buttons("Save", { onSave(VaultTypes.sent(type, user, features), pw, master); pw = ""; master = "" }, "Decline", onDecline, enabled = pw.isNotEmpty())
         }

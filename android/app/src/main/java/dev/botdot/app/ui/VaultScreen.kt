@@ -301,18 +301,38 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var askDelete by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    // A secret of several lines read from its file, as it is (#155): the system's file picker, at most 64 KB.
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openInputStream(uri)?.use { readAtMost(it, VaultTypes.SECRET_FILE_MAX + 1) } }.getOrNull()
+            }
+            when {
+                text == null -> error = "Couldn't read that file."
+                text.length > VaultTypes.SECRET_FILE_MAX -> error = "That file is too big for the Vault (64 KB at most)."
+                else -> { pw = text; error = null }
+            }
+        }
+    }
 
     AlertDialog(onDismissRequest = close, title = { Text(item?.let { "Edit ${it.name}" } ?: "Add to the Vault") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.OPTIONS) { type = it }
+            // A type with its own address (a GitHub App's api.github.com) fills an empty address field.
+            if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.options(features, item?.type)) { type = it; VaultTypes.of(it).site?.let { s -> if (site.isBlank()) site = s } }
             OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(site, { site = it.trim() }, label = { Text("Website or server") }, placeholder = { Text("pve.example.ts.net") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
             fields.username?.let { label ->
                 OutlinedTextField(user, { user = it }, label = { Text(label) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                if (type == VaultTypes.GITHUB_APP) Hint(VaultTypes.GITHUB_APP_HINT)
             }
-            PasswordField(pw, { pw = it }, fields.secret)
+            if (fields.multiline) {
+                SecretBox(pw, { pw = it }, fields.secret)
+                TextButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text("Pick its file", color = p.text) }
+            } else PasswordField(pw, { pw = it }, fields.secret)
             OutlinedTextField(hosts, { hosts = it }, label = { Text("Additional exact hosts") }, placeholder = { Text("api.example.com, auth.example.com") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
             Hint("Only these hosts may also receive it. Subdomains are not included automatically.")

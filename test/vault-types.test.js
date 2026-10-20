@@ -20,13 +20,16 @@ const loginRequests = require('../lib/login-requests');
 const { startServer, makeBot, heldRun, waitFor } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
-const REFUSED = 'Type must be login, api-token or other';
+const REFUSED = 'Type must be login, api-token, other or github-app';
+// A GitHub App is saved with its App ID and a private key it can sign with (lib/github-app.js), or not at all.
+const APP_KEY = crypto.generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs1', format: 'pem' });
+const secretOf = (type) => (type === 'github-app' ? { username: '5237335', password: APP_KEY } : { password: 'p' });
 const CLIENT_ID = 'user.00000000-0000-0000-0000-000000000000';
 const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-vault-types-'));
 const readJson = (file, none) => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return none; } };
 
-test('one list of the three types, and one check of a value', () => {
-  assert.deepEqual(vaultLib.ITEM_TYPES, ['login', 'api-token', 'other']);
+test('one list of the four types, and one check of a value', () => {
+  assert.deepEqual(vaultLib.ITEM_TYPES, ['login', 'api-token', 'other', 'github-app']);
   for (const t of vaultLib.ITEM_TYPES) assert.equal(vaultLib.isItemType(t), true);
   for (const t of ['password', 'API-Token', '', null, undefined, 1, ['login'], 'toString']) assert.equal(vaultLib.isItemType(t), false, String(t));
   // A saved item or a request without a type, or with one this server does not know: a login.
@@ -64,7 +67,7 @@ test('the built-in vault: add and update take each type; the kind stays login', 
   const store = vaultLib.create(scratch());
   assert.equal(store.add({ site: 'plain.example.com', password: 'p' }).type, 'login', 'none named: a login');
   for (const type of vaultLib.ITEM_TYPES) {
-    const e = store.add({ name: type, site: `${type}.example.com`, password: 'p', type });
+    const e = store.add({ name: type, site: `${type}.example.com`, ...secretOf(type), type });
     assert.equal(e.type, type);
     assert.equal(e.kind, 'login');
     assert.equal(e.secret, undefined, 'never the secret');
@@ -109,7 +112,7 @@ test('the built-in vault: a type change alone changes nothing else of the item',
   assert.equal(changed.type, 'other');
   assert.deepEqual(rest, before, 'address, username, bots, additional hosts, the certificate: as they were');
   // A login changed to Other keeps its username, and its secret.
-  assert.deepEqual(store.credentials('bot1', 'Portal'), { name: 'Portal', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true, inComputer: false });
+  assert.deepEqual(store.credentials('bot1', 'Portal'), { name: 'Portal', type: 'other', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true, inComputer: false });
 });
 
 test('the built-in vault: a bot sees the type of each login, and a save from a pop-up carries it', () => {
@@ -261,7 +264,7 @@ test('Bitwarden: a type change alone leaves the item unedited, with its address,
   assert.deepEqual(access(), { 'i-portal': { bots: ['bot1', 'bot2'], insecureTls: true, allowedHosts: ['app.example.org'], type: 'api-token' } }, 'the type beside the bots');
   assert.deepEqual(writes(), [], 'Bitwarden was not asked to edit anything');
   assert.deepEqual(kept(), [PORTAL], 'the item as it was, with every address of it');
-  assert.deepEqual(bw.credentials('bot1', 'Portal'), { name: 'Portal', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true, inComputer: false });
+  assert.deepEqual(bw.credentials('bot1', 'Portal'), { name: 'Portal', type: 'api-token', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true, inComputer: false });
 
   // The editor sends the whole form. With the name, the address and the username as they are, the item is
   // still not edited: to Other (no username sent, the stored one stays) and back.
@@ -587,4 +590,48 @@ test('the move of the built-in vault into Bitwarden carries each type, kept besi
   assert.deepEqual(changed.data.allowedBots, [b.id]);
   assert.equal(edits(), was, 'the Bitwarden item was not edited');
   assert.equal(access()[proxmox.id].type, 'login');
+});
+
+// ---------- a secret of several lines (#155) ----------
+
+test('a private key of several lines is kept byte for byte, its line breaks and its last one too, in both stores', async (t) => {
+  const crlf = APP_KEY.replace(/\n/g, '\r\n');
+  const store = vaultLib.create(scratch());
+  store.add({ name: 'Signing key', site: 'sign.example.com', password: APP_KEY, type: 'other', allowedBots: ['bot1'] });
+  store.add({ name: 'Windows key', site: 'win.example.com', password: crlf, type: 'other', allowedBots: ['bot1'] });
+  store.add({ name: 'Issue Writer', site: 'api.github.com', username: '5237335', password: APP_KEY, type: 'github-app', allowedBots: ['bot1'] });
+  assert.equal(store.credentials('bot1', 'Signing key').password, APP_KEY);
+  assert.equal(store.credentials('bot1', 'Windows key').password, crlf);
+  assert.equal(store.credentials('bot1', 'Issue Writer').password, APP_KEY);
+  assert.equal(store.credentials('bot1', 'Issue Writer').type, 'github-app', 'its type goes with it, so it is used by its token');
+  assert.equal((await store.reveal('bot1', 'Issue Writer', 'password')).type, 'github-app', 'and the browser is told what it is');
+
+  const { bw, kept, access } = await bitwarden(t);
+  const other = await bw.add({ name: 'Signing key', site: 'sign.example.com', password: APP_KEY, type: 'other', allowedBots: ['bot1'] });
+  const app = await bw.add({ name: 'Issue Writer', site: 'api.github.com', username: '5237335', password: APP_KEY, type: 'github-app', allowedBots: ['bot1'] });
+  assert.deepEqual(kept().map((i) => i.login.password), [APP_KEY, APP_KEY], 'Bitwarden got the key as it is');
+  assert.equal(bw.credentials('bot1', 'Signing key').password, APP_KEY);
+  assert.equal(bw.credentials('bot1', 'Issue Writer').type, 'github-app');
+  assert.equal((await bw.reveal('bot1', 'Issue Writer', 'password')).type, 'github-app');
+  assert.equal(access()[app.id].type, 'github-app');
+  assert.equal(other.type, 'other');
+});
+
+test('a GitHub App is saved only with an App ID and a key it can sign with; a change keeps checking it', async (t) => {
+  const store = vaultLib.create(scratch());
+  assert.throws(() => store.add({ site: 'api.github.com', username: 'my-app', password: APP_KEY, type: 'github-app' }), /App ID/);
+  assert.throws(() => store.add({ site: 'api.github.com', username: '5237335', password: 'ghp_token', type: 'github-app' }), /isn't a private key/);
+  assert.deepEqual(store.list(), []);
+  const e = store.add({ site: 'api.github.com', username: '5237335', password: APP_KEY, type: 'github-app' });
+  assert.equal(store.update(e.id, { username: '5237335/81' }).username, '5237335/81', 'its installation, the key kept');
+  assert.throws(() => store.update(e.id, { password: 'oops' }), /isn't a private key/);
+  assert.throws(() => store.update(e.id, { username: 'x' }), /App ID/);
+  assert.equal(store.list()[0].username, '5237335/81', 'nothing of a refused change is kept');
+
+  const { bw, writes } = await bitwarden(t);
+  await assert.rejects(bw.add({ site: 'api.github.com', username: '5237335', password: 'nope', type: 'github-app' }), /isn't a private key/);
+  assert.deepEqual(writes(), [], 'Bitwarden was not asked');
+  const made = await bw.add({ site: 'api.github.com', username: '5237335', password: APP_KEY, type: 'github-app' });
+  await assert.rejects(bw.update(made.id, { username: 'app' }), /App ID/);
+  assert.equal(writes().length, 1, 'only the item made; the refused change was not sent');
 });
