@@ -106,8 +106,8 @@ test('a turn that succeeded has no error, with or without actions', async () => 
   assert.ok(!('error' in acted.message));
   assert.equal(acted.event.status, 'success');
   // Nothing else of a message changed.
-  // (`relevant`: what the lookup found for the message, when it found something.)
-  assert.deepEqual(Object.keys(acted.message).filter((k) => k !== 'relevant').sort(), ['actions', 'at', 'costUsd', 'endedAt', 'pending', 'role', 'startedBy', 'text']);
+  // (`relevant`: what the lookup found for the message, when it found something. `phases`: its times, #204.)
+  assert.deepEqual(Object.keys(acted.message).filter((k) => k !== 'relevant').sort(), ['actions', 'at', 'costUsd', 'endedAt', 'pending', 'phases', 'role', 'startedBy', 'text']);
   // A reply that is only buttons is a reply.
   const buttons = await turn('Which one?', [result('[[choices: Mail | News]]')]);
   assert.ok(!('error' in buttons.message), JSON.stringify(buttons.message));
