@@ -248,8 +248,18 @@ test('update_vault_item changes only an SSH key, only in a turn the owner starte
   const hardened = (await sshItems()).find((i) => i.name === 'Hardened');
   assert.deepEqual([(await put(login.id, { allowedBots: [scout.id] })).status, (await put(login.id, { password: 'x' })).data.error], [400, VAULT_SAY.onlyKeys('Router')]);
   assert.deepEqual((await put(hardened.id, { name: ' ' })).data.error, 'Give the SSH key a name. Nothing was changed.');
-  assert.equal((await put(hardened.id, { allowedBots: 'all' })).status, 400);
-  assert.equal((await put(hardened.id, { privateKey: 'x', sshKey: {} })).data.error, VAULT_SAY.nothing, 'nothing but a name and bots is taken');
+  assert.equal((await put(hardened.id, { add: 'all' })).status, 400);
+  assert.equal((await put(hardened.id, { privateKey: 'x', sshKey: {}, allowedBots: [scout.id] })).data.error, VAULT_SAY.nothing, 'nothing but a name and the bots to add or take off is taken');
+  assert.deepEqual([(await put('no-such-item', { name: 'X' })).status, (await put('no-such-item', { name: 'X' })).data.error], [404, VAULT_SAY.noKey('no-such-item')]);
+  // A login called as a key is is no reason to refuse the key.
+  const twin = (await srv.api('/vault', { method: 'POST', body: { name: 'Hardened', site: 'hardened.lan', password: 'fixture-password' } })).data;
+  assert.equal((await turn.call('update_vault_item', { item: 'Hardened', add: ['Scout'] })).say, 'Nothing changed: the SSH key Hardened is shared with Scout.');
+  await srv.api(`/vault/${twin.id}`, { method: 'DELETE' });
+  // With Bitwarden locked: one sentence, and nothing changes.
+  await srv.api('/vault/bitwarden/lock', { method: 'POST' });
+  await refused({ item: 'Hardened', newName: 'Late' }, VAULT_SAY.emptyVault);
+  assert.deepEqual([(await put(hardened.id, { name: 'Late' })).status, (await put(hardened.id, { name: 'Late' })).data.error], [423, VAULT_SAY.lockedChange]);
+  await unlock();
   await turn.end();
   assert.deepEqual((await srv.api('/vault')).data.find((i) => i.id === login.id).allowedBots, [], 'the login is as it was');
 
@@ -274,7 +284,11 @@ test('after a web search, a change to an SSH key waits on a card, and the owner\
   // A refused call makes no card.
   await srv.asChief(`/vault/${hardened.id}`, { method: 'PUT', body: { allowedBots: ['nobot'] }, headers: { 'X-Chief-Chat': turn.chat.id } });
   assert.equal((await heldAsksOf(turn.chat)).length, 1);
+  assert.deepEqual(card.rows.map((r) => r.label).sort(), ['Add', 'Remove'], JSON.stringify(card.rows));
   await turn.end();
+  // The owner changes the key's bots before the yes: the yes adds Infra Admin to what is there then.
+  const other = await makeBot(srv, { name: 'Backup Bot' });
+  await srv.api(`/vault/${hardened.id}`, { method: 'PUT', body: { allowedBots: [scout.id, other.id] } });
   srv.hold();
   const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
   assert.deepEqual([yes.status, yes.data.done], [200, true], JSON.stringify(yes.data));
@@ -282,5 +296,5 @@ test('after a web search, a change to an SSH key waits on a card, and the owner\
   srv.release(told);
   srv.reply('Done.');
   srv.unhold();
-  assert.deepEqual((await sshItems()).find((i) => i.id === hardened.id).allowedBots, [scout.id, infra.id]);
+  assert.deepEqual((await sshItems()).find((i) => i.id === hardened.id).allowedBots, [scout.id, other.id, infra.id]);
 });
