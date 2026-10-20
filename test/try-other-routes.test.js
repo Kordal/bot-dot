@@ -9,7 +9,7 @@ let srv;
 before(async () => { srv = await startServer(); });
 after(() => srv.stop());
 
-const RULE = /Before you report a failure, try other reasonable routes: another tool, command, source or teammate, a smaller step, a fix and a retry\. Up to 3 attempts, each a different route;/;
+const RULE = /Before you report a failure, try other reasonable routes: another tool, command, source or teammate, a smaller step, the same step after a fix\. Up to 3 attempts in all, each a different route;/;
 
 function hasRule(system) {
   assert.match(system, RULE);

@@ -9,7 +9,7 @@ A bot that hit one failure (a missing command, an empty source, a page that woul
 
 ## Decision
 
-- Every bot's instructions carry one rule beside `honesty()` (`PERSIST` in `lib/bots.js`): before it reports a failure, it tries other reasonable routes (another tool, command, source or teammate, a smaller step, the same step after fixing its cause), up to 3 attempts in all, each on a different route. It reports sooner when the next route needs the owner (a permission, a login, a decision) or is not allowed.
+- Every bot's instructions carry one rule beside `honesty()` (`TRY_OTHER_ROUTES` in `lib/bots.js`): before it reports a failure, it tries other reasonable routes (another tool, command, source or teammate, a smaller step, the same step after fixing its cause), up to 3 attempts in all, each on a different route. It reports sooner when the next route needs the owner (a permission, a login, a decision) or is not allowed.
 - The rule names its limits: a declined card, a card that waits, a refused permission and "leave others out" are final for the run, and no secret is guessed. A missing command keeps the installed-tools note and the computer's note (install it where allowed, else `ask_chief_for_tool`); secrets keep `VAULT_PROMPT`; the bot's own rules stay out of reach as `honesty()` says.
 - The rule ends with the report's shape: what failed, what the bot tried, what it needs from the owner. `REPLY_STYLE` no longer says "or what you couldn't access. Work with what you have.", which told a bot to settle.
 - The rule is in every run a bot does for the owner, a job, a call, a teammate's message and a group turn. It is not in botdot's own memory review.

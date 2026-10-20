@@ -40,7 +40,7 @@ test('a bot is told what the chat draws, to start with the answer and the length
   assert.doesNotMatch(rec.system, REPLACED, 'no two lines say the same');
   // The rest of the style note reads as before.
   assert.match(rec.system, /Your final reply is read by a person in a simple chat window, not a terminal\. Write it like a helpful colleague would:\n- Plain, warm, conversational language, in short paragraphs\.\n- Start with the answer/);
-  assert.match(rec.system, /- Don't narrate your process, tools, commands or file permissions\.\n/);
+  assert.match(rec.system, /- Don't narrate your process, tools, commands or file permissions, except what you tried when something failed\.\n/);
   assert.match(rec.system, LINE);
   assert.match(rec.system, /- No shell commands or code unless the task is about code and the person needs to see it\. Refer to files by name, not full paths\./);
   srv.release(rec); await srv.finished(run.id); srv.unhold();
