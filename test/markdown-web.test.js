@@ -134,3 +134,9 @@ test('web: a quote has a line on its left and muted text; a rule is one thin lin
   assert.equal(prop('.md hr', 'border-top'), '1px solid var(--line)');
   assert.equal(prop('.md hr', 'border'), '0');
 });
+
+test('web: a mermaid block is its escaped code, marked for the page to draw (#177); other code blocks are not marked', () => {
+  assert.equal(md('```mermaid\nflowchart LR\n  A["<b>x</b>"] --> B\n```'),
+    '<pre class="mermaid-src"><code>flowchart LR\n  A[&quot;&lt;b&gt;x&lt;/b&gt;&quot;] --&gt; B</code></pre>');
+  assert.equal(md('```\nplain\n```\n\n```Mermaid\nx\n```'), '<pre><code>plain</code></pre>\n<pre><code>x</code></pre>', 'only the word mermaid, as written');
+});

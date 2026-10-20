@@ -340,7 +340,9 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     val all = hasGroupAll(features)
     val mentions = remember(members, chatKey, all) { Mentions.World(chatKey, members, emptyList(), all) }
     // Text selected in a message is quoted into this chat's message box (QuoteUi.kt).
-    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }) {
+    // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
+    val api by app.api.collectAsState()
+    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },

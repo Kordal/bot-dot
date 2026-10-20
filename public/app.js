@@ -389,11 +389,11 @@ function md(src) {
 }
 
 // A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth), quote (text),
-// rule, code (text) and table (rows). Android's parseBlocks returns the same for the same text.
+// rule, code (text, lang: the word after its fence) and table (rows). Android's parseBlocks returns the same for the same text.
 function mdBlocks(src) {
   const code = [];
   const lines = esc(src || '').replace(/\r\n?/g, '\n').replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, c) => {
-    code.push(c.replace(/\n$/, ''));
+    code.push({ text: c.replace(/\n$/, ''), lang });
     return `\n\u0000${code.length - 1}\u0000\n`;
   }).split('\n');
   const out = [];
@@ -413,7 +413,7 @@ function mdBlocks(src) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i], t = line.trim();
     let m;
-    if ((m = t.match(/^\u0000(\d+)\u0000$/))) { flush(); endList(); out.push({ type: 'code', text: code[m[1]] ?? '' }); }
+    if ((m = t.match(/^\u0000(\d+)\u0000$/))) { flush(); endList(); out.push({ type: 'code', text: code[m[1]]?.text ?? '', lang: code[m[1]]?.lang ?? '' }); }
     else if (isTable(t)) {
       flush(); endList();
       const rows = [];
@@ -486,7 +486,8 @@ function mdHTML(blocks) {
     else if (b.type === 'heading') out.push(`<h${b.level}>${inline(b.text)}</h${b.level}>`);
     else if (b.type === 'quote') out.push(`<blockquote>${text(b.text)}</blockquote>`);
     else if (b.type === 'rule') out.push('<hr>');
-    else if (b.type === 'code') out.push(`<pre><code>${b.text}</code></pre>`);
+    // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be.
+    else if (b.type === 'code') out.push(`<pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>`);
     else if (b.type === 'table') out.push('<table>' + b.rows.map((r, ri) => `<tr>${r.map((c) => (ri === 0 ? `<th>${inline(c)}</th>` : `<td>${inline(c)}</td>`)).join('')}</tr>`).join('') + '</table>');
     else out.push(`<p>${text(b.text)}</p>`);
   }
@@ -527,7 +528,7 @@ function linkifyChat(root) {
     const node = walker.currentNode;
     const parent = node.parentElement;
     if (parent?.closest('#chat-thread .bubble, #bot-thread .bubble') &&
-        !parent.closest('a, code, pre, button, .mention')) nodes.push(node);
+        !parent.closest('a, code, pre, button, .mention, .diagram')) nodes.push(node);
   }
   for (const node of nodes) {
     const text = node.textContent;
@@ -556,6 +557,9 @@ new MutationObserver((changes) => {
     else if (node.nodeType === Node.TEXT_NODE && node.parentElement) linkifyChat(node.parentElement);
   }
 }).observe(document.getElementById('app'), { childList: true, subtree: true });
+// A reply's diagrams, wherever a reply, a tile or a skill is drawn: on the page and in its dialog (diagrams.js).
+Diagrams.watch(document.getElementById('app'));
+Diagrams.watch(document.getElementById('modal'));
 
 // ---------- data ----------
 

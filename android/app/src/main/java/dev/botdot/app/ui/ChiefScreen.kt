@@ -145,7 +145,10 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
 
     // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles. And where Quote
     // puts text selected in a message: this chat's message box (QuoteUi.kt).
-    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }) {
+    // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
+    val api by app.api.collectAsState()
+    val onWeb = api?.let { a -> chatId?.let { chatOnWeb(a.baseUrl, "chief", it) } }
+    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },

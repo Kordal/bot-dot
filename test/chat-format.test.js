@@ -22,6 +22,10 @@ test('one text says what the chat draws', () => {
   assert.match(CHAT_FORMAT, /lines that start with "-"/);
   assert.match(CHAT_FORMAT, /lines that start with "1\.", with a step's details indented under the step/);
   assert.match(CHAT_FORMAT, /Tables, quotes \(lines that start with ">"\) and code blocks/);
+  // Diagrams (#177): Mermaid in a fenced mermaid block, only when it helps, and what each app does with it.
+  assert.ok(CHAT_FORMAT.includes('- Diagrams: a Mermaid diagram (flowchart, sequence, gantt and the like) in a code block that starts with "```mermaid".'));
+  assert.match(CHAT_FORMAT, /Draw one only when a diagram explains it better than text\./);
+  assert.match(CHAT_FORMAT, /The web page draws it; the Android app shows its code with a link to the web page\.$/);
 });
 
 test('how a reply opens and how long it is: the answer first, under 150 words, sections when longer', () => {

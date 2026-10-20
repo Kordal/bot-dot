@@ -27,7 +27,7 @@ class MarkdownTest {
         "item" -> Block.Item(b.text(), b.getValue("number").jsonPrimitive.intOrNull, b.getValue("depth").jsonPrimitive.int)
         "quote" -> Block.Quote(b.text())
         "rule" -> Block.Rule
-        "code" -> Block.Code(b.text())
+        "code" -> Block.Code(b.text(), b.getValue("lang").jsonPrimitive.content)
         "table" -> Block.Table(b.getValue("rows").jsonArray.map { row -> row.jsonArray.map { it.jsonPrimitive.content } })
         else -> error("The fixture has a block the app does not know: $type")
     }
@@ -75,8 +75,26 @@ class MarkdownTest {
         )
     }
 
+    @Test fun aMermaidBlockInAChatHasALinkToTheSameChatOnTheWebPage() {
+        // The addresses the web page opens a chat from (public/boot.js), whether or not the server's address ends in "/".
+        assertEquals("https://box.tail.ts.net/#chief/c1", chatOnWeb("https://box.tail.ts.net", "chief", "c1"))
+        assertEquals("https://box.tail.ts.net/#bot/b-2", chatOnWeb("https://box.tail.ts.net/", "bot", "b-2"))
+        assertEquals("https://box.tail.ts.net/#group/g3", chatOnWeb("https://box.tail.ts.net", "group", "g3"))
+        val (diagram, code) = parseBlocks("```mermaid\nflowchart LR\n  A --> B\n```\n\n```kotlin\nval x = 1\n```")
+        assertEquals(Block.Code("flowchart LR\n  A --> B", "mermaid"), diagram)
+        val web = "https://box.tail.ts.net/#bot/b1"
+        assertEquals(web, webLinkUnder(diagram, web))
+        // Other code and other blocks have no link, and nothing has one outside a chat (a board tile, a skill).
+        assertEquals(null, webLinkUnder(code, web))
+        assertEquals(null, webLinkUnder(Block.Code("x"), web))
+        assertEquals(null, webLinkUnder(Block.Para("mermaid"), web))
+        assertEquals(null, webLinkUnder(diagram, null))
+        // A fence's word counts only alone on its line, as on the web page: no diagram, no link.
+        assertEquals(Block.Code("A --> B", ""), parseBlocks("```mermaid please\nA --> B\n```").single())
+    }
+
     @Test fun codeIsKeptAsWritten() {
-        assertEquals(listOf(Block.Code("val x = 1\n  # not a heading")), parseBlocks("```kotlin\nval x = 1\n  # not a heading\n```"))
+        assertEquals(listOf(Block.Code("val x = 1\n  # not a heading", "kotlin")), parseBlocks("```kotlin\nval x = 1\n  # not a heading\n```"))
     }
 
     @Test fun tablesLeaveOutTheSeparatorRow() {
