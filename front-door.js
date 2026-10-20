@@ -116,6 +116,23 @@ const ASSET_LINKS = [{
 const FONTS = Object.fromEntries(['Geist.ttf', 'GeistMono.ttf'].flatMap((f) => {
   try { return [[`/front-door/fonts/${f}`, fs.readFileSync(path.join(__dirname, 'public', 'fonts', f))]]; } catch { return []; }
 }));
+// What installing botdot from the browser needs before anyone signs in (issue #163): a browser fetches the manifest
+// and its icons without cookies, and the service worker keeps the offline page. Read once at start, the same files
+// every account's botdot server serves, with nothing of an account in them.
+const INSTALL_TYPES = { '.webmanifest': 'application/manifest+json', '.png': 'image/png', '.svg': 'image/svg+xml', '.html': 'text/html; charset=utf-8' };
+// The manifest's icons and screenshots are taken from it, so a new one needs no change here.
+const installNames = () => {
+  try {
+    const m = JSON.parse(fs.readFileSync(path.join(__dirname, 'public', 'manifest.webmanifest'), 'utf8'));
+    return [...(m.icons || []), ...(m.screenshots || [])].map((i) => new URL(i.src, 'http://x').pathname.slice(1));
+  } catch { return []; }
+};
+const INSTALL_FILES = Object.fromEntries([...new Set(['manifest.webmanifest', 'apple-touch-icon.png', 'offline.html', ...installNames()])].flatMap((f) => {
+  try {
+    const body = fs.readFileSync(path.join(__dirname, 'public', f));
+    return [[`/${f}`, { body, type: INSTALL_TYPES[path.extname(f)], etag: `"${crypto.createHash('sha256').update(body).digest('base64url').slice(0, 16)}"` }]];
+  } catch { return []; }
+}));
 const NOT_RUNNING = "Your account's botdot server isn't running. Try again in a moment, or ask the admin of this machine.";
 const CALL_NOT_RUNNING = "This account's botdot server isn't running. Try the call again later.";
 const PAUSED = 'Your account is paused by the admin.';
@@ -611,6 +628,13 @@ const server = http.createServer(async (req, res) => {
     if (FONTS[p] && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'font/ttf', 'Cache-Control': 'max-age=86400' });
       return res.end(FONTS[p]);
+    }
+    const install = INSTALL_FILES[p];
+    if (install && (req.method === 'GET' || req.method === 'HEAD')) {
+      const headers = { 'Content-Type': install.type, 'Cache-Control': 'no-cache', ETag: install.etag };
+      if (req.headers['if-none-match'] === install.etag) { res.writeHead(304, headers); return res.end(); }
+      res.writeHead(200, { ...headers, 'Content-Length': install.body.length });
+      return res.end(req.method === 'HEAD' ? undefined : install.body);
     }
     if (p === '/.well-known/assetlinks.json' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'max-age=3600' });

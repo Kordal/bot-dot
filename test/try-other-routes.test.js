@@ -1,4 +1,4 @@
-// Bots don't give up after one failed route (#156, ADR 037): every run a bot does for the owner, a job, a teammate
+// Bots don't give up after one failed route (#156, ADR 038): every run a bot does for the owner, a job, a teammate
 // or a group is told to try up to 3 different routes before it reports, inside its permissions, and how to report.
 // It is server text, so a fresh data directory with no notes and no shared memory has it.
 const { test, before, after } = require('node:test');

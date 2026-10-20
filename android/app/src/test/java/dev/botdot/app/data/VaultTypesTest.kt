@@ -20,7 +20,7 @@ class VaultTypesTest {
     private val before = listOf("unread", "tools")
 
     @Serializable
-    data class Words(val id: String, val label: String, val username: String?, val optional: Boolean, val secret: String, val icon: String, val none: String, val saved: String)
+    data class Words(val id: String, val label: String, val username: String?, val optional: Boolean, val secret: String, val icon: String, val none: String, val saved: String, val multiline: Boolean)
 
     @Serializable
     data class Shown(val item: VaultItem, val rows: List<String>)
@@ -35,7 +35,7 @@ class VaultTypesTest {
     )
 
     @Test fun theTypesHaveTheWordsOfTheSharedTableAndAnItemItsTwoLines() {
-        assertEquals(table.types, VaultTypes.ALL.map { Words(it.id, it.label, it.username, it.optional, it.secret, it.icon, it.none, it.saved) })
+        assertEquals(table.types, VaultTypes.ALL.map { Words(it.id, it.label, it.username, it.optional, it.secret, it.icon, it.none, it.saved, it.multiline) })
         assertEquals(table.feature, VaultTypes.FEATURE)
         assertEquals(table.control, VaultTypes.CONTROL)
         for (shown in table.items) assertEquals(shown.item.name, shown.rows, VaultTypes.rows(shown.item, types))
@@ -44,8 +44,9 @@ class VaultTypesTest {
     private fun items(json: String): List<VaultItem> = Api.JSON.decodeFromString(json)
     private fun requests(json: String): List<LoginRequest> = Api.JSON.decodeFromString(json)
 
-    @Test fun theThreeTypesWithTheWordsOfTheWebPage() {
-        assertEquals(listOf("login" to "Login", "api-token" to "API token", "other" to "Other"), VaultTypes.OPTIONS)
+    @Test fun theTypesWithTheWordsOfTheWebPage() {
+        assertEquals(listOf("login" to "Login", "api-token" to "API token", "other" to "Other"), VaultTypes.options(types))
+        assertEquals(listOf("login" to "Login", "api-token" to "API token", "other" to "Other", "github-app" to "GitHub App"), VaultTypes.options(types + VaultTypes.GITHUB_APP_FEATURE))
         assertEquals("Type", VaultTypes.CONTROL)
         assertEquals("vault-types", VaultTypes.FEATURE)
     }
@@ -118,7 +119,7 @@ class VaultTypesTest {
     @Test fun theEditorAsksForWhatTheTypeNeeds() {
         assertEquals(VaultTypes.Fields("Username or email", "Password"), VaultTypes.editorFields("login", types, isNew = true))
         assertEquals(VaultTypes.Fields("Token ID (optional)", "Token"), VaultTypes.editorFields("api-token", types, isNew = true))
-        assertEquals(VaultTypes.Fields(null, "Secret"), VaultTypes.editorFields("other", types, isNew = true))
+        assertEquals(VaultTypes.Fields(null, "Secret", multiline = true), VaultTypes.editorFields("other", types, isNew = true))
         // A saved item keeps its secret when the field is left empty.
         assertEquals("New password (empty keeps it)", VaultTypes.editorFields("login", types, isNew = false).secret)
         assertEquals("New token (empty keeps it)", VaultTypes.editorFields("api-token", types, isNew = false).secret)
@@ -129,7 +130,7 @@ class VaultTypesTest {
     @Test fun theRequestsCardAsksForWhatTheTypeNeeds() {
         assertEquals(VaultTypes.Fields("Username or email", "Password"), VaultTypes.requestFields("login", types))
         assertEquals(VaultTypes.Fields("Token ID (optional)", "Token"), VaultTypes.requestFields("api-token", types))
-        assertEquals(VaultTypes.Fields(null, "Secret"), VaultTypes.requestFields("other", types))
+        assertEquals(VaultTypes.Fields(null, "Secret", multiline = true), VaultTypes.requestFields("other", types))
     }
 
     @Test fun onAServerBeforeTheTypesBothFormsAreAsBefore() {
@@ -185,5 +186,25 @@ class VaultTypesTest {
         assertTrue(VaultTypes.addsSshKeys(listOf("vault-ssh-keys", "vault-ssh-key-add")))
         assertFalse(VaultTypes.addsSshKeys(listOf("vault-ssh-keys")))
         assertFalse(VaultTypes.addsSshKeys(null))
+    }
+
+    @Test fun gitHubAppIsOfferedOnlyByAServerThatKeepsOneOrForAnItemThatIsOne() {
+        assertEquals("vault-github-app", VaultTypes.GITHUB_APP_FEATURE)
+        assertFalse(VaultTypes.options(types).any { it.first == "github-app" })
+        assertFalse(VaultTypes.options(null).any { it.first == "github-app" })
+        assertTrue("its own item is still drawn as one", VaultTypes.options(types, current = "github-app").any { it.first == "github-app" })
+        assertEquals("api.github.com", VaultTypes.of("github-app").site)
+        assertNull(VaultTypes.of("login").site)
+    }
+
+    @Test fun otherAndGitHubAppTakeASecretOfSeveralLines() {
+        assertEquals(VaultTypes.Fields(null, "Secret", multiline = true), VaultTypes.editorFields("other", types, isNew = true))
+        assertEquals(VaultTypes.Fields("App ID", "Private key (.pem)", multiline = true), VaultTypes.editorFields("github-app", types, isNew = true))
+        assertEquals(VaultTypes.Fields("App ID", "New private key (.pem) (empty keeps it)", multiline = true), VaultTypes.editorFields("github-app", types, isNew = false))
+        assertEquals(VaultTypes.Fields("App ID", "Private key (.pem)", multiline = true), VaultTypes.requestFields("github-app", types))
+        assertFalse(VaultTypes.editorFields("login", types, isNew = true).multiline)
+        assertFalse(VaultTypes.editorFields("api-token", types, isNew = true).multiline)
+        assertFalse("a server before the types: one line", VaultTypes.editorFields("other", null, isNew = true).multiline)
+        assertEquals(64 * 1024, VaultTypes.SECRET_FILE_MAX)
     }
 }

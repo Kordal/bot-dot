@@ -1,4 +1,4 @@
-# ADR-037: A bot tries three routes before it reports a failure
+# ADR-038: A bot tries three routes before it reports a failure
 
 - **Status:** Accepted (2026-10-20, the owner's decision: a number of attempts, 3, not a time limit).
 - **Owning task:** [#156](https://github.com/Kordal/bot-dot/issues/156) ("bots give up too early")

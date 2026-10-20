@@ -200,7 +200,7 @@ test('the built-in store: a login is found by an additional host, exactly, after
   const portal = store.add({ name: 'Portal', site: 'portal.example.com', username: 'bart', password: 'portal-secret', allowedBots: ['bot1'], allowedHosts: ['app.example.org'] });
   assert.equal(store.credentials('bot1', 'app.example.org').name, 'Portal');
   assert.equal(store.credentials('bot1', 'https://APP.example.org/login').name, 'Portal', 'an address is read as its host');
-  assert.deepEqual(store.reveal('bot1', 'app.example.org', 'username'), { site: 'portal.example.com', allowedHosts: ['app.example.org'], name: 'Portal', value: 'bart' });
+  assert.deepEqual(store.reveal('bot1', 'app.example.org', 'username'), { site: 'portal.example.com', allowedHosts: ['app.example.org'], name: 'Portal', type: 'login', value: 'bart' });
   assert.deepEqual(store.forBot('bot1'), [{ name: 'Portal', site: 'portal.example.com', username: 'bart', type: 'login', allowedHosts: ['app.example.org'] }]);
   assert.throws(() => store.credentials('bot1', 'sub.app.example.org'), /No saved login/, 'not a subdomain of an additional host');
   assert.throws(() => store.credentials('bot2', 'app.example.org'), /isn't allowed/, 'another bot is told it may not');
@@ -226,7 +226,7 @@ test('Bitwarden: a login is found by an additional host, exactly, and reveal and
   bw.setAccess('i-portal', { bots: ['bot1'], allowedHosts: ['app.example.org', 'api.example.net'] });
   assert.equal(bw.credentials('bot1', 'api.example.net').name, 'Portal');
   assert.deepEqual(bw.credentials('bot1', 'api.example.net').allowedHosts, ['app.example.org', 'api.example.net']);
-  assert.deepEqual(await bw.reveal('bot1', 'api.example.net', 'username'), { site: 'portal.example.com', allowedHosts: ['app.example.org', 'api.example.net'], name: 'Portal', value: 'bart' });
+  assert.deepEqual(await bw.reveal('bot1', 'api.example.net', 'username'), { site: 'portal.example.com', allowedHosts: ['app.example.org', 'api.example.net'], name: 'Portal', type: 'login', value: 'bart' });
   assert.throws(() => bw.credentials('bot1', 'sub.api.example.net'), /No saved login/, 'not a subdomain of an additional host');
   assert.equal(bw.credentials('bot1', 'app.example.org').name, 'Portal', "the bot's own login by the additional host, not the site's login it may not use");
   bw.setAccess('i-app', { bots: ['bot1'] });
