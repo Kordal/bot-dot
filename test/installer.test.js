@@ -518,16 +518,16 @@ test("a download that fails says Docker's own reason, as far as the admin page (
   assert.match(update.error, /no space left on device\.$/);
 });
 
-test("an update pins the bots' computer's new image but doesn't download it into an account that has one (#191)", (t) => {
+test("an update pins the bots' computer's new image but doesn't download it into an account whose computer is kept (#191)", (t) => {
   const first = rerun(t);
-  const has = `[ -n "\${DOCKER_HOST:-}" ] && [ "$1" = image ] && [ "$2" = ls ] && { echo ghcr.io/kordal/redis; echo ghcr.io/kordal/bot-dot-desktop; exit 0; }`;
+  const has = `[ -n "\${DOCKER_HOST:-}" ] && [ "$1" = ps ] && [ "$4" = label=botdot.computer=account ] && { echo 4f1c2a; exit 0; }`;
   const done = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: [has] });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   const own = done.accountCalls('ann').slice(first.accountCalls('ann').length);
   assert.ok(own.includes(`pull -q ghcr.io/kordal/bot-dot${SIGNED}`), 'the server is downloaded');
   assert.ok(!own.some((c) => c.startsWith('pull -q ghcr.io/kordal/bot-dot-desktop')), own.join('\n'));
   assert.equal(done.accountEnv('ann').BOT_DOT_COMPUTER_IMAGE, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`, 'and pinned for its next update or reset');
-  assert.match(done.said, /The bots' computer gets the new image when it is updated or reset/);
+  assert.match(done.said, /The bots' computer keeps its image; its Update or reset takes the newest/);
 });
 
 test('a computer image that could not be downloaded now is downloaded by botdot later', (t) => {
