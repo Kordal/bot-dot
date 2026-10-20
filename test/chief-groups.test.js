@@ -9,7 +9,7 @@ const path = require('path');
 const { startServer, makeBot, feed, waitFor } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 const { TOOLS } = require('../lib/mcp-server');
-const { GROUP_WRITES, MEMORY_WRITES, OWNERS_TURN_ONLY, readKind, groupChange, GROUP_SAY } = require('../lib/chief-tools');
+const { GROUP_WRITES, MEMORY_WRITES, VAULT_WRITES, OWNERS_TURN_ONLY, readKind, groupChange, GROUP_SAY } = require('../lib/chief-tools');
 
 let srv;
 const bot = {};
@@ -70,7 +70,7 @@ test('the Chief has three tools for groups, two of them the owner\'s turns alone
   const has = (name) => TOOLS.some((x) => x.name === name);
   for (const name of ['list_groups', ...GROUP_WRITES]) assert.ok(has(name), name);
   assert.deepEqual(GROUP_WRITES, ['create_group', 'update_group']);
-  assert.deepEqual(OWNERS_TURN_ONLY, [...MEMORY_WRITES, ...GROUP_WRITES]);
+  assert.deepEqual(OWNERS_TURN_ONLY, [...MEMORY_WRITES, ...GROUP_WRITES, ...VAULT_WRITES]);
   assert.ok(!OWNERS_TURN_ONLY.includes('list_groups'), 'reading the groups is for every turn');
   // No tool deletes a group, writes in one, stops one or lets one go on.
   assert.deepEqual(TOOLS.map((x) => x.name).filter((n) => /group/.test(n)).sort(), ['create_group', 'list_groups', 'update_group']);
