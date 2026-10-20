@@ -167,12 +167,13 @@ function openScreen(botId) {
 
 // Plain-language explanation for a failed or stopped run; the raw error stays in the details. The server
 // sends the same text as `problem` (lib/problems.js); this is for a run the page followed live.
-// endedBy: who ended the run (docs/api.md): the owner, the Chief, a sign-out or the time limit.
+// endedBy: who ended the run (docs/api.md): the owner, the Chief, a sign-out, a silence or the time limit.
 const ENDED_BY = {
   owner: 'You stopped this run before it finished.',
   chief: 'The Chief stopped this run before it finished.',
   signout: 'This run was stopped because Claude was signed out.',
-  limit: 'I stopped after 60 minutes: this took too long. Send it again, or break it into smaller pieces.',
+  idle: 'I stopped because nothing happened for 20 minutes: I seemed stuck. Send it again, or break it into smaller pieces.',
+  limit: 'I stopped after 4 hours: this took too long. Send it again, or break it into smaller pieces.',
 };
 function friendlyProblem(meta, resultText) {
   const text = `${resultText || ''} ${meta.error || ''}`;

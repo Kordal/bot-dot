@@ -15,7 +15,8 @@ const { whatCarriesOn } = require('../lib/asks');
 const OWNER = 'You stopped this run before it finished.';
 const CHIEF = 'The Chief stopped this run before it finished.';
 const SIGNOUT = 'This run was stopped because Claude was signed out.';
-const LIMIT = 'I stopped after 60 minutes: this took too long. Send it again, or break it into smaller pieces.';
+const IDLE = 'I stopped because nothing happened for 20 minutes: I seemed stuck. Send it again, or break it into smaller pieces.';
+const LIMIT = 'I stopped after 4 hours: this took too long. Send it again, or break it into smaller pieces.';
 const MAIL = { recipient_email: 'anna@example.com', subject: 'Running late', body: 'I will be late.' };
 
 let app; let srv; let f;
@@ -50,12 +51,13 @@ async function waitingForOk(t, bot) {
 }
 
 test('the sentences, word for word', () => {
-  assert.deepEqual(ENDED, { owner: OWNER, chief: CHIEF, signout: SIGNOUT, limit: LIMIT });
-  assert.deepEqual(REPLY_ENDED, { owner: 'You stopped this reply.', signout: 'This reply was stopped because Claude was signed out.', limit: LIMIT });
+  assert.deepEqual(ENDED, { owner: OWNER, chief: CHIEF, signout: SIGNOUT, idle: IDLE, limit: LIMIT });
+  assert.deepEqual(REPLY_ENDED, { owner: 'You stopped this reply.', signout: 'This reply was stopped because Claude was signed out.', idle: IDLE, limit: LIMIT });
   assert.equal(friendlyProblem({ status: 'stopped', endedBy: 'owner' }), OWNER);
   assert.equal(friendlyProblem({ status: 'stopped', endedBy: 'chief' }), CHIEF);
   assert.equal(friendlyProblem({ status: 'error', endedBy: 'signout', error: 'Claude is not logged in' }), SIGNOUT, 'not the sentence of a run that started signed out');
   assert.equal(friendlyProblem({ status: 'error', endedBy: 'limit', error: 'max turns' }), LIMIT);
+  assert.equal(friendlyProblem({ status: 'error', endedBy: 'idle', error: 'max turns' }), IDLE);
   // A run from before botdot kept who, and one that names somebody this botdot does not know.
   assert.equal(friendlyProblem({ status: 'stopped' }), OWNER);
   assert.equal(friendlyProblem({ status: 'stopped', endedBy: 'someone' }), OWNER);
