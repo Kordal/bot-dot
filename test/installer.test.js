@@ -547,9 +547,9 @@ test('an update stops before any download when an account\'s disk is short of ro
   assert.equal(step.status, 0, `${step.said}\n${step.stderr}`);
   const update = JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8'));
   assert.equal(update.state, 'failed');
-  assert.equal(update.error, 'The account ann needs 7.0 GB free for this update and has 1.1 GB. Give it a bigger disk share, or update or reset its computer so the old computer image can go, then update again. Nothing was downloaded or changed.');
+  assert.equal(update.error, 'The account ann needs 7.0 GB free for this update and has 1.1 GB. Give it a bigger disk share, or update or reset its computer so the old computer image can go, then update again. No account was changed.');
   const since = step.docker.slice(before);
-  assert.ok(since.some((c) => c.call.includes('/check/lib/image-layers.js ghcr.io/kordal/bot-dot@')), 'the registry is asked for the signed image\'s layers');
+  assert.ok(since.some((c) => /lib\/image-layers\.js ghcr\.io\/kordal\/bot-dot@/.test(c.call)), 'the registry is asked for the signed image\'s layers');
   assert.ok(since.some((c) => c.call.includes(`-v ${first.run}/ann/docker.sock:/var/run/docker.sock`) && c.call.includes('image-cleanup.js')), 'after the account\'s unused images went');
   assert.deepEqual(since.filter((c) => /^pull /.test(c.call)).map((c) => c.call), [], 'nothing is downloaded');
   assert.deepEqual(since.filter((c) => /^compose .* up/.test(c.call)).map((c) => c.call), [], 'nothing is restarted');
@@ -568,6 +568,7 @@ test('an update with room in every account goes on, and so does one whose regist
   // An older registry's answer: no layers, no check.
   const unknown = installer(t, { again: first, dotenv: '', args: ['--update'], given: { STAND_IN_DISK_FREE: '1' } });
   assert.equal(unknown.status, 0, `${unknown.said}\n${unknown.stderr}`);
+  assert.match(unknown.said, /Couldn't tell how much room the update needs in each account; it goes on without that check\./);
   assert.equal(downloads(unknown), 2);
 });
 
@@ -1018,7 +1019,7 @@ test('an update leaves a suspended account stopped, and erases one the admin del
 test("root's step has the installer and the release check it needs, and says the version installed", (t) => {
   const done = rerun(t);
   const lib = path.join(done.dir, 'bin', 'lib');
-  for (const f of ['signed-image.js', 'image-layers.js', 'registry.js', 'release-manifest.js', 'release-trust.js']) {
+  for (const f of ['signed-image.js', 'registry.js', 'release-manifest.js', 'release-trust.js']) {
     assert.equal(fs.readFileSync(path.join(lib, f), 'utf8'), fs.readFileSync(path.join(ROOT, 'lib', f), 'utf8'), f);
   }
   const status = path.join(done.dir, 'front-door', 'status');
