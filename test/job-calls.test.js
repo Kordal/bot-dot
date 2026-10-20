@@ -65,6 +65,8 @@ test('the right key runs the script now, with the body on its stdin', async () =
   assert.equal(run.trigger, 'call');
   assert.equal(run.jobId, job.id);
   assert.equal(run.result.trim(), 'got: {"camera":"garage"}');
+  // A script's log has `t` on every event too, as a run of Claude's (#204).
+  assert.deepEqual(run.events.map((e) => [e.type, Number.isInteger(e.t) && e.t >= 0]), [['run_start', true], ['script_output', true], ['run_end', true]]);
 });
 
 test('a call from anywhere, with or without a Tailscale login, is let in on the key alone', async () => {
