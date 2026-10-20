@@ -280,6 +280,17 @@ class Api(val baseUrl: String, val session: Session? = null) {
         put("allowedBots", strings(bots))
     }))
 
+    /**
+     * Adds a file to Bitwarden's bot-dot folder (`vault-files`, #157): its name and its bytes, sent once as base64. The
+     * answer has its file name and size, never its content.
+     */
+    suspend fun addFile(name: String, fileName: String, bytes: ByteArray, bots: List<String>): VaultItem = json.decodeFromString(send("POST", "/vault/files", buildJsonObject {
+        put("name", name)
+        put("fileName", fileName)
+        put("content", java.util.Base64.getEncoder().encodeToString(bytes))
+        put("allowedBots", strings(bots))
+    }))
+
     /** Connects Bitwarden with its API key (server: us, eu, or custom with its address). */
     suspend fun setUpBitwarden(server: String, serverUrl: String, clientId: String, clientSecret: String) {
         send("POST", "/vault/bitwarden/setup", buildJsonObject { put("server", server); put("serverUrl", serverUrl); put("clientId", clientId); put("clientSecret", clientSecret) })

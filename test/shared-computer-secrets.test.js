@@ -41,9 +41,9 @@ test('the Chief\'s Vault tool says it, so the Chief can tell the owner', () => {
   assert.match(read('chief-skills', 'skills', 'bot-designer', 'SKILL.md'), /every bot on the account's computer can read it/);
 });
 
-test('the bot\'s prompt says it, and that botdot never writes it to a file or a command line', () => {
+test('the bot\'s prompt says it, and that botdot puts no secret on a command line, and in a file only a saved file for its one command (ADR 039)', () => {
   const bots = read('lib', 'bots.js');
-  assert.match(bots, /What botdot types into your browser or hands to a command on this computer \([^)]*\) every other bot on the computer can read too, as they all have sudo\. botdot never writes it to a file or puts it on a command line/);
+  assert.match(bots, /What botdot types into your browser or hands to a command on this computer \([^)]*\) every other bot on the computer can read too, as they all have sudo\. botdot puts no secret on a command line, and in a file only a saved file, for its one command/);
 });
 
 test('the Vault\'s hint says it, on the web and in the Android app', () => {

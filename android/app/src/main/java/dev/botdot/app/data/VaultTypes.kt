@@ -88,9 +88,23 @@ object VaultTypes {
     const val SSH_KEY_ADD_FEATURE = "vault-ssh-key-add"
     fun addsSshKeys(features: Collection<String>?): Boolean = features != null && SSH_KEY_ADD_FEATURE in features
 
-    /** Above the bots of a card, an identity or an SSH key: what sharing it lets a bot do. */
+    /** A file of Bitwarden (kind `file`, #157): "File", then its file name, its size and that a bot never sees it. */
+    const val FILE = "file"
+    fun fileRows(i: VaultItem): List<String> =
+        listOf("File", "${i.fileName.orEmpty()} · ${fileSize(i.size ?: 0)} · 🔒 for one command on a bot's computer, never shown to it")
+    fun fileSize(bytes: Long): String = if (bytes < 1024) "$bytes B" else String.format(java.util.Locale.ROOT, "%.1f KB", bytes / 1024.0)
+
+    /** The owner adds a file from the app (`vault-files`, #157): only with a server that takes one, and at most 64 KB. */
+    const val FILES_FEATURE = "vault-files"
+    const val FILE_MAX_BYTES = 64 * 1024
+    fun addsFiles(features: Collection<String>?): Boolean = features != null && FILES_FEATURE in features
+    /** What sharing a file means: it is in the computer for one command, where every bot could read it meanwhile. */
+    const val FILE_SHARE_NOTE = "Bots that may use this file in a command on the account's computer. botdot puts it there for that one command and removes it afterwards, but every bot on that computer could read it meanwhile."
+
+    /** Above the bots of a card, an identity, an SSH key or a file: what sharing it lets a bot do. */
     fun itemBotsHint(kind: String): String = when (kind) {
         "card" -> "Bots that may pay with this card. You still approve every payment."
+        FILE -> FILE_SHARE_NOTE
         SSH_KEY -> "Bots that may use this key for SSH from the account's computer. botdot loads it into an ssh-agent there for one command: no file holds the key, but every bot on that computer could read it meanwhile."
         else -> "Bots that may type these details into forms."
     }

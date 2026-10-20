@@ -80,6 +80,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     var adding by remember { mutableStateOf(false) }
     var addingKey by remember { mutableStateOf(false) }
     var addedKey by remember { mutableStateOf<VaultItem?>(null) }
+    var addingFile by remember { mutableStateOf(false) }
     var master by remember { mutableStateOf("") }
 
     suspend fun load() {
@@ -137,6 +138,9 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
                 item {
                     OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) { Text("＋ Add", color = p.text) }
                 }
+                if (b.configured && b.unlocked && VaultTypes.addsFiles(features)) item {
+                    OutlinedButton(onClick = { addingFile = true }, modifier = Modifier.fillMaxWidth()) { Text("＋ File", color = p.text) }
+                }
                 if (b.configured && b.unlocked && VaultTypes.addsSshKeys(features)) item {
                     OutlinedButton(onClick = { addingKey = true }, modifier = Modifier.fillMaxWidth()) { Text("＋ SSH key", color = p.text) }
                 }
@@ -152,7 +156,77 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
         editing != null -> ItemBots(editing!!, allBots, api, done) { editing = null }
         addingKey -> SshKeyEditor(allBots, api, { key -> addingKey = false; addedKey = key; scope.launch { load() } }) { addingKey = false }
         addedKey != null -> SshPublicKey(addedKey!!) { addedKey = null }
+        addingFile -> FileEditor(allBots, api, { addingFile = false; tell("Saved"); scope.launch { load() } }) { addingFile = false }
     }
+}
+
+/**
+ * Adds a file (#157, docs/api.md `POST /api/vault/files`): a .pem the owner picks with the system's file picker, at most
+ * 64 KB, read here and sent once. Only its name and size are shown again.
+ */
+@Composable
+private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: () -> Unit, close: () -> Unit) {
+    val p = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
+    var picked by remember { mutableStateOf<Pair<String, ByteArray>?>(null) }
+    var chosen by remember { mutableStateOf(emptySet<String>()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val read = withContext(Dispatchers.IO) {
+                runCatching {
+                    val fileName = api?.describe(context.contentResolver, uri)?.first ?: "file"
+                    fileName to context.contentResolver.openInputStream(uri)?.use { readBytesAtMost(it, VaultTypes.FILE_MAX_BYTES + 1) }
+                }.getOrNull()
+            }
+            val bytes = read?.second
+            when {
+                read == null || bytes == null -> error = "Couldn't read that file."
+                bytes.size > VaultTypes.FILE_MAX_BYTES -> { picked = null; error = "That file is bigger than 64 KB, the most a file in the Vault can be." }
+                else -> { picked = read.first to bytes; error = null }
+            }
+        }
+    }
+    AlertDialog(onDismissRequest = { picked = null; close() }, title = { Text("📄 Add a file") }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(picked?.let { "${it.first} · ${VaultTypes.fileSize(it.second.size.toLong())}" } ?: "Pick the file", color = p.text) }
+            Hint(".pem, at most 64 KB. Saved in your Bitwarden's bot-dot folder: bots never see what is in it, and you can't see it here again.")
+            OutlinedTextField(name, { name = it.take(100) }, label = { Text("Name (optional)") }, placeholder = { Text("GitHub App key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text("Bots that may use it", color = p.text, style = MaterialTheme.typography.titleSmall)
+            Hint(VaultTypes.FILE_SHARE_NOTE)
+            bots.forEach { b -> CheckRow("${b.emoji} ${b.name}", null, b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id } }
+            error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
+        }
+    }, confirmButton = {
+        TextButton(enabled = !busy && picked != null, onClick = {
+            picked?.let { (fileName, bytes) ->
+                busy = true
+                scope.launch {
+                    runCatching { api!!.addFile(name.trim(), fileName, bytes, chosen.toList()) }
+                        .onSuccess { picked = null; added() }
+                        // Refused: the server's sentence, in the form, which stays open.
+                        .onError { error = it.message ?: "Couldn't save" }
+                    busy = false
+                }
+            }
+        }) { Text(if (busy) "Saving…" else "Add file", color = p.text) }
+    }, dismissButton = { TextButton(onClick = { picked = null; close() }) { Text("Cancel", color = p.text) } })
+}
+
+/** At most [limit] bytes of [input]: enough to tell a file that is too big. */
+private fun readBytesAtMost(input: java.io.InputStream, limit: Int): ByteArray {
+    val out = java.io.ByteArrayOutputStream()
+    val chunk = ByteArray(8192)
+    while (out.size() < limit) {
+        val n = input.read(chunk, 0, minOf(chunk.size, limit - out.size()))
+        if (n < 0) break
+        out.write(chunk, 0, n)
+    }
+    return out.toByteArray()
 }
 
 /**
@@ -276,6 +350,7 @@ private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>
             "card" -> listOf("${i.brand ?: "Card"} •••• ${i.last4.orEmpty()}${i.expiry?.let { " · expires $it" } ?: ""} · you approve each payment")
             "identity" -> listOf(listOfNotNull(i.holder, i.email).joinToString(" · "))
             VaultTypes.SSH_KEY -> VaultTypes.sshKeyRows(i)
+            VaultTypes.FILE -> VaultTypes.fileRows(i)
             else -> VaultTypes.rows(i, features) // its type before its address, then the line of that type
         }.forEach { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
         if (i.reprompt) Text("Asks for the master password again in Bitwarden, so bots can't use it.", color = p.faint, fontSize = 12.sp)
@@ -283,7 +358,7 @@ private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>
     }
 }
 
-private val KIND_ICON = mapOf("login" to "🔑", "card" to "💳", "identity" to "🪪", VaultTypes.SSH_KEY to "🗝️")
+private val KIND_ICON = mapOf("login" to "🔑", "card" to "💳", "identity" to "🪪", VaultTypes.SSH_KEY to "🗝️", VaultTypes.FILE to "📄")
 
 @Composable
 private fun BitwardenSetup(onConnect: (server: String, serverUrl: String, clientId: String, clientSecret: String) -> Unit) {

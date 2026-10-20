@@ -207,4 +207,15 @@ class VaultTypesTest {
         assertFalse("a server before the types: one line", VaultTypes.editorFields("other", null, isNew = true).multiline)
         assertEquals(64 * 1024, VaultTypes.SECRET_FILE_MAX)
     }
+
+    // Files (#157): added only with a server that takes them; listed by their name and size, never their content.
+    @Test fun aFileIsAddedOnlyWithAServerThatTakesOneAndListedByItsNameAndSize() {
+        assertTrue(VaultTypes.addsFiles(listOf("vault-ssh-key-add", "vault-files")))
+        assertFalse(VaultTypes.addsFiles(listOf("vault-ssh-key-add")))
+        assertFalse(VaultTypes.addsFiles(null))
+        val f = VaultItem(id = "f1", name = "GitHub App", kind = "file", type = "file", fileName = "app.pem", size = 1700)
+        assertEquals(listOf("File", "app.pem · 1.7 KB · 🔒 for one command on a bot's computer, never shown to it"), VaultTypes.fileRows(f))
+        assertEquals("512 B", VaultTypes.fileSize(512))
+        assertTrue(VaultTypes.itemBotsHint("file").contains("every bot on that computer could read it meanwhile"))
+    }
 }

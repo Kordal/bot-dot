@@ -42,6 +42,9 @@ function vaultItemLine(l) {
 }
 // An SSH key of Bitwarden (kind `ssh-key`, docs/api.md): its fingerprint, and that bots use it without seeing it.
 const vaultSshKeyLine = (l) => `${l.fingerprint ? `${esc(l.fingerprint)} · ` : ''}🔒 for SSH on a bot's computer, never shown to it`;
+// A file of Bitwarden (kind `file`, #157): its file name and size, and that bots use it without seeing it.
+const vaultFileSize = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
+const vaultFileLine = (l) => `${esc(l.fileName || '')} · ${vaultFileSize(Number(l.size) || 0)} · 🔒 for one command on a bot's computer, never shown to it`;
 
 // The Type control, and the fields that hold the secret of a type, in the editor and in the "needs a login"
 // dialog. username: what the username field starts with. isNew: a new item needs its secret; a saved one
@@ -106,8 +109,8 @@ async function renderVault() {
   root.innerHTML = `
     ${SUB_BACK}
     <div class="section-head">
-      <div><h1>Vault</h1><p>${bw.configured ? `Your Bitwarden's <b>bot-dot</b> folder: logins, cards, identities and SSH keys your bots can use without ever seeing them.` : 'Saved logins your bots can use without ever seeing the password.'}</p></div>
-      ${locked ? '' : `<div class="vault-add">${bw.unlocked ? '<button class="btn" id="add-ssh-key">＋ SSH key</button>' : ''}<button class="btn primary" id="add-login">＋ Add</button></div>`}
+      <div><h1>Vault</h1><p>${bw.configured ? `Your Bitwarden's <b>bot-dot</b> folder: logins, cards, identities, SSH keys and files your bots can use without ever seeing them.` : 'Saved logins your bots can use without ever seeing the password.'}</p></div>
+      ${locked ? '' : `<div class="vault-add">${bw.unlocked ? '<button class="btn" id="add-file">＋ File</button><button class="btn" id="add-ssh-key">＋ SSH key</button>' : ''}<button class="btn primary" id="add-login">＋ Add</button></div>`}
     </div>
     ${!bw.configured ? (bw.installed === false ? '<div class="req-note">To use Bitwarden, install its command-line tool first: <span class="mono">brew install bitwarden-cli</span>, then reload.</div>' : bitwardenSetupHTML()) : `
     <div class="card bw-bar">
@@ -122,11 +125,12 @@ async function renderVault() {
       const line = kind === 'card' ? `💳 ${esc(l.brand || 'Card')} •••• ${esc(l.last4)}${l.expiry ? ` · expires ${esc(l.expiry)}` : ''} · you approve each payment`
         : kind === 'identity' ? `🪪 ${esc(l.holder || '')}${l.email ? ` · ${esc(l.email)}` : ''}`
         : kind === 'ssh-key' ? vaultSshKeyLine(l)
+        : kind === 'file' ? vaultFileLine(l)
         : vaultItemLine(l);
       return `
       <article class="card vault-item">
         <div class="bot-head"><div class="avatar" style="--bot-color:#6c7cff">${KIND_ICON[kind] || '🔑'}</div>
-          <div style="flex:1;min-width:0"><div class="bot-name">${esc(l.name)}</div><div class="addr">${kind === 'login' ? vaultItemAddr(l) : kind === 'card' ? 'Payment card' : kind === 'ssh-key' ? 'SSH key' : 'Identity'}</div></div></div>
+          <div style="flex:1;min-width:0"><div class="bot-name">${esc(l.name)}</div><div class="addr">${kind === 'login' ? vaultItemAddr(l) : kind === 'card' ? 'Payment card' : kind === 'ssh-key' ? 'SSH key' : kind === 'file' ? 'File' : 'Identity'}</div></div></div>
         <div class="bot-meta">
           <div>${line}</div>
           ${l.reprompt ? '<div class="faint">Asks for the master password again in Bitwarden, so bots can\'t use it.</div>' : ''}
@@ -140,6 +144,8 @@ async function renderVault() {
   if (add) add.onclick = () => openLoginEditor();
   const addKey = $('#add-ssh-key');
   if (addKey) addKey.onclick = () => openSshKeyEditor();
+  const addFile = $('#add-file');
+  if (addFile) addFile.onclick = () => openFileEditor();
   $$('[data-edit-login]').forEach((b) => (b.onclick = () => {
     const l = logins.find((x) => x.id === b.dataset.editLogin);
     return (l.kind || 'login') === 'login' ? openLoginEditor(l) : openItemBots(l);
@@ -224,12 +230,15 @@ function openLoginEditor(login) {
 // ---------- Bitwarden ----------
 
 const bwUi = { prompted: false, snoozed: new Set() };
-const KIND_ICON = { login: '🔑', card: '💳', identity: '🪪', 'ssh-key': '🗝️' };
-// What sharing a card, an identity or an SSH key lets a bot do, above its bots.
+const KIND_ICON = { login: '🔑', card: '💳', identity: '🪪', 'ssh-key': '🗝️', file: '📄' };
+// What sharing a file means (#157): it is written in the computer for the length of one command.
+const FILE_SHARE_NOTE = "Bots that may use this file in a command on the account's computer. botdot puts it there for that one command and removes it afterwards, but every bot on that computer could read it meanwhile.";
+// What sharing a card, an identity, an SSH key or a file lets a bot do, above its bots.
 const ITEM_BOTS_HINT = {
   card: 'Bots that may pay with this card. You still approve every payment in a pop-up.',
   identity: 'Bots that may type these details into forms.',
   'ssh-key': "Bots that may use this key for SSH from the account's computer. botdot loads it into an ssh-agent there for one command: no file holds the key, but every bot on that computer could read it meanwhile.",
+  file: FILE_SHARE_NOTE,
 };
 
 function bitwardenSetupHTML() {
@@ -459,4 +468,54 @@ function openSshPublicKey(key, generated) {
     </div>
     <div class="modal-foot"><button type="button" class="btn" data-dismiss>Done</button><button type="button" class="btn primary" id="copy-public-key">Copy public key</button></div>`);
   $('#copy-public-key', m).onclick = async () => toast((await copyText(key.publicKey)) ? 'Copied' : "Couldn't copy");
+}
+
+// A file the owner adds (#157, docs/api.md `POST /api/vault/files`): a .pem picked here, at most 64 KB, read in the page
+// and sent once as base64. Only its name and size are shown again.
+const VAULT_FILE_MAX = 64 * 1024;
+function openFileEditor() {
+  const m = openModal(`
+    <form id="file-form" autocomplete="off">
+      <div class="modal-head"><h2>📄 Add a file</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-body">
+        <label class="field">File <span class="hint">.pem, at most 64 KB</span><input type="file" name="file" accept=".pem" required></label>
+        <label class="field">Name <span class="hint">optional, the file's name if empty</span><input type="text" name="name" placeholder="e.g. GitHub App key" maxlength="100"></label>
+        <div class="req-note">Saved in your Bitwarden's bot-dot folder. Bots never see what is in it, and you can't see it here again.</div>
+        <fieldset>
+          <legend>Bots that may use it</legend>
+          <p class="muted" style="margin:0 0 6px">${esc(FILE_SHARE_NOTE)}</p>
+          <div class="tool-toggles">${state.bots.map((b) => `<label><input type="checkbox" name="bot" value="${esc(b.id)}">${botLabel(b)}</label>`).join('')}</div>
+        </fieldset>
+        <div class="req-error" role="alert" hidden></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" data-dismiss>Cancel</button>
+        <button class="btn primary" type="submit">Add file</button>
+      </div>
+    </form>`);
+  const form = $('#file-form', m);
+  const refused = $('.req-error', form);
+  const refuse = (text) => { refused.textContent = text; refused.hidden = false; };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    refused.hidden = true;
+    const file = form.file.files[0];
+    if (!file) return refuse('Pick the file.');
+    if (file.size > VAULT_FILE_MAX) return refuse(`That file is ${Math.ceil(file.size / 1024)} KB. A file in the Vault can be at most 64 KB.`);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    const body = { name: form.name.value.trim(), fileName: file.name, content: btoa(binary), allowedBots: $$('input[name=bot]:checked', form).map((c) => c.value) };
+    await whileBusy($('button[type=submit]', form), 'Adding…', async () => { try {
+      await api('/vault/files', { method: 'POST', body });
+      form.file.value = '';
+      m.close();
+      toast('Saved');
+      renderVault();
+    } catch (err) {
+      // Refused: the server's sentence, in the form, which stays open.
+      refuse(err.message);
+    } });
+    body.content = null;
+  };
 }

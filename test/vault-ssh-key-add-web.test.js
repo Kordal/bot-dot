@@ -16,7 +16,7 @@ const editor = cut('function openSshKeyEditor()', 'function openSshPublicKey(');
 const shown = cut('function openSshPublicKey(', '\n}\n');
 
 test('web: the Vault offers "＋ SSH key" only while Bitwarden is unlocked', () => {
-  assert.match(list, /\$\{bw\.unlocked \? '<button class="btn" id="add-ssh-key">＋ SSH key<\/button>' : ''\}/);
+  assert.match(list, /\$\{bw\.unlocked \? '<button class="btn" id="add-file">＋ File<\/button><button class="btn" id="add-ssh-key">＋ SSH key<\/button>' : ''\}/);
   assert.match(list, /addKey\.onclick = \(\) => openSshKeyEditor\(\)/);
 });
 
