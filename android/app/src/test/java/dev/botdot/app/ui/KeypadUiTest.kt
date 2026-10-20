@@ -210,7 +210,7 @@ class KeypadUiTest {
                 ) { m -> Box(m) { Text("The Chief's chat") } }
             }
         }
-        rule.onNodeWithTag(FOLDED_BUSY).assertDoesNotExist()
+        rule.onNodeWithTag(FOLDED_BUSY, useUnmergedTree = true).assertDoesNotExist()
         rule.onNodeWithText("HOME").performClick()
         rule.onNodeWithText("Cook").assertDoesNotExist()
         rule.onNodeWithText("HOME").assertIsDisplayed() // its heading and its count stay
@@ -219,7 +219,7 @@ class KeypadUiTest {
         assertEquals("1 is the first key shown: Coder on Work", listOf("coder"), opened)
         rule.onNodeWithText("WORK").performClick()
         rule.onNodeWithText("Coder").assertDoesNotExist()
-        rule.onNodeWithTag(FOLDED_BUSY).assertIsDisplayed() // folded, Work says Coder is working
+        rule.onNodeWithTag(FOLDED_BUSY, useUnmergedTree = true).assertIsDisplayed() // folded, Work says Coder is working
         assertEquals(false, relay.handler!!(Keypad.Press("1"), false)) // no key is shown
         rule.onNodeWithText("HOME").performClick()
         rule.onNodeWithText("Cook").assertIsDisplayed()
