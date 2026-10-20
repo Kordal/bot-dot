@@ -8,7 +8,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc } = require('./web-page');
+const { app, read, cut, esc, noDrafts } = require('./web-page');
 
 const css = read('style.css');
 const MAIL = { id: 'mail', name: 'Mail Writer', color: '#9b59d0' };
@@ -56,7 +56,7 @@ function chat(runs) {
   const thread = { dataset: {}, scrollHeight: 0, scrollTop: 0, clientHeight: 0, line: null, draws: 0,
     insertAdjacentHTML(where, html) { this.draws++; this.line = { html, nextElementSibling: null, remove: () => { this.line = null; } }; button.dataset.stopRun = html.match(/data-stop-run="([^"]*)"/)?.[1]; },
     get lastElementChild() { return this.line; } };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...noDrafts,
     OpeningLine, Unread: lib.Unread, openingLines, state, CHIEF_COLOR: '#d85a30', botById: (id) => (id === MAIL.id ? MAIL : null),
     stopRun: (id) => stops.push(id), updateChatQueued() {}, chiefTurns: new Map(), // what waits: test/message-waits-web.test.js
     $: (sel, root) => (sel === '#view-bot' ? { dataset: { bot: MAIL.id } } : sel === '#bot-thread' ? thread : sel === '.status-line' ? root.line : sel === '[data-stop-run]' && root.line?.html.includes('data-stop-run') ? button : null),
@@ -119,7 +119,7 @@ test('web: only "ok" on the chat\'s own running run holds the line', () => {
 
 // The page's botThreadHTML over a bot's runs, oldest first, with stand-ins for what a bubble holds.
 function threadHTML(runs, newFirst = null) {
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...noDrafts,
     esc, Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '<script-run>', msgTime: () => '11:40', dur: () => '2 s',
     notesFoldHTML: (notes) => (notes?.length ? '<notes>' : ''), filesHTML: (f) => (f?.length ? '<files>' : ''), botFilesHTML: () => '', copyBtn: () => '',

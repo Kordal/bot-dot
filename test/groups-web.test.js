@@ -31,7 +31,9 @@ const reply = (id, bot, result, more = {}) => ({ type: 'reply', id, at: more.at 
 // botdot's answer to a request; an Error is a refusal.
 function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], reply: answer = async () => ({}) } = {}) {
   const state = { features, bots: plain(bots), groups: plain(groups), runs: [], chats: [], view: 'chief', groupId: groups[0]?.id || null, approvals: null, groupsKnown: true };
-  const said = { calls: [], toasts: [], refreshed: 0, contacts: 0, views: [], left: 0, unread: [], modals: [], confirms: [], needs: [], notes: [], opened: [], jumped: [] };
+  const said = { calls: [], toasts: [], refreshed: 0, contacts: 0, views: [], left: 0, unread: [], modals: [], confirms: [], needs: [], notes: [], opened: [], jumped: [], streams: [], frames: [] };
+  // The run streams the page opens (a turn's draft), and the frames it waits for.
+  class EventSource { constructor(url) { this.url = url; this.closed = false; said.streams.push(this); } close() { this.closed = true; } }
   const doc = {};
   const stores = {};
   const lib = vm.createContext({});
@@ -58,6 +60,7 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     $: (sel, root) => (root ? root.querySelector(sel) : doc[sel] ?? null), $$: (sel, root) => (root ? root.querySelectorAll(sel) : Array.isArray(doc[sel]) ? doc[sel] : []),
     document: { activeElement: null }, gaps: [], scrollToNew() {}, wireChoices() {}, markSearch() {}, setSendBusy() {}, openRun: (id) => said.opened.push(id),
     jumpTo: (row) => { state.jump = null; if (row) said.jumped.push(row.id); return !!row; },
+    EventSource, requestAnimationFrame: (fn) => said.frames.push(fn), draftSource: (t) => t,
   });
   said.modal = () => element();
   vm.runInContext(`${cut('const botById = ', 'const colorOf = ')}
@@ -77,11 +80,12 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     ${cut('function dropAt(e, spot) {', '// Put the pinned ones in order again')}
     ${cut('const chatParts = ', '// What the page knows about')}
     ${cut('// ---------- the sent message, there at once ----------', '// Stop a run.')}
+    ${cut('// ---------- the reply draft ----------', '// ---------- data ----------')}
     function pinBot(...a) { this.placed = ['pinBot', ...a.slice(1)]; }
     function moveBot(...a) { this.placed = ['moveBot', ...a.slice(1)]; }
     ${src}
     Object.assign(this, { hasGroups, canMakeGroup, ids: (c) => chatItems(c).map((x) => x.id), mentionCtx, escMentions, drawContacts, pinnedGroups, groupsIn, categoryNames, turnLines, GROUP_MAX, isGoOn,
-      drag: (id) => { dragId = id; }, chat: () => groupChat, open: (c) => { groupChat = c; } });`, ctx);
+      drag: (id) => { dragId = id; }, chat: () => groupChat, open: (c) => { groupChat = c; }, replyDrafts, followGroups, followGroupDrafts });`, ctx);
   // A chat that is read, as loadGroupChat leaves it.
   const chat = (items = [], more = {}) => { const c = { id: state.groupId, items: new Map(), more: false, working: [], asks: null, limit: null, loaded: false, want: 50, asked: 0 }; ctx.takeGroupPage(c, { items, more: false, working: [], asks: null, limit: null, ...more }); ctx.open(c); return c; };
   return { ctx, state, said, doc, chat, group: () => state.groups[0] };
@@ -1333,4 +1337,96 @@ test('web: in a group the owner\'s message arrives on Send, once, and the server
   q.ctx.renderGroupChat();
   assert.match(later.tail.innerHTML, /data-sent/);
   assert.equal(later.sent(), null);
+});
+
+// ---------- a member's reply as it is written (docs/api.md, "The reply draft") ----------
+
+// The open group's drafts box: its rows by their turn, each with its bubble, as drawGroupDrafts finds and puts them.
+function draftsBox() {
+  const rows = [];
+  const box = {
+    rows,
+    querySelectorAll: (sel) => (sel === '[data-draft]' ? [...rows] : []),
+    querySelector: (sel) => rows.find((r) => sel === `[data-draft="${r.dataset.draft}"]`) || null,
+    insertAdjacentHTML(where, html) {
+      assert.equal(where, 'beforeend');
+      const id = html.match(/data-draft="([^"]+)"/)[1];
+      const r = { html, dataset: { draft: id }, bubble: { innerHTML: html.match(/<div class="bubble from-bot draft">([\s\S]*?)<\/div><\/div><\/div>$/)?.[1] ?? '' } };
+      r.querySelector = (sel) => (sel === '.draft' ? r.bubble : null);
+      r.remove = () => rows.splice(rows.indexOf(r), 1);
+      rows.push(r);
+    },
+  };
+  return box;
+}
+function draftsView(p) {
+  const view = chatView(p);
+  const box = draftsBox();
+  view.thread.querySelector = (sel) => ({ '.g-items': view.items, '.g-tail': view.tail, '.g-drafts': box }[sel] || null);
+  const heard = {};
+  p.doc['#modal'] = { open: false };
+  p.ctx.followGroups({ addEventListener: (type, fn) => { (heard[type] ||= []).push(fn); } });
+  const feedSays = (type, d) => heard[type].forEach((fn) => fn({ data: JSON.stringify(d) }));
+  const frame = () => p.said.frames.splice(0).forEach((fn) => fn());
+  return { ...view, box, feedSays, frame };
+}
+const working = (runId, bot) => ({ botId: bot.id, runId, messageId: 'm1', startedAt: at(2) });
+
+test('web: from a server with drafts, an open group follows each turn at work and draws its draft under the member\'s name, in place', () => {
+  const p = page({ features: ['groups', 'unread', 'reply-draft'], reply: async () => new Promise(() => {}) });
+  const v = draftsView(p);
+  p.chat([message('m1', '@all anything to add?')], { working: [working('t1', CODER), working('t2', REVIEWER)] });
+  p.ctx.renderGroupChat();
+  assert.deepEqual(p.said.streams.map((s) => s.url), ['/api/runs/t1/stream?simple', '/api/runs/t2/stream?simple'], 'the turns\' run streams: the feed sends no draft');
+  const say = (i, ev) => p.said.streams[i].onmessage({ data: JSON.stringify(ev) });
+  say(0, { type: 'start', run: {} });
+  say(0, { type: 'reply_draft', text: 'The tests\nare green' });
+  assert.equal(v.box.rows.length, 0, 'not before the frame');
+  v.frame();
+  assert.equal(v.box.rows.length, 1);
+  const [row] = v.box.rows;
+  assert.match(row.html, /^<div class="bubble-row from-bot g-row" data-draft="t1">/);
+  assert.match(row.html, /<div class="g-name" style="--c:[^"]+">Coder<\/div><div class="bubble from-bot draft"><div class="md"><p>The tests\nare green<\/p><\/div><\/div>/);
+  say(0, { type: 'reply_draft', text: 'The tests\nare green, all 40' });
+  v.frame();
+  assert.deepEqual([v.box.rows.length, v.box.rows[0]], [1, row], 'the same row: it grows in place, never a second one');
+  assert.equal(row.bubble.innerHTML, '<div class="md"><p>The tests\nare green, all 40</p></div>');
+  // The reply comes: its turn ends, and the draft stands until the reply is among the replies.
+  v.feedSays('group_run_finished', { id: 't1', groupId: 'g1', botId: CODER.id, status: 'success', result: 'The tests are green, all 40.' });
+  v.frame();
+  assert.equal(p.said.streams[0].closed, true);
+  assert.equal(v.box.rows.length, 1, 'no blank between the draft and its reply');
+  p.ctx.takeGroupPage(p.ctx.chat(), { items: [message('m1', '@all anything to add?'), reply('t1', CODER, 'The tests are green, all 40.')], working: [working('t2', REVIEWER)] });
+  p.ctx.renderGroupChat();
+  v.frame();
+  assert.equal(v.box.rows.length, 0, 'the reply took its place');
+  assert.equal(p.ctx.replyDrafts.of('t1'), '');
+});
+
+test('web: a group turn that passes leaves no bubble and nothing in the room, and a group that is left closes its streams', () => {
+  const p = page({ features: ['groups', 'unread', 'reply-draft'], reply: async () => new Promise(() => {}) });
+  const v = draftsView(p);
+  p.chat([message('m1', '@all anything to add?')], { working: [working('t1', CODER), working('t2', REVIEWER)] });
+  p.ctx.renderGroupChat();
+  // The server sends no draft of a pass; one that was drawn before it ended goes with the pass all the same.
+  p.ctx.replyDrafts.say('t1', 'A long line that was not the pass after all, or so it looked\nfor a while');
+  v.feedSays('group_run_finished', { id: 't1', groupId: 'g1', botId: CODER.id, status: 'success', passed: true, result: '' });
+  v.frame();
+  assert.deepEqual([v.box.rows.length, p.ctx.replyDrafts.of('t1'), p.said.streams[0].closed], [0, '', true]);
+  assert.doesNotMatch(v.items.innerHTML, /data-reply="t1"/, 'nothing new in the room');
+  // Another chat opens (show): every stream of the group closes, and its drafts go.
+  p.ctx.replyDrafts.say('t2', 'Reviewing\nthe change');
+  p.state.view = 'bot';
+  p.ctx.followGroupDrafts(null);
+  assert.equal(p.said.streams.every((s) => s.closed), true);
+  assert.equal(p.ctx.replyDrafts.of('t2'), '');
+  assert.match(app, /if \(v !== 'group'\) followGroupDrafts\(null\);/, 'show() does so for any view but a group');
+});
+
+test('web: against a server without reply-draft a group follows no run stream', () => {
+  const p = page();
+  draftsView(p);
+  p.chat([message('m1', 'Hello')], { working: [working('t1', CODER)] });
+  p.ctx.renderGroupChat();
+  assert.deepEqual(p.said.streams, []);
 });

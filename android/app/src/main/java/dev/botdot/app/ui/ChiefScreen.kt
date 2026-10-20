@@ -253,7 +253,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                         val approval = remember { messageKey() } // one key for the plan's Approve while it is shown
                         // What the owner steered into this reply while the Chief worked (ADR 040), before it, in the order read.
                         if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
-                        Message(m, if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays,
+                        Message(m, if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
                             onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
                             onDismiss = { vm.dismiss() },
                             thumbs = if (Ratings.shows(m, features, index)) ({ Thumbs(Ratings.value(m.rating)) { vm.rate(index, it) } }) else null)
@@ -269,14 +269,16 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
 }
 
 @Composable
-private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<CharSequence, (() -> Unit)?>>, lineSaysIt: Boolean, onBuild: () -> Unit, onDismiss: () -> Unit, thumbs: (@Composable () -> Unit)? = null) {
+private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<CharSequence, (() -> Unit)?>>, lineSaysIt: Boolean, draft: String = "", onBuild: () -> Unit, onDismiss: () -> Unit, thumbs: (@Composable () -> Unit)? = null) {
     val p = LocalPaper.current
     when {
         m.role == "user" -> MyBubble(m.text, m.attachments)
         m.role == "suggestion" -> Suggestion(m, onBuild, onDismiss)
         m.role == "report" -> Report(m)
         // A reply still being written: the working line under the chat says it ([lineSaysIt]), and only what it
-        // did so far stands here. Against a botdot from before `message-waits`, its bubble as it was.
+        // did so far stands here, with its draft from a server that sends one (ReplyDraft), growing in the reply's
+        // place. Against a botdot from before `message-waits`, its bubble as it was.
+        m.pending && draft.isNotEmpty() -> TheirBubble(chips = chips) { MarkdownText(draftSource(draft)) }
         m.pending -> if (lineSaysIt) { if (chips.isNotEmpty()) ActionChips(chips) } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Working(activity.lastOrNull()?.let { "$it…" } ?: "Thinking…", activity)
             if (chips.isNotEmpty()) ActionChips(chips)

@@ -388,6 +388,23 @@ function md(src) {
   return mdHTML(mdBlocks(src));
 }
 
+// A reply draft (docs/api.md, "The reply draft") as it can be drawn while it still grows, by the rules both apps
+// share (the `stream` cases of test/fixtures/markdown-cases.json; draftSource in Android's Markdown.kt): a code
+// block that is not closed yet is drawn as code, a `mermaid` one is plain code even once closed (its fence loses the
+// word: a diagram is drawn only once the reply is whole, ADR 041), a table row that is still being written waits, and
+// so does the line of a fence that is still being opened. An unclosed ** or [ needs nothing: md draws it as the text it is.
+function draftSource(src) {
+  const lines = String(src ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const fences = lines.filter((l) => /^\s*```/.test(l)).length;
+  const last = lines.at(-1);
+  if (fences % 2) {
+    // In a code block: a fence that is still being opened (```mer) or closed (``) waits; the rest is code.
+    if (/^\s*`+\w*$/.test(last)) lines.pop();
+    if (lines.filter((l) => /^\s*```/.test(l)).length % 2) lines.push('```');
+  } else if (/^\s*(\||`{1,2}$)/.test(last)) lines.pop(); // a row of a table is drawn once its line has ended
+  return lines.map((l) => l.replace(/^(\s*```)mermaid$/, '$1')).join('\n');
+}
+
 // A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth), quote (text),
 // rule, code (text, lang: the word after its fence) and table (rows). Android's parseBlocks returns the same for the same text.
 function mdBlocks(src) {
@@ -561,6 +578,53 @@ new MutationObserver((changes) => {
 Diagrams.watch(document.getElementById('app'));
 Diagrams.watch(document.getElementById('modal'));
 
+// ---------- the reply draft ----------
+
+// A reply as it is written (docs/api.md, "The reply draft"; ADR 042): from a server whose `features` name
+// `reply-draft`, a run's stream and a Chief chat's stream send the whole draft so far, and the page draws it in the
+// row of the reply that is being written, the bubble its reply will have, in place. Its end takes it away: the
+// reply is drawn as it always was. There is no animation: the text is drawn again, at most once a frame.
+const showsDrafts = () => state.features.includes('reply-draft');
+// The draft's bubble, or '' for none. alone: in a stack of its own, as a reply's bubble stands, for a row that has none.
+const draftMd = (text) => `<div class="md">${md(draftSource(text))}</div>`;
+const draftHTML = (text, alone = false) => {
+  const bubble = text ? `<div class="bubble from-bot draft">${draftMd(text)}</div>` : '';
+  return bubble && alone ? `<div class="stack draft-stack">${bubble}</div>` : bubble;
+};
+// The drafts the page holds, by their reply (a run's id, or chief:<chat>): kept so that a chat drawn again keeps
+// its draft, and drawn at the next frame into the row where() finds, [row, thread]: in the row's .stack when it
+// has one. The thread stays at its end when the owner is near it, and is not moved otherwise.
+const replyDrafts = (() => {
+  const texts = new Map();
+  const where = new Map(); // what waits for the next frame
+  const draw = (key) => {
+    const [row, thread] = where.get(key)?.() || [];
+    where.delete(key);
+    if (!row?.isConnected) return;
+    const near = !thread || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 200;
+    const text = texts.get(key);
+    const own = $('.draft-stack', row); // the stack put in for it, in a row that had none
+    const box = own || $('.stack', row);
+    const old = box && $('.draft', box);
+    if (old && text) old.innerHTML = draftMd(text);
+    else if (old) (own || old).remove();
+    else if (text) (box || row).insertAdjacentHTML('afterbegin', draftHTML(text, !box));
+    if (near && thread) thread.scrollTop = thread.scrollHeight;
+  };
+  return {
+    of: (key) => texts.get(key) || '',
+    // Keep `text` as the draft of `key` ('' for none), and draw it where at() says at the next frame. Without `at`
+    // it is only kept: whose chat draws it itself (a group's, drawGroupDrafts).
+    say(key, text, at) {
+      if (typeof text === 'string' && text) texts.set(key, text); else texts.delete(key);
+      if (!at) return;
+      if (!where.has(key)) requestAnimationFrame(() => draw(key));
+      where.set(key, at);
+    },
+    end(key) { texts.delete(key); where.delete(key); },
+  };
+})();
+
 // ---------- data ----------
 
 async function refresh() {
@@ -667,6 +731,7 @@ function writeHash() {
 }
 function show({ view: v, panel, via }, fresh = false) {
   if (v !== 'bot' && state.botStream) { state.botStream.close(); state.botStream = null; }
+  if (v !== 'group') followGroupDrafts(null); // a group that is left follows no turn's draft (groups.js)
   const changed = state.view !== v;
   const was = panelPage();
   state.view = v;

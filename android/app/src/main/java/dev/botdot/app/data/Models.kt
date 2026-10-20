@@ -574,6 +574,8 @@ sealed interface RunEvent {
     data object File : RunEvent
     /** Its line: its opening line, what it said it is about to do; or ([working]) its working line, what the line reads now. */
     data class Line(val text: String, val working: Boolean = false) : RunEvent
+    /** Its reply as it is written so far, the whole draft ("" when a tool call took it away): see [ReplyDraft]. */
+    data class Draft(val text: String) : RunEvent
 
     companion object {
         /** One event of the stream as the server sent it; null for one this app does not draw. */
@@ -584,6 +586,7 @@ sealed interface RunEvent {
             "file" -> File
             "opening_line" -> Line(o.str("text"))
             "working_line" -> Line(o.str("text"), working = true)
+            "reply_draft" -> Draft(o.str("text"))
             else -> null
         }
     }

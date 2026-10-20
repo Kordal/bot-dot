@@ -114,6 +114,10 @@ _Avoid_: status message, progress message, narration
 The one short line a bot or the Chief of Staff may write before work that uses tools, saying what it is about to do ("Checking the weather in Brussels"). It is the working line's first text: the apps show it under the chat and as the bot's preview in the list until the botdot server has later words for the run. It is never a new reply and never part of the chat.
 _Avoid_: status message, progress message, narration
 
+**Reply draft**:
+A bot's, the Chief of Staff's or a group member's reply as it is being written, shown in the place of that reply and growing there while the run works, in the chat that is open. Only the reply: never the opening line, text before a tool call, its answer buttons or a pass. The reply takes its place when the run ends. It is never a new reply and is kept nowhere.
+_Avoid_: streaming message, typing indicator, partial reply
+
 **Look**:
 A Chief of Staff turn the botdot server starts by itself, a few times a day outside quiet hours, in which the Chief only reads (what it knows about the user, and the web) and decides whether there is one thing worth telling them. It ends with one unasked message or with nothing, and nothing leaves no trace.
 _Avoid_: heartbeat, check-in, proactive turn

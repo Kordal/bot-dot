@@ -201,6 +201,25 @@ private val TABLE_RULE = Regex("""^[|:\-\s]+$""")
 private val RULES = setOf("---", "***", "___")
 
 /**
+ * A reply draft (docs/api.md, "The reply draft") as it can be drawn while it still grows, by the rules the web page
+ * shares (the `stream` cases of test/fixtures/markdown-cases.json; draftSource in public/app.js): a code block that is
+ * not closed yet is drawn as code, a `mermaid` one is plain code even once closed (its fence loses the word: no
+ * "Open on web" under a draft, ADR 041), a table row that is still being written waits, and so does the line of a
+ * fence that is still being opened. An unclosed ** or [ needs nothing: it is drawn as the text it is.
+ */
+internal fun draftSource(src: String): String {
+    val lines = src.replace("\r\n", "\n").replace('\r', '\n').split("\n").toMutableList()
+    val fence = Regex("^\\s*```")
+    val last = lines.last()
+    if (lines.count { fence.containsMatchIn(it) } % 2 == 1) {
+        // In a code block: a fence that is still being opened (```mer) or closed (``) waits; the rest is code.
+        if (Regex("^\\s*`+\\w*$").matches(last)) lines.removeAt(lines.lastIndex)
+        if (lines.count { fence.containsMatchIn(it) } % 2 == 1) lines += "```"
+    } else if (Regex("^\\s*(\\||`{1,2}$)").containsMatchIn(last)) lines.removeAt(lines.lastIndex) // a row of a table is drawn once its line has ended
+    return lines.joinToString("\n") { it.replace(Regex("^(\\s*```)mermaid$"), "$1") }
+}
+
+/**
  * A reply as a flat list of blocks, by the rules the web page shares (test/fixtures/markdown-cases.json; mdBlocks in
  * public/app.js): an item's depth is how many open items start left of its marker, a numbered list counts up from
  * its first number, a text line under an item belongs to it, and a short line that is only bold is a title.

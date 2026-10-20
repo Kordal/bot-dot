@@ -16,6 +16,9 @@ function cut(from, to) {
   return app.slice(a, b);
 }
 
+// The page's reply drafts (app.js, "the reply draft") for code that draws none: no draft, and none kept.
+const noDrafts = { draftHTML: () => '', replyDrafts: { of: () => '', say() {}, end() {} }, showsDrafts: () => false };
+
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // An element: its classes, its listeners, and whatever the page sets on it. parts: what querySelector finds in it.
@@ -92,4 +95,4 @@ function thread() {
 // The page's own whileBusy (app.js), for the code that answers a press with it.
 const whileBusy = require('vm').runInNewContext(`${cut('// A button whose answer waits on the server', 'function toast(')}; whileBusy`);
 
-module.exports = { app, read, cut, esc, element, finders, answer, thread, whileBusy };
+module.exports = { noDrafts, app, read, cut, esc, element, finders, answer, thread, whileBusy };

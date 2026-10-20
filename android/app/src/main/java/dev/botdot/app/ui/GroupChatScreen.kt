@@ -59,16 +59,21 @@ import dev.botdot.app.data.Groups
 import dev.botdot.app.data.MEMORY_CHIPS
 import dev.botdot.app.data.Mentions
 import dev.botdot.app.data.OpeningLine
+import dev.botdot.app.data.ReplyDraft
 import dev.botdot.app.data.Run
+import dev.botdot.app.data.RunEvent
 import dev.botdot.app.data.Unread
 import dev.botdot.app.data.announces
 import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.hasGroupAll
+import dev.botdot.app.data.isTrue
 import dev.botdot.app.data.str
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -113,7 +118,34 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
     private var taken = 0
     private var loadingOlder = false
 
-    private fun publish() { rows = held.rows() }
+    private fun publish() { rows = held.rows(); publishDrafts() }
+
+    /** The replies of the turns at work as they are written, each with its turn (ReplyDraft): under the replies. */
+    var drafts by mutableStateOf<List<Pair<GroupWorking, String>>>(emptyList())
+        private set
+    private val heldDrafts = ReplyDraft.Group()
+    private fun publishDrafts() { drafts = heldDrafts.shown(rows.filterIsInstance<GroupItem.Reply>().mapTo(HashSet()) { it.id }) }
+
+    /**
+     * While the chat is on screen (the screen calls it, and leaving it ends it): from a server with drafts, the run
+     * stream of each turn at work is followed for its draft. The feed sends no draft. A turn that ended keeps its
+     * draft until its reply is among the rows; a pass takes it away (group_run_finished), and so does leaving.
+     */
+    suspend fun followDrafts() = coroutineScope {
+        val streams = HashMap<String, Job>()
+        try {
+            snapshotFlow { working.toList() }.collect { now ->
+                val at = if (ReplyDraft.shows(app.store.version.value.value?.features)) now.associateBy { it.runId } else emptyMap()
+                streams.keys.filter { it !in at }.forEach { streams.remove(it)?.cancel() }
+                for ((id, w) in at) if (id !in streams) streams[id] = launch {
+                    runCatching { app.api.value?.runStream(id)?.collect { ev -> if (ev is RunEvent.Draft) { heldDrafts.say(w, ev.text); publishDrafts() } } }
+                }
+            }
+        } finally {
+            heldDrafts.clear()
+            publishDrafts()
+        }
+    }
 
     /** The reply the "New" line is drawn above: the server's first new reply when the chat came on screen. Kept until the chat is left. */
     var newFirst by mutableStateOf<String?>(null)
@@ -161,7 +193,11 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
                         if (run.isNotEmpty() && d.str("botId").isNotEmpty() && working.none { it.runId == run }) working = working + GroupWorking(d.str("botId"), run, d.str("groupMessageId").ifEmpty { null }, d.str("startedAt").ifEmpty { null })
                         kicks.tryEmit(Unit)
                     }
-                    ev.type == "group_run_finished" -> { working = working.filterNot { it.runId == d.str("id") }; kicks.tryEmit(Unit) }
+                    ev.type == "group_run_finished" -> {
+                        working = working.filterNot { it.runId == d.str("id") }
+                        if (isTrue(d["passed"])) { heldDrafts.passed(d.str("id")); publishDrafts() } // a pass leaves nothing, not even its draft
+                        kicks.tryEmit(Unit)
+                    }
                     ev.type == "group_asks" -> asks = GroupAsks.of(d["asks"])
                     ev.type == "group_limit" -> { limit = GroupLimit.of(d["limit"]); kicks.tryEmit(Unit) }
                 }
@@ -308,6 +344,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
         snapshotFlow { listState.layoutInfo.let { (it.visibleItemsInfo.lastOrNull()?.index ?: 0) >= it.totalItemsCount - 4 } }
             .collect { near -> if (near) vm.loadOlder() }
     }
+    LaunchedEffect(vm, ReplyDraft.shows(features)) { vm.followDrafts() } // its turns' drafts, while the chat is on screen; again once the features are known
     DisposableEffect(groupId) {
         app.notifier.visibleChat = chatKey
         onDispose { if (app.notifier.visibleChat == chatKey) app.notifier.visibleChat = null }
@@ -371,6 +408,8 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                 // messages that wait, and what the group waits for the owner's OK on.
                 item(key = "tail") {
                     Column {
+                        // The replies being written, under the member's name, each in the bubble its reply will have.
+                        vm.drafts.forEach { (w, text) -> androidx.compose.runtime.key(w.runId) { GroupDraft(text, bots.firstOrNull { it.id == w.botId }, memberName(bots, w.botId), memberColor(bots, w.botId)) } }
                         vm.limit?.let { StoppedLine(it.text) { vm.goOn() } }
                         // The owner's message on its way: above one line "Working…" while no member works, which the
                         // members' own lines replace; under what waits already while some do.
@@ -414,6 +453,20 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                     }
                 }
             }
+        }
+    }
+}
+
+/** A member's reply as it is written (ReplyDraft): its head and name, as [GroupReply] has them, and its draft in a bubble. */
+@Composable
+private fun GroupDraft(text: String, bot: Bot?, name: String, color: String?) {
+    val p = LocalPaper.current
+    Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.Top) {
+        Box(Modifier.padding(top = 18.dp)) { BotFigure(color, "working", 28, bot?.outfit) }
+        Spacer(Modifier.size(6.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(name, color = parseColor(color, p.muted), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+            TheirBubble { MarkdownText(draftSource(text)) }
         }
     }
 }

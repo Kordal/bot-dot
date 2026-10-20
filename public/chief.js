@@ -411,7 +411,7 @@ const chiefQueued = new Map();
 function chiefBubble(m, last = false, index = null) {
   const files = !m.pending && Array.isArray(m.files) && m.files.length ? botFilesHTML(m.files) : '';
   const body = m.pending
-    ? ''
+    ? '' // its draft, from a server that has drafts, is drawn in its place as it grows (followChief)
     : m.error && !m.text
       ? `<div class="md">${md(m.error)}</div>${files}`
       : m.text
@@ -420,7 +420,7 @@ function chiefBubble(m, last = false, index = null) {
   return `
     <div class="bubble-row from-bot"${m.pending ? ' data-pending' : ''}>
       <div class="stack">
-        ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}">${body}</div>` : ''}
+        ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}">${body}</div>` : m.pending ? draftHTML(replyDrafts.of(`chief:${state.chatId}`)) : ''}
         <div class="actions">${(m.actions || []).map(actionChip).join('')}</div>
         ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
         ${last && !m.pending ? choicesHTML(m.choices) + questionsHTML(m.questions) : ''}
@@ -632,6 +632,9 @@ function followChief(id) {
       if (chiefTurns.get(id) !== chiefActivity(ev)) { chiefTurns.set(id, chiefActivity(ev)); placeStatusLines(); }
     } else if (ev.type === 'opening_line') {
       if (openingLines.say(`chief:${id}`, ev.text)) placeStatusLines();
+    } else if (ev.type === 'reply_draft') {
+      // The reply as it is written, in the row of the reply (the last one: the chat may have been drawn again).
+      if (showsDrafts()) replyDrafts.say(`chief:${id}`, String(ev.text ?? ''), () => [$$('[data-pending]', thread).pop(), thread]);
     } else if (ev.type === 'action') {
       row?.querySelector('.actions')?.insertAdjacentHTML('beforeend', actionChip(ev.action));
       wireActions(row);
@@ -651,6 +654,7 @@ function followChief(id) {
       openingLines.end(`chief:${id}`);
       chiefTurns.delete(id);
       placeStatusLines(); // the reply is here, or it couldn't finish: the line goes
+      replyDrafts.end(`chief:${id}`); // and its draft: the reply takes its place
       // A bot's reply that came in meanwhile, or the next turn that began (see followFeed): show the whole chat again.
       if (state.chatReload) { state.chatReload = false; return showChat(id); }
       if (ev.message) {

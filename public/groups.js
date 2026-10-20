@@ -517,7 +517,7 @@ function renderGroupChat() {
           <div class="grow"><h2 id="group-name"></h2><div class="sub" id="group-sub"></div></div>
         </button>
       </div>
-      <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-tail"></div></div>
+      <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-drafts"></div><div class="g-tail"></div></div>
       ${composerHTML(`Message ${g.name}…`)}`;
     wireComposer($('form', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
     $('#group-settings').onclick = () => setPanel('toggle');
@@ -571,9 +571,67 @@ function renderGroupChat() {
   }
   // A reply that is new in the open chat arrives (replies.js, "a reply arrives"): its whole row, once.
   for (const id of repliesArrive(arrivals.group, thread, key, groupReplyIds(chat))) arrive($(`[data-reply="${CSS.escape(id)}"]`, items));
+  followGroupDrafts(chat);
   drawGroupTail(g, chat);
   updateChatNeeds(thread, key);
   setSendBusy(form, false);
+}
+
+// ---------- a member's reply as it is written ----------
+
+// From a server with drafts (docs/api.md, "The reply draft"; ADR 042), the open group follows the run stream of each
+// turn at work: the feed sends no draft. Each draft stands under the member's name in a pending bubble, under the
+// replies, and grows in place. A turn that ended leaves its draft until its reply stands among the replies (no row
+// jumps or goes blank meanwhile); a pass leaves nothing (group_run_finished). A group that is left closes them all.
+const draftStreams = new Map(); // a turn's id -> its stream
+let draftFrame = false;
+function followGroupDrafts(chat) {
+  const open = showsDrafts() && state.view === 'group' && chat?.id === state.groupId;
+  const at = new Set(open ? chat.working.map((w) => w.runId).filter((id) => typeof id === 'string') : []);
+  for (const [runId, es] of draftStreams) if (!at.has(runId)) { es.close(); draftStreams.delete(runId); if (!open) replyDrafts.end(runId); }
+  for (const runId of at) {
+    if (draftStreams.has(runId)) continue;
+    const es = new EventSource(`/api/runs/${encodeURIComponent(runId)}/stream?simple`);
+    draftStreams.set(runId, es);
+    es.onmessage = (msg) => {
+      let ev = null;
+      try { ev = JSON.parse(msg.data); } catch { /* not ours */ }
+      if (ev?.type === 'reply_draft') { replyDrafts.say(runId, String(ev.text ?? '')); drawGroupDraftsSoon(); }
+      if (ev?.type === 'end') es.close();
+    };
+    es.onerror = () => es.close(); // its end, or the connection lost: the feed and the chat say the rest
+  }
+  drawGroupDraftsSoon();
+}
+const drawGroupDraftsSoon = () => { if (!draftFrame) { draftFrame = true; requestAnimationFrame(() => { draftFrame = false; drawGroupDrafts(); }); } };
+// The draft of a turn: the member's head and name, and the bubble its reply will have.
+function groupDraftHTML(runId, botId) {
+  const color = memberColor(botId);
+  const bot = botById(botId);
+  return `<div class="bubble-row from-bot g-row" data-draft="${esc(runId)}">
+    ${botFigure(color, 'working', 'g-head', bot?.outfit || null, bot?.id || '')}
+    <div class="stack"><div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(botId))}</div>${draftHTML(replyDrafts.of(runId))}</div></div>`;
+}
+// The drafts of the open group, under its replies: those of the turns at work, and of a turn that ended until its
+// reply is there. A draft whose reply came, or whose turn passed, is over.
+function drawGroupDrafts() {
+  const thread = $('#group-thread');
+  const box = thread && $('.g-drafts', thread);
+  const chat = groupChat;
+  if (!box || !chat || chat.id !== state.groupId) return;
+  const near = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 200;
+  const botOf = new Map(chat.working.map((w) => [w.runId, w.botId]));
+  for (const runId of [...draftStreams.keys(), ...$$('[data-draft]', box).map((el) => el.dataset.draft)]) if (chat.items.has(runId)) replyDrafts.end(runId);
+  for (const el of $$('[data-draft]', box)) if (!replyDrafts.of(el.dataset.draft)) el.remove();
+  for (const [runId, botId] of botOf) {
+    const text = replyDrafts.of(runId);
+    if (!text) continue;
+    const row = $(`[data-draft="${CSS.escape(runId)}"]`, box);
+    const bubble = row && $('.draft', row);
+    if (bubble) bubble.innerHTML = draftMd(text);
+    else box.insertAdjacentHTML('beforeend', groupDraftHTML(runId, botId));
+  }
+  if (near) thread.scrollTop = thread.scrollHeight;
 }
 // The end of the chat, drawn again only when it changed: a working line that changes moves nothing else.
 function drawGroupTail(g, chat) {
@@ -715,6 +773,7 @@ function followGroups(es) {
   // A turn ended: its line goes, and its reply is the group's newest, unless it passed. A pass shows nothing.
   on('group_run_finished', (d) => {
     turnLines.delete(d.id);
+    if (d.passed) replyDrafts.end(d.id); // a pass leaves nothing, not even its draft
     const g = groupById(d.groupId);
     if (!g) return;
     g.working = (g.working || []).filter((id) => id !== d.botId);
