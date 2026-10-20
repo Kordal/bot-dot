@@ -96,7 +96,8 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   gets only the installation tokens botdot makes from it, which expire within the hour (ADR 037).
 - **The Chief makes an SSH key but never reads it.** When the owner asks in its chat, the Chief has
   botdot make a new ed25519 key in the Vault and share it with the bots the owner names (#181), and it
-  can share a key with more bots, take bots off it and rename it (#182). botdot generates the key and
+  can share a key with more bots, take bots off it and rename it (#182). It can ask to remove an entry,
+  which only the owner's Allow on a card moves to Bitwarden's Trash (#183). botdot generates the key and
   hands it to Bitwarden on stdin; the Chief gets back its name, public key, fingerprint and bots, never
   the private key, and it cannot send a key of its own or change any other item of the Vault. It does
   this only in a turn the owner started, and after it read the web in that chat only on the owner's OK
