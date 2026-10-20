@@ -530,6 +530,47 @@ test("an update pins the bots' computer's new image but doesn't download it into
   assert.match(done.said, /The bots' computer keeps its image; its Update or reset takes the newest/);
 });
 
+// The room an update needs in each account (#192): the new server image's layers, as the registry lists them, that the
+// account's Docker lacks. Two layers of 2 GB and 0.5 GB to download; the account has the second already.
+const NEW_LAYER = `sha256:${'d'.repeat(64)}`, KEPT_LAYER = `sha256:${'e'.repeat(64)}`;
+const roomAnswers = (layers = `${NEW_LAYER} 2000000000\\n${KEPT_LAYER} 500000000\\n`) => [
+  `case "$*" in *image-layers.js*) printf '${layers}'; exit 0 ;; esac`,
+  `[ -n "\${DOCKER_HOST:-}" ] && case "$*" in 'image ls -q --no-trunc') echo sha256:${'1'.repeat(64)}; exit 0 ;; *RootFS.Layers*) echo ${KEPT_LAYER}; exit 0 ;; esac`,
+];
+
+test('an update stops before any download when an account\'s disk is short of room, and the admin page says it (#192)', (t) => {
+  const { first } = withBob(t);
+  const before = fs.readFileSync(path.join(first.top, 'docker.log'), 'utf8').split('\n').filter(Boolean).length;
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');
+  // 1 GB free; the update needs 2 GB downloaded and unpacked (6 GB) and 1 GB to go on working.
+  const step = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], dockerFirst: roomAnswers(), given: { STAND_IN_DISK_FREE: '1048576' } });
+  assert.equal(step.status, 0, `${step.said}\n${step.stderr}`);
+  const update = JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8'));
+  assert.equal(update.state, 'failed');
+  assert.equal(update.error, 'The account ann needs 7.0 GB free for this update and has 1.1 GB. Give it a bigger disk share, or update or reset its computer so the old computer image can go, then update again. Nothing was downloaded or changed.');
+  const since = step.docker.slice(before);
+  assert.ok(since.some((c) => c.call.includes('/check/lib/image-layers.js ghcr.io/kordal/bot-dot@')), 'the registry is asked for the signed image\'s layers');
+  assert.ok(since.some((c) => c.call.includes(`-v ${first.run}/ann/docker.sock:/var/run/docker.sock`) && c.call.includes('image-cleanup.js')), 'after the account\'s unused images went');
+  assert.deepEqual(since.filter((c) => /^pull /.test(c.call)).map((c) => c.call), [], 'nothing is downloaded');
+  assert.deepEqual(since.filter((c) => /^compose .* up/.test(c.call)).map((c) => c.call), [], 'nothing is restarted');
+});
+
+test('an update with room in every account goes on, and so does one whose registry gives no sizes (#192)', (t) => {
+  const first = rerun(t);
+  // Downloaded into the machine's Docker and the account's.
+  const downloads = (done) => [...new Set(done.docker.slice(first.docker.length).filter((c) => /^pull -q ghcr\.io\/kordal\/bot-dot@/.test(c.call)).map((c) => c.host))].length;
+  const roomy = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers() });
+  assert.equal(roomy.status, 0, `${roomy.said}\n${roomy.stderr}`);
+  assert.equal(downloads(roomy), 2);
+  // Short of room, but nothing to download: the account has every layer.
+  const has = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`${KEPT_LAYER} 500000000\\n`), given: { STAND_IN_DISK_FREE: '1' } });
+  assert.equal(has.status, 0, `${has.said}\n${has.stderr}`);
+  // An older registry's answer: no layers, no check.
+  const unknown = installer(t, { again: first, dotenv: '', args: ['--update'], given: { STAND_IN_DISK_FREE: '1' } });
+  assert.equal(unknown.status, 0, `${unknown.said}\n${unknown.stderr}`);
+  assert.equal(downloads(unknown), 2);
+});
+
 test('a computer image that could not be downloaded now is downloaded by botdot later', (t) => {
   const { said, accountEnv } = rerun(t, '', {}, { failPull: `ghcr.io/kordal/bot-dot-desktop${SIGNED}` });
   assert.match(said, /Couldn't download the bots' computer now; botdot tries again when a bot needs it\./);
@@ -977,7 +1018,7 @@ test('an update leaves a suspended account stopped, and erases one the admin del
 test("root's step has the installer and the release check it needs, and says the version installed", (t) => {
   const done = rerun(t);
   const lib = path.join(done.dir, 'bin', 'lib');
-  for (const f of ['signed-image.js', 'registry.js', 'release-manifest.js', 'release-trust.js']) {
+  for (const f of ['signed-image.js', 'image-layers.js', 'registry.js', 'release-manifest.js', 'release-trust.js']) {
     assert.equal(fs.readFileSync(path.join(lib, f), 'utf8'), fs.readFileSync(path.join(ROOT, 'lib', f), 'utf8'), f);
   }
   const status = path.join(done.dir, 'front-door', 'status');
