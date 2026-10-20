@@ -1,6 +1,6 @@
 # ADR-036: The admin page's update runs the installer of the version it installs
 
-- **Status:** Accepted (2026-10-19, the owner's decision). Supersedes the line of 2026-10-16 in [DECISIONS.md](../DECISIONS.md) that root's copy of the installer is changed only by the admin running the installer from the source again ([#473](https://github.com/Kordal/bot-dot/issues/473)).
+- **Status:** Accepted (2026-10-19, the owner's decision); its "A failed update is still not rolled back" superseded by [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md). Supersedes the line of 2026-10-16 in [DECISIONS.md](../DECISIONS.md) that root's copy of the installer is changed only by the admin running the installer from the source again ([#473](https://github.com/Kordal/bot-dot/issues/473)).
 - **Owning task:** the owner's request of 19 October 2026 ("How to fix it structurally. So it'll never happen again.")
 
 ## Context
@@ -24,4 +24,5 @@ The same day a manual run and the admin page's update ran at once. The older one
 
 - Root runs an installer that came in a signed image, not only one the admin ran from the source. The trust is the image's signature: the release key root's copy holds checks the image before anything is read out of it. A release can rotate the key, because the release check it carries replaces root's.
 - A self-built image (`make images`) carries the installer of the source it was built from, and an update hands over to it the same way.
-- A failed update is still not rolled back. An installer that waits for another says so; root's step waits silently.
+- A failed update is still not rolled back. Superseded by [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md): an account whose new server doesn't start runs its old version again, and the others carry on.
+- An installer that waits for another says so; root's step waits silently.

@@ -215,15 +215,24 @@ const readStatus = (name) => {
 };
 const short = (v) => (typeof v === 'string' && /^[0-9a-f]{7,12}$/.test(v) ? v : null);
 const when = (v) => (typeof v === 'string' && !Number.isNaN(Date.parse(v)) ? new Date(v).toISOString() : null);
-// What the admin page shows: { version, selfBuilt, asked, update: { state, at, from, to, error? } | null }. Only what
-// root's step wrote, checked field by field: the version is a short revision, a state one of three, an error a line.
+// What the admin page shows: { version, selfBuilt, asked, update: { state, at, from, to, error?, accounts? } | null }.
+// Only what root's step wrote, checked field by field: the version is a short revision, a state one of three, an error
+// a line, and each account's result (#194) a name, updated, kept (with the version it runs) or failed, and a line why
+// when it wasn't updated.
+const line = (v, max) => (typeof v === 'string' ? v.replace(/[^\x20-\x7e]/g, ' ').slice(0, max) : null);
+const accountResults = (list) => (Array.isArray(list) ? list : [])
+  .filter((a) => a && typeof a.name === 'string' && store.ACCOUNT_NAME.test(a.name) && ['updated', 'kept', 'failed'].includes(a.result))
+  .slice(0, 1000)
+  .map((a) => (a.result === 'updated' ? { name: a.name, result: a.result }
+    : { name: a.name, result: a.result, ...(a.result === 'kept' && short(a.version) ? { version: a.version } : {}), error: line(a.error, 300) }));
 function updateStatus() {
   const installed = readStatus('version.json') || {};
   const last = readStatus('update.json');
   let update = null;
   if (last && ['updating', 'updated', 'failed'].includes(last.state)) {
     update = { state: last.state, at: when(last.at), from: short(last.from), to: short(last.to) };
-    if (last.state === 'failed') update.error = typeof last.error === 'string' ? last.error.replace(/[^\x20-\x7e]/g, ' ').slice(0, 500) : null;
+    if (last.state === 'failed') update.error = line(last.error, 500);
+    if (last.state !== 'updating' && Array.isArray(last.accounts)) update.accounts = accountResults(last.accounts);
     if (last.state === 'updating' && (!update.at || Date.now() - Date.parse(update.at) > UPDATE_STALE_MS)) {
       update = { ...update, state: 'failed', error: "The update didn't finish. Update again." };
     }

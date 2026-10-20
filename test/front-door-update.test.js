@@ -83,6 +83,33 @@ test('the version and the last update are what root\'s step wrote, field by fiel
   assert.equal((await b.get('/admin/update')).data.update, null);
 });
 
+test('each account\'s result is what root\'s step wrote, an account kept back with its reason (#194)', async () => {
+  const b = await admin();
+  said('update.json', { state: 'failed', at: '2026-10-20T10:05:00Z', from: '0123456', to: 'abc1234', error: 'Not every account was updated: bob.', accounts: [
+    { name: 'ann', result: 'updated', error: 'not shown' },
+    { name: 'bob', result: 'kept', version: '0123456', error: 'Its new botdot server didn\'t start.\u001b[31m' },
+    { name: 'cy', version: '<b>',  result: 'failed', error: 42 },
+    { name: '../root', result: 'kept', error: 'not an account' },
+    { name: 'dan', result: 'gone' },
+  ] });
+  const u = (await b.get('/admin/update')).data;
+  assert.deepEqual(u.update.accounts, [
+    { name: 'ann', result: 'updated' },
+    { name: 'bob', result: 'kept', version: '0123456', error: 'Its new botdot server didn\'t start. [31m' },
+    { name: 'cy', result: 'failed', error: null },
+  ]);
+  said('update.json', { state: 'updating', at: new Date().toISOString(), from: 'abc1234', accounts: [{ name: 'bob', result: 'kept' }] });
+  assert.equal((await b.get('/admin/update')).data.update.accounts, undefined, 'none while it runs');
+  fs.rmSync(path.join(status, 'update.json'));
+});
+
+test('the admin page names the accounts an update kept back (#194)', async () => {
+  const b = await admin();
+  const script = (await b.get('/front-door/admin.js')).text;
+  assert.match(script, / was kept on /);
+  assert.match(script, /doesn't run: /);
+});
+
 test('an update root\'s step never ended (the machine restarted) shows as stopped, not as going on forever', async () => {
   const b = await admin();
   said('update.json', { state: 'updating', at: new Date().toISOString(), from: 'abc1234' });

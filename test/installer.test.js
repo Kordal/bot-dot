@@ -140,7 +140,8 @@ grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new"
   stand('timedatectl', 'exit 1');
   stand('uname', '[ "$1" = -m ] && echo x86_64 || echo Linux');
   // curl: the front door answers on 127.0.0.1, Caddy on the domain (unless `caddy` is false).
-  stand('curl', `${said('curl')}\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\nexit 0`);
+  // An account's botdot server answers on its socket while the socket is there (a stopped one's is removed below).
+  stand('curl', `${said('curl')}\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\ncase "$*" in *--unix-socket*) for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ]; exit $? ;; esac\nexit 0`);
   for (const name of ['dockerd-rootless.sh', 'newuidmap', 'slirp4netns']) stand(name, 'exit 0');
   stand('runsc', 'echo "runsc version release-20261005.0"');
   for (const [name, body] of Object.entries({ tailscale: tailscale(), ...bins })) {
@@ -1077,6 +1078,61 @@ test("an update that fails says so to the admin page, with the installer's reaso
   const update = JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8'));
   assert.equal(update.state, 'failed');
   assert.match(update.error, /Couldn't download ghcr\.io\/kordal\/bot-dot\./);
+});
+
+// An update through root's step, as the admin page asks for it, whose account Docker of bob answers with `bobFirst`
+// first: what the run said, update.json and bob's home.
+function updateWithBob(t, bobFirst) {
+  const { first, home } = withBob(t);
+  const sock = `${first.run}/bob/docker.sock`;
+  fs.appendFileSync(path.join(home, 'compose.yaml'), '# the version before\n');
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');
+  const before = fs.readFileSync(path.join(first.top, 'docker.log'), 'utf8').split('\n').filter(Boolean).length;
+  const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], dockerFirst: [`if [ "\${DOCKER_HOST:-}" = "unix://${sock}" ]; then ${bobFirst}; fi`] });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  const update = JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8'));
+  const calls = (name) => done.docker.slice(before).filter((c) => c.host === `unix://${first.run}/${name}/docker.sock`).map((c) => c.call);
+  return { home, update, calls, log: fs.readFileSync(path.join(first.dir, 'update.log'), 'utf8') };
+}
+
+test("an account whose new server doesn't start runs its old version again, and the others are updated (#194)", (t) => {
+  // bob's first `compose up` of the update starts a server that never answers: its socket goes, as a crashed one's
+  // would not be made again. The second (its old version again) starts as before.
+  const ups = '"$BOT_DOT_DIR/bob-ups"';
+  const { home, update, log, calls } = updateWithBob(t, `[ "$1" = compose ] && [ "$4" = up ] && [ ! -e ${ups} ] && { touch ${ups}; rm -f "$(sed -n 's/^BOT_DOT_FRONT_DOOR_FOLDER=//p' "$3/.env")/botdot.sock"; exit 0; }`);
+  assert.equal(update.state, 'failed', log);
+  assert.match(update.error, /Not every account was updated: bob\. The others run the new version\./);
+  assert.deepEqual(update.accounts, [
+    { name: 'ann', result: 'updated' },
+    { name: 'bob', result: 'kept', error: "Its new botdot server didn't start, so it runs the version it ran before." },
+  ]);
+  assert.match(log, /The account bob's new botdot server didn't start, so it goes back to the version it ran/);
+  assert.equal(calls('bob').filter((c) => /^compose .* up -d/.test(c)).length, 2, 'started again on its old compose file');
+  assert.match(fs.readFileSync(path.join(home, 'compose.yaml'), 'utf8'), /# the version before/, 'its compose file is the one it ran');
+  assert.ok(!fs.existsSync(path.join(home, 'compose.yaml.before')) && !fs.existsSync(path.join(home, '.env.before')), 'what it ran before is put back, not left beside it');
+  assert.ok(!calls('bob').some((c) => /update-install\.js --clean/.test(c)), "its old images stay: they aren't cleaned after a rollback");
+  assert.ok(calls('ann').some((c) => /update-install\.js --clean/.test(c)), "the updated account's are");
+});
+
+test("an account whose download fails keeps its version, and the update goes on with the others (#194)", (t) => {
+  const { update, log, home, calls } = updateWithBob(t, `[ "$1" = pull ] && case "$3" in *bot-dot@*) echo 'write /var/lib/docker/x: no space left on device' >&2; exit 1 ;; esac`);
+  assert.equal(update.state, 'failed', log);
+  assert.ok(update.accounts, `${JSON.stringify(update)}\n${log}`);
+  assert.equal(update.accounts.find((a) => a.name === 'ann').result, 'updated');
+  assert.ok(!calls('bob').some((c) => /^compose .* up -d/.test(c)), 'it is not restarted');
+  const bob = update.accounts.find((a) => a.name === 'bob');
+  assert.equal(bob.result, 'kept');
+  assert.match(bob.error, /Couldn't download \S+ for the account bob: write \S+: no space left on device\./);
+  assert.match(log, /The account bob wasn't updated, and runs the version it ran/);
+  assert.match(fs.readFileSync(path.join(home, 'compose.yaml'), 'utf8'), /# the version before/, 'nothing of it was switched');
+});
+
+test("an account whose old version doesn't start again either is said to run no version (#194)", (t) => {
+  const { update } = updateWithBob(t, `[ "$1" = compose ] && [ "$4" = up ] && { rm -f "$(sed -n 's/^BOT_DOT_FRONT_DOOR_FOLDER=//p' "$3/.env")/botdot.sock"; exit 0; }`);
+  assert.equal(update.state, 'failed');
+  const bob = update.accounts.find((a) => a.name === 'bob');
+  assert.equal(bob.result, 'failed');
+  assert.match(bob.error, /neither the new version nor the one it ran/);
 });
 
 test("the admin's update goes on in the installer of the version it installs, from that version's image", (t) => {
