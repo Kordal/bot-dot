@@ -7,8 +7,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { startServer, makeBot, waitFor } = require('./helpers');
 
-// The secret of the Bitwarden item `name`, as the stand-in CLI keeps it.
-const bwSecret = (srv, name) => JSON.parse(fs.readFileSync(path.join(srv.data, 'bitwarden-cli', 'items.json'), 'utf8')).find((x) => x.name === name)?.login?.password;
+// The secret of the Bitwarden item `name`, as the stand-in CLI keeps it. Read while that CLI writes the file, it may
+// be cut short: then undefined, and waitFor reads it again.
+const bwSecret = (srv, name) => {
+  let items;
+  try { items = JSON.parse(fs.readFileSync(path.join(srv.data, 'bitwarden-cli', 'items.json'), 'utf8')); } catch { return undefined; }
+  return items.find((x) => x.name === name)?.login?.password;
+};
 
 const FAKE_BW = path.join(__dirname, 'fixtures', 'fake-bw.js');
 const CLIENT_ID = 'user.00000000-0000-0000-0000-000000000000';
