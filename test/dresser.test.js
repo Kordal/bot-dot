@@ -256,6 +256,7 @@ test('server: bots from before outfits are dressed after the start, a new one af
       }
     })();
     assert.deepEqual([hello.running, hello.chiefBusy, hello.asks, hello.loginRequests, hello.approvals.jobs, hello.plans], [[], false, [], [], [], []]);
+    assert.ok(srv.runs().length && srv.runs().every((r) => r.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC === '1'), 'Claude Code sends no non-essential traffic (#205)');
     const quietNow = srv.runs().length;
     await sleep(600);
     assert.equal(srv.runs().length, quietNow, 'with every bot dressed, Claude is asked nothing more');
