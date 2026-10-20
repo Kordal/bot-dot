@@ -659,6 +659,8 @@ data class Ask(
     // and the server's line for it (`text`). Kept as they came, like the fields above.
     @SerialName("written") val writtenValue: JsonElement? = null,
     @SerialName("text") val textValue: JsonElement? = null,
+    // The Chief's own action in a connected app (docs/api.md, "An action in a connected app"): `chief: true`.
+    @SerialName("chief") val chiefValue: JsonElement? = null,
     // The group it was asked in (docs/api.md, "A card and a question in a group"), kept as it came. Read it through [group].
     @SerialName("groupId") val groupIdValue: JsonElement? = null,
     @SerialName("groupName") val groupNameValue: JsonElement? = null,
@@ -680,6 +682,8 @@ data class Ask(
 
     /** A changed bot that the Chief asked for (`by: "chief"`): its card stands in the Chief's chat too. */
     val byChief: Boolean get() = byValue.textOrNull() == "chief"
+    /** The Chief's own action in a connected app, not a bot's (ADR 047). */
+    val chiefsAction: Boolean get() = isTrue(chiefValue)
 
     /**
      * What a bot change changes, one entry per field, or none: the card then shows `details`. All of them or none:

@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** OK-001
+- **Changed by:** [ADR 047](047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md): a late yes on the Chief's card in a connected app starts a Chief turn that holds a one-use grant
 
 ## Context
 

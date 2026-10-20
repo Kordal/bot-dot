@@ -205,6 +205,8 @@ class ChangeCardTest {
     @Test fun alwaysAllowAsksInTheWebPagesWords() {
         // The same question as the web page's (public/needs.js): one sentence, read from the page so the two stay alike.
         val page = File(System.getProperty("webPage") ?: "../../public/needs.js").readText()
-        assertTrue(ALWAYS_ALLOW_QUESTION, page.contains("confirm('$ALWAYS_ALLOW_QUESTION')"))
+        assertTrue(ALWAYS_ALLOW_QUESTION, page.contains("'$ALWAYS_ALLOW_QUESTION')"))
+        // The Chief's own question, with its name where the web page puts it.
+        assertTrue(page.contains("`" + alwaysAllowChief("\${CHIEF_BOT.name}") + "`"))
     }
 }

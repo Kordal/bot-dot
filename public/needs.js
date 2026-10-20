@@ -21,7 +21,8 @@ function needsList(bw) {
     ...pendingJobs().map(({ bot, job }) => ({ key: `job:${job.id}${changeKey(job)}`, kind: 'job', bot, job, color: bot.color, then: job.then || fedJobThen(bot.id, job.id) })),
     ...(state.memPending || []).map((p) => ({ key: `mem:${p.id}`, kind: 'memory', p, bot: p.bot, color: colorOf(p.bot) })),
     // A permission or a skill a bot (or the Chief) asked for, and a tool the Chief asks to install for a bot.
-    ...(state.asks || []).map((a) => ({ key: `ask:${a.id}`, kind: 'ask', a, bot: a.bot || (a.kind === 'skill' ? CHIEF_BOT : null), color: a.bot ? colorOf(a.bot) : CHIEF_COLOR, then: a.then })),
+    // The Chief's own action in a connected app (`chief`, ADR 047) is the Chief's card, as a skill it asks for is.
+    ...(state.asks || []).map((a) => ({ key: `ask:${a.id}`, kind: 'ask', a, bot: a.bot || (a.kind === 'skill' || a.chief ? CHIEF_BOT : null), color: a.bot ? colorOf(a.bot) : CHIEF_COLOR, then: a.then })),
     // A tile on the Board with a script: it runs on this computer, so it waits for you.
     ...(state.dash?.pending || []).map((t) => { const b = botById(t.bot); return { key: `tile:${t.id}:${tileScripts(t).join('').length}${changeKey(t)}`, kind: 'tile', t, bot: b || null, color: b ? b.color : CHIEF_COLOR, then: t.then }; }),
     // A bot's plan for the Chief: nothing happens until you approve it (here or in its chat).
@@ -333,7 +334,7 @@ function partsHTML(parts) {
 // Whether the run of a connected-app action still waits for the owner's answer, as the line under the card's
 // title: `held`, or since when it does not (`stoppedAt`). '' for an ask that says neither.
 function heldLine(a) {
-  const name = said(a.bot?.name) || 'The bot';
+  const name = said(a.bot?.name) || (a.chief ? CHIEF_BOT.name : 'The bot');
   if (a.held === true) return `${name} waits for your answer`;
   if (a.held === false && typeof a.stoppedAt === 'string' && Number.isFinite(Date.parse(a.stoppedAt))) return `${name} stopped waiting at ${msgTime(a.stoppedAt)}`;
   return '';
@@ -377,7 +378,7 @@ function wireNeedCards(root, items) {
     // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a yes that turns on a call or
     // a notify address says "Creating connection…" with a spinner.
     if (yes) yes.onclick = () => whileApproving(yes, x.job, () => decide(x, true));
-    if (always) always.onclick = () => { if (x.a?.kind === 'connector-action') { if (confirm('Allow this exact connector action for this bot in future runs, with any arguments?')) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
+    if (always) always.onclick = () => { if (x.a?.kind === 'connector-action') { if (confirm(x.a.chief ? `Allow this exact connector action for ${CHIEF_BOT.name} from now on, with any arguments?` : 'Allow this exact connector action for this bot in future runs, with any arguments?')) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => { if (!asksBeforeNo(x) || confirm('Remove this job?')) whileBusy(no, 'Declining…', () => decide(x, false)); };
     if (op) op.onclick = () => openNeed(x);
     el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
@@ -396,7 +397,7 @@ const chatDecided = new Map(); // chat and key -> { scope, title, label }: decid
 const answeredAway = new Map(); // chat and key -> { scope, title, label }
 const fromChief = (x) => (x.kind === 'job' ? (changeOf(x.job) ? changeOf(x.job).by : x.job.changedBy) === 'chief'
   : x.kind === 'tile' ? (changeOf(x.t) ? changeOf(x.t).by : x.t.changedBy) !== 'bot'
-  : x.kind === 'ask' ? (['skill', 'vault-remove'].includes(x.a.kind) && !x.a.botId) || x.a.kind === 'chief-action'
+  : x.kind === 'ask' ? (['skill', 'vault-remove'].includes(x.a.kind) && !x.a.botId) || x.a.kind === 'chief-action' || x.a.chief === true
   : x.kind === 'login' || x.kind === 'pay' ? x.r.from === 'chief' : false);
 const inBothChats = (x) => x.kind === 'ask' && (ToolCard.is(x.a) || (x.a.kind === 'bot-change' && x.a.by === 'chief'));
 function chatNeeds(scope) {

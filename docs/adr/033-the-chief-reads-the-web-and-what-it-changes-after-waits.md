@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** the owner's request of 18 October 2026 ("Chief of Staff powinien mieć dostęp do internetu i wyszukiwarki")
+- **Changed by:** [ADR 047](047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md): a connected app's answer counts as the web, and the connector routes are guarded by their own grants
 
 ## Context
 

@@ -358,3 +358,16 @@ test('web: an address or a long word wraps inside the card, at phone and desktop
   // Closed, a card of rows shows its first three, whole; a click opens the rest (the tool card's rule).
   assert.match(css, /\.need-card:not\(\.open\) \.need-facts > :nth-child\(n\+7\) \{ display: none; \}/);
 });
+
+test("web: the Chief's own action in a connected app (ADR 047) is the Chief's card, in Needs you and in the Chief's chat", () => {
+  const CHIEF = { id: 'c1', kind: 'connector-action', botId: null, bot: null, chief: true, chatId: 'chat-1', title: 'Send email with Gmail?', rows: ROWS, held: true, details: DETAILS, text: 'Wants to send email with Gmail', yesOn: 'card', at: '2026-10-20T11:42:00.000Z' };
+  const p = page({ state: { asks: [CHIEF] } });
+  const html = p.needCardHTML(p.item('ask:c1'));
+  assert.equal(titleOf(html), 'Send email with Gmail?');
+  assert.match(html, /<div class="need-who">[\s\S]*Chief of Staff<\/div>/, 'it names the Chief');
+  assert.equal(metaOf(html), 'Chief of Staff waits for your answer');
+  assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow this action', 'Allow once']);
+  assert.deepEqual(plain(p.chatNeeds('chief').map((x) => x.key)), ['ask:c1'], "in the Chief's chat");
+  assert.deepEqual(plain(p.chatNeeds('mail')), [], "in no bot's chat");
+  assert.match(app, /Allow this exact connector action for \$\{CHIEF_BOT\.name\} from now on, with any arguments\?/);
+});

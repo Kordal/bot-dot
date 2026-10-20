@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** OK-003
+- **Changed by:** [ADR 047](047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md): the Chief's turn is a second kind of caller, with grants of its own; its card goes when the owner writes in that chat
 
 ## Context
 

@@ -481,6 +481,9 @@ internal const val RUNS_AS_APPROVED = "Runs as you approved it until you answer.
 /** The question before "Always allow this action" answers, in the web page's words (public/app.js). */
 internal const val ALWAYS_ALLOW_QUESTION = "Allow this exact connector action for this bot in future runs, with any arguments?"
 
+/** The same question on the Chief's own card (ADR 047), with the Chief's name, as the web page asks it. */
+internal fun alwaysAllowChief(name: String) = "Allow this exact connector action for $name from now on, with any arguments?"
+
 /**
  * What "Approve all" does with what waits: it approves [jobs] and [memory], which a card shows in words, and leaves
  * every job and tile that runs a script for its own card. A guarded memory change (one to what the owner said, and
@@ -1093,7 +1096,7 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         var asking by remember(a.id) { mutableStateOf(false) }
         if (asking) AlertDialog(
             onDismissRequest = { asking = false },
-            text = { Text(ALWAYS_ALLOW_QUESTION) },
+            text = { Text(if (a.chiefsAction) alwaysAllowChief(who?.name ?: "the Chief") else ALWAYS_ALLOW_QUESTION) },
             confirmButton = { TextButton(onClick = { asking = false; answer(a.title, true, "Always allowed", true) }) { Text("Always allow", color = LocalPaper.current.text) } },
             dismissButton = { TextButton(onClick = { asking = false }) { Text("Cancel", color = LocalPaper.current.text) } },
         )
