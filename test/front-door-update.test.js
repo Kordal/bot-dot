@@ -151,6 +151,86 @@ test('an update root\'s step never ended (the machine restarted) shows as stoppe
   fs.rmSync(path.join(status, 'update.json'));
 });
 
+test('the phase root\'s step is in, its account and a failed update\'s log are passed on field by field (#195)', async () => {
+  const b = await admin();
+  const now = new Date().toISOString();
+  said('update.json', { state: 'updating', at: now, from: 'abc1234', phase: 'download', account: 'kordal', log: ['not yet'] });
+  let u = (await b.get('/admin/update')).data;
+  assert.deepEqual(u.update, { state: 'updating', at: new Date(now).toISOString(), from: 'abc1234', to: null, phase: 'download', account: 'kordal' }, 'no log while it updates');
+
+  said('update.json', { state: 'updating', at: now, phase: 'front-door' });
+  assert.deepEqual((await b.get('/admin/update')).data.update.phase, 'front-door');
+
+  said('update.json', { state: 'failed', at: now, from: 'abc1234', to: 'def5678', error: 'Out of space.', phase: 'download', account: 'kordal', log: ['Pulling botdot', 'no space left on device'] });
+  u = (await b.get('/admin/update')).data;
+  assert.deepEqual(u.update, { state: 'failed', at: new Date(now).toISOString(), from: 'abc1234', to: 'def5678', error: 'Out of space.', phase: 'download', account: 'kordal', log: ['Pulling botdot', 'no space left on device'] });
+
+  // A finished update has no phase and no log.
+  said('update.json', { state: 'updated', at: now, from: 'abc1234', to: 'def5678', phase: 'done', account: 'kordal', log: ['all fine'] });
+  assert.deepEqual((await b.get('/admin/update')).data.update, { state: 'updated', at: new Date(now).toISOString(), from: 'abc1234', to: 'def5678' });
+
+  // Root's step that never ended keeps the phase it stopped in.
+  said('update.json', { state: 'updating', at: new Date(Date.now() - 4 * 3600_000).toISOString(), phase: 'switch', account: 'kordal' });
+  u = (await b.get('/admin/update')).data;
+  assert.equal(u.update.state, 'failed');
+  assert.equal(u.update.phase, 'switch');
+  assert.equal(u.update.account, 'kordal');
+  fs.rmSync(path.join(status, 'update.json'));
+});
+
+test('a phase, an account or a log line that is not what root\'s step writes is left out', async () => {
+  const b = await admin();
+  const now = new Date().toISOString();
+  for (const [phase, account] of [['reboot', 'kordal'], [{ x: 1 }, 'kordal'], ['clean', 'Kordal'], ['clean', '../etc'], ['clean', 7]]) {
+    said('update.json', { state: 'updating', at: now, phase, account });
+    const u = (await b.get('/admin/update')).data.update;
+    if (phase === 'clean') { assert.equal(u.phase, 'clean'); assert.ok(!('account' in u), JSON.stringify(account)); }
+    else assert.ok(!('phase' in u) && !('account' in u), JSON.stringify(phase));
+  }
+  // An account is named only with a phase.
+  said('update.json', { state: 'updating', at: now, account: 'kordal' });
+  assert.ok(!('account' in (await b.get('/admin/update')).data.update));
+
+  // The log: only strings, the last 40, each a line of plain text of at most 300 characters.
+  const many = Array.from({ length: 50 }, (_, i) => `line ${i}`);
+  said('update.json', { state: 'failed', at: now, error: 'x', log: [...many, 7, null, { a: 1 }] });
+  let log = (await b.get('/admin/update')).data.update.log;
+  assert.equal(log.length, 40);
+  assert.equal(log[0], 'line 10');
+  assert.equal(log[39], 'line 49');
+  said('update.json', { state: 'failed', at: now, error: 'x', log: ['\u001b[31mred\u001b[0m  ', 'é<b>\ttab', 'x'.repeat(400)] });
+  log = (await b.get('/admin/update')).data.update.log;
+  assert.deepEqual(log.slice(0, 2), [' [31mred [0m', ' <b> tab']);
+  assert.equal(log[2].length, 300);
+  for (const bad of ['a log', { 0: 'a' }, [], [1, 2]]) {
+    said('update.json', { state: 'failed', at: now, error: 'x', log: bad });
+    assert.ok(!('log' in (await b.get('/admin/update')).data.update), JSON.stringify(bad));
+  }
+  fs.rmSync(path.join(status, 'update.json'));
+});
+
+test('the admin page says the phase in words and shows a failed update\'s log as text', async () => {
+  const b = await admin();
+  const page = await b.get('/admin');
+  assert.match(page.text, /<pre id="update-log" hidden><\/pre>/);
+  const script = (await b.get('/front-door/admin.js')).text;
+  for (const words of ['Checking the new version', 'Removing unused images', 'before anything changes', 'Downloading for ', 'Downloading the new version',
+    'to the new version', 'Restarting the front door', 'Finishing the update', 'The last update stopped', ' while ']) {
+    assert.ok(script.includes(words), words);
+  }
+  assert.match(script, /getElementById\('update-log'\)/);
+  assert.match(script, /log\.textContent = lines\.join\('\\n'\)/);
+  assert.doesNotMatch(script, /innerHTML/);
+  // The words a phase is said in, run as the page runs them.
+  const phaseText = new Function(`${script.match(/function phaseText[\s\S]*?\n  }\n/)[0]}; return phaseText;`)();
+  assert.equal(phaseText('clean', 'kordal'), 'Removing unused images of kordal');
+  assert.equal(phaseText('preflight'), 'Checking the machine before anything changes');
+  assert.equal(phaseText('preflight', 'kordal'), 'Checking kordal before anything changes');
+  assert.equal(phaseText('download', 'kordal'), 'Downloading for kordal');
+  assert.equal(phaseText('switch', 'kordal'), 'Moving kordal to the new version');
+  assert.equal(phaseText('nothing'), '');
+});
+
 test('Update asks the machine once, with a file no account can be named, and says it is asked', async () => {
   const b = await admin();
   const was = seen();
