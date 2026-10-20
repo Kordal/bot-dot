@@ -1276,15 +1276,23 @@ const running = (image, { account = '', old = '' } = {}) => [
   `[ "$1" = ps ] && [ "$2" = --format ] && { i='${image}'; case "\${DOCKER_HOST:-}" in *'/${account || '-'}/'*) i='${old}' ;; esac; for s in front-door bot-dot docker-helper; do echo "$s $i"; done; exit 0; }`,
 ];
 
+// The stand-in Docker's images carry the source revision they were built from, as botdot's signed images do.
+const LABELLED = [`[ "$1" = image ] && [ "$2" = inspect ] && [ "$3" = --format ] && case "$4" in *revision*) echo ${'f'.repeat(40)}; exit 0 ;; esac`];
+
 test('an install says the signed release it installed is the newest, and a self-built one has none', (t) => {
-  const done = rerun(t);
+  const done = rerun(t, '', {}, { dockerFirst: LABELLED });
   const latest = status(done, 'latest.json');
   assert.ok(latest, 'latest.json is written');
-  assert.equal(latest.version, status(done, 'version.json').version);
+  assert.equal(status(done, 'version.json').version, 'fffffff');
+  assert.equal(latest.version, 'fffffff');
   assert.ok(Date.now() - Date.parse(latest.at) < 60_000);
   assert.equal(fs.statSync(path.join(done.dir, 'front-door', 'status', 'latest.json')).mode & 0o777, 0o644, 'root\'s, read by the front door');
   const self = rerun(t, '', SELF);
   assert.equal(status(self, 'latest.json'), null);
+  // An image without a revision label has none to say, nor does its id stand for one.
+  const unlabelled = rerun(t);
+  assert.doesNotMatch(status(unlabelled, 'version.json').version, /^[0-9a-f]{7}$/);
+  assert.equal(status(unlabelled, 'latest.json'), null);
 });
 
 test("root's step looks for the newest signed version at most once an hour, and keeps the last one found", (t) => {
@@ -1304,7 +1312,7 @@ test("root's step looks for the newest signed version at most once an hour, and 
   assert.deepEqual(look().checks, [], 'not again within the hour');
 
   // An hour later the check is refused: the last version found stays.
-  fs.rmSync(path.join(first.run, 'load', 'latest'));
+  fs.rmSync(path.join(first.run, 'load', 'LATEST'));
   const refused = look({ signed: { 'ghcr.io/kordal/bot-dot:latest': 'it has no botdot signature' } });
   assert.equal(refused.checks.length, 1);
   assert.equal(status(refused, 'latest.json').version, 'eeeeeee');
@@ -1321,7 +1329,9 @@ test("an update that finds what every account and the front door run already res
   const { first } = withBob(t);
   fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');
   const before = fs.readFileSync(path.join(first.top, 'docker.log'), 'utf8').split('\n').filter(Boolean).length;
-  const was = status(first, 'version.json').version;
+  // As root's step said it of signed images, which carry their revision.
+  const was = '1234567';
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'status', 'version.json'), JSON.stringify({ version: was, selfBuilt: false, at: '2026-10-20T12:00:00Z' }));
   const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], dockerFirst: running(`ghcr.io/kordal/bot-dot${SIGNED}`) });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   const log = fs.readFileSync(path.join(first.dir, 'update.log'), 'utf8');

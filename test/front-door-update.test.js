@@ -136,7 +136,7 @@ test('the newest signed version is what root\'s step last found, field by field,
 test('the admin page says whether a newer version is available', async () => {
   const b = await admin();
   const script = (await b.get('/front-door/admin.js')).text;
-  assert.match(script, /' Version ' \+ u\.newest\.version \+ ' is available\.'/);
+  assert.match(script, /u\.newest && u\.version\) text \+= .*' Version ' \+ u\.newest\.version \+ ' is available\.'/);
   assert.match(script, /' This is the newest version\.'/);
 });
 

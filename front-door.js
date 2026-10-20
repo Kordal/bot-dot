@@ -231,7 +231,7 @@ const accountResults = (list) => (Array.isArray(list) ? list : [])
 function updateStatus() {
   const installed = readStatus('version.json') || {};
   const latest = readStatus('latest.json') || {};
-  const newest = installed.selfBuilt !== true && short(latest.version) && when(latest.at) ? { version: short(latest.version), at: when(latest.at) } : null;
+  const newest = { version: short(latest.version), at: when(latest.at) };
   const last = readStatus('update.json');
   let update = null;
   if (last && ['updating', 'updated', 'failed'].includes(last.state)) {
@@ -243,7 +243,8 @@ function updateStatus() {
     }
   }
   const asked = !!REQUESTS && fs.existsSync(path.join(REQUESTS, UPDATE));
-  return { version: short(installed.version), selfBuilt: installed.selfBuilt === true, asked, update, newest };
+  const selfBuilt = installed.selfBuilt === true;
+  return { version: short(installed.version), selfBuilt, asked, update, newest: !selfBuilt && newest.version && newest.at ? newest : null };
 }
 function askForUpdate() {
   if (!REQUESTS) return false;

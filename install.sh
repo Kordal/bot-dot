@@ -182,6 +182,13 @@ write_status() {
   chmod 644 "$DOOR/status/$1.new"
   mv "$DOOR/status/$1.new" "$DOOR/status/$1"
 }
+# say_newest VERSION: status/latest.json, for the admin page's "Version X is available" (#193): VERSION, a source
+# revision of 7 characters, is the newest signed release, found now. An image's id (an image without a revision) isn't one.
+say_newest() {
+  case "$1" in *[!0-9a-f]* | '') return 0 ;; esac
+  [ "${#1}" = 7 ] || return 0
+  write_status latest.json "{\"version\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+}
 # version_now: the version root's step last said the front door and every account run.
 version_now() { sed -n 's/.*"version":"\([0-9a-f]*\)".*/\1/p' "$DOOR/status/version.json" 2>/dev/null || true; }
 
@@ -309,30 +316,31 @@ check_node() {
 # source revision it was built from after it), or why it was refused (status 1; 2 when the registry wants a token).
 signed() { check_node signed-image.js "$@"; }
 
-# write_latest: once an hour at most, the newest signed release of the repository the install pinned, for the admin
+# look_for_newest: once an hour at most, the newest signed release of the repository the install pinned, for the admin
 # page's "Version X is available" (#193): status/latest.json, its source revision and when it was found. Asked with the
 # same check as an update (signed), from root's copy of the installer and the release check beside it. Images built on
 # this machine have none. A check that fails waits its hour too, and the last one found stays.
-write_latest() {
+look_for_newest() {
   wl_image="$(get_env "$ENV" BOT_DOT_IMAGE)"
   [ -n "$(registry_of "$wl_image")" ] && [ -f "$SOURCE/lib/signed-image.js" ] || return 0
   mkdir -p "$RUN/load"
-  [ -z "$(find "$RUN/load/latest" -mmin -60 2>/dev/null)" ] || return 0
-  touch "$RUN/load/latest"
+  # Named so that no account's CPU reading beside it can be (an account's name is lowercase).
+  [ -z "$(find "$RUN/load/LATEST" -mmin -60 2>/dev/null)" ] || return 0
+  touch "$RUN/load/LATEST"
   wl_image="${wl_image%@sha256:*}"
   case "${wl_image##*/}" in *:*) wl_image="${wl_image%:*}" ;; esac
   TOKEN="$(get_env "$ENV" BOT_DOT_REGISTRY_TOKEN)"
   wl_found="$(signed "$wl_image:latest" server --revision </dev/null 2>/dev/null)" || return 0
   wl_rev="${wl_found##* }"
-  case "$wl_rev" in *[!0-9a-f]* | '') return 0 ;; esac
   [ "${#wl_rev}" = 40 ] || return 0
-  write_status latest.json "{\"version\":\"$(printf '%s' "$wl_rev" | cut -c1-7)\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+  say_newest "$(printf '%s' "$wl_rev" | cut -c1-7)"
 }
 if [ "$MODE" = load ]; then
   [ "$(id -u)" = 0 ] || die "Root's step measures the accounts, so it runs as root."
   write_load
+  # The machine's Docker, as below: this step ends before it.
   D=docker
-  write_latest || true
+  look_for_newest || true
   exit 0
 fi
 
@@ -782,9 +790,10 @@ room_for_accounts() {
   done
 }
 
-# runs SERVICE…: the Docker $A runs each compose SERVICE on the image $SERVER_SIGNED, pinned by the same digest.
+# runs DOCKER SERVICE…: the Docker DOCKER runs each compose SERVICE on the image $SERVER_SIGNED, pinned by the same digest.
 runs() {
-  r_ps="$($A ps --format '{{.Label "com.docker.compose.service"}} {{.Image}}' </dev/null 2>/dev/null)" || return 1
+  r_ps="$($1 ps --format '{{.Label "com.docker.compose.service"}} {{.Image}}' </dev/null 2>/dev/null)" || return 1
+  shift
   for r_s; do printf '%s\n' "$r_ps" | grep -qxF "$r_s $SERVER_SIGNED" || return 1; done
 }
 # runs_signed: the signed images just checked are the ones the front door and every running account were installed with
@@ -792,16 +801,15 @@ runs() {
 runs_signed() {
   [ "$(get_env "$ENV" BOT_DOT_IMAGE)" = "$SERVER_SIGNED" ] || return 1
   [ -z "$COMPUTER_SIGNED" ] || [ "$(get_env "$ENV" BOT_DOT_COMPUTER_IMAGE)" = "$COMPUTER_SIGNED" ] || return 1
-  A="$D"
-  runs front-door || return 1
+  runs "$D" front-door || return 1
   for rs_home in "$ACCOUNTS"/*/; do
     rs_name="$(basename "$rs_home")"
     [ -f "$ACCOUNTS/$rs_name/compose.yaml" ] || continue
-    A="env DOCKER_HOST=unix://$RUN/$rs_name/docker.sock docker"
-    $A info </dev/null >/dev/null 2>&1 || continue
+    rs_d="env DOCKER_HOST=unix://$RUN/$rs_name/docker.sock docker"
+    $rs_d info </dev/null >/dev/null 2>&1 || continue
     [ "$(get_env "$ACCOUNTS/$rs_name/.env" BOT_DOT_IMAGE)" = "$SERVER_SIGNED" ] || return 1
     [ -z "$COMPUTER_SIGNED" ] || [ "$(get_env "$ACCOUNTS/$rs_name/.env" BOT_DOT_COMPUTER_IMAGE)" = "$COMPUTER_SIGNED" ] || return 1
-    runs bot-dot docker-helper || return 1
+    runs "$rs_d" bot-dot docker-helper || return 1
   done
 }
 
@@ -838,7 +846,7 @@ elif [ -n "$REGISTRY" ]; then
   # The admin page's update finds nothing new: the front door and every running account run these very images, so
   # it changes nothing, restarts nothing and stops no bot's run (#193).
   if [ -n "$UNATTENDED" ] && runs_signed; then
-    write_status latest.json "{\"version\":\"$(version_now)\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+    say_newest "$(version_now)"
     ok "It was the newest already: the front door and every account run it, so nothing was restarted"
     exit 0
   fi
@@ -1558,7 +1566,7 @@ esac
 case "$VERSION" in *[!0-9a-f]*) VERSION='' ;; esac
 write_status version.json "{\"version\":\"$VERSION\",\"selfBuilt\":$([ -n "$REGISTRY" ] && echo false || echo true),\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
 # The signed release just checked and installed is the newest there is, until root's step finds a newer one (#193).
-[ -z "$REGISTRY" ] || write_status latest.json "{\"version\":\"$VERSION\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+[ -z "$REGISTRY" ] || say_newest "$VERSION"
 
 # Root's step for the front door: a copy of this installer only root may change, started by systemd whenever the front
 # door asked for an account, and every minute to write the load the admin page shows (botdot-load.timer). Without
