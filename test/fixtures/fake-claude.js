@@ -56,6 +56,9 @@ try { const mc = val('--mcp-config'); mcp = JSON.parse(mc.trim().startsWith('{')
 // system: the appended prompt, read now from its file: botdot removes the file when the run has ended.
 const rec = { n, who, args, self: mcp.mcpServers.self || null, botdot: mcp.mcpServers.botdot || null, connectors: mcp.mcpServers.connectors || null, system: promptFile === null ? val('--append-system-prompt') : fs.readFileSync(promptFile, 'utf8'), stdin: '', at: Date.now() };
 if (promptFile !== null) { const st = fs.statSync(promptFile); rec.promptFile = { path: promptFile, mode: st.mode & 0o777, uid: st.uid }; }
+// The settings it was given (--settings, a private file): botdot's hook for a steered message (ADR 040), and that file's mode.
+const settingsArg = val('--settings');
+if (settingsArg) { try { rec.settings = JSON.parse(fs.readFileSync(settingsArg, 'utf8')); rec.settingsMode = fs.statSync(settingsArg).mode & 0o777; } catch { rec.settings = null; } }
 rec.env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith('CLAUDE_CODE_'))); // Claude Code's own switches
 rec.apiKey = process.env.ANTHROPIC_API_KEY || null; // the Anthropic API key it runs on, in API-key mode only (#35)
 rec.uid = process.getuid?.();

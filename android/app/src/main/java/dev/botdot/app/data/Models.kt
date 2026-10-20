@@ -220,9 +220,10 @@ data class Asks(val text: String, val runId: String? = null, val at: String? = n
 
 /**
  * A message of the owner that waits its turn (`queued` on a bot and on a Chief chat, docs/api.md): [text] as the
- * owner wrote it, its files, and when it was sent. [id] is what "Take back" names.
+ * owner wrote it, its files, and when it was sent. [id] is what "Take back" and "Steer" name. [steering]: the owner
+ * steered it into the run that is going, which has not read it yet (`steer`, ADR 040).
  */
-data class Queued(val id: String, val text: String = "", val attachments: List<Attachment> = emptyList(), val at: String? = null) {
+data class Queued(val id: String, val text: String = "", val attachments: List<Attachment> = emptyList(), val at: String? = null, val steering: Boolean = false) {
     companion object {
         /** The list as the server sent it, each entry read by itself: one without an id cannot be taken back, and is left out. */
         fun list(v: JsonElement?): List<Queued> = (v as? JsonArray).orEmpty().mapNotNull { e ->
@@ -232,6 +233,7 @@ data class Queued(val id: String, val text: String = "", val attachments: List<A
                 (o["text"] as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty(),
                 attachments(o["attachments"]),
                 o["at"].textOrNull(),
+                isTrue(o["steering"]),
             )
         }
 
@@ -307,6 +309,17 @@ private val BUSY_AND_STOPPED = setOf("message-waits", "ended-by", "job-line")
  */
 fun saysSignedOut(features: Collection<String>?): Boolean = features != null && features.any { it in BUSY_AND_STOPPED }
 
+/**
+ * A message of the owner that a run read while it worked, after "Steer" (`steered` on a run, ADR 040): as the owner
+ * wrote it, with its files, and when it was sent. Drawn after the run's request, as the owner's, without buttons.
+ */
+data class Steered(val id: String, val text: String = "", val attachments: List<Attachment> = emptyList(), val at: String? = null) {
+    companion object {
+        /** The run's list as the server sent it, each entry read by itself; one without an id is left out. */
+        fun list(v: JsonElement?): List<Steered> = Queued.list(v).map { Steered(it.id, it.text, it.attachments, it.at) }
+    }
+}
+
 /** What "Take back" answers: the message's text and files, for the message box. */
 data class TakenBack(val text: String, val attachments: List<Attachment>) {
     companion object {
@@ -371,8 +384,13 @@ data class Run(
     @SerialName("question") val questionValue: JsonElement? = null,
     // Its bot's colour as the server says it, for a reply in a group whose bot is gone. Kept as it came.
     @SerialName("botColor") val botColorValue: JsonElement? = null,
+    // What the owner steered into it and it read (`steer`, ADR 040), kept as it came. Read it through [steered].
+    @SerialName("steered") val steeredValue: JsonElement? = null,
 ) {
     val isRunning get() = status == "running"
+
+    /** The owner's messages it read while it worked, in the order read; none from a server without `steer`. */
+    val steered: List<Steered> get() = Steered.list(steeredValue)
 
     /** Its bot's colour as the run carries it, or null. */
     val botColor: String? get() = botColorValue.textOrNull()

@@ -149,4 +149,42 @@ class MessageWaitsTest {
         assertNull(box.note)
         assertNull(box.back)
     }
+
+    // ---------- Steer (#173, ADR 040) ----------
+
+    @Test fun steerIsThereOnlyWhereTheServerAnnouncesIt() {
+        assertTrue(canSteer(listOf("message-waits", "steer")))
+        assertFalse(canSteer(listOf("message-waits")))
+        assertFalse("not known yet: no button", canSteer(null))
+    }
+
+    @Test fun aSteeredMessageIsReadFromTheListAndMarkedHereBeforeTheServerSaysSo() {
+        val steering = """{"id":"q1","text":"Use port 2222","attachments":[],"at":"2026-10-20T10:00:00.000Z","steering":true}"""
+        val odd = """{"id":"q3","text":"x","steering":"yes"}"""
+        assertEquals(listOf(true, false, false), Queued.list(Json.parseToJsonElement("[$steering,$third,$odd]")).map { it.steering })
+        val list = Json.parseToJsonElement("[$second,$third]")
+        assertEquals(listOf(true, false), Queued.list(steered(list, "q1")).map { it.steering })
+        assertEquals(listOf(false, false), Queued.list(steered(list, "q9")).map { it.steering })
+        assertNull(steered(null, "q1"))
+    }
+
+    @Test fun aRunCarriesWhatItReadInOrderAndARunWithoutItHasNone() {
+        val run = Api.JSON.decodeFromString(dev.botdot.app.data.Run.serializer(), """{"id":"r1","status":"running","steered":[{"id":"q1","text":"staging-vm access","attachments":[$fileJson],"at":"2026-10-20T10:01:00.000Z","readAt":"2026-10-20T10:02:00.000Z"},{"text":"no id"},{"id":"q2","text":"and port 2222","attachments":[]}]}""")
+        assertEquals(listOf("q1" to "staging-vm access", "q2" to "and port 2222"), run.steered.map { it.id to it.text })
+        assertEquals(listOf(file), run.steered[0].attachments)
+        assertEquals(emptyList<dev.botdot.app.data.Steered>(), Api.JSON.decodeFromString(dev.botdot.app.data.Run.serializer(), """{"id":"r2","status":"success"}""").steered)
+        assertEquals(emptyList<dev.botdot.app.data.Steered>(), Api.JSON.decodeFromString(dev.botdot.app.data.Run.serializer(), """{"id":"r3","steered":"x"}""").steered)
+    }
+
+    @Test fun aSteerThatDidNotGoSaysWhyInTheServersWords() {
+        val box = Outbox()
+        box.steerFailed(ApiException("Fleet Doctor is working on a task of the Chief's. This starts when it is free.", 409, said = true))
+        assertEquals("Fleet Doctor is working on a task of the Chief's. This starts when it is free.", box.note)
+        assertEquals("It has already started.", steerNote(ApiException("botdot answered 409", 409)))
+        assertEquals("It is no longer waiting.", steerNote(ApiException("botdot answered 404", 404)))
+        assertEquals("Not steered: can't reach botdot.", steerNote(ApiException("Can't reach botdot. Is Tailscale on? (timeout)")))
+        assertEquals("Not steered: botdot couldn't do that (500).", steerNote(ApiException("botdot answered 500", 500)))
+        box.edited()
+        assertNull(box.note)
+    }
 }
