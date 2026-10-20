@@ -1,4 +1,4 @@
-// The reply draft on the web page (docs/api.md, "The reply draft", ADR 041): from a server whose `features` name
+// The reply draft on the web page (docs/api.md, "The reply draft", ADR 042): from a server whose `features` name
 // `reply-draft`, the bot chat and the Chief chat draw the draft their stream sends in the row of the reply being
 // written, in place, at most once a frame, and their end takes it away. Its Markdown is drawn by the rules the
 // Android app shares (the `stream` cases of test/fixtures/markdown-cases.json). The page's own code, cut out of it

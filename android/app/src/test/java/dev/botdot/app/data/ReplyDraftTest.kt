@@ -7,7 +7,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-// The reply draft (docs/api.md, "The reply draft", ADR 041): a run's stream sends the whole draft so far, the app
+// The reply draft (docs/api.md, "The reply draft", ADR 042): a run's stream sends the whole draft so far, the app
 // draws it only from a server that lists `reply-draft`, and a group's drafts follow its turns (ReplyDraft.Group).
 class ReplyDraftTest {
     private fun of(json: String) = RunEvent.of(Json.parseToJsonElement(json).jsonObject)

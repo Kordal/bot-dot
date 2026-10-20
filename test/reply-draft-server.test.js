@@ -1,4 +1,4 @@
-// The reply draft on the botdot server (docs/api.md, "The reply draft", ADR 041): bots and the Chief start Claude
+// The reply draft on the botdot server (docs/api.md, "The reply draft", ADR 042): bots and the Chief start Claude
 // Code with --include-partial-messages, and who follows a run's stream (raw and ?simple) or a Chief chat's stream
 // gets `reply_draft` events that grow into the reply, never logged and never on the feed. The stand-in Claude
 // writes its reply in deltas while $FAKE_OUT/stream.json exists (test/fixtures/fake-claude.js).

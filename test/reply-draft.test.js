@@ -1,4 +1,4 @@
-// The reply draft (lib/reply-draft.js, docs/api.md "The reply draft", ADR 041): the reply as the model writes it,
+// The reply draft (lib/reply-draft.js, docs/api.md "The reply draft", ADR 042): the reply as the model writes it,
 // read from Claude Code's partial messages, sent to who follows the run while it is written. Only the reply: never
 // the opening line, text before a tool call, a marker line or a pass. At most one draft every 200 ms.
 const { test } = require('node:test');

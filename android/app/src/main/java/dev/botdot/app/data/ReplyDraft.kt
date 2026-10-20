@@ -1,7 +1,7 @@
 package dev.botdot.app.data
 
 /**
- * A reply as it is written (docs/api.md, "The reply draft"; ADR 041). From a server whose `features` name
+ * A reply as it is written (docs/api.md, "The reply draft"; ADR 042). From a server whose `features` name
  * `reply-draft`, a run's stream and a Chief chat's stream send `reply_draft` with the whole draft so far, and the chat
  * draws it in the place of the reply being written, the bubble its reply will have, growing in place. The run's end
  * takes it away: the reply is drawn as it always was. A server without it, or an app from before, draws the reply

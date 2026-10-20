@@ -579,7 +579,7 @@ function renderGroupChat() {
 
 // ---------- a member's reply as it is written ----------
 
-// From a server with drafts (docs/api.md, "The reply draft"; ADR 041), the open group follows the run stream of each
+// From a server with drafts (docs/api.md, "The reply draft"; ADR 042), the open group follows the run stream of each
 // turn at work: the feed sends no draft. Each draft stands under the member's name in a pending bubble, under the
 // replies, and grows in place. A turn that ended leaves its draft until its reply stands among the replies (no row
 // jumps or goes blank meanwhile); a pass leaves nothing (group_run_finished). A group that is left closes them all.

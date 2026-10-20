@@ -576,7 +576,7 @@ new MutationObserver((changes) => {
 
 // ---------- the reply draft ----------
 
-// A reply as it is written (docs/api.md, "The reply draft"; ADR 041): from a server whose `features` name
+// A reply as it is written (docs/api.md, "The reply draft"; ADR 042): from a server whose `features` name
 // `reply-draft`, a run's stream and a Chief chat's stream send the whole draft so far, and the page draws it in the
 // row of the reply that is being written, the bubble its reply will have, in place. Its end takes it away: the
 // reply is drawn as it always was. There is no animation: the text is drawn again, at most once a frame.

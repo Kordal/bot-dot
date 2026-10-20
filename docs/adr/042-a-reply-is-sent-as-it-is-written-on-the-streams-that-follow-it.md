@@ -1,4 +1,4 @@
-# ADR-041: A reply is sent as it is written, on the streams that follow it
+# ADR-042: A reply is sent as it is written, on the streams that follow it
 
 - **Status:** Proposed
 - **Owning task:** [#178](https://github.com/Kordal/bot-dot/issues/178)
