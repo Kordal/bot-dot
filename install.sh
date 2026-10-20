@@ -648,15 +648,23 @@ fi
 # Dockerfile's NODE_IMAGE), as nobody, read-only and with nothing but the network, trusting the certificates
 # this machine trusts, as Docker does. A registry token goes to it on its input.
 CHECK_NODE="node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6"
-# signed NAME server|desktop: prints the signed release of NAME's repository, pinned by digest, or why it was
-# refused (status 1; 2 when the registry wants a token).
-signed() {
+# isolated OPTION… IMAGE COMMAND…: docker run, as nobody, read-only and with nothing but the network, trusting the
+# certificates this machine trusts, with the registry token on its input.
+isolated() {
   CA=''
   [ -r /etc/ssl/certs/ca-certificates.crt ] && CA="-v /etc/ssl/certs/ca-certificates.crt:/check/ca.crt:ro -e NODE_EXTRA_CA_CERTS=/check/ca.crt"
   # shellcheck disable=SC2086 # CA is two options or none
-  printf '%s' "$TOKEN" | $D run --rm -i --pull never --network host --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 \
-    -v "$SOURCE/lib:/check/lib:ro" $CA "$CHECK_NODE" node /check/lib/signed-image.js "$1" "$2"
+  printf '%s' "$TOKEN" | $D run --rm -i --pull never --network host --read-only --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 $CA "$@"
 }
+# check_node FILE ARG…: lib/FILE of this installer's source, run with ARGs on that Node, isolated.
+check_node() {
+  cn_file="$1"
+  shift
+  isolated -v "$SOURCE/lib:/check/lib:ro" "$CHECK_NODE" node "/check/lib/$cn_file" "$@"
+}
+# signed NAME server|desktop: prints the signed release of NAME's repository, pinned by digest, or why it was
+# refused (status 1; 2 when the registry wants a token).
+signed() { check_node signed-image.js "$1" "$2"; }
 # check NAME server|desktop: $SIGNED is what NAME installs as. A refusal ends the installer.
 check() {
   if SIGNED="$(signed "$1" "$2")"; then return 0; else status=$?; fi
@@ -705,6 +713,42 @@ clean_images() {
   ci_bytes="$(printf '%s' "$ci_out" | sed -n 's/.*"bytes":\([0-9]*\).*/\1/p')"
   ok "Made room first: removed $ci_n old image$([ "$ci_n" = 1 ] || printf s)$([ "${ci_bytes:-0}" -lt 50000000 ] || printf ' (%s GB freed)' "$(awk -v b="$ci_bytes" 'BEGIN { printf "%.1f", b / 1e9 }')")"
 }
+# gb BYTES: in GB, to one decimal.
+gb() { awk -v b="$1" 'BEGIN { printf "%.1f", b / 1e9 }'; }
+# room_for_accounts: every running account's disk has room for the new server image before it is downloaded there
+# (#192), after the images the account no longer uses went (clean_images, by the new version's rule when its image is
+# here already, or else the running one's). The room is the layers the account lacks, from the signed image's manifest
+# (lib/image-layers.js, from the new image itself once it is here: root's copy of the installer may be older than it,
+# ADR 036), three times over (the download, then unpacked at about twice its size) and 1 GB for the account to go on
+# working. An account short of it stops the update with what it needs, before any account is changed. When the
+# registry's answer gives no sizes, the update goes on without the check.
+room_for_accounts() {
+  ls "$ACCOUNTS"/*/compose.yaml >/dev/null 2>&1 || return 0
+  if $D image inspect "$SERVER_SIGNED" </dev/null >/dev/null 2>&1; then
+    rf_runner="$SERVER_SIGNED"
+    rf_layers="$(isolated --entrypoint node "$SERVER_SIGNED" /opt/bot-dot/lib/image-layers.js "$SERVER_SIGNED" 2>/dev/null || true)"
+  else
+    rf_runner="$(get_env "$ENV" BOT_DOT_IMAGE)"
+    rf_layers="$(check_node image-layers.js "$SERVER_SIGNED" 2>/dev/null || true)"
+  fi
+  [ -n "$rf_layers" ] || { warn "Couldn't tell how much room the update needs in each account; it goes on without that check."; return 0; }
+  for rf in "$ACCOUNTS"/*/; do
+    rf="$(basename "$rf")"
+    [ -f "$ACCOUNTS/$rf/compose.yaml" ] || continue
+    rf_docker="env DOCKER_HOST=unix://$RUN/$rf/docker.sock docker"
+    $rf_docker info </dev/null >/dev/null 2>&1 || continue
+    clean_images "$RUN/$rf/docker.sock" "$rf_runner" "$(get_env "$ACCOUNTS/$rf/.env" BOT_DOT_IMAGE)" "$(get_env "$ACCOUNTS/$rf/.env" BOT_DOT_COMPUTER_IMAGE)" "$SERVER_SIGNED" "$COMPUTER_SIGNED"
+    rf_ids="$($rf_docker image ls -q --no-trunc </dev/null 2>/dev/null | sort -u || true)"
+    # shellcheck disable=SC2086 # one id per word
+    rf_have="$([ -z "$rf_ids" ] || $rf_docker image inspect --format '{{range .RootFS.Layers}}{{println .}}{{end}}' $rf_ids </dev/null 2>/dev/null || true)"
+    # The bytes of the layers it lacks, each counted once, three times over and 1 GB; 0 when it lacks none.
+    rf_need="$({ printf '%s\n' "$rf_have" | sed 's/^/have /'; printf '%s\n' "$rf_layers" | sed 's/^/new /'; } \
+      | awk '$1 == "have" { h[$2] = 1 } $1 == "new" && !($2 in h) && !($2 in s) { s[$2] = 1; t += $3 } END { printf "%.0f", (t > 0 ? t * 3 + 1e9 : 0) }')"
+    rf_free="$(df -Pk "$ACCOUNTS/$rf" 2>/dev/null | awk 'NR == 2 { printf "%.0f", $4 * 1024 }' || true)"
+    [ -n "$rf_free" ] && [ "$rf_need" -gt "$rf_free" ] || continue
+    die "The account $rf needs $(gb "$rf_need") GB free for this update and has $(gb "$rf_free") GB. Give it a bigger disk share, or update or reset its computer so the old computer image can go, then update again. No account was changed."
+  done
+}
 
 REGISTRY="$(registry_of "$IMAGE")"
 TOKEN=''
@@ -738,6 +782,7 @@ elif [ -n "$REGISTRY" ]; then
   fi
   # Room first, in the machine's Docker too, by the rule of the version it runs now (#190).
   clean_images /var/run/docker.sock "$(get_env "$ENV" BOT_DOT_IMAGE)" "$(get_env "$ENV" BOT_DOT_IMAGE)" "$(get_env "$ENV" BOT_DOT_COMPUTER_IMAGE)"
+  room_for_accounts
   say "Downloading botdot (about 1.5 GB the first time)…"
   pull "$SERVER_SIGNED" || die "Couldn't download $SERVER_SIGNED$(because)."
   # botdot also needs it to download newer computer images by itself.
