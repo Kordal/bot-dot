@@ -64,4 +64,5 @@ out["is_open"] = port_post({"op": "is-open"})
 out["secret"] = bridge({"site": "example.com", "field": "password", "value": "synthetic-secret"})
 out["typed"] = sync_api.TYPED
 out["launches"] = len(sync_api.LAUNCHES)
+out["prefs"] = sync_api.LAUNCHES[0].get("firefox_user_prefs") if sync_api.LAUNCHES else None
 print(json.dumps(out))
