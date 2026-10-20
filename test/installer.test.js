@@ -140,8 +140,9 @@ grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new"
   stand('timedatectl', 'exit 1');
   stand('uname', '[ "$1" = -m ] && echo x86_64 || echo Linux');
   // curl: the front door answers on 127.0.0.1, Caddy on the domain (unless `caddy` is false).
-  // An account's botdot server answers on its socket while the socket is there (a stopped one's is removed below).
-  stand('curl', `${said('curl')}\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\ncase "$*" in *--unix-socket*) for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ]; exit $? ;; esac\nexit 0`);
+  // An account's botdot server answers on its socket while the socket is there (a stopped one's is removed below), and
+  // only a request that names its account, as the front door's do.
+  stand('curl', `${said('curl')}\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\ncase "$*" in *--unix-socket*) case "$*" in *"X-Botdot-Account: "[a-z]*) ;; *) exit 22 ;; esac; for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ]; exit $? ;; esac\nexit 0`);
   for (const name of ['dockerd-rootless.sh', 'newuidmap', 'slirp4netns']) stand(name, 'exit 0');
   stand('runsc', 'echo "runsc version release-20261005.0"');
   for (const [name, body] of Object.entries({ tailscale: tailscale(), ...bins })) {

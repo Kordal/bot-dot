@@ -1142,12 +1142,12 @@ share() {
   mv "$ACCOUNTS/$1/share/share.json.new" "$ACCOUNTS/$1/share/share.json"
 }
 
-# answers FOLDER: the botdot server whose socket is in FOLDER answers, within about 2 minutes (90 tries, each a second
-# apart and at most a second long). A socket alone isn't enough: a botdot server that stopped leaves its socket behind,
+# answers FOLDER: the botdot server whose socket is in FOLDER (an account's, named as it) answers, as the front door
+# asks it, within about 2 minutes (90 tries, each a second apart and at most a second long). A socket alone isn't enough: a botdot server that stopped leaves its socket behind,
 # and the next one removes it only once it starts.
 answers() {
   i=0
-  until [ -S "$1/botdot.sock" ] && curl -fsS -o /dev/null --max-time 1 --unix-socket "$1/botdot.sock" http://botdot/api/version </dev/null 2>/dev/null; do
+  until [ -S "$1/botdot.sock" ] && curl -fsS -o /dev/null --max-time 1 -H "X-Botdot-Account: $(basename "$1")" --unix-socket "$1/botdot.sock" http://botdot/api/version </dev/null 2>/dev/null; do
     i=$((i + 1))
     [ "$i" -lt 90 ] || return 1
     sleep 1
