@@ -956,7 +956,7 @@
       ]
     }
   ],
-  "streamAbout": "A reply draft as it is drawn while it still grows (docs/api.md, \"The reply draft\"): each case is a draft and the blocks of what is drawn of it, the same on the web page (draftSource, then mdBlocks, in public/app.js) and in the Android app (draftSource, then parseBlocks, in Markdown.kt). A whole draft is drawn as the reply is.",
+  "streamAbout": "A reply draft as it is drawn while it still grows (docs/api.md, \"The reply draft\"): each case is a draft and the blocks of what is drawn of it, the same on the web page (draftSource, then mdBlocks, in public/app.js) and in the Android app (draftSource, then parseBlocks, in Markdown.kt). A whole draft is drawn as the reply is, but a `mermaid` block, which stays plain code (lang \"\") until the reply ends.",
   "stream": [
     {
       "name": "a row being written waits: only the whole rows are drawn",
@@ -1021,7 +1021,8 @@
         },
         {
           "type": "code",
-          "text": "# not a heading\n- not a list\n\nnot a paragraph"
+          "text": "# not a heading\n- not a list\n\nnot a paragraph",
+          "lang": "sh"
         }
       ]
     },
@@ -1041,12 +1042,13 @@
       "blocks": [
         {
           "type": "code",
-          "text": "code"
+          "text": "code",
+          "lang": ""
         }
       ]
     },
     {
-      "name": "a mermaid block is code until its fence closes",
+      "name": "a mermaid block is plain code while the reply is written: no diagram, no link",
       "source": "The flow:\n```mermaid\ngraph TD\n  A-->B",
       "blocks": [
         {
@@ -1055,7 +1057,27 @@
         },
         {
           "type": "code",
-          "text": "graph TD\n  A-->B"
+          "text": "graph TD\n  A-->B",
+          "lang": ""
+        }
+      ]
+    },
+    {
+      "name": "a closed mermaid block is plain code too until the reply is whole",
+      "source": "The flow:\n```mermaid\ngraph TD\n  A-->B\n```\nMore to",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "The flow:"
+        },
+        {
+          "type": "code",
+          "text": "graph TD\n  A-->B",
+          "lang": ""
+        },
+        {
+          "type": "para",
+          "text": "More to"
         }
       ]
     },
@@ -1113,7 +1135,8 @@
         },
         {
           "type": "code",
-          "text": "x"
+          "text": "x",
+          "lang": "js"
         },
         {
           "type": "para",

@@ -51,8 +51,12 @@ class MarkdownTest {
 
     @Test fun aDraftCutMidTableOrInsideAFenceNeverDrawsBroken() {
         assertEquals(listOf(Block.Table(listOf(listOf("Host", "Free"), listOf("pve", "41%")))), parseBlocks(draftSource("| Host | Free |\n|---|---|\n| pve | 41% |\n| nas | 1")))
-        assertEquals(listOf(Block.Code("# rm -rf\n- x")), parseBlocks(draftSource("```sh\n# rm -rf\n- x")))
-        assertEquals(listOf(Block.Code("graph TD\nA-->B")), parseBlocks(draftSource("```mermaid\ngraph TD\nA-->B")))
+        assertEquals(listOf(Block.Code("# rm -rf\n- x", "sh")), parseBlocks(draftSource("```sh\n# rm -rf\n- x")))
+        assertEquals(listOf(Block.Code("graph TD\nA-->B", "")), parseBlocks(draftSource("```mermaid\ngraph TD\nA-->B")))
+        // A closed diagram too: plain code, without "Open on web", until the reply is whole.
+        val diagram = parseBlocks(draftSource("```mermaid\ngraph TD\nA-->B\n```\nMore"))
+        assertEquals(listOf(Block.Code("graph TD\nA-->B", ""), Block.Para("More")), diagram)
+        assertEquals(null, webLinkUnder(diagram[0], "https://botdot.example/#bot/b1"))
         // A whole reply is drawn as it is without drafts.
         val whole = "## Done\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n```js\nx\n```\nEnd. **Bold** and [a link](https://example.com)."
         assertEquals(parseBlocks(whole), parseBlocks(draftSource(whole)))

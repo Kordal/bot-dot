@@ -34,6 +34,7 @@ test('web: a draft cut mid-table, inside a fence or at an unclosed ** or [ never
   const code = md(draftSource('```sh\n# rm -rf\n- x'));
   assert.equal(code, '<pre><code># rm -rf\n- x</code></pre>', 'code stays code');
   assert.equal(md(draftSource('```mermaid\ngraph TD\nA-->B')), '<pre><code>graph TD\nA--&gt;B</code></pre>', 'a diagram is code until the reply is whole');
+  assert.equal(md(draftSource('```mermaid\ngraph TD\nA-->B\n```\nMore')), '<pre><code>graph TD\nA--&gt;B</code></pre>\n<p>More</p>', 'closed too: no diagram is drawn in a draft');
   assert.equal(md(draftSource('It is **very')), '<p>It is **very</p>');
   assert.equal(md(draftSource('See [the page')), '<p>See [the page</p>');
   // A whole reply is drawn as it is without drafts.

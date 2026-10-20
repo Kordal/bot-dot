@@ -390,9 +390,9 @@ function md(src) {
 
 // A reply draft (docs/api.md, "The reply draft") as it can be drawn while it still grows, by the rules both apps
 // share (the `stream` cases of test/fixtures/markdown-cases.json; draftSource in Android's Markdown.kt): a code
-// block that is not closed yet is drawn as code (a `mermaid` one too: a diagram is drawn only once the reply is
-// whole), a table row that is still being written waits, and so does the line of a fence that is still being opened.
-// An unclosed ** or [ needs nothing: md draws it as the text it is.
+// block that is not closed yet is drawn as code, a `mermaid` one is plain code even once closed (its fence loses the
+// word: a diagram is drawn only once the reply is whole, ADR 041), a table row that is still being written waits, and
+// so does the line of a fence that is still being opened. An unclosed ** or [ needs nothing: md draws it as the text it is.
 function draftSource(src) {
   const lines = String(src ?? '').replace(/\r\n?/g, '\n').split('\n');
   const fences = lines.filter((l) => /^\s*```/.test(l)).length;
@@ -402,7 +402,7 @@ function draftSource(src) {
     if (/^\s*`+\w*$/.test(last)) lines.pop();
     if (lines.filter((l) => /^\s*```/.test(l)).length % 2) lines.push('```');
   } else if (/^\s*(\||`{1,2}$)/.test(last)) lines.pop(); // a row of a table is drawn once its line has ended
-  return lines.join('\n');
+  return lines.map((l) => l.replace(/^(\s*```)mermaid$/, '$1')).join('\n');
 }
 
 // A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth), quote (text),
