@@ -1,7 +1,7 @@
 # ADR-047: The Chief uses connected apps in the owner's turns, and every write waits for an OK
 
-- **Status:** Proposed
-- **Owning task:** [#184](https://github.com/Kordal/bot-dot/issues/184) (this record); implemented by [#185](https://github.com/Kordal/bot-dot/issues/185) once the owner accepts it
+- **Status:** Accepted (by the owner, 2026-10-20)
+- **Owning task:** [#184](https://github.com/Kordal/bot-dot/issues/184) (this record); implemented by [#185](https://github.com/Kordal/bot-dot/issues/185)
 - **Changes:** [ADR 009](009-the-botdot-server-carries-on-after-an-ok.md) (a late yes on the Chief's connected-app card starts a Chief turn that holds a grant), [ADR 010](010-a-connected-app-action-waits-in-its-run.md) (adds the Chief as a second kind of caller; the Chief's card goes when the owner writes in that chat, unlike a bot's card of a run the Chief started), [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (a connected app's answer counts as the web)
 - **Supersedes:** the lines of the Chief's instructions on connected apps (`lib/chief.js`): "A bot can use an app once it's connected and given to that bot" and "You can't connect apps yourself", only where they say the Chief can't use an app
 
@@ -25,19 +25,19 @@ What stands in the way in the code, checked on main on 2026-10-20:
 - The Chief's MCP calls may take 10 minutes (`MCP_TOOL_TIMEOUT` in `lib/chief.js`), a bot's 15. The tools server waits up to 14 for an answer, inside a bot's 15.
 - What the Chief reads from a page or a search marks its chat (`webRead`) and from then on every change the Chief makes waits on a card ([ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md)). A connected app's answer is outside content too (`CONTEXT.md`), but the Chief reads none today, so neither ADR 033 nor [ADR 017](017-the-chief-files-a-note-with-a-bot-in-the-owners-turns.md) has a rule for it.
 
-## Proposed decision
+## Decision
 
 ### Who calls: the Chief's turn, with a token of its own
 
 - **A Chief turn the owner started gets a connector session**: a random token botdot makes when the turn starts and forgets when the turn ends, kept in memory only, as a bot run's token is. The session names the Chief, the chat and the turn (`{ chief: true, chatId, turnId }`); `turnId` is unique for the life of botdot and plays the part a run id plays for a bot.
 - botdot starts `lib/connectors-mcp.js` for that turn, in the Chief's MCP settings (`lib/chief.js`, the private file of the turn), with `RUN_TOKEN` set to that token and `CONNECTOR_APPS` set to every app that has a connection at the start of the turn. `mcp__connectors` joins the Chief's allowed tools (`TOOL_ALLOW`) for that turn only.
-- **No token, no tools**: a turn botdot started (a checkup, a look, a reminder, a late result, an answered card, a bot's request) is given no connector server and no token. The one exception is the turn a late yes starts, below: an exception to decision 4 that the owner decides on when accepting this record. The server refuses `/api/connectors/session/*` to anything but a live session, so a turn that did get no token cannot reach an app, whatever its prompt says. Nor does a turn get one when Composio is not set up or no app is connected.
+- **No token, no tools**: a turn botdot started (a checkup, a look, a reminder, a late result, an answered card, a bot's request) is given no connector server and no token. The one exception is the turn a late yes starts, below: an exception to decision 4 that the owner accepted with this record. The server refuses `/api/connectors/session/*` to anything but a live session, so a turn that did get no token cannot reach an app, whatever its prompt says. Nor does a turn get one when Composio is not set up or no app is connected.
 - **The same three routes** take the Chief's session: `/api/connectors/session/actions`, `run` and `wait` find either a bot's run session or a Chief turn session by `X-Run-Token`. The Chief's key alone opens none of them. A bot's user still reaches them only with its own run's token (`server.js` `gate`: a Chief session has no bot, so it is "not this bot's").
 - **The Chief's MCP calls may take 15 minutes** in a turn with the connector server, as a bot's do, so that the ten minutes of the wait and the tools server's 14 fit inside them. ADR 043's 20 minutes of silence are longer than the wait.
 - **What a call did shows on the reply**, as a row of its actions ("Used GitHub: list issues"), the way a bot's run notes it (`B.noteLearned`).
 - **A file** (`{"$file": …}`) names only a file the owner attached in that chat. The Chief has no workspace of its own to read files from.
 
-The issue proposed the Chief's session as an entry in `BOT_PATHS` with the Chief's turn as its run. This decision keeps that, with a token per turn in place of the Chief's key, for the reasons above: the key would let a checkup and a look call apps, and a grant bound to it would outlive the turn.
+The issue proposed the Chief's session as an entry in `BOT_PATHS` with the Chief's turn as its run. This record keeps that, with a token per turn in place of the Chief's key, for the reasons above: the key would let a checkup and a look call apps, and a grant bound to it would outlive the turn.
 
 ### Who is allowed: the Chief as its own principal
 
