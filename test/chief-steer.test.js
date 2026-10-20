@@ -22,7 +22,7 @@ const quiet = (id, on = srv) => waitFor(async () => { const c = await chatOf(id,
 const onDisk = (on = srv) => (fs.existsSync(path.join(on.data, 'chief-waiting-turns.json')) ? readData(on.data, 'chief-waiting-turns.json') : {});
 const upload = async (name, text) => (await srv.api('/uploads?to=chief', { method: 'POST', raw: Buffer.from(text), headers: { 'X-File-Name': name } })).data;
 // A tool call of the turn: its hook, as Claude Code runs it, and what it hands Claude (null for nothing).
-const toolCall = async (turn) => (await hookCall(turn.settings)).hookSpecificOutput || null;
+const toolCall = async (turn) => (await hookCall(turn.settings, { hook_event_name: 'PostToolUse', tool_name: 'Read', tool_response: 'x'.repeat(2e6) })).hookSpecificOutput || null;
 
 test('a message steered into the Chief\'s reply is read at its next tool call, in the same turn, and stands on that reply', async (t) => {
   const events = feed(srv);
