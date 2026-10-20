@@ -205,7 +205,7 @@ async function reviewOf(on, bot) {
   return review;
 }
 // What every start of Claude Code with a prompt of botdot's must show: the file and nothing of it in the arguments,
-// the file its user's alone, Claude Code's own memory off. told: the text the file held.
+// the file its user's alone, Claude Code's own memory and non-essential traffic off. told: the text the file held.
 function assertPrivate(rec, what) {
   assert.equal(rec.args[rec.args.indexOf(FLAG) + 1], rec.promptFile.path, `${what}: started with the prompt's file`);
   assert.ok(!rec.args.includes('--append-system-prompt'), `${what}: never with the prompt as an argument`);
@@ -214,6 +214,7 @@ function assertPrivate(rec, what) {
   assert.equal(rec.promptFile.mode, 0o600, `${what}: readable by its user only`);
   assert.equal(rec.promptFile.uid, rec.uid, `${what}: the file is the user's the run runs as`);
   assert.deepEqual([rec.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY, rec.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS], ['1', '1'], `${what}: Claude Code's own memory is off`);
+  assert.equal(rec.env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC, '1', `${what}: no non-essential traffic (#205)`);
   assert.ok(rec.args.includes('--strict-mcp-config'), `${what}: only botdot's MCP servers`);
 }
 const gone = (rec) => !fs.existsSync(rec.promptFile.path);
