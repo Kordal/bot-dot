@@ -1,6 +1,6 @@
 # ADR-035: The account has one computer, and all its bots work on it as one user with sudo
 
-- **Status:** Accepted (2026-10-19, the owner's decision). Supersedes [ADR 021](021-a-bot-works-on-its-computer-as-a-normal-user.md), [ADR 032](032-a-bot-installs-programs-in-its-home.md) and the parts of [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) about a computer per bot (one gVisor container per bot, at most a set number running at once).
+- **Status:** Accepted (2026-10-19, the owner's decision). Supersedes [ADR 021](021-a-bot-works-on-its-computer-as-a-normal-user.md), [ADR 032](032-a-bot-installs-programs-in-its-home.md) and the parts of [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) about a computer per bot (one gVisor container per bot, at most a set number running at once). Partly superseded by [ADR 037](037-a-saved-file-is-in-the-computer-for-one-command.md): a file of the Vault is put in a file of the computer for one command.
 - **Owning task:** [#102](https://github.com/Kordal/bot-dot/issues/102), first built in [#104](https://github.com/Kordal/bot-dot/issues/104)
 
 ## Context

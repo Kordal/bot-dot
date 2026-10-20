@@ -65,6 +65,7 @@ test('hideFile blanks the file, its base64 and each line of its body', () => {
   assert.equal(hide(`got ${BODY[1]} and ${BODY[0]}`), 'got [hidden] and [hidden]');
   assert.equal(hide(PEM.trim()), '[hidden]');
   assert.equal(hide(PEM_BYTES.toString('base64')), '[hidden]');
+  assert.equal(hide(PEM_BYTES.toString('base64').match(/.{1,76}/g).join('\n')).split('\n')[0], '[hidden]', 'as base64 wraps it');
   assert.equal(hide('Verified OK'), 'Verified OK');
 });
 
