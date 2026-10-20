@@ -1,6 +1,6 @@
-# Runs the page tools of deploy/desktop/camoufox-browser (#170) on the stand-in Camoufox (camoufox-stub/): a login
+# Runs the browser tools of deploy/desktop/camoufox-browser (#170) on the stand-in Camoufox (camoufox-stub/): a login
 # page with a password, a card code and two "Log in" buttons, and prints each answer as JSON.
-# Usage: python3 camoufox-page-tools.py <launcher>
+# Usage: python3 camoufox-browser-tools.py <launcher>
 import importlib.machinery
 import importlib.util
 import json
@@ -29,7 +29,7 @@ page.elements = [
     {"role": "link", "name": "Help: FAQ"},
     {"role": "button", "name": ""},
 ]
-tool = lambda **req: launcher.page_tool(context, req)  # noqa: E731
+tool = lambda **req: launcher.browser_tool(context, req)  # noqa: E731
 out = {}
 out["snapshot"] = tool(op="snapshot")
 out["click_second"] = tool(op="click", ref="e5")
@@ -49,6 +49,10 @@ out["goto_file"] = tool(op="goto", url="file:///etc/passwd")
 out["goto"] = tool(op="goto", url="https://example.org/")
 out["wait_missing"] = tool(op="wait", text="Welcome", seconds=1)
 out["wait_nothing"] = tool(op="wait")
+page.elements = [{"role": "button", "name": "Delete"} for _ in range(3)]
+tool(op="snapshot")
+page.elements.pop(0)  # an earlier one of the same name goes, on the same address: the second ref is not the old third
+out["shifted"] = tool(op="click", ref="e2")
 page.elements = [{"role": "button", "name": f"Button number {i}"} for i in range(2000)]
 out["long"] = tool(op="snapshot")
 out["refs_long"] = len(launcher.refs)

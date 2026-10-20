@@ -1,6 +1,6 @@
-// The page tools (#170): a bot reads its Camoufox page as an accessibility tree with refs and acts by ref, through
+// The browser tools (#170): a bot reads its Camoufox page as an accessibility tree with refs and acts by ref, through
 // the bridge of its own screen, instead of by screenshot. The bridge runs on a stand-in Camoufox here
-// (test/fixtures/camoufox-page-tools.py); Docker is a stand-in too.
+// (test/fixtures/camoufox-browser-tools.py); Docker is a stand-in too.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -21,7 +21,7 @@ function hasPython() {
 
 let out;
 async function pageTools() {
-  out ||= JSON.parse((await util.promisify(childProcess.execFile)('python3', [path.join(__dirname, 'fixtures', 'camoufox-page-tools.py'), LAUNCHER], { timeout: 30_000 })).stdout);
+  out ||= JSON.parse((await util.promisify(childProcess.execFile)('python3', [path.join(__dirname, 'fixtures', 'camoufox-browser-tools.py'), LAUNCHER], { timeout: 30_000 })).stdout);
   return out;
 }
 
@@ -62,7 +62,9 @@ test('browser_fill refuses password, card and two-step code boxes and sends the 
 });
 
 test('an unknown or stale ref gives a clear error and asks for a new snapshot', { skip: !hasPython() }, async () => {
-  const { unknown, gone, moved } = await pageTools();
+  const { unknown, gone, moved, shifted } = await pageTools();
+  assert.deepEqual(shifted, { ok: false, error: 'e2 is stale: the page has changed since your last snapshot. Take a new snapshot.' },
+    'an earlier control of the same name went: never a click on the wrong one');
   assert.deepEqual(unknown, { ok: false, error: 'e99 is not a ref of your last browser_snapshot. Take a new snapshot.' });
   assert.deepEqual(gone, { ok: false, error: 'e5 is stale: the page has changed since your last snapshot. Take a new snapshot.' }, 'its element is gone');
   assert.deepEqual(moved, { ok: false, error: 'e4 is stale: the page has changed since your last snapshot. Take a new snapshot.' }, 'the page went elsewhere');
@@ -81,36 +83,36 @@ test('goto takes only web addresses, wait says what did not show, and a long pag
   assert.equal(refs, 2000, 'a ref beyond the cut still works');
 });
 
-test('a page tool goes through the bridge\'s queue on the browser\'s thread, as type_secret does', () => {
+test('a browser tool goes through the bridge\'s queue on the browser\'s thread, as type_secret does', () => {
   const launcher = fs.readFileSync(LAUNCHER, 'utf8');
-  assert.match(launcher, /result = page_tool\(context, body\) if body\.get\("op"\) in PAGE_OPS else type_secret\(context, body\)/);
-  assert.match(launcher, /PAGE_OPS = \{"snapshot", "click", "fill", "press", "goto", "wait"\}/);
+  assert.match(launcher, /result = browser_tool\(context, body\) if body\.get\("op"\) in BROWSER_OPS else type_secret\(context, body\)/);
+  assert.match(launcher, /BROWSER_OPS = \{"snapshot", "click", "fill", "press", "goto", "wait"\}/);
 });
 
-test('the Docker helper takes a page tool only in its fixed shape, and it starts the bot\'s screen', async (t) => {
+test('the Docker helper takes a browser tool only in its fixed shape, and it starts the bot\'s screen', async (t) => {
   const { createServer } = require('../lib/docker-helper');
   const where = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-helper-page-'));
   const socket = path.join(where, 'helper.sock');
-  const server = createServer({ computers: { browserPage: async () => ({ ok: true }) }, updates: {} });
+  const server = createServer({ computers: { browserTool: async () => ({ ok: true }) }, updates: {} });
   await new Promise((r) => server.listen(socket, r));
   t.after(async () => { await new Promise((r) => server.close(r)); fs.rmSync(where, { recursive: true, force: true }); });
   const status = (operation, args) => new Promise((resolve, reject) => {
     const req = http.request({ socketPath: socket, method: 'POST', path: '/call' }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
     req.on('error', reject); req.end(JSON.stringify({ operation, args }));
   });
-  assert.equal(await status('browserPage', [SEAT, { op: 'snapshot' }]), 200);
-  assert.equal(await status('browserPage', [SEAT, { op: 'fill', ref: 'e1', text: 'hi' }]), 200);
-  assert.equal(await status('browserPage', [SEAT, { op: 'wait', text: 'Done', seconds: 15 }]), 200);
-  assert.equal(await status('browserPage', [SEAT, { op: 'wait', text: 'Done', seconds: 16 }]), 400);
-  assert.equal(await status('browserPage', [SEAT, { op: 'type', value: 'x' }]), 400, 'no other op');
-  assert.equal(await status('browserPage', [SEAT, { op: 'fill', ref: 'e1', value: 'x' }]), 400, 'no secret\'s key');
-  assert.equal(await status('browserPage', ['ops', { op: 'snapshot' }]), 400, 'a seat, never a bare id');
+  assert.equal(await status('browserTool', [SEAT, { op: 'snapshot' }]), 200);
+  assert.equal(await status('browserTool', [SEAT, { op: 'fill', ref: 'e1', text: 'hi' }]), 200);
+  assert.equal(await status('browserTool', [SEAT, { op: 'wait', text: 'Done', seconds: 15 }]), 200);
+  assert.equal(await status('browserTool', [SEAT, { op: 'wait', text: 'Done', seconds: 16 }]), 400);
+  assert.equal(await status('browserTool', [SEAT, { op: 'type', value: 'x' }]), 400, 'no other op');
+  assert.equal(await status('browserTool', [SEAT, { op: 'fill', ref: 'e1', value: 'x' }]), 400, 'no secret\'s key');
+  assert.equal(await status('browserTool', ['ops', { op: 'snapshot' }]), 400, 'a seat, never a bare id');
 
   const got = [];
-  const raw = { ensure: async () => { got.push('ensure'); }, browserPage: async () => { got.push('browserPage'); return { ok: true }; } };
+  const raw = { ensure: async () => { got.push('ensure'); }, browserTool: async () => { got.push('browserTool'); return { ok: true }; } };
   const c = screensLib.facade(raw, screensLib.create(fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-page-screens-'))));
-  await c.browserPage('ops', { op: 'snapshot' });
-  assert.deepEqual(got, ['ensure', 'browserPage']);
+  await c.browserTool('ops', { op: 'snapshot' });
+  assert.deepEqual(got, ['ensure', 'browserTool']);
 });
 
 test('the bot\'s browser_ tools ask botdot\'s browser route and answer with the snapshot, no screenshot', async (t) => {

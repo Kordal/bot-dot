@@ -1,6 +1,6 @@
 # Stand-in for Camoufox in test/computer-secrets.test.js: one page on a site, its focused box accepts any field,
 # and what is typed into it is kept in TYPED. LAUNCHES counts the browsers opened.
-# For the page tools (test/browser-page.test.js, #170) a page holds `elements`, dicts of role, name, value and secret,
+# For the browser tools (test/browser-page.test.js, #170) a page holds `elements`, dicts of role, name, value and secret,
 # drawn as an aria snapshot that, unlike botdot's, shows every box's value; what is clicked or filled is kept in DONE.
 import json
 import time

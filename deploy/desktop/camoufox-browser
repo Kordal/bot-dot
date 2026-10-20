@@ -5,7 +5,7 @@ camoufox-browser --serve <display> <bot>
     botdot runs this as the browser user for each bot's screen (#105): one bridge and one Camoufox per screen, on
     that screen's display and with that bot's own profile. It opens Camoufox when asked and types a saved password,
     two-step code, card detail or identity detail into the page for botdot, after checking the site and the
-    focused field. {"op": "where"} returns the site the browser is on. The page tools ({"op": "snapshot"}, "click",
+    focused field. {"op": "where"} returns the site the browser is on. The browser tools ({"op": "snapshot"}, "click",
     "fill", "press", "goto", "wait", #170) read the page as its accessibility tree and act on it by ref. Those requests come only over
     BRIDGE_SOCKET, in a folder only the browser user can open, so no program of the bots that does not use sudo
     can receive or answer them (#311). 127.0.0.1:OPEN_PORT (inside the container only) takes {"op": "open"} and
@@ -180,19 +180,19 @@ def type_secret(context, req):
     return {"ok": True}
 
 
-# The page tools (#170): a bot reads the focused page as its accessibility tree, each control with a ref, and clicks,
+# The browser tools (#170): a bot reads the focused page as its accessibility tree, each control with a ref, and clicks,
 # fills, presses, goes and waits by ref, instead of by screenshot and screen position. The tree is Playwright's aria
 # snapshot; a ref is the control's role, name and place among those of that role and name (of that role, for one
 # without a name), so it is found again with get_by_role, and only in the page and at the address of the snapshot that gave it. Every tool answers with the new
 # snapshot, whose refs replace the old ones. A secret box is never filled, and no secret box's value is shown.
-PAGE_OPS = {"snapshot", "click", "fill", "press", "goto", "wait"}
+BROWSER_OPS = {"snapshot", "click", "fill", "press", "goto", "wait"}
 SNAPSHOT_CAP = 12000  # characters of the tree a bot gets at most
 REF_ROLES = {"button", "link", "textbox", "searchbox", "checkbox", "radio", "combobox", "listbox", "option", "menuitem",
              "menuitemcheckbox", "menuitemradio", "tab", "switch", "slider", "spinbutton", "treeitem"}
 SNAPSHOT_LINE = re.compile(r"^(\s*)- (.*)$")
 SNAPSHOT_KEY = re.compile(r'([a-z]+)(?: ("(?:[^"\\]|\\.)*"))?')
 HIDDEN = "••••"
-refs = {}  # "e12" -> (page, url, role, name, nth): the last snapshot's, on the browser's thread only
+refs = {}  # "e12" -> [page, url, role, name, nth, how many share its role and name]: the last snapshot's, on the browser's thread only
 # Runs on an element: is it a box for a password, a card detail or a two-step code? Those take type_login, type_card.
 SECRET_FIELD = """(el) => {
   if (!el || el.tagName !== 'INPUT') return false;
@@ -204,8 +204,8 @@ SECRET_FIELD = """(el) => {
 SECRET_VALUES = "() => Array.from(document.querySelectorAll('input')).filter(" + SECRET_FIELD + ").map((el) => el.value).filter(Boolean)"
 
 
-class PageError(Exception):
-    """A page tool's answer to the bot, said as it is."""
+class BrowserError(Exception):
+    """A browser tool's answer to the bot, said as it is."""
 
 
 def snapshot_key(rest):
@@ -255,7 +255,7 @@ def page_snapshot(page):
     try:
         tree = page.locator("body").aria_snapshot(timeout=10000)
     except Exception as exc:
-        raise PageError(f"Couldn't read the page: {type(exc).__name__}. Take a screenshot instead.")
+        raise BrowserError(f"Couldn't read the page: {type(exc).__name__}. Take a screenshot instead.")
     counts, lines = {}, []
     for line in tree.splitlines():
         m = SNAPSHOT_LINE.match(line)
@@ -268,7 +268,7 @@ def page_snapshot(page):
                 counts[(role, name)] = counts.get((role, name), 0) + 1
                 counts[role] = counts.get(role, 0) + 1
                 ref = f"e{len(refs) + 1}"
-                refs[ref] = (page, page.url, role, name, nth)
+                refs[ref] = [page, page.url, role, name, nth, (role, name) if name else role]
                 line = f"{line[:at]} [ref={ref}]{line[at:]}"
                 at += len(ref) + 7
             rest = line[at:]
@@ -279,10 +279,12 @@ def page_snapshot(page):
                 shown = HIDDEN if secrets is None and role in REF_ROLES else hide_secrets(value, secrets or [])
                 line = line[:at] + rest[:colon + 2] + shown
         lines.append(line)
+    for entry in refs.values():  # how many share its role and name: when that changes, its place no longer holds
+        entry[5] = counts[entry[5]]
     text = "\n".join(lines)
     if len(text) > SNAPSHOT_CAP:
         cut = text.rfind("\n", 0, SNAPSHOT_CAP)
-        text = text[:cut if cut > 0 else SNAPSHOT_CAP] + "\n(The page goes on: this is its start. Scroll with browser_press PageDown, or take a screenshot.)"
+        text = text[:cut if cut > 0 else SNAPSHOT_CAP] + "\n(The page goes on: this is its start. Take a screenshot to see the rest, or go to a narrower page.)"
     try:
         title = page.title()
     except Exception:
@@ -291,16 +293,16 @@ def page_snapshot(page):
 
 
 def locate(context, ref):
-    """The element behind a ref of the last snapshot, or a PageError the bot can act on."""
+    """The element behind a ref of the last snapshot, or a BrowserError the bot can act on."""
     entry = refs.get(str(ref or ""))
     if entry is None:
-        raise PageError(f"{ref or 'That'} is not a ref of your last browser_snapshot. Take a new snapshot.")
-    page, url, role, name, nth = entry
-    stale = PageError(f"{ref} is stale: the page has changed since your last snapshot. Take a new snapshot.")
+        raise BrowserError(f"{ref or 'That'} is not a ref of your last browser_snapshot. Take a new snapshot.")
+    page, url, role, name, nth, alike = entry
+    stale = BrowserError(f"{ref} is stale: the page has changed since your last snapshot. Take a new snapshot.")
     if page.is_closed() or page is not focused_page(context) or page.url != url:
         raise stale
     found = page.get_by_role(role, name=name, exact=True) if name else page.get_by_role(role)
-    if found.count() <= nth:
+    if found.count() != alike:  # one of the same role and name came or went: the nth may be another now
         raise stale
     return page, found.nth(nth)
 
@@ -313,8 +315,8 @@ def settle(page):
     page.wait_for_timeout(300)
 
 
-def page_tool(context, req):
-    """One page tool, run on the browser's thread: {"ok": True, "snapshot"} or {"ok": False, "error"}."""
+def browser_tool(context, req):
+    """One browser tool, run on the browser's thread: {"ok": True, "snapshot"} or {"ok": False, "error"}."""
     op = req.get("op")
     page = focused_page(context)
     if page is None:
@@ -327,7 +329,7 @@ def page_tool(context, req):
         elif op == "fill":
             page, element = locate(context, req.get("ref"))
             if element.evaluate(SECRET_FIELD):
-                raise PageError("That is a password, card or two-step code box: botdot never lets you type into it. "
+                raise BrowserError("That is a password, card or two-step code box: botdot never lets you type into it. "
                                 "Click it and use type_login, type_card or type_identity, which type the saved value for you.")
             element.fill(str(req.get("text") or ""), timeout=10000)
         elif op == "press":
@@ -336,7 +338,7 @@ def page_tool(context, req):
         elif op == "goto":
             url = str(req.get("url") or "")
             if urlparse(url).scheme not in ("http", "https"):
-                raise PageError("browser_goto takes an http or https address.")
+                raise BrowserError("browser_goto takes an http or https address.")
             page.goto(url, wait_until="domcontentloaded", timeout=15000)
         elif op == "wait":
             if req.get("ref"):
@@ -344,14 +346,14 @@ def page_tool(context, req):
             elif req.get("text"):
                 element = page.get_by_text(str(req["text"])).first
             else:
-                raise PageError("Say which text or ref to wait for.")
+                raise BrowserError("Say which text or ref to wait for.")
             seconds = min(max(float(req.get("seconds") or 10), 1), 15)
             try:
                 element.wait_for(state="visible", timeout=seconds * 1000)
             except Exception:
-                raise PageError(f"It did not show within {seconds:g} seconds.")
+                raise BrowserError(f"It did not show within {seconds:g} seconds.")
         return {"ok": True, "snapshot": page_snapshot(focused_page(context) or page)}
-    except PageError as exc:
+    except BrowserError as exc:
         return {"ok": False, "error": str(exc)}
     except Exception as exc:  # Playwright's own words, first line only: it may hold the page's text, never a secret
         said = str(exc).strip().splitlines()[0][:300] if str(exc).strip() else ""
@@ -535,9 +537,9 @@ def run_browser(url):
                     break
                 continue
             try:
-                result = page_tool(context, body) if body.get("op") in PAGE_OPS else type_secret(context, body)
+                result = browser_tool(context, body) if body.get("op") in BROWSER_OPS else type_secret(context, body)
             except Exception as exc:  # report the problem, never the value
-                result = {"ok": False, "error": f"Typing failed: {type(exc).__name__}"}
+                result = {"ok": False, "error": f"The browser failed: {type(exc).__name__}"}
             finally:
                 body.clear()
             if reply is not None:
