@@ -57,6 +57,23 @@ test('a run that called keep_computer_on leaves its computer on when it ends', a
   assert.ok(on.has(bot.id));
 });
 
+test("a computer that can't be turned off after a run is logged, and botdot keeps serving", async () => {
+  const bot = B.bots.create({ name: 'Broken Pipe', prompt: 'Help.', computer: 'linux' });
+  const unhandled = [];
+  const seen = (e) => unhandled.push(e);
+  process.on('unhandledRejection', seen);
+  B.computers.stop = async (botId) => { asked.push(['stop', botId]); throw Object.assign(new Error('write EPIPE'), { code: 'EPIPE' }); };
+  try {
+    await run(bot);
+    await new Promise((r) => setTimeout(r, 50));
+    assert.equal(stops(bot), 1);
+    assert.deepEqual(unhandled, []);
+  } finally {
+    B.computers.stop = STUBS.stop;
+    process.off('unhandledRejection', seen);
+  }
+});
+
 test('a run that did not call it turns its computer off when it ends, as before', async () => {
   const bot = B.bots.create({ name: 'Plain', prompt: 'Help.', computer: 'linux' });
   await run(bot);

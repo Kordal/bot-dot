@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -41,6 +43,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,8 +54,10 @@ import dev.botdot.app.data.BitwardenStatus
 import dev.botdot.app.data.VaultItem
 import dev.botdot.app.data.VaultTypes
 import kotlinx.coroutines.async
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** The vault: Bitwarden's bot-dot folder (or the built-in logins), and which bots may use each item. Like the web's Vault page. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,6 +78,8 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     var bw by remember { mutableStateOf<BitwardenStatus?>(null) }
     var editing by remember { mutableStateOf<VaultItem?>(null) }
     var adding by remember { mutableStateOf(false) }
+    var addingKey by remember { mutableStateOf(false) }
+    var addedKey by remember { mutableStateOf<VaultItem?>(null) }
     var master by remember { mutableStateOf("") }
 
     suspend fun load() {
@@ -129,6 +137,9 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
                 item {
                     OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) { Text("＋ Add", color = p.text) }
                 }
+                if (b.configured && b.unlocked && VaultTypes.addsSshKeys(features)) item {
+                    OutlinedButton(onClick = { addingKey = true }, modifier = Modifier.fillMaxWidth()) { Text("＋ SSH key", color = p.text) }
+                }
             }
         }
     }
@@ -139,7 +150,93 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
         adding -> LoginEditor(null, allBots, bw?.configured == true, features, api, done) { adding = false }
         editing?.kind == "login" -> LoginEditor(editing, allBots, bw?.configured == true, features, api, done) { editing = null }
         editing != null -> ItemBots(editing!!, allBots, api, done) { editing = null }
+        addingKey -> SshKeyEditor(allBots, api, { key -> addingKey = false; addedKey = key; scope.launch { load() } }) { addingKey = false }
+        addedKey != null -> SshPublicKey(addedKey!!) { addedKey = null }
     }
+}
+
+/**
+ * Adds an SSH key (#160, docs/api.md `POST /api/vault/ssh-keys`): an OpenSSH private key pasted or read from the file
+ * the owner picks, or none, and botdot makes a new one. The key goes to the server once and is never shown again.
+ */
+@Composable
+private fun SshKeyEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: (VaultItem) -> Unit, close: () -> Unit) {
+    val p = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var name by remember { mutableStateOf("") }
+    var key by remember { mutableStateOf("") }
+    var chosen by remember { mutableStateOf(emptySet<String>()) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    // The system's file picker; the file is read here, at most 64 KB (an SSH private key is a few).
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openInputStream(uri)?.use { readAtMost(it, 64 * 1024 + 1) } }.getOrNull()
+            }
+            when {
+                text == null -> error = "Couldn't read that file."
+                text.length > 64 * 1024 -> error = "That file is too big for an SSH private key."
+                else -> { key = text; error = null; if (name.isBlank()) name = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':').orEmpty() }
+            }
+        }
+    }
+    AlertDialog(onDismissRequest = { key = ""; close() }, title = { Text("🗝️ Add an SSH key") }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(name, { name = it.take(100) }, label = { Text("Name") }, placeholder = { Text("Home servers") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(key, { key = it }, label = { Text("Private key") }, placeholder = { Text("-----BEGIN OPENSSH PRIVATE KEY-----") }, minLines = 3, maxLines = 6,
+                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+            TextButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text("Pick its file", color = p.text) }
+            Hint("OpenSSH format, without a passphrase. Leave it empty to generate a new key. It is saved in your Bitwarden's bot-dot folder: bots use it for SSH from the account's computer and never see it.")
+            Text("Bots that may use it", color = p.text, style = MaterialTheme.typography.titleSmall)
+            bots.forEach { b -> CheckRow("${b.emoji} ${b.name}", null, b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id } }
+            error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
+        }
+    }, confirmButton = {
+        TextButton(enabled = !busy && name.isNotBlank(), onClick = {
+            busy = true
+            scope.launch {
+                runCatching { api!!.addSshKey(name.trim(), key.trim().ifEmpty { null }, chosen.toList()) }
+                    .onSuccess { key = ""; added(it) }
+                    // Refused: the server's sentence, in the form, which stays open with what was given.
+                    .onError { error = it.message ?: "Couldn't save" }
+                busy = false
+            }
+        }) { Text(if (busy) "Saving…" else if (key.isBlank()) "Generate new key" else "Add key", color = p.text) }
+    }, dismissButton = { TextButton(onClick = { key = ""; close() }) { Text("Cancel", color = p.text) } })
+}
+
+/** At most [limit] bytes of [input], as text: enough to tell a file that is too big. */
+private fun readAtMost(input: java.io.InputStream, limit: Int): String {
+    val out = java.io.ByteArrayOutputStream()
+    val chunk = ByteArray(8192)
+    while (out.size() < limit) {
+        val n = input.read(chunk, 0, minOf(chunk.size, limit - out.size()))
+        if (n < 0) break
+        out.write(chunk, 0, n)
+    }
+    return out.toString(Charsets.UTF_8.name())
+}
+
+/** The public key of the SSH key just added, to copy into a server's authorized_keys. */
+@Composable
+private fun SshPublicKey(key: VaultItem, close: () -> Unit) {
+    val p = LocalPaper.current
+    val context = LocalContext.current
+    AlertDialog(onDismissRequest = close, title = { Text("🗝️ ${key.name}") }, text = {
+        Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Hint("Saved in Bitwarden. To let it in, add its public key to ~/.ssh/authorized_keys on the server.")
+            Text(key.publicKey.orEmpty(), color = p.text, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+            Text(key.fingerprint.orEmpty(), color = p.faint, fontSize = 12.sp)
+        }
+    }, confirmButton = {
+        TextButton(onClick = {
+            context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("botdot", key.publicKey.orEmpty()))
+        }) { Text("Copy public key", color = p.text) }
+    }, dismissButton = { TextButton(onClick = close) { Text("Done", color = p.text) } })
 }
 
 @Composable
