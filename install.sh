@@ -118,7 +118,12 @@ bold() { printf '\033[1m%s\033[0m\n' "$*"; }
 say() { printf '%s\n' "$*"; }
 ok() { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
-die() { printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
+# An account the update runs on its own (each_account) ends with its reason in ACCOUNT_WHY, and the others go on.
+die() {
+  [ -z "${ACCOUNT_WHY:-}" ] || { printf '%s\t%s\n' "${ACCOUNT_RESULT:-kept}" "$*" > "$ACCOUNT_WHY"; exit 1; }
+  printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2
+  exit 1
+}
 
 # Answers come from the terminal even when the script itself is piped in (curl … | sh). Commands
 # that don't need input get </dev/null, so they can't swallow answers (or the piped-in script).
@@ -978,15 +983,21 @@ fi
 valid_account "$ADMIN" || die "BOT_DOT_ADMIN: an account's name is $ACCOUNT_RULE."
 set_env "$ENV" FRONT_DOOR_ADMIN "$ADMIN"
 
-# The new version goes into every running account's Docker before anything restarts (#473): a download that fails stops
-# the installer here, while the front door and every account still run the version they ran. A stopped (suspended)
-# account gets it when it is resumed.
+# The new version goes into every running account's Docker before anything restarts (#473). An account whose download
+# fails keeps the version it runs, and the others go on (#194): its reason waits in HELD for each_account. A stopped
+# (suspended) account gets it when it is resumed.
+HELD="$RUN/update-held"
+rm -rf "$HELD"
+mkdir -p "$HELD"
 for other in "$ACCOUNTS"/*/; do
   other="$(basename "$other")"
   [ -f "$ACCOUNTS/$other/compose.yaml" ] || continue
   A="env DOCKER_HOST=unix://$RUN/$other/docker.sock docker"
   $A info </dev/null >/dev/null 2>&1 || continue
-  hand_images "$other"
+  set +e
+  ( set -e; ACCOUNT_WHY="$HELD/$other"; hand_images "$other" ) || [ -s "$HELD/$other" ] \
+    || printf 'kept\tThe new version could not be put in its Docker.\n' > "$HELD/$other"
+  set -e
 done
 
 # ---------------------------------------------------------------------------------------------
@@ -1131,6 +1142,23 @@ share() {
   mv "$ACCOUNTS/$1/share/share.json.new" "$ACCOUNTS/$1/share/share.json"
 }
 
+# answers FOLDER: the botdot server whose socket is in FOLDER (an account's, named as it) answers, as the front door
+# asks it, within about 2 minutes (90 tries, each a second apart and at most a second long). A socket alone isn't enough: a botdot server that stopped leaves its socket behind,
+# and the next one removes it only once it starts.
+answers() {
+  i=0
+  until [ -S "$1/botdot.sock" ] && curl -fsS -o /dev/null --max-time 1 -H "X-Botdot-Account: $(basename "$1")" --unix-socket "$1/botdot.sock" http://botdot/api/version </dev/null 2>/dev/null; do
+    i=$((i + 1))
+    [ "$i" -lt 90 ] || return 1
+    sleep 1
+  done
+}
+
+# compose_up HOME: the account's botdot server ($A) started from the compose file in HOME, tried twice.
+compose_up() {
+  $A compose --project-directory "$1" up -d --remove-orphans </dev/null >/dev/null 2>&1 || $A compose --project-directory "$1" up -d --remove-orphans </dev/null
+}
+
 # account NAME [CPU RAM DISK]: makes or updates the account NAME with that share (DEFAULT_SHARE without one) and
 # starts its botdot server.
 account() {
@@ -1215,8 +1243,15 @@ JSON
   hand_images "$name"
 
   # Its botdot server, from the compose file and the settings of this run.
-  printf '%s\n' "$ACCOUNT_COMPOSE" > "$home/compose.yaml"
   aenv="$home/.env"
+  # What it ran until now, put back when its new server doesn't start (#194, ADR 044). Its old images are still in its
+  # Docker: they go only once the new server answers (below), and the cleanup before a download keeps them.
+  rm -f "$home/compose.yaml.before" "$home/.env.before"
+  if [ -f "$home/compose.yaml" ] && [ -f "$aenv" ]; then
+    cp -p "$home/compose.yaml" "$home/compose.yaml.before"
+    cp -p "$aenv" "$home/.env.before"
+  fi
+  printf '%s\n' "$ACCOUNT_COMPOSE" > "$home/compose.yaml"
   touch "$aenv"
   [ "$IMAGE" = "$IMAGES/bot-dot:latest" ] || set_env "$aenv" BOT_DOT_IMAGE "$IMAGE"
   set_env "$aenv" BOT_DOT_COMPUTER_IMAGE "$COMPUTER_IMAGE"
@@ -1229,14 +1264,19 @@ JSON
   # when the server starts, and that stays. Its Docker restarted the server already when this step starts it again
   # (a resume, a rerun), so changing the owner now would leave the server unable to write its data.
   [ -d "$home/data" ] || { mkdir -p "$home/data"; chown "$uid:$gid" "$home/data"; }
-  chown "$uid:$gid" "$home/compose.yaml" "$aenv"
-  $A compose --project-directory "$home" up -d --remove-orphans </dev/null >/dev/null 2>&1 || $A compose --project-directory "$home" up -d --remove-orphans </dev/null
-  i=0
-  until [ -S "$folder/botdot.sock" ]; do
-    i=$((i + 1))
-    [ "$i" -lt 120 ] || die "The account $name's botdot server didn't start. See what went wrong with: sudo DOCKER_HOST=unix://$run/docker.sock docker compose --project-directory $home logs"
-    sleep 1
-  done
+  # From here on what fails puts back what it ran (in an if, so that set -e doesn't end the account first).
+  if ! { chown "$uid:$gid" "$home/compose.yaml" "$aenv" && compose_up "$home" && answers "$folder"; }; then
+    [ -f "$home/compose.yaml.before" ] || die "The account $name's botdot server didn't start. See what went wrong with: sudo DOCKER_HOST=unix://$run/docker.sock docker compose --project-directory $home logs"
+    # The new version's logs, before its container is replaced by the old one's.
+    $A compose --project-directory "$home" logs --no-color --tail 40 </dev/null 2>&1 | sed 's/^/    /' || true
+    warn "The account $name's new botdot server didn't start, so it goes back to the version it ran."
+    mv "$home/compose.yaml.before" "$home/compose.yaml"
+    mv "$home/.env.before" "$aenv"
+    compose_up "$home" || true
+    answers "$folder" || { ACCOUNT_RESULT=failed; die "Its botdot server didn't start, neither the new version nor the one it ran. See what went wrong with: sudo DOCKER_HOST=unix://$run/docker.sock docker compose --project-directory $home logs"; }
+    die "Its new botdot server didn't start, so it runs the version it ran before."
+  fi
+  rm -f "$home/compose.yaml.before" "$home/.env.before"
   ok "The account $name is running"
   remove_unnamed
 
@@ -1301,22 +1341,47 @@ settle() {
 # from this copy (--update), asking nothing, and moves the front door and every account to the newest version together.
 # What it did is in update.json beside version.json, for the admin page, and all it said in BOT_DOT_DIR/update.log.
 UPDATE=UPDATE
+# plain_line N: its input as one line of plain text of at most N characters, for update.json.
+plain_line() { tr -d '"\\' | tr -c "A-Za-z0-9 .,:;()/_@+='-" ' ' | sed 's/ *$//' | cut -c1-"$1"; }
+# account_results FILE: the lines each_account wrote (NAME<tab>updated|kept|failed<tab>version<tab>why), as
+# update.json's "accounts" after a comma, each why as plain text; nothing when there are none (an installer from before
+# #194).
+account_results() {
+  [ -s "$1" ] || return 0
+  printf ',"accounts":['
+  sep=''
+  while IFS='	' read -r a_name a_result a_version a_why; do
+    valid_account "$a_name" || continue
+    case "$a_result" in updated | kept | failed) ;; *) continue ;; esac
+    a_why="$(printf '%s' "$a_why" | plain_line 300)"
+    printf '%s{"name":"%s","result":"%s"' "$sep" "$a_name" "$a_result"
+    case "$a_version" in '' | *[!0-9a-f]*) ;; *) [ "$a_result" != kept ] || printf ',"version":"%s"' "$a_version" ;; esac
+    [ "$a_result" = updated ] || printf ',"error":"%s"' "$a_why"
+    printf '}'
+    sep=','
+  done < "$1"
+  printf ']'
+}
 version_now() { sed -n 's/.*"version":"\([0-9a-f]*\)".*/\1/p' "$DOOR/status/version.json" 2>/dev/null || true; }
 update_all() {
   from="$(version_now)"
   write_status update.json "{\"state\":\"updating\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\"}"
   set +e
-  BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
+  results="$RUN/update-results"
+  rm -f "$results"
+  BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" BOT_DOT_UPDATE_RESULTS="$results" sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
   updated=$?
   set -e
   chmod 600 "$DIR/update.log"
+  accounts="$(account_results "$results")"
+  rm -f "$results"
   if [ "$updated" = 0 ]; then
-    write_status update.json "{\"state\":\"updated\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\"}"
+    write_status update.json "{\"state\":\"updated\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\"$accounts}"
     ok "botdot is updated, the front door and every account"
   else
     # The installer's last ✗ line, as plain text.
-    why="$(tr -d '\033' < "$DIR/update.log" | sed -n 's/\[[0-9;]*m//g; s/^✗ //p' | tail -n 1 | tr -d '"\\' | tr -c "A-Za-z0-9 .,:;()/_@+='-" ' ' | sed 's/ *$//' | cut -c1-500)"
-    write_status update.json "{\"state\":\"failed\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\",\"error\":\"${why:-See $DIR/update.log}\"}"
+    why="$(tr -d '\033' < "$DIR/update.log" | sed -n 's/\[[0-9;]*m//g; s/^✗ //p' | tail -n 1 | plain_line 500)"
+    write_status update.json "{\"state\":\"failed\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\",\"error\":\"${why:-See $DIR/update.log}\"$accounts}"
     warn "The update stopped: ${why:-see $DIR/update.log}"
   fi
 }
@@ -1364,9 +1429,46 @@ if [ "$MODE" = requested ]; then
   exit 0
 fi
 
+# each_account NAME [CPU RAM DISK]: account NAME, on its own when it ran already (#194, ADR 044): one that fails
+# (a download, its Docker, its new server) keeps the version it ran, and the others go on. What became of each is a
+# line "NAME<tab>updated|kept|failed<tab>the version it runs<tab>why" in BOT_DOT_UPDATE_RESULTS, which the admin page's update hands this run;
+# the run ends failed, naming the accounts that weren't updated, once everything else is done. A new account (the
+# admin's on the first install) stops the run as before.
+NOT_UPDATED=''
+each_account() {
+  [ -f "$ACCOUNTS/$1/compose.yaml" ] || { account "$@"; return 0; }
+  why_file="$HELD/$1"
+  if [ -s "$why_file" ]; then done_=1
+  else
+    rm -f "$why_file"
+    set +e
+    ( set -e; ACCOUNT_WHY="$why_file"; account "$@" )
+    done_=$?
+    set -e
+  fi
+  if [ "$done_" = 0 ]; then
+    [ -z "${BOT_DOT_UPDATE_RESULTS:-}" ] || printf '%s\tupdated\t-\t-\n' "$1" >> "$BOT_DOT_UPDATE_RESULTS"
+    return 0
+  fi
+  line="$(cat "$why_file" 2>/dev/null || true)"
+  rm -f "$why_file"
+  result="${line%%	*}"
+  why="${line#*	}"
+  case "$result" in kept | failed) ;; *) result=kept why="see what the installer said above" ;; esac
+  [ -n "$why" ] || why="see what the installer said above"
+  if [ "$result" = kept ]; then warn "The account $1 wasn't updated, and runs the version it ran: $why"
+  else warn "The account $1 wasn't updated, and doesn't run: $why"; fi
+  # The version it runs, as version.json names one: its image's source revision ("-" when it has none).
+  ran_image="$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)"
+  ran="$(env DOCKER_HOST="unix://$RUN/$1/docker.sock" docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${ran_image:-$IMAGES/bot-dot:latest}" </dev/null 2>/dev/null | cut -c1-7 || true)"
+  case "$ran" in '' | *[!0-9a-f]*) ran=- ;; esac
+  [ -z "${BOT_DOT_UPDATE_RESULTS:-}" ] || printf '%s\t%s\t%s\t%s\n' "$1" "$result" "$ran" "$why" >> "$BOT_DOT_UPDATE_RESULTS"
+  NOT_UPDATED="${NOT_UPDATED:+$NOT_UPDATED, }$1"
+}
+
 state="$(door_state "$ADMIN")"
 # shellcheck disable=SC2086 # its share's three numbers, after its state
-account "$ADMIN" ${state#* }
+each_account "$ADMIN" ${state#* }
 for other in "$ACCOUNTS"/*/; do
   other="$(basename "$other")"
   [ "$other" != "$ADMIN" ] && [ -f "$ACCOUNTS/$other/compose.yaml" ] || continue
@@ -1376,9 +1478,10 @@ for other in "$ACCOUNTS"/*/; do
     suspended*) ok "The account $other is suspended, so it stays stopped" ;;
     deleted) erase_account "$other" ;;
     # shellcheck disable=SC2086 # its share's three numbers, after its state
-    *) account "$other" ${state#* } ;;
+    *) each_account "$other" ${state#* } ;;
   esac
 done
+rm -rf "$HELD"
 
 # The images this run replaced in the machine's own Docker, the front door's, go as in each account's: botdot's rule
 # decides which (lib/image-cleanup.js), run from the image now installed. Images built on this machine are the admin's.
@@ -1502,6 +1605,9 @@ else
   tailscale serve --bg "$DOOR_PORT" </dev/null || die "Tailscale Serve didn't start (its message is above). Fix that and run this installer again."
   ok "Reachable on your tailnet only, at https://$NAME"
 fi
+
+# The accounts this run couldn't update, once the rest is done (#194).
+[ -z "$NOT_UPDATED" ] || die "Not every account was updated: $NOT_UPDATED. The others run the new version."
 
 # ---------------------------------------------------------------------------------------------
 # 7. The admin's sign-up link

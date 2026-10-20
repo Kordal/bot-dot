@@ -15,7 +15,7 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
-const { createStage, REGISTRY, SERVER, DESKTOP, DOMAIN, ADMIN, DIR, REGISTRY_IMAGE } = require('./test-install');
+const { createStage, until, REGISTRY, SERVER, DESKTOP, DOMAIN, ADMIN, DIR, REGISTRY_IMAGE } = require('./test-install');
 // The names `make images` gives a self-built botdot server's images.
 const SELF_SERVER = 'bot-dot/server:latest', SELF_DESKTOP = 'bot-dot/desktop:latest';
 const HOME = `${DIR}/accounts/${ADMIN}`;
@@ -386,6 +386,60 @@ const cases = [
       assert.equal(files(), was, 'its folder is as it was');
       machine.signUp(said);
       answers(machine);
+    },
+  },
+  {
+    // #194: an account whose new botdot server doesn't start goes back to the version it ran, the other accounts are
+    // updated, and the run ends failed, naming it. The new release starts for every account but the admin's.
+    name: 'an account whose new botdot server doesn\'t start runs the version it ran, and the others are updated',
+    async run(machine) {
+      await machine.load(stage.server());
+      machine.publish(stage.server(), `${SERVER}:latest`);
+      const server = machine.sign(`${SERVER}:latest`, { app: 'server' });
+      stage.step('install.sh, and a second account, bob, from a sign-up link');
+      const said = machine.install({ BOT_DOT_IMAGE: `${SERVER}:latest` });
+      machine.signUp(said);
+      answers(machine);
+      const made = machine.api('POST', '/admin/links', {});
+      assert.equal(made.status, 201, JSON.stringify(made.body));
+      machine.signUp(made.body.url, 'bob', { jar: 'bob' });
+      const bobAnswers = () => { const v = machine.api('GET', '/api/version', undefined, { jar: 'bob' }); return v.status === 200 && v.body.frontDoor !== true; };
+      await until("bob's botdot server", bobAnswers, 10 * 60_000);
+      await until("root's step to be done with bob's request", () => machine.exec('ls', '-A', `${DIR}/front-door/requests`) === '', 60_000);
+
+      stage.step('a new release whose botdot server doesn\'t start for the admin\'s account');
+      await machine.load(stage.server());
+      machine.inner('create', '--name', 'release-2', stage.server());
+      const script = `[ "$BOT_DOT_ACCOUNT" != ${ADMIN} ] || { echo "This release doesn't start for ${ADMIN}." >&2; exit 1; }; exec node lib/privilege-broker.js`;
+      machine.inner('commit', '--change', `CMD ${JSON.stringify(['sh', '-c', script])}`, 'release-2', 'release-2:latest');
+      machine.inner('rm', '-v', 'release-2');
+      machine.inner('image', 'rm', stage.server());
+      machine.publish('release-2:latest', `${SERVER}:latest`);
+      const release2 = machine.sign(`${SERVER}:latest`, { app: 'server', version: 2 });
+      assert.notEqual(release2, server);
+      const files = () => machine.exec('sh', '-c', `cd ${HOME} && cat compose.yaml && echo --- && cat .env`);
+      const was = files();
+
+      stage.step('install.sh again');
+      const result = machine.tryInstall({ BOT_DOT_IMAGE: `${SERVER}:latest` });
+      assert.equal(result.status, 1, `the run ends failed:\n${result.stdout}\n${result.stderr}`);
+      assert.ok(result.stderr.includes(`Not every account was updated: ${ADMIN}. The others run the new version.`), `it names the account:\n${result.stderr}`);
+      assert.ok(result.stdout.includes(`The account ${ADMIN}'s new botdot server didn't start, so it goes back to the version it ran.`), result.stdout);
+      assert.ok(result.stdout.includes(`The account ${ADMIN} wasn't updated, and runs the version it ran: Its new botdot server didn't start, so it runs the version it ran before.`), result.stdout);
+      assert.match(result.stdout, /The account bob is running/);
+
+      stage.step('the admin\'s account runs the version it ran, bob\'s the new one');
+      answers(machine);
+      assert.equal(files(), was, 'its compose.yaml and .env are the ones it ran with');
+      assert.equal(machine.exec('sh', '-c', `ls -A ${HOME} | grep '\\.before$' || true`), '', 'and nothing of the new version is left beside them');
+      const imageOf = (account, service) => {
+        const id = machine.account(account, 'compose', '--project-directory', `${DIR}/accounts/${account}`, 'ps', '-q', service);
+        return JSON.parse(machine.account(account, 'inspect', id))[0].Config.Image;
+      };
+      for (const service of ['bot-dot', 'docker-helper']) assert.equal(imageOf(ADMIN, service), server, `the admin's ${service} runs the version it ran`);
+      assert.ok(bobAnswers(), "bob's botdot answers");
+      assert.equal(imageOf('bob', 'bot-dot'), release2, 'bob runs the new version');
+      assert.ok(machine.exec('cat', `${DIR}/accounts/bob/.env`).includes(`BOT_DOT_IMAGE=${release2}\n`), 'pinned in its .env');
     },
   },
 ];
