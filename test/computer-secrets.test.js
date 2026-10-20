@@ -126,6 +126,19 @@ test("typeSecret runs botdot's own copy of the helper as the browser user, the s
   assert.ok(!calls.some((c) => c.args.includes('/usr/local/bin/botdot-type-secret')), 'no file of the computer is run');
 });
 
+test("a page tool (#170) takes typeSecret's way: botdot's helper, as the browser user, to the bot's own screen, on stdin", async () => {
+  answer = docker({ state: 'running' });
+  calls = [];
+  const result = await computers.browserPage(seat('pagebot'), { op: 'fill', ref: 'e2', text: 'me@example.com' });
+  assert.deepEqual(result, { ok: true });
+  const [call] = helperCalls();
+  assert.deepEqual(call.args.slice(0, 7), ['exec', '-i', '-u', 'browser', '-w', '/', 'botdot.account.computer']);
+  assert.deepEqual(call.args.slice(7), ['/usr/bin/python3', '-I', '-c', HELPER, '/run/botdot-browser/bridge-11.sock']);
+  assert.deepEqual(JSON.parse(call.stdin), { op: 'fill', ref: 'e2', text: 'me@example.com' });
+  answer = docker({ state: 'running', users: '' });
+  assert.match((await computers.browserPage(seat('pagebot'), { op: 'snapshot' })).error, /older than botdot's page tools/);
+});
+
 test('typeSecret types nothing into a computer older than the account computer (#311)', async () => {
   answer = docker({ state: 'running', users: '' });
   const result = await computers.typeSecret(seat('oldbot'), { site: 'example.com', field: 'password', value: 'synthetic-secret' });

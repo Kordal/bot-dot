@@ -5,7 +5,8 @@ camoufox-browser --serve <display> <bot>
     botdot runs this as the browser user for each bot's screen (#105): one bridge and one Camoufox per screen, on
     that screen's display and with that bot's own profile. It opens Camoufox when asked and types a saved password,
     two-step code, card detail or identity detail into the page for botdot, after checking the site and the
-    focused field. {"op": "where"} returns the site the browser is on. Those requests come only over
+    focused field. {"op": "where"} returns the site the browser is on. The page tools ({"op": "snapshot"}, "click",
+    "fill", "press", "goto", "wait", #170) read the page as its accessibility tree and act on it by ref. Those requests come only over
     BRIDGE_SOCKET, in a folder only the browser user can open, so no program of the bots that does not use sudo
     can receive or answer them (#311). 127.0.0.1:OPEN_PORT (inside the container only) takes {"op": "open"} and
     {"op": "is-open"}, and nothing else.
@@ -177,6 +178,184 @@ def type_secret(context, req):
     if req.get("submit"):
         page.keyboard.press("Enter")
     return {"ok": True}
+
+
+# The page tools (#170): a bot reads the focused page as its accessibility tree, each control with a ref, and clicks,
+# fills, presses, goes and waits by ref, instead of by screenshot and screen position. The tree is Playwright's aria
+# snapshot; a ref is the control's role, name and place among those of that role and name (of that role, for one
+# without a name), so it is found again with get_by_role, and only in the page and at the address of the snapshot that gave it. Every tool answers with the new
+# snapshot, whose refs replace the old ones. A secret box is never filled, and no secret box's value is shown.
+PAGE_OPS = {"snapshot", "click", "fill", "press", "goto", "wait"}
+SNAPSHOT_CAP = 12000  # characters of the tree a bot gets at most
+REF_ROLES = {"button", "link", "textbox", "searchbox", "checkbox", "radio", "combobox", "listbox", "option", "menuitem",
+             "menuitemcheckbox", "menuitemradio", "tab", "switch", "slider", "spinbutton", "treeitem"}
+SNAPSHOT_LINE = re.compile(r"^(\s*)- (.*)$")
+SNAPSHOT_KEY = re.compile(r'([a-z]+)(?: ("(?:[^"\\]|\\.)*"))?')
+HIDDEN = "••••"
+refs = {}  # "e12" -> (page, url, role, name, nth): the last snapshot's, on the browser's thread only
+# Runs on an element: is it a box for a password, a card detail or a two-step code? Those take type_login, type_card.
+SECRET_FIELD = """(el) => {
+  if (!el || el.tagName !== 'INPUT') return false;
+  if ((el.getAttribute('type') || '').toLowerCase() === 'password') return true;
+  if (/(^|\\s)(cc-|one-time-code|current-password|new-password)/.test((el.getAttribute('autocomplete') || '').toLowerCase())) return true;
+  const hint = [el.name, el.id, el.getAttribute('aria-label'), el.placeholder].join(' ').toLowerCase();
+  return /passw|passcode|card.?num|cc.?num|cvc|cvv|csc|security.?code|one.?time|otp|2fa|two.?(step|factor)|verification.?code/.test(hint);
+}"""
+SECRET_VALUES = "() => Array.from(document.querySelectorAll('input')).filter(" + SECRET_FIELD + ").map((el) => el.value).filter(Boolean)"
+
+
+class PageError(Exception):
+    """A page tool's answer to the bot, said as it is."""
+
+
+def snapshot_key(rest):
+    """The role and name at the start of a snapshot line's text, and where they end: `button "Log in"`, or the same
+    in YAML's single quotes when the name holds a colon."""
+    if rest.startswith("'"):
+        i, key = 1, []
+        while i < len(rest):
+            if rest[i] == "'":
+                if rest[i + 1:i + 2] != "'":
+                    break
+                i += 1
+            key.append(rest[i])
+            i += 1
+        key, end = "".join(key), i + 1
+    else:
+        key, end = rest, None
+    m = SNAPSHOT_KEY.match(key)
+    if not m:
+        return None, None, 0
+    try:
+        name = json.loads(m.group(2)) if m.group(2) else ""
+    except ValueError:
+        name = ""
+    return m.group(1), name, end if end is not None else m.end()
+
+
+def hide_secrets(value, secrets):
+    """A box's shown value, or HIDDEN when it holds a secret box's value."""
+    plain = value.strip()
+    for quote in ('"', "'"):
+        if len(plain) > 1 and plain[0] == quote == plain[-1]:
+            plain = plain[1:-1]
+    for s in secrets:
+        if plain == s or len(s) >= 4 and (s in value or json.dumps(s)[1:-1] in value):
+            return HIDDEN
+    return value
+
+
+def page_snapshot(page):
+    """The page's tree with a ref on every control, cut at SNAPSHOT_CAP, and the refs it gave kept in `refs`."""
+    refs.clear()
+    try:
+        secrets = [str(v) for v in page.evaluate(SECRET_VALUES) or []]
+    except Exception:
+        secrets = None
+    try:
+        tree = page.locator("body").aria_snapshot(timeout=10000)
+    except Exception as exc:
+        raise PageError(f"Couldn't read the page: {type(exc).__name__}. Take a screenshot instead.")
+    counts, lines = {}, []
+    for line in tree.splitlines():
+        m = SNAPSHOT_LINE.match(line)
+        if m:
+            role, name, end = snapshot_key(m.group(2))
+            at = len(m.group(1)) + 2 + end
+            if role in REF_ROLES:
+                # A nameless control is found among all of its role, as get_by_role without a name finds them.
+                nth = counts.get((role, name), 0) if name else counts.get(role, 0)
+                counts[(role, name)] = counts.get((role, name), 0) + 1
+                counts[role] = counts.get(role, 0) + 1
+                ref = f"e{len(refs) + 1}"
+                refs[ref] = (page, page.url, role, name, nth)
+                line = f"{line[:at]} [ref={ref}]{line[at:]}"
+                at += len(ref) + 7
+            rest = line[at:]
+            colon = rest.find(": ")
+            if colon >= 0 and rest[colon + 2:].strip():
+                # A value we could not check is never shown: secrets is None when the page could not be asked.
+                value = rest[colon + 2:]
+                shown = HIDDEN if secrets is None and role in REF_ROLES else hide_secrets(value, secrets or [])
+                line = line[:at] + rest[:colon + 2] + shown
+        lines.append(line)
+    text = "\n".join(lines)
+    if len(text) > SNAPSHOT_CAP:
+        cut = text.rfind("\n", 0, SNAPSHOT_CAP)
+        text = text[:cut if cut > 0 else SNAPSHOT_CAP] + "\n(The page goes on: this is its start. Scroll with browser_press PageDown, or take a screenshot.)"
+    try:
+        title = page.title()
+    except Exception:
+        title = ""
+    return f"Page: {title} ({page.url})\n{text or '(The page shows nothing the tree can read. Take a screenshot.)'}"
+
+
+def locate(context, ref):
+    """The element behind a ref of the last snapshot, or a PageError the bot can act on."""
+    entry = refs.get(str(ref or ""))
+    if entry is None:
+        raise PageError(f"{ref or 'That'} is not a ref of your last browser_snapshot. Take a new snapshot.")
+    page, url, role, name, nth = entry
+    stale = PageError(f"{ref} is stale: the page has changed since your last snapshot. Take a new snapshot.")
+    if page.is_closed() or page is not focused_page(context) or page.url != url:
+        raise stale
+    found = page.get_by_role(role, name=name, exact=True) if name else page.get_by_role(role)
+    if found.count() <= nth:
+        raise stale
+    return page, found.nth(nth)
+
+
+def settle(page):
+    try:
+        page.wait_for_load_state("domcontentloaded", timeout=5000)
+    except Exception:
+        pass
+    page.wait_for_timeout(300)
+
+
+def page_tool(context, req):
+    """One page tool, run on the browser's thread: {"ok": True, "snapshot"} or {"ok": False, "error"}."""
+    op = req.get("op")
+    page = focused_page(context)
+    if page is None:
+        return {"ok": False, "error": "Camoufox has no open page."}
+    try:
+        if op == "click":
+            page, element = locate(context, req.get("ref"))
+            element.click(timeout=10000)
+            settle(page)
+        elif op == "fill":
+            page, element = locate(context, req.get("ref"))
+            if element.evaluate(SECRET_FIELD):
+                raise PageError("That is a password, card or two-step code box: botdot never lets you type into it. "
+                                "Click it and use type_login, type_card or type_identity, which type the saved value for you.")
+            element.fill(str(req.get("text") or ""), timeout=10000)
+        elif op == "press":
+            page.keyboard.press(str(req.get("key") or ""))
+            settle(page)
+        elif op == "goto":
+            url = str(req.get("url") or "")
+            if urlparse(url).scheme not in ("http", "https"):
+                raise PageError("browser_goto takes an http or https address.")
+            page.goto(url, wait_until="domcontentloaded", timeout=15000)
+        elif op == "wait":
+            if req.get("ref"):
+                page, element = locate(context, req.get("ref"))
+            elif req.get("text"):
+                element = page.get_by_text(str(req["text"])).first
+            else:
+                raise PageError("Say which text or ref to wait for.")
+            seconds = min(max(float(req.get("seconds") or 10), 1), 15)
+            try:
+                element.wait_for(state="visible", timeout=seconds * 1000)
+            except Exception:
+                raise PageError(f"It did not show within {seconds:g} seconds.")
+        return {"ok": True, "snapshot": page_snapshot(focused_page(context) or page)}
+    except PageError as exc:
+        return {"ok": False, "error": str(exc)}
+    except Exception as exc:  # Playwright's own words, first line only: it may hold the page's text, never a secret
+        said = str(exc).strip().splitlines()[0][:300] if str(exc).strip() else ""
+        return {"ok": False, "error": f"{op} failed: {type(exc).__name__}{': ' + said if said else ''}"}
 
 
 def ask_bridge(body, port):
@@ -356,7 +535,7 @@ def run_browser(url):
                     break
                 continue
             try:
-                result = type_secret(context, body)
+                result = page_tool(context, body) if body.get("op") in PAGE_OPS else type_secret(context, body)
             except Exception as exc:  # report the problem, never the value
                 result = {"ok": False, "error": f"Typing failed: {type(exc).__name__}"}
             finally:
