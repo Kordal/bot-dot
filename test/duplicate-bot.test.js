@@ -70,6 +70,9 @@ test("the owner's copy has the settings, a new id, name and colour, and none of 
   assert.equal((await srv.api(`/bots/${copy.id}/duplicate`)).data.name, 'Coder 3');
   const named = await srv.api(`/bots/${coder.id}/duplicate`, { method: 'POST', body: { name: 'Reviewer' } });
   assert.equal(named.data.name, 'Reviewer');
+  const taken = await srv.api(`/bots/${coder.id}/duplicate`, { method: 'POST', body: { name: 'coder' } });
+  assert.equal(taken.status, 400, 'a name another bot has');
+  assert.match(taken.data.error, /already/);
 });
 
 test("the Chief's copy shares no Vault entry, names them, and what it may not give waits for the owner", async () => {
@@ -97,6 +100,12 @@ test('duplicate_bot is a Chief tool that answers the copy as create_bot does', a
   assert.equal(made.prompt, coder.prompt);
   assert.deepEqual(made.loginsNotShared, ['Portal']);
   assert.ok(Array.isArray(made.waiting));
+});
+
+test('a long name keeps its number within 60 characters', async () => {
+  const long = await makeBot(srv, { name: 'L'.repeat(60) });
+  const r = await srv.api(`/bots/${long.id}/duplicate`, { method: 'POST', body: {} });
+  assert.equal(r.data.name, `${'L'.repeat(58)} 2`);
 });
 
 test('an unknown bot is not found', async () => {

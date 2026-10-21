@@ -269,7 +269,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 Text(if (saving) "Saving…" else "Save")
             }
             if (dev.botdot.app.data.Duplicate.shows(server?.features)) OutlinedButton(onClick = {
-                scope.launch { runCatching { api!!.copyPlan(botId) }.onSuccess { copyPlan = it; copyName = it.name }.onError { tell(it.message ?: "Couldn't load") } }
+                scope.launch { runCatching { (api ?: error("Not connected to botdot")).copyPlan(botId) }.onSuccess { copyPlan = it; copyName = it.name }.onError { tell(it.message ?: "Couldn't load") } }
             }, modifier = Modifier.fillMaxWidth()) { Text("Duplicate ${b.name}", color = p.text) }
             OutlinedButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text("Delete ${b.name}", color = p.err) }
         }
@@ -291,7 +291,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 TextButton(enabled = !making && !plan.vaultLocked, onClick = {
                     making = true
                     scope.launch {
-                        runCatching { api!!.duplicateBot(botId, copyName) }
+                        runCatching { (api ?: error("Not connected to botdot")).duplicateBot(botId, copyName) }
                             .onSuccess { copyPlan = null; onCopied(it.id) }
                             .onError { making = false; tell(it.message ?: "Couldn't duplicate") }
                     }
