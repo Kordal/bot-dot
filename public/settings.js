@@ -229,8 +229,10 @@ function renderSettings() {
       <h3 class="page-sub" style="margin-top:0">Backups</h3>
       <p class="muted settings-hint" style="margin:0">Checking…</p>
     </div>
+    <div class="card settings-card" id="update-card" hidden></div>
     ${signOutCardHTML()}`;
   drawInstallCard();
+  loadUpdateCard();
   wirePushCard(root);
   const signOut = $('#sign-out-everywhere', root);
   if (signOut) signOut.onclick = signOutEverywhere;
@@ -335,6 +337,71 @@ function openTarget(target) {
   if (!to) return;
   if (to.view === 'chief') openChiefChat(to.id || state.chatId || null);
   else setView(to.view, to.id || undefined);
+}
+
+// ---------- when this account switches to a new version ----------
+
+// Settings → "Updates" (#259, ADR 053): the owner's "Update automatically" and, when the admin installed a version this
+// account waits for, "Update now". Both are the front door's own routes, never botdot's, and only where the front door
+// says this account chooses (its session's `updates`): not on a machine of one account, nor for the admin's account.
+async function loadUpdateCard() {
+  if (!state.features.includes('accounts')) return;
+  let u = null;
+  try {
+    const session = await fetch('/front-door/session').then((r) => (r.ok ? r.json() : null));
+    if (session?.updates === true) u = await fetch('/front-door/update').then((r) => (r.ok ? r.json() : null));
+  } catch { /* nothing to show */ }
+  drawUpdateCard(u);
+}
+
+function updateCardText(u) {
+  const day = (iso) => new Date(iso).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+  if (u.asked || u.last?.state === 'switching') return 'Moving to the new version. Your bots restart in a minute or two.';
+  if (u.ready) return `A new version${u.ready.version ? ` (${u.ready.version})` : ''} is ready. Your account moves to it by itself on ${day(u.ready.deadline)}, or now if you choose.`;
+  if (u.last && (u.last.state === 'kept' || u.last.state === 'failed')) return `The last move to a new version didn't happen: ${u.last.error || 'the admin can see why'}.`;
+  return u.autoUpdate ? 'Your account moves to each new version when the admin updates botdot.' : 'Your account is on the newest version the admin installed.';
+}
+
+function drawUpdateCard(u) {
+  const card = $('#update-card');
+  if (!card) return;
+  card.hidden = !u;
+  if (!u) { card.innerHTML = ''; return; }
+  card.innerHTML = `
+      <h3 class="page-sub" style="margin-top:0">Updates</h3>
+      <div class="bs-rows"><div class="bs-row">
+        <div class="grow"><b>Update automatically</b><div class="faint">Off: when the admin updates, your bots keep working on the version they run until you choose, up to a deadline the admin sets.</div></div>
+        <label class="switch"><input type="checkbox" id="auto-update" aria-label="Update automatically"${u.autoUpdate ? ' checked' : ''}><span></span></label>
+      </div></div>
+      <p class="muted settings-hint" id="update-said">${esc(updateCardText(u))}</p>
+      ${u.canUpdate ? '<button type="button" class="btn" id="update-now">Update now</button>' : ''}`;
+  const box = $('#auto-update', card);
+  box.onchange = async () => {
+    box.disabled = true;
+    try { drawUpdateCard(await frontDoorPost('/front-door/update', { autoUpdate: box.checked })); toast(box.checked ? 'Your account updates automatically.' : 'You choose when your account updates.'); } catch (err) {
+      toast(err.message, true);
+      box.checked = !box.checked;
+      box.disabled = false;
+    }
+  };
+  const now = $('#update-now', card);
+  if (now) now.onclick = async () => {
+    if (!confirm('Update now? Your account moves to the new version: your bots restart, and work still running stops.')) return;
+    now.disabled = true;
+    try { drawUpdateCard(await frontDoorPost('/front-door/update/now', {})); } catch (err) { toast(err.message, true); now.disabled = false; }
+  };
+  // While it moves, the card follows it.
+  clearTimeout(drawUpdateCard.next);
+  if (u.asked || u.last?.state === 'switching') drawUpdateCard.next = setTimeout(loadUpdateCard, 10_000);
+}
+
+// A POST to one of the front door's own routes: its answer, or throws its sentence.
+async function frontDoorPost(path, body) {
+  let res;
+  try { res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: JSON.stringify(body) }); } catch { throw new Error("Can't reach botdot."); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.error === 'string' && data.error.trim() ? data.error : `botdot answered ${res.status}`);
+  return data;
 }
 
 // ---------- signing out everywhere ----------

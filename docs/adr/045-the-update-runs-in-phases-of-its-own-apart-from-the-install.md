@@ -1,6 +1,6 @@
 # ADR-045: The update runs in phases of its own, apart from the install
 
-- **Status:** Accepted (2026-10-20, the owner's plan in [#189](https://github.com/Kordal/bot-dot/issues/189)). Keeps [ADR 036](036-the-admin-pages-update-runs-the-installer-of-the-version-it-installs.md)'s hand-over and [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md)'s per-account switch. Supersedes the part of the line of 2026-10-16 in [DECISIONS.md](../DECISIONS.md) that the installer's output stays in `update.log`, root's alone.
+- **Status:** Accepted (2026-10-20, the owner's plan in [#189](https://github.com/Kordal/bot-dot/issues/189)). Amended by [ADR 053](053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md): an account whose owner turned "Update automatically" off waits on the version it runs. Keeps [ADR 036](036-the-admin-pages-update-runs-the-installer-of-the-version-it-installs.md)'s hand-over and [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md)'s per-account switch. Supersedes the part of the line of 2026-10-16 in [DECISIONS.md](../DECISIONS.md) that the installer's output stays in `update.log`, root's alone.
 - **Owning task:** [#195](https://github.com/Kordal/bot-dot/issues/195)
 
 ## Context

@@ -68,7 +68,7 @@ test("the admin page lists each account's name, when it was made, when it was la
   const { accounts } = r.data;
   assert.deepEqual(accounts.map((a) => a.name), ['ann', 'bob', 'cat', 'dan']);
   for (const a of accounts) {
-    assert.ok(Object.keys(a).every((k) => ['name', 'created', 'lastSeen', 'state', 'share', 'ownShare', 'use', 'admin'].includes(k)), JSON.stringify(a));
+    assert.ok(Object.keys(a).every((k) => ['name', 'created', 'lastSeen', 'state', 'share', 'ownShare', 'use', 'admin', 'update'].includes(k)), JSON.stringify(a));
     assert.ok(Date.parse(a.created) <= Date.now());
     assert.equal(a.state, 'running', `${a.name}'s botdot server answers on its socket`);
   }

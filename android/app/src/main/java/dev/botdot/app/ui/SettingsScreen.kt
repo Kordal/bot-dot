@@ -58,7 +58,8 @@ import kotlinx.coroutines.launch
 
 /**
  * Settings: default model and reasoning, Claude's sign-in, backups, and where to go next. The Chief's model is on its own settings screen.
- * No update: the admin updates botdot for every account at once (ADR 028), and a newer app shows as a line on the home screen.
+ * The admin installs a new version of botdot for every account (ADR 028); behind a front door that says so, the owner chooses
+ * when this account switches to it (Updates, ADR 053). A newer app shows as a line on the home screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -80,6 +81,8 @@ fun SettingsScreen(
     var server by remember { mutableStateOf<dev.botdot.app.data.VersionInfo?>(null) }
     var backups by remember { mutableStateOf<dev.botdot.app.data.BackupInfo?>(null) }
     var backingUp by remember { mutableStateOf(false) }
+    var update by remember { mutableStateOf<dev.botdot.app.data.OwnUpdate?>(null) }
+    var confirmUpdateNow by remember { mutableStateOf(false) }
     // Notifications turned off for this app (or never allowed): say so, checked again whenever you come back.
     var notifyOn by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
     val owner = LocalLifecycleOwner.current
@@ -102,7 +105,12 @@ fun SettingsScreen(
         coroutineScope {
             launch { runCatching { a.settings() }.onSuccess { info = it; edit = it.settings }.onError { tell(it.message ?: "Couldn't load") } }
             launch { runCatching { a.setup() }.onSuccess { setup = it } }
-            launch { runCatching { a.version() }.onSuccess { server = it; app.store.version.set(it) } }
+            launch {
+                runCatching { a.version() }.onSuccess { server = it; app.store.version.set(it) }
+                // Updates: only where the front door says this account chooses when it switches (ADR 053).
+                val session = runCatching { a.frontDoorSession() }.getOrNull()
+                update = if (dev.botdot.app.data.OwnUpdate.on(server?.features, session)) runCatching { a.ownUpdate() }.getOrNull() else null
+            }
             launch { runCatching { a.backups() }.onSuccess { backups = it } }
         }
     }
@@ -219,6 +227,24 @@ fun SettingsScreen(
                 }
             }
 
+            update?.let { u ->
+                Section("Updates") {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Update automatically", color = p.text, style = MaterialTheme.typography.bodyLarge)
+                            Hint("Off: when the admin updates, your bots keep working on the version they run until you choose, up to a deadline the admin sets.")
+                        }
+                        androidx.compose.material3.Switch(checked = u.autoUpdate, onCheckedChange = { on ->
+                            scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it }.onError { tell(it.message ?: "Couldn't change it") } }
+                        })
+                    }
+                    Hint(u.text())
+                    if (u.canUpdate) OutlinedButton(onClick = { confirmUpdateNow = true }) { Text("Update now", color = p.text) }
+                }
+                // While it moves, the section follows it.
+                if (u.moving) LaunchedEffect(u) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it } }
+            }
+
             // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in again.
             if (server?.features?.contains("accounts") == true) {
                 Section("Sign-ins", "Signs out this phone and every browser and app signed in to your account. Each signs in again with your passkey.") {
@@ -279,6 +305,18 @@ fun SettingsScreen(
             }) { Text("Remove", color = p.text) }
         },
         dismissButton = { TextButton(onClick = { confirmRemoveKey = false }) { Text("Cancel", color = p.text) } },
+    )
+    if (confirmUpdateNow) AlertDialog(
+        onDismissRequest = { confirmUpdateNow = false },
+        title = { Text("Update now?") },
+        text = { Text("Your account moves to the new version: your bots restart, and work still running stops.") },
+        confirmButton = {
+            TextButton(onClick = {
+                confirmUpdateNow = false
+                scope.launch { runCatching { api!!.updateNow() }.onSuccess { update = it }.onError { tell(it.message ?: "Couldn't update") } }
+            }) { Text("Update now", color = p.text) }
+        },
+        dismissButton = { TextButton(onClick = { confirmUpdateNow = false }) { Text("Cancel", color = p.text) } },
     )
     if (confirmSignOut) AlertDialog(
         onDismissRequest = { confirmSignOut = false },
