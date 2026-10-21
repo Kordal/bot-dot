@@ -764,14 +764,11 @@ function render() {
   markMore();
 }
 
-// The Settings button: the number of running tasks.
+// The running tasks, shown beside Activity on Settings (settings.js). The Settings button itself carries no number.
+const runningTasks = () => state.runs.filter((r) => r.status === 'running').length;
+const tasksRunning = (n) => `${n} ${n === 1 ? 'task' : 'tasks'} running`;
+// The Settings button: marked while one of its pages is open.
 function markMore() {
-  const badge = $('#more-badge');
-  if (!badge) return;
-  const running = state.runs.filter((r) => r.status === 'running').length;
-  badge.classList.toggle('num', running > 0);
-  badge.textContent = running > 0 ? running : '';
-  badge.classList.toggle('hidden', !running);
   $('#more-btn').classList.toggle('here', ['runs', 'skills', 'connectors', 'vault', 'settings', 'setup'].includes(state.view));
   // The logo's dot pulses while the Chief or a bot is working.
   $('#brand').classList.toggle('busy', !!state.chiefBusy || state.bots.some((b) => b.running));
