@@ -785,6 +785,7 @@ function renderStatus() {
 const BOT_NAMES = ['bot', 'botsettings', 'botjobs']; // the names that come with a bot's id
 const GROUP_NAMES = ['group', 'groupsettings']; // and those that come with a group's
 const CHAT_VIEWS = ['bot', 'chief', 'group']; // the views that are a chat, with the panel beside them
+const PHONE = '(max-width: 479px)'; // the style's phone width, where the list of bots and a view take turns
 const panelPage = () => Panel.page(state.view, state.panel);
 let covered = false; // the panel is over the chat, as last seen
 function setView(v, sub) {
@@ -806,6 +807,8 @@ function show({ view: v, panel, via }, fresh = false) {
   if (v !== 'bot' && state.botStream) { state.botStream.close(); state.botStream = null; }
   if (v !== 'group') followGroupDrafts(null); // a group that is left follows no turn's draft (groups.js)
   const changed = state.view !== v;
+  // Needs you goes back, after its last card, to where it was opened from (needs-return.js).
+  if (changed && v === 'needs') state.cameFrom = NeedsReturn.from(state, matchMedia(PHONE).matches && !$('#app').classList.contains('in-main'));
   const was = panelPage();
   state.view = v;
   state.panel = panel;
@@ -815,7 +818,7 @@ function show({ view: v, panel, via }, fresh = false) {
   if (changed && v === 'vault') delete $('#view-vault').dataset.ready;
   if (changed && v === 'dashboard') loadDash();
   if (changed && v === 'setup') { delete $('#view-setup').dataset.ready; state.setup = null; }
-  if (changed) { needsDone.clear(); needsOpen.clear(); delete $('#view-needs').dataset.sig; }
+  if (changed) { needsDone.clear(); needsOpen.clear(); delete $('#view-needs').dataset.sig; stayOnNeeds(); }
   if (changed && v === 'group') loadGroupChat(state.groupId); // what was said there while another view was open
   $$('.view').forEach((el) => el.classList.toggle('hidden', el.id !== `view-${v}`));
   if (changed) { const page = $(`#view-${v}.page`); if (page) page.scrollTop = 0; } // open pages at the top

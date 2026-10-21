@@ -20,14 +20,14 @@ const CODE = [
   cut('const needsDone = new Map();', '// The buttons on need cards'),
   cut('const chatDecided = new Map();', '// "Always approve" a script job'),
   cut('async function decide(x, yes', 'async function refreshNeeds() {'),
-  'this.page = { needsItems, needCardHTML, renderNeeds, chatNeeds, updateChatNeeds, decide, thenLine, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, answeredAway, drawChatCards, toHeldCard, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
+  'this.page = { needsItems, needCardHTML, renderNeeds, leaveNeeds, stayOnNeeds, chatNeeds, updateChatNeeds, decide, thenLine, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, answeredAway, drawChatCards, toHeldCard, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
 ].join('\n');
 
 // The page with what the server sent. state: asks, bots (with their jobs), dash, approvals.
 // answer(url, body): what the server answers a yes or a no with; an Error is a request that failed.
 // screen: the page's elements the code finds by their selector ('#view-bot', '#bot-thread', '#chat-thread').
 function page({ state = {}, answer = () => ({ ok: true }), screen = {} } = {}) {
-  const calls = [], toasts = [], onScreen = [];
+  const calls = [], toasts = [], onScreen = [], timers = [], went = [];
   let refreshed = 0;
   const st = { bw: null, asks: [], memPending: [], dash: null, chats: [], bots: [], approvals: null, view: 'chief', ...state };
   const needsPage = element();
@@ -39,11 +39,15 @@ function page({ state = {}, answer = () => ({ ok: true }), screen = {} } = {}) {
     api: async (url, opts) => { calls.push([url, opts.method, opts.body]); const a = answer(url, opts.body); if (a instanceof Error) throw a; return a; },
     toast: (text, bad) => toasts.push([text, !!bad]), whileBusy,
     refreshNeeds: () => { refreshed++; },
+    // The moment's wait before Needs you leaves after its last card (needs-return.js): kept, run by the test.
+    setTimeout: (fn, ms) => { timers.push({ fn, ms, on: true }); return timers.length; }, clearTimeout: (n) => { if (timers[n - 1]) timers[n - 1].on = false; },
+    showList: () => went.push(['list']), setView: (v, id) => went.push([v, id]), openChiefChat: (id) => went.push(['chief', id]),
     document: { createElement: () => element() },
     $: (sel, root) => (root ? root.querySelector(sel) : sel === '#view-needs' ? needsPage : screen[sel] || null),
     $$: (sel) => onScreen.filter((c) => sel === `.need-card[data-need="${c.key}"]`),
   });
   vm.runInContext(read('tool-card.js'), ctx);
+  vm.runInContext(read('needs-return.js'), ctx);
   vm.runInContext(CODE, ctx);
   const p = ctx.page;
   // The item of one thing that waits, as the page's own needsItems makes it.
@@ -63,7 +67,7 @@ function page({ state = {}, answer = () => ({ ok: true }), screen = {} } = {}) {
     if (chatId) t.dataset.chat = chatId;
     return { box, thread: t };
   };
-  return { ...p, ToolCard: ctx.ToolCard, state: st, item, show, thread, needsPage, calls, toasts, refreshed: () => refreshed };
+  return { ...p, ToolCard: ctx.ToolCard, state: st, item, show, thread, needsPage, calls, toasts, timers, went, refreshed: () => refreshed };
 }
 
 // What a card holds, in the order it is drawn: its classes, the head, the title, the lines under it, the blocks, the buttons.
