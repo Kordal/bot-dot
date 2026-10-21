@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.BitwardenStatus
+import dev.botdot.app.data.SecretFilePlace
 import dev.botdot.app.data.VaultItem
 import dev.botdot.app.data.VaultTypes
 import kotlinx.coroutines.async
@@ -82,6 +83,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     var addedKey by remember { mutableStateOf<VaultItem?>(null) }
     var addingFile by remember { mutableStateOf(false) }
     var master by remember { mutableStateOf("") }
+    var removingFile by remember { mutableStateOf<SecretFilePlace?>(null) }
 
     suspend fun load() {
         val a = api ?: return
@@ -130,7 +132,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
             }
             if (!b.error.isNullOrBlank() && b.configured) item { Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall) }
             if (!locked) {
-                items(items, key = { it.id }) { i -> VaultRow(i, bots.orEmpty(), features) { editing = i } }
+                items(items, key = { it.id }) { i -> VaultRow(i, bots.orEmpty(), features, onRemoveFile = { removingFile = it }) { editing = i } }
                 if (items.isEmpty()) item {
                     Hint(if (b.configured) "Nothing in the bot-dot folder yet. Move the logins, cards and identities bots may use into that folder in Bitwarden, or add a login here."
                         else "No saved logins yet. Add one so a bot can sign in to a site for you.")
@@ -157,6 +159,16 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
         addingKey -> SshKeyEditor(allBots, api, { key -> addingKey = false; addedKey = key; scope.launch { load() } }) { addingKey = false }
         addedKey != null -> SshPublicKey(addedKey!!) { addedKey = null }
         addingFile -> FileEditor(allBots, api, { addingFile = false; tell("Saved"); scope.launch { load() } }) { addingFile = false }
+        removingFile != null -> {
+            val f = removingFile!!
+            AlertDialog(onDismissRequest = { removingFile = null }, title = { Text("Remove the file?") },
+                text = { Text("botdot deletes ${f.where}. The bot can't write it again without asking you on a card.") },
+                confirmButton = { TextButton(onClick = {
+                    removingFile = null
+                    scope.launch { runCatching { api!!.removeSecretFile(f.id) }.onSuccess { tell(it ?: "Removed") }.onError { tell(it.message ?: "Couldn't remove it") }; load() }
+                }) { Text("Remove", color = p.err) } },
+                dismissButton = { TextButton(onClick = { removingFile = null }) { Text("Cancel", color = p.text) } })
+        }
     }
 }
 
@@ -341,7 +353,7 @@ private fun SshPublicKey(key: VaultItem, close: () -> Unit) {
 }
 
 @Composable
-private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>?, onClick: () -> Unit) {
+private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>?, onRemoveFile: (SecretFilePlace) -> Unit, onClick: () -> Unit) {
     val p = LocalPaper.current
     val names = i.allowedBots.map { id -> bots.firstOrNull { it.id == id }?.name ?: id }
     Column(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp)) {
@@ -355,6 +367,13 @@ private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>
         }.forEach { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
         if (i.reprompt) Text("Asks for the master password again in Bitwarden, so bots can't use it.", color = p.faint, fontSize = 12.sp)
         Text(if (names.isEmpty()) "No bot may use it yet" else "Can be used by ${names.joinToString(", ")}", color = p.faint, fontSize = 12.sp)
+        // Where botdot keeps it in a file (#253), each with its own "Remove the file".
+        i.placedIn.forEach { f ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("📍 ${if (f.written) "Placed in" else "Allowed, not written yet:"} ${f.where} (${bots.firstOrNull { it.id == f.botId }?.name ?: f.botId}${if (f.at.isNotEmpty()) ", ${shortTime(f.at)}" else ""})", color = p.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onRemoveFile(f) }) { Text("Remove the file", color = p.err) }
+            }
+        }
     }
 }
 

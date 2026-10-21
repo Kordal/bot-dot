@@ -627,7 +627,7 @@ data class ChatHit(
 @Serializable
 data class Ask(
     val id: String,
-    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "chief-action"
+    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "chief-action"
     val permission: String? = null,
     val reason: String = "",
     val bot: BotRef? = null,
@@ -1303,7 +1303,13 @@ data class VaultItem(
     // A file of Bitwarden (kind "file", `vault-files`, #157): its file name and size in bytes, never its content.
     val fileName: String? = null,
     val size: Long? = null,
+    // Where botdot keeps it in a file, by the owner's yes (`vault-file`, #253): each can be removed.
+    val placedIn: List<SecretFilePlace> = emptyList(),
 )
+
+/** A file botdot wrote a Vault secret to (`placedIn` of a [VaultItem]): where, for which bot, and when. */
+@Serializable
+data class SecretFilePlace(val id: String, val where: String, val botId: String = "", val at: String = "", val written: Boolean = true)
 
 /**
  * A change to an approved tile that waits for the owner (`change` on a tile, docs/api.md): the tile as proposed, with
