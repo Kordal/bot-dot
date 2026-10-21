@@ -83,13 +83,15 @@ test('a file the run attached (a screenshot of its computer) can be passed on by
   fs.rmSync(path.join(ws(surfer), 'out'), { recursive: true }); // only the attached copy is left
   const r = await self(srv, token, 'message', { to: mail.id, message: 'For later.', priority: false, files: ['Report.pdf'] });
   assert.equal(r.data.delivered, 'inbox', JSON.stringify(r.data));
+  // The note wakes Mail Keeper at once (ADR 049), and the file is in its workspace for that run.
+  const woke = await srv.nextRun((x) => x.args.includes('📬 Mail Keeper') && x.stdin.includes('For later.'), 'Mail Keeper woken by the note');
+  const rel = woke.stdin.match(/Files it sent you, saved in your workspace: (uploads\/\S+-Report\.pdf)/)[1];
+  assert.equal(fs.readFileSync(path.join(ws(mail), rel), 'utf8'), 'pdf!');
+  const wokeRun = (await runsOf(mail)).find((x) => x.status === 'running');
+  srv.release(woke);
+  await srv.finished(wokeRun.id);
   srv.release(rec);
   await srv.finished(run.id);
-  const next = await heldRun(srv, mail, 'Anything?');
-  const rel = next.rec.stdin.match(/Files it sent you, saved in your workspace: (uploads\/\S+-Report\.pdf)/)[1];
-  assert.equal(fs.readFileSync(path.join(ws(mail), rel), 'utf8'), 'pdf!');
-  srv.release(next.rec);
-  await srv.finished(next.run.id);
 });
 
 test('refused: files outside the workspace, missing ones, too many', async () => {

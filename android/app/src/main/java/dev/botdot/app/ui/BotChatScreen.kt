@@ -11,6 +11,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -50,6 +51,7 @@ import dev.botdot.app.data.Bot
 import dev.botdot.app.data.GROUP_MAX
 import dev.botdot.app.data.RunEvent
 import dev.botdot.app.data.InboxNote
+import dev.botdot.app.data.NotesWake
 import dev.botdot.app.data.Learned
 import dev.botdot.app.data.MEMORY_CHIPS
 import dev.botdot.app.data.announces
@@ -194,7 +196,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         ChatNeeds(app, botId, onNeeds)
                     }
                 }
-                if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, "Notes waiting:") }
+                if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, "Notes waiting:", foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }
                 if (loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null) item {
                     // An empty chat: the bot's large head, with its hat and the face of its state, as on the web page and the Mac.
                     Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -272,7 +274,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
         val one = to.size == 1
         val how = when {
             to.all { it.delivered == "queued" } -> if (one) " · it picks it up when free" else " · they pick it up when free"
-            to.all { it.delivered?.startsWith("inbox") == true } -> if (one) " · a note for its next run" else " · a note for their next run"
+            to.all { it.delivered?.startsWith("inbox") == true } -> NotesWake.messagedHow(one)
             else -> ""
         }
         val w = LocalMentions.current
@@ -353,7 +355,7 @@ private fun ExchangeFold(r: Run, to: List<SentTo>, startOpen: Boolean = false) {
 
 /** Notes other bots left: one folded line, "Read notes from Web Surfer, Coder" (each with its small head), that opens to what each said. */
 @Composable
-private fun NotesFold(notes: List<InboxNote>, heading: String) {
+private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = "", onRunNow: (() -> Unit)? = null) {
     val p = LocalPaper.current
     var open by remember(notes) { mutableStateOf(false) }
     val w = LocalMentions.current
@@ -367,6 +369,12 @@ private fun NotesFold(notes: List<InboxNote>, heading: String) {
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(n.text), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(start = 48.dp).clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).holdToCopy(n.text).background(p.sunk)
                     .border(1.dp, p.line2, RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).padding(horizontal = 14.dp, vertical = 10.dp))
+        }
+        // Under the notes that wait (#225): how long the oldest has waited, and "Run now", which starts the bot with them.
+        if (foot.isNotEmpty() || onRunNow != null) Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (foot.isNotEmpty()) Text(foot, color = p.faint, fontSize = 12.sp)
+            if (onRunNow != null) Text("Run now", color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onRunNow).padding(horizontal = 4.dp, vertical = 2.dp))
         }
     }
 }

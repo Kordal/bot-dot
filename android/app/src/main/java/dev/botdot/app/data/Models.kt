@@ -486,6 +486,10 @@ data class SentTo(val id: String = "", val name: String = "", val emoji: String 
 @Serializable
 data class InboxNote(val fromId: String? = null, val from: String = "", val emoji: String? = null, val color: String? = null, val text: String = "", val at: String? = null)
 
+/** What "Run now" under the notes did: "started", or "queued" for a bot at work. */
+@Serializable
+data class NotesRun(val status: String = "")
+
 @Serializable
 data class ChiefInfo(val id: String = "chief", val name: String = "Chief of Staff", val emoji: String = "🧭")
 

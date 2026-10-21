@@ -1054,6 +1054,8 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .from-bot-msg > .bubble.from-other-bot { max-width: 100%; }
 /* Notes other bots left: one folded line on your side of the chat, opening to each note. */
 .notes-fold { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; max-width: 76%; }
+.notes-wait { display: flex; flex-direction: column; align-items: flex-end; max-width: 76%; }
+.notes-wait > .notes-fold { max-width: 100%; }
 .notes-fold > summary { color: var(--muted); font-size: 13.5px; padding: 0 10px 0 6px; cursor: pointer; list-style: none; }
 .notes-fold > summary::-webkit-details-marker { display: none; }
 .notes-fold > summary::after { content: '›'; margin-left: 6px; color: var(--faint); display: inline-block; transition: transform .15s; }

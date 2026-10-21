@@ -146,6 +146,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
         json.decodeFromString(get("/runs?botId=${enc(botId)}&limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
     /** Notes other bots left for this bot, waiting for its next run. */
     suspend fun inbox(botId: String): List<InboxNote> = json.decodeFromString(get("/bots/${enc(botId)}/inbox"))
+    /** "Run now" under the notes that wait (#225, feature `notes-wake`): the bot starts with them now, or once it is free. */
+    suspend fun runNotes(botId: String): NotesRun = json.decodeFromString(send("POST", "/bots/${enc(botId)}/inbox/run"))
     /**
      * What waits for the owner's yes, a switch of a saved login a bot asks for (`vault-switch=1`), a Vault entry a bot
      * asks to remove (`vault-remove=1`) and what the Chief asked to do after it read the web (`chief-action=1`) too:
