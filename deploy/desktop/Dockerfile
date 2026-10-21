@@ -38,10 +38,12 @@ RUN apt-get update \
 # PyJWT 2.14.0 fixes CVE-2026-102268; it arrives there as a dependency, at 2.13.0.
 # proxy-addr 2.0.8 fixes CVE-2026-90711; the base's supergateway brings 2.0.7 with its express.
 # Pillow 13.0.0 fixes CVE-2026-112403 and certifi 2026.10.19 GHSA-6q48-6c7w-9gw2; both come as dependencies.
+# pip 26.2.2 vendors certifi 2026.10.19 too: the venv's pip 26.2.1 carries its own copy at 2026.6.17.
 RUN npm install -g npm@10.9.9 \
  && npm --prefix /usr/lib/node_modules/supergateway install --omit=dev --no-save --no-audit --no-fund 'proxy-addr@2.0.8' \
  && npm --prefix /usr/lib/node_modules/supergateway ls --omit=dev proxy-addr \
  && npm cache clean --force \
+ && /opt/computer-server/venv/bin/pip install --no-cache-dir 'pip==26.2.2' \
  && /opt/computer-server/venv/bin/pip install --no-cache-dir \
       'cua-computer-server==0.3.46' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'pillow==13.0.0' 'certifi==2026.10.19' \
  && /opt/computer-server/venv/bin/pip check
