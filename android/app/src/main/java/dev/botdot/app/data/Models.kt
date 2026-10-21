@@ -181,6 +181,7 @@ data class Bot(
     val mayMessageAll: Boolean = false, // it may message every other bot, bots made later too
     val mayMessage: List<String> = emptyList(),
     val othersMayAsk: Boolean? = null, // "Other bots may ask it" (#136); null from a server without it, which shows no switch
+    val overrides: List<BotOverride> = emptyList(), // the rules the owner lifted for it with "Allow always for this bot" (#253)
     val unread: Int = 0, // its new replies, as the botdot server counts them; 0 from a server without the feature
     val firstUnread: String? = null, // the run that is the first of them in its chat: the "New" line goes there
     // The owner's messages that wait for it (`message-waits`), kept as they came. Read them through [queued].
@@ -627,7 +628,7 @@ data class ChatHit(
 @Serializable
 data class Ask(
     val id: String,
-    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "chief-action"
+    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "override" | "chief-action"
     val permission: String? = null,
     val reason: String = "",
     val bot: BotRef? = null,
@@ -658,6 +659,8 @@ data class Ask(
     // What the yes button of a changed bot reads, and whether an action is too long to show in full ("A changed
     // bot" and "An action in a connected app"). Kept as they came, like the fields above.
     @SerialName("yes") val yesValue: JsonElement? = null,
+    // A rule a bot asks to lift (`override`, #253): the words of its second yes, "Allow always for this bot".
+    @SerialName("always") val alwaysValue: JsonElement? = null,
     @SerialName("more") val moreValue: JsonElement? = null,
     // A skill a bot wrote after its run read content from others (docs/api.md, "A skill that waits"): `written`,
     // and the server's line for it (`text`). Kept as they came, like the fields above.
@@ -680,6 +683,8 @@ data class Ask(
 
     /** The card's title as the server wrote it; "" when it sent none, or one that is no text. */
     val title: String get() = titleValue.textOrNull().orEmpty()
+    /** The words of a second yes the server offers ("Allow always for this bot"), or null. */
+    val always: String? get() = alwaysValue.textOrNull()
 
     /** What a yes would start, or null: the yes only changes the setting, or the server says nothing of it. */
     val then: Then? get() = Then.of(thenValue)
@@ -1274,6 +1279,10 @@ data class Block(
 
 @Serializable
 data class BlockOption(val label: String, val value: kotlinx.serialization.json.JsonElement)
+
+/** A rule of a bot's the owner lifted for one action, for good (`override`, #253): taken back with "Revoke". */
+@Serializable
+data class BotOverride(val id: String, val rule: String, val action: String, val at: String = "")
 
 /** Something in the vault a bot may use: a login, or from Bitwarden also a card or an identity. Secrets never come back. */
 @Serializable

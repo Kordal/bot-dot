@@ -712,7 +712,7 @@ internal fun busyWord(label: String, connects: Boolean = false): String = if (co
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, onSecondary: () -> Unit, enabled: Boolean = true, onAlways: (() -> Unit)? = null, connects: Boolean = false) {
+private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, onSecondary: () -> Unit, enabled: Boolean = true, onAlways: (() -> Unit)? = null, connects: Boolean = false, alwaysLabel: String = "Always approve") {
     val p = LocalPaper.current
     var pressed by remember { mutableStateOf<String?>(null) }
     val sent = answers.intValue
@@ -723,9 +723,9 @@ private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, o
     val word = { label: String -> if (pressed == label) busyWord(label, spins(label)) else label }
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
         OutlinedButton(onClick = press(secondary, onSecondary), enabled = pressed == null) { Text(word(secondary), color = p.text) }
-        if (onAlways != null) OutlinedButton(onClick = press("Always approve", onAlways), enabled = pressed == null) {
-            if (spins("Always approve")) ButtonSpinner(p.text)
-            Text(word("Always approve"), color = p.text)
+        if (onAlways != null) OutlinedButton(onClick = press(alwaysLabel, onAlways), enabled = pressed == null) {
+            if (spins(alwaysLabel)) ButtonSpinner(p.text)
+            Text(word(alwaysLabel), color = p.text)
         }
         Button(onClick = press(primary, onPrimary), enabled = enabled && pressed == null, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) {
             if (spins(primary)) ButtonSpinner(LocalContentColor.current)
@@ -1142,7 +1142,7 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             ThenLine(then)
             Buttons(ToolCard.INSTALL, { decide(t.title, true, ToolCard.answered(true)) }, ToolCard.DECLINE, { decide(t.title, false, ToolCard.answered(false)) })
         }
-    } else if (a.kind == "vault-switch" || a.kind == "vault-remove" || a.kind == "vault-file") {
+    } else if (a.kind == "vault-switch" || a.kind == "vault-remove" || a.kind == "vault-file" || a.kind == "override") {
         // A switch of a saved login a bot asks for: the server's title, the bot's reason, the login and the switch as
         // rows, the warning of "Usable in its computer", and the server's word on the yes. As on the web page. A Vault
         // entry a bot asks to remove is drawn the same way: its rows name the entry, the bot and Bitwarden's Trash. So
@@ -1152,7 +1152,10 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             if (a.parts.isNotEmpty()) ChangedParts(a.parts)
             if (warning.isNotEmpty()) Warning(warning)
             ThenLine(then)
-            Buttons(a.yes ?: "Allow", { decide(a.title, true, "Allowed") }, "Decline", { decide(a.title, false, null) })
+            // A rule a bot asks to lift (#253) has the server's second yes, `always`: "Allow always for this bot".
+            val always = if (a.kind == "override") a.always?.takeIf { it.isNotBlank() } else null
+            Buttons(a.yes ?: "Allow", { decide(a.title, true, "Allowed") }, "Decline", { decide(a.title, false, null) },
+                onAlways = always?.let { { answer(a.title, true, "Always allowed", true) } }, alwaysLabel = always ?: "Always approve")
         }
     } else if (a.kind == "permission") {
         val title = "Let it ${a.what?.label ?: a.permission}?"
