@@ -36,12 +36,14 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   const request = (method, p, { body, headers = {} } = {}) => new Promise((resolve, reject) => {
     const text = body === undefined ? undefined : JSON.stringify(body);
     const req = http.request({ host: '127.0.0.1', port, path: p, method, headers: { Host: host, ...(text ? { 'Content-Type': 'application/json' } : {}), ...headers } }, (res) => {
-      let out = '';
-      res.on('data', (c) => (out += c));
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
+        const bytes = Buffer.concat(chunks);
+        const out = bytes.toString('utf8');
         let data = null;
         try { data = JSON.parse(out); } catch { /* not JSON */ }
-        resolve({ status: res.statusCode, headers: res.headers, text: out, data });
+        resolve({ status: res.statusCode, headers: res.headers, text: out, data, bytes });
       });
     });
     req.on('error', reject);

@@ -153,10 +153,10 @@ test("the front door tells the web page whether its session is the admin's, so t
   const was = seen();
   const mine = await (await admin()).get('/front-door/session');
   assert.equal(mine.status, 200, mine.text);
-  assert.deepEqual(mine.data, { admin: true, feedback: true });
+  assert.deepEqual(mine.data, { admin: true, feedback: true, feedbackScreenshots: true });
   const hers = await fay.get('/front-door/session');
   assert.equal(hers.status, 200, hers.text);
-  assert.deepEqual(hers.data, { admin: false, feedback: true });
+  assert.deepEqual(hers.data, { admin: false, feedback: true, feedbackScreenshots: true });
   const none = await door.browser().get('/front-door/session');
   assert.equal(none.status, 401);
   assert.equal(seen(), was, 'no botdot server saw it');

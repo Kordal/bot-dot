@@ -127,6 +127,9 @@ test('a report that looks like markup is kept and drawn as that literal text', a
   const page = await (await admin()).get('/admin');
   assert.match(page.text, /<a href="#feedback">/);
   assert.match(page.text, /<ul id="feedback-list" class="links"><\/ul>/);
+  // Screenshots (#223) are img elements the script makes, from the front door's own address, which the page's CSP allows.
+  assert.match(pages.ADMIN_SCRIPT, /const img = el\('img'\);\s+img\.src = href;/);
+  assert.match(page.headers['content-security-policy'], /img-src 'self';/);
 });
 
 test('the store keeps at most 1000 reports and counts an account\'s hour from the report times', () => {
@@ -156,4 +159,115 @@ test("a suspended account sends no Feedback, a body that is no object is refused
   assert.equal(paused.data.paused, true);
   assert.equal((await b.post('/admin/accounts/ivy/delete', { name: 'ivy' })).status, 200);
   assert.equal(kept().some((f) => f.account === 'ivy'), false);
+});
+
+// Screenshots (#223): pictures by their first bytes, of any size wanted.
+const PNG = (size = 64) => Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(Math.max(0, size - 8), 1)]);
+const JPEG = (size = 64) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(size - 4, 2)]);
+const WEBP = (size = 64) => Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBP'), Buffer.alloc(size - 12, 3)]);
+const shot = (bytes, type) => ({ data: bytes.toString('base64'), ...(type ? { type } : {}) });
+const shotsDir = () => path.join(door.data, 'feedback-screenshots');
+const shotFiles = (id) => (fs.existsSync(shotsDir()) ? fs.readdirSync(shotsDir()).filter((n) => n.startsWith(id)) : []);
+
+test('a bug with two screenshots: the admin page lists both, each opens with the type read from its bytes, as no page', async () => {
+  const jon = await owner('jon');
+  const png = PNG(300), jpeg = JPEG(200);
+  const sent = await jon.post('/front-door/feedback', { kind: 'bug', text: 'Approve button does nothing', screenshots: [shot(png, 'text/html'), shot(jpeg)] });
+  assert.equal(sent.status, 201, sent.text);
+  const b = await admin();
+  const listed = (await b.get('/admin/feedback')).data.reports.find((f) => f.id === sent.data.id);
+  assert.deepEqual(listed.screenshots, [{ id: 0, type: 'image/png', size: 300 }, { id: 1, type: 'image/jpeg', size: 200 }]);
+  const first = await b.get(`/admin/feedback/${sent.data.id}/screenshot/0`);
+  assert.equal(first.status, 200);
+  assert.equal(first.headers['content-type'], 'image/png', 'never the text/html the app said');
+  assert.equal(first.headers['x-content-type-options'], 'nosniff');
+  assert.equal(first.headers['content-disposition'], 'inline');
+  assert.match(first.headers['content-security-policy'], /sandbox/);
+  assert.ok(first.bytes.equals(png));
+  assert.ok((await b.get(`/admin/feedback/${sent.data.id}/screenshot/1`)).bytes.equals(jpeg));
+  assert.equal((await b.get(`/admin/feedback/${sent.data.id}/screenshot/2`)).status, 404);
+  // The report keeps no bytes: only each screenshot's type and size; the bytes are private files of their own.
+  const keptOne = kept().find((f) => f.id === sent.data.id);
+  assert.deepEqual(keptOne.screenshots, [{ type: 'image/png', size: 300 }, { type: 'image/jpeg', size: 200 }]);
+  assert.equal(shotFiles(sent.data.id).length, 2);
+  assert.equal(fs.statSync(shotsDir()).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(path.join(shotsDir(), `${sent.data.id}-0`)).mode & 0o777, 0o600);
+  // The session says Feedback takes screenshots.
+  assert.equal((await jon.get('/front-door/session')).data.feedbackScreenshots, true);
+});
+
+test('only the admin opens a screenshot: another session gets 404, none is asked to sign in, and no botdot server sees it', async () => {
+  const kim = await owner('kim');
+  const id = (await kim.post('/front-door/feedback', { kind: 'bug', text: 'Look', screenshots: [shot(WEBP())] })).data.id;
+  const was = seen();
+  assert.equal((await kim.get(`/admin/feedback/${id}/screenshot/0`)).status, 404);
+  assert.equal((await door.browser().get(`/admin/feedback/${id}/screenshot/0`)).status, 401);
+  assert.equal(seen(), was);
+  assert.equal((await (await admin()).get(`/admin/feedback/${id}/screenshot/0`)).headers['content-type'], 'image/webp');
+});
+
+test('a fourth screenshot, one over 5 MB, an SVG, a GIF and text named a PNG are refused in plain words; screenshots alone too', async () => {
+  const leo = await owner('leo');
+  const refused = async (screenshots, said, text = 'Look') => {
+    const r = await leo.post('/front-door/feedback', { kind: 'bug', text, screenshots });
+    assert.equal(r.status, 400, r.text);
+    assert.match(r.data.error, said);
+  };
+  await refused([shot(PNG()), shot(PNG()), shot(PNG()), shot(PNG())], /4 screenshots: at most 3/);
+  await refused([shot(PNG(store.SCREENSHOT_BYTES + 1))], /Screenshot 1 is 5\.0 MB: each can be at most 5 MB/);
+  await refused([shot(PNG()), shot(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'), 'image/png')], /Screenshot 2 isn't a PNG, JPEG or WebP/);
+  await refused([shot(Buffer.from('GIF89a\x01\x00\x01\x00'))], /isn't a PNG, JPEG or WebP/);
+  await refused([shot(Buffer.from('just some text, named shot.png'), 'image/png')], /isn't a PNG, JPEG or WebP/);
+  await refused([{ data: 'not base64!' }], /isn't a picture/);
+  await refused('a picture', /a list/);
+  await refused([shot(PNG())], /Write what happened/, '  ');
+  assert.equal(kept().filter((f) => f.account === 'leo').length, 0);
+  assert.equal(fs.existsSync(shotsDir()) ? fs.readdirSync(shotsDir()).length : 0, fs.existsSync(shotsDir()) ? kept().reduce((n, f) => n + (f.screenshots?.length || 0), 0) : 0, 'no file of a refused report');
+  // Three at the cap go.
+  const three = await leo.post('/front-door/feedback', { kind: 'bug', text: 'Three', screenshots: [shot(PNG(store.SCREENSHOT_BYTES)), shot(JPEG(store.SCREENSHOT_BYTES)), shot(WEBP(store.SCREENSHOT_BYTES))] });
+  assert.equal(three.status, 201, three.text);
+});
+
+test('the feedback route takes a larger body, past which it says so in plain words; every other route keeps 64 KB', async () => {
+  const max = await owner('max');
+  const huge = await max.post('/front-door/feedback', { kind: 'bug', text: 'Huge', screenshots: [{ data: 'A'.repeat(22 * 1024 * 1024) }] });
+  assert.equal(huge.status, 413);
+  assert.match(huge.data.error, /too much to send at once: at most 3 screenshots of 5 MB/);
+  assert.equal((await door.browser().post('/sign-in', { credential: { id: 'x'.repeat(70 * 1024) } })).status, 413);
+  assert.equal((await (await admin()).post('/admin/share', { pad: 'x'.repeat(70 * 1024) })).status, 413);
+});
+
+test("deleting a report removes its screenshots, and deleting an account removes its reports' screenshots", async () => {
+  const ned = await owner('ned');
+  const one = (await ned.post('/front-door/feedback', { kind: 'bug', text: 'One', screenshots: [shot(PNG()), shot(PNG())] })).data.id;
+  const two = (await ned.post('/front-door/feedback', { kind: 'bug', text: 'Two', screenshots: [shot(JPEG())] })).data.id;
+  assert.equal(shotFiles(one).length, 2);
+  const b = await admin();
+  assert.equal((await b.post(`/admin/feedback/${one}/delete`, {})).status, 200);
+  assert.deepEqual(shotFiles(one), []);
+  assert.equal((await b.get(`/admin/feedback/${one}/screenshot/0`)).status, 404);
+  assert.equal(shotFiles(two).length, 1);
+  assert.equal((await b.post('/admin/accounts/ned/delete', { name: 'ned' })).status, 200);
+  assert.deepEqual(shotFiles(two), []);
+});
+
+test('the store keeps at most so many bytes of screenshots: the oldest go first and their reports keep the text', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-store-'));
+  try {
+    const d = store.open(dir, { screenshotsKept: 250 });
+    const start = Date.parse('2026-10-21T00:00:00Z');
+    const a = d.addFeedback({ account: 'a', kind: 'bug', text: 'oldest', screenshots: [shot(PNG(100))], app: 'web', now: start });
+    const b = d.addFeedback({ account: 'b', kind: 'bug', text: 'older', screenshots: [shot(PNG(100))], app: 'web', now: start + 1 });
+    const c = d.addFeedback({ account: 'c', kind: 'bug', text: 'new', screenshots: [shot(PNG(100))], app: 'web', now: start + 2 });
+    const [cNow, bNow, aNow] = d.listFeedback();
+    assert.equal(aNow.text, 'oldest');
+    assert.equal(aNow.screenshots, undefined);
+    assert.equal(aNow.screenshotsDeleted, true);
+    assert.equal(d.feedbackScreenshot(a.id, 0), null);
+    assert.ok(!fs.existsSync(path.join(dir, 'feedback-screenshots', `${a.id}-0`)));
+    assert.equal(bNow.screenshots.length, 1);
+    assert.equal(cNow.screenshots.length, 1);
+    assert.ok(d.feedbackScreenshot(b.id, 0).bytes.equals(PNG(100)));
+    assert.equal(d.feedbackScreenshot(c.id, 0).type, 'image/png');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
