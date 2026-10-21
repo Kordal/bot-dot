@@ -75,6 +75,7 @@ test('a turn is told once when to answer, pass, hand on and end; a handed-on tur
   assert.match(RULES.question, /A question is answered, not acted on/);
   assert.match(RULES.handOn, /To hand the work on, name the member in your reply .* say what it needs from you/);
   assert.match(RULES.handOn, /Name a member that way only to hand the work on/);
+  assert.match(RULES.handOn, /needs nothing only the owner can give .* hand it on in this reply: never ask the owner whether to/); // #265
   assert.match(RULES.handOn, /Never use message_bot for a member of this group/);
   assert.match(RULES.end, /Name nobody when the work is done, or when the next step is the owner's/);
   assert.match(RULES.end, /Never reply only to thank, to agree, to confirm/);
