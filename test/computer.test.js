@@ -58,7 +58,9 @@ test("a bot with a computer is told it shares the account's computer, as box wit
   assert.match(rec.system, /Files in \/home\/box and \/workspace also stay when the owner updates the computer to a newer desktop; programs installed with apt do not/);
   assert.match(rec.system, /never touch their files, screens, windows or programs/);
   assert.doesNotMatch(rec.system, /that only you use/);
-  assert.match(rec.system, /use run_with_login with a command that reads "\$BOTDOT_USERNAME" and "\$BOTDOT_PASSWORD"\. It works only for a login with inComputer in list_logins/);
+  assert.match(rec.system, /use run_with_login with a command that reads "\$BOTDOT_USERNAME" and "\$BOTDOT_PASSWORD"\. For several logins in one command, give logins \(up to 8\): each is then in "\$BOTDOT_<NAME>_USERNAME" and "\$BOTDOT_<NAME>_PASSWORD"[^.]*\. It works only for logins with inComputer in list_logins/);
+  // A request signed with several secrets goes through a command, not api_request (#228).
+  assert.match(rec.system, /an API that signs each request with several secrets \([^)]*\) can't be called with api_request, so compute and send it in one run_with_login command with logins/);
   srv.release(rec);
   await srv.finished(run.id);
   srv.unhold();
