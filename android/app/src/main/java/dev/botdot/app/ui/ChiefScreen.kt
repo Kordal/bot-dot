@@ -56,6 +56,7 @@ import dev.botdot.app.data.Attachment
 import dev.botdot.app.data.ChiefChat
 import dev.botdot.app.data.ChiefChatSummary
 import dev.botdot.app.data.ChiefMessage
+import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.Mentions
 import dev.botdot.app.data.Ratings
@@ -148,7 +149,9 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
     val api by app.api.collectAsState()
     val onWeb = api?.let { a -> chatId?.let { chatOnWeb(a.baseUrl, "chief", it) } }
-    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb) {
+    // A file you sent in this chat opens in the viewer (#268).
+    val ownFiles = remember(chatId, server?.features) { chatId?.takeIf { DocumentView.opensChatFiles(server?.features) }?.let { id -> { f: Attachment -> DocumentView.chiefUpload(id, f.file) } } }
+    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb, LocalOwnFiles provides ownFiles) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },

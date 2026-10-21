@@ -44,6 +44,17 @@ class DocumentViewTest {
         assertEquals("/bots/news/path?path=a.md&view=1", DocumentView.withQuery("/bots/news/path?path=a.md", "view=1"))
     }
 
+    @Test fun theOwnersFilesInAChiefChatOrAGroupOpenOnlyFromAServerThatServesThem() {
+        assertTrue(DocumentView.opensChatFiles(listOf("document-viewer", "chat-attachments")))
+        assertFalse(DocumentView.opensChatFiles(listOf("document-viewer")))
+        assertFalse(DocumentView.opensChatFiles(listOf("chat-attachments")))
+        assertFalse(DocumentView.opensChatFiles(null))
+        assertEquals("/chief/chats/c1/uploads/2026-ab-qa%20test.md", DocumentView.chiefUpload("c1", "uploads/2026-ab-qa test.md"))
+        assertEquals("/group-chats/g1/uploads/2026-ab-prices.csv", DocumentView.groupUpload("g1", "uploads/2026-ab-prices.csv"))
+        assertEquals(null, DocumentView.chiefUpload("c1", "../chief.json"))
+        assertEquals(null, DocumentView.groupUpload("g1", "uploads/a/b.md"))
+    }
+
     @Test fun aFileComesAsJsonAndAGoneOrOffOneThrowsItsStatus() = runBlocking {
         server.enqueue(json("""{"name":"report.md","size":42,"at":"2026-10-21T09:14:00.000Z","kind":"markdown","type":"text/markdown","truncated":false,"text":"# Hi\n<script>x</script>"}"""))
         val v = api.viewFile("/files/r1/report.md")

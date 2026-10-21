@@ -244,14 +244,28 @@ fun FileChip(name: String, note: String? = null, onDark: Boolean = false, onRemo
     }
 }
 
-/** Files you attached to a message. In a bot's chat with the viewer (#251, [LocalPathActions]), a tap opens one. */
+/**
+ * Where a file the owner sent in a Chief chat or a group opens (#268): its address in the viewer, null for one botdot
+ * doesn't serve. Those chats give it to their bubbles, from a server with `chat-attachments`.
+ */
+val LocalOwnFiles = compositionLocalOf<((Attachment) -> String?)?> { null }
+
+/**
+ * Files you attached to a message. A tap opens one in the viewer: in a bot's chat from its folder (#251,
+ * [LocalPathActions]), in a Chief chat or a group from botdot's copy (#268, [LocalOwnFiles]).
+ */
 @Composable
 fun FilesRow(files: List<Attachment>, onDark: Boolean) {
     val paths = LocalPathActions.current
+    val own = LocalOwnFiles.current
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         files.forEach { f ->
-            if (paths == null || f.file.isBlank()) FileChip(f.name, onDark = onDark)
-            else Box(Modifier.clip(RoundedCornerShape(99.dp)).clickable { paths.open(f.file, f.name) }) { FileChip(f.name, onDark = onDark) }
+            val src = if (paths == null && f.file.isNotBlank()) own?.invoke(f) else null
+            when {
+                paths != null && f.file.isNotBlank() -> Box(Modifier.clip(RoundedCornerShape(99.dp)).clickable { paths.open(f.file, f.name) }) { FileChip(f.name, onDark = onDark) }
+                src != null -> Box(Modifier.clip(RoundedCornerShape(99.dp)).clickable { DocViewer.open = DocViewer.Request(src, f.name) }) { FileChip(f.name, onDark = onDark) }
+                else -> FileChip(f.name, onDark = onDark)
+            }
         }
     }
 }

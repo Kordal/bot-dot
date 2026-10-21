@@ -24,6 +24,20 @@ object DocumentView {
     /** A file a path in a bot's reply names, or one the owner sent it (relative to its folder). */
     fun pathFile(botId: String, path: String): String = "/bots/${Api.enc(botId)}/path?path=${Api.enc(path)}"
 
+    /** botdot serves the files the owner sent in a Chief chat or a group (#268); the apps open them in the viewer. */
+    const val CHAT_FILES = "chat-attachments"
+
+    fun opensChatFiles(features: Collection<String>?): Boolean = features != null && FEATURE in features && CHAT_FILES in features
+
+    /** A file the owner sent in a Chief chat (#268), by its path in botdot's copy ("uploads/…"); null for any other. */
+    fun chiefUpload(chatId: String, file: String): String? = upload(file)?.let { "/chief/chats/${Api.enc(chatId)}/uploads/$it" }
+
+    /** A file the owner sent in a group (#268), as [chiefUpload]. */
+    fun groupUpload(groupId: String, file: String): String? = upload(file)?.let { "/group-chats/${Api.enc(groupId)}/uploads/$it" }
+
+    private val UPLOAD = Regex("^uploads/[^/]+$")
+    private fun upload(file: String): String? = file.takeIf { UPLOAD.matches(it) }?.let { Api.enc(it.removePrefix("uploads/")) }
+
     /** The header's second line: "From <bot> · 12 KB · 09:14", each part only when known. */
     fun subtitle(from: String, view: FileView?, time: String): String =
         listOfNotNull(from.ifBlank { null }?.let { "From $it" }, view?.let { UploadedFiles.size(it.size) }, time.ifBlank { null }).joinToString(" · ")
