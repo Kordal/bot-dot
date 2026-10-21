@@ -181,10 +181,10 @@ function friendlyProblem(meta, resultText) {
   // Stopped, and the server names nobody (a server from before `endedBy`): the owner did. With a name the page does not know, nobody is named.
   if (meta.status === 'stopped') return meta.endedBy ? 'This run was stopped before it finished.' : ENDED_BY.owner;
   if (meta.status === 'interrupted') return 'This run was cut off because botdot was restarted.';
-  if (/not logged in|\/login/i.test(text)) return "I couldn't start because Claude isn't signed in yet. Open Settings → Setup and sign in to Claude, then try again.";
+  if (/not logged in|\/login/i.test(text)) return "I couldn't start because Claude isn't signed in yet. Open Settings → Claude and sign in, then try again.";
   // Claude's servers refused the sign-in (a revoked or expired token): Claude Code's "Failed to authenticate. API Error: 401".
   if (/Failed to authenticate|authentication_error|API Error: 401/i.test(text)) {
-    return `Claude refused my sign-in, so I couldn't finish. ${meta.jobName ? 'I will try again at the next scheduled time' : 'Send it again'}; if this keeps happening, sign in to Claude again in Settings → Setup.`;
+    return `Claude refused my sign-in, so I couldn't finish. ${meta.jobName ? 'I will try again at the next scheduled time' : 'Send it again'}; if this keeps happening, sign in to Claude again in Settings → Claude.`;
   }
   if (/max.?turns/i.test(text)) return 'The task took more steps than I was allowed. Try breaking it into smaller pieces.';
   if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|reach the API server|network error|fetch failed/i.test(text)) {

@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const { friendlyProblem } = require('../lib/problems');
 
 const REVOKED = 'Failed to authenticate. API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"OAuth access token has been revoked."}}';
-const REFUSED = "Claude refused my sign-in, so I couldn't finish. Send it again; if this keeps happening, sign in to Claude again in Settings → Setup.";
+const REFUSED = "Claude refused my sign-in, so I couldn't finish. Send it again; if this keeps happening, sign in to Claude again in Settings → Claude.";
 
 test('a refused sign-in is said plainly, for a run and for a Chief reply', () => {
   assert.equal(friendlyProblem({ status: 'error', error: REVOKED }), REFUSED);
@@ -16,7 +16,7 @@ test('a refused sign-in is said plainly, for a run and for a Chief reply', () =>
 
 test('a scheduled run says it tries again at the next time', () => {
   assert.equal(friendlyProblem({ status: 'error', error: REVOKED, jobName: 'Morning mail' }),
-    "Claude refused my sign-in, so I couldn't finish. I will try again at the next scheduled time; if this keeps happening, sign in to Claude again in Settings → Setup.");
+    "Claude refused my sign-in, so I couldn't finish. I will try again at the next scheduled time; if this keeps happening, sign in to Claude again in Settings → Claude.");
 });
 
 test('a 401 from something else is not taken for Claude', () => {
