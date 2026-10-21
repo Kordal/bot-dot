@@ -76,6 +76,6 @@ test('web: it waits while another dialog is open, then shows', async () => {
 });
 
 test('web: index.html loads whats-new.js and the page asks once, after it opened its first view', () => {
-  assert.match(read('index.html'), /<script src="\/whats-new.js"><\/script>\s*<script src="\/boot.js">/);
+  assert.match(read('index.html'), /<script src="\/boot.js"><\/script>\s*<script src="\/whats-new.js">/); // after boot.js, as groups.js: boot's first await has passed by the time it is called
   assert.match(read('boot.js'), /showList\(\);[^\n]*\n\s*showWhatsNew\(\);/);
 });
