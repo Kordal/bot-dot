@@ -68,6 +68,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
@@ -117,7 +118,9 @@ import kotlinx.serialization.json.put
 /** Everything waiting for you: bots asking for logins or to pay, Bitwarden, jobs and memory changes to approve. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onBack: () -> Unit) {
+fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() -> Unit)? = null, onBack: () -> Unit) {
+    // After the last card, back where the screen was opened from: only while it is the screen in front.
+    val leave = onDone ?: onBack
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
@@ -165,7 +168,8 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onBack: () -> 
     // After you answered something, or pulled to refresh: all of it again, at once.
     suspend fun load() = coroutineScope { listOf(store.needs, store.bots, store.chief, store.dashboard).forEach { launch { it.refresh() } } }
     LaunchedEffect(needsError) { needsError?.let { tell(it) } }
-    LaunchedEffect(unlocking) { if (!unlocking && loaded) load() }
+    var fresh by remember { mutableStateOf(false) } // the lists were read from the server since the screen opened
+    LaunchedEffect(unlocking) { if (!unlocking) { load(); fresh = true } }
     fun act(done: String, block: suspend () -> Unit) = scope.launch {
         val r = runCatching { block() }
         load()
@@ -178,6 +182,17 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onBack: () -> 
     val whoOf = { id: String?, name: String -> named(bots.firstOrNull { it.id == id }, name, null) } // the bot as it looks now
     // Approved or declined here: they stay, faded, until you leave the screen.
     var decided by remember { mutableStateOf(listOf<Decided>()) }
+    // The last open card answered here: back where the screen was opened from, after a moment to read the answer
+    // (NeedsLeave, #264). Counted once the lists are fresh from the server, not as the app kept them, and a card
+    // that comes in during the moment changes the count and calls the wait off.
+    val open = if (!loaded || !fresh) -1 else requests.size + (if (locked) 1 else 0) + waitingJobs.size + memory.size + plans.size + asks.size + tiles.size
+    var seenOpen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(open) {
+        if (open < 0) return@LaunchedEffect
+        val now = NeedsLeave.step(seenOpen, open, decided.isNotEmpty())
+        seenOpen = now.seen
+        if (now.leave) { delay(NeedsLeave.DELAY_MS); leave() }
+    }
     // [block] sends the answer and returns what the server says of it, if anything: its words for the answered card,
     // and what the yes started. The label says both. [ask]: the ask answered, whose chat then says so too.
     fun decide(key: String, who: Named?, title: String, yes: Boolean, label: String? = null, ask: Ask? = null, block: suspend () -> Answered?) = scope.launch {

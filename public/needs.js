@@ -353,20 +353,43 @@ const tooLong = (a) => a?.more === true;
 // What a card draws beyond its key that can change while it waits: the page draws it again when this does.
 const needLive = (x, here = null) => [thenLine(x.then, here), x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
 
+// Back to where Needs you was opened from (state.cameFrom, needs-return.js): false when there is nowhere.
+function leaveNeeds() {
+  const to = state.cameFrom;
+  if (!to) return false;
+  if (to.view === 'chief' && to.id) openChiefChat(to.id);
+  else setView(to.view, to.id);
+  if (to.list) showList(); // a phone: the list it came from, over that view
+  return true;
+}
+// The page's Back goes there too; where there is nowhere, to the list of bots, as every page's Back on a phone.
+const needsBack = () => BACK_BTN.replace('data-back', 'data-needs-back');
+let needsSeen = false; // a card stood open on the page during this visit
+let needsLeaving = null; // the moment's wait after the last card, before the page leaves
+// The page is left or opened again, or a card came in: nothing waits to leave it.
+function stayOnNeeds() { clearTimeout(needsLeaving); needsLeaving = null; needsSeen = false; }
+
 function renderNeeds() {
   const root = $('#view-needs');
   const items = needsItems();
   const open = items.filter((x) => !needsDone.has(x.key));
+  // The last open card answered on the page: back where it was opened from, after a moment to read the answer.
+  const now = NeedsReturn.step(needsSeen, open.length, needsDone.size > 0);
+  if (open.length) { clearTimeout(needsLeaving); needsLeaving = null; }
+  needsSeen = now.seen;
+  if (now.leave && state.cameFrom) needsLeaving = setTimeout(() => { needsLeaving = null; if (state.view === 'needs') leaveNeeds(); }, NeedsReturn.DELAY);
   const all = approveAll(open);
   // Draw again only when the cards change: the regular refresh would otherwise swallow clicks.
   const sig = JSON.stringify([open.map((x) => [x.key, x.job?.cron, x.job?.prompt, x.job?.script, x.chat?.waiting?.text, needLive(x)]), [...needsDone.keys()], all.label, all.line]);
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   root.innerHTML = `
-    <div class="section-head"><div>${BACK_BTN}<h1>Needs you</h1>${open.length ? '' : '<p>All done.</p>'}${all.line ? `<p class="needs-left">${esc(all.line)}</p>` : ''}</div>
+    <div class="section-head"><div>${needsBack()}<h1>Needs you</h1>${open.length ? '' : '<p>All done.</p>'}${all.line ? `<p class="needs-left">${esc(all.line)}</p>` : ''}</div>
       ${all.label ? `<button class="btn primary" id="needs-all">${esc(all.label)}</button>` : ''}</div>
     <div class="need-grid">${open.map((x) => needCardHTML(x)).join('')}${[...needsDone.values()].join('')}</div>`;
   wireNeedCards(root, items);
+  const back = $('[data-needs-back]', root);
+  if (back) back.onclick = () => { if (!leaveNeeds()) showList(); };
   const button = $('#needs-all', root);
   if (button) button.onclick = async () => { for (const x of all.takes) await decide(x, true, false); refreshNeeds(); };
 }

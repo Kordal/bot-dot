@@ -478,6 +478,9 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .md p { margin: .5em 0; }
 .md ul, .md ol { margin: .35em 0; padding-left: 1.3em; }
 .md li { margin: .2em 0; }
+/* A task item (#267): its checkbox stands where the bullet or number would be, and only shows its state. */
+.md li.task { list-style: none; }
+.md li.task > input { margin: 0 .35em 0 -1.25em; vertical-align: -.1em; }
 /* An item's own list sits under its text, and keeps the next item at a distance. */
 .md li > ul, .md li > ol { margin: .2em 0 .55em; }
 .md blockquote { margin: .5em 0; padding-left: .8em; border-left: 3px solid var(--line); color: var(--muted); }

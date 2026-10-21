@@ -318,7 +318,7 @@ class MainActivity : ComponentActivity() {
                             onSignIn = { nav.navigate("settings") { launchSingleTop = true } }) { if (nav.currentBackStackEntry == e) nav.popBackStack() }
                     }
                     composable("dashboard") { DashboardScreen(app, onBot = { nav.navigate("bot/$it") }, onNeeds = { nav.navigate("needs") }) { nav.popBackStack() } }
-                    composable("needs") { NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }) { nav.popBackStack() } }
+                    composable("needs") { e -> NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }, onDone = { if (nav.currentBackStackEntry == e) nav.popBackStack() }) { nav.popBackStack() } }
                     composable("screen/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""
                         val bots by app.store.bots.value.collectAsState()

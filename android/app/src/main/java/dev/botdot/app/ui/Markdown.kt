@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +34,11 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.Placeholder
@@ -132,7 +140,13 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                     is Block.Para -> PathText(st[0], color, paths, above)
                     // The indent moves the whole row, so a sub-item's text starts right of its parent's text.
                     is Block.Item -> Row(above.padding(start = itemIndent(b.indent))) {
-                        Text(if (b.number != null) "${b.number}." else "•", color = p.muted, style = MaterialTheme.typography.bodyLarge,
+                        // A task item shows its checkbox in place of the marker; it only says done or not (#267).
+                        if (b.task != null) Icon(if (b.task == "done") Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank, contentDescription = null, tint = p.muted,
+                            modifier = Modifier.padding(top = 3.dp, end = 6.dp).size(18.dp).semantics {
+                                role = Role.Checkbox
+                                toggleableState = if (b.task == "done") ToggleableState.On else ToggleableState.Off
+                            })
+                        else Text(if (b.number != null) "${b.number}." else "•", color = p.muted, style = MaterialTheme.typography.bodyLarge,
                             maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = markerWidth(b.number != null)).padding(end = 4.dp))
                         PathText(st[0], color, paths, Modifier)
                     }
@@ -253,7 +267,8 @@ private fun Table(rows: List<List<String>>, cells: List<AnnotatedString>, color:
 internal sealed interface Block {
     data class Heading(val level: Int, val text: String) : Block
     data class Para(val text: String) : Block
-    data class Item(val text: String, val number: Int?, val indent: Int) : Block
+    /** [task]: "done" or "todo" for an item that starts with [x] or [ ], null for any other. */
+    data class Item(val text: String, val number: Int?, val indent: Int, val task: String? = null) : Block
     data class Quote(val text: String) : Block
     /** [lang]: the word after the opening fence ("mermaid", "kotlin"), "" without one. */
     data class Code(val text: String, val lang: String = "") : Block
@@ -266,6 +281,7 @@ private val FENCE = Regex("""^```(\w*)$""")
 private val ITEM = Regex("""^(\s*)(?:[-*•+]|(\d{1,9})[.)])\s+(.*)$""")
 private val HEADING = Regex("""^(#{1,6})\s+(.*)$""")
 private val BOLD_LINE = Regex("""^\*\*([^*]+)\*\*:?\s*$""")
+private val TASK = Regex("""^\[([ xX])]\s+(.*)$""")
 private val TABLE_RULE = Regex("""^[|:\-\s]+$""")
 private val RULES = setOf("---", "***", "___")
 
@@ -360,7 +376,11 @@ internal fun parseBlocks(src: String): List<Block> {
                 // The first number of a list is the one written; the next ones count up, whatever is written.
                 val number = m.groupValues[2].toIntOrNull()?.let { written -> nums[depth]?.plus(1) ?: written }
                 nums[depth] = number
-                out += Block.Item(m.groupValues[3].trim(), number, depth)
+                // An item that starts with [ ] or [x] is a task, drawn with a checkbox in place of its marker (#267).
+                val text = m.groupValues[3].trim()
+                val task = TASK.find(text)
+                out += if (task == null) Block.Item(text, number, depth)
+                else Block.Item(task.groupValues[2], number, depth, if (task.groupValues[1] == " ") "todo" else "done")
                 item = out.lastIndex
                 blank = false
             }
@@ -385,7 +405,7 @@ internal fun parseBlocks(src: String): List<Block> {
 // file names like README.md or lib/bots.js stay text (test/fixtures/chat-links.json, shared with the web page).
 private const val BARE_TLDS = "com|org|net|io|dev|app|ai|co|pl|me|gg|tv|xyz|edu|gov|info|eu|uk|de|fr|ly|so|be|fm|to|tech|blog|news|page|site|social|cloud|art|link"
 private const val BARE_URL = """(?<![\p{L}\p{N}_@./:-])(?i:(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:$BARE_TLDS))/[^\s<>"\x27`]*"""
-private val INLINE = Regex("""\*\*(.+?)\*\*|__(.+?)__|(`+)([\s\S]*?)\3|\[([^\]]+)]\(((?:[^()\s]|\([^()\s]*\))+)\)|((?<![\p{L}\p{N}_:/])(?i:https?://)[^\s<>"\x27`]+|$BARE_URL)|(?<![*\w])\*([^*\n]+)\*(?!\w)|(?<![_\w])_([^_\n]+)_(?!\w)""")
+private val INLINE = Regex("""\*\*(.+?)\*\*|__(.+?)__|(`+)([\s\S]*?)\3|\[([^\]]+)]\(((?:[^()\s]|\([^()\s]*\))+)\)|((?<![\p{L}\p{N}_:/])(?i:https?://)[^\s<>"\x27`]+|$BARE_URL)|(?<![*\w])\*([^*\n]+)\*(?!\w)|(?<![_\w])_([^_\n]+)_(?!\w)|~~([^~\s](?:[^~\n]*[^~\s])?)~~""")
 private val WEB_URL = Regex("""(?<![\p{L}\p{N}_:/])(?i:https?://)[^\s<>"\x27`]+|$BARE_URL""")
 private val CODE_SPAN = Regex("""(`+)[\s\S]*?\1""")
 
@@ -443,7 +463,7 @@ private fun linkedReplyText(s: String, color: Color, p: Paper, paths: PathAction
     }
 }
 
-private fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? = null): AnnotatedString = buildAnnotatedString {
+internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? = null): AnnotatedString = buildAnnotatedString {
     val links = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline))
     var at = 0
     for (m in INLINE.findAll(s)) {
@@ -463,6 +483,7 @@ private fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? = 
             }
             g[7].isNotEmpty() -> append(linkedChatText(AnnotatedString(g[7]), color))
             g[8].isNotEmpty() || g[9].isNotEmpty() -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(inlineText(g[8].ifEmpty { g[9] }, color, p, paths)) }
+            g[10].isNotEmpty() -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { append(inlineText(g[10], color, p, paths)) }
         }
         at = m.range.last + 1
     }

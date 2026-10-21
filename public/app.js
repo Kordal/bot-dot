@@ -424,7 +424,8 @@ function draftSource(src) {
   return lines.map((l) => l.replace(/^(\s*```)mermaid$/, '$1')).join('\n');
 }
 
-// A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth), quote (text),
+// A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth, and task: "done" or
+// "todo" for a task item), quote (text),
 // rule, code (text, lang: the word after its fence) and table (rows). Android's parseBlocks returns the same for the same text.
 function mdBlocks(src) {
   const code = [];
@@ -481,7 +482,9 @@ function mdBlocks(src) {
       // The first number of a list is the one written; the next ones count up, whatever is written.
       const number = m[2] === undefined ? null : nums[depth] != null ? nums[depth] + 1 : parseInt(m[2], 10);
       nums[depth] = number;
-      item = { type: 'item', text: m[3].trim(), number, depth };
+      // An item that starts with [ ] or [x] is a task, drawn with a checkbox in place of its marker (#267).
+      const task = m[3].trim().match(/^\[([ xX])\]\s+(.*)$/);
+      item = task ? { type: 'item', text: task[2], number, depth, task: task[1] === ' ' ? 'todo' : 'done' } : { type: 'item', text: m[3].trim(), number, depth };
       out.push(item);
       blank = false;
     }
@@ -498,6 +501,7 @@ function mdHTML(blocks) {
   const inline = (t) =>
     t
       .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/(<code>[^<]*<\/code>)|~~([^~\s](?:[^~]*[^~\s])?)~~/g, (all, code, struck) => code || `<del>${struck}</del>`)
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
       .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
@@ -509,7 +513,9 @@ function mdHTML(blocks) {
     let html = tag === 'ol' && number !== 1 ? `<ol start="${number}">` : `<${tag}>`;
     // A numbered list is the items that count up: a number that starts again is the next list.
     for (let n = number; isItem(i) && blocks[i].depth === depth && (tag === 'ul' ? blocks[i].number == null : blocks[i].number === n); n++) {
-      html += `<li>${text(blocks[i++].text)}`;
+      const { task } = blocks[i];
+      html += task ? `<li class="task"><input type="checkbox" disabled${task === 'done' ? ' checked' : ''}> ` : '<li>';
+      html += text(blocks[i++].text);
       while (isItem(i) && blocks[i].depth > depth) { const sub = list(i); html += sub.html; i = sub.next; }
       html += '</li>';
     }
@@ -785,6 +791,7 @@ function renderStatus() {
 const BOT_NAMES = ['bot', 'botsettings', 'botjobs']; // the names that come with a bot's id
 const GROUP_NAMES = ['group', 'groupsettings']; // and those that come with a group's
 const CHAT_VIEWS = ['bot', 'chief', 'group']; // the views that are a chat, with the panel beside them
+const PHONE = '(max-width: 479px)'; // the style's phone width, where the list of bots and a view take turns
 const panelPage = () => Panel.page(state.view, state.panel);
 let covered = false; // the panel is over the chat, as last seen
 function setView(v, sub) {
@@ -806,6 +813,8 @@ function show({ view: v, panel, via }, fresh = false) {
   if (v !== 'bot' && state.botStream) { state.botStream.close(); state.botStream = null; }
   if (v !== 'group') followGroupDrafts(null); // a group that is left follows no turn's draft (groups.js)
   const changed = state.view !== v;
+  // Needs you goes back, after its last card, to where it was opened from (needs-return.js).
+  if (changed && v === 'needs') state.cameFrom = NeedsReturn.from(state, matchMedia(PHONE).matches && !$('#app').classList.contains('in-main'));
   const was = panelPage();
   state.view = v;
   state.panel = panel;
@@ -815,7 +824,7 @@ function show({ view: v, panel, via }, fresh = false) {
   if (changed && v === 'vault') delete $('#view-vault').dataset.ready;
   if (changed && v === 'dashboard') loadDash();
   if (changed && v === 'setup') { delete $('#view-setup').dataset.ready; state.setup = null; }
-  if (changed) { needsDone.clear(); needsOpen.clear(); delete $('#view-needs').dataset.sig; }
+  if (changed) { needsDone.clear(); needsOpen.clear(); delete $('#view-needs').dataset.sig; stayOnNeeds(); }
   if (changed && v === 'group') loadGroupChat(state.groupId); // what was said there while another view was open
   $$('.view').forEach((el) => el.classList.toggle('hidden', el.id !== `view-${v}`));
   if (changed) { const page = $(`#view-${v}.page`); if (page) page.scrollTop = 0; } // open pages at the top
