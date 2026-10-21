@@ -41,7 +41,7 @@ async function sent(b, id) {
   return { run: kindsOf(run.learned), listed: kindsOf(listed.learned), events: fromEvents(run.events), stream: fromEvents(stream), items: run.learned };
 }
 
-test('a run that saved, shared, removed, restored and forgot notes and wrote a skill sends only the change that waits', async (t) => {
+test('a run that saved, shared, removed, restored and forgot notes and wrote a skill sends only the skill and the change that waits', async (t) => {
   const b = await makeBot(srv, { name: 'Quiet memory bot', emoji: '🤫', mayMessage: [] });
   srv.hold();
   const ask = { prompt: 'Remember what I tell you.', key: crypto.randomUUID() };
@@ -64,19 +64,20 @@ test('a run that saved, shared, removed, restored and forgot notes and wrote a s
   // The note is still there, and still found by the bot's memory search.
   assert.match(await rpcClient(t, 'self-mcp.js', rec.self.env).text('recall', { query: 'car', in: 'notes' }), /The car is blue/);
   const going = await sent(b, run.id);
-  assert.deepEqual(going.events, ['memory-pending'], 'while it goes');
+  assert.deepEqual(going.events, ['skill', 'memory-pending'], 'while it goes');
   srv.release(rec);
   await srv.finished(run.id);
 
   const done = await sent(b, run.id);
-  assert.deepEqual(done.run, ['memory-pending']);
-  assert.deepEqual(done.listed, ['memory-pending']);
-  assert.deepEqual(done.events.slice(0, 1), ['memory-pending'], 'the learned events');
-  assert.deepEqual(done.events.slice(1), ['memory-pending'], 'the end event\'s record');
+  assert.deepEqual(done.run, ['skill', 'memory-pending']);
+  assert.deepEqual(done.listed, ['skill', 'memory-pending']);
+  assert.deepEqual(done.events.slice(0, 2), ['skill', 'memory-pending'], 'the learned events');
+  assert.deepEqual(done.events.slice(2), ['skill', 'memory-pending'], 'the end event\'s record');
   assert.deepEqual(done.stream, done.events, 'the stream sends what the events do');
   const again = (await srv.api(`/bots/${b.id}/run`, { method: 'POST', body: ask })).data;
-  assert.deepEqual([again.again, kindsOf(again.learned)], [true, ['memory-pending']], 'the same request sent again');
-  assert.equal(done.items[0].chip, 'Asked to add to the shared memory: A page says the shop opens at nine (waiting for your OK)');
+  assert.deepEqual([again.again, kindsOf(again.learned)], [true, ['skill', 'memory-pending']], 'the same request sent again');
+  assert.equal(done.items[0].chip, 'Saved the skill wash-the-car');
+  assert.equal(done.items[1].chip, 'Asked to add to the shared memory: A page says the shop opens at nine (waiting for your OK)');
 
   // Stored: every item, in the run's record and in the memory index.
   const meta = JSON.parse(fs.readFileSync(path.join(srv.data, 'runs', `${run.id}.json`), 'utf8'));
@@ -84,7 +85,7 @@ test('a run that saved, shared, removed, restored and forgot notes and wrote a s
   const db = new DatabaseSync(path.join(srv.data, 'memory.db'));
   const row = db.prepare('SELECT learned FROM runs WHERE run_id = ?').get(run.id);
   db.close();
-  assert.deepEqual(row.learned.split('\n').map((l) => l.split(':')[0]), ['memory', 'memory-shared', 'memory-removed', 'memory-restored', 'memory', 'forgot', 'Created skill wash-the-car', 'memory-pending']);
+  assert.deepEqual(row.learned.split('\n').map((l) => l.split(':')[0]), ['memory', 'memory-shared', 'memory-removed', 'memory-restored', 'memory', 'forgot', 'Saved the skill wash-the-car', 'memory-pending']);
 });
 
 test('an old run in history sends no done memory change, and no row of it at all when that is all it learned', async () => {
@@ -101,17 +102,17 @@ test('an old run in history sends no done memory change, and no row of it at all
   const only = await sent(b, run.id);
   assert.deepEqual(only.run, []);
   assert.deepEqual(only.listed, []);
-  // What else was done is no row either (ADR 025): an app used, a skill written, a job changed. What waits for the
-  // owner still shows, as it was written.
+  // What else was done is no row either (ADR 025): an app used, a job changed. What waits for the owner still
+  // shows, as it was written, and so does a skill the bot wrote, which no card asks about (ADR 050).
   const didRows = [
     { kind: 'connector', text: 'Used todoist: todoist get all tasks', at },
-    { kind: 'skill', text: 'Created skill wash-the-car', chip: 'Created skill wash-the-car', at },
-    { kind: 'skill-updated', text: 'Updated skill wash-the-car', chip: 'Updated skill wash-the-car', at },
     { kind: 'job', text: 'Added job Weekly digest', at },
     { kind: 'job', text: 'Removed job Weekly digest', at },
     { kind: 'instructions', text: 'Updated its rules', at },
   ];
   const waits = [
+    { kind: 'skill', text: 'Created skill wash-the-car', chip: 'Created skill wash-the-car', at },
+    { kind: 'skill-updated', text: 'Updated skill wash-the-car', chip: 'Updated skill wash-the-car', at },
     { kind: 'job', text: 'Added job Disk check (a script, no AI), waiting for your approval', at },
     { kind: 'skill-pending', text: 'Asked to add the skill wash-the-car (waiting for your OK)', chip: 'Asked to add the skill wash-the-car (waiting for your OK)', at },
     { kind: 'instructions', text: 'Proposed changing its rules; waiting for your approval', at },
