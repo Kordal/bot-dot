@@ -215,8 +215,12 @@ The person who runs the machine botdot is on: they create accounts with sign-up 
 _Avoid_: operator, owner (a person owns their account), host
 
 **Admin page**:
-Where the admin creates and revokes sign-up links, suspends or deletes accounts, sets their share of the machine, sees its load and updates botdot for every account at once. It never shows what is inside an account.
+Where the admin creates and revokes sign-up links, suspends or deletes accounts, sets their share of the machine, sees its load, updates botdot for every account at once and reads the Feedback owners send. It never shows what is inside an account, but for that Feedback: what an owner wrote to the admin on purpose.
 _Avoid_: dashboard (the Board's old name), admin panel, console
+
+**Feedback**:
+A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed, and the admin reads it on the admin page.
+_Avoid_: ticket, issue, support request, bug report (for both kinds)
 
 **Share**:
 How much of the machine one account may use: CPUs, RAM and disk. Its CPUs and RAM are also the limits of the account's one computer. The admin sets the default share and may give one account its own. Nothing in the account shows it: its work slows down, and a full disk fails a run with "No space left on the server".

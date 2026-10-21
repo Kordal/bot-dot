@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Feedback as FeedbackIcon
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.layout.WindowInsets
@@ -64,7 +67,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Bot
+import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.ChatHit
+import dev.botdot.app.data.Feedback
 import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.Group
 import dev.botdot.app.data.Groups
@@ -98,7 +103,7 @@ private const val CHIEF = "chief"
  * [sections]: on a phone, the same pages one under the other as sections of keys ([KeypadSections]) under Needs you
  * and the Board, over the Chief's message box; the search shows what it finds in their place.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: String? = null, onBot: (String) -> Unit, onGroup: (String) -> Unit, onChief: () -> Unit, onNew: () -> Unit, onDashboard: () -> Unit, onHit: (ChatHit) -> Unit, onNeedsYou: () -> Unit, onOpen: (String) -> Unit, shows: ListWidth.Shows = ListWidth.Shows.ALL, keypad: Boolean = false, keys: KeyRelay? = null, sections: Boolean = false) {
     val p = LocalPaper.current
@@ -118,6 +123,16 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     var refreshing by remember { mutableStateOf(false) }
 
     val server by store.version.value.collectAsState() // for the app update banner
+    // Feedback beside Settings (#216): shown when the front door says it goes to an admin page, asked once per server.
+    var feedbackOn by remember(api) { mutableStateOf(false) }
+    var feedbackOpen by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(api, server?.features) {
+        feedbackOn = false
+        val a = api ?: return@LaunchedEffect
+        if (server?.features?.contains("accounts") != true) return@LaunchedEffect
+        feedbackOn = Feedback.on(server?.features, runCatching { a.frontDoorSession() }.getOrNull())
+    }
+    if (feedbackOpen) FeedbackDialog(send = { kind, text -> (api ?: throw ApiException("Can't reach botdot.")).sendFeedback(kind, text) }, onClose = { feedbackOpen = false })
     val context = androidx.compose.ui.platform.LocalContext.current
     // One small head per thing that waits, in the colour of the bot it's about (the Chief's for the rest).
     val waiting by store.waiting.collectAsState(initial = emptyList())
@@ -301,6 +316,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = "Can't reach botdot" })
             RoundButton(Icons.Filled.Add, "New chat", onClick = onNew)
             RoundButton(Icons.Filled.Settings, "Settings") { onOpen("settings") }
+            if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, "Feedback") { feedbackOpen = true }
         }
         // A list of names: the logo, and the buttons under it, a little smaller, so that all three fit in 140.
         else if (shows == ListWidth.Shows.NAMES) Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -308,10 +324,12 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
                 if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = "Can't reach botdot" })
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Four buttons don't fit in one row of 140: Feedback wraps under them there.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 RoundButton(Icons.Filled.Search, "Search", size = 34.dp) { searching = !searching; if (!searching) query = "" }
                 RoundButton(Icons.Filled.Add, "New chat", size = 34.dp, onClick = onNew)
                 RoundButton(Icons.Filled.Settings, "Settings", size = 34.dp) { onOpen("settings") }
+                if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, "Feedback", size = 34.dp) { feedbackOpen = true }
             }
         }
         else Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
@@ -323,6 +341,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             RoundButton(Icons.Filled.Add, "New chat", onClick = onNew)
             // Settings; Memory, Skills, Connectors and the rest open from there.
             RoundButton(Icons.Filled.Settings, "Settings") { onOpen("settings") }
+            if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, "Feedback") { feedbackOpen = true }
         }
         if ((searching || query.isNotEmpty()) && !figures) SearchField(query, askSearch) { query = it }
         // The keypad, while the search finds nothing to show in its place.

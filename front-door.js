@@ -166,6 +166,8 @@ const ADMIN = process.env.FRONT_DOOR_ADMIN || null;
 const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
 const STATUS = process.env.FRONT_DOOR_STATUS ? path.resolve(process.env.FRONT_DOOR_STATUS) : null;
 const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null);
+// Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin.
+const FEEDBACK = !ONE_ACCOUNT && !!ADMIN;
 const MAKING = 'Your account is being made. It takes a few minutes; try again then.';
 const STARTING = 'Your account is starting. Try again in a moment.';
 
@@ -431,11 +433,25 @@ async function signInRoutes(req, res, p) {
     console.log(`[front door] account ${account} signed out everywhere (${ended} session${ended === 1 ? '' : 's'})`);
     return send(res, 200, { ok: true, ended }, { 'Set-Cookie': sessionCookie(null) });
   }
-  // What the web page asks of its session: whether it is the admin's, which then shows the way to /admin.
+  // What the web page and the Android app ask of their session: whether it is the admin's, which then shows the way
+  // to /admin, and whether Feedback goes anywhere (#216): to the admin page, which a machine of one account has not.
   if (p === '/front-door/session' && req.method === 'GET') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
-    return send(res, 200, { admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN });
+    return send(res, 200, { admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK });
+  }
+  // Feedback (#216): a bug or a feature request, kept here for the admin page. Only the owner signed in sends it, from
+  // the web page or the Android app; it never reaches a botdot server, and nothing of the account goes with it.
+  if (p === '/front-door/feedback' && req.method === 'POST') {
+    const session = sessionOf(req);
+    const account = doors.sessionAccount(session);
+    if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
+    if (!FEEDBACK) return send(res, 404, { error: 'Not found' });
+    if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
+    const { kind, text } = (await readJson(req)) || {};
+    const report = doors.addFeedback({ account, kind, text, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version) });
+    console.log(`[front door] the account ${account} sent feedback (${report.kind}, ${report.text.length} characters)`);
+    return send(res, 201, { ok: true, id: report.id });
   }
   const m = p.match(/^\/sign-up\/([A-Za-z0-9_-]{1,100})(\/options)?$/);
   if (!m) return false;
@@ -524,6 +540,14 @@ async function adminRoutes(req, res, p, account) {
     console.log(`[front door] the admin set the default share: ${JSON.stringify(doors.defaultShare())}`);
     for (const name of accounts) askMachine(name);
     return send(res, 200, { ok: true, share: doors.defaultShare() });
+  }
+  // The owners' feedback (#216), newest first: the admin marks a report done, which keeps it, or deletes it.
+  if (p === '/admin/feedback' && req.method === 'GET') return send(res, 200, { reports: doors.listFeedback() });
+  const f = p.match(/^\/admin\/feedback\/([0-9a-f]{32})\/(done|delete)$/);
+  if (f && req.method === 'POST') {
+    await readJson(req);
+    if (f[2] === 'delete') { doors.deleteFeedback(f[1]); return send(res, 200, { ok: true }); }
+    return send(res, 200, { ok: true, report: doors.feedbackDone(f[1]) });
   }
   const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share)$/);
   if (a && req.method === 'POST') return accountAction(req, res, a[1], a[2]);

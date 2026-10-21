@@ -362,15 +362,59 @@ async function signOutEverywhere() {
 
 // Beside Settings, for the admin's session only (ADR 028): an icon that opens the front door's admin page, /admin,
 // which is drawn on the web only. The front door says whose session this is; anything else (no front door, another
-// account, no answer) shows nothing.
+// account, no answer) shows nothing. It also says whether Feedback goes anywhere (#216): then its icon shows too.
 async function showAdminLink() {
   if (!state.features.includes('accounts')) return;
-  let admin = false;
+  let session = null;
   try {
     const res = await fetch('/front-door/session');
-    admin = res.ok && (await res.json()).admin === true;
+    if (res.ok) session = await res.json();
   } catch { /* nothing to show */ }
-  $('#admin-link').classList.toggle('hidden', !admin);
+  $('#admin-link').classList.toggle('hidden', session?.admin !== true);
+  $('#feedback-btn')?.classList.toggle('hidden', session?.feedback !== true);
+}
+
+// ---------- feedback ----------
+
+// Beside Settings (#216, ADR 048): a bug or a feature request for the admin of this machine, who reads it on the admin
+// page. It goes to the front door, never to botdot, and holds only what is typed here. A failed send keeps the text.
+const FEEDBACK_KINDS = [['bug', 'Bug'], ['feature', 'Feature request']];
+function openFeedback() {
+  const m = openModal(`
+    <form id="feedback-form" autocomplete="off">
+      <div class="modal-head"><h2>Feedback</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-body">
+        <p class="muted" style="margin:0">The admin of this machine reads it. Only what you write here is sent.</p>
+        <div class="feedback-kinds">${FEEDBACK_KINDS.map(([v, label], i) => `<label><input type="radio" name="kind" value="${v}"${i ? '' : ' checked'}> ${label}</label>`).join('')}</div>
+        <label class="field">What happened, or what you would like<textarea name="text" rows="6" required></textarea></label>
+        <p class="req-note hidden" id="feedback-said" role="alert"></p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" data-dismiss>Cancel</button>
+        <button class="btn primary" id="feedback-send">Send</button>
+      </div>
+    </form>`);
+  $('#feedback-form', m).onsubmit = (e) => { e.preventDefault(); sendFeedback(m); };
+}
+
+async function sendFeedback(m) {
+  const f = $('#feedback-form', m);
+  const go = $('#feedback-send', m);
+  const said = $('#feedback-said', m);
+  // The form may have been closed meanwhile, and another dialog opened in its place: that one is left alone.
+  const shown = () => $('#feedback-form', m) === f;
+  const fail = (text) => { if (!shown()) return toast(text, true); said.textContent = text; said.classList.remove('hidden'); };
+  go.disabled = true;
+  said.classList.add('hidden');
+  try {
+    let res;
+    try {
+      res = await fetch('/front-door/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: JSON.stringify({ kind: f.kind.value, text: f.text.value }) });
+    } catch { return fail("Couldn't send: can't reach botdot. Your text is still here."); }
+    if (res.ok) { if (shown()) m.close(); toast('Sent'); return; }
+    const data = await res.json().catch(() => ({}));
+    fail(typeof data.error === 'string' && data.error.trim() ? data.error : `Couldn't send (${res.status}). Your text is still here.`);
+  } finally { go.disabled = false; }
 }
 
 // ---------- backups ----------

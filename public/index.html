@@ -45,6 +45,8 @@
         <button class="more-btn" id="more-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><i id="more-badge" class="more-badge hidden"></i></button>
         <!-- The admin page, for the admin's session only (settings.js, showAdminLink; ADR 028). -->
         <a class="more-btn hidden" id="admin-link" href="/admin" title="Admin" aria-label="Admin"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6z"/></svg></a>
+        <!-- Feedback to the admin of this machine: a bug or a feature request (settings.js, openFeedback; #216). -->
+        <button class="more-btn hidden" id="feedback-btn" type="button" title="Feedback" aria-label="Feedback"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4zM12 8v3M12 13.5v.01"/></svg></button>
       </nav>
     </aside>
     <!-- The list's right edge: dragged to make the list wider or narrower (list.js, initSideGrip). -->

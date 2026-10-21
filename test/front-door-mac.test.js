@@ -161,6 +161,11 @@ test("one account: no sign-up link, the setup key makes the account's one passke
     assert.equal(admin.status, 302);
     assert.equal(admin.headers.location, '/sign-in');
     assert.equal((await app.get('/admin')).data.account, 'owner');
+    // And no Feedback (#216): there is no admin page to read it.
+    assert.deepEqual((await app.get('/front-door/session')).data, { admin: false, feedback: false });
+    const sent = await app.post('/front-door/feedback', { kind: 'bug', text: 'Approve button does nothing on my phone' });
+    assert.equal(sent.status, 404);
+    assert.equal(owner.seen.filter((r) => r.url === '/front-door/feedback').length, 0, 'never passed on');
   } finally { await mac.stop(); owner.close(); }
 });
 

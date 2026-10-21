@@ -117,6 +117,16 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** "Sign out everywhere": the front door ends every session of the account, in every app, this one too. */
     suspend fun signOutEverywhere() { door("/sign-out-everywhere") }
 
+    /**
+     * What the front door says of this session (`/front-door/session`): here, whether Feedback goes to an admin page
+     * ([Feedback.on]). An older front door leaves the field out, and the app shows no Feedback.
+     */
+    suspend fun frontDoorSession(): JsonObject = json.parseToJsonElement(
+        call(Request.Builder().url(baseUrl.trimEnd('/') + "/front-door/session").header("Accept", "application/json").get().build())).jsonObject
+
+    /** Feedback (#216): a bug or a feature request for the admin of this machine. A refusal throws the front door's sentence. */
+    suspend fun sendFeedback(kind: Feedback.Kind, text: String) { door("/front-door/feedback", Feedback.body(kind, text)) }
+
     // ---------- version, bots, runs ----------
 
     suspend fun version(): VersionInfo = json.decodeFromString(get("/version"))
