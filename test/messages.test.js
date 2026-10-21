@@ -228,9 +228,16 @@ test('"Run now" under waiting notes starts the bot with them, or once it is free
   srv.release(busy.rec);
   await srv.finished(busy.run.id);
   await finishWoken(third, 'Rotate the logs.');
-  // A note left where nothing woke it (an answer it collects, or a botdot from before): "Run now" starts it.
+  assert.equal((await runsOf(third))[0].notificationAudience, 'owner', 'the wake that waited became the owner\'s');
+  // Answers it collects for its own question are its follow-up's: "Run now" leaves them.
+  const note = (more) => ({ id: 'n1', at: new Date().toISOString(), fromId: surfer.id, fromName: 'Web Surfer', text: 'Old news.', ...more });
   fs.mkdirSync(path.join(srv.data, 'inbox'), { recursive: true });
-  fs.writeFileSync(path.join(srv.data, 'inbox', `${third.id}.json`), JSON.stringify([{ id: 'n1', at: new Date().toISOString(), fromId: surfer.id, fromName: 'Web Surfer', text: 'Old news.', answer: true }]));
+  fs.writeFileSync(path.join(srv.data, 'inbox', `${third.id}.json`), JSON.stringify([note({ answer: true })]));
+  const answers = await runNow();
+  assert.equal(answers.status, 409);
+  assert.match(answers.data.error, /answers to its own question/);
+  // A note left where nothing woke it (a botdot from before): "Run now" starts it.
+  fs.writeFileSync(path.join(srv.data, 'inbox', `${third.id}.json`), JSON.stringify([note()]));
   assert.deepEqual((await runNow()).data, { status: 'started' });
   const woke = await finishWoken(third, 'Old news.');
   assert.ok(woke);
