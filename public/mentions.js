@@ -6,10 +6,17 @@
 // Matching ignores case; a bot wins over a skill of the same name; "@" inside a word (an email) isn't one;
 // anything that matches nothing stays plain text.
 //
+// Commands (#237): "/" and one of a bot's skills at the very start of a message in that bot's own chat runs the
+// skill, with the rest of the message as its arguments: /weekly-report for May. Typing "/" there lists the bot's
+// skills; a name the bot has no skill of is plain text. Not in the Chief chat or a group. The skills are the ones
+// that reach the bot's runs (commandSkills: while its skills are on, its picked library skills, then the Claude
+// account's not switched off for it and not named like a library skill, #236).
+//
 // ctx, for every function: { chat, bots, library }
 //   chat: 'chief' or the id of the bot whose chat it is
 //   bots: [{ id, name, description?, prompt?, skills?, useSkills?, jobs?: [{ id, name, cron?, at?, kind?, prompt? }] }], the Chief included
 //   library: [{ name, description }], the whole skill library
+//   account: [{ name, description }], the Claude account's skills (for "/" only); bots[].disabledSkills switches them off
 //   all: a group's chat, on a botdot that knows "@all" (#124, feature `group-all`): "@all" at the start of a message
 //     sends it to every member at once. It is offered first while it is typed there, and it is no member's mention:
 //     a member named All is neither matched nor suggested.
@@ -31,6 +38,8 @@ const TOKEN = new RegExp(`(?<![\\p{L}\\p{N}_])@(${NAME}+)(?:/(${NAME}+))?`, 'gu'
 const TYPING = new RegExp(`(?<![\\p{L}\\p{N}_])@(${NAME}*)(?:/(${NAME}*))?$`, 'u');
 const WORD_REST = /^[\p{L}\p{N}_/-]*/u; // the rest of a mention's word after the cursor
 const ALL = 'all'; // "@all" in a group (ctx.all): every member at once, no member's mention
+const COMMAND_TYPING = /^\/([\p{L}\p{N}_-]*)$/u; // the text before the cursor while a command's name is typed
+const COMMAND = /^\/([\p{L}\p{N}_-]+)(?:\s+([\s\S]*))?$/u; // a message that may run a skill
 
 // "Fleet Doctor" → "FleetDoctor", "Chief of Staff" → "ChiefOfStaff", "Morning check" → "MorningCheck".
 function shortName(name) {
@@ -78,11 +87,16 @@ function findMentions(text, ctx) {
 // The suggestion rows for text typed up to the cursor, when it ends in a word starting with "@".
 // "@all" first in a group (ctx.all), then bots, then jobs, then skills, at most MAX_ROWS. After "@Bot/" only that bot's jobs.
 // Each row: { kind, text, label, bot?, job?, skill? }; picking it puts text plus a space in place of the "@…".
+// "/" at the very start of a bot's own chat lists its skills instead: rows { kind: 'command', text: '/name', label,
+// about (the skill's description), skill }.
 function suggest(typed, ctx) {
+  const has = (name, q) => name.toLowerCase().includes(q.toLowerCase());
+  const c = String(typed || '').match(COMMAND_TYPING);
+  if (c) return commandSkills(ctx).filter((k) => has(k.name, c[1])).slice(0, MAX_ROWS)
+    .map((k) => ({ kind: 'command', text: `/${k.name}`, label: k.name, about: String(k.description || ''), skill: k.name }));
   const m = String(typed || '').match(TYPING);
   if (!m) return [];
   const bots = (ctx.bots || []).filter((b) => shortName(b.name) && !(ctx.all && same(shortName(b.name), ALL))); // a name of only emoji can't be mentioned
-  const has = (name, q) => name.toLowerCase().includes(q.toLowerCase());
   const jobRow = (bot, j) => ({ kind: 'job', text: `@${shortName(bot.name)}/${shortName(j.name)}`, label: `${bot.name} · ${j.name}`, bot: bot.id, job: j.id });
   let rows;
   if (m[2] !== undefined) {
@@ -109,7 +123,7 @@ function suggest(typed, ctx) {
 // and the space is new, so a "/" typed next goes in its place and lists the bot's jobs.
 function pick(text, cursor, row) {
   const s = String(text || '');
-  const m = s.slice(0, cursor).match(TYPING);
+  const m = s.slice(0, cursor).match(row.kind === 'command' ? COMMAND_TYPING : TYPING);
   if (!m) return null;
   const end = cursor + s.slice(cursor).match(WORD_REST)[0].length;
   const spaced = s[end] === ' ';
@@ -120,7 +134,26 @@ function pick(text, cursor, row) {
   };
 }
 
-const api = { shortName, findMentions, suggest, pick, skillsInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
+// A skill switched off for a bot, by its name or a namespaced one ("anthropic-skills:pdf"), as lib/skills.js isOff.
+const isOff = (name, off) => (off || []).some((k) => k === name || String(k).endsWith(`:${name}`));
+
+// The skills "/" runs in this chat: a bot's own chat only. The account's skills after the library's (#236).
+function commandSkills(ctx) {
+  const bot = ctx.chat === CHIEF ? null : (ctx.bots || []).find((b) => b.id === ctx.chat);
+  if (!bot || bot.useSkills === false) return [];
+  const library = new Set((ctx.library || []).map((k) => k.name));
+  return [...skillsInScope(ctx), ...(ctx.account || []).filter((k) => !library.has(k.name) && !isOff(k.name, bot.disabledSkills))];
+}
+
+// What sending a message runs: { skill, args } when it starts with "/" and the name of a skill the bot has (args: the
+// rest, trimmed), else null (it is sent as plain text).
+function command(text, ctx) {
+  const m = String(text || '').match(COMMAND);
+  const skill = m && commandSkills(ctx).find((k) => same(k.name, m[1]));
+  return skill ? { skill: skill.name, args: String(m[2] || '').trim() } : null;
+}
+
+const api = { shortName, findMentions, suggest, pick, command, skillsInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Mentions = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

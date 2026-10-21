@@ -507,3 +507,35 @@ test('a picture, a script control, and the six kinds keep their look', async () 
   assert.deepEqual(brief.data.look.face[1].points, [0, 2, 5]);
   for (const t of [cam, fan, temp, note, brief]) await srv.api(`/dashboard/tiles/${t.data.id}`, { method: 'DELETE' });
 });
+
+test('the ago filter turns a time into words, counted down to the whole unit', () => {
+  const now = Date.parse('2026-10-21T12:00:00Z');
+  const ago = (ms) => blocks.fill('{{value|ago}}', { value: new Date(now - ms).toISOString() }, now);
+  const MIN = 60e3, H = 60 * MIN, D = 24 * H;
+  assert.equal(ago(30e3), 'just now');
+  assert.equal(ago(MIN), '1 minute ago');
+  assert.equal(ago(59 * MIN), '59 minutes ago');
+  assert.equal(ago(60 * MIN), '1 hour ago');
+  assert.equal(ago(9 * H + 10 * MIN), '9 hours ago');
+  assert.equal(ago(23 * H), '23 hours ago');
+  assert.equal(ago(D), '1 day ago');
+  assert.equal(ago(6 * D + 23 * H), '6 days ago');
+  assert.equal(ago(9 * D), '12 Oct');
+  assert.equal(ago(-H), 'just now', 'a time in the future');
+  assert.equal(blocks.fill('{{value|ago}}', { value: now - 5 * MIN }, now), '5 minutes ago', 'epoch milliseconds');
+  for (const v of ['n/a', '', '1', 42, null]) assert.equal(blocks.fill('{{value|ago}}', { value: v }, now), v == null ? '' : String(v), `${v} stays as it is`);
+});
+
+test('a tile with ago moves on by itself between two looks, face and panel', (t) => {
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-10-21T12:00:00Z') });
+  const tile = { id: 't9', kind: 'custom' };
+  Object.assign(tile, blocks.check({ face: [{ type: 'value', text: '{{value|ago}}' }], panel: [{ type: 'text', text: 'Opened {{value|ago}}' }], tap: 'panel' }, tile));
+  const data = { value: '2026-10-21T02:50:00Z' };
+  const first = blocks.look(tile, { data });
+  assert.equal(first.face[0].text, '9 hours ago');
+  assert.equal(first.panel[0].text, 'Opened 9 hours ago');
+  t.mock.timers.tick(50 * 60e3);
+  const later = blocks.look(tile, { data });
+  assert.equal(later.face[0].text, '10 hours ago');
+  assert.equal(later.panel[0].text, 'Opened 10 hours ago');
+});

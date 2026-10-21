@@ -177,6 +177,7 @@ test('the Chief\'s activity reads a bot\'s words for a tool a bot can also use, 
     ['WebSearch', { query: 'SECRET' }, 'Searching the web'],
     ['Read', { file_path: '/home/chief/notes/plan.md' }, 'Reading plan.md'],
     ['Bash', { command: 'SECRET' }, 'Running a command'],
+    ['Bash', { command: 'SECRET', description: 'List the files' }, 'List the files'],
     ['Skill', { skill: 'botdot:meal-plan' }, 'Using the skill meal-plan'],
   ];
   let n = 0;

@@ -159,7 +159,7 @@ const botLabel = (b) => (b ? `${botMark(b)}${esc(b.name)}` : '');
 // a mention names a member and gives it the turn: only its members, and their jobs, are matched and suggested, and
 // "@all" is offered first at the start of a message on a botdot that knows it (feature `group-all`, #124).
 const mentionCtx = (chat) => (String(chat).startsWith('group:') ? { chat, bots: groupMembers(groupById(String(chat).slice(6))), library: [], all: state.features.includes('group-all') }
-  : { chat, bots: [CHIEF_BOT, ...state.bots], library: state.skillLib || [] });
+  : { chat, bots: [CHIEF_BOT, ...state.bots], library: state.skillLib || [], account: state.skillAccount || [] });
 // The owner's own message with its mentions drawn: a bot as its small head and name, a job or a skill tinted; anything
 // else plain (escaped). Bot and Chief replies stay as they are.
 function escMentions(text, chat) {
@@ -184,7 +184,11 @@ function mentionSig() {
 function loadSkillLib() {
   if (Date.now() - (state.skillLibAt || 0) < 60000) return null;
   state.skillLibAt = Date.now();
-  return api('/skills').then(({ library }) => { state.skillLib = library.map(({ name, description }) => ({ name, description })); }).catch(() => { state.skillLibAt = 0; });
+  return api('/skills').then(({ library, machine }) => {
+    const short = ({ name, description }) => ({ name, description });
+    state.skillLib = library.map(short);
+    state.skillAccount = (machine || []).map(short); // for "/" (#236)
+  }).catch(() => { state.skillLibAt = 0; });
 }
 // "Messaged Coder, Home Keeper" (each with its small head) above a reply: every bot the run messaged, and how it gets there when that's the same for all.
 function messagedLabel(r) {

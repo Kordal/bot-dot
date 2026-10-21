@@ -3,7 +3,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, makeBot, waitFor } = require('./helpers');
-const { shortName, findMentions, suggest, pick, mentionsNote, MAX_ROWS } = require('../lib/mentions');
+const { shortName, findMentions, suggest, pick, command, mentionsNote, MAX_ROWS } = require('../lib/mentions');
 const table = require('./fixtures/mentions.json');
 
 test('the table and the module agree on the row limit', () => {
@@ -41,6 +41,12 @@ for (const c of table.picks) {
     const done = pick(text, at, row);
     assert.equal(withCaret(done.text, done.cursor), c.after);
     assert.equal(done.jobsNext, c.jobsNext);
+  });
+}
+
+for (const c of table.commands) {
+  test(`table command: ${c.name}`, () => {
+    assert.deepEqual(command(c.text, { chat: c.chat, ...table.worlds[c.world] }), c.command);
   });
 }
 
@@ -112,6 +118,30 @@ test("a bot's chat message gets the note, with its own skills only", async () =>
   const dr = await runOf(doctor);
   assert.match(dr.system, /@weekly-report is your skill botdot:weekly-report: How the weekly report looks\. Load it with the Skill tool if it fits\./);
   await srv.finished(d.data.id);
+});
+
+// "/" and a skill's name (#237): the run starts with that skill invoked as Claude Code invokes a library skill.
+test('a message starting with "/" and one of the bot\'s skills runs that skill with the rest as its arguments', async () => {
+  const r = await srv.api(`/bots/${doctor.id}/run`, { method: 'POST', body: { prompt: '/weekly-report for May, short' } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const rec = await runOf(doctor);
+  assert.match(rec.stdin, /^\/botdot:weekly-report for May, short(\n|$)/, 'the skill is invoked, the rest is its arguments');
+  assert.equal(r.data.prompt, '/weekly-report for May, short', 'the chat keeps what the owner wrote');
+  await srv.finished(r.data.id);
+
+  const alone = await srv.api(`/bots/${doctor.id}/run`, { method: 'POST', body: { prompt: '/weekly-report' } });
+  assert.match((await runOf(doctor)).stdin, /^\/botdot:weekly-report(\n|$)/);
+  await srv.finished(alone.data.id);
+});
+
+test('"/" and a name the bot has no skill of is sent as plain text', async () => {
+  for (const prompt of ['/weekly-report for May', '/nothing here']) {
+    const r = await srv.api(`/bots/${keeper.id}/run`, { method: 'POST', body: { prompt } });
+    const rec = await runOf(keeper);
+    assert.ok(rec.stdin.startsWith(prompt), rec.stdin);
+    assert.doesNotMatch(rec.stdin, /botdot:/);
+    await srv.finished(r.data.id);
+  }
 });
 
 test('no mention, no note', async () => {
