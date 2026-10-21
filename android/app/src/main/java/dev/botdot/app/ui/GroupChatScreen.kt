@@ -515,7 +515,10 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
             Text(bot?.name ?: r.botName.ifBlank { "A bot" }, color = parseColor(color, p.muted), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
             when (r.status) {
                 "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
-                    Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); BotFilesRow(r.files) }
+                    // A path in its reply opens in the viewer (#251), from its own folder or the computer.
+                    CompositionLocalProvider(LocalPathActions provides rememberPathActions(r.botId, bot?.name ?: r.botName)) {
+                        Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); BotFilesRow(r.files) }
+                    }
                 }
                 else -> when (val ended = endedWords(r, features)) {
                     is Ended.Stopped -> TheirBubble(footer, chips = learned, wholeChips = whole) { Text(ended.text, color = p.muted) }

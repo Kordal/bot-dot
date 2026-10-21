@@ -1,0 +1,23 @@
+{
+  "about": "File paths linked in a bot's reply (#251), by the web page (public/app.js filePaths) and the Android app (filePaths in FilePaths.kt). paths: each path linked in the plain text, as written. A path counts when it is under /home/box or /workspace, starts with ~/, or is relative to the bot's workspace, has a file extension the apps know, has no .. in it and is no web address; a bare name that is one capitalised word (Node.js) stays text. code: whether a `code` span that is exactly that text is linked too; a fenced code block never is.",
+  "cases": [
+    { "text": "Saved to /workspace/news/report.md and ~/notes/today.txt.", "paths": ["/workspace/news/report.md", "~/notes/today.txt"] },
+    { "text": "The script is fetch.py, the data in out/raw.csv and ./x.json", "paths": ["fetch.py", "out/raw.csv", "./x.json"] },
+    { "text": "Also /home/box/Downloads/contract-2026.pdf (see out/a.md).", "paths": ["/home/box/Downloads/contract-2026.pdf", "out/a.md"] },
+    { "text": "A folder /workspace/news/ or /etc/hosts or /etc/app.conf stays text", "paths": [] },
+    { "text": "Built with Node.js and Vue.js, e.g. this, i.e. that", "paths": [] },
+    { "text": "README.md and CV-2026.pdf and archive.tar.gz", "paths": ["README.md", "CV-2026.pdf", "archive.tar.gz"] },
+    { "text": "See https://example.com/report.md or example.com/a.md", "paths": [] },
+    { "text": "Not in code: `out/a.md` here", "paths": [] },
+    { "text": "Up ../secret.md and out/../x.md and /workspace/../etc/x.conf", "paths": [] },
+    { "text": "v1.2.3 and 3.14 and file.unknownext and report.md.bak", "paths": [] },
+    { "text": "/home/boxer/x.md and /workspaces/x.md", "paths": [] }
+  ],
+  "code": [
+    ["out/a.md", true],
+    ["/workspace/news/report.md", true],
+    ["cat out/a.md", false],
+    ["/etc/hosts.conf", false],
+    ["Node.js", false]
+  ]
+}

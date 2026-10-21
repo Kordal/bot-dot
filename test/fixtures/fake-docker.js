@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // A stand-in for the docker CLI, for the tests: nothing runs. Each call appends its arguments as one
 // JSON line to $FAKE_DOCKER_OUT/calls.jsonl. Answers: `docker inspect` prints
-// $FAKE_DOCKER_OUT/inspect.json, `docker image inspect` image.json; anything else prints nothing.
+// $FAKE_DOCKER_OUT/inspect.json, `docker image inspect` image.json, `docker exec` exec.txt; anything else prints nothing.
 // On PATH it must be called "docker": helpers.fakeDocker() puts a small wrapper by that name in a folder.
 //
 // For the Mac app's setup (BotDotKit's LocalServer tests), files in $FAKE_DOCKER_OUT steer it:
@@ -106,7 +106,7 @@ if (fs.existsSync(hostFile) && (['ps'].includes(args[0]) || args[0] === 'image' 
   process.exit(0);
 }
 
-const answer = args[0] === 'inspect' ? 'inspect.json' : args[0] === 'image' && args[1] === 'inspect' ? 'image.json' : null;
+const answer = args[0] === 'inspect' ? 'inspect.json' : args[0] === 'image' && args[1] === 'inspect' ? 'image.json' : args[0] === 'exec' ? 'exec.txt' : null;
 if (answer) {
   try { process.stdout.write(fs.readFileSync(path.join(OUT, answer), 'utf8')); } catch { /* nothing to say */ }
 }

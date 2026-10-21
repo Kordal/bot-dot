@@ -11,7 +11,7 @@ const { read, cut, esc } = require('./web-page');
 const { cases } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'markdown-cases.json'), 'utf8'));
 const css = read('style.css');
 const page = vm.createContext({ esc });
-vm.runInContext(`${cut('function md(src)', '// Link bare web addresses after rendering')}
+vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
   this.md = md; this.mdBlocks = mdBlocks;`, page);
 const { md, mdBlocks } = page;
 const plain = (v) => JSON.parse(JSON.stringify(v));

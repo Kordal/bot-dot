@@ -1,6 +1,8 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,19 +13,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -36,6 +49,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.botdot.app.data.FilePaths
 
 /** The words in the home screen's search box, marked in the chats you open (each word, and words it starts). */
 object SearchMarks {
@@ -72,23 +86,38 @@ internal fun chatOnWeb(baseUrl: String, kind: String, id: String) = baseUrl.trim
  *  where the web page draws it (#177). Only in a chat: null for any other block or without [onWeb]. */
 internal fun webLinkUnder(b: Block, onWeb: String?): String? = onWeb?.takeIf { b is Block.Code && b.lang == "mermaid" }
 
+/**
+ * What a file path in a bot's reply does (#251, [FilePaths]): a tap opens it in the viewer, a long press offers Open
+ * and Copy path. A bot's chat gives it to its replies, from a server with `document-viewer`; without one, a path is text.
+ */
+class PathActions(val from: String, val open: (path: String, name: String) -> Unit, val menu: (String) -> Unit)
+val LocalPathActions = compositionLocalOf<PathActions?> { null }
+
+/** The paths in plain text, outside `code` and web addresses (test/fixtures/file-paths.json). */
+internal fun filePathsIn(text: String): List<FilePaths.Found> =
+    FilePaths.find(text, chatLinks(text).map { it.start until it.start + it.text.length })
+
+private const val PATH_TAG = "path"
+/** The small file icon before a path ([PathText] draws it; elsewhere it is a space). */
+private const val FILE_ICON = "file-icon"
+
 /** Enough Markdown for bots' replies: headings, lists, quotes, code, tables, bold, links. [onWeb]: where this chat
- *  opens on the web page, for the link under a diagram's code ([webLinkUnder]). */
+ *  opens on the web page, for the link under a diagram's code ([webLinkUnder]). [paths]: what a file path does. */
 @Composable
-fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current) {
+fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current) {
     val p = LocalPaper.current
     val blocks = remember(text) { parseBlocks(text) }
     // Its styled text, made once (and again only when the text, the searched words or the colours change), not on
     // every redraw of the chat.
     val terms = SearchMarks.terms
-    val styled = remember(blocks, terms, color, p) {
+    val styled = remember(blocks, terms, color, p, paths) {
         blocks.map { b ->
             when (b) {
-                is Block.Heading -> listOf(inline(b.text, color, p))
-                is Block.Para -> listOf(inline(b.text, color, p))
-                is Block.Item -> listOf(inline(b.text, color, p))
-                is Block.Quote -> listOf(inline(b.text, color, p))
-                is Block.Table -> b.rows.flatMap { row -> row.map { inline(it, color, p) } }
+                is Block.Heading -> listOf(inline(b.text, color, p, paths))
+                is Block.Para -> listOf(inline(b.text, color, p, paths))
+                is Block.Item -> listOf(inline(b.text, color, p, paths))
+                is Block.Quote -> listOf(inline(b.text, color, p, paths))
+                is Block.Table -> b.rows.flatMap { row -> row.map { inline(it, color, p, paths) } }
                 else -> emptyList()
             }
         }
@@ -100,12 +129,12 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                 val above = Modifier.padding(top = gapAbove(blocks.getOrNull(i - 1), b))
                 when (b) {
                     is Block.Heading -> Text(st[0], color = color, fontWeight = FontWeight.SemiBold, fontSize = headingSize(b.level), modifier = above)
-                    is Block.Para -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = color, modifier = above)
+                    is Block.Para -> PathText(st[0], color, paths, above)
                     // The indent moves the whole row, so a sub-item's text starts right of its parent's text.
                     is Block.Item -> Row(above.padding(start = itemIndent(b.indent))) {
                         Text(if (b.number != null) "${b.number}." else "•", color = p.muted, style = MaterialTheme.typography.bodyLarge,
                             maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = markerWidth(b.number != null)).padding(end = 4.dp))
-                        Text(st[0], style = MaterialTheme.typography.bodyLarge, color = color)
+                        PathText(st[0], color, paths, Modifier)
                     }
                     is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
                         modifier = above.padding(start = 10.dp))
@@ -121,6 +150,46 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                     Block.Rule -> Box(above.fillMaxWidth().height(1.dp).background(p.line2))
                 }
             }
+        }
+    }
+}
+
+/** A paragraph or an item's text; with [paths], a long press on a file path in it offers Open and Copy path. */
+@Composable
+private fun PathText(text: AnnotatedString, color: Color, paths: PathActions?, modifier: Modifier) {
+    if (paths == null || text.getStringAnnotations(PATH_TAG, 0, text.length).isEmpty()) {
+        return Text(text, style = MaterialTheme.typography.bodyLarge, color = color, modifier = modifier)
+    }
+    val p = LocalPaper.current
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
+    val icon = remember(p) {
+        mapOf(FILE_ICON to InlineTextContent(Placeholder(15.sp, 15.sp, PlaceholderVerticalAlign.TextCenter)) {
+            Icon(Icons.Outlined.Description, contentDescription = null, tint = p.mention)
+        })
+    }
+    Text(text, style = MaterialTheme.typography.bodyLarge, color = color, inlineContent = icon, onTextLayout = { layout = it },
+        modifier = modifier.pathLongPress(text, { layout }, paths.menu))
+}
+
+/** A press held on a file path, seen before the text's own links and selection: [onPath] with its path. */
+private fun Modifier.pathLongPress(text: AnnotatedString, layout: () -> TextLayoutResult?, onPath: (String) -> Unit): Modifier = pointerInput(text) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        val at = layout()?.getOffsetForPosition(down.position) ?: return@awaitEachGesture
+        val path = text.getStringAnnotations(PATH_TAG, at, at + 1).firstOrNull()?.item ?: return@awaitEachGesture
+        val released = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            while (true) {
+                val e = awaitPointerEvent(PointerEventPass.Initial)
+                if (e.changes.none { it.pressed } || e.changes.any { (it.position - down.position).getDistance() > viewConfiguration.touchSlop }) break
+            }
+            true
+        }
+        if (released != null) return@awaitEachGesture
+        onPath(path)
+        while (true) {
+            val e = awaitPointerEvent(PointerEventPass.Initial)
+            e.changes.forEach { it.consume() }
+            if (e.changes.none { it.pressed }) break
         }
     }
 }
@@ -350,16 +419,41 @@ internal fun linkedChatText(source: AnnotatedString, color: Color): AnnotatedStr
     }
 }
 
-private fun inline(s: String, color: Color, p: Paper): AnnotatedString = SearchMarks.mark(inlineText(s, color, p))
+private fun inline(s: String, color: Color, p: Paper, paths: PathActions? = null): AnnotatedString = SearchMarks.mark(inlineText(s, color, p, paths))
 
-private fun inlineText(s: String, color: Color, p: Paper): AnnotatedString = buildAnnotatedString {
+/** A file path as a link: blue, a tap opens it, and tagged for [pathLongPress]. */
+private fun AnnotatedString.Builder.pathLink(path: String, p: Paper, paths: PathActions, content: AnnotatedString.Builder.() -> Unit) {
+    val start = length
+    withLink(LinkAnnotation.Clickable(path, TextLinkStyles(SpanStyle(color = p.mention)), { paths.open(path, path.substringAfterLast('/')) })) { content() }
+    addStringAnnotation(PATH_TAG, path, start, length)
+}
+
+/** Plain text with its web addresses linked and, with [paths], its file paths. */
+private fun linkedReplyText(s: String, color: Color, p: Paper, paths: PathActions?): AnnotatedString {
+    if (paths == null) return linkedChatText(AnnotatedString(s), color)
+    return buildAnnotatedString {
+        var at = 0
+        for (f in filePathsIn(s)) {
+            append(linkedChatText(AnnotatedString(s.substring(at, f.start)), color))
+            appendInlineContent(FILE_ICON, " ")
+            pathLink(f.text, p, paths) { append(f.text) }
+            at = f.start + f.text.length
+        }
+        append(linkedChatText(AnnotatedString(s.substring(at)), color))
+    }
+}
+
+private fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? = null): AnnotatedString = buildAnnotatedString {
     val links = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline))
     var at = 0
     for (m in INLINE.findAll(s)) {
-        append(linkedChatText(AnnotatedString(s.substring(at, m.range.first)), color))
+        append(linkedReplyText(s.substring(at, m.range.first), color, p, paths))
         val g = m.groupValues
         when {
-            g[1].isNotEmpty() || g[2].isNotEmpty() -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(inlineText(g[1].ifEmpty { g[2] }, color, p)) }
+            g[1].isNotEmpty() || g[2].isNotEmpty() -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(inlineText(g[1].ifEmpty { g[2] }, color, p, paths)) }
+            g[3].isNotEmpty() && paths != null && FilePaths.isPath(g[4]) -> pathLink(g[4], p, paths) {
+                withStyle(SpanStyle(fontFamily = GeistMono, background = p.sunk, fontSize = 13.sp)) { append(g[4]) }
+            }
             g[3].isNotEmpty() -> withStyle(SpanStyle(fontFamily = GeistMono, background = p.sunk, fontSize = 13.sp)) { append(g[4]) }
             g[5].isNotEmpty() -> {
                 val target = runCatching { java.net.URI(g[6]) }.getOrNull()
@@ -368,9 +462,9 @@ private fun inlineText(s: String, color: Color, p: Paper): AnnotatedString = bui
                 } else append(g[5])
             }
             g[7].isNotEmpty() -> append(linkedChatText(AnnotatedString(g[7]), color))
-            g[8].isNotEmpty() || g[9].isNotEmpty() -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(inlineText(g[8].ifEmpty { g[9] }, color, p)) }
+            g[8].isNotEmpty() || g[9].isNotEmpty() -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(inlineText(g[8].ifEmpty { g[9] }, color, p, paths)) }
         }
         at = m.range.last + 1
     }
-    append(linkedChatText(AnnotatedString(s.substring(at)), color))
+    append(linkedReplyText(s.substring(at), color, p, paths))
 }

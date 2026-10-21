@@ -32,12 +32,19 @@ function composerHTML(placeholder, ctx = '') {
 const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
 const fileIcon = (name) => ({ xlsx: '📊', xls: '📊', xlsm: '📊', csv: '📊', ods: '📊', tsv: '📊', pdf: '📕', docx: '📝', doc: '📝', odt: '📝', md: '📝', txt: '📝', pptx: '📽', odp: '📽', png: '🖼', jpg: '🖼', jpeg: '🖼', gif: '🖼', webp: '🖼', json: '🧾' }[String(name).split('.').pop().toLowerCase()] || '📄');
 const fileChipHTML = (f, removable) => `<span class="file-chip ${f.status || ''}" title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span>${f.status === 'uploading' ? ' <i>uploading…</i>' : f.status === 'failed' ? ' <i>failed</i>' : ''}${removable ? `<button type="button" data-unattach="${esc(f.key)}" aria-label="Remove">×</button>` : ''}</span>`;
-const filesHTML = (list) => (list?.length ? `<div class="bubble-files">${list.map((f) => fileChipHTML(f, false)).join('')}</div>` : '');
+// botId: the owner's files sent to that bot, kept in its folder: each opens in the viewer (#251, viewer.js).
+const filesHTML = (list, botId = null) => (list?.length ? `<div class="bubble-files">${list.map((f) => (botId && f.file && state.features.includes('document-viewer') ? ownFileHTML(f, botId) : fileChipHTML(f, false))).join('')}</div>` : '');
+const ownFileHTML = (f, botId) => {
+  const src = `/bots/${encodeURIComponent(botId)}/path?path=${encodeURIComponent(f.file)}`;
+  return `<a class="file-chip link" href="/api${esc(src)}" download="${esc(f.name)}" data-view="${esc(src)}" data-view-name="${esc(f.name)}" data-view-bot="${esc(botId)}" title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span></a>`;
+};
 // Files a bot attached to its reply: tap to open (a PDF) or download.
 const fileHref = (f) => `/api/files/${String(f.file).split('/').map(encodeURIComponent).join('/')}`;
 const isImage = (f) => /\.(png|jpe?g|gif|webp)$/i.test(f.name);
 // Pictures show as themselves (a QR code to scan can't wait for a download); tap for full size.
-const botFilesHTML = (list) => (list?.length ? `<div class="bubble-files">${list.map((f) => isImage(f) ? `<a class="file-image" href="${esc(fileHref(f))}" target="_blank" rel="noopener" title="${esc(f.name)}"><img src="${esc(fileHref(f))}" alt="${esc(f.name)}" loading="lazy"></a>` : `<a class="file-chip link" href="${esc(fileHref(f))}" ${/\.pdf$/i.test(f.name) ? 'target="_blank" rel="noopener"' : `download="${esc(f.name)}"`} title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span></a>`).join('')}</div>` : '');
+// data-view: the viewer opens it, where the server has one (#251, viewer.js); else the link downloads it as before.
+const viewData = (f) => (state.features.includes('document-viewer') ? ` data-view="${esc(fileHref(f).slice(4))}" data-view-name="${esc(f.name)}"` : '');
+const botFilesHTML = (list) => (list?.length ? `<div class="bubble-files">${list.map((f) => isImage(f) ? `<a class="file-image" href="${esc(fileHref(f))}" target="_blank" rel="noopener" title="${esc(f.name)}"${viewData(f)}><img src="${esc(fileHref(f))}" alt="${esc(f.name)}" loading="lazy"></a>` : `<a class="file-chip link" href="${esc(fileHref(f))}" ${/\.pdf$/i.test(f.name) ? 'target="_blank" rel="noopener"' : `download="${esc(f.name)}"`}${viewData(f)} title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span></a>`).join('')}</div>` : '');
 
 // Files botdot already has (those of a message taken back), as the list of a message box holds them: ready to send.
 const readyFiles = (list) => (Array.isArray(list) ? list : []).filter((f) => f && typeof f.file === 'string')

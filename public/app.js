@@ -85,7 +85,9 @@ async function api(path, opts = {}) {
   setAway(notThere || gaveUp);
   if (notThere) throw unreached();
   if (!res.ok) {
-    throw Object.assign(new Error(said || `botdot couldn't do that (${res.status}).`), { status: res.status, refused: !!said, unsure: !said && res.status >= 500 });
+    // state: the server's word for what stands in the way (the viewer's "gone", "computer-off": #251).
+    throw Object.assign(new Error(said || `botdot couldn't do that (${res.status}).`), { status: res.status, refused: !!said, unsure: !said && res.status >= 500 },
+      typeof data.state === 'string' ? { state: data.state } : {});
   }
   return data;
 }
@@ -399,8 +401,10 @@ const MODE_INFO = {
 
 // Tiny markdown renderer. Input is escaped first, so output is safe: mdBlocks reads the escaped text into blocks
 // by the rules both apps share (test/fixtures/markdown-cases.json), and mdHTML writes them with its own tags.
-function md(src) {
-  return mdHTML(mdBlocks(src));
+// [botId]: a bot's reply, whose file paths open in the viewer (linkPaths, #251).
+function md(src, botId) {
+  const html = mdHTML(mdBlocks(src));
+  return botId ? linkPaths(html, botId) : html;
 }
 
 // A reply draft (docs/api.md, "The reply draft") as it can be drawn while it still grows, by the rules both apps
@@ -552,6 +556,60 @@ function chatLinks(text) {
     links.push({ index: match.index, text: url, href });
   }
   return links;
+}
+// File paths in a bot's reply (#251; test/fixtures/file-paths.json, shared with the Android app): a path under
+// /home/box or /workspace, one that starts with ~/, or one relative to the bot's workspace, with an extension the
+// apps know, no .. in it and no web address around it. A bare name that is one capitalised word (Node.js) stays text.
+const FILE_EXTS = 'markdown|md|txt|text|log|jsonl|json|yaml|yml|toml|ini|conf|cfg|env|csv|tsv|xml|html|htm|css|mjs|cjs|js|tsx|ts|jsx|py|rb|go|rs|java|kts|kt|swift|cpp|hpp|c|h|sh|sql|pdf|png|jpeg|jpg|gif|webp|svg|docx|doc|xlsx|xls|pptx|ppt|odt|ods|zip|tgz|gz|tar';
+const FILE_PATH = new RegExp(`(?<![\\p{L}\\p{N}_./:@~\\\\-])(?:~/|\\./|/)?(?:[\\p{L}\\p{N}_.-]+/)*[\\p{L}\\p{N}_-][\\p{L}\\p{N}_.-]*\\.(?:${FILE_EXTS})(?![\\p{L}\\p{N}_/-]|\\.[\\p{L}\\p{N}])`, 'giu');
+function fileLinkOK(p) {
+  if (p.split('/').includes('..')) return false;
+  if (p.startsWith('/')) return /^\/(home\/box|workspace)\//.test(p);
+  const stem = p.replace(/^(~|\.)\//, '').split('/').pop().replace(/\.[^.]+$/, '');
+  if (!/\p{L}/u.test(stem)) return false;
+  return p.includes('/') || !/^\p{Lu}\p{Ll}+$/u.test(stem);
+}
+// The paths in a text, outside `code` and web addresses: where each starts, and the path as written.
+function filePaths(text) {
+  const taken = [...text.matchAll(/(`+)[\s\S]*?\1/g)].map((m) => [m.index, m.index + m[0].length])
+    .concat(chatLinks(text).map((l) => [l.index, l.index + l.text.length]));
+  const out = [];
+  for (const m of text.matchAll(FILE_PATH)) {
+    if (taken.some(([a, b]) => m.index < b && m.index + m[0].length > a) || !fileLinkOK(m[0])) continue;
+    out.push({ index: m.index, text: m[0] });
+  }
+  return out;
+}
+const isFilePath = (s) => { const f = filePaths(s); return f.length === 1 && f[0].text === s; };
+// A link to open a path of `botId`'s reply in the viewer (viewer.js), or download it where there is none.
+const FILE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z M14 3v5h5"/></svg>';
+function filePathLink(p, inner, botId) {
+  const src = `/bots/${encodeURIComponent(botId)}/path?path=${encodeURIComponent(p)}`;
+  const name = p.split('/').pop();
+  return `<a class="file-path" href="/api${esc(src)}" data-view="${esc(src)}" data-view-name="${esc(name)}" data-view-bot="${esc(botId)}" title="Open ${esc(name)}">${FILE_ICON}${inner}</a>`;
+}
+// The paths in a reply drawn by md(), as links: in its text and in a `code` that is one path, never in a code
+// block or a link. Only from a server whose `features` name `document-viewer`. html is md()'s, its text escaped.
+function linkPaths(html, botId) {
+  if (!botId || !state.features.includes('document-viewer')) return html;
+  const parts = String(html).split(/(<[^>]+>)/);
+  let pre = 0, a = 0, code = 0;
+  for (let i = 0; i < parts.length; i++) {
+    const t = parts[i];
+    if (t.startsWith('<')) {
+      if (t === '<code>' && !pre && !a && !code && parts[i + 2] === '</code>' && isFilePath(parts[i + 1])) {
+        parts[i] = filePathLink(parts[i + 1], `<code>${parts[i + 1]}</code>`, botId); parts[i + 1] = ''; parts[i + 2] = ''; i += 2;
+      } else if (/^<pre[\s>]/.test(t)) pre++; else if (t === '</pre>') pre--;
+      else if (/^<a[\s>]/.test(t)) a++; else if (t === '</a>') a--;
+      else if (/^<code[\s>]/.test(t)) code++; else if (t === '</code>') code--;
+      continue;
+    }
+    if (pre || a || code || !t) continue;
+    let at = 0, out = '';
+    for (const f of filePaths(t)) { out += t.slice(at, f.index) + filePathLink(f.text, f.text, botId); at = f.index + f.text.length; }
+    parts[i] = out + t.slice(at);
+  }
+  return parts.join('');
 }
 function linkifyChat(root) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);

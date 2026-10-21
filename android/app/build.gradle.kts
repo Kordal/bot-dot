@@ -101,6 +101,9 @@ android {
             it.systemProperty("markdownCases", markdownCases.path); it.inputs.file(markdownCases)
             it.systemProperty("chatLinks", chatLinks.path); it.inputs.file(chatLinks)
         }
+        // File paths linked in a reply, as the web page links them (FilePathsTest, #251).
+        val filePaths = rootProject.file("../test/fixtures/file-paths.json")
+        unitTests.all { it.systemProperty("filePaths", filePaths.path); it.inputs.file(filePaths) }
         // The words of the Vault's item types, as the web page shows them (VaultTypesTest).
         val vaultTypes = rootProject.file("../test/fixtures/vault-types.json")
         unitTests.all { it.systemProperty("vaultTypes", vaultTypes.path); it.inputs.file(vaultTypes) }

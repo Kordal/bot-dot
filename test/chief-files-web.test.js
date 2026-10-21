@@ -15,7 +15,7 @@ const page = vm.createContext({ ...noDrafts,
 });
 vm.runInContext(read('unread.js'), page);
 vm.runInContext(read('ratings.js'), page);
-vm.runInContext(`${cut('function md(src)', '// Link bare web addresses after rendering')}
+vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
   ${cut('const fmtSize = ', '// Files botdot already has')}
   ${cut('function actionBot(a)', '// What Approve sends to answer')}
   ${cut('const reportBubble = ', '// at: the message\'s place')}
