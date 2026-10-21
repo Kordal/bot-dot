@@ -128,12 +128,14 @@ function needCardHTML(x, here = null) {
   // A switch of a saved login a bot asks for (`vault-switch`): the server's title, the bot's reason, the login and the
   // switch as rows, the warning of "Usable in its computer", and the server's word on the yes. A Vault entry a bot asks
   // to remove (`vault-remove`) is drawn the same way: its rows name the entry, the bot and Bitwarden's Trash. So are
-  // secrets a bot asks to keep in a file (`vault-file`, #253): the secrets, the file, and who can read it there.
-  if (x.kind === 'ask' && (x.a.kind === 'vault-switch' || x.a.kind === 'vault-remove' || x.a.kind === 'vault-file')) {
+  // secrets a bot asks to keep in a file (`vault-file`, #253): the secrets, the file, and who can read it there. A rule a bot
+  // asks to lift (`override`) too, with the server's second yes, `always`, between the two.
+  if (x.kind === 'ask' && (x.a.kind === 'vault-switch' || x.a.kind === 'vault-remove' || x.a.kind === 'vault-file' || x.a.kind === 'override')) {
     const warning = said(x.a.warning);
+    const always = x.a.kind === 'override' ? said(x.a.always) : '';
     return card(esc(said(x.a.title)), esc(said(x.a.reason)),
       `${partsHTML(x.a.parts)}${warning ? `<div class="need-body need-warn" role="note"><div class="nb">⚠️ ${esc(warning)}</div></div>` : ''}`,
-      `<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || 'Allow')}</button>`, 'need-rows');
+      `<button class="btn sm" data-need-no>Decline</button>${always ? `<button class="btn sm" data-need-always>${esc(always)}</button>` : ''}<button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || 'Allow')}</button>`, 'need-rows');
   }
   // An action in a connected app: the server's title, whether its run still waits for the answer, and the action's
   // `rows`, drawn as a tool's facts: every row, and every value in full on an opened card. Without them, the
@@ -379,7 +381,7 @@ function wireNeedCards(root, items) {
     // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a yes that turns on a call or
     // a notify address says "Creating connection…" with a spinner.
     if (yes) yes.onclick = () => whileApproving(yes, x.job, () => decide(x, true));
-    if (always) always.onclick = () => { if (x.a?.kind === 'connector-action') { if (confirm(x.a.chief ? `Allow this exact connector action for ${CHIEF_BOT.name} from now on, with any arguments?` : 'Allow this exact connector action for this bot in future runs, with any arguments?')) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
+    if (always) always.onclick = () => { if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(x.a.chief ? `Allow this exact connector action for ${CHIEF_BOT.name} from now on, with any arguments?` : 'Allow this exact connector action for this bot in future runs, with any arguments?')) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => { if (!asksBeforeNo(x) || confirm('Remove this job?')) whileBusy(no, 'Declining…', () => decide(x, false)); };
     if (op) op.onclick = () => openNeed(x);
     el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
@@ -519,6 +521,6 @@ function answeredWord(x, yes, always, answer) {
 
 async function refreshNeeds() {
   state.memPending = await api(MEMORY_WAITS).catch(() => state.memPending);
-  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-file=1&chief-action=1').catch(() => state.asks);
+  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1').catch(() => state.asks);
   await refresh();
 }

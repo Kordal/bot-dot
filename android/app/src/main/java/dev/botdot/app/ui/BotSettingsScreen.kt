@@ -271,6 +271,25 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                     }
                 }
             }
+            // The rules you lifted for it with "Allow always for this bot" (#253). Revoke takes one back (saved right away).
+            if (b.overrides.isNotEmpty()) FoldSection("Rules you lifted", b.overrides.joinToString(", ") { it.action }) {
+                Hint("It may do these though its rules say no. Revoke one and it asks you again.")
+                b.overrides.forEach { o ->
+                    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(o.action, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                            Text("Its rule: ${o.rule}", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                        }
+                        OutlinedButton(onClick = {
+                            scope.launch {
+                                runCatching { api!!.revokeOverride(botId, o.id) }
+                                    .onSuccess { saved -> bot = b.copy(overrides = saved.overrides); tell("Revoked: it asks you again") }
+                                    .onError { tell(it.message ?: "Couldn't save") }
+                            }
+                        }) { Text("Revoke", color = p.text) }
+                    }
+                }
+            }
             // Its files (#235): what you gave it. Tap one to open it; keep one in mind so it comes with every task.
             files?.let { list ->
                 FoldSection("Files", UploadedFiles.summary(list)) {

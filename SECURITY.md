@@ -138,6 +138,12 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
 - **Text from memory is never markup.** A note, a topic, a chat message or a past run printed into a
   prompt cannot close its block or open another: every `<` that could start a tag is written `&lt;`
   there.
+- **A bot's own rules can be lifted only by you.** A bot whose rule stops what you asked asks on a
+  card (`ask_override`, [ADR 052](docs/adr/052-the-owner-may-lift-a-bot-rule-on-a-card.md)). Only your
+  yes on that card lifts it, once or for that bot and that action until you revoke it in its
+  settings; no request body, the Chief or a bot can add one. A card cannot lift what code enforces: a
+  secret value in a chat or in the model's context, a bot answering its own card, another account's
+  data.
 - **Without separate users, a bot that can read files can read the others'.** On the paused Mac
   app's server, or with `BOT_DOT_SEPARATE_USERS=0`, the Chief and every bot run as you. A bot with **Read** can then open
   any file you can, and a bot with shell access can run any command you can. That includes

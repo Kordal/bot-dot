@@ -157,7 +157,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
      * asks to remove (`vault-remove=1`), secrets a bot asks to keep in a file (`vault-file=1`) and what the Chief asked to do after it read the web (`chief-action=1`) too:
      * this app draws those cards.
      */
-    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-file=1&chief-action=1"))
+    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1"))
     /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
     suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false): Answered =
         Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); put("always", always) }))
@@ -243,6 +243,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** always: approve it and trust its later changes too (until you take that back). What the server says of the answer, as [answerAsk]. */
     suspend fun approveJob(botId: String, jobId: String, approve: Boolean, always: Boolean = false): Answered =
         Answered.of(send("POST", "/bots/${enc(botId)}/jobs/${enc(jobId)}/approve", buildJsonObject { put("approve", approve); put("always", always) }))
+    /** Takes back a rule the owner lifted for a bot (`override`, #253): it asks again on a card. */
+    suspend fun revokeOverride(botId: String, id: String): Bot = json.decodeFromString(send("DELETE", "/bots/${enc(botId)}/overrides/${enc(id)}"))
     suspend fun setJobAlwaysApprove(botId: String, jobId: String, on: Boolean): Job = json.decodeFromString(
         send("PUT", "/bots/${enc(botId)}/jobs/${enc(jobId)}", buildJsonObject { put("alwaysApprove", on) }))
 

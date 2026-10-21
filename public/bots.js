@@ -217,6 +217,11 @@ function renderBotSettings(force = false) {
           <div class="grow"><b>Always approved</b><div id="always-picks"></div></div>
           <span class="faint bs-chev">›</span>
         </div>
+        <div class="bs-row" id="bs-overrides">
+          <span class="bs-icon">🔓</span>
+          <div class="grow"><b>Rules you lifted</b><div class="faint">It may do these though its rules say no. Revoke one and it asks you again.</div><div id="override-picks"></div></div>
+          <span class="faint bs-chev">›</span>
+        </div>
       </div>
 
       <details class="card settings-card bs-advanced" id="bs-advanced">
@@ -385,7 +390,7 @@ function renderBotSettings(force = false) {
     } },
   });
 
-  drawBotSettingsLive(b);
+  drawBotSettingsLive(b); // and the rules you lifted
 
   if ($('#file-list', root)) drawBotFiles(b);
 
@@ -470,8 +475,30 @@ async function openDuplicate(b) {
 }
 
 // The bits of the settings page that follow the bot while it's open: its jobs.
+// The rules you lifted for it with "Allow always for this bot" (#253). Revoke takes one back at once. Drawn again
+// only when the list changed, e.g. after a yes on a card while the settings are open.
+function drawOverrides(root, b) {
+  const lifted = b.overrides || [];
+  const ids = lifted.map((o) => o.id).join(' ');
+  const row = $('#bs-overrides', root);
+  if (!row || row.dataset.ids === ids) return;
+  row.dataset.ids = ids;
+  row.classList.toggle('hidden', !lifted.length);
+  const liftedOn = new Set(lifted.map((o) => o.id));
+  if (lifted.length) foldPicker($('#override-picks', root), lifted.map((o) => ({ id: o.id, label: o.action, desc: `Its rule: ${o.rule}` })), liftedOn, () => {}, {
+    action: { label: 'Revoke', run: async (id) => {
+      try { await api(`/bots/${b.id}/overrides/${encodeURIComponent(id)}`, { method: 'DELETE' }); } catch (e) { toast(e.message, true); return false; }
+      toast('Revoked: it asks you again');
+      if (liftedOn.size <= 1) row.classList.add('hidden');
+      refresh();
+      return true;
+    } },
+  });
+}
+
 function drawBotSettingsLive(bot) {
   const root = $('#view-botsettings');
+  drawOverrides(root, bot);
   const jobs = bot.jobs || [];
   const waiting = jobs.filter(jobWaits).length;
   const jl = $('#bs-jobs', root);
