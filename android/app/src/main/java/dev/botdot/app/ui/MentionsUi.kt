@@ -42,7 +42,14 @@ fun rememberMentions(app: BotDotApp, chat: String): Mentions.World? {
     val bots by app.store.bots.value.collectAsState()
     val skills by app.store.skills.value.collectAsState()
     val name by app.store.chiefName.collectAsState()
-    return remember(bots, skills, chat, name) { bots?.let { Mentions.World(chat, listOf(chiefBot(name)) + it, skills.orEmpty()) } }
+    val server by app.store.version.value.collectAsState()
+    val runsSkills = server?.features?.contains(Mentions.SKILL_COMMANDS) == true // "/" runs a skill (#237)
+    return remember(bots, skills, chat, name, runsSkills) {
+        bots?.let {
+            Mentions.World(chat, listOf(chiefBot(name)) + it, skills.orEmpty().map { k -> k.name },
+                about = skills.orEmpty().associate { k -> k.name to k.description }, runsSkills = runsSkills)
+        }
+    }
 }
 
 /**
@@ -58,7 +65,7 @@ fun withMentions(text: String, w: Mentions.World?, tint: Color): AnnotatedString
             append(text.substring(at, m.start))
             when (m.kind) {
                 Mentions.Kind.BOT -> w!!.bot(m.bot).let { b -> bot(b?.name ?: m.text, b?.color, b?.outfit) }
-                Mentions.Kind.JOB, Mentions.Kind.SKILL, Mentions.Kind.ALL -> withStyle(SpanStyle(color = tint)) { append(m.text) }
+                Mentions.Kind.JOB, Mentions.Kind.SKILL, Mentions.Kind.ALL, Mentions.Kind.COMMAND -> withStyle(SpanStyle(color = tint)) { append(m.text) }
             }
             at = m.end
         }
@@ -82,7 +89,8 @@ fun slashAfterPick(was: TextFieldValue, typed: TextFieldValue, picked: Int): Tex
     return TextFieldValue(t.substring(0, picked - 1) + "/" + t.substring(picked), TextRange(picked))
 }
 
-/** The suggestions while you type a mention: bots and jobs with their bot's small mark, skills by name. Tap one to pick it. */
+/** The suggestions while you type a mention: bots and jobs with their bot's small mark, skills by name; a skill to run
+ *  ("/" in a bot's chat, #237) with its description after it. Tap one to pick it. */
 @Composable
 fun MentionList(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.Row) -> Unit) {
     val p = LocalPaper.current
@@ -90,7 +98,14 @@ fun MentionList(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.R
     Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) {
         rows.forEach { r ->
             val label = buildAnnotatedString {
-                if (r.kind == Mentions.Kind.BOT || r.kind == Mentions.Kind.JOB) w.bot(r.bot).let { b -> bot(r.label, b?.color, b?.outfit) } else append(r.label)
+                when (r.kind) {
+                    Mentions.Kind.BOT, Mentions.Kind.JOB -> w.bot(r.bot).let { b -> bot(r.label, b?.color, b?.outfit) }
+                    Mentions.Kind.COMMAND -> {
+                        append(r.text)
+                        if (r.about.isNotEmpty()) withStyle(SpanStyle(color = p.muted)) { append("  ${r.about}") }
+                    }
+                    else -> append(r.label)
+                }
             }
             FigureText(label, color = p.text, fontSize = 15.sp, maxLines = 1,
                 modifier = Modifier.fillMaxWidth().clickable { onPick(r) }.padding(horizontal = 16.dp, vertical = 11.dp))

@@ -12,7 +12,7 @@ import java.io.File
 /** The Mention rules, from the table every app is checked against (test/fixtures/mentions.json; see its "about"). */
 class MentionsTest {
     @Serializable
-    data class Library(val name: String)
+    data class Library(val name: String, val description: String = "")
 
     @Serializable
     data class World(val bots: List<Bot>, val library: List<Library>, val all: Boolean = false)
@@ -28,15 +28,23 @@ class MentionsTest {
     data class Pick(val name: String, val world: String, val chat: String, val before: String, val pick: String, val after: String, val jobsNext: Boolean)
 
     @Serializable
+    data class Command(val skill: String, val args: String)
+
+    @Serializable
+    data class CommandCase(val name: String, val world: String, val chat: String, val text: String, val command: Command? = null)
+
+    @Serializable
     data class Table(val maxRows: Int, val shortNames: List<List<String>>, val worlds: Map<String, World>, val cases: List<Case>,
-                     val picks: List<Pick>, val about: JsonElement? = null)
+                     val picks: List<Pick>, val commands: List<CommandCase> = emptyList(), val about: JsonElement? = null)
 
     private val table: Table = Json { ignoreUnknownKeys = true }.decodeFromString(
         Table.serializer(),
         File(System.getProperty("mentionsTable") ?: "../../test/fixtures/mentions.json").readText(),
     )
 
-    private fun world(name: String, chat: String) = table.worlds.getValue(name).let { Mentions.World(chat, it.bots, it.library.map { k -> k.name }, all = it.all) }
+    private fun world(name: String, chat: String) = table.worlds.getValue(name).let {
+        Mentions.World(chat, it.bots, it.library.map { k -> k.name }, all = it.all, about = it.library.associate { k -> k.name to k.description })
+    }
     private fun world(c: Case) = world(c.world, c.chat)
 
     @Test fun maxRows() = assertEquals(table.maxRows, Mentions.MAX_ROWS)
@@ -72,6 +80,16 @@ class MentionsTest {
             assertEquals(c.name, c.jobsNext, done.jobsNext)
         }
     }
+
+    @Test fun commands() {
+        assert(table.commands.isNotEmpty())
+        table.commands.forEach { c ->
+            assertEquals(c.name, c.command, Mentions.command(c.text, world(c.world, c.chat))?.let { Command(it.skill, it.args) })
+        }
+    }
+
+    @Test fun aSkillToRunShowsItsDescription() =
+        assertEquals("Write a short digest.", Mentions.suggest("/dig", world("team", "fleet")).single().about)
 
     @Test fun nothingBeingTypedNothingPicked() =
         assertNull(Mentions.pick("no mention here", 4, Mentions.Row(Mentions.Kind.BOT, "@FleetDoctor", "Fleet Doctor")))
