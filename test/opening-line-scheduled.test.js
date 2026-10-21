@@ -9,7 +9,7 @@ const { startServer, makeBot, feed, waitFor } = require('./helpers');
 
 test('a scheduled run\'s line is not sent as a notification or a report', { timeout: 60_000 }, async () => {
   const srv = await startServer();
-  const f = feed(srv);
+  const f = await feed(srv);
   try {
     srv.hold();
     srv.reply('Nothing new.');

@@ -407,7 +407,7 @@ const TEXTS = {
 const ON_CARD = ['a-link', 'a-change', 'a-own', 'a-act', 'a-web', 'a-long', 'a-huge'];
 
 test('every ask of the feed has its line, and yesOn "card" for a changed bot and a connected-app action', async () => {
-  const f = feed(srv);
+  const f = await feed(srv);
   const hello = await f.wait('hello');
   f.close();
   assert.ok(hello.data.features.includes('needs-text'), 'announced in features');
@@ -482,7 +482,7 @@ test('GET /api/asks says the same on each card, with what the card had before', 
 
 test('a new ask is announced with its line', async () => {
   const other = await makeBot(srv, { name: 'News Watcher', allowedTools: ['Read'] });
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   const proposed = await srv.asChief(`/bots/${other.id}`, { method: 'PUT', body: { computer: 'linux' } });
   const ev = await f.wait('asks', (d) => d.list.some((a) => a.id === proposed.data.pendingChange));
@@ -502,7 +502,7 @@ test('a waiting script job is approved on its card; a waiting AI job from its no
   assert.equal(ai.data.needsApproval, true, JSON.stringify(ai.data));
   srv.release(rec); await srv.finished(run.id); srv.unhold();
 
-  const f = feed(srv);
+  const f = await feed(srv);
   const hello = await f.wait('hello');
   f.close();
   const jobs = hello.data.approvals.jobs.filter((j) => j.botId === watcher.id);
@@ -520,7 +520,7 @@ test('a waiting tile has its line and is approved on its card', async () => {
   const keeper = await makeBot(srv, { name: 'Door Keeper' });
   const t = await srv.asChief('/dashboard/tiles', { method: 'POST', body: { kind: 'value', title: 'Door', bot: keeper.id, read: { type: 'script', script: 'cat /tmp/door-state' } } });
   assert.equal(t.data.approved, false);
-  const f = feed(srv);
+  const f = await feed(srv);
   const hello = await f.wait('hello');
   f.close();
   const tile = hello.data.approvals.tiles.find((x) => x.tileId === t.data.id);

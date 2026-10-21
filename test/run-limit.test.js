@@ -20,7 +20,7 @@ before(async () => {
     startServer({ env: { ...app.env, BOT_DOT_RUN_LIMIT_MS: String(LONGER_MS) } }),
   ]);
   await app.connect(slow);
-  f = feed(srv);
+  f = await feed(srv);
   await f.wait('hello');
 });
 after(async () => { f?.close(); await Promise.all([srv.stop(), slow.stop()]); app.close(); });

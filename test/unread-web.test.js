@@ -180,7 +180,7 @@ test('web: each page has an id of its own that the server accepts', () => {
 test('the page\'s report reads the chat on the server, and a reply after it left is new again', async (t) => {
   const srv = await startServer();
   t.after(() => srv.stop());
-  const live = feed(srv);
+  const live = await feed(srv);
   t.after(() => live.close());
   assert.ok((await srv.api('/version')).data.features.includes('unread'));
   const bot = await makeBot(srv);

@@ -38,7 +38,7 @@ test('quiet hours use the owner timezone, boundaries, and DST', () => {
 });
 
 test('scheduled reporting is quiet by default, emits once, and recovers held reports on restart', { timeout: 60_000 }, async () => {
-  let srv = await startServer(); let f = feed(srv);
+  let srv = await startServer(); let f = await feed(srv);
   try {
     const hour = new Date().getUTCHours();
     await srv.api('/settings', { method: 'PUT', body: { quietHours: { start: hour, end: (hour + 23) % 24, timeZone: 'UTC' } } });
@@ -88,7 +88,7 @@ test('scheduled reporting is quiet by default, emits once, and recovers held rep
     const file = path.join(srv.data, 'settings.json');
     const settings = JSON.parse(fs.readFileSync(file)); settings.quietHours.start = settings.quietHours.end;
     fs.writeFileSync(file, JSON.stringify(settings));
-    srv = await startServer({ dir }); f = feed(srv);
+    srv = await startServer({ dir }); f = await feed(srv);
     const recovered = (await srv.api(`/runs/${cases[3].done.id}`)).data;
     assert.equal(recovered.reporting, 'delivered'); assert.ok(!recovered.quiet); assert.ok(recovered.deliveredAt);
     assert.equal(recovered.result, cases[3].report.message);

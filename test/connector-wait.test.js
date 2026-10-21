@@ -43,7 +43,7 @@ test('the card shows all it approves: a long email is whole on it, and "Allow on
   const text = `${'Thank you for your letter. '.repeat(60)}Wire the money to account 12345 today.`;
   const long = { recipient_email: 'anna@example.com', subject: 'Re: your letter', body: text, ...Object.fromEntries(Array.from({ length: 35 }, (_, i) => [`extra_${i}`, `value ${i}`])) };
   const bot = await makeBot(srv, { name: 'Long Writer', emoji: '📜', connectors: ['gmail'] });
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
   const r = await running(t, srv, bot);
@@ -126,7 +126,7 @@ test('an action too long to show in full waits as any other: "Allow once" is ref
 
 test('"Allow once" while the run waits: the same call goes through, once, and the run says through it that it waits', async (t) => {
   const bot = await makeBot(srv, { name: 'Mail Writer', emoji: '✉️', connectors: ['gmail'] });
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   const hello = await f.wait('hello');
   assert.ok(hello.data.features.includes('connector-waits'), 'announced in features');
@@ -148,7 +148,7 @@ test('"Allow once" while the run waits: the same call goes through, once, and th
   assert.deepEqual({ ...began.data, at: null }, { chat: `bot:${bot.id}`, botId: bot.id, runId: r.run.id, waitingFor: 'ok', at: null });
   const listed = (await f.wait('asks', (d) => d.list.some((a) => a.id === card.id))).data.list.find((a) => a.id === card.id);
   assert.deepEqual([listed.title, listed.rows, listed.held, listed.stoppedAt, listed.then, listed.text], ['Send email with Gmail?', ROWS, true, undefined, undefined, 'Wants to send email with Gmail']);
-  const late = feed(srv);
+  const late = await feed(srv);
   t.after(() => late.close());
   assert.equal((await late.wait('hello')).data.running.find((x) => x.id === r.run.id).waitingFor, 'ok', 'an app that connects now reads it from hello');
 
@@ -252,7 +252,7 @@ test("the owner's message to a bot that waits for the OK waits too, and starts a
 
 test('ten minutes without an answer: the bot is told, the card stays as no longer waited for, and the run is not held twice', async (t) => {
   const bot = await makeBot(quick, { name: 'Patient', emoji: '⏳', connectors: ['gmail'] });
-  const f = feed(quick);
+  const f = await feed(quick);
   t.after(() => f.close());
   await f.wait('hello');
   const r = await running(t, quick, bot);

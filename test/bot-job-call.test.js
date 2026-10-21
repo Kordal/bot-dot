@@ -47,7 +47,7 @@ test('a bot proposes a call on its own approved job: the card waits with the war
   assert.equal(waiting.change.call, true);
   assert.equal(waiting.change.by, 'bot');
   assert.equal(waiting.change.summary, `${WARNING} Garage Watch can browse the web and run commands. ${SUMMARY}`);
-  const live = feed(srv);
+  const live = await feed(srv);
   try { assert.ok((await live.wait('hello')).data.approvals.jobs.some((c) => c.jobId === job.id && c.change), 'a card in Needs you'); } finally { live.close(); }
   assert.equal(vaultSecret(srv, keyName(bot, job)), null, 'no key before the yes');
 });

@@ -38,7 +38,7 @@ test('a date in the past is refused', async () => {
 });
 
 test('a reminder goes off in the chat it was set in, as a ⏰ message the Chief then reads', async () => {
-  const events = feed(srv);
+  const events = await feed(srv);
   await events.wait('hello'); // listening before it goes off
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
   const r = await srv.api('/chief/reminders', { method: 'POST', body: { text: 'Renew the GitHub token', at: local(new Date()), chatId: chat.id } });

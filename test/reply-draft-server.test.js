@@ -9,7 +9,7 @@ const path = require('path');
 const { startServer, makeBot, heldRun, feed, waitFor } = require('./helpers');
 
 let srv, f;
-before(async () => { srv = await startServer(); f = feed(srv); });
+before(async () => { srv = await startServer(); f = await feed(srv); });
 after(async () => { f.close(); srv.unhold(); await srv.stop(); });
 
 const REPLY = '## Dysk\n\nWolne miejsce na **local-lvm**: 41%.\n\n| Host | Wolne |\n|---|---|\n| pve | 41% |\n\nKopie zapasowe przeszły bez błędów, a certyfikat jest ważny jeszcze 60 dni.';
@@ -172,15 +172,19 @@ test('a group turn that passes sends no draft at all', async () => {
 
 test("a follower of a Chief chat gets drafts that grow into the reply before done, and the chat file holds none", async () => {
   srv.reply(REPLY);
-  streams({ chunk: 6, everyMs: 15 });
+  // The reply waits after its first deltas until this follower has a draft: however late its stream is opened, it
+  // follows the rest of the reply (an opened stream gets the draft so far, then the live drafts).
+  fs.writeFileSync(path.join(srv.out, 'stream-hold'), '');
+  streams({ chunk: 6, everyMs: 15, pauseAfter: 12 });
   srv.hold();
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
   await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Jak dysk?' } });
   const rec = await srv.nextRun((r) => !!r.botdot && r.n !== undefined && r.stdin.includes('Jak dysk?'), "the Chief's turn");
   const s = follow(`/chief/chats/${chat.id}/stream`);
   await waitFor(async () => (await srv.api(`/chief/chats/${chat.id}`)).data.messages.at(-1)?.pending, { what: 'the pending reply' });
-  await new Promise((r) => setTimeout(r, 100));
   srv.release(rec);
+  await waitFor(() => s.drafts().length, { what: 'the first draft' });
+  fs.rmSync(path.join(srv.out, 'stream-hold'));
   await s.ended();
   srv.unhold(); noStream();
   assertGrows(s.texts(), REPLY, 'Chief');
@@ -188,8 +192,11 @@ test("a follower of a Chief chat gets drafts that grow into the reply before don
   assert.ok(t.lastIndexOf('reply_draft') < t.indexOf('done'));
   const done = s.events.find((e) => e.type === 'done');
   assert.equal(done.message.text, REPLY);
-  const files = fs.readdirSync(srv.data, { recursive: true }).map((p) => path.join(srv.data, String(p))).filter((p) => p.includes('chief') && fs.statSync(p).isFile());
-  for (const file of files) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /stream_event|text_delta|reply_draft/, file);
+  // A file of the turn (its prompt, its settings) goes once its Claude Code has exited (#207), maybe between the
+  // listing and the read: one that is gone holds nothing.
+  const read = (p) => { try { return fs.statSync(p).isFile() ? fs.readFileSync(p, 'utf8') : null; } catch (e) { if (e.code === 'ENOENT') return null; throw e; } };
+  const files = fs.readdirSync(srv.data, { recursive: true }).map((p) => path.join(srv.data, String(p))).filter((p) => p.includes('chief'));
+  for (const file of files) assert.doesNotMatch(read(file) ?? '', /stream_event|text_delta|reply_draft/, file);
   assert.ok(!f.events.some((e) => /reply_draft/.test(e.type)), 'nothing on /api/events');
 });
 

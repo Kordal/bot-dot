@@ -83,7 +83,7 @@ test('a message without a mention is kept once and gives every member one turn, 
   reply(srv, writer, 'I will write the issue.');
   reply(srv, coder, 'PASS');
   reply(srv, reviewer, 'I will review it when it is written.');
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
 
@@ -206,7 +206,7 @@ test('a busy member is waited for, in its own queue as a kind of its own, and th
   hold(srv, busy);
   const own = (await srv.api(`/bots/${busy.id}/run`, { method: 'POST', body: { prompt: 'Something long, in its own chat' } })).data;
   await waitFor(() => ranOf(srv, busy).length === 1, { what: 'its own run to be going' });
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
   const sent = await send(srv, group, { text: 'A question for all of you.' });
@@ -327,7 +327,7 @@ test('the owner takes back a message none of whose turns has started; ten of the
   hold(srv, slow);
   const own = (await srv.api(`/bots/${slow.id}/run`, { method: 'POST', body: { prompt: 'Something long' } })).data;
   await waitFor(() => ranOf(srv, slow).length === 1, { what: 'its own run to be going' });
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
 

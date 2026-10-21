@@ -470,7 +470,7 @@ function openSshPublicKey(key, generated) {
   $('#copy-public-key', m).onclick = async () => toast((await copyText(key.publicKey)) ? 'Copied' : "Couldn't copy");
 }
 
-// A file the owner adds (#157, docs/api.md `POST /api/vault/files`): a .pem picked here, at most 64 KB, read in the page
+// A file the owner adds (#157, docs/api.md `POST /api/vault/files`): any file picked here (#231), at most 64 KB, read in the page
 // and sent once as base64. Only its name and size are shown again.
 const VAULT_FILE_MAX = 64 * 1024;
 function openFileEditor() {
@@ -478,7 +478,7 @@ function openFileEditor() {
     <form id="file-form" autocomplete="off">
       <div class="modal-head"><h2>📄 Add a file</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <label class="field">File <span class="hint">.pem, at most 64 KB</span><input type="file" name="file" accept=".pem" required></label>
+        <label class="field">File <span class="hint">any file, at most 64 KB</span><input type="file" name="file" required></label>
         <label class="field">Name <span class="hint">optional, the file's name if empty</span><input type="text" name="name" placeholder="e.g. GitHub App key" maxlength="100"></label>
         <div class="req-note">Saved in your Bitwarden's bot-dot folder. Bots never see what is in it, and you can't see it here again.</div>
         <fieldset>

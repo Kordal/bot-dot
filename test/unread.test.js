@@ -173,7 +173,7 @@ test('the bots say how many replies are new, uncapped, and which is the first', 
 });
 
 test('a report that a chat is on screen reads it, and the feed says so within a second', async () => {
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   const chat = `bot:${bots[1].id}`;
   const started = Date.now();
@@ -198,7 +198,7 @@ test('a report that a chat is on screen reads it, and the feed says so within a 
 
 test('a report for a chat that does not exist is refused and changes nothing', async () => {
   const before = fs.readFileSync(positionsFile(), 'utf8');
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   for (const chat of ['bot:nobody', 'chief:20260101000000-nope00', 'bots', 'bot:../x', 42]) {
     const r = await read(chat);
@@ -228,7 +228,7 @@ async function replyOf(bot, prompt, f, during = async () => {}) {
 test('a reply that finishes while an app reports its chat on screen is not new', async () => {
   const bot = bots[2]; // Quiet: nothing new so far
   const chat = `bot:${bot.id}`;
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   let repeat;
   const watched = await replyOf(bot, 'While you watch', f, async () => { await read(chat); repeat = setInterval(() => read(chat).catch(() => {}), 300); });
@@ -244,7 +244,7 @@ test('a reply that finishes while an app reports its chat on screen is not new',
 test('a report stops counting when the app says it left, or stops repeating it; a reply after that is new', async () => {
   const bot = bots[2];
   const chat = `bot:${bot.id}`;
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   // The page is hidden (it says so): the answer that comes a moment later is new.
   await read(chat);
@@ -279,7 +279,7 @@ test('a run the Chief or another bot started is not new', async () => {
   const [sender, target] = [bots[3], bots[4]]; // Reports messages Teammate
   await srv.api(`/bots/${sender.id}`, { method: 'PUT', body: { mayMessage: [target.id] } });
   const before = await unreadNow();
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   // A run the Chief started from a chat of its own (as its run_bot action records).
   srv.hold();
@@ -315,7 +315,7 @@ test('a run the Chief or another bot started is not new', async () => {
 });
 
 test("the Chief's chats count their replies the same way", async () => {
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
   const key = `chief:${chat.id}`;

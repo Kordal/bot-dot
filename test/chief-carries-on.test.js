@@ -65,7 +65,7 @@ async function chatAbout(text) {
 const from = (chat, opts = {}) => ({ ...opts, headers: { 'X-Chief-Chat': chat.id } });
 const cardOf = async (id) => (await srv.api('/asks')).data.find((a) => a.id === id);
 const answer = (id, yes) => srv.api(`/asks/${id}`, { method: 'POST', body: { yes } });
-const hello = async () => { const f = feed(srv); const h = await f.wait('hello'); f.close(); return h.data; };
+const hello = async () => { const f = await feed(srv); const h = await f.wait('hello'); f.close(); return h.data; };
 // The Chief's turns that botdot started about this (a turn in a chat that has a session starts with botdot's
 // note of the hour), and the next of them.
 // Not the turn it gets when a run it started has ended (BUSY-002, test/chief-late.test.js).

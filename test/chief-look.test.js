@@ -13,7 +13,7 @@ before(async () => {
   srv = await startServer({ env: ENV });
   await srv.api('/settings/quiet-hours', { method: 'PUT', body: { start: 0, end: 0 } }); // the tests run at any hour
   await makeBot(srv, { name: 'Recipe Keeper', description: 'Keeps the recipes on recipes.example.com tidy' });
-  f = feed(srv);
+  f = await feed(srv);
   await f.wait('hello');
 });
 after(async () => { f.close(); await srv.stop(); });
@@ -199,7 +199,7 @@ test('the Chief turns writing first down, off and on again for the owner; the se
   f.close();
   await srv.stop();
   srv = await startServer({ dir: srv.dir, env: ENV });
-  f = feed(srv);
+  f = await feed(srv);
   await f.wait('hello');
   const older = (await chatOf('older')).messages[0];
   assert.ok(older.lookId);
@@ -220,7 +220,7 @@ test('the Chief turns writing first down, off and on again for the owner; the se
   f.close();
   await srv.stop();
   srv = await startServer({ dir: srv.dir, env: ENV });
-  f = feed(srv);
+  f = await feed(srv);
   await f.wait('hello');
   assert.deepEqual(record(), now);
 });

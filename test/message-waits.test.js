@@ -35,7 +35,7 @@ test('the features name it', async () => {
 
 test('a message to a working bot starts no run: it waits, is listed and announced, and starts alone when the run ends, seeing the first reply', async (t) => {
   const bot = await makeBot(srv, { name: 'One Thing', emoji: '☝️' });
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
   const file = await upload(srv, bot);
@@ -180,7 +180,7 @@ test("ten of the owner's messages wait at most, beside the other work: the eleve
 
 test('take back: the message is gone and its text and files come back; as it starts it has started; its key may be sent again', async (t) => {
   const bot = await makeBot(srv, { name: 'Giver', emoji: '↩️' });
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
   const file = await upload(srv, bot, 'notes.txt');

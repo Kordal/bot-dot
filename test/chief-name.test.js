@@ -9,7 +9,7 @@ let srv, f;
 before(async () => {
   srv = await startServer();
   await makeBot(srv, { name: 'News Watcher' });
-  f = feed(srv);
+  f = await feed(srv);
   await f.wait('hello');
 });
 after(async () => { f.close(); await srv.stop(); });
@@ -41,7 +41,7 @@ test('the name given in setup is the name every app shows, announced on the feed
   assert.equal(await chiefName(), 'Ada Lovelace');
   assert.equal((await srv.api('/setup')).data.chiefName, 'Ada Lovelace');
   assert.equal((await f.wait('chief_name', (d) => d.name === 'Ada Lovelace')).data.name, 'Ada Lovelace');
-  const again = feed(srv);
+  const again = await feed(srv);
   try { assert.equal((await again.wait('hello')).data.chiefName, 'Ada Lovelace', "the feed's hello says where it stands"); } finally { again.close(); }
 });
 

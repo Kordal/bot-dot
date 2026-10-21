@@ -51,7 +51,7 @@ const attach = async (bot, rec, name) => {
 };
 
 test("a run that ends after the Chief's turn gives the Chief one turn in its chat: how it ended, the bot's text as not the owner's, and its files with the reply", async (t) => {
-  const events = feed(srv);
+  const events = await feed(srv);
   t.after(() => { events.close(); srv.unhold(); });
   const { run, rec } = await chiefRun(surfer, 'Book the table');
   await attach(surfer, rec, 'booking.pdf'); // before the chat is known: it comes with the reply, not at once
@@ -154,7 +154,7 @@ test("a run that failed: the turn is told so with its problem; and when the turn
   assert.deepEqual((await quiet(chat)).messages.map((m) => m.role), ['user', 'chief', 'chief']);
 
   // The turn fails: botdot's own message of the bot, with its text and files, as before a turn was given.
-  const events = feed(srv);
+  const events = await feed(srv);
   t.after(() => events.close());
   const { run, rec } = await chiefRun(mail, 'Fetch the invoice');
   await attach(mail, rec, 'invoice.pdf');
@@ -183,7 +183,7 @@ test("a run that failed: the turn is told so with its problem; and when the turn
 });
 
 test("a file a bot attaches in the Chief's task reaches the Chief chat at once, and not again with the turn about its result", async (t) => {
-  const events = feed(srv);
+  const events = await feed(srv);
   t.after(() => { events.close(); srv.unhold(); });
   const { run, rec } = await chiefRun(surfer, 'Show me the QR code');
   const chat = await chatFor(run);

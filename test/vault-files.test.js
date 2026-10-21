@@ -31,7 +31,7 @@ const b64 = (s) => Buffer.from(s).toString('base64');
 
 // ---------- what botdot takes (lib/vault-files.js) ----------
 
-test('a .pem up to 64 KB is taken; an empty, too big or other file is refused with a sentence', () => {
+test('any file up to 64 KB is taken (#231); an empty, too big or unreadable one is refused with a sentence', () => {
   assert.deepEqual(vaultFiles.readFile({ fileName: 'key.pem', content: PEM_BYTES.toString('base64') }), { fileName: 'key.pem', bytes: PEM_BYTES });
   assert.equal(vaultFiles.readFile({ fileName: 'C:\\Users\\me\\GitHub App.PEM', content: PEM_BYTES.toString('base64') }).fileName, 'GitHub_App.pem', 'its own name, made safe');
   const big = Buffer.concat([PEM_BYTES, Buffer.alloc(64 * 1024)]);
@@ -41,11 +41,23 @@ test('a .pem up to 64 KB is taken; an empty, too big or other file is refused wi
   const exactly = Buffer.concat([PEM_BYTES, Buffer.alloc(64 * 1024 - PEM_BYTES.length, 0x41)]);
   assert.equal(vaultFiles.readFile({ fileName: 'key.pem', content: exactly.toString('base64') }).bytes.length, 64 * 1024);
   assert.throws(() => vaultFiles.readFile({ fileName: 'key.pem', content: '' }), /^Error: Pick the file\.$/);
-  assert.throws(() => vaultFiles.readFile({ fileName: 'id_ed25519', content: PEM_BYTES.toString('base64') }), /The Vault takes only \.pem files for now\./);
-  assert.throws(() => vaultFiles.readFile({ fileName: 'notes.txt', content: b64('hello') }), /only \.pem files/);
-  assert.throws(() => vaultFiles.readFile({ fileName: 'key.pem', content: b64('hello there') }), /isn't a PEM file/);
+  const conf = Buffer.from('server_name example.com;\nlisten 443 ssl;\nroot /srv/www;\n');
+  const binary = crypto.randomBytes(2048);
+  for (const [fileName, bytes] of [['app.conf', conf], ['notes.txt', Buffer.from('hello')], ['id_ed25519', PEM_BYTES], ['blob.bin', binary], ['key.pem', Buffer.from('hello there')], ['.env', Buffer.from('TOKEN=abc\n')]]) {
+    assert.deepEqual(vaultFiles.readFile({ fileName, content: bytes.toString('base64') }), { fileName, bytes }, fileName);
+  }
+  assert.throws(() => vaultFiles.readFile({ fileName: 'empty.txt', content: '=' }), /^Error: That file is empty\.$/);
   assert.throws(() => vaultFiles.readFile({ fileName: 'key.pem', content: 'not base64!' }), /Couldn't read the file/);
-  assert.deepEqual(vaultFiles.ACCEPTED, ['.pem']);
+  assert.equal(vaultFiles.ACCEPTED, undefined, 'no list of types');
+});
+
+test('a file keeps its own name, a dotfile too, and no name leaves its folder (#231)', () => {
+  for (const [given, name] of [['.env', '.env'], ['.config.JSON', '.config.json'], ['app.conf', 'app.conf'], ['../x', 'x'], ['..', 'file'], ['.', 'file'], ['', 'file'], ['/etc/', 'file'], ['my notes!.txt', 'my_notes_.txt']]) {
+    assert.equal(vaultFiles.fileNameOf(given), name, given);
+    assert.ok(vaultFiles.FILE_NAME.test(name), name);
+  }
+  for (const bad of ['.', '..', 'a/b', '../x', '']) assert.ok(!vaultFiles.FILE_NAME.test(bad), bad);
+  assert.ok(vaultFiles.fileNameOf('a'.repeat(200) + '.txt').length <= 100);
 });
 
 test('in Bitwarden fields the file comes back byte for byte, whatever order the fields are in', () => {
@@ -111,8 +123,9 @@ test('Bitwarden: an added file is a secure note of the bot-dot folder, listed by
   const unnamed = await bw.addFile({ fileName: 'cert.pem', content: PEM_BYTES.toString('base64') });
   assert.equal(unnamed.name, 'cert.pem', 'named after its file');
   assert.deepEqual(unnamed.allowedBots, []);
+  assert.equal((await bw.addFile({ fileName: 'app.conf', content: b64('listen 443;\n') })).fileName, 'app.conf', 'any file is taken');
   const before = saved().length;
-  await assert.rejects(bw.addFile({ name: 'Bad', fileName: 'a.txt', content: b64('x') }), /only \.pem/);
+  await assert.rejects(bw.addFile({ name: 'Bad', fileName: 'a.txt', content: b64('') }), /Pick the file/);
   assert.equal(saved().length, before, 'nothing saved for a refusal');
   assert.equal(await bw.remove(item.id), true);
   await bw.lock();
@@ -252,7 +265,8 @@ test('the Docker helper accepts runWithFile only in its fixed shape', async (t) 
     [OPS, { ...good, user: 'root' }],
     [OPS, { ...good, command: '' }],
     [OPS, { ...good, fileName: '../app.pem' }],
-    [OPS, { ...good, fileName: '.hidden' }],
+    [OPS, { ...good, fileName: '..' }],
+    [OPS, { ...good, fileName: '.' }],
     [OPS, { ...good, content: '' }],
     [OPS, { ...good, content: 'x'.repeat(100001) }],
     [OPS, { ...good, timeoutSeconds: 601 }],
@@ -291,9 +305,9 @@ test('POST /api/vault/files: saves to Bitwarden, answers a name and a size, and 
   r = await add({ fileName: 'big.pem', content: Buffer.concat([PEM_BYTES, Buffer.alloc(64 * 1024)]).toString('base64') });
   assert.equal(r.status, 400);
   assert.match(r.data.error, /64 KB/);
-  r = await add({ fileName: 'key.txt', content: PEM_BYTES.toString('base64') });
+  r = await add({ fileName: 'app.conf', content: '=' });
   assert.equal(r.status, 400);
-  assert.match(r.data.error, /only \.pem files/);
+  assert.equal(r.data.error, 'That file is empty.');
 
   const vault = (await srv.api('/vault')).data;
   assert.deepEqual(vault.map((i) => [i.name, i.kind]), [['GitHub App', 'file']]);

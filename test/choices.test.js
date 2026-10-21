@@ -42,7 +42,7 @@ before(async () => { srv = await startServer(); });
 after(() => srv.stop());
 
 test("a bot's reply keeps the question; the choices go to the run, not the notification", async () => {
-  const f = feed(srv);
+  const f = await feed(srv);
   srv.reply('Should I send the digest now?\n\n[[choices: Yes | No]]');
   const bot = await makeBot(srv);
   const r = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'make the digest' } });

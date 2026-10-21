@@ -20,10 +20,11 @@ async function turnOn(srv, b, j, headers = {}) {
 // The path of job `j`'s call address at the front door.
 const addressOf = (srv, b, j) => `/call/${srv.account}/${b.id}/${j.id}`;
 
-// A call to job `j` of bot `b` with `key`: { status, data }. A raw request, so that X-Forwarded-For can be set.
+// A call to job `j` of bot `b` with `key`: { status, data }. A raw request, so that X-Forwarded-For can be set; on a
+// connection of its own, as front-door-helpers.js sends its requests.
 const call = (srv, b, j, key, { body = '', headers = {} } = {}) => new Promise((resolve, reject) => {
   const req = http.request({
-    host: '127.0.0.1', port: srv.port, method: 'POST', path: addressOf(srv, b, j),
+    host: '127.0.0.1', port: srv.port, agent: false, method: 'POST', path: addressOf(srv, b, j),
     headers: { 'X-Forwarded-For': DEVICE, 'Content-Type': 'text/plain', ...(key ? { Authorization: `Bearer ${key}` } : {}), ...headers },
   }, (res) => {
     let text = '';

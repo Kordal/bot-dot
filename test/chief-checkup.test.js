@@ -32,7 +32,7 @@ before(async () => {
   // An answer Cook collects for a question of its own: unread, and it wakes nothing as botdot starts (ADR 049).
   fs.writeFileSync(path.join(srv.data, 'inbox', `${cook.id}.json`), JSON.stringify([{ id: 'n1', at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(), fromId: surfer.id, fromName: 'Web Surfer', text: 'Please plan around the rail strike.', answer: true }]));
   srv = await startServer({ dir: srv.dir, env: ENV });
-  f = feed(srv);
+  f = await feed(srv);
   await f.wait('hello');
 });
 after(async () => { f.close(); await srv.stop(); });

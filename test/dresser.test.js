@@ -217,7 +217,7 @@ test('server: bots from before outfits are dressed after the start, a new one af
   srv.hold();
   srv = await startServer({ dir, env: { BOT_DOT_DRESS_WAITS: WAITS } });
   try {
-    const live = feed(srv);
+    const live = await feed(srv);
     await live.wait('hello');
     assert.deepEqual(await outfitsOf(srv), { 'Mail Keeper': null, 'Server Check': null, Knight: null, Bare: { hat: '' } }, 'old bots read as never dressed');
     srv.unhold();
