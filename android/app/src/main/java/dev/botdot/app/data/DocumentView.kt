@@ -34,7 +34,7 @@ object DocumentView {
         var row = mutableListOf<String>()
         val cell = StringBuilder()
         var quoted = false
-        val s = text.removePrefix("﻿")
+        val s = text.removePrefix("\uFEFF")
         var i = 0
         while (i < s.length) {
             val c = s[i]

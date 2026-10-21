@@ -61,7 +61,7 @@ class DocumentViewTest {
             listOf(listOf("source", "note"), listOf("Reuters", "big, fast"), listOf("Paper", "says \"hi\"\non two lines"), listOf("x", "")),
             DocumentView.csvRows("source,note\r\nReuters,\"big, fast\"\nPaper,\"says \"\"hi\"\"\non two lines\"\nx,\n"),
         )
-        assertEquals(listOf(listOf("a", "b"), listOf("1", "2")), DocumentView.csvRows("﻿a\tb\n1\t2", '\t'))
+        assertEquals(listOf(listOf("a", "b"), listOf("1", "2")), DocumentView.csvRows("\uFEFFa\tb\n1\t2", '\t'))
     }
 
     @Test fun aTableIsCountedSortedByNumberAndSearched() {

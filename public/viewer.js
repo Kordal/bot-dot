@@ -14,7 +14,7 @@ const DocViewer = (() => {
   // A CSV's rows, each a list of cells: quoted cells may hold the separator, "" and line breaks. tsv: tabs.
   function csvRows(text, sep = ',') {
     const rows = []; let row = []; let cell = ''; let quoted = false;
-    const s = String(text || '').replace(/^﻿/, '');
+    const s = String(text || '').replace(/^\uFEFF/, '');
     for (let i = 0; i < s.length; i++) {
       const c = s[i];
       if (quoted) {
