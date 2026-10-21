@@ -287,9 +287,9 @@ function askForUpdate() {
 const SWITCH = (name) => `SWITCH-${name}`;
 const ACCOUNT_STATES = ['waiting', 'switching', 'updated', 'kept', 'failed'];
 const DAY = 24 * 3600_000;
-// Whether the owner of this account chooses when it switches: on a machine of several accounts root's step serves,
-// every account but the admin's, which moves with the admin's update.
-const choosesUpdates = (account) => !ONE_ACCOUNT && !!REQUESTS && !!ADMIN && account !== ADMIN;
+// Whether the owner of an account chooses when it switches: on a machine of several accounts root's step serves, every
+// account, the admin's own too (#274).
+const choosesUpdates = () => !ONE_ACCOUNT && !!REQUESTS && !!ADMIN;
 const switchAsked = (name) => !!REQUESTS && fs.existsSync(path.join(REQUESTS, SWITCH(name)));
 // What root's step said of the account, checked field by field: { state, at, since?, version?, from?, error? } or null.
 function accountStatus(name) {
@@ -514,8 +514,7 @@ async function signInRoutes(req, res, p) {
     return send(res, 200, { admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account) });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
-  // version the admin installed. Only the owner signed in reaches it, never a botdot server; the admin's own account
-  // moves with the admin's update and has none.
+  // version the admin installed. Only the owner signed in reaches it, never a botdot server.
   if (p === '/front-door/update' || p === '/front-door/update/now') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
@@ -674,7 +673,7 @@ async function adminRoutes(req, res, p, account) {
 // the front door's own data, whether each botdot server answers on its socket, and what root's step measured of the
 // account from outside it (use, or null), never from inside an account. state: 'running', 'suspended', 'making' (the
 // machine is making it), 'starting' (or starting it again) or 'stopped' (its botdot server doesn't answer). update: when
-// it switches to a new version (ownUpdate, ADR 053), for every account but the admin's.
+// it switches to a new version (ownUpdate, ADR 053), for every account, the admin's own too (#274).
 async function listAccounts() {
   return Promise.all(doors.listAccounts().map(async (a) => {
     const state = a.suspended ? 'suspended' : (await answers(a.name)) ? 'running' : making(a.name) ? 'making' : starting(a.name) ? 'starting' : 'stopped';

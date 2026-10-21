@@ -351,7 +351,7 @@ function openTarget(target) {
 
 // Settings → "Updates" (#259, ADR 053): the owner's "Update automatically" and, when the admin installed a version this
 // account waits for, "Update now". Both are the front door's own routes, never botdot's, and only where the front door
-// says this account chooses (its session's `updates`): not on a machine of one account, nor for the admin's account.
+// says this account chooses (its session's `updates`): not on a machine of one account.
 async function loadUpdateCard() {
   if (!state.features.includes('accounts')) return;
   let u = null;

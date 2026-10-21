@@ -46,12 +46,26 @@ const clear = () => { for (const f of fs.readdirSync(requests)) fs.rmSync(path.j
 const kept = () => JSON.parse(fs.readFileSync(path.join(door.data, 'front-door.json'), 'utf8'));
 const seen = () => Object.values(stands).map((s) => s.seen.length).join();
 
-test("an account's owner chooses, and the admin's own account moves with the admin's update", async () => {
+test("every account's owner chooses, the admin's own too (#274)", async () => {
   const b = await bob();
   const a = await admin();
   assert.equal((await b.get('/front-door/session')).data.updates, true);
-  assert.equal((await a.get('/front-door/session')).data.updates, false);
-  assert.equal((await a.get('/front-door/update')).status, 404, "the admin's account has none");
+  assert.equal((await a.get('/front-door/session')).data.updates, true);
+  const own = await a.get('/front-door/update');
+  assert.equal(own.status, 200, own.text);
+  assert.equal(own.data.autoUpdate, true);
+  clear();
+  const off = await a.post('/front-door/update', { autoUpdate: false });
+  assert.equal(off.data.autoUpdate, false);
+  assert.equal(kept().accounts.ann.autoUpdate, false, "the admin's account keeps it as any other");
+  const since = new Date().toISOString();
+  said('account-ann.json', { state: 'waiting', at: since, since, version: 'abc1234' });
+  const now = await a.post('/front-door/update/now', {});
+  assert.equal(now.status, 202, now.text);
+  assert.deepEqual(asked(), ['SWITCH-ann']);
+  clear();
+  fs.rmSync(path.join(status, 'account-ann.json'));
+  await a.post('/front-door/update', { autoUpdate: true });
   assert.equal((await door.browser().get('/front-door/update')).status, 401, 'nobody signed in');
 });
 
@@ -149,14 +163,14 @@ test('the admin page lists what waits on each account, and its "Update now" asks
   const since = new Date().toISOString();
   said('account-bob.json', { state: 'waiting', at: since, since, version: 'abc1234' });
   const { accounts } = (await a.get('/admin/accounts')).data;
-  assert.equal(accounts.find((x) => x.name === 'ann').update, undefined, "the admin's has none");
+  assert.equal(accounts.find((x) => x.name === 'ann').update.autoUpdate, true, "the admin's own has one too (#274)");
   const listed = accounts.find((x) => x.name === 'bob').update;
   assert.equal(listed.autoUpdate, false);
   assert.equal(listed.ready.version, 'abc1234');
   const now = await a.post('/admin/accounts/bob/update', {});
   assert.equal(now.status, 202, now.text);
   assert.deepEqual(asked(), ['SWITCH-bob']);
-  assert.equal((await a.post('/admin/accounts/ann/update', {})).status, 409);
+  assert.equal((await a.post('/admin/accounts/ann/update', {})).status, 409, "the admin's own waits for nothing");
   assert.equal((await (await bob()).post('/admin/accounts/bob/update', {})).status, 404, 'only the admin');
   const page = (await a.get('/front-door/admin.js')).text;
   assert.match(page, /Update now/);

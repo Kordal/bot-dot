@@ -1712,6 +1712,23 @@ test('an update leaves an account whose owner turned "Update automatically" off 
   assert.equal(fs.statSync(path.join(first.dir, 'front-door', 'status', 'account-bob.json')).mode & 0o777, 0o644, 'root writes it, the front door reads it');
 });
 
+test("the admin's own account waits by the same rule as any other, and the others switch (#274)", (t) => {
+  const { update, request } = onOlderVersion(t, { ann: { autoUpdate: false }, bob: {} });
+  const done = update();
+  const result = status(done, 'update.json');
+  assert.equal(result.state, 'updated', done.log);
+  assert.deepEqual(result.accounts, [{ name: 'ann', result: 'waiting' }, { name: 'bob', result: 'updated' }]);
+  assert.ok(!done.up('ann'), "the admin's account isn't restarted");
+  assert.ok(done.up('bob'), "bob's is switched");
+  assert.equal(done.accountEnv('ann').BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${PIN}`);
+  assert.equal(done.env.BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${SIGNED}`, 'the front door moves on');
+  assert.equal(status(done, 'account-ann.json').state, 'waiting');
+  const now = request('SWITCH-ann');
+  assert.ok(now.up('ann'), '"Update now" switches it');
+  assert.equal(now.accountEnv('ann').BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${SIGNED}`);
+  assert.equal(status(now, 'account-ann.json').state, 'updated');
+});
+
 test('"Update now" switches that account alone to the version the front door pins, with its way back', (t) => {
   const { update, request } = onOlderVersion(t, { ann: {}, bob: { autoUpdate: false } });
   update();

@@ -1,7 +1,7 @@
 # ADR-053: Each account's owner chooses when their account switches to a new version
 
 - **Status:** Accepted (2026-10-21, the owner's request in [#259](https://github.com/Kordal/bot-dot/issues/259)). Amends [ADR 044](044-an-account-whose-new-server-doesnt-start-goes-back-and-the-others-carry-on.md) (an account one version behind is now a normal state, not only a failure) and [ADR 045](045-the-update-runs-in-phases-of-its-own-apart-from-the-install.md) (the phase `switch` leaves some accounts waiting).
-- **Owning task:** [#259](https://github.com/Kordal/bot-dot/issues/259)
+- **Owning task:** [#259](https://github.com/Kordal/bot-dot/issues/259); amended by [#274](https://github.com/Kordal/bot-dot/issues/274) (2026-10-21): the admin's own account chooses too.
 
 ## Context
 
@@ -11,8 +11,8 @@ Most of what a later switch needs is there already. The update downloads the new
 
 ## Decision
 
-- **A setting per account, "Update automatically", on by default.** The front door keeps it (`autoUpdate: false` in the account's entry of `front-door.json`; no field is on), and only the account's owner changes it, in Settings on the web page and in the Android app. The admin's own account has none: it always moves with the admin's Update.
-- **The admin's Update does all it did** (check, clean, preflight, download into every running account, hand-over, front door, ADR 045). In its phase `switch` it leaves an account **waiting** when its owner turned "Update automatically" off and the account ran the version the front door pinned until now, or it waits already for this very version. Every other account switches as before: the admin's, one set to update automatically, one kept back by an earlier failure, and one that would otherwise be **two versions behind** (it still waits while the admin installs a newer one). A waiting account keeps running, with the new images already in its Docker. It is in `update.json`'s `accounts` as `waiting` with the version it runs, and its old images are not cleaned (as for `kept`). A waiting account doesn't fail the update.
+- **A setting per account, "Update automatically", on by default.** The front door keeps it (`autoUpdate: false` in the account's entry of `front-door.json`; no field is on), and only the account's owner changes it, in Settings on the web page and in the Android app. The admin's own account has it too (#274): the admin may keep their own bots working on the version they run after "Update every account", and switch them later.
+- **The admin's Update does all it did** (check, clean, preflight, download into every running account, hand-over, front door, ADR 045). In its phase `switch` it leaves an account **waiting** when its owner turned "Update automatically" off and the account ran the version the front door pinned until now, or it waits already for this very version. Every other account switches as before: one set to update automatically, one kept back by an earlier failure, and one that would otherwise be **two versions behind** (it still waits while the admin installs a newer one). A waiting account keeps running, with the new images already in its Docker. It is in `update.json`'s `accounts` as `waiting` with the version it runs, and its old images are not cleaned (as for `kept`). A waiting account doesn't fail the update.
 - **Root says what became of each account** in `status/account-<name>.json`, which only root writes and the front door reads: `waiting` (with `since`, the version it waits for and the one it runs), `switching`, `updated`, `kept` or `failed` (with why). An account switched by any means (the admin's Update, a resume, its owner, the deadline) says `updated`.
 - **"Update now" switches one account.** Its owner (Settings), or the admin (the admin page's account card), asks the front door, which writes an empty request `SWITCH-<name>` beside the others (no account can be named so). Root's step switches that account alone to the version the front door's `.env` pins, with ADR 044's way back, under the installer's lock, so it never overlaps a machine update. It downloads nothing new: the version is the one the admin installed. An account that runs it already, or isn't running, is left as it is. The owner can do nothing else of the update: downloading, the signature, the installer, the front door, cleaning the machine and the deadline stay the admin's.
 - **A deadline.** An account still waiting N days after its version came (default 7, 1 to 60, set on the admin page) is switched without its owner: the front door asks for its switch when the deadline passes, as "Update now" does. Settings shows the owner the date.
@@ -20,6 +20,8 @@ Most of what a later switch needs is there already. The update downloads the new
 - **What the admin runs by hand still switches everyone:** `sudo sh install.sh` is the admin at the machine, not the admin page.
 
 ## Alternatives
+
+- **The admin's own account always switching with the admin's Update** (this ADR before #274). The admin is also an owner whose bots are in the middle of their work; nothing on the machine needs the admin's account on the newest version: the admin page is the front door's, which works with an account one version behind (ADR 044), and the same rule keeps it at most one version behind.
 
 - **Let owners download their own update.** Every owner would need the signature check and the registry; a full disk would again be one owner's problem the admin can't see. The admin downloads, the owner only chooses when to restart.
 - **Keep a waiting account two or more versions behind.** The front door promises to work with an account one version behind it, not more; the installer would need every version's compose file and runtimes. One version behind at most.
