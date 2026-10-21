@@ -67,6 +67,7 @@ const PERMS = [
   { key: 'files', label: 'Can change files', hint: 'create and edit files in its folder', tools: ['Edit', 'Write'] },
   { key: 'web', label: 'Can browse the web', hint: 'search, and read web pages', tools: ['WebSearch', 'WebFetch'] },
   { key: 'bash', label: 'Can run commands', hint: 'any shell command in its folder', tools: ['Bash'] },
+  { key: 'helpers', label: 'Can use helpers', hint: 'start helpers that work in parallel within one run', tools: ['Agent', 'Task'] },
 ];
 
 // The page's form, in the shape the API takes. sel: the picked skills, apps and teammates.
