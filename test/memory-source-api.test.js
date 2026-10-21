@@ -366,7 +366,7 @@ test('a shared change after outside content waits as before, with the card\'s wo
   assert.equal((await remember(h, 'Read on a page, for me')).result, 'saved');
 });
 
-test('D16: a skill written after content from others waits for the owner\'s OK; before, or after its own commands alone, it goes in', async (t) => {
+test('D16: a skill a bot writes is saved at once, also after content from others, with no card (ADR 050)', async (t) => {
   const b = await bot();
   const skill = (name) => ({ action: 'create', name, description: `When to use ${name}`, instructions: `# ${name}\nDo it step by step.`, reason: 'It worked' });
   const h = await held(t, b);
@@ -378,53 +378,39 @@ test('D16: a skill written after content from others waits for the owner\'s OK; 
   assert.equal(afterCommands.result, 'saved');
   assert.match(afterCommands.say, /^Created skill "after-commands"/);
   await uses(h, 'WebFetch');
-  const waits = (await self(srv, h.token, 'skill', skill('after-the-web'))).data;
-  assert.equal(waits.ok, true);
-  assert.equal(waits.result, 'waits');
-  assert.match(waits.say, /the skill "after-the-web" waits for the owner's OK on a card in Needs you\. Until then you do not have it\./);
+  const afterWeb = (await self(srv, h.token, 'skill', skill('after-the-web'))).data;
+  assert.equal(afterWeb.ok, true);
+  assert.equal(afterWeb.result, 'saved');
   const change = (await self(srv, h.token, 'skill', { ...skill('written-first'), action: 'update', instructions: 'Changed after a web page.' })).data;
-  assert.equal(change.result, 'waits');
-  assert.match(change.say, /Until then it stays as it was\./);
+  assert.equal(change.result, 'saved');
   const has = async () => (await srv.api(`/bots/${b.id}`)).data.skills;
-  assert.deepEqual((await has()).sort(), ['after-commands', 'written-first']);
+  assert.deepEqual((await has()).sort(), ['after-commands', 'after-the-web', 'written-first']);
+  assert.equal((await srv.api('/skills/written-first')).data.instructions, 'Changed after a web page.');
+  // A row under the reply says it, and nothing waits in Needs you.
   assert.deepEqual((await learnedOf(h)).map((x) => [x.kind, x.chip]), [
-    ['skill', 'Created skill written-first: It worked'],
-    ['skill', 'Created skill after-commands: It worked'],
-    ['skill-pending', 'Asked to add the skill after-the-web (waiting for your OK)'],
-    ['skill-pending', 'Asked to change the skill written-first (waiting for your OK)'],
+    ['skill', 'Saved the skill written-first'],
+    ['skill', 'Saved the skill after-commands'],
+    ['skill', 'Saved the skill after-the-web'],
+    ['skill-updated', 'Changed the skill written-first'],
   ]);
-  // It is an ask, as a skill from a link is, and its card has the text a yes would save: nothing is approved unseen.
-  const asks = (await srv.api('/asks')).data.filter((a) => a.botId === b.id);
-  assert.deepEqual(asks.map((a) => [a.kind, a.written, a.skill.name, a.text]), [
-    ['skill', true, 'after-the-web', 'Wants to keep a skill it wrote: “after-the-web”'],
-    ['skill', true, 'written-first', 'Wants to change its skill “written-first”'],
-  ]);
-  assert.equal(asks[0].skill.instructions, '# after-the-web\nDo it step by step.');
-  // Its yes is given on that card and nowhere else (MEM-010): the notification's one line does not show the text.
-  assert.deepEqual(asks.map((a) => a.yesOn), ['card', 'card']);
-  const f = await feed(srv); const hello = await f.wait('hello'); f.close();
-  assert.deepEqual(hello.data.asks.filter((a) => a.botId === b.id).map((a) => a.yesOn), ['card', 'card'], 'and in the feed');
-  assert.equal(asks[1].skill.instructions, 'Changed after a web page.');
-  assert.deepEqual([asks[0].skill.exists, asks[1].skill.exists], [false, true]);
-  // What a save would refuse is refused before the owner is asked.
+  assert.deepEqual((await srv.api('/asks')).data.filter((a) => a.botId === b.id), []);
+  const history = (await srv.api(`/bots/${b.id}/learning`)).data.history.filter((c) => c.field === 'skill:written-first');
+  assert.equal(history.length, 2);
+  assert.ok(history.some((c) => /Changed after a web page\./.test(c.after)));
+  // Name and text are still checked.
   const bad = (await self(srv, h.token, 'skill', { ...skill('Not A Name') })).data;
   assert.equal(bad.ok, false);
   assert.match(bad.error, /lowercase letters, numbers and dashes/);
   assert.equal((await self(srv, h.token, 'skill', { ...skill('no-text'), instructions: ' ' })).data.error, 'Write the instructions');
-  // Written again while it waits: one card, with the newer text.
-  await self(srv, h.token, 'skill', { ...skill('after-the-web'), instructions: 'The newer text.' });
-  assert.deepEqual((await srv.api('/asks')).data.filter((a) => a.botId === b.id).map((a) => a.skill.instructions), ['The newer text.', 'Changed after a web page.']);
-  const yes = await srv.api(`/asks/${asks[0].id}`, { method: 'POST', body: { yes: true } });
-  assert.equal(yes.status, 200, JSON.stringify(yes.data));
-  assert.deepEqual((await has()).sort(), ['after-commands', 'after-the-web', 'written-first']);
-  const no = await srv.api(`/asks/${asks[1].id}`, { method: 'POST', body: { yes: false } });
-  assert.equal(no.status, 200, JSON.stringify(no.data));
-  assert.deepEqual((await srv.api('/asks')).data.filter((a) => a.botId === b.id), []);
-  const history = (await srv.api(`/bots/${b.id}/learning`)).data.history.filter((c) => c.field === 'skill:after-the-web');
-  assert.equal(history.length, 1);
-  assert.match(history[0].after, /The newer text\./);
+  // A skill of the Claude account keeps its name: a library one would hide it from every bot.
+  const account = path.join(srv.dir, 'home', '.claude', 'skills', 'account-one');
+  fs.mkdirSync(account, { recursive: true });
+  fs.writeFileSync(path.join(account, 'SKILL.md'), '---\nname: account-one\ndescription: The account\'s own\n---\nDo it.\n');
+  t.after(() => fs.rmSync(account, { recursive: true, force: true }));
+  const taken = (await self(srv, h.token, 'skill', skill('account-one'))).data;
+  assert.deepEqual([taken.ok, taken.error], [false, '"account-one" is already the name of a skill on this machine. Pick another name.']);
 
-  // A teammate's message is content from someone else too.
+  // A teammate's message is content from someone else too: still saved, and only for the bot that wrote it.
   const receiver = await bot();
   const sender = await bot({ mayMessage: [receiver.id] });
   const sending = await held(t, sender);
@@ -432,7 +418,9 @@ test('D16: a skill written after content from others waits for the owner\'s OK; 
   const rec = await srv.nextRun(isRunOf(receiver), 'the teammate\'s run');
   const run = (await srv.api(`/runs?botId=${receiver.id}`)).data[0];
   t.after(async () => { srv.release(rec); await srv.finished(run.id); });
-  assert.equal((await self(srv, rec.self.env.RUN_TOKEN, 'skill', skill('from-a-teammate'))).data.result, 'waits');
+  assert.equal((await self(srv, rec.self.env.RUN_TOKEN, 'skill', skill('from-a-teammate'))).data.result, 'saved');
+  assert.deepEqual((await srv.api(`/bots/${receiver.id}`)).data.skills, ['from-a-teammate']);
+  assert.deepEqual((await srv.api(`/bots/${sender.id}`)).data.skills, []);
 });
 
 test('the bots\' tools answer with the server\'s sentence: saved, already there, alike, and what left the pinned set', async (t) => {
