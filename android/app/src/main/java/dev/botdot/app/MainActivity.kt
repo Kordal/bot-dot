@@ -223,7 +223,8 @@ class MainActivity : ComponentActivity() {
                                 // A group's settings; a deleted group has no chat to go back to.
                                 groupOfChat(pn.chat) != null -> GroupSettingsScreen(app, groupOfChat(pn.chat).orEmpty(), onDeleted = { panelKept = null; nav.popBackStack("home", inclusive = false) }, onBack = back)
                                 else -> BotSettingsScreen(app, pn.chat, onScreen = { nav.navigate("screen/${pn.chat}") }, onJobs = { panelKept = SettingsPanel.jobs(pn, pn.chat) },
-                                    onDeleted = { panelKept = null; nav.popBackStack("home", inclusive = false) }, onBack = back)
+                                    onDeleted = { panelKept = null; nav.popBackStack("home", inclusive = false) },
+                                    onCopied = { panelKept = null; nav.navigate("bot/$it") { popUpTo("home"); launchSingleTop = true } }, onBack = back)
                             }
                         }
                     }

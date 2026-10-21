@@ -232,7 +232,7 @@ function renderBotSettings(force = false) {
         <label class="field">Personality / rules <span class="hint">added to Claude Code's system prompt</span>
           <textarea name="systemPrompt" rows="3">${esc(b.systemPrompt)}</textarea></label>
       </details>
-      <div class="bs-foot"><button type="button" class="link-btn danger-text" id="delete-bot">Delete ${esc(b.name)}</button></div>
+      <div class="bs-foot">${state.features.includes('duplicate-bot') ? `<button type="button" class="link-btn" id="duplicate-bot">Duplicate ${esc(b.name)}</button>` : ''}<button type="button" class="link-btn danger-text" id="delete-bot">Delete ${esc(b.name)}</button></div>
     </form>`;
 
   const form = $('#bot-form', root);
@@ -383,6 +383,9 @@ function renderBotSettings(force = false) {
 
   drawBotSettingsLive(b);
 
+  const dup = $('#duplicate-bot', root);
+  if (dup) dup.onclick = () => openDuplicate(b);
+
   $('#delete-bot', root).onclick = async () => {
     // Its screen on the account's computer ends and its browser's logins go; the computer, which the other bots use,
     // stays, and so does its folder there (#109).
@@ -403,6 +406,34 @@ function renderBotSettings(force = false) {
     delete root.dataset.bot;
     leaveBot();
     await refresh();
+  };
+}
+
+// "Duplicate" (#227): the server's list of what the copy gets, a name to change, then the copy, whose chat opens.
+async function openDuplicate(b) {
+  let plan;
+  try { plan = await api(`/bots/${b.id}/duplicate`); } catch (e) { return toast(e.message, true); }
+  const m = openModal(`
+    <div class="modal-head"><h2>Duplicate ${esc(b.name)}?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body">
+      <label class="field">Name<input id="dup-name" maxlength="60" value="${esc(plan.name)}"></label>
+      <p style="margin:12px 0 4px">The copy gets:</p>
+      <ul style="margin:0;padding-left:20px">${plan.copies.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
+      <p class="hint" style="margin:12px 0 0">Not copied: ${esc(plan.notCopied)}.</p>
+      ${plan.vaultLocked ? '<p class="hint" style="margin:8px 0 0">Bitwarden is locked: unlock it first, so the copy can use the same Vault entries.</p>' : ''}
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn" data-dismiss>Cancel</button>
+      <button type="button" class="btn primary" id="dup-go" ${plan.vaultLocked ? 'disabled' : ''}>Duplicate</button>
+    </div>`);
+  $('#dup-go', m).onclick = async () => {
+    $('#dup-go', m).disabled = true;
+    let made;
+    try { made = await api(`/bots/${b.id}/duplicate`, { method: 'POST', body: { name: $('#dup-name', m).value } }); } catch (e) { $('#dup-go', m).disabled = false; return toast(e.message, true); }
+    m.close();
+    toast(`${made.name} made`);
+    await refresh();
+    setView('bot', made.id);
   };
 }
 
