@@ -35,7 +35,8 @@ function box(features) {
 test('web: "/" at the start of a bot\'s chat lists its skills with what each is for, and Enter puts one in', () => {
   const b = box(['skill-commands']);
   b.type('/');
-  assert.deepEqual(b.shown(), ['/digest <span class="about">Write a short digest.</span>', '/weekly-report <span class="about">How the weekly report is laid out.</span>']);
+  assert.deepEqual(b.shown(), ['/digest <span class="about">Write a short digest.</span>', '/weekly-report <span class="about">How the weekly report is laid out.</span>',
+    '/slides <span class="about">Make a slide deck.</span>'], 'the Claude account\'s skills after the library\'s (#236)');
   b.type('/wee');
   assert.equal(b.shown().length, 1);
   assert.equal(b.press('Enter'), true);
@@ -45,7 +46,7 @@ test('web: "/" at the start of a bot\'s chat lists its skills with what each is 
 
 test('web: Escape or a space closes the list', () => {
   const b = box(['skill-commands']);
-  b.type('/d');
+  b.type('/dig');
   assert.equal(b.shown().length, 1);
   b.press('Escape');
   assert.deepEqual(b.shown(), []);

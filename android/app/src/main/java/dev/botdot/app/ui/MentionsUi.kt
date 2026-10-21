@@ -46,8 +46,11 @@ fun rememberMentions(app: BotDotApp, chat: String): Mentions.World? {
     val runsSkills = server?.features?.contains(Mentions.SKILL_COMMANDS) == true // "/" runs a skill (#237)
     return remember(bots, skills, chat, name, runsSkills) {
         bots?.let {
-            Mentions.World(chat, listOf(chiefBot(name)) + it, skills.orEmpty().map { k -> k.name },
-                about = skills.orEmpty().associate { k -> k.name to k.description }, runsSkills = runsSkills)
+            val library = skills?.library.orEmpty()
+            val account = skills?.machine.orEmpty()
+            Mentions.World(chat, listOf(chiefBot(name)) + it, library.map { k -> k.name },
+                about = (account.associate { k -> k.name to k.description } + library.associate { k -> k.name to k.description }),
+                runsSkills = runsSkills, account = account.map { k -> k.name })
         }
     }
 }

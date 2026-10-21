@@ -15,7 +15,7 @@ class MentionsTest {
     data class Library(val name: String, val description: String = "")
 
     @Serializable
-    data class World(val bots: List<Bot>, val library: List<Library>, val all: Boolean = false)
+    data class World(val bots: List<Bot>, val library: List<Library>, val all: Boolean = false, val account: List<Library> = emptyList())
 
     @Serializable
     data class Match(val kind: String, val text: String, val bot: String? = null, val job: String? = null, val skill: String? = null)
@@ -43,7 +43,8 @@ class MentionsTest {
     )
 
     private fun world(name: String, chat: String) = table.worlds.getValue(name).let {
-        Mentions.World(chat, it.bots, it.library.map { k -> k.name }, all = it.all, about = it.library.associate { k -> k.name to k.description })
+        Mentions.World(chat, it.bots, it.library.map { k -> k.name }, all = it.all,
+            about = it.account.associate { k -> k.name to k.description } + it.library.associate { k -> k.name to k.description }, account = it.account.map { k -> k.name })
     }
     private fun world(c: Case) = world(c.world, c.chat)
 

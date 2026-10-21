@@ -122,8 +122,8 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     val cardGroups = CardGroups()
     /** Asks answered on the Needs you screen, for the chats their cards stood in to say so (AnsweredAway). */
     val answeredAway = AnsweredAway()
-    /** The skills in the library (for mentions and the skills "/" runs: see Mentions). */
-    val skills = Part { a -> a.skills().library }
+    /** The skill library and the Claude account's skills (for mentions and the skills "/" runs: see Mentions). */
+    val skills = Part { a -> a.skills() }
     /** Logins and payments, Bitwarden, memory changes, permissions, skills and tools asked for. (Jobs waiting for your OK
      *  come with [bots], plans for the Chief with [chief], the Board's tiles with [dashboard]: see [waiting].) */
     val needs = Part { a ->

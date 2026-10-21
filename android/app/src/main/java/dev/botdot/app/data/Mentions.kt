@@ -11,7 +11,9 @@ package dev.botdot.app.data
  *
  * Commands (#237): "/" and one of a bot's skills at the very start of a message in that bot's own chat runs the skill,
  * with the rest of the message as its arguments. Typing "/" there lists the bot's skills; a name it has no skill of is
- * plain text. Not in the Chief chat or a group. The botdot server does the running; the app lists and picks.
+ * plain text. Not in the Chief chat or a group. The botdot server does the running; the app lists and picks. The
+ * skills are the ones that reach the bot's runs: while its skills are on, its picked library skills, then the Claude
+ * account's not switched off for it and not named like a library skill (#236).
  *
  * The same rules as lib/mentions.js on the botdot server, both checked against test/fixtures/mentions.json.
  */
@@ -40,6 +42,9 @@ object Mentions {
 
     private fun same(a: String, b: String) = a.lowercase() == b.lowercase()
 
+    /** A skill switched off for a bot, by its name or a namespaced one ("anthropic-skills:pdf"). */
+    private fun isOff(name: String, off: List<String>) = off.any { it == name || it.endsWith(":$name") }
+
     /** The Chief's mention by its role, which still means it after the owner named it (#41); never suggested. */
     const val CHIEF_ALIAS = "ChiefOfStaff"
 
@@ -50,13 +55,15 @@ object Mentions {
      * offered first while typed at the start of a message, and is no member's mention (a member named All is neither
      * matched nor suggested). [about]: the library's descriptions by name, shown beside a skill to run. [runsSkills]:
      * the server runs a skill sent as "/" and its name (feature `skill-commands`, #237); without it "/" lists nothing.
+     * [account]: the names of the Claude account's skills, for "/" only.
      */
     class World(val chat: String, val bots: List<Bot>, val library: List<String>, val all: Boolean = false, val about: Map<String, String> = emptyMap(),
-                val runsSkills: Boolean = true) {
+                val runsSkills: Boolean = true, val account: List<String> = emptyList()) {
         val skills: List<String> = if (chat == CHIEF) library else bots.firstOrNull { it.id == chat }
             ?.takeIf { it.useSkills }?.let { b -> library.filter { it in b.skills } }.orEmpty()
-        /** The skills "/" runs here: a bot's own chat only. */
-        val commands: List<String> = if (!runsSkills || chat == CHIEF || bots.none { it.id == chat }) emptyList() else skills
+        /** The skills "/" runs here: a bot's own chat only. The account's after the library's (#236). */
+        val commands: List<String> = if (!runsSkills || chat == CHIEF) emptyList() else bots.firstOrNull { it.id == chat }
+            ?.takeIf { it.useSkills }?.let { b -> skills + account.filter { it !in library && !isOff(it, b.disabledSkills) } }.orEmpty()
         fun bot(id: String?) = bots.firstOrNull { it.id == id }
     }
 

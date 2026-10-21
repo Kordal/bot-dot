@@ -9,12 +9,14 @@
 // Commands (#237): "/" and one of a bot's skills at the very start of a message in that bot's own chat runs the
 // skill, with the rest of the message as its arguments: /weekly-report for May. Typing "/" there lists the bot's
 // skills; a name the bot has no skill of is plain text. Not in the Chief chat or a group. The skills are the ones
-// that reach the bot's runs (skillsInScope: its picked library skills, while its skills are on).
+// that reach the bot's runs (commandSkills: while its skills are on, its picked library skills, then the Claude
+// account's not switched off for it and not named like a library skill, #236).
 //
 // ctx, for every function: { chat, bots, library }
 //   chat: 'chief' or the id of the bot whose chat it is
 //   bots: [{ id, name, description?, prompt?, skills?, useSkills?, jobs?: [{ id, name, cron?, at?, kind?, prompt? }] }], the Chief included
 //   library: [{ name, description }], the whole skill library
+//   account: [{ name, description }], the Claude account's skills (for "/" only); bots[].disabledSkills switches them off
 //   all: a group's chat, on a botdot that knows "@all" (#124, feature `group-all`): "@all" at the start of a message
 //     sends it to every member at once. It is offered first while it is typed there, and it is no member's mention:
 //     a member named All is neither matched nor suggested.
@@ -132,9 +134,15 @@ function pick(text, cursor, row) {
   };
 }
 
-// The skills "/" runs in this chat: a bot's own chat only.
+// A skill switched off for a bot, by its name or a namespaced one ("anthropic-skills:pdf"), as lib/skills.js isOff.
+const isOff = (name, off) => (off || []).some((k) => k === name || String(k).endsWith(`:${name}`));
+
+// The skills "/" runs in this chat: a bot's own chat only. The account's skills after the library's (#236).
 function commandSkills(ctx) {
-  return ctx.chat === CHIEF || !(ctx.bots || []).some((b) => b.id === ctx.chat) ? [] : skillsInScope(ctx);
+  const bot = ctx.chat === CHIEF ? null : (ctx.bots || []).find((b) => b.id === ctx.chat);
+  if (!bot || bot.useSkills === false) return [];
+  const library = new Set((ctx.library || []).map((k) => k.name));
+  return [...skillsInScope(ctx), ...(ctx.account || []).filter((k) => !library.has(k.name) && !isOff(k.name, bot.disabledSkills))];
 }
 
 // What sending a message runs: { skill, args } when it starts with "/" and the name of a skill the bot has (args: the
