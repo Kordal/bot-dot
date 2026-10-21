@@ -88,7 +88,8 @@ function wireAttachments(form, uploadTo) {
   };
 }
 
-// "@" suggestions above the message box (mentions.js): bots, then jobs, then skills, a few rows, no headings.
+// "@" suggestions above the message box (mentions.js): bots, then jobs, then skills, a few rows, no headings. In a
+// bot's own chat, "/" at the start lists its skills to run, each with its description (#237).
 // ↑/↓ move, Enter or Tab picks, Esc closes; a tap or click picks too. chat is the Chief's id or a bot id.
 function wireMentions(form, chat, grow) {
   const ta = form.text;
@@ -101,6 +102,7 @@ function wireMentions(form, chat, grow) {
     const bot = r.bot && mentionCtx(chat).bots.find((b) => b.id === r.bot);
     if (r.kind === 'bot') return botLabel(bot);
     if (r.kind === 'job') return `${botLabel(bot)} · ${esc(bot.jobs.find((j) => j.id === r.job)?.name || '')}`;
+    if (r.kind === 'command') return `/${esc(r.label)}${r.about ? ` <span class="about">${esc(r.about)}</span>` : ''}`; // a skill to run (#237)
     return esc(r.label);
   };
   const draw = () => {
@@ -110,6 +112,7 @@ function wireMentions(form, chat, grow) {
   const close = () => { if (rows.length) { rows = []; draw(); } };
   const update = () => {
     rows = ta.selectionStart === ta.selectionEnd ? Mentions.suggest(ta.value.slice(0, ta.selectionStart), mentionCtx(chat)) : [];
+    if (!state.features.includes('skill-commands')) rows = rows.filter((r) => r.kind !== 'command'); // a botdot that runs no "/" (#237)
     sel = 0;
     draw();
   };

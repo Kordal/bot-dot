@@ -9,7 +9,7 @@ const table = require('./fixtures/mentions.json');
 
 const page = vm.createContext({});
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'mentions.js'), 'utf8'), page);
-const { shortName, findMentions, suggest, pick, MAX_ROWS } = page.Mentions;
+const { shortName, findMentions, suggest, pick, command, MAX_ROWS } = page.Mentions;
 const plain = (x) => JSON.parse(JSON.stringify(x)); // out of the page's realm, for deepEqual
 
 test('web: the page gets the matcher as window.Mentions', () => {
@@ -48,6 +48,17 @@ for (const c of table.picks) {
     assert.equal(done.jobsNext, c.jobsNext);
   });
 }
+
+for (const c of table.commands) {
+  test(`web table command: ${c.name}`, () => {
+    assert.deepEqual(plain(command(c.text, { chat: c.chat, ...table.worlds[c.world] })), c.command);
+  });
+}
+
+test('web: a skill to run is listed with its description', () => {
+  const rows = plain(suggest('/dig', { chat: 'fleet', ...table.worlds.team }));
+  assert.deepEqual(rows, [{ kind: 'command', text: '/digest', label: 'digest', about: 'Write a short digest.', skill: 'digest' }]);
+});
 
 test('web: the page loads the matcher before app.js', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');

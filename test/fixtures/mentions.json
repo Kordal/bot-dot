@@ -3,13 +3,15 @@
     "The Mention rules (CONTEXT.md, issue #83), as cases every app's matcher must pass: lib/mentions.js, web, Android, Mac.",
     "maxRows: the most suggestion rows shown at once.",
     "shortNames: [name, short name] pairs. Words are joined, each capitalised; only letters, digits, '_' and '-' are kept.",
-    "worlds: the bots (the Chief included, as id 'chief'), their jobs and picked skills, and the skill library. A bot with useSkills false has no skills.",
+    "worlds: the bots (the Chief included, as id 'chief'), their jobs and picked skills, and the skill library; account: the Claude account's skills, which '/' also runs (after the library's, minus names the library has) unless the bot's disabledSkills names them (#236). A bot with useSkills false has no skills.",
     "cases: { name, world, chat, text?, matches?, typed?, suggestions? }. chat is 'chief' or a bot id: skills in scope are the whole library in the Chief chat, the bot's picked skills in its own chat.",
     "matches: the mentions found in text, in order, as { kind: bot|job|skill, text, bot?, job?, skill? } (bot and job are ids, skill a name; text is the part of the message that is the mention).",
     "suggestions: the rows offered while the text before the cursor is typed, in order, as the text a pick inserts (followed by a space). [] means no list. Rows: bots, then jobs, then skills; a skill named like a bot is left out; after '@Bot/' only that bot's jobs; matching is a case-insensitive 'contains' on the short name.",
     "picks: { name, world, chat, before, pick, after, jobsNext }. before and after are the whole message with '|' where the cursor is. pick is the text of the suggested row (for the text before the cursor) that is picked. Picking puts the row's text in place of the '@…' before the cursor and the rest of that word, then a space unless a space (not a line break) follows already; the cursor goes after the space. jobsNext: a bot was picked and the space is new, so a '/' typed next replaces the space and lists the bot's jobs.",
     "renamed: the team with the Chief named by the owner (#41). '@ChiefOfStaff' still means the Chief beside its name, and is not suggested.",
-    "group: a group's chat with all true (#124): '@all' is offered first while it is typed at the start of the message, and is no member's mention: a member named All is neither matched nor suggested there. Elsewhere '@all' is nothing of its own."
+    "group: a group's chat with all true (#124): '@all' is offered first while it is typed at the start of the message, and is no member's mention: a member named All is neither matched nor suggested there. Elsewhere '@all' is nothing of its own.",
+    "Commands (#237): '/' at the very start of the message in a bot's own chat lists that bot's skills (its picked skills, as for mentions; none when useSkills is false), filtered by a case-insensitive 'contains' on the name, at most maxRows. A row's text is '/' and the skill's name; picking it replaces the '/…' word as a mention pick does. Never in the Chief chat or a group. Once a space follows the name, no list.",
+    "commands: { name, world, chat, text, command }. command is what sending text runs: { skill, args } (args: the rest of the message after the name, trimmed), or null when it is plain text (no '/' at the very start, a name the bot has no skill of, a name joined to more text, the Chief chat, a group)."
   ],
   "maxRows": 6,
   "shortNames": [
@@ -26,7 +28,7 @@
     "team": {
       "bots": [
         { "id": "chief", "name": "Chief of Staff", "jobs": [] },
-        { "id": "fleet", "name": "Fleet Doctor", "skills": ["weekly-report", "digest"], "jobs": [
+        { "id": "fleet", "name": "Fleet Doctor", "skills": ["weekly-report", "digest"], "disabledSkills": ["anthropic-skills:pdf"], "jobs": [
           { "id": "j1", "name": "Morning check" },
           { "id": "j2", "name": "Disk sweep" }
         ] },
@@ -41,6 +43,11 @@
         { "name": "report-pdf", "description": "Turn a report into a PDF." },
         { "name": "tone", "description": "The owner's writing tone." },
         { "name": "weekly-report", "description": "How the weekly report is laid out." }
+      ],
+      "account": [
+        { "name": "digest", "description": "The account's own digest." },
+        { "name": "pdf", "description": "Read and fill PDFs." },
+        { "name": "slides", "description": "Make a slide deck." }
       ]
     },
     "renamed": {
@@ -137,7 +144,16 @@
     { "name": "in a group @all is not offered after other text", "world": "group", "chat": "group:g1", "typed": "Hi @al",
       "suggestions": ["@Allie"] },
     { "name": "in a group @all is not offered when nothing matches", "world": "group", "chat": "group:g1", "typed": "@an",
-      "suggestions": ["@Ana"] }
+      "suggestions": ["@Ana"] },
+    { "name": "/ at the start in a bot's chat lists its skills", "world": "team", "chat": "fleet", "typed": "/",
+      "suggestions": ["/digest", "/weekly-report", "/slides"] },
+    { "name": "/ filters by the name as typed", "world": "team", "chat": "fleet", "typed": "/WEEK", "suggestions": ["/weekly-report"] },
+    { "name": "/ lists the account's skills, minus names the library has", "world": "team", "chat": "todo", "typed": "/", "suggestions": ["/pdf", "/slides"] },
+    { "name": "/ followed by a space lists nothing", "world": "team", "chat": "fleet", "typed": "/digest ", "suggestions": [] },
+    { "name": "/ not at the start lists nothing", "world": "team", "chat": "fleet", "typed": "a /dig", "suggestions": [] },
+    { "name": "/ in the chat of a bot with skills switched off lists nothing", "world": "team", "chat": "social", "typed": "/", "suggestions": [] },
+    { "name": "/ in the Chief chat lists nothing", "world": "team", "chat": "chief", "typed": "/", "suggestions": [] },
+    { "name": "/ in a group lists nothing", "world": "group", "chat": "group:g1", "typed": "/", "suggestions": [] }
   ],
   "picks": [
     { "name": "a bot at the end", "world": "team", "chat": "chief", "before": "Ask @fle|", "pick": "@FleetDoctor",
@@ -155,6 +171,24 @@
     { "name": "on a later line, text after it kept", "world": "team", "chat": "chief", "before": "Hi\n@mail|\nthanks", "pick": "@MailBot",
       "after": "Hi\n@MailBot |\nthanks", "jobsNext": true },
     { "name": "@all in a group", "world": "group", "chat": "group:g1", "before": "@a|", "pick": "@all",
-      "after": "@all |", "jobsNext": false }
+      "after": "@all |", "jobsNext": false },
+    { "name": "a skill to run", "world": "team", "chat": "fleet", "before": "/wee|", "pick": "/weekly-report",
+      "after": "/weekly-report |", "jobsNext": false },
+    { "name": "a skill to run takes the rest of the word, text after it kept", "world": "team", "chat": "fleet", "before": "/d|ig for May", "pick": "/digest",
+      "after": "/digest |for May", "jobsNext": false }
+  ],
+  "commands": [
+    { "name": "a skill with arguments", "world": "team", "chat": "fleet", "text": "/weekly-report  for May\nshort please ",
+      "command": { "skill": "weekly-report", "args": "for May\nshort please" } },
+    { "name": "a skill alone", "world": "team", "chat": "fleet", "text": "/digest", "command": { "skill": "digest", "args": "" } },
+    { "name": "the name ignores case", "world": "team", "chat": "fleet", "text": "/Digest now", "command": { "skill": "digest", "args": "now" } },
+    { "name": "a name the bot has no skill of is plain text", "world": "team", "chat": "fleet", "text": "/tone please", "command": null },
+    { "name": "an account skill", "world": "team", "chat": "todo", "text": "/pdf the invoice", "command": { "skill": "pdf", "args": "the invoice" } },
+    { "name": "an account skill switched off for the bot is plain text", "world": "team", "chat": "fleet", "text": "/pdf", "command": null },
+    { "name": "a name joined to more text is plain text", "world": "team", "chat": "fleet", "text": "/digest/now", "command": null },
+    { "name": "not at the very start", "world": "team", "chat": "fleet", "text": " /digest", "command": null },
+    { "name": "skills switched off", "world": "team", "chat": "social", "text": "/tone", "command": null },
+    { "name": "the Chief chat", "world": "team", "chat": "chief", "text": "/digest", "command": null },
+    { "name": "a group", "world": "group", "chat": "group:g1", "text": "/digest", "command": null }
   ]
 }
