@@ -420,6 +420,14 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** A file a bot attached to its reply ("<runId>/<name>"), saved to [dest]. */
     suspend fun downloadFile(file: String, dest: java.io.File) = download("/files/" + file.split('/').joinToString("/") { enc(it) }, dest)
 
+    /**
+     * A file for the document viewer (#251), [src] its API path (DocumentView): its start as JSON. A file that is gone
+     * throws with status 404, a file on the account's computer while it is off with 409. Only with `document-viewer`.
+     */
+    suspend fun viewFile(src: String): FileView = json.decodeFromString(get(DocumentView.withQuery(src, "view=1")))
+    /** The viewer's file itself, saved to [dest]. */
+    suspend fun downloadTo(src: String, dest: java.io.File) = download(src, dest)
+
     /** The screenshots a run's tools took, in order: addresses under /api ("/runs/<id>/images/<name>"). */
     suspend fun runImages(runId: String): List<String> =
         (json.parseToJsonElement(get("/runs/${enc(runId)}/images")).jsonObject["images"]?.jsonArray ?: JsonArray(emptyList()))

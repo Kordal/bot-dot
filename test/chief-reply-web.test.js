@@ -15,7 +15,7 @@ const page = vm.createContext({ ...noDrafts,
 });
 vm.runInContext(read('unread.js'), page);
 vm.runInContext(read('ratings.js'), page);
-vm.runInContext(`${cut('function md(src)', '// Link bare web addresses after rendering')}
+vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
   ${cut('function actionBot(a)', '// What Approve sends to answer')}
   this.chiefBubble = chiefBubble; this.actionChip = actionChip;`, page);
 const { chiefBubble, actionChip } = page;

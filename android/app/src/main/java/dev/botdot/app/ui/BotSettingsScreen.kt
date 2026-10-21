@@ -298,7 +298,9 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                         key(f.file) {
                             Column(Modifier.fillMaxWidth()) {
                                 Text(f.name, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.clickable {
-                                    scope.launch { runCatching { dev.botdot.app.data.BotFiles.openUpload(context, api ?: error("Not connected to botdot"), botId, f) }.onError { tell(it.message ?: "Couldn't open ${f.name}") } }
+                                    // In the viewer (#251) where the server has it; else in the phone's own app, as before.
+                                    if (dev.botdot.app.data.DocumentView.shows(server?.features)) DocViewer.open = DocViewer.Request(dev.botdot.app.data.DocumentView.botFile(botId, f.file), f.name, name)
+                                    else scope.launch { runCatching { dev.botdot.app.data.BotFiles.openUpload(context, api ?: error("Not connected to botdot"), botId, f) }.onError { tell(it.message ?: "Couldn't open ${f.name}") } }
                                 })
                                 androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Text(UploadedFiles.detail(f), color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))

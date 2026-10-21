@@ -32,9 +32,9 @@ function botThreadHTML(bot, runs, newFirst = null) {
       : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
       : r.customPrompt === false
         ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} Ran its main assignment</span></div>`
-        : (mine = true, `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></div>`));
+        : (mine = true, `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments, r.botId)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></div>`));
     // What the owner steered into it while it worked (ADR 040): their messages, after its request, without buttons.
-    const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(String(x.text || ''), r.botId)}</div>${filesHTML(Array.isArray(x.attachments) ? x.attachments : [])}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
+    const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(String(x.text || ''), r.botId)}</div>${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], r.botId)}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
     let reply;
     if (r.status === 'running') {
       // No bubble while it works: the status line under the chat says it (placeStatusLines). Only what it attached so far.
@@ -56,7 +56,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
       reply = `
         <div class="bubble-row from-bot"><div class="stack">
           ${exchange}
-          <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body)}</div>${botFilesHTML(r.files)}</div>
+          <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${botFilesHTML(r.files)}</div>
           ${learnedChips(r)}
           <div class="bubble-meta">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
           ${i === runs.length - 1 && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}

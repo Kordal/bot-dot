@@ -244,10 +244,15 @@ fun FileChip(name: String, note: String? = null, onDark: Boolean = false, onRemo
     }
 }
 
+/** Files you attached to a message. In a bot's chat with the viewer (#251, [LocalPathActions]), a tap opens one. */
 @Composable
 fun FilesRow(files: List<Attachment>, onDark: Boolean) {
+    val paths = LocalPathActions.current
     Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-        files.forEach { FileChip(it.name, onDark = onDark) }
+        files.forEach { f ->
+            if (paths == null || f.file.isBlank()) FileChip(f.name, onDark = onDark)
+            else Box(Modifier.clip(RoundedCornerShape(99.dp)).clickable { paths.open(f.file, f.name) }) { FileChip(f.name, onDark = onDark) }
+        }
     }
 }
 
@@ -259,8 +264,13 @@ fun BotFilesRow(files: List<Attachment>?, top: androidx.compose.ui.unit.Dp = 8.d
     val app = dev.botdot.app.BotDotApp.of(context)
     val scope = rememberCoroutineScope()
     var opening by remember { mutableStateOf<String?>(null) }
+    // From a server with the viewer (#251), a tap opens the file in it; else in the phone's own app, as before.
+    val server by app.store.version.value.collectAsState()
+    val viewer = dev.botdot.app.data.DocumentView.shows(server?.features)
+    val from = LocalPathActions.current?.from.orEmpty()
     val open = { f: Attachment ->
-        app.api.value?.let { api ->
+        if (viewer) DocViewer.open = DocViewer.Request(dev.botdot.app.data.DocumentView.runFile(f.file), f.name, from)
+        else app.api.value?.let { api ->
             opening = f.file
             scope.launch {
                 runCatching { dev.botdot.app.data.BotFiles.open(context, api, f.file, f.name) }

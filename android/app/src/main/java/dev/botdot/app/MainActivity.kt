@@ -75,6 +75,7 @@ import dev.botdot.app.ui.LiveScreen
 import dev.botdot.app.ui.SettingsScreen
 import dev.botdot.app.ui.SkillsScreen
 import dev.botdot.app.ui.BotDotTheme
+import dev.botdot.app.ui.DocumentViewerHost
 import dev.botdot.app.ui.ChiefScreen
 import dev.botdot.app.ui.ConnectScreen
 import dev.botdot.app.ui.HomeScreen
@@ -118,6 +119,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             BotDotTheme {
+                DocumentViewerHost() // a file opened in the app (#251), over whatever is on screen
                 val server by app.settings.server.collectAsState(initial = "…")
                 val nav = rememberNavController()
                 val scope = rememberCoroutineScope()

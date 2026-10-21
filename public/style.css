@@ -1296,3 +1296,58 @@ a.file-chip.link:hover { border-color: var(--faint); }
 /* Quote (#97, chief.js initQuote): by text selected in a chat message, above it (below on a touch screen). */
 .quote-btn { position: fixed; z-index: 40; border: 1px solid var(--line-2); background: var(--sunk); color: var(--text); padding: 6px 14px; border-radius: 99px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: var(--shadow-lg); }
 .quote-btn:hover { background: var(--line-2); }
+
+/* The document viewer (#251, viewer.js): right of the chat, which stays; over the main column when it is too narrow
+   for both, and on a phone. "Open in full window" gives it the whole row. While it is open, the settings panel waits. */
+.doc-viewer { flex: none; width: min(48%, 640px); min-width: 0; min-height: 0; display: flex; flex-direction: column; border-left: 1px solid var(--line); background: var(--bg); container-type: inline-size; container-name: main; }
+.chat-row.with-viewer > .panel { display: none; }
+.chat-row.viewer-full > .view { display: none; }
+.doc-viewer.full { flex: 1; width: auto; border-left: 0; }
+.dv-head { display: flex; align-items: center; gap: 6px; padding: 14px 14px 10px 20px; padding-top: calc(14px + env(safe-area-inset-top)); border-bottom: 1px solid var(--line); }
+.dv-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.dv-title b { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv-title span { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv-head .icon-btn svg, .dv-bar svg, .dv-acts svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.dv-head .icon-btn svg { width: 18px; height: 18px; }
+.dv-back { display: none; }
+.dv-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--line); }
+.dv-bar .btn { gap: 5px; }
+.dv-sp { flex: 1; }
+.dv-seg { display: inline-flex; padding: 2px; border: 1px solid var(--line-2); border-radius: 99px; }
+.dv-seg button { font: inherit; font-size: 12.5px; padding: 4px 12px; border: 0; border-radius: 99px; background: transparent; color: var(--muted); cursor: pointer; }
+.dv-seg button.on { background: var(--sunk); color: var(--text); }
+.dv-find { min-width: 0; width: 180px; font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 99px; border: 1px solid var(--line-2); background: var(--panel); color: var(--text); }
+.dv-count { font-size: 12.5px; }
+.dv-cut { margin: 12px 20px 0; padding: 10px 12px; border: 1px solid var(--warn-line); border-radius: 12px; background: var(--warn-soft); font-size: 13px; }
+.dv-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 40px; }
+.dv-md { max-width: 760px; font-size: 14.5px; line-height: 1.6; }
+.dv-lines { margin: 0; padding: 0 0 0 4.2em; font: 12.5px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.dv-lines li::marker { color: var(--faint); font-size: 11.5px; }
+.dv-table { overflow: auto; }
+.dv-table table { border-collapse: collapse; font-size: 13px; }
+.dv-table th, .dv-table td { border-bottom: 1px solid var(--line); padding: 6px 10px; text-align: left; white-space: nowrap; }
+.dv-table th { position: sticky; top: 0; background: var(--bg); }
+.dv-table th button { font: inherit; font-weight: 600; border: 0; background: none; color: var(--text); cursor: pointer; padding: 0; }
+.dv-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.dv-table .dv-n { color: var(--faint); font-family: var(--mono); font-size: 11.5px; text-align: right; }
+.dv-image img { display: block; max-width: 100%; height: auto; margin: 0 auto; border-radius: 10px; }
+.dv-state { max-width: 420px; margin: 40px auto; text-align: center; }
+.dv-state h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+.dv-state p { margin: 0 0 16px; font-size: 13.5px; }
+.dv-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.dv-sk { height: 12px; margin: 0 0 12px; border-radius: 6px; background: var(--sunk); }
+.dv-sk:first-child { height: 18px; }
+/* A path in a reply (app.js linkPaths): a small link with a file icon. */
+a.file-path { display: inline-flex; align-items: baseline; gap: 3px; color: var(--mention); text-decoration: none; overflow-wrap: anywhere; }
+a.file-path:hover { text-decoration: underline; }
+a.file-path svg { width: 13px; height: 13px; flex: none; align-self: center; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+a.file-path code { color: inherit; }
+/* In a wide window the chat is one narrow column right of the keypad: it widens to hold the viewer beside it. */
+@media (min-width: 1001px) {
+  .main.viewing { width: calc(var(--chat-w, clamp(400px, 38vw, 560px)) + 540px); max-width: calc(100vw - 320px); }
+}
+@container column (width < 780px) {
+  .doc-viewer { position: fixed; inset: 0; z-index: 30; width: auto; border-left: 0; }
+  .dv-back { display: grid; margin-left: -8px; }
+  .dv-close, .dv-full { display: none; }
+}

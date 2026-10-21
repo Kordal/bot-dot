@@ -158,7 +158,7 @@ const page = vm.createContext({ esc, state: { features: ['chief', 'unread', 'rat
 vm.runInContext(read('unread.js'), page);
 vm.runInContext(read('ratings.js'), page);
 vm.runInContext(`${cut('const choicesHTML = ', '\n')}
-  ${cut('function md(src)', '// Link bare web addresses after rendering')}
+  ${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
   ${cut('function actionBot(a)', '// What Approve sends to answer')}
   this.chiefBubble = chiefBubble;`, page);
 const MESSAGE = { role: 'chief', at: '2026-10-12T06:00:00Z', checkup: true, startedBy: 'botdot', choices: ['Do 1', 'Do all', 'Not now'],

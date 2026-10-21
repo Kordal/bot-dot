@@ -10,7 +10,7 @@ const FILES = [
   { file: 'uploads/20261020070000-cd34-x<b>.txt', name: 'x<b>.txt', size: 12, at: '2026-10-20T07:00:00Z', readable: null, pinned: false },
 ];
 
-function page({ files = FILES, confirmed = true } = {}) {
+function page({ files = FILES, confirmed = true, features = [] } = {}) {
   const calls = []; const toasts = [];
   const pins = files.map(() => element()); const deletes = files.map(() => element());
   const rows = files.map((f, i) => element({ '[data-file-pin]': pins[i], '[data-file-delete]': deletes[i] }, { dataset: { file: f.file } }));
@@ -22,7 +22,7 @@ function page({ files = FILES, confirmed = true } = {}) {
     fmtSize: (n) => `${n} B`,
     toast: (t, bad) => toasts.push([t, !!bad]),
     confirm: () => confirmed,
-    Date,
+    Date, state: { features },
   });
   vm.runInContext(`${cut('// Its files (#235)', '// "Duplicate" (#227)')}
     Object.assign(this, { drawBotFiles });`, ctx);
@@ -40,6 +40,11 @@ test('web: the files are listed as text, each with a link, its size and whether 
   assert.match(p.box.innerHTML, /📌 Kept in mind/);
   assert.match(p.box.innerHTML, />Keep in mind</);
   assert.match(p.box.innerHTML, /2048 B/);
+  assert.doesNotMatch(p.box.innerHTML, /data-view/, 'without the viewer, a link downloads as before');
+  // With the viewer (#251), a file opens in it: its API path, its name and whose it is.
+  const v = page({ features: ['document-viewer'] });
+  await v.ctx.drawBotFiles(bot);
+  assert.match(v.box.innerHTML, /data-view="\/bots\/b1\/files\/20261021070000-ab12-CV\.pdf" data-view-name="CV\.pdf" data-view-from="Recruiter"/);
 });
 
 test('web: Keep in mind flips the pin, and Delete asks first', async () => {
