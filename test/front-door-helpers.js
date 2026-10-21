@@ -32,10 +32,11 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   const exited = new Promise((r) => child.on('exit', r));
   const host = `localhost:${port}`;
 
-  // One request as a browser sends it: Host is the front door's own name.
+  // One request as a browser sends it: Host is the front door's own name. A connection of its own each time: a kept-alive
+  // one left idle by a slow test can be closed by the front door just as the next request goes out (socket hang up).
   const request = (method, p, { body, headers = {} } = {}) => new Promise((resolve, reject) => {
     const text = body === undefined ? undefined : JSON.stringify(body);
-    const req = http.request({ host: '127.0.0.1', port, path: p, method, headers: { Host: host, ...(text ? { 'Content-Type': 'application/json' } : {}), ...headers } }, (res) => {
+    const req = http.request({ host: '127.0.0.1', port, path: p, method, agent: false, headers: { Host: host, ...(text ? { 'Content-Type': 'application/json' } : {}), ...headers } }, (res) => {
       let out = '';
       res.on('data', (c) => (out += c));
       res.on('end', () => {
