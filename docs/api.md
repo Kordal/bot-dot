@@ -96,8 +96,8 @@ The one program on a machine that people reach (`front-door.js`, [ADR 028](adr/0
 
 When `features` has `whats-new` ([#219](https://github.com/Kordal/bot-dot/issues/219)): the notes of the releases this account has not seen, which the web page and the Android app show once after an update, in a pop-up with "Got it".
 
-- `GET /api/whats-new`: `{ entries: [{ id, title, points }] }`, at most 3, newest first. A note is a file of `whats-new/` in the image, `<YYYY-MM-DD-short-name>.md`: `id` is its name, `title` its first line, `points` its 2 to 4 lines starting with `- `. Plain text: the apps draw it as text, never as markup. An account that has never asked (a new one, or one whose server just got `whats-new`) has seen every note up to then and gets `{ "entries": [] }`.
-- `POST /api/whats-new/seen` with `{ id }`: every note up to `id` is seen, for every app of the account: `{ ok: true }`. An `id` older than what was seen changes nothing; one that is no note's name is `400`. The app sends the newest note it showed when the pop-up is closed, any way it is closed.
+- `GET /api/whats-new`: `{ entries: [{ id, title, points }] }`, at most 3, newest first. A note is a file of `whats-new/` in the image, `<YYYY-MM-DD-short-name>.md`: `id` is its name, `title` its first line, `points` its 2 to 4 lines starting with `- `. Plain text: the apps draw it as text, never as markup. An account's server that starts without a seen id (a new account, or one whose server just got `whats-new`) takes every note up to then as seen, so it gets `{ "entries": [] }`.
+- `POST /api/whats-new/seen` with `{ id }`: every note up to `id` is seen, for every app of the account: `{ ok: true }`. An `id` older than what was seen changes nothing; one that is not the name of a note there is, `400`. The app sends the newest note it showed when the pop-up is closed, any way it is closed.
 
 The account keeps the id of the newest note it has seen in `data/whats-new.json`, so a restored backup brings it back. The Chief's tools reach neither route.
 

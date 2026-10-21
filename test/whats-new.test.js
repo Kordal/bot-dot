@@ -43,8 +43,8 @@ test('unseen notes: none at first, then the new ones newest first and at most 3,
   write(dir, '2026-10-01-old');
   fs.writeFileSync(path.join(dir, 'README.md'), 'not a note');
   const w = whatsNew.create({ dir, dataDir });
-  assert.deepEqual(w.unseen(), [], 'a new account has seen the notes up to now');
-  for (const d of ['02', '03', '04', '05', '06']) write(dir, `2026-10-${d}-new`);
+  for (const d of ['02', '03', '04', '05', '06']) write(dir, `2026-10-${d}-new`); // nobody asked before the update
+  assert.deepEqual(whatsNew.create({ dir: tmp(), dataDir: tmp() }).unseen(), [], 'a new account has seen the notes up to now');
   write(dir, '2026-10-07-broken', note('Broken', 5));
   assert.deepEqual(w.unseen().map((n) => n.id), ['2026-10-06-new', '2026-10-05-new', '2026-10-04-new']);
   assert.deepEqual(w.unseen()[0], { id: '2026-10-06-new', title: 'Note 2026-10-06-new', points: ['Point 1', 'Point 2', 'Point 3'] });
@@ -53,6 +53,7 @@ test('unseen notes: none at first, then the new ones newest first and at most 3,
   w.seen('2026-10-02-new');
   assert.deepEqual(w.unseen(), [], 'an older id never takes it back');
   assert.throws(() => w.seen('../etc'), /which note/);
+  assert.throws(() => w.seen('2099-01-01-future'), /which note/, 'only a note there is');
 });
 
 test('with no notes yet, the first note that comes shows', () => {
