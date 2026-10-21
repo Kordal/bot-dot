@@ -124,8 +124,11 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun frontDoorSession(): JsonObject = json.parseToJsonElement(
         call(Request.Builder().url(baseUrl.trimEnd('/') + "/front-door/session").header("Accept", "application/json").get().build())).jsonObject
 
-    /** Feedback (#216): a bug or a feature request for the admin of this machine. A refusal throws the front door's sentence. */
-    suspend fun sendFeedback(kind: Feedback.Kind, text: String) { door("/front-door/feedback", Feedback.body(kind, text)) }
+    /**
+     * Feedback (#216): a bug or a feature request for the admin of this machine, with screenshots (#223) when the front
+     * door takes them. A refusal throws the front door's sentence.
+     */
+    suspend fun sendFeedback(kind: Feedback.Kind, text: String, shots: List<ByteArray> = emptyList()) { door("/front-door/feedback", Feedback.body(kind, text, shots)) }
 
     // ---------- version, bots, runs ----------
 

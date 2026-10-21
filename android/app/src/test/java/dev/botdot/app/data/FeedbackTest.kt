@@ -1,6 +1,7 @@
 package dev.botdot.app.data
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import mockwebserver3.MockResponse
@@ -70,6 +71,43 @@ class FeedbackTest {
             val said = Feedback.failed(e)
             assertTrue(said, said.startsWith("Couldn't send: Can't reach botdot"))
             assertTrue(said, said.endsWith("Your text is still here."))
+        }
+    }
+
+    private val png = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2)
+    private val jpeg = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xe0.toByte(), 3)
+    private val webp = "RIFF\u0000\u0000\u0000\u0000WEBPVP8 ".toByteArray(Charsets.ISO_8859_1)
+
+    @Test fun offersScreenshotsOnlyWhenTheFrontDoorSaysItTakesThem() {
+        assertTrue(Feedback.shotsOn(Api.JSON.parseToJsonElement("""{"feedback":true,"feedbackScreenshots":true}""").jsonObject))
+        assertFalse("an older front door", Feedback.shotsOn(Api.JSON.parseToJsonElement("""{"feedback":true}""").jsonObject))
+        assertFalse("no answer", Feedback.shotsOn(null))
+    }
+
+    @Test fun aScreenshotIsAPngJpegOrWebpByItsBytesAtMost5Mb() {
+        assertEquals("image/png", Feedback.pictureType(png))
+        assertEquals("image/jpeg", Feedback.pictureType(jpeg))
+        assertEquals("image/webp", Feedback.pictureType(webp))
+        assertEquals(null, Feedback.pictureType("GIF89a".toByteArray()))
+        assertEquals(null, Feedback.pictureType("<svg xmlns=\"http://www.w3.org/2000/svg\"/>".toByteArray()))
+        assertEquals(null, Feedback.refusal("a.png", png))
+        assertEquals("notes.png isn't a PNG, JPEG or WebP picture.", Feedback.refusal("notes.png", "just text".toByteArray()))
+        assertEquals("big.png is 6.0 MB: each screenshot can be at most 5 MB.", Feedback.refusal("big.png", png + ByteArray(6 * 1024 * 1024 - png.size)))
+        assertEquals("Couldn't read gone.png.", Feedback.refusal("gone.png", null))
+        assertEquals(3, Feedback.SHOTS_MAX)
+    }
+
+    @Test fun sendsTheScreenshotsAsBase64WithTheTextAndSaysTheyStayWhenItFails() = runBlocking {
+        door.enqueue(json("""{"ok":true,"id":"${"b".repeat(32)}"}""", 201))
+        api.sendFeedback(Feedback.Kind.BUG, "Approve button does nothing", listOf(png, jpeg))
+        val body = Api.JSON.parseToJsonElement(door.takeRequest().body!!.utf8()).jsonObject
+        val shots = body["screenshots"]!!.jsonArray.map { java.util.Base64.getDecoder().decode(it.jsonObject["data"]!!.jsonPrimitive.content) }
+        assertTrue(shots[0].contentEquals(png))
+        assertTrue(shots[1].contentEquals(jpeg))
+        assertFalse("none: the body is as before", Feedback.body(Feedback.Kind.BUG, "x").containsKey("screenshots"))
+        door.close()
+        try { api.sendFeedback(Feedback.Kind.BUG, "Down", listOf(png)); fail("no server") } catch (e: ApiException) {
+            assertTrue(Feedback.failed(e, shots = 1).endsWith("Your text and screenshots are still here."))
         }
     }
 }

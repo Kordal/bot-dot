@@ -372,21 +372,27 @@ async function showAdminLink() {
   } catch { /* nothing to show */ }
   $('#admin-link').classList.toggle('hidden', session?.admin !== true);
   $('#feedback-btn')?.classList.toggle('hidden', session?.feedback !== true);
+  feedbackShots = session?.feedbackScreenshots === true;
 }
 
 // ---------- feedback ----------
 
 // Beside Settings (#216, ADR 048): a bug or a feature request for the admin of this machine, who reads it on the admin
-// page. It goes to the front door, never to botdot, and holds only what is typed here. A failed send keeps the text.
+// page. It goes to the front door, never to botdot, and holds only what is typed and added here: since #223 (ADR 048)
+// up to three screenshots, when the front door says it takes them. A failed send keeps the text and the screenshots.
 const FEEDBACK_KINDS = [['bug', 'Bug'], ['feature', 'Feature request']];
+const FEEDBACK_SHOTS = { max: 3, bytes: 5 * 1024 * 1024, types: ['image/png', 'image/jpeg', 'image/webp'] };
+let feedbackShots = false; // whether the front door takes screenshots (its session's feedbackScreenshots)
 function openFeedback() {
   const m = openModal(`
     <form id="feedback-form" autocomplete="off">
       <div class="modal-head"><h2>Feedback</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <p class="muted" style="margin:0">The admin of this machine reads it. Only what you write here is sent.</p>
+        <p class="muted" style="margin:0">${feedbackShots ? 'The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.' : 'The admin of this machine reads it. Only what you write here is sent.'}</p>
         <div class="feedback-kinds">${FEEDBACK_KINDS.map(([v, label], i) => `<label><input type="radio" name="kind" value="${v}"${i ? '' : ' checked'}> ${label}</label>`).join('')}</div>
         <label class="field">What happened, or what you would like<textarea name="text" rows="6" required></textarea></label>
+        ${feedbackShots ? `<div class="feedback-shots hidden" id="feedback-shots"></div>
+        <div><button type="button" class="btn sm" id="feedback-add">Add screenshot</button><input type="file" id="feedback-file" accept="${FEEDBACK_SHOTS.types.join(',')}" multiple hidden></div>` : ''}
         <p class="req-note hidden" id="feedback-said" role="alert"></p>
       </div>
       <div class="modal-foot">
@@ -394,7 +400,54 @@ function openFeedback() {
         <button class="btn primary" id="feedback-send">Send</button>
       </div>
     </form>`);
+  m._shots = [];
   $('#feedback-form', m).onsubmit = (e) => { e.preventDefault(); sendFeedback(m); };
+  const add = $('#feedback-add', m), input = $('#feedback-file', m);
+  if (add && input) {
+    add.onclick = () => input.click();
+    input.onchange = () => { addFeedbackShots(m, [...input.files]); input.value = ''; };
+  }
+  // The previews' addresses are let go with the form.
+  m.addEventListener('close', () => { for (const s of m._shots) URL.revokeObjectURL(s.url); m._shots = []; }, { once: true });
+}
+
+// Screenshots chosen for the form: each a PNG, JPEG or WebP of at most 5 MB, at most three. One that isn't is refused
+// in a sentence, and the others stay. The front door checks each again, by its bytes.
+function addFeedbackShots(m, files) {
+  const refused = [];
+  for (const file of files) {
+    if (m._shots.length >= FEEDBACK_SHOTS.max) { refused.push(`At most ${FEEDBACK_SHOTS.max} screenshots go in one report.`); break; }
+    if (!FEEDBACK_SHOTS.types.includes(file.type)) refused.push(`${file.name} isn't a PNG, JPEG or WebP picture.`);
+    else if (file.size > FEEDBACK_SHOTS.bytes) refused.push(`${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB: each screenshot can be at most 5 MB.`);
+    else m._shots.push({ file, url: URL.createObjectURL(file) });
+  }
+  drawFeedbackShots(m);
+  const said = $('#feedback-said', m);
+  said.textContent = refused.join(' ');
+  said.classList.toggle('hidden', !refused.length);
+}
+
+function drawFeedbackShots(m) {
+  const box = $('#feedback-shots', m);
+  if (!box) return;
+  box.classList.toggle('hidden', !m._shots.length);
+  box.innerHTML = m._shots.map((s, i) => `<span class="feedback-shot"><img src="${esc(s.url)}" alt="Screenshot ${i + 1}"><button type="button" data-unshot="${i}" aria-label="Remove screenshot ${i + 1}" title="Remove">×</button></span>`).join('');
+  $$('[data-unshot]', box).forEach((b) => (b.onclick = () => {
+    const [gone] = m._shots.splice(Number(b.dataset.unshot), 1);
+    if (gone) URL.revokeObjectURL(gone.url);
+    $('#feedback-said', m)?.classList.add('hidden');
+    drawFeedbackShots(m);
+  }));
+  const add = $('#feedback-add', m);
+  if (add) add.disabled = m._shots.length >= FEEDBACK_SHOTS.max;
+}
+
+// A file's bytes as base64, as the front door takes a screenshot.
+async function fileBase64(file) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(binary);
 }
 
 async function sendFeedback(m) {
@@ -403,17 +456,22 @@ async function sendFeedback(m) {
   const said = $('#feedback-said', m);
   // The form may have been closed meanwhile, and another dialog opened in its place: that one is left alone.
   const shown = () => $('#feedback-form', m) === f;
+  const kept = m._shots?.length ? 'Your text and screenshots are still here.' : 'Your text is still here.';
   const fail = (text) => { if (!shown()) return toast(text, true); said.textContent = text; said.classList.remove('hidden'); };
   go.disabled = true;
   said.classList.add('hidden');
   try {
+    const body = { kind: f.kind.value, text: f.text.value };
+    if (m._shots?.length) {
+      try { body.screenshots = await Promise.all(m._shots.map(async (s) => ({ data: await fileBase64(s.file) }))); } catch { return fail(`Couldn't read a screenshot. Remove it and add it again.`); }
+    }
     let res;
     try {
-      res = await fetch('/front-door/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: JSON.stringify({ kind: f.kind.value, text: f.text.value }) });
-    } catch { return fail("Couldn't send: can't reach botdot. Your text is still here."); }
+      res = await fetch('/front-door/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: JSON.stringify(body) });
+    } catch { return fail(`Couldn't send: can't reach botdot. ${kept}`); }
     if (res.ok) { if (shown()) m.close(); toast('Sent'); return; }
     const data = await res.json().catch(() => ({}));
-    fail(typeof data.error === 'string' && data.error.trim() ? data.error : `Couldn't send (${res.status}). Your text is still here.`);
+    fail(typeof data.error === 'string' && data.error.trim() ? data.error : `Couldn't send (${res.status}). ${kept}`);
   } finally { go.disabled = false; }
 }
 
