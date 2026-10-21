@@ -81,6 +81,15 @@ RUN python3 -m venv /opt/camoufox \
  && chmod -R a+rX,go-w /opt/camoufox-cache \
  && install -d -o browser -g browser -m 0700 /opt/camoufox-cache/camoufox/fontconfig
 
+# The base keeps another certifi of its own (2026.6.17, GHSA-6q48-6c7w-9gw2) outside the two venvs above: every
+# copy that is not the fixed one is replaced in its own folder, so the scan finds none (#260).
+RUN for info in $(find / -xdev -type d -name 'certifi-*.dist-info' -print); do \
+      site=$(dirname "$info"); \
+      [ "$(basename "$info")" = certifi-2026.10.19.dist-info ] && continue; \
+      rm -rf "$info" "$site/certifi"; \
+      /opt/camoufox/bin/pip install --no-cache-dir --no-deps --target "$site" 'certifi==2026.10.19' || exit 1; \
+    done
+
 COPY camoufox-browser /usr/local/bin/camoufox-browser
 COPY botdot-desktop /usr/local/bin/botdot-desktop
 COPY botdot-xstartup /usr/local/bin/botdot-xstartup
