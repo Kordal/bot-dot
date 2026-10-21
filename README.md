@@ -16,7 +16,8 @@
   <a href="#the-board">The Board</a> ·
   <a href="#on-your-phone">Android</a> ·
   <a href="#install">Install</a> ·
-  <a href="docs/user-guide.md">User guide</a>
+  <a href="docs/user-guide.md">User guide</a> ·
+  <a href="docs/FAQ.md">FAQ</a>
 </p>
 
 A messenger-style app for a team of **bots**. Each bot is a Claude Code agent with its own job, and a **Chief of Staff** creates and runs them when you ask it in a chat. botdot runs on your own server, and you use it on the web and on Android.
@@ -167,6 +168,7 @@ make lint            # the documentation links, that the code parses, and the ty
 | | |
 | --- | --- |
 | [User guide](docs/user-guide.md) | The app and every feature |
+| [FAQ](docs/FAQ.md) | Short answers: requirements, costs, updates, security and troubleshooting |
 | [Install on Linux](docs/install-linux.md) | Accounts, shares, updates, backups, uninstall, platforms |
 | [What bots can reach](docs/what-bots-can-reach.md) | What each bot, the Chief and botdot may see on a Docker install |
 | [Development](docs/development.md) | Running from source, tests, code layout |

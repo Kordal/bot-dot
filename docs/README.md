@@ -3,6 +3,7 @@
 For using and running botdot:
 
 - [User guide](user-guide.md): how botdot works, from the app to every feature.
+- [FAQ](FAQ.md): short answers to common questions, with links to the details.
 - [Install on Linux](install-linux.md): what botdot needs, the installer, accounts, updates, backups and uninstalling.
 - [API](api.md): the JSON API the web page, the Android app and other clients use.
 - [What bots can reach](what-bots-can-reach.md): what the Chief of Staff and each bot can read, write and run on a Docker install.
