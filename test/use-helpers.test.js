@@ -51,7 +51,7 @@ test('ask_permission "helpers" makes a card naming the bot, and Allow gives the 
   const next = await srv.nextRun((x) => x.self?.env && x.args.includes('💻 Coder'), 'the run that carries on');
   assert.ok(allowedOf(next).includes('Agent') && allowedOf(next).includes('Task'), allowedOf(next).join(' '));
   assert.match(next.system, HELPERS);
-  assert.match(next.system, /its own git worktree and branch under your own folder/);
+  assert.match(next.system, /its own git worktree and branch beside it/);
   assert.match(next.system, /Helpers keep no notes/);
   srv.release(next);
   await srv.finished((await srv.api(`/runs?botId=${bot.id}`)).data.find((x) => x.continues).id);

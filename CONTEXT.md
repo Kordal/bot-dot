@@ -90,6 +90,10 @@ _Avoid_: tab, screen, folder
 One bot or group on a page of the keypad, with its head (a group's: up to three of its members' heads), its name and its line. The first nine keys are numbered 1 to 9, counted across the pages. Opening a key opens that chat.
 _Avoid_: tile (a tile is the Board's), button, card (a card waits in Needs you), shortcut
 
+**Helper**:
+A short-lived Claude Code agent a bot starts inside its own run (Claude Code's `Agent` tool) to do one part of the task in parallel, with the bot's tools, permissions and saved logins; it ends with the run, keeps no notes, and the bot gives the one reply. A bot uses helpers only with the permission "use helpers". It is not a bot and not a copy of one: it has no chat, head or jobs.
+_Avoid_: subagent, copy, clone, worker
+
 **Installed tool**:
 A command-line program (`gh`, `make`, `ffmpeg`) put on the botdot server for one bot after the user's OK on a card in Needs you, taken from botdot's registry (conda-forge) or from a link. Only that bot can run it, it cannot change it, and it stays across botdot updates. The Chief of Staff asks for it; a bot asks the Chief. "Tool" alone stays what a bot may use (`Read`, `Bash`, the web).
 _Avoid_: package, dependency, plugin, app
