@@ -20,7 +20,8 @@ class UpdatesByAdminTest {
 
     @Test fun settingsHasNoUpdate() {
         val settings = sources.first { it.name == "SettingsScreen.kt" }.readText()
-        assertTrue("no Updates section", "Section(\"Updates\")" !in settings)
+        // Its one Updates section is the front door's: when this account switches to the version the admin installed (#259, ADR 053).
+        assertTrue("Updates only where the front door says this account chooses", "Section(\"Updates\")" !in settings || "OwnUpdate.on(" in settings)
         assertTrue("no update button of botdot", "applyUpdate" !in settings && "checkUpdates" !in settings)
     }
 

@@ -52,7 +52,7 @@ class OwnUpdateTest {
         assertEquals("GET" to "/front-door/update", r.method to r.target)
         assertFalse(u.autoUpdate)
         assertTrue(u.ready && u.canUpdate && !u.moving)
-        assertEquals("A new version (abc1234) is ready. Your account moves to it by itself on Tuesday, Oct 28, or now if you choose.", u.text(ZoneOffset.UTC))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it by itself on Wednesday, Oct 28, or now if you choose.", u.text(ZoneOffset.UTC))
     }
 
     @Test fun sendsTheSwitchAndUpdateNowToTheFrontDoor() = runBlocking {
