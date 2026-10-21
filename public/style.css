@@ -116,9 +116,6 @@ mark.hl { background: color-mix(in srgb, #e8b83a 42%, transparent); color: inher
 .more-btn { position: relative; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; padding: 8px 10px; border-radius: 12px; cursor: pointer; }
 a.more-btn { text-decoration: none; }
 .more-btn:hover, .more-btn.open, .more-btn.here { color: var(--text); background: var(--sunk); }
-.more-btn .more-badge { position: absolute; top: 3px; right: 2px; }
-.more-badge { min-width: 8px; height: 8px; border-radius: 99px; background: var(--ok); font: 600 10px/16px var(--font); font-style: normal; color: var(--ink-text); text-align: center; }
-.more-badge.num { min-width: 16px; height: 16px; padding: 0 4px; background: var(--ink); }
 .nav-btn { position: relative; border: 0; background: transparent; color: var(--text); display: flex; align-items: center; gap: 10px; font: inherit; font-size: 13.5px; padding: 9px 12px; border-radius: 10px; cursor: pointer; text-align: left; }
 .nav-btn svg { color: var(--muted); }
 .nav-btn:hover, .nav-btn.active { background: var(--sunk); }

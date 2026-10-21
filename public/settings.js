@@ -197,7 +197,7 @@ const SETTINGS_PAGES = [
 ];
 
 // The links to the pages above. Drawn again on every refresh, also while the form below keeps its edits, so that
-// "Activity" always names the tasks that the number on the Settings button counts (markMore).
+// "Activity" always shows the tasks running now.
 function drawSettingsLinks(root) {
   const box = $('#settings-links', root);
   if (!box) return;

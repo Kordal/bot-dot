@@ -1,46 +1,39 @@
-// The number on the Settings button (the running tasks, app.js markMore) is named where the owner looks: in the
-// button's label and on Settings → Activity, which is drawn again on every refresh, also while the form keeps edits.
+// The Settings button carries no number (the owner read it as something waiting for them). The tasks running now are
+// shown beside Activity on Settings instead, drawn again on every refresh, also while the form keeps its edits.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 const vm = require('vm');
 const { cut, element } = require('./web-page');
 
 function page(runs) {
-  const badge = element();
-  const btn = element();
-  btn.attrs = {};
-  btn.setAttribute = (k, v) => (btn.attrs[k] = v);
-  const links = element({}, {});
+  const links = element();
   links.querySelectorAll = () => [];
   const root = element({ '#settings-links': links, '#settings-form': element() });
   const ctx = vm.createContext({
-    state: { runs, bots: [], settings: {}, chiefBusy: false, view: 'settings' },
-    $: (sel, r) => (r ? r.querySelector(sel) : { '#more-badge': badge, '#more-btn': btn, '#brand': element(), '#view-settings': root }[sel] || null),
+    state: { runs, bots: [], settings: {} },
+    $: (sel, r) => (r ? r.querySelector(sel) : sel === '#view-settings' ? root : null),
     $$: (sel, r) => r.querySelectorAll(sel),
     setView() {},
-    chiefFigure: () => '',
   });
-  vm.runInContext(`${cut('// The Settings button: the number of running tasks', 'function renderStatus()')}
+  vm.runInContext(`${cut('// The running tasks, shown beside Activity', '// The Settings button: marked')}
     ${cut('// The pages that open from Settings.', '  const s = state.settings;')} }
-    Object.assign(this, { markMore, renderSettings });`, ctx);
-  return { ctx, badge, btn, links };
+    Object.assign(this, { renderSettings });`, ctx);
+  return { ctx, links };
 }
 
-test('web: the number on Settings is named on the button and on Settings → Activity', () => {
-  const { ctx, badge, btn, links } = page([{ status: 'running' }, { status: 'success' }]);
-  ctx.markMore();
-  assert.equal(badge.textContent, 1);
-  assert.equal(btn.title, 'Settings: 1 task running');
-  assert.equal(btn.attrs['aria-label'], 'Settings: 1 task running');
-  ctx.renderSettings(); // the form is already there: the links are drawn again all the same
-  assert.match(links.innerHTML, /data-go="runs"[\s\S]*1 task running/);
+test('web: the Settings button has no number', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  assert.doesNotMatch(html, /more-badge/);
+  assert.doesNotMatch(cut('function markMore()', 'function renderStatus()'), /badge/);
 });
 
-test('web: with nothing running, no number and no hint', () => {
-  const { ctx, badge, btn, links } = page([{ status: 'success' }]);
-  ctx.markMore();
-  assert.equal(badge.textContent, '');
-  assert.equal(btn.title, 'Settings');
-  ctx.renderSettings();
-  assert.doesNotMatch(links.innerHTML, /running/);
+test('web: Settings shows the running tasks beside Activity, also on a refresh that keeps the form', () => {
+  const { ctx, links } = page([{ status: 'running' }, { status: 'success' }]);
+  ctx.renderSettings(); // the form is already there: the links are drawn again all the same
+  assert.match(links.innerHTML, /data-go="runs"[\s\S]*1 task running/);
+  const idle = page([{ status: 'success' }]);
+  idle.ctx.renderSettings();
+  assert.doesNotMatch(idle.links.innerHTML, /running/);
 });
