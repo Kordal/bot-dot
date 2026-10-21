@@ -37,12 +37,13 @@ RUN apt-get update \
 # cua-computer-server 0.3.46 supports FastMCP 3.2; older releases require vulnerable 2.x.
 # PyJWT 2.14.0 fixes CVE-2026-102268; it arrives there as a dependency, at 2.13.0.
 # proxy-addr 2.0.8 fixes CVE-2026-90711; the base's supergateway brings 2.0.7 with its express.
+# Pillow 13.0.0 fixes CVE-2026-112403 and certifi 2026.10.19 GHSA-6q48-6c7w-9gw2; both come as dependencies.
 RUN npm install -g npm@10.9.9 \
  && npm --prefix /usr/lib/node_modules/supergateway install --omit=dev --no-save --no-audit --no-fund 'proxy-addr@2.0.8' \
  && npm --prefix /usr/lib/node_modules/supergateway ls --omit=dev proxy-addr \
  && npm cache clean --force \
  && /opt/computer-server/venv/bin/pip install --no-cache-dir \
-      'cua-computer-server==0.3.46' 'fastmcp==3.2.4' 'PyJWT==2.14.0' \
+      'cua-computer-server==0.3.46' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'pillow==13.0.0' 'certifi==2026.10.19' \
  && /opt/computer-server/venv/bin/pip check
 
 # Every bot of the account works on this computer as `box`, with passwordless sudo (ADR 035): there is no wall between
@@ -70,9 +71,9 @@ RUN useradd --create-home --shell /bin/bash box \
 # Both pinned to what the released images carry, so a rebuilt layer installs the same pair.
 # Launcher 0.5.7 needs indexed-zstd, which has no arm64 wheel and cannot be compiled here, as
 # the C headers went with the kernel packages above; launcher 0.5.6 does not know the patches
-# of browser 156 and skips them.
+# of browser 156 and skips them. certifi 2026.10.19 fixes GHSA-6q48-6c7w-9gw2 in what requests brings.
 RUN python3 -m venv /opt/camoufox \
- && /opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.6' \
+ && /opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.6' 'certifi==2026.10.19' \
  && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox fetch official/152.0.4-beta.31 \
  && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox set official/stable/152.0.4-beta.31 \
  # fetch and set exit 0 even when the GitHub sync fails, so fail here if no browser was installed.
