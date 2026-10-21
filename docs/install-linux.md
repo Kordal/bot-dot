@@ -125,6 +125,18 @@ A self-built botdot server is updated from its source: rebuild, then press Updat
 cd bot-dot-source && git pull && sudo make images && sudo sh install.sh
 ```
 
+**A staging server on another branch.** On a self-built botdot server used for staging, one command moves it to a branch of the source, the same way as the update above:
+
+```bash
+cd bot-dot-source && sudo make staging REF=<branch>
+```
+
+It stops when the Docker data folder or `/var/lib/botdot` has less than 15 GB free (`STAGING_MIN_GB`) and warns below 25 GB (`STAGING_WARN_GB`), stops when the checkout has changes of its own, then fetches, checks out and pulls the branch, runs `make images` and the installer with `BOT_DOT_IMAGE=bot-dot/server:latest BOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest`. Accounts, data and passkeys stay. `make staging REF=main` goes back to `main`, still self-built. To go back to botdot's signed images, name them once; later reruns keep them:
+
+```bash
+cd bot-dot-source && git checkout main && git pull && sudo BOT_DOT_IMAGE=ghcr.io/kordal/bot-dot:latest BOT_DOT_COMPUTER_IMAGE=ghcr.io/kordal/bot-dot-desktop:latest sh install.sh
+```
+
 Your bots, data and settings stay. Backups are per account: in Settings → Backups each owner downloads a backup of their own account only, which restores into their account. After an update that ended well, botdot removes the images of its own that it no longer uses, in the machine's Docker and in every account's, and keeps every image a container still has, running or stopped (so a bot's computer keeps the desktop it was made with).
 
 ## Settings

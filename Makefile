@@ -82,6 +82,11 @@ images: ## Build botdot's server image and the bots' computer image from this so
 	docker build -t "$(SERVER_IMAGE)" --label "org.opencontainers.image.revision=$$(git rev-parse HEAD 2>/dev/null || true)" .
 	docker build -t "$(COMPUTER_IMAGE)" deploy/desktop
 
+# A staging botdot server moved to another branch (deploy/staging.sh, docs/install-linux.md).
+.PHONY: staging
+staging: ## Move a self-built staging server to branch REF: check the disk, fetch, checkout, pull, make images, install.sh (needs Docker)
+	@SERVER_IMAGE="$(SERVER_IMAGE)" COMPUTER_IMAGE="$(COMPUTER_IMAGE)" MAKE="$(MAKE)" sh deploy/staging.sh "$(REF)"
+
 .PHONY: tools-real
 tools-real: ## The real micromamba installs jq from conda-forge for one bot both ways, under the container's restrictions (needs Docker and the network)
 	@./tests/integration/tools-real.sh
