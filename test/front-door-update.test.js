@@ -58,7 +58,7 @@ test('before root\'s step said anything, the page knows no version and no update
   const was = seen();
   const u = await b.get('/admin/update');
   assert.equal(u.status, 200, u.text);
-  assert.deepEqual(u.data, { version: null, selfBuilt: false, asked: false, update: null, newest: null });
+  assert.deepEqual(u.data, { version: null, selfBuilt: false, asked: false, update: null, newest: null, days: 7 });
   assert.equal(seen(), was, 'no botdot server saw it');
 });
 
@@ -67,7 +67,7 @@ test('the version and the last update are what root\'s step wrote, field by fiel
   said('version.json', { version: 'abc1234', selfBuilt: true, at: '2026-10-16T10:00:00Z' });
   said('update.json', { state: 'updated', at: '2026-10-16T10:05:00Z', from: '0123456', to: 'abc1234', extra: 'not shown' });
   let u = (await b.get('/admin/update')).data;
-  assert.deepEqual(u, { version: 'abc1234', selfBuilt: true, asked: false, update: { state: 'updated', at: '2026-10-16T10:05:00.000Z', from: '0123456', to: 'abc1234' }, newest: null });
+  assert.deepEqual(u, { version: 'abc1234', selfBuilt: true, asked: false, update: { state: 'updated', at: '2026-10-16T10:05:00.000Z', from: '0123456', to: 'abc1234' }, newest: null, days: 7 });
 
   said('update.json', { state: 'failed', at: '2026-10-16T10:05:00Z', from: 'abc1234', to: 'abc1234', error: 'Couldn\'t download it.\u001b[31m' });
   u = (await b.get('/admin/update')).data;
@@ -78,7 +78,7 @@ test('the version and the last update are what root\'s step wrote, field by fiel
   said('version.json', { version: '<b>1.0</b>', selfBuilt: 'yes' });
   said('update.json', { state: 'done', at: 'never' });
   u = (await b.get('/admin/update')).data;
-  assert.deepEqual(u, { version: null, selfBuilt: false, asked: false, update: null, newest: null });
+  assert.deepEqual(u, { version: null, selfBuilt: false, asked: false, update: null, newest: null, days: 7 });
   said('update.json', 'not JSON');
   assert.equal((await b.get('/admin/update')).data.update, null);
 });

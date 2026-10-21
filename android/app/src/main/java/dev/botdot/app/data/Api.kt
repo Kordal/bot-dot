@@ -131,6 +131,14 @@ class Api(val baseUrl: String, val session: Session? = null) {
      */
     suspend fun sendFeedback(kind: Feedback.Kind, text: String, shots: List<ByteArray> = emptyList()) { door("/front-door/feedback", Feedback.body(kind, text, shots)) }
 
+    /** When this account switches to a new version (#259, ADR 053): asked only where [OwnUpdate.on] says so. */
+    suspend fun ownUpdate(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(
+        call(Request.Builder().url(baseUrl.trimEnd('/') + "/front-door/update").header("Accept", "application/json").get().build())).jsonObject)
+    /** The owner's "Update automatically". A refusal throws the front door's sentence. */
+    suspend fun setAutoUpdate(on: Boolean): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update", OwnUpdate.body(on))).jsonObject)
+    /** "Update now": the machine switches this account alone to the version the admin installed. */
+    suspend fun updateNow(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update/now")).jsonObject)
+
     // ---------- version, bots, runs ----------
 
     /** What's new (#219): the notes this account has not seen, newest first, at most 3. Asked only when `features` has `whats-new`. */

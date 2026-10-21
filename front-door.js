@@ -20,10 +20,12 @@
 // FRONT_DOOR_REQUESTS the folder where the front door asks the machine to make, stop, start again or erase an account:
 //                     one empty file per account, named as it, which install.sh's root step takes, reading what the
 //                     account should be from this front door's data (docs/DECISIONS.md, 2026-10-16, #467, #470); and
-//                     the admin page's update, as a file named UPDATE, which no account can be named (#473)
+//                     the admin page's update, as a file named UPDATE, which no account can be named (#473); and
+//                     "Update now" for one account, as a file named SWITCH-<account> (ADR 053)
 // FRONT_DOOR_STATUS   the folder where root's step says back what it did: version.json (the version installed),
-//                     update.json (the last update) and latest.json (the newest signed version, #193), which only
-//                     root writes and the admin page shows (#473)
+//                     update.json (the last update), latest.json (the newest signed version, #193) and
+//                     account-<account>.json (what became of that account's version, ADR 053), which only root writes
+//                     and the admin page and the account's Settings show (#473)
 // FRONT_DOOR_LOAD     the folder where root's step writes the machine's load and each account's use of its share
 //                     (install.sh --load), which the admin page shows (lib/front-door/load.js)
 // FRONT_DOOR_HOST, FRONT_DOOR_PORT   where it listens (default 127.0.0.1:4700), behind Caddy or Tailscale Serve
@@ -234,11 +236,13 @@ const UPDATE_LOG_LINES = 40;
 // the newest signed release root's step found (latest.json, at most once an hour, #193), none for images built on the
 // machine.
 const line = (v, max) => (typeof v === 'string' ? v.replace(/[^\x20-\x7e]/g, ' ').slice(0, max) : null);
+// An account left waiting for its owner (ADR 053) is `waiting`, with the version it runs.
 const accountResults = (list) => (Array.isArray(list) ? list : [])
-  .filter((a) => a && typeof a.name === 'string' && store.ACCOUNT_NAME.test(a.name) && ['updated', 'kept', 'failed'].includes(a.result))
+  .filter((a) => a && typeof a.name === 'string' && store.ACCOUNT_NAME.test(a.name) && ['updated', 'kept', 'failed', 'waiting'].includes(a.result))
   .slice(0, 1000)
   .map((a) => (a.result === 'updated' ? { name: a.name, result: a.result }
-    : { name: a.name, result: a.result, ...(a.result === 'kept' && short(a.version) ? { version: a.version } : {}), error: line(a.error, 300) }));
+    : a.result === 'waiting' ? { name: a.name, result: a.result, ...(short(a.version) ? { version: a.version } : {}) }
+      : { name: a.name, result: a.result, ...(a.result === 'kept' && short(a.version) ? { version: a.version } : {}), error: line(a.error, 300) }));
 function updateStatus() {
   const installed = readStatus('version.json') || {};
   const latest = readStatus('latest.json') || {};
@@ -263,7 +267,7 @@ function updateStatus() {
   }
   const asked = !!REQUESTS && fs.existsSync(path.join(REQUESTS, UPDATE));
   const selfBuilt = installed.selfBuilt === true;
-  return { version: short(installed.version), selfBuilt, asked, update, newest: !selfBuilt && newest.version && newest.at ? newest : null };
+  return { version: short(installed.version), selfBuilt, asked, update, newest: !selfBuilt && newest.version && newest.at ? newest : null, days: doors.updateDays() };
 }
 function askForUpdate() {
   if (!REQUESTS) return false;
@@ -272,6 +276,69 @@ function askForUpdate() {
   }
   return true;
 }
+
+// ---------- when one account switches (ADR 053) ----------
+
+// An account whose owner turned "Update automatically" off is left on the version it ran by the admin's update, with the
+// new one in its Docker. Its owner (Settings) or the admin (the admin page) asks for its switch with an empty file named
+// SWITCH-<account>, which no account can be named, and root's step switches that account alone to the version this front
+// door's machine pins. Root says what became of it in STATUS/account-<account>.json. Past the admin's deadline, this
+// front door asks for the switch itself.
+const SWITCH = (name) => `SWITCH-${name}`;
+const ACCOUNT_STATES = ['waiting', 'switching', 'updated', 'kept', 'failed'];
+const DAY = 24 * 3600_000;
+// Whether the owner of this account chooses when it switches: on a machine of several accounts root's step serves,
+// every account but the admin's, which moves with the admin's update.
+const choosesUpdates = (account) => !ONE_ACCOUNT && !!REQUESTS && !!ADMIN && account !== ADMIN;
+const switchAsked = (name) => !!REQUESTS && fs.existsSync(path.join(REQUESTS, SWITCH(name)));
+// What root's step said of the account, checked field by field: { state, at, since?, version?, from?, error? } or null.
+function accountStatus(name) {
+  const s = store.ACCOUNT_NAME.test(name) ? readStatus(`account-${name}.json`) : null;
+  if (!s || !ACCOUNT_STATES.includes(s.state)) return null;
+  const out = { state: s.state, at: when(s.at) };
+  if (s.state === 'waiting') {
+    out.since = when(s.since) || out.at;
+    if (!out.since) return null;
+    for (const k of ['version', 'from']) if (short(s[k])) out[k] = s[k];
+  }
+  if (s.state === 'kept' || s.state === 'failed') out.error = line(s.error, 300);
+  // A switch root's step never finished (the machine restarted meanwhile).
+  if (s.state === 'switching' && (!out.at || Date.now() - Date.parse(out.at) > UPDATE_STALE_MS)) return { state: 'failed', at: out.at, error: "The update didn't finish. Update now again." };
+  return out;
+}
+// What the account's owner sees in Settings, and the admin on its card: { autoUpdate, asked, canUpdate, ready, last }.
+// ready: { version, from, since, deadline } while it waits for a version the admin installed; last: how its last switch
+// went, { state, at, error? }. canUpdate: "Update now" may be asked: it waits, or its last switch didn't happen.
+function ownUpdate(name) {
+  const s = accountStatus(name);
+  const asked = switchAsked(name);
+  const ready = s && s.state === 'waiting'
+    ? { version: s.version || null, from: s.from || null, since: s.since, deadline: new Date(Date.parse(s.since) + doors.updateDays() * DAY).toISOString() }
+    : null;
+  const last = s && s.state !== 'waiting' ? { state: s.state, at: s.at, ...(s.error !== undefined ? { error: s.error } : {}) } : null;
+  return { autoUpdate: doors.autoUpdate(name), asked, canUpdate: !asked && !!s && ['waiting', 'kept', 'failed'].includes(s.state), ready, last };
+}
+function askSwitch(name) {
+  if (!REQUESTS || !store.ACCOUNT_NAME.test(name)) return false;
+  try { fs.writeFileSync(path.join(REQUESTS, SWITCH(name)), `${new Date().toISOString()}\n`, { flag: 'wx', mode: 0o640 }); } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+  }
+  return true;
+}
+// The deadline: an account still waiting past it is switched without its owner. Checked every minute, and whenever an
+// owner or the admin looks.
+// only: the one account to check (its owner looks), else every account.
+function switchPastDeadline({ only = null, now = Date.now() } = {}) {
+  if (!REQUESTS || ONE_ACCOUNT) return;
+  for (const a of doors.listAccounts()) {
+    if ((only && a.name !== only) || a.suspended || !choosesUpdates(a.name) || switchAsked(a.name)) continue;
+    const { ready } = ownUpdate(a.name);
+    if (!ready || Date.parse(ready.deadline) > now) continue;
+    console.log(`[front door] the account ${a.name} waited past its deadline: the machine switches it to the new version`);
+    askSwitch(a.name);
+  }
+}
+setInterval(() => { try { switchPastDeadline(); } catch (e) { console.error(`[front door] couldn't check the update deadline: ${e.message}`); } }, 60_000).unref();
 
 // ---------- requests ----------
 
@@ -443,7 +510,32 @@ async function signInRoutes(req, res, p) {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
-    return send(res, 200, { admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK });
+    // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
+    return send(res, 200, { admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account) });
+  }
+  // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
+  // version the admin installed. Only the owner signed in reaches it, never a botdot server; the admin's own account
+  // moves with the admin's update and has none.
+  if (p === '/front-door/update' || p === '/front-door/update/now') {
+    const account = doors.sessionAccount(sessionOf(req));
+    if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
+    if (!choosesUpdates(account)) return send(res, 404, { error: 'Not found' });
+    if (req.method === 'GET' && p === '/front-door/update') {
+      switchPastDeadline({ only: account });
+      return send(res, 200, ownUpdate(account));
+    }
+    if (req.method !== 'POST') return send(res, 404, { error: 'Not found' });
+    if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
+    const body = (await readJson(req)) || {};
+    if (p === '/front-door/update') {
+      const on = doors.setAutoUpdate(account, body.autoUpdate);
+      console.log(`[front door] the account ${account} turned automatic updates ${on ? 'on' : 'off'}`);
+      return send(res, 200, ownUpdate(account));
+    }
+    if (!ownUpdate(account).canUpdate) return send(res, 409, { error: 'There is no new version to switch to.' });
+    askSwitch(account);
+    console.log(`[front door] the account ${account} asked to switch to the new version now`);
+    return send(res, 202, ownUpdate(account));
   }
   // Feedback (#216): a bug or a feature request, kept here for the admin page. Only the owner signed in sends it, from
   // the web page or the Android app; it never reaches a botdot server, and nothing of the account goes with it but the
@@ -532,13 +624,23 @@ async function adminRoutes(req, res, p, account) {
     return send(res, 200, { ok: true, link });
   }
   if (p === '/admin/update' && req.method === 'GET') return send(res, 200, updateStatus());
+  // The deadline (ADR 053): the days an account whose owner turned "Update automatically" off waits at most.
+  if (p === '/admin/update/days' && req.method === 'POST') {
+    const days = doors.setUpdateDays(((await readJson(req)) || {}).days);
+    console.log(`[front door] the admin set the update deadline: ${days} days`);
+    switchPastDeadline();
+    return send(res, 200, updateStatus());
+  }
   if (p === '/admin/update' && req.method === 'POST') {
     await readJson(req);
     if (!askForUpdate()) return send(res, 409, { error: "This machine can't be updated from here. Run its installer again." });
     console.log('[front door] the admin asked to update botdot: the front door and every account');
     return send(res, 202, updateStatus());
   }
-  if (p === '/admin/accounts' && req.method === 'GET') return send(res, 200, { accounts: await listAccounts() });
+  if (p === '/admin/accounts' && req.method === 'GET') {
+    switchPastDeadline();
+    return send(res, 200, { accounts: await listAccounts() });
+  }
   // The shares of the machine: the default, and the machine's load.
   if (p === '/admin/share' && req.method === 'GET') return send(res, 200, { share: doors.defaultShare(), machine: load.machine() });
   if (p === '/admin/share' && req.method === 'POST') {
@@ -563,19 +665,21 @@ async function adminRoutes(req, res, p, account) {
     if (f[2] === 'delete') { doors.deleteFeedback(f[1]); return send(res, 200, { ok: true }); }
     return send(res, 200, { ok: true, report: doors.feedbackDone(f[1]) });
   }
-  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share)$/);
+  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update)$/);
   if (a && req.method === 'POST') return accountAction(req, res, a[1], a[2]);
   return send(res, 404, { error: 'Not found' });
 }
 
-// The accounts as the admin page lists them: { name, created, lastSeen, state, share, ownShare, use, admin? }, from
+// The accounts as the admin page lists them: { name, created, lastSeen, state, share, ownShare, use, admin?, update? }, from
 // the front door's own data, whether each botdot server answers on its socket, and what root's step measured of the
 // account from outside it (use, or null), never from inside an account. state: 'running', 'suspended', 'making' (the
-// machine is making it), 'starting' (or starting it again) or 'stopped' (its botdot server doesn't answer).
+// machine is making it), 'starting' (or starting it again) or 'stopped' (its botdot server doesn't answer). update: when
+// it switches to a new version (ownUpdate, ADR 053), for every account but the admin's.
 async function listAccounts() {
   return Promise.all(doors.listAccounts().map(async (a) => {
     const state = a.suspended ? 'suspended' : (await answers(a.name)) ? 'running' : making(a.name) ? 'making' : starting(a.name) ? 'starting' : 'stopped';
-    return { name: a.name, created: a.created, lastSeen: a.lastSeen, state, share: a.share, ownShare: a.ownShare, use: load.account(a.name), ...(a.name === ADMIN ? { admin: true } : {}) };
+    return { name: a.name, created: a.created, lastSeen: a.lastSeen, state, share: a.share, ownShare: a.ownShare, use: load.account(a.name),
+      ...(a.name === ADMIN ? { admin: true } : {}), ...(choosesUpdates(a.name) ? { update: ownUpdate(a.name) } : {}) };
   }));
 }
 
@@ -593,6 +697,13 @@ async function accountAction(req, res, name, action) {
     console.log(`[front door] the admin set the share of the account ${name}: ${JSON.stringify(share)}`);
     askMachine(name);
     return send(res, 200, { ok: true, share });
+  }
+  // "Update now" for an account that waits (ADR 053): as its owner's, to the version the admin installed.
+  if (action === 'update') {
+    if (!choosesUpdates(name) || !ownUpdate(name).canUpdate) return send(res, 409, { error: `The account ${name} has no new version to switch to.` });
+    askSwitch(name);
+    console.log(`[front door] the admin asked to switch the account ${name} to the new version now`);
+    return send(res, 202, { ok: true, update: ownUpdate(name) });
   }
   if (action === 'sign-in-link') {
     const { url, link } = doors.newSignInLink({ origin: ORIGIN.origin, account: name });

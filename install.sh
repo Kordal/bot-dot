@@ -39,6 +39,11 @@
 #
 #   sh BOT_DOT_DIR/bin/install.sh --update
 #
+# An account whose owner turned "Update automatically" off is left waiting on the version it runs, with the new one in
+# its Docker (ADR 053). "Update now", from its owner's Settings or the admin page, or the deadline the admin set, asks
+# with an empty file named SWITCH-<account>, which no account can be named either: root's step then switches that
+# account alone to the version the front door pins, and says how it went in status/account-<account>.json.
+#
 # It is not the install again but phases of its own (ADR 045): check the newest signed release of the repositories
 # .env pins (or the images built on this machine), clean, preflight, download into the machine's Docker and every
 # account's, switch each account to it, then the front door, and clean what it replaced. It never installs Docker,
@@ -192,6 +197,11 @@ say_newest() {
   [ "${#1}" = 7 ] || return 0
   write_status latest.json "{\"version\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
 }
+# account_said NAME STATE [FIELDS]: what became of the account NAME's version (ADR 053), for its owner's Settings and
+# the admin page, in status/account-NAME.json: STATE (waiting, switching, updated, kept or failed), when, and FIELDS,
+# more of the JSON after a comma. account_was NAME: the state it says now.
+account_said() { write_status "account-$1.json" "{\"state\":\"$2\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${3:+,$3}}"; }
+account_was() { sed -n 's/.*"state":"\([a-z]*\)".*/\1/p' "$DOOR/status/account-$1.json" 2>/dev/null || true; }
 # version_now: the version root's step last said the front door and every account run.
 version_now() { sed -n 's/.*"version":"\([0-9a-f]*\)".*/\1/p' "$DOOR/status/version.json" 2>/dev/null || true; }
 
@@ -402,7 +412,7 @@ remove_account() {
   for f in "$ACCOUNTS/$1" "$RUN/$1"; do
     awk -v f="$f" '$2 == f || index($2, f "/") == 1 { print $2 }' "$PROC/mounts" 2>/dev/null | sort -r | while IFS= read -r m; do umount -l "$m" 2>/dev/null || true; done
   done
-  rm -rf -- "${ACCOUNTS:?}/$1" "${SOCKETS:?}/$1" "${RUN:?}/$1" "${RUN:?}/load/$1" "${DISKS:?}/$1.img" "${LOAD:?}/account-$1.json"
+  rm -rf -- "${ACCOUNTS:?}/$1" "${SOCKETS:?}/$1" "${RUN:?}/$1" "${RUN:?}/load/$1" "${DISKS:?}/$1.img" "${LOAD:?}/account-$1.json" "${DOOR:?}/status/account-$1.json"
   rm -rf -- "$ETC/systemd/system.control/botdot-account@$1.service.d"
   [ -z "$SYSTEMD" ] || systemctl daemon-reload </dev/null || true
   if id -u "$user" >/dev/null 2>&1; then userdel "$user" </dev/null || die "Couldn't remove the Linux user $user."; fi
@@ -823,6 +833,8 @@ runs_signed() {
     [ -f "$ACCOUNTS/$rs_name/compose.yaml" ] || continue
     rs_d="env DOCKER_HOST=unix://$RUN/$rs_name/docker.sock docker"
     $rs_d info </dev/null >/dev/null 2>&1 || continue
+    # One that waits for this very version has nothing new either (ADR 053): the front door pins it already.
+    [ "$(account_was "$rs_name")" != waiting ] || [ "$(get_env "$ACCOUNTS/$rs_name/.env" BOT_DOT_IMAGE)" = "$SERVER_SIGNED" ] || continue
     [ "$(get_env "$ACCOUNTS/$rs_name/.env" BOT_DOT_IMAGE)" = "$SERVER_SIGNED" ] || return 1
     [ -z "$COMPUTER_SIGNED" ] || [ "$(get_env "$ACCOUNTS/$rs_name/.env" BOT_DOT_COMPUTER_IMAGE)" = "$COMPUTER_SIGNED" ] || return 1
     runs "$rs_d" bot-dot docker-helper || return 1
@@ -1405,6 +1417,8 @@ JSON
   fi
   rm -f "$home/compose.yaml.before" "$home/.env.before"
   ok "The account $name is running"
+  # One that waited, or was switching, runs the version the front door pins now (ADR 053).
+  [ ! -f "$DOOR/status/account-$name.json" ] || account_said "$name" updated
   # An update removes what it replaced in its phase clean, once the front door runs the new version too.
   [ "$MODE" = update ] || clean_account "$name"
 }
@@ -1478,7 +1492,7 @@ settle() {
 UPDATE=UPDATE
 # plain_line N: its input as one line of plain text of at most N characters, for update.json.
 plain_line() { tr -d '"\\' | tr -c "A-Za-z0-9 .,:;()/_@+='-" ' ' | sed 's/ *$//' | cut -c1-"$1"; }
-# account_results FILE: the lines each_account wrote (NAME<tab>updated|kept|failed<tab>version<tab>why), as
+# account_results FILE: the lines each_account and wait_for wrote (NAME<tab>updated|kept|failed|waiting<tab>version<tab>why), as
 # update.json's "accounts" after a comma, each why as plain text; nothing when there are none (an installer from before
 # #194).
 account_results() {
@@ -1487,11 +1501,11 @@ account_results() {
   sep=''
   while IFS='	' read -r a_name a_result a_version a_why; do
     valid_account "$a_name" || continue
-    case "$a_result" in updated | kept | failed) ;; *) continue ;; esac
+    case "$a_result" in updated | kept | failed | waiting) ;; *) continue ;; esac
     a_why="$(printf '%s' "$a_why" | plain_line 300)"
     printf '%s{"name":"%s","result":"%s"' "$sep" "$a_name" "$a_result"
-    case "$a_version" in '' | *[!0-9a-f]*) ;; *) [ "$a_result" != kept ] || printf ',"version":"%s"' "$a_version" ;; esac
-    [ "$a_result" = updated ] || printf ',"error":"%s"' "$a_why"
+    case "$a_version" in '' | *[!0-9a-f]*) ;; *) [ "$a_result" != kept ] && [ "$a_result" != waiting ] || printf ',"version":"%s"' "$a_version" ;; esac
+    [ "$a_result" = updated ] || [ "$a_result" = waiting ] || printf ',"error":"%s"' "$a_why"
     printf '}'
     sep=','
   done < "$1"
@@ -1530,17 +1544,64 @@ update_all() {
   fi
 }
 
+# switch_one NAME: the account NAME alone switched to the version the front door pins (ADR 053), as its owner or the
+# admin asked with "Update now", or the front door when its deadline passed: the version the admin's update downloaded
+# into its Docker already, with ADR 044's way back. One that runs it already, or doesn't run, is left as it is. How it
+# went is in status/account-NAME.json, and why it wasn't in this step's log.
+switch_one() {
+  so_state="$(door_state "$1")"
+  case "$so_state" in running*) ;; *) warn "The account $1 isn't running, so it wasn't switched."; return 0 ;; esac
+  if ! { [ -f "$ACCOUNTS/$1/compose.yaml" ] && env DOCKER_HOST="unix://$RUN/$1/docker.sock" docker info </dev/null >/dev/null 2>&1; }; then
+    warn "The account $1's Docker isn't running, so it wasn't switched."
+    # Said, so that the front door doesn't ask again past the deadline; "Update now" may ask again.
+    account_said "$1" kept '"error":"Its botdot server was not running, so it was not switched. Ask the admin."'
+    return 0
+  fi
+  if [ "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)" = "$IMAGE" ]; then
+    account_said "$1" updated
+    ok "The account $1 runs the newest version already"
+    return 0
+  fi
+  say "Switching the account $1 to the new version, as asked"
+  account_said "$1" switching
+  so_why="$RUN/switch-$1"
+  rm -f "$so_why"
+  set +e
+  # shellcheck disable=SC2086 # its share's three numbers, after its state
+  ( set -e; ACCOUNT_WHY="$so_why"; account "$1" ${so_state#* } )
+  so_done=$?
+  set -e
+  [ "$so_done" != 0 ] || return 0
+  so_line="$(cat "$so_why" 2>/dev/null || true)"
+  rm -f "$so_why"
+  so_result="${so_line%%	*}"
+  so_text="${so_line#*	}"
+  case "$so_result" in kept | failed) ;; *) so_result=kept so_text="see what the installer said in root's step's log" ;; esac
+  account_said "$1" "$so_result" "\"error\":\"$(printf '%s' "$so_text" | plain_line 300)\""
+  warn "The account $1 wasn't switched: $so_text"
+}
+
 if [ "$MODE" = requested ]; then
   if [ -f "$REQUESTS/$UPDATE" ] && [ ! -L "$REQUESTS/$UPDATE" ]; then
     rm -f -- "$REQUESTS/$UPDATE"
     update_all
   fi
+  # "Update now" for one account (ADR 053), after the admin's update, which would have switched or left it anyway.
+  for request in "$REQUESTS"/SWITCH-*; do
+    [ -f "$request" ] && [ ! -L "$request" ] || continue
+    name="${request##*/SWITCH-}"
+    rm -f -- "$request"
+    if valid_account "$name"; then switch_one "$name"
+    else warn "Not an account's name, so nothing was switched: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"; fi
+  done
   for request in "$REQUESTS"/* "$REQUESTS"/.[!.]* "$REQUESTS"/..?*; do
     [ -e "$request" ] || [ -L "$request" ] || continue
     name="$(basename "$request")"
     taken=''
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
     if [ "$name" = "$UPDATE" ] && [ -f "$request" ] && [ ! -L "$request" ]; then continue
+    # So is "Update now" asked while it ran.
+    elif case "$name" in SWITCH-*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then
       warn "Not an account's name, so nothing was done: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
     else
@@ -1607,7 +1668,52 @@ each_account() {
   ran="$(env DOCKER_HOST="unix://$RUN/$1/docker.sock" docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "${ran_image:-$IMAGES/bot-dot:latest}" </dev/null 2>/dev/null | cut -c1-7 || true)"
   case "$ran" in '' | *[!0-9a-f]*) ran=- ;; esac
   [ -z "${BOT_DOT_UPDATE_RESULTS:-}" ] || printf '%s\t%s\t%s\t%s\n' "$1" "$result" "$ran" "$why" >> "$BOT_DOT_UPDATE_RESULTS"
+  # One that waited doesn't wait any more: its owner sees why it wasn't switched (ADR 053).
+  [ ! -f "$DOOR/status/account-$1.json" ] || account_said "$1" "$result" "\"error\":\"$(printf '%s' "$why" | plain_line 300)\""
   NOT_UPDATED="${NOT_UPDATED:+$NOT_UPDATED, }$1"
+}
+
+# door_waits NAME: the account NAME's owner turned "Update automatically" off (ADR 053), as the front door's data says,
+# read as door_state reads it.
+door_waits() {
+  [ -f "$DOOR/data/front-door.json" ] || return 1
+  [ "$($D run --rm -i --entrypoint node "$IMAGE" -e 'let s="";process.stdin.on("data",(d)=>{s+=d}).on("end",()=>{try{const a=JSON.parse(s).accounts||{},n=process.argv[1];if(Object.hasOwn(a,n)&&a[n].autoUpdate===false)process.stdout.write("off")}catch{}})' "$1" < "$DOOR/data/front-door.json" 2>/dev/null || true)" = off ]
+}
+# waits NAME: the admin page's update leaves the account NAME on the version it runs (ADR 053): its owner turned
+# "Update automatically" off, the new version is in its Docker, and it ran the version the front door pinned until now,
+# or it waits already for this very one. One that would be two versions behind, or one an earlier update kept back, is
+# switched. The front door's .env still pins the version before here: door_files writes the new one after the accounts.
+waits() {
+  [ "$MODE" = update ] && [ -n "$REGISTRY" ] && [ ! -s "$HELD/$1" ] || return 1
+  # Only one whose Docker runs got the new version: one that doesn't is started on it, as before.
+  env DOCKER_HOST="unix://$RUN/$1/docker.sock" docker info </dev/null >/dev/null 2>&1 || return 1
+  w_ran="$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)"
+  w_pin="$(get_env "$ENV" BOT_DOT_IMAGE)"
+  [ "$w_ran" != "$IMAGE" ] || return 1
+  [ "$w_ran" = "$w_pin" ] || { [ "$w_pin" = "$IMAGE" ] && [ "$(account_was "$1")" = waiting ]; } || return 1
+  door_waits "$1"
+}
+# revision_of IMAGE [DOCKER]: the source revision IMAGE was built from, 7 characters, or nothing.
+revision_of() {
+  ro_="$(${2:-$D} image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$1" </dev/null 2>/dev/null | cut -c1-7 || true)"
+  case "$ro_" in '' | *[!0-9a-f]*) ;; *) printf '%s' "$ro_" ;; esac
+}
+# wait_for NAME: the account NAME stays on the version it runs, waits for this one since it first did, and keeps its
+# old images (ADR 053).
+WAITING=''
+wait_for() {
+  wf_since=''
+  wf_new="$(revision_of "$IMAGE")"
+  # Waiting already for this very version: since it began, also when an update stopped before the front door pinned it.
+  if [ "$(account_was "$1")" = waiting ] && { [ "$(get_env "$ENV" BOT_DOT_IMAGE)" = "$IMAGE" ] || { [ -n "$wf_new" ] && grep -q "\"version\":\"$wf_new\"" "$DOOR/status/account-$1.json" 2>/dev/null; }; }; then
+    wf_since="$(sed -n 's/.*"since":"\([0-9T:Z-]*\)".*/\1/p' "$DOOR/status/account-$1.json" 2>/dev/null || true)"
+  fi
+  wf_since="${wf_since:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+  wf_ran="$(revision_of "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)" "env DOCKER_HOST=unix://$RUN/$1/docker.sock docker")"
+  account_said "$1" waiting "\"since\":\"$wf_since\",\"version\":\"$wf_new\",\"from\":\"$wf_ran\""
+  ok "The account $1 waits for its owner on the version it runs: the new one is in its Docker"
+  [ -z "${BOT_DOT_UPDATE_RESULTS:-}" ] || printf '%s\twaiting\t%s\t-\n' "$1" "${wf_ran:--}" >> "$BOT_DOT_UPDATE_RESULTS"
+  WAITING="${WAITING:+$WAITING, }$1"
 }
 
 state="$(door_state "$ADMIN")"
@@ -1623,7 +1729,7 @@ for other in "$ACCOUNTS"/*/; do
     suspended*) ok "The account $other is suspended, so it stays stopped" ;;
     deleted) erase_account "$other" ;;
     # shellcheck disable=SC2086 # its share's three numbers, after its state
-    *) phase switch "$other"; each_account "$other" ${state#* } ;;
+    *) if waits "$other"; then wait_for "$other"; else phase switch "$other"; each_account "$other" ${state#* }; fi ;;
   esac
 done
 rm -rf "$HELD"
@@ -1635,8 +1741,8 @@ if [ "$MODE" = update ]; then
   door_files
   start_door
   for other in $(running_accounts); do
-    # One kept on the version it ran keeps its old images too (#194).
-    case ", $NOT_UPDATED, " in *", $other, "*) continue ;; esac
+    # One kept on the version it ran keeps its old images too (#194), and so does one that waits (ADR 053).
+    case ", $NOT_UPDATED, $WAITING, " in *", $other, "*) continue ;; esac
     phase clean "$other"
     clean_account "$other"
   done
