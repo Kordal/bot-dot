@@ -400,6 +400,8 @@ async function frontDoorPost(path, body) {
   let res;
   try { res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: JSON.stringify(body) }); } catch { throw new Error("Can't reach botdot."); }
   const data = await res.json().catch(() => ({}));
+  // A session that ended signs in again, as every other call does.
+  if (res.status === 401) { location.assign('/sign-in'); throw new Error('Sign in first.'); }
   if (!res.ok) throw new Error(typeof data.error === 'string' && data.error.trim() ? data.error : `botdot answered ${res.status}`);
   return data;
 }

@@ -1553,6 +1553,8 @@ switch_one() {
   case "$so_state" in running*) ;; *) warn "The account $1 isn't running, so it wasn't switched."; return 0 ;; esac
   if ! { [ -f "$ACCOUNTS/$1/compose.yaml" ] && env DOCKER_HOST="unix://$RUN/$1/docker.sock" docker info </dev/null >/dev/null 2>&1; }; then
     warn "The account $1's Docker isn't running, so it wasn't switched."
+    # Said, so that the front door doesn't ask again past the deadline; "Update now" may ask again.
+    account_said "$1" kept '"error":"Its botdot server was not running, so it was not switched. Ask the admin."'
     return 0
   fi
   if [ "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)" = "$IMAGE" ]; then
@@ -1683,6 +1685,8 @@ door_waits() {
 # switched. The front door's .env still pins the version before here: door_files writes the new one after the accounts.
 waits() {
   [ "$MODE" = update ] && [ -n "$REGISTRY" ] && [ ! -s "$HELD/$1" ] || return 1
+  # Only one whose Docker runs got the new version: one that doesn't is started on it, as before.
+  env DOCKER_HOST="unix://$RUN/$1/docker.sock" docker info </dev/null >/dev/null 2>&1 || return 1
   w_ran="$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)"
   w_pin="$(get_env "$ENV" BOT_DOT_IMAGE)"
   [ "$w_ran" != "$IMAGE" ] || return 1
@@ -1699,12 +1703,14 @@ revision_of() {
 WAITING=''
 wait_for() {
   wf_since=''
-  if [ "$(get_env "$ENV" BOT_DOT_IMAGE)" = "$IMAGE" ] && [ "$(account_was "$1")" = waiting ]; then
+  wf_new="$(revision_of "$IMAGE")"
+  # Waiting already for this very version: since it began, also when an update stopped before the front door pinned it.
+  if [ "$(account_was "$1")" = waiting ] && { [ "$(get_env "$ENV" BOT_DOT_IMAGE)" = "$IMAGE" ] || { [ -n "$wf_new" ] && grep -q "\"version\":\"$wf_new\"" "$DOOR/status/account-$1.json" 2>/dev/null; }; }; then
     wf_since="$(sed -n 's/.*"since":"\([0-9T:Z-]*\)".*/\1/p' "$DOOR/status/account-$1.json" 2>/dev/null || true)"
   fi
   wf_since="${wf_since:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
   wf_ran="$(revision_of "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)" "env DOCKER_HOST=unix://$RUN/$1/docker.sock docker")"
-  account_said "$1" waiting "\"since\":\"$wf_since\",\"version\":\"$(revision_of "$IMAGE")\",\"from\":\"$wf_ran\""
+  account_said "$1" waiting "\"since\":\"$wf_since\",\"version\":\"$wf_new\",\"from\":\"$wf_ran\""
   ok "The account $1 waits for its owner on the version it runs: the new one is in its Docker"
   [ -z "${BOT_DOT_UPDATE_RESULTS:-}" ] || printf '%s\twaiting\t%s\t-\n' "$1" "${wf_ran:--}" >> "$BOT_DOT_UPDATE_RESULTS"
   WAITING="${WAITING:+$WAITING, }$1"

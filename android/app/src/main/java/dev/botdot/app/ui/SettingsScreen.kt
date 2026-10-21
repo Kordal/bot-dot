@@ -83,6 +83,7 @@ fun SettingsScreen(
     var backingUp by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<dev.botdot.app.data.OwnUpdate?>(null) }
     var confirmUpdateNow by remember { mutableStateOf(false) }
+    var updatePolls by remember { mutableStateOf(0) } // a new look each time, also when the answer is the same
     // Notifications turned off for this app (or never allowed): say so, checked again whenever you come back.
     var notifyOn by remember { mutableStateOf(NotificationManagerCompat.from(context).areNotificationsEnabled()) }
     val owner = LocalLifecycleOwner.current
@@ -242,7 +243,7 @@ fun SettingsScreen(
                     if (u.canUpdate) OutlinedButton(onClick = { confirmUpdateNow = true }) { Text("Update now", color = p.text) }
                 }
                 // While it moves, the section follows it.
-                if (u.moving) LaunchedEffect(u) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it } }
+                if (u.moving) LaunchedEffect(u, updatePolls) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it }; updatePolls++ }
             }
 
             // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in again.

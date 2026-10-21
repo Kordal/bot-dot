@@ -1688,7 +1688,7 @@ function onOlderVersion(t, accounts, { pins = {} } = {}) {
     const log = path.join(first.dir, 'update.log');
     return { ...done, docker, calls, up: (name) => upIn({ docker }, name), log: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '' };
   };
-  return { first, door, request, update: (options) => request('UPDATE', options) };
+  return { first, door, request, update: (options) => request('UPDATE', options), started: path.join(first.top, 'started') };
 }
 
 test('an update leaves an account whose owner turned "Update automatically" off on its version, with the new one in its Docker', (t) => {
@@ -1753,6 +1753,17 @@ test('a switch asks nothing of a suspended account, nor of a name that is no acc
   assert.match(done.said, /The account bob isn't running, so it wasn't switched/);
   const bad = request('SWITCH-Bad');
   assert.match(bad.said, /Not an account's name, so nothing was switched: Bad/);
+});
+
+test("a switch of an account whose Docker doesn't run says so, so that the front door doesn't ask again and again", (t) => {
+  const { update, request, started } = onOlderVersion(t, { ann: {}, bob: { autoUpdate: false } });
+  update();
+  fs.rmSync(started);
+  const done = request('SWITCH-bob');
+  assert.ok(!done.up('bob'));
+  const bob = status(done, 'account-bob.json');
+  assert.equal(bob.state, 'kept');
+  assert.match(bob.error, /was not running/);
 });
 
 test('an update switches an account that would be two versions behind, and one an earlier update kept back', (t) => {

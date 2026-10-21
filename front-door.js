@@ -327,10 +327,11 @@ function askSwitch(name) {
 }
 // The deadline: an account still waiting past it is switched without its owner. Checked every minute, and whenever an
 // owner or the admin looks.
-function switchPastDeadline(now = Date.now()) {
+// only: the one account to check (its owner looks), else every account.
+function switchPastDeadline({ only = null, now = Date.now() } = {}) {
   if (!REQUESTS || ONE_ACCOUNT) return;
   for (const a of doors.listAccounts()) {
-    if (a.suspended || !choosesUpdates(a.name) || switchAsked(a.name)) continue;
+    if ((only && a.name !== only) || a.suspended || !choosesUpdates(a.name) || switchAsked(a.name)) continue;
     const { ready } = ownUpdate(a.name);
     if (!ready || Date.parse(ready.deadline) > now) continue;
     console.log(`[front door] the account ${a.name} waited past its deadline: the machine switches it to the new version`);
@@ -520,12 +521,12 @@ async function signInRoutes(req, res, p) {
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     if (!choosesUpdates(account)) return send(res, 404, { error: 'Not found' });
     if (req.method === 'GET' && p === '/front-door/update') {
-      switchPastDeadline();
+      switchPastDeadline({ only: account });
       return send(res, 200, ownUpdate(account));
     }
     if (req.method !== 'POST') return send(res, 404, { error: 'Not found' });
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
-    const body = await readJson(req);
+    const body = (await readJson(req)) || {};
     if (p === '/front-door/update') {
       const on = doors.setAutoUpdate(account, body.autoUpdate);
       console.log(`[front door] the account ${account} turned automatic updates ${on ? 'on' : 'off'}`);
@@ -625,7 +626,7 @@ async function adminRoutes(req, res, p, account) {
   if (p === '/admin/update' && req.method === 'GET') return send(res, 200, updateStatus());
   // The deadline (ADR 053): the days an account whose owner turned "Update automatically" off waits at most.
   if (p === '/admin/update/days' && req.method === 'POST') {
-    const days = doors.setUpdateDays((await readJson(req)).days);
+    const days = doors.setUpdateDays(((await readJson(req)) || {}).days);
     console.log(`[front door] the admin set the update deadline: ${days} days`);
     switchPastDeadline();
     return send(res, 200, updateStatus());
