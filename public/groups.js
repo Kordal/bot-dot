@@ -356,7 +356,7 @@ function groupMessageHTML(m, chat) {
   const text = typeof m.text === 'string' ? m.text : '';
   const waits = waitsLine(m);
   return `<div class="bubble-row from-me" data-gmsg="${esc(m.id)}"><div class="stack mine">
-    <div class="bubble from-me" data-expand><div class="clamp">${escMentions(text, chat)}</div>${filesHTML(Array.isArray(m.attachments) ? m.attachments : [])}</div>
+    <div class="bubble from-me" data-expand><div class="clamp">${escMentions(text, chat)}</div>${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
     <div class="bubble-meta">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
   </div></div>`;
 }
@@ -364,7 +364,7 @@ function groupMessageHTML(m, chat) {
 function groupWaitingHTML(m, chat) {
   const text = typeof m.text === 'string' ? m.text : '';
   return `<div class="bubble-row from-me"><div class="stack mine">
-    <div class="bubble from-me waits">${escMentions(text, chat)}${filesHTML(Array.isArray(m.attachments) ? m.attachments : [])}</div>
+    <div class="bubble from-me waits">${escMentions(text, chat)}${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
     <div class="bubble-meta"><span>${esc(waitsLine(m) || 'Waits until Claude is signed in')}</span><button type="button" data-take-back="${esc(m.id)}">Take back</button></div>
   </div></div>`;
 }

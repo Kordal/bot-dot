@@ -225,7 +225,7 @@ function queuedHTML(q, chat) {
   const [kind, id] = chatParts(chat);
   const who = kind === 'chief' ? 'the Chief' : botById(id)?.name || 'the bot';
   const text = typeof q.text === 'string' ? q.text : '';
-  const files = filesHTML(Array.isArray(q.attachments) ? q.attachments : []);
+  const files = filesHTML(Array.isArray(q.attachments) ? q.attachments : [], chat);
   const steering = canSteer(kind) && q.steering === true;
   const line = steering ? 'Steering…' : `Waits until ${who} is free`;
   const steer = canSteer(kind) && !steering ? `<button type="button" data-steer="${esc(q.id)}">Steer</button>` : '';

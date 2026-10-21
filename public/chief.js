@@ -32,11 +32,24 @@ function composerHTML(placeholder, ctx = '') {
 const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
 const fileIcon = (name) => ({ xlsx: '📊', xls: '📊', xlsm: '📊', csv: '📊', ods: '📊', tsv: '📊', pdf: '📕', docx: '📝', doc: '📝', odt: '📝', md: '📝', txt: '📝', pptx: '📽', odp: '📽', png: '🖼', jpg: '🖼', jpeg: '🖼', gif: '🖼', webp: '🖼', json: '🧾' }[String(name).split('.').pop().toLowerCase()] || '📄');
 const fileChipHTML = (f, removable) => `<span class="file-chip ${f.status || ''}" title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span>${f.status === 'uploading' ? ' <i>uploading…</i>' : f.status === 'failed' ? ' <i>failed</i>' : ''}${removable ? `<button type="button" data-unattach="${esc(f.key)}" aria-label="Remove">×</button>` : ''}</span>`;
-// botId: the owner's files sent to that bot, kept in its folder: each opens in the viewer (#251, viewer.js).
-const filesHTML = (list, botId = null) => (list?.length ? `<div class="bubble-files">${list.map((f) => (botId && f.file && state.features.includes('document-viewer') ? ownFileHTML(f, botId) : fileChipHTML(f, false))).join('')}</div>` : '');
-const ownFileHTML = (f, botId) => {
-  const src = `/bots/${encodeURIComponent(botId)}/path?path=${encodeURIComponent(f.file)}`;
-  return `<a class="file-chip link" href="/api${esc(src)}" download="${esc(f.name)}" data-view="${esc(src)}" data-view-name="${esc(f.name)}" data-view-bot="${esc(botId)}" title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span></a>`;
+// The owner's files on a message, by the chat they were sent in ('bot:<id>', 'chief:<id>' or 'group:<id>'): each
+// opens in the viewer (#251, viewer.js), else downloads. A bot's are read from its folder (document-viewer), a Chief
+// chat's and a group's from botdot's own copy, which serves only a file a message there lists (#268). Without a chat,
+// or for a file still uploading or failed, a plain chip.
+const ownFileSrc = (f, chat) => {
+  const at = String(chat || '').indexOf(':');
+  const [kind, id] = [String(chat || '').slice(0, at), String(chat || '').slice(at + 1)];
+  if (!f.file || !id || (f.status && f.status !== 'ready')) return null;
+  if (kind === 'bot') return state.features.includes('document-viewer') ? `/bots/${encodeURIComponent(id)}/path?path=${encodeURIComponent(f.file)}` : null;
+  const name = /^uploads\/[^/]+$/.test(f.file) && state.features.includes('chat-attachments') ? encodeURIComponent(f.file.slice('uploads/'.length)) : null;
+  if (!name) return null;
+  return kind === 'chief' ? `/chief/chats/${encodeURIComponent(id)}/uploads/${name}` : kind === 'group' ? `/group-chats/${encodeURIComponent(id)}/uploads/${name}` : null;
+};
+const filesHTML = (list, chat = null) => (list?.length ? `<div class="bubble-files">${list.map((f) => { const src = ownFileSrc(f, chat); return src ? ownFileHTML(f, src, chat) : fileChipHTML(f, false); }).join('')}</div>` : '');
+const ownFileHTML = (f, src, chat) => {
+  const bot = chat.startsWith('bot:') ? ` data-view-bot="${esc(chat.slice(4))}"` : '';
+  const view = state.features.includes('document-viewer') ? ` data-view="${esc(src)}" data-view-name="${esc(f.name)}"${bot}` : '';
+  return `<a class="file-chip link" href="/api${esc(src)}" download="${esc(f.name)}"${view} title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span></a>`;
 };
 // Files a bot attached to its reply: tap to open (a PDF) or download.
 const fileHref = (f) => `/api/files/${String(f.file).split('/').map(encodeURIComponent).join('/')}`;
@@ -460,9 +473,9 @@ const reportBubble = (m) => `
 // at: the message's place in the whole chat (the chat may have come in part, from `offset` on).
 const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m) : steeredBubbles(m.steered) + chiefBubble(m, i === all.length - 1, at));
 // What the owner steered into a reply while the Chief worked (ADR 040): their messages, before that reply, without buttons.
-const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [])}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
+const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
 
-const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments)}</div>${m.text ? `<div class="bubble-meta">${copyBtn(m.text)}</div>` : ''}</div></div>`;
+const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta">${copyBtn(m.text)}</div>` : ''}</div></div>`;
 
 function wireActions(root) {
   $$('.action-chip', root).forEach((b) => {

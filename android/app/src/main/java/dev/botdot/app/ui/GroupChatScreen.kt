@@ -48,6 +48,7 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.Attachment
 import dev.botdot.app.data.Bot
+import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.GroupAsks
 import dev.botdot.app.data.GroupChatItems
 import dev.botdot.app.data.GroupItem
@@ -379,7 +380,9 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     // Text selected in a message is quoted into this chat's message box (QuoteUi.kt).
     // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
     val api by app.api.collectAsState()
-    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }) {
+    // A file you sent in this group opens in the viewer (#268).
+    val ownFiles = remember(groupId, server?.features) { { f: Attachment -> DocumentView.groupUpload(groupId, f.file) }.takeIf { DocumentView.opensChatFiles(server?.features) } }
+    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }, LocalOwnFiles provides ownFiles) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },
