@@ -41,7 +41,7 @@ after(() => srv.stop());
 
 test('the Chief proposes a call: a card waits beside the job, with the warning and the bot\'s tools, and no call is taken yet', async () => {
   const r = await propose(bot, job);
-  const live = feed(srv); // its hello says what waits after the proposal
+  const live = await feed(srv); // its hello says what waits after the proposal
   try {
     assert.equal(r.status, 200, JSON.stringify(r.data));
     assert.equal(r.data.call, false, 'the approved job is not callable yet');

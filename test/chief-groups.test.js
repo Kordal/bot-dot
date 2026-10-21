@@ -107,7 +107,7 @@ test('in a turn the owner started the Chief lists the groups, makes one, renames
   assert.equal(none.doing, 'Reading the groups');
   assert.deepEqual(Object.values(none).filter((x) => typeof x === 'object'), [], 'no group yet');
 
-  const live = feed(srv);
+  const live = await feed(srv);
   t.after(() => live.close());
   await live.wait('hello');
   // By the names the owner says, in any case, or by id.

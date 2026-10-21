@@ -421,7 +421,7 @@ test('a run of the group that is left out is in no member\'s block, with the mes
 test('a card asked in a turn belongs to the group; no member\'s reply answers it; after the owner\'s yes the member carries on as a turn of that group', async (t) => {
   const { refuse, asksOf, answer } = kit(srv);
   const { group, bots: [coder, reviewer] } = await team(srv, 'Cards', ['Card Coder', 'Card Reviewer']);
-  const heard = feed(srv);
+  const heard = await feed(srv);
   t.after(() => heard.close());
   reply(srv, coder, 'I cannot list the pull requests without running commands.');
   refuse([BASH]);
@@ -473,7 +473,7 @@ test('a card asked in a turn belongs to the group; no member\'s reply answers it
 
 test("a member's question to the owner is the group's open question, and notifies; the owner's next message without a mention gives that member the first turn", async (t) => {
   const { group, bots: [writer, coder, reviewer] } = await team(srv, 'Asks', ['Ask Writer', 'Ask Coder', 'Ask Reviewer']);
-  const heard = feed(srv);
+  const heard = await feed(srv);
   t.after(() => heard.close());
   reply(srv, writer, 'Written.');
   reply(srv, coder, 'Two ways to do it.\nWhich one?\n\n[[choices: The quick one | The clean one]]');
@@ -528,7 +528,7 @@ test("a member's question to the owner is the group's open question, and notifie
   srv = await restartServer(srv);
   const open = (await chatOf(srv, group)).asks;
   assert.equal(open.botId, coder.id);
-  const after = feed(srv);
+  const after = await feed(srv);
   t.after(() => after.close());
   await waitFor(() => after.events.some((e) => e.type === 'hello'), { what: 'the feed' });
   for (const b of [writer, coder, reviewer]) reply(srv, b, 'Read.');

@@ -185,7 +185,7 @@ test('the API: a hat is stored and returned as { hat }; a bot without one stays 
 
 test('the API: a change reaches open apps; an unknown hat and a held object are refused with the reason', async () => {
   const bot = await makeBot(srv, { name: 'Changer', outfit: { hat: 'crown' } });
-  const live = feed(srv);
+  const live = await feed(srv);
   try {
     await live.wait('hello');
     const seen = live.events.length;
@@ -280,7 +280,7 @@ test('the API: a drawn hat is stored, returned with the bot and kept when its co
   // The whole bot sent back, as the web page's editor and update_bot do: still the same hat.
   const back = await srv.api(`/bots/${id}`, { method: 'PUT', body: { ...blue.data, color: '#d4537e' } });
   assert.deepEqual([back.data.color, back.data.outfit], ['#d4537e', { hat: FEZ }]);
-  const live = feed(srv);
+  const live = await feed(srv);
   try {
     await live.wait('hello');
     const seen = live.events.length;

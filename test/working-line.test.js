@@ -253,7 +253,7 @@ before(async () => {
   fs.writeFileSync(path.join(slowDocker, 'docker'), '#!/bin/sh\nsleep 3\nexit 1\n', { mode: 0o755 });
   // The real pace, a change at most once a second: these tests are of it (the helper's is 50 ms).
   srv = await startServer({ env: { PATH: `${slowDocker}${path.delimiter}${process.env.PATH}`, BOT_DOT_LINE_EVERY_MS: '1000' } });
-  f = feed(srv);
+  f = await feed(srv);
 });
 after(async () => { f.close(); await srv.stop(); fs.rmSync(slowDocker, { recursive: true, force: true }); });
 

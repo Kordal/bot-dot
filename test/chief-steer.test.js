@@ -25,7 +25,7 @@ const upload = async (name, text) => (await srv.api('/uploads?to=chief', { metho
 const toolCall = async (turn) => (await hookCall(turn.settings, { hook_event_name: 'PostToolUse', tool_name: 'Read', tool_response: 'x'.repeat(2e6) })).hookSpecificOutput || null;
 
 test('a message steered into the Chief\'s reply is read at its next tool call, in the same turn, and stands on that reply', async (t) => {
-  const events = feed(srv);
+  const events = await feed(srv);
   t.after(() => { events.close(); srv.unhold(); });
   await events.wait('hello');
   const id = await newChat();

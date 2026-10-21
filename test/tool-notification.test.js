@@ -43,7 +43,7 @@ before(async () => {
 after(async () => { await srv?.stop(); registry?.close(); files?.close(); fs.rmSync(dir, { recursive: true, force: true }); });
 
 test('a tool from a link says so in its notification and is answered on its card; a registry tool keeps Install', async () => {
-  const live = feed(srv);
+  const live = await feed(srv);
   await live.wait('hello');
   const gh = await ask({ name: 'gh' });
   assert.equal(gh.status, 201, JSON.stringify(gh.data));
@@ -61,7 +61,7 @@ test('a tool from a link says so in its notification and is answered on its card
   assert.ok(!('yesOn' in both.data.list[0]), 'a registry tool is answered from its notification, as before');
 
   // `hello`, for an app that connects while they wait.
-  const later = feed(srv);
+  const later = await feed(srv);
   const hello = await later.wait('hello');
   later.close();
   assert.deepEqual(hello.data.asks.map(entry), [registryEntry, linkEntry]);
@@ -82,7 +82,7 @@ test('a link the Chief proposed is answered on its card too', async () => {
   const proposed = await srv.asChief('/asks', { method: 'POST', body: { kind: 'tool', bot: other.id, link: files.put('/kubectl/v1.34.1/kubectl', elf()), command: 'kubectl', reason: 'It needs it.' } });
   assert.equal(proposed.status, 201, JSON.stringify(proposed.data));
   assert.equal(proposed.data.tool.source.from, 'chief');
-  const f = feed(srv);
+  const f = await feed(srv);
   const hello = await f.wait('hello');
   f.close();
   const mine = hello.data.asks.find((a) => a.id === proposed.data.id);
@@ -92,7 +92,7 @@ test('a link the Chief proposed is answered on its card too', async () => {
 test('a changed bot is answered on its card too, and says in one line what would change', async () => {
   const proposed = await srv.asChief(`/bots/${coder.id}`, { method: 'PUT', body: { systemPrompt: 'Never push to main.' } });
   assert.ok(proposed.data.pendingChange);
-  const f = feed(srv);
+  const f = await feed(srv);
   const hello = await f.wait('hello');
   f.close();
   const mine = hello.data.asks.find((a) => a.id === proposed.data.pendingChange);

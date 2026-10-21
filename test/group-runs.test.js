@@ -87,7 +87,7 @@ test("a turn is no hit of its bot's own chat in the search box; an app that asks
 });
 
 test("a turn is not in the chat its bot is handed, and the bot's own message is no turn", async () => {
-  const live = feed(srv);
+  const live = await feed(srv);
   try {
     await live.wait('hello');
     const sent = (await srv.api(`/bots/${coder.id}/run`, { method: 'POST', body: { prompt: 'And a pelican crossing?' } })).data;

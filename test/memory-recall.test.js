@@ -16,6 +16,8 @@ const SHARED = '_shared';
 const page = (m, query, extra = {}) => m.page({ query, notesOf: ['alpha', SHARED], runsOf: ['alpha'], ...extra });
 const idOf = (r) => (r.kind === 'run' ? r.runId : r.id);
 // A second connection to a store's database, for rows the store's own functions would not write.
+// The CPU time this process has spent, in ms: what a step costs, whatever else the machine is busy with.
+const cpuNow = () => { const { user, system } = process.cpuUsage(); return (user + system) / 1000; };
 const direct = (t, dir) => { const db = new DatabaseSync(path.join(dir, 'memory.db')); t.after(() => { try { db.close(); } catch { /* closed */ } }); return db; };
 
 test('a page of a search has a limit, an offset and the total', async (t) => {
@@ -171,9 +173,9 @@ test('an index made before quiet replies were kept gets them at the next start, 
   bulk.exec('COMMIT');
   many.memory.setMeta('index_version', '4');
   const byId = new Map(quiets.map((r) => [r.id, r]));
-  const t0 = performance.now();
+  const t0 = cpuNow();
   many.memory.backfill({ listRuns: () => quiets, readMeta: (id) => byId.get(id), readEvents: () => [], stepsOf: () => [] });
-  const took = performance.now() - t0;
+  const took = cpuNow() - t0;
   assert.ok(took < 1000, `3,000 quiet runs were made again in ${took.toFixed(0)} ms`);
   assert.deepEqual([bulk.prepare('SELECT COUNT(*) AS c FROM runs_fts').get().c, bulk.prepare('SELECT COUNT(*) AS c FROM runs WHERE quiet = 1').get().c], [3000, 3000]);
   assert.equal((await many.memory.page({ query: 'reading 2999 harbour', runsOf: ['alpha'] })).results[0].runId, 'q-02999');
@@ -246,7 +248,8 @@ test('a prompt\'s pinned notes come with their ids, and a job\'s newest runs are
 });
 
 // The scale test: 10,000 past runs, built by bulk insert in one transaction (a few seconds), then the two limits
-// the milestone states. Each is the best of several tries, so a busy machine does not fail it. On the CI runners,
+// the milestone states. Each is the best of several tries, in the CPU time this process spent (cpuNow): the time
+// on the clock grows with whatever else the machine runs, the test files beside this one too. On the CI runners,
 // which ran this three times slower than a laptop (a recall at 119 ms, 40 ms here), the limits are three times as wide.
 test('with 10,000 past runs, indexing one run stays under 20 ms and a recall under 100 ms', async (t) => {
   const { memory: m, dir } = scratchMemory(t);
@@ -273,7 +276,7 @@ test('with 10,000 past runs, indexing one run stays under 20 ms and a recall und
   for (let i = 0; i < 40; i++) m.addNote('alpha', `Note ${i}: ${text(i, 10)}.`, { pinned: false });
   assert.equal(m.stats().runs, 10_000);
 
-  const best = async (tries, fn) => { let least = Infinity; for (let i = 0; i < tries; i++) { const t0 = performance.now(); await fn(i); least = Math.min(least, performance.now() - t0); } return least; };
+  const best = async (tries, fn) => { let least = Infinity; for (let i = 0; i < tries; i++) { const t0 = cpuNow(); await fn(i); least = Math.min(least, cpuNow() - t0); } return least; };
   const fresh = (i) => runMeta({ id: `new-${i}-${crypto.randomUUID()}`, prompt: `Check the ${pick(i, 0)} ${pick(i, 1)} today`, result: `${text(i, 400)}. ${'More of it. '.repeat(300)}` });
   const index = await best(7, (i) => m.indexRun(fresh(i), ['read the file notes.md']));
   const recall = await best(7, (i) => page(m, `${pick(i, 0)} ${pick(i, 3)} invoice`, { limit: 25 }));

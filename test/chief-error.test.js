@@ -8,7 +8,7 @@ const { startServer, makeBot, feed, waitFor } = require('./helpers');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let srv; let f; let bot;
-before(async () => { srv = await startServer(); bot = await makeBot(srv, { name: 'Web Surfer' }); f = feed(srv); await f.wait('hello'); });
+before(async () => { srv = await startServer(); bot = await makeBot(srv, { name: 'Web Surfer' }); f = await feed(srv); await f.wait('hello'); });
 after(async () => { f?.close(); await srv.stop(); });
 
 const say = (text) => ({ type: 'assistant', message: { content: [{ type: 'text', text }] } });

@@ -27,7 +27,7 @@ const scanned = (bot, { ai = true } = {}) => waitFor(async () => {
 }, { timeout: 30_000, every: 200, what: `the scan of ${bot.name}` });
 
 test('on its schedule, a script handed to the AI is quiet; one that hands nothing over, or fails, shows', { timeout: 60_000 }, async () => {
-  const f = feed(srv);
+  const f = await feed(srv);
   // The AI ends with a reply. A job reports only what the AI sends with notify_owner, so for the jobs below
   // it has nothing to report; the job with notify "always" reports the reply itself.
   await srv.api('/settings', { method: 'PUT', body: { quietHours: { start: 0, end: 0, timeZone: 'UTC' } } });

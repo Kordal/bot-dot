@@ -127,7 +127,7 @@ test('a turn that ended with a hand-on names its next member from the moment it 
 test('a reply that names a member gives it the next turn and no other; nobody, a bot outside the group and the member itself give none', async (t) => {
   const { group, bots: [alfa, bravo, charlie] } = await team(srv, 'Handing', ['Hand Alfa', 'Hand Bravo', 'Hand Charlie']);
   const outside = await makeBot(srv, { name: 'Hand Outsider', emoji: '🚪' });
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
 
@@ -218,7 +218,7 @@ test('a member a turn already waits for gets no second one from a reply; a membe
 
 test('a failed reply counts towards the twelve; a stopped line whose waiting member leaves the group is over, and nothing goes on', async (t) => {
   const { group, bots: [broken, ping, pong] } = await team(srv, 'Limit left', ['Left Broken', 'Left Ping', 'Left Pong']);
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
   fs.writeFileSync(fileOf(srv, 'fail', broken, '.txt'), 'It fell over.');
@@ -242,7 +242,7 @@ test('a failed reply counts towards the twelve; a stopped line whose waiting mem
 
 test('after 12 replies since the owner wrote the line stops and says so, passes not counted; "Go on", tapped or typed, counts from one; a new message has a line and a count of its own; "Stop all" ends a stopped line', async (t) => {
   const { group, bots: [ping, pong, quiet] } = await team(srv, 'Limit', ['Ping', 'Pong', 'Quiet One']);
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
   reply(srv, ping, 'Corrected. @Pong check it again.');

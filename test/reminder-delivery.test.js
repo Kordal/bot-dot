@@ -25,7 +25,7 @@ const bell = (events, chatId) => waitFor(() => events.events.find((e) => e.type 
 
 test('a reminder whose chat cannot be written is kept, the others of the run go off, and the server stays up', { timeout: 90_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   try {
     await events.wait('hello');
     const a = (await srv.api('/chief/chats', { method: 'POST' })).data;
@@ -65,7 +65,7 @@ async function heldTurn(srv, chat) {
 
 test('a reminder for a chat whose Chief turn is going on is handed to it once and kept until the turn is saved', { timeout: 90_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   try {
     await events.wait('hello');
     const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
@@ -86,13 +86,49 @@ test('a reminder for a chat whose Chief turn is going on is handed to it once an
   }
 });
 
-test('a reminder handed to a turn whose save fails goes off after the restart', { timeout: 90_000 }, async () => {
-  let srv = await startServer();
+// One due with a reminder of `chat` in a chat with no turn: once that one is on the feed, a run has had both.
+async function oneRunLater(srv, events, at) {
+  const other = (await srv.api('/chief/chats', { method: 'POST' })).data;
+  await srv.api('/chief/reminders', { method: 'POST', body: { text: 'Lock the door', at, chatId: other.id } });
+  await bell(events, other.id);
+}
+
+test("a reminder for a chat whose turn goes on is the turn's, though the chat's file cannot be read meanwhile", { timeout: 90_000 }, async () => {
+  const srv = await startServer();
+  const events = await feed(srv);
   try {
     const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
     const turn = await heldTurn(srv, chat);
-    await srv.api('/chief/reminders', { method: 'POST', body: { text: 'Pay rent', at: soon(0), chatId: chat.id } });
-    await sleep(1000); // the run addReminder starts hands it to the turn
+    const at = soon(0);
+    await srv.api('/chief/reminders', { method: 'POST', body: { text: 'Water the fern', at, chatId: chat.id } });
+    await oneRunLater(srv, events, at); // handed to the turn
+    // Then gone for a moment, as between a save's steps: a later run that read it made it a new chat's (#249).
+    const file = chatPath(srv, chat.id);
+    fs.renameSync(file, `${file}.away`);
+    await oneRunLater(srv, events, soon(0));
+    assert.deepEqual(await reminderTexts(srv), ['Water the fern'], 'kept for the turn');
+    assert.equal(events.events.filter((e) => e.type === 'chief_reply' && e.data.text === '⏰ Water the fern').length, 0, 'not gone off in a new chat');
+    fs.renameSync(`${file}.away`, file);
+    srv.release(turn);
+    await waitFor(async () => (await reminderTexts(srv)).length === 0, { what: 'the reminder to be removed' });
+    assert.equal(bells((await srv.api(`/chief/chats/${chat.id}`)).data, 'Water the fern').length, 1, 'in its own chat, once');
+  } finally {
+    events.close();
+    srv.unhold();
+    await srv.stop();
+  }
+});
+
+test('a reminder handed to a turn whose save fails goes off after the restart', { timeout: 90_000 }, async () => {
+  let srv = await startServer();
+  const events = await feed(srv);
+  try {
+    const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
+    const turn = await heldTurn(srv, chat);
+    const at = soon(0);
+    await srv.api('/chief/reminders', { method: 'POST', body: { text: 'Pay rent', at, chatId: chat.id } });
+    await oneRunLater(srv, events, at); // a run has handed it to the turn
+    events.close();
     const mend = breakChat(srv, chat.id);
     srv.release(turn);
     // The turn's own save fails: the server stays up and tries it again later (#343). The reminder is kept until then.
@@ -105,6 +141,7 @@ test('a reminder handed to a turn whose save fails goes off after the restart', 
     await waitFor(async () => bells((await srv.api(`/chief/chats/${chat.id}`)).data, 'Pay rent').length === 1, { timeout: 20_000, what: 'the reminder after the restart' });
     assert.deepEqual(await reminderTexts(srv), []);
   } finally {
+    events.close();
     srv.unhold();
     await srv.stop();
   }
@@ -112,7 +149,7 @@ test('a reminder handed to a turn whose save fails goes off after the restart', 
 
 test('a reminder cancelled while it waits in a turn does not go off', { timeout: 60_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   try {
     await events.wait('hello');
     const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
@@ -141,7 +178,7 @@ test('a reminder cancelled while it waits in a turn does not go off', { timeout:
 // The chat is on screen, so telling the feed marks it read; a directory where read-positions.json is saved fails that.
 test('a reminder whose chat is in, but whose feed could not be told, is removed and not posted again', { timeout: 60_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   const blocker = path.join(srv.data, `read-positions.json.${srv.pid}.tmp`);
   try {
     await events.wait('hello');
@@ -163,7 +200,7 @@ test('a reminder whose chat is in, but whose feed could not be told, is removed 
 
 test('a reminder that went off but could not be taken off the list goes off once, and leaves it later', { timeout: 90_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   // Saving reminders.json writes this file first (jsonfile.js): a directory there fails the save, and reading still works.
   const blocker = path.join(srv.data, `reminders.json.${srv.pid}.tmp`);
   try {

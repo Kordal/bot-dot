@@ -25,7 +25,7 @@ const scheduled = (fields) => ({ id: 'r1', botName: 'Mail Sorter', trigger: 'sch
 // A run of this bot that the stand-in started, by what it was handed (`words`: in its prompt).
 const isRunOf = (bot, words = '') => (x) => x.args.includes(`${bot.emoji} ${bot.name}`) && x.stdin.includes(words);
 // The feed, once it is connected: an event sent before that reaches nobody.
-const listen = async (srv) => { const f = feed(srv); await f.wait('hello'); return f; };
+const listen = async (srv) => { const f = await feed(srv); await f.wait('hello'); return f; };
 const botOf = async (srv, bot) => (await srv.api(`/bots/${bot.id}`)).data;
 const listed = async (srv, bot) => (await srv.api('/bots')).data.find((b) => b.id === bot.id);
 // The owner's message to a bot, and its run once it ended.
@@ -337,7 +337,7 @@ test('a job and a tile that wait for their first approval say "Decline and remov
     assert.equal((await botOf(srv, bot)).jobs.find((j) => j.id === script.id).no, 'Decline and remove');
     assert.equal((await srv.api('/dashboard')).data.pending.find((t) => t.id === tile.id).no, 'Decline and remove');
     // The feed's waiting items, as an app that just connected reads them.
-    const f = feed(srv);
+    const f = await feed(srv);
     const waits = (await f.wait('hello')).data.approvals;
     f.close();
     assert.equal(waits.jobs.find((j) => j.jobId === script.id).no, 'Decline and remove');

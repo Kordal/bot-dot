@@ -29,7 +29,7 @@ test('the features name it', async () => {
 
 test('a steered message is read by the run that is going at its next tool call, in the same run, and stands in its record', async (t) => {
   const bot = await makeBot(srv, { name: 'Buildr Migrator', emoji: '🏗️' });
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
   srv.reply('Moved, with access from Homelab Admin.');
