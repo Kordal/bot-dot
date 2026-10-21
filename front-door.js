@@ -96,6 +96,9 @@ const PORT = Number(process.env.FRONT_DOOR_PORT) || 4700;
 const HOST = process.env.FRONT_DOOR_HOST || '127.0.0.1';
 const COOKIE = 'botdot_session';
 const BODY_MAX = 64 * 1024;
+// A Feedback report with its screenshots (#223): three of 5 MB as base64, and the text. Every other route keeps BODY_MAX.
+const FEEDBACK_BODY_MAX = Math.ceil((store.SCREENSHOTS_MAX * store.SCREENSHOT_BYTES * 4) / 3) + BODY_MAX;
+const FEEDBACK_TOO_LARGE = `That is too much to send at once: at most ${store.SCREENSHOTS_MAX} screenshots of 5 MB each go in one report.`;
 const CHALLENGE_MS = 5 * 60_000;
 const VERSION = { app: 'bot-dot', frontDoor: true, features: ['accounts', 'passkeys'] };
 // The Android app (dev.botdot.app) signs in with the site's passkey through Android's Credential Manager, which
@@ -289,7 +292,7 @@ function html(res, status, text) {
   res.writeHead(status, {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-store',
-    'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+    'Content-Security-Policy': "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; font-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
     'X-Frame-Options': 'DENY',
   });
   res.end(text);
@@ -297,14 +300,15 @@ function html(res, status, text) {
 // The session's cookie, kept for 400 days (the most a browser keeps), or with no token, cleared.
 const sessionCookie = (token) => `${COOKIE}=${token || ''}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${token ? 34560000 : 0}${ORIGIN.protocol === 'https:' ? '; Secure' : ''}`;
 
-function readJson(req) {
+// max: the most bytes read (BODY_MAX unless said); past it, a 413 with `tooLarge` as its sentence.
+function readJson(req, { max = BODY_MAX, tooLarge = 'Too large' } = {}) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on('data', (c) => {
       size += c.length;
       // Read no further: the answer says so, and the connection ends with it (Connection: close).
-      if (size > BODY_MAX) { req.removeAllListeners('data'); req.pause(); reject(Object.assign(new Error('Too large'), { status: 413 })); return; }
+      if (size > max) { req.removeAllListeners('data'); req.pause(); reject(Object.assign(new Error(tooLarge), { status: 413 })); return; }
       chunks.push(c);
     });
     req.on('end', () => {
@@ -438,19 +442,21 @@ async function signInRoutes(req, res, p) {
   if (p === '/front-door/session' && req.method === 'GET') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
-    return send(res, 200, { admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK });
+    // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
+    return send(res, 200, { admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK });
   }
   // Feedback (#216): a bug or a feature request, kept here for the admin page. Only the owner signed in sends it, from
-  // the web page or the Android app; it never reaches a botdot server, and nothing of the account goes with it.
+  // the web page or the Android app; it never reaches a botdot server, and nothing of the account goes with it but the
+  // screenshots the owner added (#223), checked by the store.
   if (p === '/front-door/feedback' && req.method === 'POST') {
     const session = sessionOf(req);
     const account = doors.sessionAccount(session);
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     if (!FEEDBACK) return send(res, 404, { error: 'Not found' });
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
-    const { kind, text } = (await readJson(req)) || {};
-    const report = doors.addFeedback({ account, kind, text, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version) });
-    console.log(`[front door] the account ${account} sent feedback (${report.kind}, ${report.text.length} characters)`);
+    const { kind, text, screenshots } = (await readJson(req, { max: FEEDBACK_BODY_MAX, tooLarge: FEEDBACK_TOO_LARGE })) || {};
+    const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version) });
+    console.log(`[front door] the account ${account} sent feedback (${report.kind}, ${report.text.length} characters, ${report.screenshots?.length || 0} screenshots)`);
     return send(res, 201, { ok: true, id: report.id });
   }
   const m = p.match(/^\/sign-up\/([A-Za-z0-9_-]{1,100})(\/options)?$/);
@@ -543,6 +549,14 @@ async function adminRoutes(req, res, p, account) {
   }
   // The owners' feedback (#216), newest first: the admin marks a report done, which keeps it, or deletes it.
   if (p === '/admin/feedback' && req.method === 'GET') return send(res, 200, { reports: doors.listFeedback() });
+  // A report's screenshot, as the type the front door read from its bytes, shown inline and never as a page (#223).
+  const shot = p.match(/^\/admin\/feedback\/([0-9a-f]{32})\/screenshot\/([0-9])$/);
+  if (shot && req.method === 'GET') {
+    const found = doors.feedbackScreenshot(shot[1], Number(shot[2]));
+    if (!found) return send(res, 404, { error: 'Not found' });
+    res.writeHead(200, { 'Content-Type': found.type, 'Content-Length': found.bytes.length, 'Content-Disposition': 'inline', 'Cache-Control': 'private, max-age=86400', 'Content-Security-Policy': "default-src 'none'; sandbox" });
+    return res.end(found.bytes);
+  }
   const f = p.match(/^\/admin\/feedback\/([0-9a-f]{32})\/(done|delete)$/);
   if (f && req.method === 'POST') {
     await readJson(req);

@@ -219,11 +219,11 @@ The person who runs the machine botdot is on: they create accounts with sign-up 
 _Avoid_: operator, owner (a person owns their account), host
 
 **Admin page**:
-Where the admin creates and revokes sign-up links, suspends or deletes accounts, sets their share of the machine, sees its load, updates botdot for every account at once and reads the Feedback owners send. It never shows what is inside an account, but for that Feedback: what an owner wrote to the admin on purpose.
+Where the admin creates and revokes sign-up links, suspends or deletes accounts, sets their share of the machine, sees its load, updates botdot for every account at once and reads the Feedback owners send. It never shows what is inside an account, but for that Feedback: what an owner wrote to the admin, and the screenshots they added, on purpose.
 _Avoid_: dashboard (the Board's old name), admin panel, console
 
 **Feedback**:
-A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed, and the admin reads it on the admin page.
+A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed and up to three screenshots they added on purpose, and the admin reads it on the admin page and sees each screenshot whole.
 _Avoid_: ticket, issue, support request, bug report (for both kinds)
 
 **What's new**:

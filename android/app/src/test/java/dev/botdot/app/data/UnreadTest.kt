@@ -178,6 +178,9 @@ class UnreadTest {
         assertEquals(Unread.Asked.SCHEDULE, Unread.asked(Run(id = "r", trigger = "schedule")))
         assertEquals(Unread.Asked.MESSAGE, Unread.asked(Run(id = "r", customPrompt = true, startedBy = "chief")))
         assertEquals(Unread.Asked.REPLIES, Unread.asked(Run(id = "r", trigger = "replies", fromBot = BotRef("b2"))))
+        // Notes that woke it (#225): only the notes it read stand above its reply, never botdot's task as the owner's.
+        assertEquals(Unread.Asked.REPLIES, Unread.asked(Run(id = "r", trigger = "bot", customPrompt = true)))
+        assertEquals(Unread.Asked.MESSAGE, Unread.asked(Run(id = "r", trigger = "bot", customPrompt = true, fromBot = BotRef("b2"))))
     }
 
     @Test fun aCalledRunSaysCalled() {

@@ -124,8 +124,11 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun frontDoorSession(): JsonObject = json.parseToJsonElement(
         call(Request.Builder().url(baseUrl.trimEnd('/') + "/front-door/session").header("Accept", "application/json").get().build())).jsonObject
 
-    /** Feedback (#216): a bug or a feature request for the admin of this machine. A refusal throws the front door's sentence. */
-    suspend fun sendFeedback(kind: Feedback.Kind, text: String) { door("/front-door/feedback", Feedback.body(kind, text)) }
+    /**
+     * Feedback (#216): a bug or a feature request for the admin of this machine, with screenshots (#223) when the front
+     * door takes them. A refusal throws the front door's sentence.
+     */
+    suspend fun sendFeedback(kind: Feedback.Kind, text: String, shots: List<ByteArray> = emptyList()) { door("/front-door/feedback", Feedback.body(kind, text, shots)) }
 
     // ---------- version, bots, runs ----------
 
@@ -146,6 +149,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
         json.decodeFromString(get("/runs?botId=${enc(botId)}&limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
     /** Notes other bots left for this bot, waiting for its next run. */
     suspend fun inbox(botId: String): List<InboxNote> = json.decodeFromString(get("/bots/${enc(botId)}/inbox"))
+    /** "Run now" under the notes that wait (#225, feature `notes-wake`): the bot starts with them now, or once it is free. */
+    suspend fun runNotes(botId: String): NotesRun = json.decodeFromString(send("POST", "/bots/${enc(botId)}/inbox/run"))
     /**
      * What waits for the owner's yes, a switch of a saved login a bot asks for (`vault-switch=1`), a Vault entry a bot
      * asks to remove (`vault-remove=1`) and what the Chief asked to do after it read the web (`chief-action=1`) too:
