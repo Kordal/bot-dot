@@ -10,6 +10,8 @@
 !chief-skills/
 !vendor/
 !deploy/desktop/
+# The What's new notes the server shows after an update (#219).
+!whats-new/
 # Read back out of the image by install.sh, the Mac app and the updater in Settings.
 !compose.yaml
 !compose.front-door.yaml

@@ -510,6 +510,9 @@ dialog.wide { width: min(1080px, calc(100% - 24px)); }
 .modal-body { padding: 16px 24px; display: grid; gap: 14px; }
 .modal-foot { padding: 14px 24px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; position: sticky; bottom: 0; background: var(--panel); }
 .modal-foot .left { margin-right: auto; }
+/* What's new after an update (whats-new.js): a title and a few points per note. */
+.whats-new h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.whats-new ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 .modal-foot { flex-wrap: wrap; } /* three buttons with the server's words ("Keep as it is", "Approve the change") at a phone's width */
 .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .row.one { grid-template-columns: 1fr; } /* a Vault item of type Other: the secret alone, across the form */

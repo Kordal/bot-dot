@@ -1,0 +1,26 @@
+// ---------- what's new ----------
+// After an update (#219): the notes of the releases this person has not seen, newest first, once, in a small pop-up
+// with one button. Closing it any way (the button, ✕, Escape) counts as seen, here and in the Android app. Asked once
+// when the page loads, only from a server that has `whats-new`; it waits while another dialog is open.
+
+const WHATS_NEW_WAIT_MS = 2000;
+
+async function showWhatsNew() {
+  if (!state.features.includes('whats-new')) return; // an older server: nothing to ask
+  const r = await api('/whats-new').catch(() => null);
+  const entries = Array.isArray(r?.entries) ? r.entries.filter((e) => e && typeof e.id === 'string') : [];
+  if (entries.length) openWhatsNew(entries);
+}
+
+// Never over another dialog (a card, a login request): it waits until that one is closed.
+function openWhatsNew(entries) {
+  if ($('#modal').open) { setTimeout(() => openWhatsNew(entries), WHATS_NEW_WAIT_MS); return null; }
+  const m = openModal(`
+    <div class="modal-head"><h2>What's new</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body whats-new">${entries.map((e) => `
+      <section><h3>${esc(e.title)}</h3><ul>${(Array.isArray(e.points) ? e.points : []).map((p) => `<li>${esc(p)}</li>`).join('')}</ul></section>`).join('')}
+    </div>
+    <div class="modal-foot"><button type="button" class="btn primary" data-dismiss>Got it</button></div>`);
+  m.addEventListener('close', () => { api('/whats-new/seen', { method: 'POST', body: { id: entries[0].id } }).catch(() => {}); }, { once: true });
+  return m;
+}

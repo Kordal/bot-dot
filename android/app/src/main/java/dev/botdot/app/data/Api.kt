@@ -129,6 +129,11 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     // ---------- version, bots, runs ----------
 
+    /** What's new (#219): the notes this account has not seen, newest first, at most 3. Asked only when `features` has `whats-new`. */
+    suspend fun whatsNew(): List<WhatsNew.Entry> = WhatsNew.shown(json.decodeFromString<WhatsNew.Answer>(get("/whats-new")))
+    /** The What's new dialog was closed: these notes count as seen, here and on the web page. */
+    suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) { send("POST", "/whats-new/seen", WhatsNew.seenBody(entries)) }
+
     suspend fun version(): VersionInfo = json.decodeFromString(get("/version"))
     suspend fun bots(): List<Bot> = json.decodeFromString(get("/bots"))
     suspend fun bot(id: String): Bot = json.decodeFromString(get("/bots/${enc(id)}"))

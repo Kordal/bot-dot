@@ -75,6 +75,7 @@ import dev.botdot.app.data.Group
 import dev.botdot.app.data.Groups
 import dev.botdot.app.data.OpeningLine
 import dev.botdot.app.data.Run
+import dev.botdot.app.data.WhatsNew
 import dev.botdot.app.data.jobWaits
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -132,6 +133,20 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         if (server?.features?.contains("accounts") != true) return@LaunchedEffect
         feedbackOn = Feedback.on(server?.features, runCatching { a.frontDoorSession() }.getOrNull())
     }
+    // What's new after an update (#219): the notes this person has not seen, asked when the server announces it.
+    // Not saved: after a rotation it is asked again, and what was not closed yet shows again.
+    var whatsNew by remember(api) { mutableStateOf<List<WhatsNew.Entry>>(emptyList()) }
+    val asksWhatsNew = WhatsNew.asks(server?.features)
+    LaunchedEffect(api, asksWhatsNew) {
+        whatsNew = emptyList()
+        val a = api ?: return@LaunchedEffect
+        if (asksWhatsNew) whatsNew = runCatching { a.whatsNew() }.getOrDefault(emptyList())
+    }
+    if (whatsNew.isNotEmpty() && !feedbackOpen) WhatsNewDialog(whatsNew, onClose = {
+        val shown = whatsNew
+        whatsNew = emptyList()
+        scope.launch { runCatching { api?.whatsNewSeen(shown) } }
+    })
     if (feedbackOpen) FeedbackDialog(send = { kind, text -> (api ?: throw ApiException("Can't reach botdot.")).sendFeedback(kind, text) }, onClose = { feedbackOpen = false })
     val context = androidx.compose.ui.platform.LocalContext.current
     // One small head per thing that waits, in the colour of the bot it's about (the Chief's for the rest).

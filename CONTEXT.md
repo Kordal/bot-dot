@@ -222,6 +222,10 @@ _Avoid_: dashboard (the Board's old name), admin panel, console
 A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed, and the admin reads it on the admin page.
 _Avoid_: ticket, issue, support request, bug report (for both kinds)
 
+**What's new**:
+A short note per release, written by hand, that the web page and the Android app show once after an update: a title and 2 to 4 points in plain words. Closed once, it is gone in every app of the account.
+_Avoid_: changelog, release notes, patch notes
+
 **Share**:
 How much of the machine one account may use: CPUs, RAM and disk. Its CPUs and RAM are also the limits of the account's one computer. The admin sets the default share and may give one account its own. Nothing in the account shows it: its work slows down, and a full disk fails a run with "No space left on the server".
 _Avoid_: quota, plan, limits, tier
