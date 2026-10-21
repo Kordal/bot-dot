@@ -125,3 +125,13 @@ test("the Chief lists a bot's files by name and deletes one; it can't download o
   assert.equal(gone.status, 200, JSON.stringify(gone.data));
   assert.ok(!fs.existsSync(path.join(ws(), f.file)));
 });
+
+test("a link, or a file the bot made itself in uploads/, is not one of its files", async () => {
+  const dir = path.join(ws(), 'uploads');
+  fs.symlinkSync(path.join(srv.data, 'file-pins.json'), path.join(dir, '20261021000000-dead-secret.txt'));
+  fs.writeFileSync(path.join(dir, 'notes "x".txt'), 'mine');
+  const listed = await files();
+  assert.ok(!listed.some((f) => /secret|notes/.test(f.file)), JSON.stringify(listed));
+  const r = await srv.api(`/bots/${bot.id}/files/20261021000000-dead-secret.txt`);
+  assert.equal(r.status, 404);
+});
