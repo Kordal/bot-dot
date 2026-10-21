@@ -1,0 +1,40 @@
+# Closes a parent issue once its last sub-issue is closed as completed. A ticket's pull request says "Closes #N" for
+# the ticket only, and GitHub never closes the parent (the spec `/to-tickets` split) by itself, so #180, #189 and #203
+# stayed open after every ticket of theirs was merged. A parent with a sub-issue still open, or one closed as not
+# planned, stays open.
+name: Close parent
+
+on:
+  issues:
+    types: [closed]
+
+permissions:
+  issues: write
+
+jobs:
+  close-parent:
+    if: github.event.issue.state_reason == 'completed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Close the parent when all its sub-issues are done
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          read -r PARENT STATE TOTAL COMPLETED < <(gh api graphql \
+            -f owner="${REPO%/*}" -f name="${REPO#*/}" -F number="$NUMBER" -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  issue(number: $number) {
+                    parent { number state subIssuesSummary { total completed } }
+                  }
+                }
+              }' \
+            --jq '.data.repository.issue.parent // empty | "\(.number) \(.state) \(.subIssuesSummary.total) \(.subIssuesSummary.completed)"') || true
+          if [ -z "$PARENT" ] || [ "$STATE" != OPEN ] || [ "$TOTAL" != "$COMPLETED" ]; then
+            echo "Nothing to close (parent: ${PARENT:-none}, $COMPLETED of $TOTAL done)."
+            exit 0
+          fi
+          gh issue close "$PARENT" --repo "$REPO" --reason completed \
+            --comment "All $TOTAL sub-issues are done; #$NUMBER was the last."

@@ -84,7 +84,7 @@ Keep the interview, the spec and the tickets in one session; start each `/implem
 ## Agent workflow
 
 - **One ticket, one branch.** Branch from `main`; never commit to `main`.
-- **One pull request per ticket,** opened against `main` and naming the issue it closes. The owner merges it.
+- **One pull request per ticket,** opened against `main`, with `Closes #N` for its ticket in the body (the word, not only the number, or the issue stays open). The owner merges it. A parent issue closes by itself when its last sub-issue does (`.github/workflows/close-parent.yml`).
 - **The issue is the plan.** A ticket's scope, its acceptance criteria and what blocks it live in its GitHub issue, not in a file of this repository.
 
 ## Agent skills
