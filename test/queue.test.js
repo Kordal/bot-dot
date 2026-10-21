@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { startServer, makeBot, heldRun, self, feed, waitFor, sleep } = require('./helpers');
+const { rpcClient } = require('./memory-helpers');
 
 let srv;
 before(async () => { srv = await startServer(); });
@@ -31,12 +32,15 @@ const addJob = async (bot, fields) => {
   return r.data;
 };
 
-test('a full queue takes no more: the rest go to the inbox, and every message is read', async () => {
+test('a full queue takes no more: the rest go to the inbox, and every message is read', async (t) => {
   const target = await makeBot(srv, { name: 'Busy One', emoji: '🐝' });
   await heldRun(srv, target, 'Something long');
   const s = await heldRun(srv, await newSender());
   assert.deepEqual(await fill(target, 12, s), [...Array(10).fill('queued'), 'inbox', 'inbox']);
-  assert.deepEqual((await srv.api(`/bots/${target.id}/inbox`)).data.map((m) => m.text), ['Task 11', 'Task 12']);
+  // The sender is told it did not start now (#225); the note wakes it once it is free, here by the first run that waits.
+  const over = await rpcClient(t, 'self-mcp.js', s.rec.self.env).text('message_bot', { to: target.id, message: 'Task 13', priority: true });
+  assert.match(over, /already has too much waiting, so it did not start now: this is a note it reads once it is free, and nobody waits for its answer/);
+  assert.deepEqual((await srv.api(`/bots/${target.id}/inbox`)).data.map((m) => m.text), ['Task 11', 'Task 12', 'Task 13']);
   // Full of other work, it still takes the owner's message: theirs have their own ten places (ADR 011).
   const mine = await srv.api(`/bots/${target.id}/run`, { method: 'POST', body: { prompt: 'And mine' } });
   assert.deepEqual([mine.status, mine.data.status], [201, 'queued']);
@@ -44,7 +48,7 @@ test('a full queue takes no more: the rest go to the inbox, and every message is
   await ranAll(target, 12); // its first run, the owner's message and the ten queued ones
   assert.match(srv.runs().filter(isRunOf(target))[1].stdin, /^And mine/, "the owner's message before the ten");
   const read = srv.runs().filter(isRunOf(target)).map((x) => x.stdin).join('\n');
-  for (let i = 1; i <= 12; i++) assert.match(read, new RegExp(`Task ${i}\\b`));
+  for (let i = 1; i <= 13; i++) assert.match(read, new RegExp(`Task ${i}\\b`));
   await srv.finished(s.run.id);
 });
 
@@ -93,7 +97,7 @@ test('answers a bot waited for are kept while its queue is full, and its follow-
 test('a follow-up that could not be queued keeps its wait, and runs once when it can', async () => {
   const asker = await makeBot(srv, { name: 'Unlucky Asker', emoji: '🎲' });
   const helper = await makeBot(srv, { name: 'Answerer', emoji: '📣' });
-  const events = feed(srv);
+  const events = await feed(srv);
   const a = await heldRun(srv, asker, 'Ask Answerer and sum up.');
   assert.equal((await self(srv, a.token, 'message', { to: helper.id, message: 'Your status?', priority: true })).data.delivered, 'started');
   const h = await srv.nextRun(isRunOf(helper), 'Answerer to start');
@@ -126,7 +130,7 @@ test('a follow-up that could not be queued keeps its wait, and runs once when it
 test('a queued follow-up that fails as its turn comes keeps its wait, and runs once with the answer when it can', async () => {
   const asker = await makeBot(srv, { name: 'Late Asker', emoji: '🐢' });
   const helper = await makeBot(srv, { name: 'Quick Answerer', emoji: '🐇' });
-  const events = feed(srv);
+  const events = await feed(srv);
   const a = await heldRun(srv, asker, 'Ask Quick Answerer and sum up.');
   assert.equal((await self(srv, a.token, 'message', { to: helper.id, message: 'Your status?', priority: true })).data.delivered, 'started');
   const h = await srv.nextRun(isRunOf(helper), 'Quick Answerer to start');

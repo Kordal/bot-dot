@@ -53,7 +53,7 @@ before(async () => { srv = await startServer(); await srv.api('/settings', { met
 after(() => srv.stop());
 
 test('a scheduled job with an empty reply is quiet, and still in the run history', { timeout: 60_000 }, async () => {
-  const f = feed(srv);
+  const f = await feed(srv);
   srv.reply('');
   const bot = await makeBot(srv);
   const job = (await srv.api(`/bots/${bot.id}/jobs`, { method: 'POST', body: { name: 'Every minute', kind: 'ai', notify: 'always', cron: '* * * * *', prompt: 'Check for news' } })).data;
@@ -70,7 +70,7 @@ test('a scheduled job with an empty reply is quiet, and still in the run history
 });
 
 test('a scheduled job with a reply, and runs you start, are not quiet', { timeout: 60_000 }, async () => {
-  const f = feed(srv);
+  const f = await feed(srv);
   const bot = await makeBot(srv);
   srv.reply('');
   const manual = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'anything new?' } });

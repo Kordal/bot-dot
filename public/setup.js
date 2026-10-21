@@ -1,8 +1,8 @@
 // ---------- setup ----------
 
 // A checklist of what botdot needs: Claude (required), then the bots' computers, your phone, the
-// time zone, and optional extras. Shown on first start and while Claude isn't signed in; also in
-// Settings → Setup.
+// time zone, and optional extras. Shown on first start and while Claude isn't signed in; also at its
+// address, #setup. Signing in to Claude again later is in Settings → Claude.
 const deviceTimezone = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch { return ''; } };
 
 async function renderSetup(fresh = false) {

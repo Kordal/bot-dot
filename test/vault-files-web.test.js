@@ -23,8 +23,9 @@ test('web: the Vault offers "＋ File" only while Bitwarden is unlocked, and lis
   assert.match(app, /^\s+file: FILE_SHARE_NOTE,$/m, 'its Bots… dialog says what sharing it means');
 });
 
-test('web: the dialog takes a .pem up to 64 KB, sends it as base64, says who can read it, and shows a refusal in the form', () => {
-  assert.match(editor, /<input type="file" name="file" accept="\.pem" required>/);
+test('web: the dialog takes any file up to 64 KB, sends it as base64, says who can read it, and shows a refusal in the form', () => {
+  assert.match(editor, /<span class="hint">any file, at most 64 KB<\/span><input type="file" name="file" required>/, 'no accept: any file (#231)');
+  assert.doesNotMatch(editor, /\.pem/);
   assert.match(editor, /file\.size > VAULT_FILE_MAX/);
   assert.match(editor, /content: btoa\(binary\)/);
   assert.match(editor, /api\('\/vault\/files', \{ method: 'POST', body \}\)/);

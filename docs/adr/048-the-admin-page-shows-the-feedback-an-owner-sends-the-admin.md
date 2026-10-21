@@ -30,3 +30,16 @@ The owner decided (2026-10-21) that a report goes to a list on the admin page of
 - The front door's data holds the owners' reports besides accounts, passkeys, sessions and links.
 - A new control beside Settings goes against AGENTS.md rule 5 ("no new control for something the Chief can do by chat") on purpose (`docs/DECISIONS.md`, 2026-10-21).
 - An app older than this front door shows no Feedback; a front door older than the app leaves `feedback` out, and the app shows none.
+
+## Amendment: screenshots (2026-10-21, [#223](https://github.com/Kordal/bot-dot/issues/223))
+
+Accepted by the owner, 2026-10-21. A bug is often easier to show than to describe, so a report may now hold screenshots the owner added on purpose. This changes "Nothing else of the account goes with it" above: a screenshot can show anything on the owner's screen (other chats, other tabs), and the form says plainly that the admin sees each one whole.
+
+- The form has "Add screenshot", which opens the device's picker. At most 3 a report, each at most 5 MB, as PNG, JPEG or WebP. No SVG (it can carry script) and no GIF. The text stays required. Paste and drag are not in v1.
+- They go in the same `POST /front-door/feedback` as the text, as base64, so a report is never kept half: that route alone reads up to about 20 MB; every other front-door route keeps 64 KB.
+- The front door reads each picture's type from its first bytes, never from the name or what the app says, and refuses anything else with `400` in plain words.
+- Each picture is its own file in `feedback-screenshots/` beside `front-door.json` (mode 600, folder 700, the front door's user), named by the report and its number. The report keeps only each picture's type and size: `front-door.json` is read whole and rewritten on every change, and holds up to 1000 reports.
+- The machine keeps up to 500 MB of screenshots. Past that the oldest reports' pictures are deleted first; those reports keep their text and say their screenshots went. Deleting a report, or the admin deleting an account, deletes its pictures.
+- The admin page shows them as thumbnails, `img` elements its script makes, which open `GET /admin/feedback/<id>/screenshot/<n>`: the admin's session alone, with the type the front door read, `nosniff`, `inline` and a `sandbox` CSP, so a file is never drawn as a page.
+- `GET /front-door/session` says `feedbackScreenshots`: an app shows "Add screenshot" only for a front door that takes them, and an older app, which sends `{ kind, text }`, works as before.
+- The Android app scales a photo over 5 MB down (longest side 2560, JPEG) before sending, so a large photo still goes.

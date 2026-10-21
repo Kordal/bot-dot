@@ -90,7 +90,7 @@ test('the phone hears when a plan is answered, so its notification can go away',
   const declined = (await self(srv, token, 'chief', { title: 'Nope', text: 'Plan: no' })).data.chatId;
   srv.release(rec);
   await srv.finished(run.id);
-  const f = feed(srv);
+  const f = await feed(srv);
   const hello = await f.wait('hello');
   assert.ok(hello.data.plans.includes(planned) && hello.data.plans.includes(declined), 'hello lists the plans still waiting');
   await srv.api(`/chief/chats/${declined}/dismiss`, { method: 'POST' });

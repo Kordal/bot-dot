@@ -142,7 +142,7 @@ test("the Chief's tools delete no group, and make none outside a turn the owner 
 
 test('group:<id> is a chat: its read position, the presence of an app', async () => {
   const chat = `group:${dev.id}`;
-  const live = feed(srv);
+  const live = await feed(srv);
   try {
     await live.wait('hello');
     const read = await srv.api('/read', { method: 'POST', body: { chat, app: 'phone-1' } });
@@ -175,7 +175,7 @@ test('a message key is kept for a group apart from a bot with the same id', () =
 });
 
 test('a change to a group is an event of its own, and nothing an app from before acts on', async () => {
-  const live = feed(srv);
+  const live = await feed(srv);
   try {
     await live.wait('hello');
     const from = live.events.length;
@@ -220,7 +220,7 @@ test('deleting a group deletes no bot; its read position and its messages go wit
 });
 
 test('a deleted bot leaves every group it was in; a group with one member left keeps its record', async () => {
-  const live = feed(srv);
+  const live = await feed(srv);
   try {
     await live.wait('hello');
     assert.equal((await srv.api(`/bots/${bot.coder.id}`, { method: 'DELETE' })).status, 200);

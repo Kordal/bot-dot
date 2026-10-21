@@ -161,7 +161,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
 }
 
 /**
- * Adds a file (#157, docs/api.md `POST /api/vault/files`): a .pem the owner picks with the system's file picker, at most
+ * Adds a file (#157, docs/api.md `POST /api/vault/files`): any file the owner picks (#231) with the system's file picker, at most
  * 64 KB, read here and sent once. Only its name and size are shown again.
  */
 @Composable
@@ -194,7 +194,7 @@ private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: ()
     AlertDialog(onDismissRequest = { picked = null; close() }, title = { Text("📄 Add a file") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(picked?.let { "${it.first} · ${VaultTypes.fileSize(it.second.size.toLong())}" } ?: "Pick the file", color = p.text) }
-            Hint(".pem, at most 64 KB. Saved in your Bitwarden's bot-dot folder: bots never see what is in it, and you can't see it here again.")
+            Hint("Any file, at most 64 KB. Saved in your Bitwarden's bot-dot folder: bots never see what is in it, and you can't see it here again.")
             OutlinedTextField(name, { name = it.take(100) }, label = { Text("Name (optional)") }, placeholder = { Text("GitHub App key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Text("Bots that may use it", color = p.text, style = MaterialTheme.typography.titleSmall)
             Hint(VaultTypes.FILE_SHARE_NOTE)

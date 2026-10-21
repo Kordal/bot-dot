@@ -70,7 +70,7 @@ test('a stream that is not Claude Code\'s does no harm', () => {
 // ---------- on the botdot server ----------
 
 let srv, f;
-before(async () => { srv = await startServer(); f = feed(srv); });
+before(async () => { srv = await startServer(); f = await feed(srv); });
 after(async () => { f.close(); await srv.stop(); });
 
 // Play events into a held run of the stand-in Claude.

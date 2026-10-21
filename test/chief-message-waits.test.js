@@ -29,7 +29,7 @@ const words = (chat) => chat.messages.map((m) => [m.role, m.text]);
 const upload = async (name, text) => (await srv.api('/uploads?to=chief', { method: 'POST', raw: Buffer.from(text), headers: { 'X-File-Name': name } })).data;
 
 test('a message to a chat whose reply is going waits with its files and its key, and starts when the reply ends, once', async (t) => {
-  const events = feed(srv);
+  const events = await feed(srv);
   t.after(() => { events.close(); srv.unhold(); });
   await events.wait('hello');
   const id = await newChat();
@@ -163,7 +163,7 @@ test("the owner's messages start before the turns botdot starts, in the order se
 });
 
 test('a message with only a file waits as it was sent, and take back answers its text and files', async (t) => {
-  const events = feed(srv);
+  const events = await feed(srv);
   t.after(() => { events.close(); srv.unhold(); });
   await events.wait('hello');
   const id = await newChat();

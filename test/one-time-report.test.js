@@ -75,7 +75,7 @@ test('a one-time job at night reaches the owner, a watch job beside it stays qui
     assert.ok(onceJob.at && watchJob.notify === 'report-only' && onceJob.notify === 'report-only', 'both report-only: the one-time job needs no setting');
     // Back on, botdot finds the one-time job due an hour ago and the watch job due this minute.
     srv = await restartServer(srv, (data) => setJobs(data, { [onceJob.id]: { at: new Date(Date.now() - 3600e3).toISOString() }, [watchJob.id]: { cron: '* * * * *' } }));
-    f = feed(srv);
+    f = await feed(srv);
     const find = (words) => srv.runs().find((r) => r.stdin.includes(words));
     await waitFor(() => find('Check the PRs once') && find('Watch the PRs always'), { what: 'both jobs to come up' });
     await srv.api(`/bots/${watch.id}/jobs/${watchJob.id}`, { method: 'PUT', body: { enabled: false } });

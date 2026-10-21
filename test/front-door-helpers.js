@@ -32,18 +32,20 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   const exited = new Promise((r) => child.on('exit', r));
   const host = `localhost:${port}`;
 
-  // One request as a browser sends it: Host is the front door's own name.
-  // A connection of its own each time (agent: false): one kept open between requests could be closed by the front
-  // door's keep-alive timeout just as it is reused, a reset ("socket hang up") that no browser would see.
+  // One request as a browser sends it: Host is the front door's own name. Each on a connection of its own: a kept-alive
+  // one that waited out the front door's keep-alive (5 s) while a slow test held the event loop is closed by the
+  // front door just as it is used again, and the request fails with "socket hang up".
   const request = (method, p, { body, headers = {} } = {}) => new Promise((resolve, reject) => {
     const text = body === undefined ? undefined : JSON.stringify(body);
-    const req = http.request({ host: '127.0.0.1', port, path: p, method, agent: false, headers: { Host: host, ...(text ? { 'Content-Type': 'application/json' } : {}), ...headers } }, (res) => {
-      let out = '';
-      res.on('data', (c) => (out += c));
+    const req = http.request({ host: '127.0.0.1', port, agent: false, path: p, method, headers: { Host: host, ...(text ? { 'Content-Type': 'application/json' } : {}), ...headers } }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
       res.on('end', () => {
+        const bytes = Buffer.concat(chunks);
+        const out = bytes.toString('utf8');
         let data = null;
         try { data = JSON.parse(out); } catch { /* not JSON */ }
-        resolve({ status: res.statusCode, headers: res.headers, text: out, data });
+        resolve({ status: res.statusCode, headers: res.headers, text: out, data, bytes });
       });
     });
     req.on('error', reject);
@@ -93,10 +95,13 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   // The free port was let go before the front door took it: under load another test's server can take it first.
   // Then the front door stops at once, and starts again on another port.
   const taken = () => child.exitCode !== null && /EADDRINUSE/.test(log.join(''));
+  // Its data folder is new, so it has no account: unless it holds one account, it prints the first sign-up link as
+  // it starts. Its output comes on a pipe of its own, which may reach this side after its first answer does.
+  const printed = () => (env.FRONT_DOOR_ONE_ACCOUNT ? true : log.join('').match(/https?:\/\/\S+\/sign-up\/\S+/));
   try {
     await waitFor(async () => {
       if (taken()) return true;
-      try { return (await request('GET', '/api/version')).status === 200; } catch { return false; }
+      try { return (await request('GET', '/api/version')).status === 200 && printed(); } catch { return false; }
     }, { timeout: 15_000, what: 'the front door to start' });
   } catch (e) {
     child.kill('SIGKILL');
@@ -106,8 +111,8 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
     if (tries > 1) return startFrontDoor({ env, sockets: socketsDir, tries: tries - 1 });
     throw new Error(`The front door's port was taken\n${log.join('')}`);
   }
-  const printed = log.join('').match(/https?:\/\/\S+\/sign-up\/\S+/);
-  if (printed) door.firstLink = { url: printed[0], path: new URL(printed[0]).pathname };
+  const link = log.join('').match(/https?:\/\/\S+\/sign-up\/\S+/);
+  if (link) door.firstLink = { url: link[0], path: new URL(link[0]).pathname };
   return door;
 }
 

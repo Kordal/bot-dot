@@ -34,7 +34,7 @@ async function askBoth(task) {
 }
 
 test('answers wait until everyone asked has answered, then the asker runs once with all of them and its task', async () => {
-  const events = feed(srv);
+  const events = await feed(srv);
   const { asker, theirs: [c, m] } = await askBoth('Ask every bot for its status and give me one summary.');
   srv.release(asker.rec);
   await srv.finished(asker.run.id);
@@ -375,7 +375,7 @@ test('a message that starts a bot shows it its earlier run in the same exchange'
 });
 
 test("the Chief's hand-off: the final reply goes to the Chief's chat as a turn of the Chief, which reports it", async () => {
-  const events = feed(srv);
+  const events = await feed(srv);
   srv.reply('I asked both, answers will come.');
   const { asker, theirs: [c, m] } = await askBoth('Bart asks for a status update from every bot.');
   // The Chief started this run (as its run_bot action records).
@@ -418,7 +418,7 @@ test("the Chief's hand-off: the final reply goes to the Chief's chat as a turn o
 });
 
 test('nested teammate follow-ups are visible but keep an internal notification audience', async () => {
-  const events = feed(srv);
+  const events = await feed(srv);
   try {
     const asker = await heldRun(srv, doctor, 'Ask Coder to investigate with Mail Bot.');
     await self(srv, asker.token, 'message', { to: coder.id, message: 'Investigate with Mail Bot.', priority: true });

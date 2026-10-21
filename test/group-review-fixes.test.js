@@ -163,7 +163,7 @@ test("a turn's prompt holds the group's name and its members' names and descript
 
 test('a question in a group rings only when no app showed the group as it arrived', async (t) => {
   const { group, bots: [asker] } = await team(srv, 'Ringing', ['Ring Asker', 'Ring Other']);
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
   const question = 'Two ways to build it.\nWhich one?\n\n[[choices: The quick one | The clean one]]';
@@ -252,7 +252,7 @@ test('a member named inside a code span or a code block of a reply gets no turn;
 
 test('saving a group does not end a line stopped at the limit whose waiting member is paused: it stays until "Go on", which skips that member', async (t) => {
   const { group, bots: [ping, pong] } = await team(srv, 'Limit paused', ['Paused Ping', 'Paused Pong']);
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   await f.wait('hello');
   reply(srv, ping, 'Corrected. @PausedPong check it again.');

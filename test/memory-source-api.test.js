@@ -402,7 +402,7 @@ test('D16: a skill written after content from others waits for the owner\'s OK; 
   assert.equal(asks[0].skill.instructions, '# after-the-web\nDo it step by step.');
   // Its yes is given on that card and nowhere else (MEM-010): the notification's one line does not show the text.
   assert.deepEqual(asks.map((a) => a.yesOn), ['card', 'card']);
-  const f = feed(srv); const hello = await f.wait('hello'); f.close();
+  const f = await feed(srv); const hello = await f.wait('hello'); f.close();
   assert.deepEqual(hello.data.asks.filter((a) => a.botId === b.id).map((a) => a.yesOn), ['card', 'card'], 'and in the feed');
   assert.equal(asks[1].skill.instructions, 'Changed after a web page.');
   assert.deepEqual([asks[0].skill.exists, asks[1].skill.exists], [false, true]);

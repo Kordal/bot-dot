@@ -55,7 +55,7 @@ async function turnWithReports(srv) {
 
 test("a failed save at a turn's end leaves the server up, the chat idle, and the reply and what waited in the chat, saved once later", { timeout: 90_000 }, async () => {
   const srv = await startServer({ env: { BOT_DOT_LOOK_ON_DEMAND: '1' } });
-  const events = feed(srv);
+  const events = await feed(srv);
   try {
     await events.wait('hello');
     const { chat, turn } = await turnWithReports(srv);

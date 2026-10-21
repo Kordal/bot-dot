@@ -65,6 +65,21 @@ test('the login goes to docker exec in its own environment, never on its command
   assert.ok(args.includes('DISPLAY=:11'));
 });
 
+test('several logins (#228): each variable goes to docker exec in its own environment, and BOTDOT_PASSWORD is not set', async () => {
+  calls = [];
+  reply = () => ({ stdout: 'signed\n', stderr: '' });
+  const env = { BOTDOT_OVH_APPLICATION_KEY_USERNAME: '', BOTDOT_OVH_APPLICATION_KEY_PASSWORD: 'app-key-0001', BOTDOT_OVH_CONSUMER_KEY_USERNAME: '', BOTDOT_OVH_CONSUMER_KEY_PASSWORD: SECRET };
+  const r = await computers.runWithLogin(MAIL, { command: 'echo "$BOTDOT_OVH_CONSUMER_KEY_PASSWORD" | wc -c', env });
+  assert.equal(r.code, 0);
+  const { args, opts } = calls[0];
+  for (const name of Object.keys(env)) {
+    assert.equal(args[args.indexOf(name) - 1], '-e', name);
+    assert.equal(opts.env[name], env[name]);
+  }
+  assert.ok(!args.includes('BOTDOT_PASSWORD') && !('BOTDOT_PASSWORD' in opts.env), 'the single form is not set');
+  assert.ok(!args.some((a) => a.includes(SECRET) || a.includes('app-key-0001')), `argv holds no value: ${JSON.stringify(args)}`);
+});
+
 test('the time limit is 120 s by default and 600 s at most; a command that ran out says so', async () => {
   reply = () => ({ stdout: 'partial', stderr: '', error: Object.assign(new Error('Command failed'), { code: 124 }) });
   const seconds = async (timeoutSeconds) => {
@@ -125,8 +140,19 @@ test('the Docker helper accepts run_with_login only in its fixed shape', async (
     [MAIL, { ...good, password: 42 }],
     [MAIL, { ...good, timeoutSeconds: 601 }],
     [MAIL, good, 'extra'],
+    // Several logins' variables (#228): only BOTDOT_<NAME>_USERNAME and BOTDOT_<NAME>_PASSWORD, for at most 8 logins.
+    [MAIL, { command: 'true', env: { PATH: '/tmp' } }],
+    [MAIL, { command: 'true', env: { LD_PRELOAD: '/tmp/x.so' } }],
+    [MAIL, { command: 'true', env: { BOTDOT_A_PASSWORD: 42 } }],
+    [MAIL, { command: 'true', env: { BOTDOT_a_PASSWORD: 'x' } }],
+    [MAIL, { command: 'true', env: {} }],
+    [MAIL, { command: 'true', env: { BOTDOT_A_PASSWORD: 'x' }, password: 'y' }],
+    [MAIL, { command: 'true', env: Object.fromEntries(Array.from({ length: 17 }, (_, i) => [`BOTDOT_L${i}_PASSWORD`, 'x'])) }],
   ]) assert.equal((await call({ operation: 'runWithLogin', args })).status, 400, JSON.stringify(args).slice(0, 120));
   assert.equal(got.length, 1);
+  const several = { command: 'true', env: { BOTDOT_OVH_APPLICATION_KEY_USERNAME: '', BOTDOT_OVH_APPLICATION_KEY_PASSWORD: SECRET }, timeoutSeconds: 60 };
+  assert.equal((await call({ operation: 'runWithLogin', args: [MAIL, several] })).status, 200);
+  assert.deepEqual(got[1], [MAIL, several]);
 });
 
 // ---------- the built-in vault keeps the opt-in ----------
@@ -224,7 +250,10 @@ test('the run_with_login tool says how to use the values, and shows what the com
   const { tools } = await mcp.request('tools/list');
   const tool = tools.find((x) => x.name === 'run_with_login');
   assert.ok(tool, 'the tool is listed');
-  assert.deepEqual(tool.inputSchema.required, ['login', 'command']);
+  assert.deepEqual(tool.inputSchema.required, ['command'], 'login or logins (#228)');
+  assert.equal(tool.inputSchema.properties.logins.maxItems, 8);
+  assert.match(tool.description, /BOTDOT_<NAME>_USERNAME and BOTDOT_<NAME>_PASSWORD/);
+  assert.match(tool.description, /OVH_APPLICATION_KEY gives "\$BOTDOT_OVH_APPLICATION_KEY_PASSWORD"/);
   assert.match(tool.description, /BOTDOT_USERNAME/);
   assert.match(tool.description, /"\$BOTDOT_PASSWORD"/);
   assert.match(tool.description, /[Nn]ever print, store or encode/);

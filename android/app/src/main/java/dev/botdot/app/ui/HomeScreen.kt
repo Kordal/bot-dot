@@ -126,12 +126,16 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val server by store.version.value.collectAsState() // for the app update banner
     // Feedback beside Settings (#216): shown when the front door says it goes to an admin page, asked once per server.
     var feedbackOn by remember(api) { mutableStateOf(false) }
+    var feedbackShots by remember(api) { mutableStateOf(false) } // and takes screenshots (#223)
     var feedbackOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(api, server?.features) {
         feedbackOn = false
+        feedbackShots = false
         val a = api ?: return@LaunchedEffect
         if (server?.features?.contains("accounts") != true) return@LaunchedEffect
-        feedbackOn = Feedback.on(server?.features, runCatching { a.frontDoorSession() }.getOrNull())
+        val session = runCatching { a.frontDoorSession() }.getOrNull()
+        feedbackOn = Feedback.on(server?.features, session)
+        feedbackShots = Feedback.shotsOn(session)
     }
     // What's new after an update (#219): the notes this person has not seen, asked when the server announces it.
     // Not saved: after a rotation it is asked again, and what was not closed yet shows again.
@@ -147,7 +151,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         whatsNew = emptyList()
         scope.launch { runCatching { api?.whatsNewSeen(shown) } }
     })
-    if (feedbackOpen) FeedbackDialog(send = { kind, text -> (api ?: throw ApiException("Can't reach botdot.")).sendFeedback(kind, text) }, onClose = { feedbackOpen = false })
+    if (feedbackOpen) FeedbackDialog(shotsOn = feedbackShots, send = { kind, text, shots -> (api ?: throw ApiException("Can't reach botdot.")).sendFeedback(kind, text, shots) }, onClose = { feedbackOpen = false })
     val context = androidx.compose.ui.platform.LocalContext.current
     // One small head per thing that waits, in the colour of the bot it's about (the Chief's for the rest).
     val waiting by store.waiting.collectAsState(initial = emptyList())

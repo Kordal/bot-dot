@@ -24,7 +24,7 @@ before(async () => {
   app = await fakeConnectedApp();
   srv = await startServer({ env: app.env });
   await app.connect(srv);
-  f = feed(srv);
+  f = await feed(srv);
   await f.wait('hello');
 });
 after(async () => { f?.close(); await srv.stop(); app.close(); });
