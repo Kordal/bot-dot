@@ -342,6 +342,11 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     suspend fun updateBot(botId: String, changes: JsonObject): Bot = json.decodeFromString(send("PUT", "/bots/${enc(botId)}", changes))
     suspend fun deleteBot(botId: String) { send("DELETE", "/bots/${enc(botId)}") }
+    /** What a copy of the bot would get (#227). Only with `duplicate-bot` in its features. */
+    suspend fun copyPlan(botId: String): CopyPlan = json.decodeFromString(get("/bots/${enc(botId)}/duplicate"))
+    /** Makes the copy, with [name] or the suggested one when blank. A refusal throws the server's sentence. */
+    suspend fun duplicateBot(botId: String, name: String): Bot =
+        json.decodeFromString(send("POST", "/bots/${enc(botId)}/duplicate", buildJsonObject { if (name.isNotBlank()) put("name", name.trim()) }))
     suspend fun computer(botId: String): ComputerInfo = json.decodeFromString(get("/bots/${enc(botId)}/computer"))
     suspend fun startComputer(botId: String) { send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "start") }) }
     /**

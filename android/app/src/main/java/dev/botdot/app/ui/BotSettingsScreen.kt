@@ -65,7 +65,7 @@ import kotlinx.serialization.json.put
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJobs: () -> Unit, onDeleted: () -> Unit, onBack: () -> Unit) {
+fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJobs: () -> Unit, onDeleted: () -> Unit, onCopied: (String) -> Unit = {}, onBack: () -> Unit) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
@@ -78,6 +78,9 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var apps by remember { mutableStateOf<List<Connection>>(emptyList()) }
     var saving by remember { mutableStateOf(false) }
     var askDelete by remember { mutableStateOf(false) }
+    val server by app.store.version.value.collectAsState() // its features: whether it can duplicate a bot
+    var copyPlan by remember { mutableStateOf<dev.botdot.app.data.CopyPlan?>(null) } // the Duplicate confirmation, while it is open
+    var copyName by remember { mutableStateOf("") }
 
     // What you're editing (starts as the bot's current settings).
     var color by remember { mutableStateOf("") }
@@ -265,8 +268,37 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             Button(onClick = { save() }, enabled = !saving, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) {
                 Text(if (saving) "Saving…" else "Save")
             }
+            if (dev.botdot.app.data.Duplicate.shows(server?.features)) OutlinedButton(onClick = {
+                scope.launch { runCatching { api!!.copyPlan(botId) }.onSuccess { copyPlan = it; copyName = it.name }.onError { tell(it.message ?: "Couldn't load") } }
+            }, modifier = Modifier.fillMaxWidth()) { Text("Duplicate ${b.name}", color = p.text) }
             OutlinedButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text("Delete ${b.name}", color = p.err) }
         }
+    }
+
+    // "Duplicate" (#227): the server's list of what the copy gets, a name to change, then the copy's chat.
+    copyPlan?.let { plan ->
+        var making by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { copyPlan = null },
+            title = { Text("Duplicate ${bot?.name}?") },
+            text = {
+                Column {
+                    OutlinedTextField(copyName, { copyName = it.take(60) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text(dev.botdot.app.data.Duplicate.text(plan), color = p.text, modifier = Modifier.padding(top = 12.dp))
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !making && !plan.vaultLocked, onClick = {
+                    making = true
+                    scope.launch {
+                        runCatching { api!!.duplicateBot(botId, copyName) }
+                            .onSuccess { copyPlan = null; onCopied(it.id) }
+                            .onError { making = false; tell(it.message ?: "Couldn't duplicate") }
+                    }
+                }) { Text("Duplicate", color = p.text) }
+            },
+            dismissButton = { TextButton(onClick = { copyPlan = null }) { Text("Cancel", color = p.text) } },
+        )
     }
 
     if (askDelete) AlertDialog(
