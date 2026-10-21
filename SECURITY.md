@@ -95,7 +95,10 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   command runs can be read by any bot on the computer, through sudo. botdot never puts a secret on a
   command line. It puts one in a file only for `run_with_file` ([ADR 039](docs/adr/039-a-saved-file-is-in-the-computer-for-one-command.md)):
   a 0600 file in a 0700 folder of the bot user's, for that one command, removed when it ends, fails or
-  runs out of time, and at most 64 KB. The Vault's "Usable in its computer" card and its file dialog
+  runs out of time, and at most 64 KB. A secret the owner allowed on a card to be kept in a file
+  (`place_secret_file`, [ADR 051](docs/adr/051-the-owner-may-keep-a-vault-secret-in-a-file.md)) stays on
+  disk where botdot wrote it, readable by every bot on the computer, until the owner removes it on the
+  Vault page; the bot never sees its value. The Vault's "Usable in its computer" card and its file dialog
   say that every bot on the account's computer can read it. Saved logins used through
   `api_request` never reach the computer, and a GitHub App's private key never leaves botdot: a bot
   gets only the installation tokens botdot makes from it, which expire within the hour (ADR 037).

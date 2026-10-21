@@ -135,6 +135,7 @@ async function renderVault() {
           <div>${line}</div>
           ${l.reprompt ? '<div class="faint">Asks for the master password again in Bitwarden, so bots can\'t use it.</div>' : ''}
           <div>${l.allowedBots.length ? `Can be used by: ${l.allowedBots.map((id) => esc(botName(id))).join(', ')}` : '<span class="faint">No bot may use it yet</span>'}</div>
+          ${(l.placedIn || []).map((f) => `<div class="vault-placed">📍 ${f.written === false ? 'Allowed, not written yet:' : 'Placed in'} <span class="mono">${esc(f.where)}</span> (${esc(botName(f.botId))}${f.at ? `, ${esc(ago(f.at))}` : ''}) <button class="btn sm" data-remove-file="${esc(f.id)}" data-where="${esc(f.where)}">Remove the file</button></div>`).join('')}
         </div>
         <div class="bot-actions"><button class="btn" data-edit-login="${esc(l.id)}">${kind === 'login' ? 'Edit' : 'Bots…'}</button></div>
       </article>`;
@@ -149,6 +150,14 @@ async function renderVault() {
   $$('[data-edit-login]').forEach((b) => (b.onclick = () => {
     const l = logins.find((x) => x.id === b.dataset.editLogin);
     return (l.kind || 'login') === 'login' ? openLoginEditor(l) : openItemBots(l);
+  }));
+  // A secret kept in a file (#253): botdot deletes it where it wrote it, and the bot must ask on a card to write it again.
+  $$('[data-remove-file]').forEach((b) => (b.onclick = () => {
+    if (!confirm(`Remove ${b.dataset.where}? The bot can't write it again without asking you on a card.`)) return;
+    whileBusy(b, 'Removing…', async () => {
+      try { const r = await api(`/vault/secret-files/${encodeURIComponent(b.dataset.removeFile)}`, { method: 'DELETE' }); toast(r?.say || 'Removed', !!r?.byHand); } catch (e) { toast(e.message, true); }
+      renderVault();
+    });
   }));
   wireBitwardenSetup(root);
   const u = $('#bw-unlock-btn'); if (u) u.onclick = () => { if (!bwUi.unlocking) openUnlock(); };

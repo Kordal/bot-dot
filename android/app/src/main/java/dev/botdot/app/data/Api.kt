@@ -11,6 +11,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.encodeToJsonElement
@@ -153,10 +154,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun runNotes(botId: String): NotesRun = json.decodeFromString(send("POST", "/bots/${enc(botId)}/inbox/run"))
     /**
      * What waits for the owner's yes, a switch of a saved login a bot asks for (`vault-switch=1`), a Vault entry a bot
-     * asks to remove (`vault-remove=1`) and what the Chief asked to do after it read the web (`chief-action=1`) too:
+     * asks to remove (`vault-remove=1`), secrets a bot asks to keep in a file (`vault-file=1`) and what the Chief asked to do after it read the web (`chief-action=1`) too:
      * this app draws those cards.
      */
-    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&chief-action=1"))
+    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-file=1&chief-action=1"))
     /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
     suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false): Answered =
         Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); put("always", always) }))
@@ -299,6 +300,12 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** Which bots may use a card or an identity (their details are changed in Bitwarden). */
     suspend fun setVaultBots(id: String, bots: List<String>) { send("PUT", "/vault/${enc(id)}", buildJsonObject { put("allowedBots", strings(bots)) }) }
     suspend fun deleteVaultItem(id: String) { send("DELETE", "/vault/${enc(id)}") }
+    /**
+     * "Remove the file" (`vault-file`, #253): a secret kept in a file goes from where botdot wrote it. Returns the
+     * server's `say` when botdot could not reach the file and the owner must delete it by hand, else null.
+     */
+    suspend fun removeSecretFile(id: String): String? =
+        (json.parseToJsonElement(send("DELETE", "/vault/secret-files/${enc(id)}")) as? JsonObject)?.get("say")?.let { (it as? JsonPrimitive)?.contentOrNull }
 
     /**
      * Adds an SSH key to Bitwarden's bot-dot folder (`vault-ssh-key-add`): an OpenSSH private key, pasted or read from
