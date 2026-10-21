@@ -304,6 +304,7 @@ button.chip:hover { color: var(--text); }
 .mention-list { position: absolute; left: 12px; bottom: calc(100% + 6px); z-index: 20; min-width: 220px; max-width: calc(100% - 24px); background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-lg); padding: 4px; display: flex; flex-direction: column; }
 .mention-list button { border: 0; background: none; text-align: left; padding: 7px 10px; border-radius: 10px; font-size: 13.5px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mention-list button[aria-selected="true"], .mention-list button:hover { background: var(--sunk); }
+.mention-list .about { color: var(--muted); margin-left: 6px; } /* a skill's description, after "/name" (#237) */
 /* Mentions in a message: a bot as its small head and name, a job or a skill tinted. */
 .mention { font-weight: 500; }
 .mention.tint { color: var(--mention); }

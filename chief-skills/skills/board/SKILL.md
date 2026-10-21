@@ -39,7 +39,7 @@ Any tile (usually `kind: "custom"`) can have:
 
 **Data.** Blocks read the answers by path: `value` is what `read` answered (after its `pick`), and each named read is there under its name: `value.attributes.brightness`, `forecast.0.temperature`, `value.items[].name`. A tile without a read shows what its bot gives it with `set_tile` (text, a list, or an object whose fields the blocks read), under `value`.
 
-**Text** takes `{{path}}` and filters: `{{value.attributes.temperature|round:1}} °C`, `{{value.attributes.brightness|percent:255}} %`, `{{value.state|map:on=On,off=Off}}`, `{{value.items|count}}`, `|default:—`, `|scale:0.001`, `|join:, `, `|upper`, `|lower`.
+**Text** takes `{{path}}` and filters: `{{value.attributes.temperature|round:1}} °C`, `{{value.attributes.brightness|percent:255}} %`, `{{value.state|map:on=On,off=Off}}`, `{{value.items|count}}`, `|default:—`, `|scale:0.001`, `|join:, `, `|upper`, `|lower`, `|ago`. `{{value|ago}}` turns a time (ISO 8601 or epoch milliseconds) into words that keep counting ("just now", "5 minutes ago", "9 hours ago", "3 days ago", then the date "12 Oct"): for "last seen / last opened / last backup" the tile stores the time and its face uses `ago`, never a finished sentence like "9 hours ago", which never moves on.
 
 **Colours:** `"#rrggbb"`, `ok`, `warn`, `bad`, `muted`, `faint`, `text`, `bot` (the tile's colour, the default), or `"{{path}}"` to a colour in the data (`[255, 180, 60]` or `"#ffb43c"`).
 
