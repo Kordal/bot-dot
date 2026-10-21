@@ -352,6 +352,15 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** Makes the copy, with [name] or the suggested one when blank. A refusal throws the server's sentence. */
     suspend fun duplicateBot(botId: String, name: String): Bot =
         json.decodeFromString(send("POST", "/bots/${enc(botId)}/duplicate", buildJsonObject { if (name.isNotBlank()) put("name", name.trim()) }))
+    /** A bot's files (#235), newest first. Only with `bot-files` in its features. */
+    suspend fun botFiles(botId: String): UploadedFileList = json.decodeFromString(get("/bots/${enc(botId)}/files"))
+    /** Keeps one of its files in mind, or stops; answers the list as it is now. */
+    suspend fun pinBotFile(botId: String, file: String, pinned: Boolean): UploadedFileList =
+        json.decodeFromString(send("PUT", "/bots/${enc(botId)}/files/${enc(file.substringAfterLast('/'))}", buildJsonObject { put("pinned", pinned) }))
+    /** Deletes one of its files and its readable copy; answers the list as it is now. */
+    suspend fun deleteBotFile(botId: String, file: String): UploadedFileList =
+        json.decodeFromString(send("DELETE", "/bots/${enc(botId)}/files/${enc(file.substringAfterLast('/'))}"))
+    suspend fun downloadBotFile(botId: String, file: String, dest: java.io.File) = download("/bots/${enc(botId)}/files/${enc(file.substringAfterLast('/'))}", dest)
     suspend fun computer(botId: String): ComputerInfo = json.decodeFromString(get("/bots/${enc(botId)}/computer"))
     suspend fun startComputer(botId: String) { send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "start") }) }
     /**

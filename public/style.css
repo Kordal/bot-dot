@@ -1090,6 +1090,11 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .bs-exact { display: grid; gap: 10px; }
 .bs-exact > summary, .job-more > summary, .bs-history > summary { cursor: pointer; font-size: 12.5px; font-weight: 400; }
 .bs-exact[open] > summary, .bs-history[open] > summary { margin-bottom: 4px; }
+.bs-files { display: grid; gap: 6px; margin-top: 8px; }
+.bs-file { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 13px; }
+.bs-file > a.grow { min-width: 0; overflow-wrap: anywhere; }
+.bs-file .link-btn { font-size: 12.5px; }
+.bs-file .link-btn.on { color: var(--text); }
 .bs-foot { padding: 4px 2px 20px; display: flex; flex-wrap: wrap; gap: 8px 20px; }
 .bs-foot > .link-btn:not(.danger-text) { font-size: 13px; color: var(--muted); }
 .danger-text { color: var(--err); font-size: 13px; }

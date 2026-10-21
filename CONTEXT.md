@@ -94,6 +94,14 @@ _Avoid_: tile (a tile is the Board's), button, card (a card waits in Needs you),
 A short-lived Claude Code agent a bot starts inside its own run (Claude Code's `Agent` tool) to do one part of the task in parallel, with the bot's tools, permissions and saved logins; it ends with the run, keeps no notes, and the bot gives the one reply. A bot uses helpers only with the permission "use helpers". It is not a bot and not a copy of one: it has no chat, head or jobs.
 _Avoid_: subagent, copy, clone, worker
 
+**A bot's files**:
+What the user (or a teammate) gave a bot, kept in its folder until the user deletes them. Every task of the bot names them. Not the files a bot attaches to its reply, which are kept with that reply.
+_Avoid_: uploads, attachments (in what the user reads)
+
+**Kept in mind**:
+Of a bot's file: its text, or the bot's summary of it, comes with every task of the bot. The API calls it `pinned`; the user reads "Keep in mind", so it is never mixed up with a pinned bot or a pinned note.
+_Avoid_: pinned file, remembered
+
 **Installed tool**:
 A command-line program (`gh`, `make`, `ffmpeg`) put on the botdot server for one bot after the user's OK on a card in Needs you, taken from botdot's registry (conda-forge) or from a link. Only that bot can run it, it cannot change it, and it stays across botdot updates. The Chief of Staff asks for it; a bot asks the Chief. "Tool" alone stays what a bot may use (`Read`, `Bash`, the web).
 _Avoid_: package, dependency, plugin, app

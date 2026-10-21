@@ -53,6 +53,8 @@ import dev.botdot.app.data.Connection
 import dev.botdot.app.data.Job
 import dev.botdot.app.data.SettingsInfo
 import dev.botdot.app.data.Skill
+import dev.botdot.app.data.UploadedFile
+import dev.botdot.app.data.UploadedFiles
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
@@ -81,6 +83,9 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     val server by app.store.version.value.collectAsState() // its features: whether it can duplicate a bot
     var copyPlan by remember { mutableStateOf<dev.botdot.app.data.CopyPlan?>(null) } // the Duplicate confirmation, while it is open
     var copyName by remember { mutableStateOf("") }
+    var files by remember { mutableStateOf<List<UploadedFile>?>(null) } // its files (#235), once loaded
+    var fileToDelete by remember { mutableStateOf<UploadedFile?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // What you're editing (starts as the bot's current settings).
     var color by remember { mutableStateOf("") }
@@ -117,6 +122,12 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             launch { runCatching { a.skills() }.onSuccess { library = it.library; sysSkills = it.machine.map { k -> k to "from your Claude account" } + it.builtin.map { k -> k to "built into Claude Code" } } }
             launch { runCatching { a.connectors() }.onSuccess { apps = it.connections.distinctBy { c -> c.toolkit } } }
         }
+    }
+
+    val keepsFiles = UploadedFiles.shows(server?.features)
+    LaunchedEffect(api, keepsFiles) {
+        val a = api ?: return@LaunchedEffect
+        if (keepsFiles) runCatching { a.botFiles(botId) }.onSuccess { files = it.files }
     }
 
     fun save() = scope.launch {
@@ -260,6 +271,28 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                     }
                 }
             }
+            // Its files (#235): what you gave it. Tap one to open it; keep one in mind so it comes with every task.
+            files?.let { list ->
+                FoldSection("Files", UploadedFiles.summary(list)) {
+                    Hint(if (list.isEmpty()) "None yet. Attach a file in its chat." else "It sees this list in every task. A file kept in mind comes with every task.")
+                    list.forEach { f ->
+                        key(f.file) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(f.name, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.clickable {
+                                    scope.launch { runCatching { dev.botdot.app.data.BotFiles.openUpload(context, api ?: error("Not connected to botdot"), botId, f) }.onError { tell(it.message ?: "Couldn't open ${f.name}") } }
+                                })
+                                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(UploadedFiles.detail(f), color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                                    TextButton(onClick = {
+                                        scope.launch { runCatching { api!!.pinBotFile(botId, f.file, !f.pinned) }.onSuccess { files = it.files }.onError { tell(it.message ?: "Couldn't save") } }
+                                    }) { Text(if (f.pinned) "📌 Kept in mind" else "Keep in mind", color = if (f.pinned) p.text else p.muted) }
+                                    TextButton(onClick = { fileToDelete = f }) { Text("Delete", color = p.err) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             FoldSection("Advanced", "Model and more") {
                 Choice("Model", model, listOf("" to "Default (from Settings)") + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
                 val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
@@ -298,6 +331,21 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 }) { Text("Duplicate", color = p.text) }
             },
             dismissButton = { TextButton(onClick = { copyPlan = null }) { Text("Cancel", color = p.text) } },
+        )
+    }
+
+    fileToDelete?.let { f ->
+        AlertDialog(
+            onDismissRequest = { fileToDelete = null },
+            title = { Text("Delete ${f.name}?") },
+            text = { Text("${bot?.name} won't have it any more.", color = p.text) },
+            confirmButton = {
+                TextButton(onClick = {
+                    fileToDelete = null
+                    scope.launch { runCatching { api!!.deleteBotFile(botId, f.file) }.onSuccess { files = it.files }.onError { tell(it.message ?: "Couldn't delete") } }
+                }) { Text("Delete", color = p.err) }
+            },
+            dismissButton = { TextButton(onClick = { fileToDelete = null }) { Text("Cancel", color = p.text) } },
         )
     }
 
