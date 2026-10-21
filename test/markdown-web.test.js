@@ -108,6 +108,29 @@ test('web: tables, code blocks, links, bold, italic and inline code are drawn as
   assert.equal(md(null), '');
 });
 
+test('web: ~~text~~ is struck through wherever the other marks work, never in code (#267)', () => {
+  assert.equal(md('~~struck~~'), '<p><del>struck</del></p>');
+  assert.equal(md('# ~~a~~\n\n- ~~b~~\n\n> ~~c~~\n\n| ~~d~~ |\n|---|\n| **~~e~~** |'),
+    '<h1><del>a</del></h1>\n<ul><li><del>b</del></li></ul>\n<blockquote><del>c</del></blockquote>\n<table><tr><th><del>d</del></th></tr><tr><td><strong><del>e</del></strong></td></tr></table>');
+  assert.equal(md('`~~code~~` and ~~not~~'), '<p><code>~~code~~</code> and <del>not</del></p>');
+  assert.equal(md('```\n~~kept~~\n```'), '<pre><code>~~kept~~</code></pre>');
+  assert.equal(md('~~open, ~one~ and ~~ spaced ~~'), '<p>~~open, ~one~ and ~~ spaced ~~</p>', 'unclosed, single or spaced tildes are text');
+});
+
+test('web: a task item is a checkbox in place of its marker, shown and never switched (#267)', () => {
+  assert.equal(md('- [x] done\n- [ ] todo'),
+    '<ul><li class="task"><input type="checkbox" disabled checked> done</li><li class="task"><input type="checkbox" disabled> todo</li></ul>');
+  assert.equal(md('1. [X] one\n   - [ ] sub\n2. two'),
+    '<ol><li class="task"><input type="checkbox" disabled checked> one<ul><li class="task"><input type="checkbox" disabled> sub</li></ul></li><li>two</li></ol>');
+  assert.equal(md('- a [x] b\n\n[x] c'), '<ul><li>a [x] b</li></ul>\n<p>[x] c</p>');
+  assert.equal(prop('.md li.task', 'list-style'), 'none');
+  // Typed markup stays text: the only <input> and <del> are the page's own.
+  const html = md('- [x] <input type=checkbox checked> <del>x</del>\n\n<input type="checkbox">');
+  assert.equal(html.match(/<input/g).length, 1);
+  assert.doesNotMatch(html, /<del>/);
+  assert.match(html, /&lt;input type=checkbox checked&gt; &lt;del&gt;x&lt;\/del&gt;/);
+});
+
 test('web: a title is larger than the text and stands off from what is above it', () => {
   assert.deepEqual(['h1', 'h2', 'h3', 'h4'].map((h) => prop(`.md ${h}`, 'font-size')), ['1.35em', '1.2em', '1.08em', '1em']);
   const all = '.md h1, .md h2, .md h3, .md h4';

@@ -424,7 +424,8 @@ function draftSource(src) {
   return lines.map((l) => l.replace(/^(\s*```)mermaid$/, '$1')).join('\n');
 }
 
-// A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth), quote (text),
+// A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth, and task: "done" or
+// "todo" for a task item), quote (text),
 // rule, code (text, lang: the word after its fence) and table (rows). Android's parseBlocks returns the same for the same text.
 function mdBlocks(src) {
   const code = [];
@@ -481,7 +482,9 @@ function mdBlocks(src) {
       // The first number of a list is the one written; the next ones count up, whatever is written.
       const number = m[2] === undefined ? null : nums[depth] != null ? nums[depth] + 1 : parseInt(m[2], 10);
       nums[depth] = number;
-      item = { type: 'item', text: m[3].trim(), number, depth };
+      // An item that starts with [ ] or [x] is a task, drawn with a checkbox in place of its marker (#267).
+      const task = m[3].trim().match(/^\[([ xX])\]\s+(.*)$/);
+      item = task ? { type: 'item', text: task[2], number, depth, task: task[1] === ' ' ? 'todo' : 'done' } : { type: 'item', text: m[3].trim(), number, depth };
       out.push(item);
       blank = false;
     }
@@ -498,6 +501,7 @@ function mdHTML(blocks) {
   const inline = (t) =>
     t
       .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/(<code>[^<]*<\/code>)|~~([^~\s](?:[^~]*[^~\s])?)~~/g, (all, code, struck) => code || `<del>${struck}</del>`)
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
       .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
@@ -509,7 +513,9 @@ function mdHTML(blocks) {
     let html = tag === 'ol' && number !== 1 ? `<ol start="${number}">` : `<${tag}>`;
     // A numbered list is the items that count up: a number that starts again is the next list.
     for (let n = number; isItem(i) && blocks[i].depth === depth && (tag === 'ul' ? blocks[i].number == null : blocks[i].number === n); n++) {
-      html += `<li>${text(blocks[i++].text)}`;
+      const { task } = blocks[i];
+      html += task ? `<li class="task"><input type="checkbox" disabled${task === 'done' ? ' checked' : ''}> ` : '<li>';
+      html += text(blocks[i++].text);
       while (isItem(i) && blocks[i].depth > depth) { const sub = list(i); html += sub.html; i = sub.next; }
       html += '</li>';
     }

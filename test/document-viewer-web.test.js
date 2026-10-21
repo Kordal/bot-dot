@@ -72,7 +72,7 @@ function viewer(answers, { features = ['document-viewer'] } = {}) {
   return { ctx, box, row, calls, click, listeners };
 }
 
-const REPORT = { name: 'weekly-report.md', size: 12000, at: '2026-10-21T09:14:00Z', kind: 'markdown', type: 'text/markdown', truncated: false, text: '# Weekly report\n\n<script>alert(1)</script>\n\n- **EU AI rules** take effect' };
+const REPORT = { name: 'weekly-report.md', size: 12000, at: '2026-10-21T09:14:00Z', kind: 'markdown', type: 'text/markdown', truncated: false, text: '# Weekly report\n\n<script>alert(1)</script>\n\n- **EU AI rules** take effect\n- [x] ~~draft~~ sent' };
 
 test('web: a file chip opens the viewer, which draws Markdown with the chat\'s renderer and runs no HTML from the file', async () => {
   const v = viewer({ '/files/r1/weekly-report.md?view=1': REPORT });
@@ -85,6 +85,7 @@ test('web: a file chip opens the viewer, which draws Markdown with the chat\'s r
   assert.match(html, /<b>weekly-report\.md<\/b><span>From News Monitor · 12000 B · 09:14<\/span>/);
   assert.match(html, /<h1>Weekly report<\/h1>/);
   assert.match(html, /<strong>EU AI rules<\/strong>/);
+  assert.match(html, /<li class="task"><input type="checkbox" disabled checked> <del>draft<\/del> sent<\/li>/, 'a task and a strikethrough too (#267)');
   assert.match(html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/, 'the file\'s HTML is text');
   assert.doesNotMatch(html, /<script/);
   assert.match(html, /aria-label="Open in full window"/);

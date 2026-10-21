@@ -1,5 +1,5 @@
 {
-  "about": "How a reply is read into blocks, the same on the web page (mdBlocks in public/app.js, test/markdown-web.test.js) and in the Android app (parseBlocks in Markdown.kt, MarkdownTest.kt). Each case is a source text and the flat list of blocks it becomes: heading (level, text), para (text), item (text, number or null, depth), quote (text), rule, code (text, lang: the word after the opening fence, \"\" without one), table (rows). A rule changes here and in both apps together.",
+  "about": "How a reply is read into blocks, the same on the web page (mdBlocks in public/app.js, test/markdown-web.test.js) and in the Android app (parseBlocks in Markdown.kt, MarkdownTest.kt). Each case is a source text and the flat list of blocks it becomes: heading (level, text), para (text), item (text, number or null, depth, and task: \"done\" or \"todo\" only on an item that starts with [x] or [ ]), quote (text), rule, code (text, lang: the word after the opening fence, \"\" without one), table (rows). A rule changes here and in both apps together.",
   "cases": [
     {
       "name": "depth: an item further right than an open item is its child",
@@ -954,6 +954,128 @@
           "text": "After."
         }
       ]
+    },
+    {
+      "name": "a task list: [x] and [X] are done, [ ] is to do, and the brackets are not in the text",
+      "source": "- [x] done\n- [ ] todo\n- [X] also done",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "done",
+          "number": null,
+          "depth": 0,
+          "task": "done"
+        },
+        {
+          "type": "item",
+          "text": "todo",
+          "number": null,
+          "depth": 0,
+          "task": "todo"
+        },
+        {
+          "type": "item",
+          "text": "also done",
+          "number": null,
+          "depth": 0,
+          "task": "done"
+        }
+      ]
+    },
+    {
+      "name": "a task item in a numbered list and in a sub-list",
+      "source": "1. [x] one\n   - [ ] sub\n   - plain\n2. [ ] two",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "one",
+          "number": 1,
+          "depth": 0,
+          "task": "done"
+        },
+        {
+          "type": "item",
+          "text": "sub",
+          "number": null,
+          "depth": 1,
+          "task": "todo"
+        },
+        {
+          "type": "item",
+          "text": "plain",
+          "number": null,
+          "depth": 1
+        },
+        {
+          "type": "item",
+          "text": "two",
+          "number": 2,
+          "depth": 0,
+          "task": "todo"
+        }
+      ]
+    },
+    {
+      "name": "[x] anywhere but at the start of an item, followed by a space, is text",
+      "source": "- [x]no space\n- [] empty\n- [y] other\n- a [x] mid\n\n[x] a paragraph",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "[x]no space",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "[] empty",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "[y] other",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "item",
+          "text": "a [x] mid",
+          "number": null,
+          "depth": 0
+        },
+        {
+          "type": "para",
+          "text": "[x] a paragraph"
+        }
+      ]
+    },
+    {
+      "name": "~~ and [x] in a code block are kept as written",
+      "source": "```\n- [x] ~~kept~~\n```",
+      "blocks": [
+        {
+          "type": "code",
+          "text": "- [x] ~~kept~~",
+          "lang": ""
+        }
+      ]
+    },
+    {
+      "name": "strikethrough stays in the text of its block: the apps draw it",
+      "source": "~~struck~~\n\n- [x] ~~done~~ `~~code~~`",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "~~struck~~"
+        },
+        {
+          "type": "item",
+          "text": "~~done~~ `~~code~~`",
+          "number": null,
+          "depth": 0,
+          "task": "done"
+        }
+      ]
     }
   ],
   "streamAbout": "A reply draft as it is drawn while it still grows (docs/api.md, \"The reply draft\"): each case is a draft and the blocks of what is drawn of it, the same on the web page (draftSource, then mdBlocks, in public/app.js) and in the Android app (draftSource, then parseBlocks, in Markdown.kt). A whole draft is drawn as the reply is, but a `mermaid` block, which stays plain code (lang \"\") until the reply ends.",
@@ -1141,6 +1263,18 @@
         {
           "type": "para",
           "text": "End."
+        }
+      ]
+    },
+    {
+      "name": "a task item half written stays text",
+      "source": "- [x",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "[x",
+          "number": null,
+          "depth": 0
         }
       ]
     }
