@@ -41,6 +41,7 @@ object Unread {
     /** The one place that says what started a run: the chat draws from it, and the "New" line is placed by it. */
     fun asked(r: Run): Asked = when {
         r.trigger == "replies" -> Asked.REPLIES // the answers it waited for: the notes it read are what started it
+        r.trigger == "bot" && r.fromBot == null -> Asked.REPLIES // notes other bots left woke it (#225): drawn the same way
         r.fromBot != null || r.startedBy == "chief" -> Asked.MESSAGE // another bot's message or a Chief task, folded
         r.jobName != null -> Asked.JOB
         r.trigger == "schedule" -> Asked.SCHEDULE

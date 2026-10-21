@@ -5,8 +5,9 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, heldRun, self, waitFor } = require('./helpers');
+const { startServer, makeBot, heldRun, self, waitFor, sleep } = require('./helpers');
 const { cleanText, MAX_CHARS, MAX_HOPS } = require('../lib/messages');
+const { rpcClient } = require('./memory-helpers');
 
 let srv, surfer, social, third;
 before(async () => {
@@ -15,7 +16,7 @@ before(async () => {
   third = await makeBot(srv, { name: 'Mail Bot', emoji: '📬', mayMessage: [] });
   surfer = await makeBot(srv, { name: 'Web Surfer', emoji: '🏄', mayMessage: [social.id, third.id] });
 });
-after(() => srv.stop());
+after(() => { srv.unhold(); return srv.stop(); });
 
 const runsOf = async (bot) => (await srv.api(`/runs?botId=${bot.id}`)).data;
 
@@ -120,33 +121,121 @@ test('one run may message several teammates, as often as it needs', async () => 
   // The chat names every bot it messaged, each once.
   assert.deepEqual(done.sentToAll.map((t) => t.id), [social.id, third.id]);
   assert.equal(done.sentTo.id, third.id);
+  // The notes woke them (#225): Social Watch read the first at once, the other four once it was free.
+  await finishWoken(social, 'note 0');
+  await finishWoken(social, 'note 4');
+  await finishWoken(third, 'hi');
 });
 
-test("a note waits in the inbox and is read on the next run, once", async () => {
+const isRunOf = (bot) => (x) => x.args.includes(`${bot.emoji} ${bot.name}`);
+// The run that notes woke, with `text` in its prompt: let it end.
+async function finishWoken(bot, text) {
+  const rec = await srv.nextRun((x) => isRunOf(bot)(x) && x.stdin.includes(text), `${bot.name} woken by "${text}"`);
+  const run = await waitFor(async () => (await runsOf(bot)).find((x) => x.status === 'running'), { what: `${bot.name}'s run` }); // one at a time
+  srv.release(rec);
+  await srv.finished(run.id);
+  return rec;
+}
+
+test('a note wakes an idle teammate at once: its run reads it, notifies nobody, and starts nothing more (#225)', async () => {
   fs.rmSync(path.join(srv.data, 'inbox'), { recursive: true, force: true });
+  const before = (await runsOf(third)).length;
   const { rec, run, token } = await heldRun(srv, surfer);
   const r = await self(srv, token, 'message', { to: third.id, message: 'Prefer sources from the last 24 hours.', priority: false });
   assert.equal(r.data.delivered, 'inbox');
+  assert.equal(r.data.full, undefined);
+  const woke = await srv.nextRun((x) => isRunOf(third)(x) && x.stdin.includes('Prefer sources from the last 24 hours'), 'Mail Bot woken by the note');
+  assert.match(woke.system, /started by the messages other bots of the owner's team left for you/);
+  assert.doesNotMatch(woke.system + woke.stdin, /The owner has sent you a message/);
+  const started = (await runsOf(third))[0];
+  assert.equal(started.trigger, 'bot');
+  assert.equal(started.fromBot, undefined);
+  assert.equal(started.notificationAudience, 'internal', 'a note that wakes a bot notifies nobody');
+  assert.equal(started.inbox.length, 1);
+  assert.equal(started.inbox[0].fromId, surfer.id);
+  assert.equal(started.hop, 1, 'it goes on in the exchange of the note');
+  assert.deepEqual((await srv.api(`/bots/${third.id}/inbox`)).data, [], 'read notes no longer wait');
+  // It may answer the bot that wrote, though that bot isn't in its list.
+  assert.equal((await self(srv, woke.self.env.RUN_TOKEN, 'message', { to: surfer.id, message: 'Noted.', priority: false })).data.ok, true);
+  srv.release(woke);
+  await srv.finished(started.id);
   srv.release(rec);
   await srv.finished(run.id);
-  assert.equal((await runsOf(third)).length, 0, 'a note starts nothing');
-  // The owner sees it waiting in that bot's chat, with who left it.
-  const waiting = (await srv.api(`/bots/${third.id}/inbox`)).data;
-  assert.equal(waiting.length, 1);
-  assert.equal(waiting[0].fromId, surfer.id);
-  assert.equal(waiting[0].color, surfer.color);
-  assert.match(waiting[0].text, /Prefer sources/);
-  const next = await heldRun(srv, third, 'Any news?');
-  assert.match(next.rec.stdin, /Prefer sources from the last 24 hours/);
-  srv.release(next.rec);
-  const done = await srv.finished(next.run.id);
-  assert.equal(done.inbox.length, 1);
-  assert.equal(done.inbox[0].fromId, surfer.id);
-  assert.deepEqual((await srv.api(`/bots/${third.id}/inbox`)).data, [], 'read notes no longer wait');
+  await finishWoken(surfer, 'Noted.');
+  await sleep(300);
+  assert.equal((await runsOf(third)).length, before + 1, 'a note it read starts no other run');
   const again = await heldRun(srv, third, 'And now?');
   assert.doesNotMatch(again.rec.stdin, /Prefer sources/);
   srv.release(again.rec);
   await srv.finished(again.run.id);
+});
+
+test('a note to a busy bot waits beside no second run, and wakes it once it is free (#225)', async (t) => {
+  fs.rmSync(path.join(srv.data, 'inbox'), { recursive: true, force: true });
+  const busy = await heldRun(srv, third, 'Something long');
+  const { rec, run } = await heldRun(srv, surfer);
+  // The sender is told it starts once free, and that a request needing an answer goes with priority.
+  const said = await rpcClient(t, 'self-mcp.js', rec.self.env).text('message_bot', { to: third.id, message: 'The VPN key changed.', priority: false });
+  assert.match(said, /It is a note: 📬 Mail Bot starts as soon as it is free and reads it then, but nothing comes back to you\. A request that needs it to act and answer goes with priority: true/);
+  srv.release(rec);
+  await srv.finished(run.id);
+  assert.equal((await runsOf(third)).filter((x) => x.status === 'running').length, 1, 'no second run beside the one at work');
+  // The owner sees it waiting in that bot's chat, with who left it and when.
+  const waiting = (await srv.api(`/bots/${third.id}/inbox`)).data;
+  assert.equal(waiting.length, 1);
+  assert.equal(waiting[0].fromId, surfer.id);
+  assert.equal(waiting[0].color, surfer.color);
+  assert.ok(Date.parse(waiting[0].at) <= Date.now());
+  srv.release(busy.rec);
+  await srv.finished(busy.run.id);
+  await finishWoken(third, 'The VPN key changed.');
+  assert.deepEqual((await srv.api(`/bots/${third.id}/inbox`)).data, []);
+});
+
+test("a run that starts first reads the note, and the wake starts nothing more (#225)", async () => {
+  fs.rmSync(path.join(srv.data, 'inbox'), { recursive: true, force: true });
+  const busy = await heldRun(srv, third, 'Something long');
+  const { rec, run, token } = await heldRun(srv, surfer);
+  await self(srv, token, 'message', { to: third.id, message: 'Use the new bucket.', priority: false });
+  srv.release(rec);
+  await srv.finished(run.id);
+  // The owner's message waits too, and starts before the wake.
+  const mine = await srv.api(`/bots/${third.id}/run`, { method: 'POST', body: { prompt: 'Then this.' } });
+  assert.equal(mine.data.status, 'queued');
+  const count = (await runsOf(third)).length;
+  srv.release(busy.rec);
+  await srv.finished(busy.run.id);
+  const next = await srv.nextRun((x) => isRunOf(third)(x) && x.stdin.startsWith('Then this.'), "the owner's message");
+  assert.match(next.stdin, /Use the new bucket/, 'it read the note');
+  srv.release(next);
+  await waitFor(async () => (await runsOf(third)).every((x) => x.status !== 'running'), { what: 'Mail Bot to finish' });
+  await sleep(300);
+  assert.equal((await runsOf(third)).length, count + 1, 'only the owner\'s message ran');
+});
+
+test('"Run now" under waiting notes starts the bot with them, or once it is free (#225)', async () => {
+  fs.rmSync(path.join(srv.data, 'inbox'), { recursive: true, force: true });
+  const runNow = () => srv.api(`/bots/${third.id}/inbox/run`, { method: 'POST' });
+  assert.equal((await runNow()).status, 409, 'no note waits');
+  assert.equal((await srv.api('/bots/nobody/inbox/run', { method: 'POST' })).status, 404);
+  // Busy: it waits its turn (and the wake had queued it already).
+  const busy = await heldRun(srv, third, 'Something long');
+  const { rec, run, token } = await heldRun(srv, surfer);
+  await self(srv, token, 'message', { to: third.id, message: 'Rotate the logs.', priority: false });
+  srv.release(rec);
+  await srv.finished(run.id);
+  assert.deepEqual((await runNow()).data, { status: 'queued' });
+  srv.release(busy.rec);
+  await srv.finished(busy.run.id);
+  await finishWoken(third, 'Rotate the logs.');
+  // A note left where nothing woke it (an answer it collects, or a botdot from before): "Run now" starts it.
+  fs.mkdirSync(path.join(srv.data, 'inbox'), { recursive: true });
+  fs.writeFileSync(path.join(srv.data, 'inbox', `${third.id}.json`), JSON.stringify([{ id: 'n1', at: new Date().toISOString(), fromId: surfer.id, fromName: 'Web Surfer', text: 'Old news.', answer: true }]));
+  assert.deepEqual((await runNow()).data, { status: 'started' });
+  const woke = await finishWoken(third, 'Old news.');
+  assert.ok(woke);
+  const ran = (await runsOf(third))[0];
+  assert.equal(ran.notificationAudience, 'owner', 'the owner asked for this one');
 });
 
 test('a chain of hand-offs stops after MAX_HOPS, a safety net against endless loops', async () => {

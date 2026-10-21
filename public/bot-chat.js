@@ -21,7 +21,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
     // Messages other bots left for it, read at the start of this run.
     const notes = notesFoldHTML(r.inbox, r.inbox?.length === 1 ? 'Read a note from' : 'Read notes from');
     let mine = false; // your own message started it: that isn't new, so the "New" line goes below it
-    const asked = notes + (r.trigger === 'replies' ? '' // the answers it waited for: the notes above are what started it
+    const asked = notes + (r.trigger === 'replies' || (r.trigger === 'bot' && !r.fromBot) ? '' // the answers it waited for, or notes that woke it (#225): the notes above are what started it
       : sender(r) // a message from another bot or the Chief: one folded line that opens to what it said
       ? `<div class="bubble-row from-me"><details class="notes-fold" ${state.keepOpen === r.id ? 'open' : ''}><summary>Message from ${botLabel(sender(r))}</summary><div class="note"><div class="bubble from-other-bot">${esc(r.prompt)}${filesHTML(r.attachments)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></details></div>`
       : r.jobName
@@ -64,6 +64,17 @@ function botThreadHTML(bot, runs, newFirst = null) {
     }
     return sep + Unread.exchange({ asked: asked + steered, reply, mine }, line);
   }).join('');
+}
+
+// "Run now" under the notes that wait (#225): the bot starts with them, or once it is free.
+async function runNotes(botId, btn) {
+  btn.disabled = true;
+  try {
+    const { status } = await api(`/bots/${encodeURIComponent(botId)}/inbox/run`, { method: 'POST' });
+    if (status === 'queued') toast(`${botById(botId)?.name || 'It'} is busy: it reads them once it is free.`);
+  } catch (e) { toast(e.message, true); btn.disabled = false; return; }
+  refresh();
+  loadInbox(botId);
 }
 
 // The notes other bots left for a bot, waiting for its next run (shown at the bottom of its chat).
@@ -149,11 +160,12 @@ function renderBotChat() {
   if (root.dataset.sig !== sig) {
     const atBottom = !root.dataset.sig || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
     root.dataset.sig = sig;
-    thread.innerHTML = botThreadHTML(bot, runs, newFirst) + notesFoldHTML(waiting, 'Notes waiting:');
+    thread.innerHTML = botThreadHTML(bot, runs, newFirst) + waitingNotesHTML(bot.id, waiting);
     if (atBottom) thread.scrollTop = thread.scrollHeight;
     scrollToNew(thread);
     $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
     $$('[data-details]', thread).forEach((el) => (el.onclick = () => openRun(el.dataset.details)));
+    $$('[data-run-notes]', thread).forEach((el) => (el.onclick = () => runNotes(el.dataset.runNotes, el)));
     wireChoices(thread, (t, key) => sendFrom($('form', root), () => runBot(bot.id, t, [], key)));
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));
     // What it learned: a job opens its jobs, a change to its task, rules or skills its settings. A note opens nothing.

@@ -326,16 +326,12 @@ test("a turn's prompt holds the group's chat with every line's author, its own n
 
 test("in its own chat a member recalls what it said in the group, and never what another member said there; a turn takes no inbox and closes no question of its bot's own", async () => {
   const { group, bots: [coder, reviewer] } = await team(srv, 'Recall', ['Recall Coder', 'Recall Reviewer']);
-  // Coder asks the owner something in its own chat, and a teammate left it a note.
-  const outsider = await makeBot(srv, { name: 'Recall Outsider', emoji: '🤖', prompt: 'Help.', mayMessageAll: true });
+  // Coder asks the owner something in its own chat, and a teammate left it a note: an answer it collects for a
+  // question of its own, which wakes nothing (ADR 049), so it still waits when the turn comes.
   reply(srv, coder, 'Shall I rebase?\n\n[[choices: Yes | No]]');
   const asked = await srv.finished((await srv.api(`/bots/${coder.id}/run`, { method: 'POST', body: { prompt: 'Tidy the branch' } })).data.id);
-  hold(srv, outsider);
-  await srv.api(`/bots/${outsider.id}/run`, { method: 'POST', body: { prompt: 'Leave a note' } });
-  const out = await heldTurn(srv, outsider, 'the run of the outsider');
-  assert.equal((await self(srv, out.token, 'message', { to: coder.id, message: 'The staging box is back.', priority: false })).data.delivered, 'inbox');
-  letGo(srv, outsider);
-  srv.release(out.rec);
+  fs.mkdirSync(path.join(srv.data, 'inbox'), { recursive: true });
+  fs.writeFileSync(path.join(srv.data, 'inbox', `${coder.id}.json`), JSON.stringify([{ id: 'n1', at: new Date().toISOString(), fromId: 'outsider', fromName: 'Recall Outsider', text: 'The staging box is back.', answer: true }]));
   const inboxOf = async () => (await srv.api(`/bots/${coder.id}/inbox`)).data.map((n) => n.text);
   const before = await inboxOf();
   assert.deepEqual(before, ['The staging box is back.']);

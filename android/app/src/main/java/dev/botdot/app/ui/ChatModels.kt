@@ -224,6 +224,21 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         }
     }
 
+    /** "Run now" under the notes that wait (#225): the bot starts with them, or once it is free; the chat says which. */
+    fun runNotes() {
+        viewModelScope.launch {
+            try {
+                val r = (app.api.value ?: throw ApiException(NOT_CONNECTED)).runNotes(botId)
+                if (r.status == "queued") _notes.tryEmit("It's busy: it reads them once it's free.")
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _notes.tryEmit(e.message ?: "Couldn't start it")
+            }
+            refresh(); app.store.bots.refresh()
+        }
+    }
+
     /**
      * "Steer" on a message that waits (ADR 040): the run that is going reads it at its next tool call, and until then
      * it shows "Steering…". When botdot refused (the run can't take it, or it has started), the box's line says why.

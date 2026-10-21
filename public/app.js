@@ -194,9 +194,10 @@ function loadSkillLib() {
 function messagedLabel(r) {
   const to = r.sentToAll?.length ? r.sentToAll : r.sentTo ? [r.sentTo] : [];
   if (!to.length) return '';
+  // A note wakes the bot once it is free (#225), as a message that waits does; it only gets no answer back.
   const how = to.every((t) => t.delivered === 'queued') ? (to.length === 1 ? ' · it picks it up when free' : ' · they pick it up when free')
-    : to.every((t) => t.delivered?.startsWith('inbox')) ? ' · a note for their next run' : '';
-  return `<div class="bot-msg-label">Messaged ${to.map(botLabel).join(', ')}${to.length === 1 ? how.replace('their', 'its') : how}</div>`;
+    : to.every((t) => t.delivered?.startsWith('inbox')) ? (to.length === 1 ? ' · a note it reads when free' : ' · a note they read when free') : '';
+  return `<div class="bot-msg-label">Messaged ${to.map(botLabel).join(', ')}${how}</div>`;
 }
 // Every bot a run messaged, each once.
 const sentTo = (r) => (r.sentToAll?.length ? r.sentToAll : r.sentTo ? [r.sentTo] : []);
@@ -209,12 +210,22 @@ function exchangeLabel(r) {
 // Who sent the task that started a run, when it wasn't the owner: another bot, or the Chief (it hands tasks to bots).
 const sender = (r) => (r.trigger === 'bot' && r.fromBot ? r.fromBot : r.startedBy === 'chief' ? CHIEF_BOT : null);
 // Notes other bots left: one folded line, "Read notes from Web Surfer, Coder" (each with its small head), that opens to what each said.
-function notesFoldHTML(notes, heading) {
+// foot: a line under it (the notes that wait: how long, and "Run now").
+function notesFoldHTML(notes, heading, foot = '') {
   if (!notes?.length) return '';
   const who = [...new Map(notes.map((n) => [n.fromId || n.from, { id: n.fromId, name: n.from, color: n.color }])).values()];
-  return `<div class="bubble-row from-me"><details class="notes-fold"><summary>${heading} ${who.map(botLabel).join(', ')}</summary>
+  const fold = `<details class="notes-fold"><summary>${heading} ${who.map(botLabel).join(', ')}</summary>
     ${notes.map((n) => `<div class="note"><div class="bot-msg-label">${botLabel({ id: n.fromId, name: n.from, color: n.color })}${n.at ? ` · ${esc(msgTime(n.at))}` : ''}</div><div class="bubble from-other-bot">${esc(n.text)}</div></div>`).join('')}
-  </details></div>`;
+  </details>`;
+  return `<div class="bubble-row from-me">${foot ? `<div class="notes-wait">${fold}${foot}</div>` : fold}</div>`;
+}
+// The notes that wait for a bot, at the bottom of its chat (#225): how long the oldest has waited, and, from a botdot
+// that wakes bots for their notes, "Run now", which starts it with them (or once it is free).
+function waitingNotesHTML(botId, notes) {
+  if (!notes?.length) return '';
+  const oldest = notes.map((n) => n.at).filter(Boolean).sort()[0];
+  const runNow = state.features.includes('notes-wake') ? `<button data-run-notes="${esc(botId)}">Run now</button>` : '';
+  return notesFoldHTML(notes, 'Notes waiting:', oldest || runNow ? `<div class="bubble-meta">${oldest ? `<span>Oldest ${esc(ago(oldest))}</span>` : ''}${oldest && runNow ? ' · ' : ''}${runNow}</div>` : '');
 }
 // A run's bot: at work while the run goes on, with the failed face if it failed.
 const runFigure = (r, size) => botFigure(botById(r.botId)?.color || r.botColor, r.status === 'running' ? 'working' : r.status === 'error' ? 'failed' : 'idle', size, botById(r.botId)?.outfit, botById(r.botId)?.id);
