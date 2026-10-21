@@ -23,16 +23,30 @@ test('a step in, one short plain line out', () => {
   assert.equal(tool('Read', { file_path: '/home/bot/work/notes/plan.md' }), 'Reading plan.md');
   assert.equal(tool('Write', { file_path: '/home/bot/report.txt' }), 'Writing report.txt');
   assert.equal(tool('Edit', { file_path: 'C:\\work\\report.txt' }), 'Changing report.txt');
-  assert.equal(tool('Bash', { command: 'ls', description: 'List files' }), 'Running a command');
+  assert.equal(tool('Bash', { command: 'ls', description: 'List files' }), 'List files');
+  assert.equal(tool('Bash', { command: 'ls' }), 'Running a command');
+  assert.equal(tool('Bash', { command: 'ls', description: '  ' }), 'Running a command');
   assert.equal(tool('Grep', { pattern: 'x' }), 'Looking through its files');
   assert.equal(tool('Task', {}), 'Asking a helper');
   assert.equal(tool('Skill', { skill: 'botdot:meal-plan' }), 'Using the skill meal-plan');
   assert.equal(tool('mcp__computer__open_browser', { url: 'https://nytimes.com/' }), 'Opening nytimes.com');
   assert.equal(tool('mcp__computer__open_browser', {}), 'Opening the browser');
-  assert.equal(tool('mcp__computer__screenshot', {}), 'Using its computer');
+  assert.equal(tool('mcp__computer__screenshot', {}), 'Looking at its screen');
+  assert.equal(tool('mcp__computer__click', { x: 1, y: 2 }), 'Clicking');
+  assert.equal(tool('mcp__computer__press_keys', { keys: ['enter'] }), 'Pressing keys');
+  assert.equal(tool('mcp__computer__scroll', { x: 1, y: 2, direction: 'down' }), 'Scrolling');
+  assert.equal(tool('mcp__computer__read_file', { path: '/workspace/b1/notes.md' }), 'Reading a file on its computer');
+  assert.equal(tool('mcp__computer__write_file', { path: '/workspace/b1/notes.md', content: 'x' }), 'Saving a file on its computer');
+  assert.equal(tool('mcp__computer__move_mouse', { x: 1, y: 2 }), 'Using its computer');
   assert.equal(tool('mcp__computer__run_shell', { command: 'ls' }), 'Running a command on its computer');
+  assert.equal(tool('mcp__computer__run_shell', { command: 'df -h', description: 'Check disk space' }), 'Check disk space');
+  assert.equal(tool('mcp__computer__run_with_file', { file: 'k.pem', command: 'openssl x', description: 'Sign the token' }), 'Sign the token');
+  assert.equal(tool('mcp__computer__run_with_file', { file: 'k.pem', command: 'openssl x' }), 'Running a command with a saved file');
+  assert.equal(tool('mcp__computer__start_program', { command: 'python3 -m http.server', description: 'Start a web server' }), 'Start a web server');
   assert.equal(tool('mcp__computer__run_with_login', { login: 'Bridge', command: 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/' }), 'Running a command with a saved login');
   assert.equal(tool('mcp__computer__run_with_ssh_key', { key: 'Tailnet servers', command: 'ssh admin@host uptime' }), 'Running a command with a saved SSH key');
+  assert.equal(tool('mcp__computer__run_with_ssh_key', { key: 'Tailnet servers', command: 'ssh admin@host uptime', description: 'Check the server is up' }), 'Check the server is up');
+  assert.equal(tool('mcp__computer__run_with_login', { login: 'Bridge', command: 'curl x', description: 'Read the inbox' }), 'Read the inbox');
   assert.equal(tool('mcp__vault__api_request', { url: 'https://api.github.com/user', login: 'GitHub' }), 'Calling api.github.com');
   assert.equal(tool('mcp__vault__request_login', { site: 'github.com' }), 'Asking you for a login');
   assert.equal(tool('mcp__connectors__connector_run', { app: 'gmail', action: 'GMAIL_SEND_EMAIL' }), 'Using gmail');
@@ -62,10 +76,13 @@ test('a secret, a whole command, a long address and a file\'s path are not in a 
     ['WebFetch', { url: 'https://user:SECRET@www.example.com/a/very/long/path/that/goes/on?token=SECRET&q=SECRET#SECRET' }, 'Reading example.com'],
     ['mcp__computer__open_browser', { url: 'https://example.com/login?password=SECRET' }, 'Opening example.com'],
     ['mcp__vault__api_request', { url: 'https://api.example.com/v1?key=SECRET', login: 'SECRET', body: 'SECRET' }, 'Calling api.example.com'],
-    ['Bash', { command: 'curl -H "Authorization: Bearer SECRET" https://example.com', description: 'SECRET' }, 'Running a command'],
+    ['Bash', { command: 'curl -H "Authorization: Bearer SECRET" https://example.com' }, 'Running a command'],
+    ['Bash', { command: 'curl -H "Authorization: Bearer SECRET" https://example.com', description: 'Check the vault files' }, 'Check the vault files'],
     ['mcp__computer__run_shell', { command: 'export KEY=SECRET' }, 'Running a command on its computer'],
+    ['mcp__computer__run_shell', { command: 'export KEY=SECRET', description: 'Read the repo' }, 'Read the repo'],
+    ['mcp__computer__run_with_login', { login: 'SECRET', command: 'curl --user SECRET' }, 'Running a command with a saved login'],
     ['mcp__computer__start_program', { command: 'app --token SECRET' }, 'Starting a program on its computer'],
-    ['mcp__computer__type_text', { text: 'SECRET' }, 'Using its computer'],
+    ['mcp__computer__type_text', { text: 'SECRET' }, 'Typing'],
     ['mcp__computer__type_login', { field: 'password', login: 'SECRET' }, 'Signing in with a saved login'],
     ['mcp__computer__type_card', { field: 'number', card: 'SECRET', amount: 'SECRET' }, 'Paying with a saved card'],
     ['Read', { file_path: '/home/SECRET/private/notes.md' }, 'Reading notes.md'],
@@ -91,6 +108,10 @@ test('a line is one line of plain text, at most 80 characters, with no ellipsis 
   assert.equal(words({ job: 'Morning\n\ncheck\tof\u0000 disks' }), 'Running Morning check of disks');
   assert.ok([...words({ job: 'x'.repeat(500) })].length <= MAX);
   assert.ok([...tool('WebFetch', { url: `https://${'a'.repeat(60)}.${'b'.repeat(60)}.example.com/` })].length <= MAX);
+  const told = tool('mcp__computer__run_shell', { command: 'x', description: `Check\nthe\u0000 disks ${'d'.repeat(200)}` });
+  assert.equal([...told].length, MAX);
+  assert.match(told, /^Check the disks d+$/);
+  assert.equal(tool('Bash', { command: 'x', description: 'é'.repeat(100) }), 'é'.repeat(80));
 });
 
 test('the words of a step that is done are as they were (the index of past runs, the simple stream)', () => {
@@ -408,8 +429,13 @@ test('a job\'s run says which job, until the bot says more', async () => {
   await lineIs(run.id, 'Running Disk check');
   assert.equal((await runOf(run.id)).workingLine, 'Running Disk check');
   await sleep(1100);
-  player(rec)(use('Bash', { command: 'df -h' }));
+  const play = player(rec);
+  play(use('Bash', { command: 'df -h' }));
   await lineIs(run.id, 'Running a command');
+  await sleep(1100);
+  play(use('Bash', { command: 'df -h /secret', description: 'Check disk space' }));
+  await lineIs(run.id, 'Check disk space');
+  assert.equal((await runOf(run.id)).workingLine, 'Check disk space');
   srv.release(rec);
   await srv.finished(run.id);
   srv.unhold();
