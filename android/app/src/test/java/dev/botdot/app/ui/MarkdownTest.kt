@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.serialization.json.Json
@@ -27,7 +29,7 @@ class MarkdownTest {
     private fun block(b: JsonObject): Block = when (val type = b.getValue("type").jsonPrimitive.content) {
         "heading" -> Block.Heading(b.getValue("level").jsonPrimitive.int, b.text())
         "para" -> Block.Para(b.text())
-        "item" -> Block.Item(b.text(), b.getValue("number").jsonPrimitive.intOrNull, b.getValue("depth").jsonPrimitive.int)
+        "item" -> Block.Item(b.text(), b.getValue("number").jsonPrimitive.intOrNull, b.getValue("depth").jsonPrimitive.int, b["task"]?.jsonPrimitive?.content)
         "quote" -> Block.Quote(b.text())
         "rule" -> Block.Rule
         "code" -> Block.Code(b.text(), b.getValue("lang").jsonPrimitive.content)
@@ -60,6 +62,14 @@ class MarkdownTest {
         // A whole reply is drawn as it is without drafts.
         val whole = "## Done\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n```js\nx\n```\nEnd. **Bold** and [a link](https://example.com)."
         assertEquals(parseBlocks(whole), parseBlocks(draftSource(whole)))
+    }
+
+    @Test fun tildesAroundTextStrikeItThroughOutsideCodeOnly() {
+        // #267: wherever the other marks work, never in `code`; unclosed, single or spaced tildes stay text.
+        val s = inlineText("~~struck~~ **~~both~~** `~~code~~` ~~open ~one~ ~~ spaced ~~", Color.White, DarkPaper)
+        assertEquals("struck both ~~code~~ ~~open ~one~ ~~ spaced ~~", s.text)
+        val struck = s.spanStyles.filter { it.item.textDecoration == TextDecoration.LineThrough }.map { s.text.substring(it.start, it.end) }
+        assertEquals(listOf("struck", "both"), struck)
     }
 
     @Test fun aSubItemsTextStartsRightOfItsParentsText() {
