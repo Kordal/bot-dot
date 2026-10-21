@@ -52,7 +52,7 @@ A stranger is someone who may try to break out on purpose. Every bot holds its o
 
 - The person who runs the machine has an ordinary account, plus the admin page: web only, at `/admin` on the front door.
 - There they create and revoke sign-up links, suspend or delete accounts, set each account's share of the machine, see its load, and update every account at once.
-- The admin page never shows what is inside an account. An account's own Settings has no update.
+- The admin page never shows what is inside an account (but for the Feedback an owner sends the admin on purpose, [ADR 048](048-the-admin-page-shows-the-feedback-an-owner-sends-the-admin.md)). An account's own Settings has no update.
 
 **An account's lifecycle.**
 

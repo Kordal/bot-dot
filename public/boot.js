@@ -1,6 +1,7 @@
 // ---------- boot ----------
 
 $('#more-btn').onclick = () => setView('settings');
+$('#feedback-btn').onclick = () => openFeedback();
 initSideGrip();
 initChatGrip();
 initQuote(); // the Quote button by text selected in a chat (chief.js)
