@@ -196,19 +196,27 @@ const SETTINGS_PAGES = [
   ['vault', 'Vault', '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'],
 ];
 
+// The links to the pages above. Drawn again on every refresh, also while the form below keeps its edits, so that
+// "Activity" always names the tasks that the number on the Settings button counts (markMore).
+function drawSettingsLinks(root) {
+  const box = $('#settings-links', root);
+  if (!box) return;
+  const running = runningTasks();
+  box.innerHTML = SETTINGS_PAGES.map(([view, label, icon]) => `
+      <button type="button" class="settings-link" data-go="${view}">${icon}<span class="grow">${label}</span>${view === 'runs' && running ? `<span class="pill accent pulse">${tasksRunning(running)}</span>` : ''}<span class="faint">›</span></button>`).join('');
+  $$('[data-go]', box).forEach((b) => (b.onclick = () => setView(b.dataset.go)));
+}
+
 function renderSettings() {
   const root = $('#view-settings');
   if (!state.settings) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
-  if (root.querySelector('#settings-form')) return; // don't wipe unsaved edits on refresh
+  if (root.querySelector('#settings-form')) return drawSettingsLinks(root); // don't wipe unsaved edits on refresh
   const s = state.settings;
   const custom = state.bots.filter((b) => b.model || b.effort);
-  const running = state.runs.filter((r) => r.status === 'running').length;
   root.innerHTML = `
     ${PAGE_BACK}
     <div class="section-head"><div><h1>Settings</h1><p>Defaults for your team. Each bot can override them in its own settings.</p></div></div>
-    <div class="card settings-card settings-links">${SETTINGS_PAGES.map(([view, label, icon]) => `
-      <button type="button" class="settings-link" data-go="${view}">${icon}<span class="grow">${label}</span>${view === 'runs' && running ? `<span class="faint">${running} running</span>` : ''}<span class="faint">›</span></button>`).join('')}
-    </div>
+    <div class="card settings-card settings-links" id="settings-links"></div>
     <form id="settings-form" autocomplete="off">
       <div class="card settings-card">
         <h3 class="page-sub" style="margin-top:0">Default model and reasoning</h3>
@@ -236,7 +244,7 @@ function renderSettings() {
   wirePushCard(root);
   const signOut = $('#sign-out-everywhere', root);
   if (signOut) signOut.onclick = signOutEverywhere;
-  $$('[data-go]', root).forEach((b) => (b.onclick = () => setView(b.dataset.go)));
+  drawSettingsLinks(root);
   loadBackupsCard();
   const form = $('#settings-form', root);
   wireLlmFields(form, 'default');
