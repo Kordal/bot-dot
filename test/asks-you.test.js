@@ -91,12 +91,15 @@ test('a scheduled run with a question is never private: delivered as a reply, he
   assert.ok(quietRun(scheduled({ choices: ['Yes', 'No'] })));
 });
 
-test('who is asked: the owner by their own bot\'s reply, never by a run a bot or the Chief started', () => {
+test('who is asked: the owner by their own bot\'s reply, also in a run a teammate started (#233), never in a run the Chief started', () => {
   const reply = { status: 'success', trigger: 'manual', result: 'Send it?', choices: ['Yes', 'No'] };
   assert.equal(runAsks(reply), true);
   assert.equal(runAsks({ ...reply, choices: undefined }), false, 'no question');
   assert.equal(runAsks({ ...reply, status: 'error' }), false, 'a run that failed asks nothing');
-  assert.equal(runAsks({ ...reply, trigger: 'bot', fromBot: { id: 'b2' } }), false, "a teammate's request");
+  const request = { ...reply, trigger: 'bot', fromBot: { id: 'b2' }, notificationAudience: 'internal' };
+  assert.equal(runAsks(request), true, "a teammate's request that needs the owner's word asks the owner");
+  assert.equal(runCounts(request), true, 'and is new for the owner');
+  assert.equal(runCounts({ ...request, choices: undefined }), false, 'a plain reply to a teammate stays folded');
   assert.equal(runAsks({ ...reply, startedBy: 'chief' }), false, 'a run the Chief started');
   assert.equal(ownChatMessage({ trigger: 'manual' }), true);
   assert.equal(ownChatMessage({ trigger: 'manual', jobId: 'j1' }), false, '"Run now" is no message');
@@ -305,17 +308,19 @@ test("a run the Chief started gets no note for answer buttons; a question it wri
     assert.deepEqual([last.result, last.choices, last.asks, last.askedChief], ['Shall I restart VM 103?\n\nPossible answers: Yes | No', undefined, undefined, true]);
     assert.equal((await botOf(srv, bot)).asks, undefined);
 
-    // An owner's own message does get the note; a teammate's request gets none, as before, and asks the owner nothing.
+    // An owner's own message gets the note, and so does a teammate's request (#233): what it needs from the owner, an
+    // OK on a change or an answer only they can give, it asks them in the reply, which asks the owner.
     const origin = await heldRun(srv, bot, 'Ask the helper');
     assert.ok(origin.rec.system.includes(choices.NOTE));
-    await self(srv, origin.token, 'message', { to: helper.id, message: 'Which VM?', priority: true });
+    await self(srv, origin.token, 'message', { to: helper.id, message: 'Make the VM', priority: true });
     const helped = await srv.nextRun(isRunOf(helper));
-    assert.ok(!helped.system.includes(choices.NOTE));
-    srv.reply('This one?\n\n[[choices: 103 | 104]]');
+    assert.ok(helped.system.includes(choices.NOTE));
+    assert.match(helped.system, /needs the owner's OK .*ask them at the end of your reply/);
+    srv.reply('I plan VM 107. Should I make it?\n\n[[choices: Yes | No]]');
     srv.release(helped);
     const answer = await srv.finished((await srv.api(`/runs?botId=${helper.id}`)).data[0].id);
-    assert.deepEqual([answer.result, answer.choices, answer.asks, answer.trigger], ['This one?', ['103', '104'], undefined, 'bot']);
-    assert.equal((await botOf(srv, helper)).asks, undefined);
+    assert.deepEqual([answer.result, answer.choices, answer.asks, answer.trigger], ['I plan VM 107. Should I make it?', ['Yes', 'No'], true, 'bot']);
+    assert.equal((await botOf(srv, helper)).asks?.runId, answer.id, 'the helper asks the owner');
     srv.reply('Done.');
   } finally { srv.unhold(); await srv.stop(); }
 });
