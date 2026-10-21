@@ -55,6 +55,7 @@ One botdot server holds the truth, and each app is a native window onto its API.
 5. **Minimal UI.** No new control for something the Chief of Staff can do by chat; no costs, budgets or usage limits anywhere in an account. Only the admin page shows each account's share of the machine and its load ([ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)).
 6. **Nothing a bot or the Chief writes is trusted as markup.** Text and drawings from Claude are validated on the server and drawn by the apps' own code ([ADR 004](docs/adr/004-pieces-as-restricted-shape-lists.md)).
 7. **Use the product's words.** `CONTEXT.md` defines them (bot, main assignment, Chief of Staff, Board) and names the words to avoid. They apply to UI text, documents, names in code and what you write to the owner.
+8. **Say what's new.** A change a person would notice adds a note to `whats-new/` in the same pull request: a title and 2 to 4 plain points ([whats-new/README.md](whats-new/README.md)). The apps show it once after an update.
 
 ## Talking to the owner
 

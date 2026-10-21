@@ -45,6 +45,7 @@ document.addEventListener('click', (e) => {
     const known = ['chief', 'dashboard', 'bot', 'group', 'needs', ...Panel.NAMES, 'runs', 'vault', 'skills', 'settings', 'setup', 'connectors'].includes(view);
     setView(known ? view : 'chief', BOT_NAMES.includes(view) || GROUP_NAMES.includes(view) ? sub : undefined);
     if (!known) showList(); // phones start on the contact list
+    showWhatsNew(); // after an update: what changed, once (whats-new.js)
   }
   // Keep things fresh without clobbering an open dialog. The live feed says when something changed, so while
   // it's connected this only checks once a minute; nothing while the page is hidden.

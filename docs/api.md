@@ -87,10 +87,19 @@ The one program on a machine that people reach (`front-door.js`, [ADR 028](adr/0
 ```json
 { "app": "bot-dot", "version": "0.1.0", "revision": "659cb5e…", "short": "659cb5e",
   "apiVersion": 1, "features": ["events", "uploads", "setup", "updates", "jobs-pause", "chief",
-  "vault-requests", "bitwarden", "memory", "bot-messages", "chief-suggestions", "backups", "android-app", "inbox", "mac-app", "figure", "outfits", "unread", "opening-line", "working-line", "ratings", "tools", "vault-types", "needs-text", "message-key", "ask-continues", "connector-waits", "message-waits", "ended-by", "job-line", "asks-you", "decline-words", "staged-changes", "proposal-carries-on", "memory-chips", "memory-cards", "memory-forget", "change-summary", "groups", "checkup", "job-calls", "self-built", "accounts", "passkeys", "vault-in-computer", "chief-skills", "vault-ssh-keys", "chief-name", "claude-api-key", "vault-switch", "chief-action", "web-push", "job-notify", "job-call-signed", "computer-reset", "old-computer-copy", "computer-usage", "group-all", "vault-remove", "vault-ssh-key-add", "vault-github-app", "vault-files", "steer", "chief-steer", "reply-draft", "chief-ssh-key-add", "chief-ssh-key-change", "chief-vault-remove", "chief-connectors"], "docker": true }
+  "vault-requests", "bitwarden", "memory", "bot-messages", "chief-suggestions", "backups", "android-app", "inbox", "mac-app", "figure", "outfits", "unread", "opening-line", "working-line", "ratings", "tools", "vault-types", "needs-text", "message-key", "ask-continues", "connector-waits", "message-waits", "ended-by", "job-line", "asks-you", "decline-words", "staged-changes", "proposal-carries-on", "memory-chips", "memory-cards", "memory-forget", "change-summary", "groups", "checkup", "job-calls", "self-built", "accounts", "passkeys", "vault-in-computer", "chief-skills", "vault-ssh-keys", "chief-name", "claude-api-key", "vault-switch", "chief-action", "web-push", "job-notify", "job-call-signed", "computer-reset", "old-computer-copy", "computer-usage", "group-all", "vault-remove", "vault-ssh-key-add", "vault-github-app", "vault-files", "steer", "chief-steer", "reply-draft", "chief-ssh-key-add", "chief-ssh-key-change", "chief-vault-remove", "chief-connectors", "whats-new"], "docker": true }
 ```
 
 `accounts` and `passkeys`: this botdot server is one account on its machine, reached through a front door that signs in with passkeys (see [The front door](#the-front-door)). Without a session the front door answers this route itself, with both.
+
+### What's new
+
+When `features` has `whats-new` ([#219](https://github.com/Kordal/bot-dot/issues/219)): the notes of the releases this account has not seen, which the web page and the Android app show once after an update, in a pop-up with "Got it".
+
+- `GET /api/whats-new`: `{ entries: [{ id, title, points }] }`, at most 3, newest first. A note is a file of `whats-new/` in the image, `<YYYY-MM-DD-short-name>.md`: `id` is its name, `title` its first line, `points` its 2 to 4 lines starting with `- `. Plain text: the apps draw it as text, never as markup. An account's server that starts without a seen id (a new account, or one whose server just got `whats-new`) takes every note up to then as seen, so it gets `{ "entries": [] }`.
+- `POST /api/whats-new/seen` with `{ id }`: every note up to `id` is seen, for every app of the account: `{ ok: true }`. An `id` older than what was seen changes nothing; one that is not the name of a note there is, `400`. The app sends the newest note it showed when the pop-up is closed, any way it is closed.
+
+The account keeps the id of the newest note it has seen in `data/whats-new.json`, so a restored backup brings it back. The Chief's tools reach neither route.
 
 ## The live feed
 
