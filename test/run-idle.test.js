@@ -13,7 +13,7 @@ const IDLE_MS = 800;
 let srv; let f;
 before(async () => {
   srv = await startServer({ env: { BOT_DOT_RUN_IDLE_MS: String(IDLE_MS), BOT_DOT_RUN_LIMIT_MS: String(60_000) } });
-  f = feed(srv);
+  f = await feed(srv);
   await f.wait('hello');
 });
 after(async () => { f?.close(); await srv.stop(); });

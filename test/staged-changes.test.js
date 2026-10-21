@@ -14,7 +14,7 @@ after(async () => { srv.unhold(); await srv.stop(); });
 
 const REPORT = { name: 'Morning report', kind: 'ai', cron: '0 9 * * *', prompt: 'Write the report.' };
 const SCRIPT = { name: 'Disk check', kind: 'script', cron: '0 * * * *', script: 'df -h', assessment: 'A clear rule: no AI needed.' };
-const waitingOf = async (bot) => { const f = feed(srv); const h = await f.wait('hello'); f.close(); return h.data.approvals.jobs.filter((j) => j.botId === bot.id); };
+const waitingOf = async (bot) => { const f = await feed(srv); const h = await f.wait('hello'); f.close(); return h.data.approvals.jobs.filter((j) => j.botId === bot.id); };
 const jobsOf = async (bot) => (await srv.api(`/bots/${bot.id}/jobs`)).data;
 const approve = (bot, job, yes) => srv.api(`/bots/${bot.id}/jobs/${job.id}/approve`, { method: 'POST', body: { approve: yes } });
 // The owner asks the bot something, and in that run the bot does `what` with its own tools; the run as it ended.

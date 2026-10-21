@@ -8,7 +8,7 @@ before(async () => { srv = await startServer(); });
 after(() => srv.stop());
 
 test('events are marked only while the web page says it is in use', async () => {
-  const f = feed(srv);
+  const f = await feed(srv);
   const bot = await makeBot(srv);
   const a = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'one' } });
   const quiet = await f.wait('run_finished', (d) => d.id === a.data.id);

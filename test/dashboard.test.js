@@ -91,7 +91,7 @@ test('the Chief adds a light switch; the owner sees it and switches it', async (
   assert.equal(added.status, 201, JSON.stringify(added.data));
   assert.equal(added.data.approved, true, 'no script: on straight away');
 
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   const d = await srv.api('/dashboard/refresh', { method: 'POST' });
   assert.deepEqual(d.data.sections, ['Home']);
@@ -130,7 +130,7 @@ test('a tap reads again the other tiles showing the same light', async () => {
   assert.equal(brighter.status, 201, JSON.stringify(brighter.data));
   light = 'off'; brightness = 0;
   await srv.api('/dashboard/refresh', { method: 'POST' });
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   await waitFor(async () => (await srv.api('/dashboard?quiet')).data.tiles.find((t) => t.id === level.data.id).value?.text === '0');
 
@@ -154,7 +154,7 @@ test('a script tile waits for the owner; then it runs as its bot', async () => {
   assert.equal(d.data.pending.length, 1);
   assert.equal(d.data.pending[0].read.script, 'echo 91', 'the approval shows the script');
   assert.deepEqual(d.data.pending[0].scripts, ['echo 91'], 'and has every script of the tile as a string');
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   assert.equal((await srv.api(`/dashboard/tiles/${t.data.id}/tap`, { method: 'POST', body: {} })).status, 400, "it doesn't run before the OK");
   assert.equal((await srv.asChief(`/dashboard/tiles/${t.data.id}/approve`, { method: 'POST', body: { approve: true } })).status, 403, 'the Chief never approves');
@@ -415,7 +415,7 @@ test('one LED tile: its colour on the dot, and a pop-up with on/off, brightness 
   assert.equal(added.data.actions.colour.body.rgb_color, '{{rgb}}', 'the Chief sees it in full');
   const id = added.data.id;
 
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   await srv.api('/dashboard/refresh', { method: 'POST' });
   await f.wait('dashboard', (x) => x.tile?.id === id && x.tile.look.dot.filled === false);

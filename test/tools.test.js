@@ -144,7 +144,7 @@ test('asking resolves the name into a pinned list and adds one card with what it
   assert.equal((await srv.api('/asks')).data.length, 1);
 
   // The notification says "Asks to install gh" under the bot's name, and the bot's face says it needs the owner.
-  const f = feed(srv);
+  const f = await feed(srv);
   const hello = await f.wait('hello');
   f.close();
   assert.deepEqual({ ...hello.data.asks[0], at: null }, { id: card.id, kind: 'tool', botId: coder.id, botName: 'Coder', botColor: coder.color, what: null, skill: null, tool: 'gh', text: 'Asks to install gh', at: null });
@@ -255,7 +255,7 @@ test("the bot's runs, script jobs and tile scripts find the tool; another bot ha
   assert.ok(!without.includes(folder(coder)), "and the other bot's folder is not on its PATH");
 
   // A dashboard tile's script.
-  const f = feed(srv);
+  const f = await feed(srv);
   await f.wait('hello');
   const tile = await srv.asChief('/dashboard/tiles', { method: 'POST', body: { kind: 'value', title: 'jq', bot: coder.id, read: { type: 'script', script: 'jq --version' } } });
   await srv.api(`/dashboard/tiles/${tile.data.id}/approve`, { method: 'POST', body: { approve: true } });

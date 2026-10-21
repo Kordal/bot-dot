@@ -76,7 +76,7 @@ test("the Chief's turn may search the web and read pages, with no OK for each", 
 });
 
 test('after a web page, a change to the bots waits on a card, and reading stays free', async (t) => {
-  const live = feed(srv);
+  const live = await feed(srv);
   t.after(() => live.close());
   const turn = await ownerTurn(t, 'Find out how Proton Bridge installs');
   await turn.uses('WebFetch', { url: 'https://proton.me/mail/bridge' }, PAGE);

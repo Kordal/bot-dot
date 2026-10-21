@@ -107,7 +107,7 @@ test('the page and long answers are compressed, and the page is cached until it 
 });
 
 test('the feed tells about a new login request straight away', async () => {
-  const f = feed(srv);
+  const f = await feed(srv);
   try {
     const bot = await makeBot(srv, { name: 'Needy' });
     await sleep(300);

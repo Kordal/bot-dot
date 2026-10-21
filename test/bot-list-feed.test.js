@@ -11,7 +11,7 @@ test('Chief delete_bot publishes the bot list change while its turn is still run
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
   await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Delete the test bot' } });
   const chief = await srv.nextRun((run) => run.botdot);
-  const live = feed(srv);
+  const live = await feed(srv);
   t.after(() => live.close());
   await live.wait('hello');
   const tools = rpcClient(t, 'mcp-server.js', chief.botdot.env);

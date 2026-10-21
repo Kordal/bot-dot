@@ -199,6 +199,9 @@ async function frontDoorStandIn(socketPath, account) {
     up.on('close', close);
     socket.on('close', close);
   });
+  // An idle connection is closed by the tests' side, never by this one: one closed here after its keep-alive, while
+  // a slow test held the tests' event loop, would be taken up again by fetch and fail ("other side closed").
+  server.keepAliveTimeout = 0;
   const port = await new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
   return { port, close: () => { server.closeAllConnections(); server.close(); } };
 }
@@ -228,10 +231,14 @@ function setQueue(data, change) {
 const onceItem = (job, at) => ({ key: `once:${job.id}`, kind: 'job', jobId: job.id, trigger: 'schedule', at, queuedAt: at });
 const runNowItem = (job) => ({ key: `job:${job.id}`, kind: 'job', jobId: job.id, trigger: 'manual', queuedAt: new Date().toISOString() });
 
-// The live feed, as the phone reads it: collects events until close().
-function feed(srv) {
+// The live feed, as the phone reads it: collects events until close(). It is handed over once botdot has sent its
+// hello, which botdot does right before it subscribes the feed: an event of whatever the test does next is never
+// missed, as it could be while the feed was still being opened.
+async function feed(srv) {
   const events = [];
   const ac = new AbortController();
+  let open, fail;
+  const opened = new Promise((resolve, reject) => { open = resolve; fail = reject; });
   (async () => {
     const res = await fetch(`${srv.base}/api/events`, { signal: ac.signal });
     const reader = res.body.getReader();
@@ -247,9 +254,12 @@ function feed(srv) {
         const type = chunk.match(/^event: (.*)$/m)?.[1];
         const data = chunk.match(/^data: (.*)$/m)?.[1];
         if (type) events.push({ type, data: JSON.parse(data || '{}') });
+        if (type === 'hello') open();
       }
     }
-  })().catch(() => {});
+    fail(new Error('The feed ended before its hello'));
+  })().catch(fail); // after the hello, a feed that ends (close(), its server stopped) says nothing
+  await opened;
   return { events, close: () => ac.abort(), wait: (type, fn = () => true) => waitFor(() => events.find((e) => e.type === type && fn(e.data)), { what: `a ${type} event` }) };
 }
 

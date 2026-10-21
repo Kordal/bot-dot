@@ -97,7 +97,7 @@ test('answers a bot waited for are kept while its queue is full, and its follow-
 test('a follow-up that could not be queued keeps its wait, and runs once when it can', async () => {
   const asker = await makeBot(srv, { name: 'Unlucky Asker', emoji: '🎲' });
   const helper = await makeBot(srv, { name: 'Answerer', emoji: '📣' });
-  const events = feed(srv);
+  const events = await feed(srv);
   const a = await heldRun(srv, asker, 'Ask Answerer and sum up.');
   assert.equal((await self(srv, a.token, 'message', { to: helper.id, message: 'Your status?', priority: true })).data.delivered, 'started');
   const h = await srv.nextRun(isRunOf(helper), 'Answerer to start');
@@ -130,7 +130,7 @@ test('a follow-up that could not be queued keeps its wait, and runs once when it
 test('a queued follow-up that fails as its turn comes keeps its wait, and runs once with the answer when it can', async () => {
   const asker = await makeBot(srv, { name: 'Late Asker', emoji: '🐢' });
   const helper = await makeBot(srv, { name: 'Quick Answerer', emoji: '🐇' });
-  const events = feed(srv);
+  const events = await feed(srv);
   const a = await heldRun(srv, asker, 'Ask Quick Answerer and sum up.');
   assert.equal((await self(srv, a.token, 'message', { to: helper.id, message: 'Your status?', priority: true })).data.delivered, 'started');
   const h = await srv.nextRun(isRunOf(helper), 'Quick Answerer to start');

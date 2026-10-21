@@ -43,7 +43,7 @@ test('the Chief\'s own tools have words of their own, every one of them, and a r
 
 let srv, f;
 // The real pace of the line, once a second (the helper's is 50 ms): the lines here follow it.
-before(async () => { srv = await startServer({ env: { BOT_DOT_LINE_EVERY_MS: '1000' } }); f = feed(srv); });
+before(async () => { srv = await startServer({ env: { BOT_DOT_LINE_EVERY_MS: '1000' } }); f = await feed(srv); });
 after(async () => {
   for (const x of fs.readdirSync(srv.out)) if (x === 'hold' || x.startsWith('hold-')) fs.rmSync(path.join(srv.out, x), { force: true });
   f.close();

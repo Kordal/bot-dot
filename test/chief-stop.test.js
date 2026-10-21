@@ -13,7 +13,7 @@ let srv; let quick; let f;
 before(async () => {
   // quick: a process that does not end when asked to is killed after a moment there, not after five seconds.
   [srv, quick] = await Promise.all([startServer(), startServer({ env: { BOT_DOT_KILL_AFTER_MS: '300' } })]);
-  f = feed(srv);
+  f = await feed(srv);
   await f.wait('hello');
 });
 after(async () => { f?.close(); await Promise.all([srv.stop(), quick.stop()]); });

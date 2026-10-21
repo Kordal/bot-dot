@@ -82,7 +82,7 @@ test('the Chief is told it uses connected apps itself, reads an app as outside c
 });
 
 test('a read in a turn the owner started goes through with no card and no bot; the Composio key is in nothing the Chief gets', async (t) => {
-  const f = feed(srv);
+  const f = await feed(srv);
   t.after(() => f.close());
   assert.ok((await f.wait('hello')).data.features.includes('chief-connectors'), 'announced in features');
   const turn = await ownerTurn(t, srv, 'What are my latest emails?');

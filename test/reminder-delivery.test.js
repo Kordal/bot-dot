@@ -25,7 +25,7 @@ const bell = (events, chatId) => waitFor(() => events.events.find((e) => e.type 
 
 test('a reminder whose chat cannot be written is kept, the others of the run go off, and the server stays up', { timeout: 90_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   try {
     await events.wait('hello');
     const a = (await srv.api('/chief/chats', { method: 'POST' })).data;
@@ -65,7 +65,7 @@ async function heldTurn(srv, chat) {
 
 test('a reminder for a chat whose Chief turn is going on is handed to it once and kept until the turn is saved', { timeout: 90_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   try {
     await events.wait('hello');
     const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
@@ -92,7 +92,8 @@ test('a reminder handed to a turn whose save fails goes off after the restart', 
     const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
     const turn = await heldTurn(srv, chat);
     await srv.api('/chief/reminders', { method: 'POST', body: { text: 'Pay rent', at: soon(0), chatId: chat.id } });
-    await sleep(1000); // the run addReminder starts hands it to the turn
+    // The run addReminder starts at once hands it to the turn, which goes on until it is released; a later run
+    // hands it to the turn too, without reading the chat that is broken now.
     const mend = breakChat(srv, chat.id);
     srv.release(turn);
     // The turn's own save fails: the server stays up and tries it again later (#343). The reminder is kept until then.
@@ -112,7 +113,7 @@ test('a reminder handed to a turn whose save fails goes off after the restart', 
 
 test('a reminder cancelled while it waits in a turn does not go off', { timeout: 60_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   try {
     await events.wait('hello');
     const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
@@ -141,7 +142,7 @@ test('a reminder cancelled while it waits in a turn does not go off', { timeout:
 // The chat is on screen, so telling the feed marks it read; a directory where read-positions.json is saved fails that.
 test('a reminder whose chat is in, but whose feed could not be told, is removed and not posted again', { timeout: 60_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   const blocker = path.join(srv.data, `read-positions.json.${srv.pid}.tmp`);
   try {
     await events.wait('hello');
@@ -163,7 +164,7 @@ test('a reminder whose chat is in, but whose feed could not be told, is removed 
 
 test('a reminder that went off but could not be taken off the list goes off once, and leaves it later', { timeout: 90_000 }, async () => {
   const srv = await startServer();
-  const events = feed(srv);
+  const events = await feed(srv);
   // Saving reminders.json writes this file first (jsonfile.js): a directory there fails the save, and reading still works.
   const blocker = path.join(srv.data, `reminders.json.${srv.pid}.tmp`);
   try {
