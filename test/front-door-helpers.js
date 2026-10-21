@@ -95,10 +95,13 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   // The free port was let go before the front door took it: under load another test's server can take it first.
   // Then the front door stops at once, and starts again on another port.
   const taken = () => child.exitCode !== null && /EADDRINUSE/.test(log.join(''));
+  // Its data folder is new, so it has no account: unless it holds one account, it prints the first sign-up link as
+  // it starts. Its output comes on a pipe of its own, which may reach this side after its first answer does.
+  const printed = () => (env.FRONT_DOOR_ONE_ACCOUNT ? true : log.join('').match(/https?:\/\/\S+\/sign-up\/\S+/));
   try {
     await waitFor(async () => {
       if (taken()) return true;
-      try { return (await request('GET', '/api/version')).status === 200; } catch { return false; }
+      try { return (await request('GET', '/api/version')).status === 200 && printed(); } catch { return false; }
     }, { timeout: 15_000, what: 'the front door to start' });
   } catch (e) {
     child.kill('SIGKILL');
@@ -108,8 +111,8 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
     if (tries > 1) return startFrontDoor({ env, sockets: socketsDir, tries: tries - 1 });
     throw new Error(`The front door's port was taken\n${log.join('')}`);
   }
-  const printed = log.join('').match(/https?:\/\/\S+\/sign-up\/\S+/);
-  if (printed) door.firstLink = { url: printed[0], path: new URL(printed[0]).pathname };
+  const link = log.join('').match(/https?:\/\/\S+\/sign-up\/\S+/);
+  if (link) door.firstLink = { url: link[0], path: new URL(link[0]).pathname };
   return door;
 }
 
