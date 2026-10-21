@@ -208,6 +208,10 @@ function renderBotSettings(force = false) {
           <div class="grow"><b>Scheduled jobs</b><div class="faint" id="bs-jobs"></div></div>
           <span class="faint">›</span>
         </button>
+        ${state.features.includes('bot-files') ? `<div class="bs-row" id="bs-files">
+          <span class="bs-icon">📎</span>
+          <div class="grow"><b>Files</b><div class="faint">What you gave it. It sees this list in every task; a file kept in mind comes with every task.</div><div id="file-list" class="bs-files"><span class="faint">Loading…</span></div></div>
+        </div>` : ''}
         <div class="bs-row" id="bs-always">
           <span class="bs-icon">✓</span>
           <div class="grow"><b>Always approved</b><div id="always-picks"></div></div>
@@ -383,6 +387,8 @@ function renderBotSettings(force = false) {
 
   drawBotSettingsLive(b);
 
+  if ($('#file-list', root)) drawBotFiles(b);
+
   const dup = $('#duplicate-bot', root);
   if (dup) dup.onclick = () => openDuplicate(b);
 
@@ -407,6 +413,32 @@ function renderBotSettings(force = false) {
     leaveBot();
     await refresh();
   };
+}
+
+// Its files (#235): what the owner gave it, newest first, each to open, keep in mind (pin) or delete.
+async function drawBotFiles(b, data = null) {
+  const box = $('#file-list');
+  if (!box) return;
+  try { data = data || await api(`/bots/${b.id}/files`); } catch { box.innerHTML = '<span class="faint">Couldn\'t load its files.</span>'; return; }
+  if (!data.files.length) { box.innerHTML = '<span class="faint">None yet. Attach a file in its chat.</span>'; return; }
+  const href = (f) => `/api/bots/${b.id}/files/${encodeURIComponent(f.file.split('/').pop())}`;
+  box.innerHTML = data.files.map((f) => `
+    <div class="bs-file" data-file="${esc(f.file)}">
+      <a class="grow" href="${href(f)}" target="_blank" rel="noopener">${esc(f.name)}</a>
+      <span class="faint">${fmtSize(f.size)} · ${new Date(f.at).toLocaleDateString()}</span>
+      <button type="button" class="link-btn${f.pinned ? ' on' : ''}" data-file-pin aria-pressed="${f.pinned}">${f.pinned ? '📌 Kept in mind' : 'Keep in mind'}</button>
+      <button type="button" class="link-btn danger-text" data-file-delete>Delete</button>
+    </div>`).join('');
+  box.querySelectorAll('.bs-file').forEach((row) => {
+    const f = data.files.find((x) => x.file === row.dataset.file);
+    row.querySelector('[data-file-pin]').onclick = async () => {
+      try { drawBotFiles(b, await api(href(f).slice(4), { method: 'PUT', body: { pinned: !f.pinned } })); } catch (e) { toast(e.message, true); }
+    };
+    row.querySelector('[data-file-delete]').onclick = async () => {
+      if (!confirm(`Delete ${f.name}? ${b.name} won't have it any more.`)) return;
+      try { drawBotFiles(b, await api(href(f).slice(4), { method: 'DELETE' })); } catch (e) { toast(e.message, true); }
+    };
+  });
 }
 
 // "Duplicate" (#227): the server's list of what the copy gets, a name to change, then the copy, whose chat opens.

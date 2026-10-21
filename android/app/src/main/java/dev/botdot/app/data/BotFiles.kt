@@ -18,6 +18,17 @@ object BotFiles {
     suspend fun open(context: Context, api: Api, file: String, name: String = file.substringAfterLast('/')) {
         val dest = File(File(context.cacheDir, "botfiles"), file)
         if (!dest.exists() || dest.length() == 0L) api.downloadFile(file, dest)
+        view(context, dest, name)
+    }
+
+    /** One of the files the owner gave a bot (#235), from its settings. */
+    suspend fun openUpload(context: Context, api: Api, botId: String, f: UploadedFile) {
+        val dest = File(File(File(context.cacheDir, "botfiles"), "uploads-$botId"), f.file.substringAfterLast('/'))
+        if (!dest.exists() || dest.length() == 0L) api.downloadBotFile(botId, f.file, dest)
+        view(context, dest, f.name)
+    }
+
+    private fun view(context: Context, dest: File, name: String) {
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", dest)
         val ext = name.substringAfterLast('.', "").lowercase()
         val type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "application/octet-stream"
