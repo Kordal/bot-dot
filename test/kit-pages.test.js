@@ -73,14 +73,16 @@ test('its examples draw with every block: no block that cannot be drawn, on the 
 
 test('the skill names only tools a bot or the Chief has, and is plain', () => {
   const selfTools = fs.readFileSync(path.join(ROOT, 'lib', 'self-mcp.js'), 'utf8');
-  const has = (name) => CHIEF_TOOLS.some((t) => t.name === name) || selfTools.includes(`name: '${name}'`);
+  const computerTools = fs.readFileSync(path.join(ROOT, 'lib', 'computer-mcp.js'), 'utf8');
+  const has = (name) => CHIEF_TOOLS.some((t) => t.name === name) || selfTools.includes(`name: '${name}'`) || computerTools.includes(`name: '${name}'`);
   const named = [...new Set([...skill().matchAll(/`([a-z]+(?:_[a-z]+)+)`/g)].map((m) => m[1]))];
-  for (const name of ['save_page', 'suggest_tile', 'add_tile']) assert.ok(named.includes(name), name);
+  for (const name of ['save_page', 'suggest_tile', 'add_tile', 'start_interactive_page', 'publish_interactive_page']) assert.ok(named.includes(name), name);
   assert.deepEqual(named.filter((n) => !has(n)), []);
   const text = skill();
   assert.doesNotMatch(text, /—/, 'no em dashes');
   assert.doesNotMatch(text, /dashboard/i, 'the Board is the word');
-  assert.doesNotMatch(text, /<[a-z]+[ >]/i, 'no HTML in it');
+  // HTML only where it belongs: the interactive pages' section, which names the kit's elements (#400).
+  assert.doesNotMatch(text.replace(/^## Interactive pages[\s\S]*?(?=^## )/m, ''), /<[a-z]+[ >]/i, 'no HTML in the blocks\' part');
 });
 
 test("a bot's run loads kit:pages and is told it has it; one with it switched off does not", async () => {

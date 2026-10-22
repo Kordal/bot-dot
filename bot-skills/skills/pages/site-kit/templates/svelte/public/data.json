@@ -1,0 +1,18 @@
+{
+  "name": "Project",
+  "asOf": "22 Oct 2026, 22:50",
+  "title": "Everything in one place.",
+  "lead": "42 of 58 tasks done. Two wait for a decision.",
+  "done": 72,
+  "kpis": [
+    { "label": "Tasks done", "value": 42, "sub": "6 since Monday", "points": [24, 29, 33, 36, 42] },
+    { "label": "Open bugs", "value": 7, "sub": "-3 since last week", "points": [12, 11, 10, 7] },
+    { "label": "Disk", "value": 71, "unit": "%", "tile": "Disk", "sub": "until the Board's value comes" }
+  ],
+  "items": [
+    { "name": "Hosting plan", "state": "Waiting", "changed": "2026-10-22" },
+    { "name": "Final texts", "state": "In progress", "changed": "2026-10-21" },
+    { "name": "New logo", "state": "Done", "changed": "2026-10-20" },
+    { "name": "Launch", "state": "Planned", "changed": "2026-10-19" }
+  ]
+}

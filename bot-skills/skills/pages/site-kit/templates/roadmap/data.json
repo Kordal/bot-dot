@@ -1,0 +1,33 @@
+{
+  "name": "bot-dot",
+  "asOf": "22 Oct 2026, 22:50",
+  "title": "Everything *bot-dot* does,\nin one place.",
+  "lead": "42 of 58 features done. Rooms, Pages and parallel runs landed this week. Three things wait for your decision.",
+  "done": 72,
+  "areas": ["Chat", "Bots and pages", "Jobs", "Rooms", "Install"],
+  "columns": [
+    { "id": "waiting", "title": "Waits for you" },
+    { "id": "doing", "title": "In progress" },
+    { "id": "done", "title": "Done this week" }
+  ],
+  "items": [
+    { "id": "cache", "column": "waiting", "area": "Install", "title": "Clear the cache on the staging VM", "note": "8 GB free · limit 15 GB", "progress": 53, "changed": "2026-10-22T22:10" },
+    { "id": "retest", "column": "waiting", "area": "Chat", "title": "Retest #267 and #268 on staging", "refs": ["#267", "#268"], "note": "QA Tester", "more": "QA Tester waits for a decision: retest now or after the update. Both pull requests were merged 3 days ago.", "changed": "2026-10-22T21:40" },
+    { "id": "pr385", "column": "waiting", "area": "Bots and pages", "title": "PR #385: the Chief of Staff's name", "note": "CI running · opened 20:46", "changed": "2026-10-22T20:46" },
+    { "id": "rooms", "column": "doing", "area": "Rooms", "title": "Rooms between accounts", "bots": ["Builder", "QA Tester"], "note": "2 bots · 60%", "progress": 60, "changed": "2026-10-22T19:00" },
+    { "id": "edit", "column": "doing", "area": "Bots and pages", "title": "Pages: the owner edits them", "bots": ["Writer"], "note": "step 3 · 20%", "progress": 20, "changed": "2026-10-22T18:00" },
+    { "id": "whatsnew", "column": "doing", "area": "Chat", "title": "What's new: every note", "note": "#380 · planned for tomorrow", "changed": "2026-10-22T12:00" },
+    { "id": "pages", "column": "done", "area": "Bots and pages", "title": "Pages and the list of pages", "refs": ["PR #352", "#369"], "changed": "2026-10-21T16:00" },
+    { "id": "parallel", "column": "done", "area": "Jobs", "title": "Parallel runs (at most 3)", "refs": ["#334"], "note": "ADR 062", "changed": "2026-10-21T10:00" },
+    { "id": "hotkey", "column": "done", "area": "Chat", "title": "A hotkey for each bot", "refs": ["#370"], "changed": "2026-10-20T15:00" }
+  ],
+  "releases": [
+    { "version": "2026.10.22", "date": "22 Oct", "what": "Rooms, Pages, parallel runs", "state": "Out", "level": "ok" },
+    { "version": "2026.10.24", "date": "24 Oct", "what": "Interactive pages", "state": "Planned", "level": "plan" }
+  ],
+  "bots": [
+    { "name": "Builder", "color": "#378add", "job": "Builds the tickets", "state": "Working", "level": "info" },
+    { "name": "QA Tester", "color": "#e2a846", "job": "Tests each release on staging", "state": "Asks", "level": "warn" },
+    { "name": "Writer", "color": "#45c78e", "job": "Writes the docs and notes", "state": "Idle", "level": "ok" }
+  ]
+}

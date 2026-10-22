@@ -1,6 +1,6 @@
 ---
 name: pages
-description: "Build a page from blocks the app draws (hero, kpis, charts, pills, callouts, tables), its numbers bound to Board tiles so they stay live. Use for a page, overview, report or status page."
+description: "Build a page from blocks the app draws (hero, kpis, charts, tables), its numbers live from Board tiles, or an interactive page from the style kit. Use for a page, overview, report or status page."
 ---
 
 # A page from blocks
@@ -97,6 +97,36 @@ A number that changes during the day should not need a rewrite. Bind the block t
 ## Keep up to date
 
 "Keep up to date" gives the page a job that rewrites it on a schedule. On a page with bound blocks it is for the words only: the lead, the callouts, the "what changed" sections. Keep the bound blocks as they are when you rewrite the page; never copy a live number into prose, where it goes stale. Give `save_page` its `sources`: what the page is built from and what to check on a refresh.
+
+## Interactive pages: only when blocks can't do it
+
+**Blocks first.** A page of blocks covers reports, overviews, status pages and lists, live, on the web and on Android. Build an interactive page only when the owner asks for interaction blocks can't give: views to switch between, a kanban, cards that open, filters across several lists, a chart of your own. It needs "Uses the computer".
+
+1. **Start from the kit** with `start_interactive_page`: `start_interactive_page({ folder: "roadmap", template: "html" })`. It copies a starter into a new folder of your computer, with botdot's style kit where the starter links it: `kit/botdot-kit.css` (the app's dark colours and Geist), `kit/botdot-kit.js` and the fonts. Templates:
+   - `html`: plain HTML, CSS and JavaScript, nothing to build. Your code goes in `app.js`.
+   - `svelte`: Svelte with Vite. Run `npm ci` and `npm run build` in the folder with `run_shell`; the site is `dist/`. The kit sits in `public/kit/`.
+   - `roadmap`: the roadmap from the approved design (views in the nav, a hero with a ring, chips that filter, a sort, a kanban of cards that open, a table of releases). Adapt it rather than start from nothing when the owner wants a board of items.
+2. **Data in `data.json`** beside `index.html`; the page reads it with `botdot.data()`. Real values only, as on any page. To change the numbers later, publish again with a new `data.json`.
+3. **Live values:** name Board tiles in `publish_interactive_page`'s `tiles`, and read them with `botdot.onValues((values) => …)`: `values["Disk"].data.value`, by the name you gave.
+4. **Publish** with `publish_interactive_page`: `publish_interactive_page({ title, folder })`, the folder itself for `html` and `roadmap`, `dist` for `svelte`. Give `page` for a new version of one you published.
+
+Use the kit's classes, not your own colours, so the page looks like the rest of botdot:
+
+| Part | Class |
+|---|---|
+| the page, a nav bar, its links | `.site`, `.nav` with `.logo`, `button.link` (`.on`), `.spacer` |
+| hero | `.hero` with `.text`, `.eyebrow`, `h1` (`<em>` for the highlighted words), `p`; a ring with `botdot.ring(el, 72, "done")` |
+| a row of chips, a search, a sort | `.bar-row`, `.chip` (`.on`), `input.search`, `select.chip` |
+| cards and kpis | `.grid.c2` / `.c3` / `.c4`, `.card`, `.card.kpi` with `.label`, `.value`, `.sub`, `botdot.spark(points)` |
+| states, refs | `.pill.ok` / `.warn` / `.err` / `.info` / `.plan`, `.ref` |
+| a table | `.table-wrap` around `table.table` (`th[data-sort]`, `.sorted`, `.desc`, `td.num`): a list on a phone |
+| a kanban | `.kanban` of `.col` (`h4` with `<i style="--c:var(--warn)">` and `<em>` count), cards `.fc` (`.t`, `.s`, `.more`, `.open`), `.progress` with `--p`, `.avatars` |
+| what waits for the owner | `.callout` (`.info`, `.err`) |
+
+- **Nothing from the internet:** no CDN, no web fonts, no API; the sandbox blocks them and the page breaks. Bundle what you use.
+- **Text into HTML goes through `botdot.esc`** (or Svelte's `{}`), never raw.
+- **A link out** is an `<a href="https://…">`: the kit asks the app to open it, and the owner sees where it leads first.
+- **Check it before you publish:** serve the folder on your computer (`python3 -m http.server 8080` in it, or `npx vite preview` after a build: a page opened as a file can't read its `data.json`), open it in the browser, and look at it narrow too: a phone gets one column.
 
 ## Examples
 

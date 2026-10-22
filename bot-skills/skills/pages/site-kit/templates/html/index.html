@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview</title>
+<link rel="stylesheet" href="kit/botdot-kit.css">
+</head>
+<body>
+<div class="site">
+  <nav class="nav">
+    <span class="logo"><i></i><span id="name">Project</span></span>
+    <button class="link on" data-view="overview">Overview</button>
+    <button class="link" data-view="items">Items</button>
+    <span class="spacer"></span>
+  </nav>
+
+  <header class="hero">
+    <div class="text">
+      <div class="eyebrow" id="asof"></div>
+      <h1 id="title"></h1>
+      <p id="lead"></p>
+    </div>
+    <div id="ring"></div>
+  </header>
+
+  <main>
+    <section class="section" data-panel="overview">
+      <div class="grid c3" id="kpis"></div>
+    </section>
+
+    <section class="section" data-panel="items" hidden>
+      <div class="bar-row" style="padding-left:0;padding-right:0">
+        <input class="search" id="q" placeholder="Search" aria-label="Search">
+        <span class="spacer"></span>
+      </div>
+      <div class="table-wrap">
+        <table class="table">
+          <thead><tr><th data-sort="name">Name</th><th data-sort="state">State</th><th data-sort="changed">Changed</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+<script src="kit/botdot-kit.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
