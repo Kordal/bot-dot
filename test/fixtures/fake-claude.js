@@ -2,7 +2,7 @@
 // A stand-in for the Claude Code CLI, for the tests: no model, no cost. Each run writes what it was
 // given to $FAKE_OUT/run-<n>.json, once its stdin has ended (arguments, the self tools' env, the system prompt read
 // from its private file and that file's path and mode, the CLAUDE_CODE_ variables of its environment, stdin), then
-// answers with $FAKE_OUT/result.txt (or "Done."), with the refused tools in $FAKE_OUT/denials.json, or fails with $FAKE_OUT/fail.txt on stderr, or ends with no result line at all while $FAKE_OUT/no-result exists. While $FAKE_OUT/hold exists, a run keeps going until
+// answers with $FAKE_OUT/result.txt (or "Done."), with the refused tools in $FAKE_OUT/denials.json (for which it asks with ask_permission, unless $FAKE_OUT/no-ask exists), or fails with $FAKE_OUT/fail.txt on stderr, or ends with no result line at all while $FAKE_OUT/no-result exists. While $FAKE_OUT/hold exists, a run keeps going until
 // $FAKE_OUT/done-<n> appears, so a test can use its run token meanwhile. A run ends when the process that started it is gone.
 // While $FAKE_OUT/linger exists, a run that wrote its result line stays on until the file is gone, as Claude Code takes
 // a moment to exit (#207); $FAKE_OUT/error-result.txt makes the result line an error with that text (is_error).
@@ -100,6 +100,9 @@ const finish = () => {
   try { denials = JSON.parse(fs.readFileSync(path.join(OUT, 'denials.json'), 'utf8')); } catch { /* none */ }
   let failed = null;
   try { failed = fs.readFileSync(path.join(OUT, 'error-result.txt'), 'utf8'); } catch { /* it succeeds */ }
+  // A refused tool asks nobody by itself (#279): like a bot that follows its prompt, this one asks the owner for each
+  // permission it was refused with ask_permission, once, before it ends; not while $FAKE_OUT/no-ask exists.
+  const asked = denials.length && !fs.existsSync(path.join(OUT, 'no-ask')) ? askFor(denials) : Promise.resolve();
   const end = () => {
     console.log(JSON.stringify(failed === null
       ? { type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, num_turns: 1, duration_ms: 5, permission_denials: denials }
@@ -110,8 +113,26 @@ const finish = () => {
   };
   let stream = null;
   try { stream = JSON.parse(fs.readFileSync(path.join(OUT, own('stream', '.json')), 'utf8')); } catch { /* the reply comes whole */ }
-  if (stream) streamed(stream, result, end); else end();
+  asked.then(() => (stream ? streamed(stream, result, end) : end()));
 };
+// What a bot's ask_permission sends for the tools it was refused (lib/self-mcp.js): one ask per permission, with what
+// it tried as its reason. What botdot refuses (asked lately, declined this week) the bot is told, and it goes on.
+const PERMISSION_OF = { Bash: 'commands', Edit: 'files', Write: 'files', MultiEdit: 'files', NotebookEdit: 'files', WebSearch: 'web', WebFetch: 'web', Agent: 'helpers', Task: 'helpers' };
+async function askFor(denials) {
+  const env = rec.self?.env;
+  if (!env?.SELF_URL || !env.RUN_TOKEN || env.SELF_CAN_EDIT === '0') return; // not in the memory review, which keeps to its tools
+  const seen = new Set();
+  for (const d of denials) {
+    const permission = PERMISSION_OF[d.tool_name];
+    if (!permission || seen.has(permission)) continue;
+    seen.add(permission);
+    const what = d.tool_input?.description || d.tool_input?.command || d.tool_input?.url || d.tool_input?.query || d.tool_input?.file_path || '';
+    const reason = what ? `It tried to: ${String(what).replace(/\s+/g, ' ').slice(0, 200)}` : '';
+    try {
+      await fetch(`${env.SELF_URL}/ask`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1', 'X-Run-Token': env.RUN_TOKEN }, body: JSON.stringify({ kind: 'permission', permission, reason }) });
+    } catch { /* botdot is gone */ }
+  }
+}
 // A reply written as Claude Code writes it with --include-partial-messages, while $FAKE_OUT/stream.json (or
 // stream-<Bot>.json) exists: { chunk, everyMs, before: [text, …], partial, pauseAfter, endMs }. Each text of `before` is a
 // message of its own that a tool call (Bash) follows, then the reply is a message whose text comes in `text_delta`s of

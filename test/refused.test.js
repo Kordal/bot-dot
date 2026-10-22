@@ -1,6 +1,7 @@
-// A tool a run was refused because the bot's settings don't allow it (lib/bots.js askForRefused, asks.js):
-// botdot asks the owner for that permission itself, once, and not again for a week after a no. The ask keeps the
-// run that was refused, and its card says what a yes starts (test/ask-carries-on.test.js has what follows).
+// A tool a run was refused because the bot's settings don't allow it asks nobody by itself (#279): a permission card
+// appears only when the bot asks for it with ask_permission, once, and not again for a week after a no. The stand-in
+// Claude asks for what it was refused, as a bot that follows its prompt does, unless $FAKE_OUT/no-ask exists. The ask
+// keeps the run that asked, and its card says what a yes starts (test/ask-carries-on.test.js has what follows).
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -19,7 +20,17 @@ async function run(bot) {
   return srv.finished(r.data.id);
 }
 
-test('a refused command becomes one permission card, with what it tried', async () => {
+test('a refused tool alone makes no card', async () => {
+  const bot = await makeBot(srv, { name: 'Prober', emoji: '🔎', allowedTools: ['Read'] });
+  fs.writeFileSync(path.join(srv.out, 'no-ask'), '');
+  try {
+    refuse([bash, { tool_name: 'WebFetch', tool_use_id: 't2', tool_input: { url: 'https://example.com' } }]);
+    await run(bot);
+    assert.equal((await asksOf(bot)).length, 0, 'botdot asks the owner nothing by itself');
+  } finally { fs.rmSync(path.join(srv.out, 'no-ask'), { force: true }); refuse([]); }
+});
+
+test('the bot asking for a command it was refused makes one permission card, with what it tried', async () => {
   const bot = await makeBot(srv, { name: 'Coder', emoji: '💻', allowedTools: ['Read'] });
   refuse([bash, { ...bash, tool_use_id: 't2' }, { tool_name: 'mcp__claude_ai_AgentMail__list_inboxes', tool_use_id: 't3', tool_input: {} }]);
   await run(bot);
