@@ -764,7 +764,7 @@ function render() {
   if (panelPage() === 'groupsettings') renderGroupSettings();
   if (panelPage() === 'botsettings') renderBotSettings();
   if (panelPage() === 'botjobs') renderBotJobs();
-  if (panelPage() === 'chiefsettings') renderChiefSettings();
+  if (panelPage() === 'chiefsettings') renderChiefSettings(); else delete $('#view-chiefsettings').dataset.always; // its Always approved is asked again when they open
   drawPanelHead();
   if (state.view === 'runs') renderRuns();
   if (state.view === 'vault' && !$('#view-vault').dataset.ready) renderVault(); // not on every refresh: it would wipe the forms

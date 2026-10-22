@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -36,12 +37,13 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.AppSettings
 import dev.botdot.app.data.Checkup
+import dev.botdot.app.data.ChiefGrant
 import dev.botdot.app.data.ChiefSkills
 import dev.botdot.app.data.Skill
 import dev.botdot.app.data.SettingsInfo
 import kotlinx.coroutines.launch
 
-/** The Chief's settings (its figure and name in its chat): its model and reasoning, your rules for it, your skills for it and its earlier chats. */
+/** The Chief's settings (its figure and name in its chat): its model and reasoning, your rules for it, your skills for it, what you always approved and its earlier chats. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> Unit) {
@@ -67,6 +69,10 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
     val hasSkills = ChiefSkills.shows(server?.features)
     var library by remember { mutableStateOf<List<Skill>>(emptyList()) }
     LaunchedEffect(api, hasSkills) { if (hasSkills) runCatching { api?.skills() }.onSuccess { if (it != null) library = it.library }.onError { tell(it.message ?: "Couldn't load") } }
+    // Its lasting grants, "Always allow" on its cards (#381), of the kinds this server has; asked each time the settings open.
+    val grantKinds = ChiefGrant.kinds(server?.features)
+    var grants by remember { mutableStateOf<List<ChiefGrant>>(emptyList()) }
+    LaunchedEffect(api, grantKinds) { grants = grantKinds.flatMap { k -> runCatching { api?.chiefGrants(k) }.getOrNull().orEmpty() } }
     // A refused or failed change puts the switch back and says why.
     fun switch(before: Checkup, field: String, now: Checkup) {
         checkup = now
@@ -104,6 +110,27 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
                 enabled = edit != info.settings, modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
             ) { Text("Save") }
+            // Revoke takes one off at once; the Chief asks again next time.
+            if (grants.isNotEmpty()) FoldSection(ChiefGrant.TITLE, grants.joinToString(", ") { it.label }) {
+                Hint(ChiefGrant.HINT)
+                grants.forEach { g ->
+                    key(g.kind, g.id) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(g.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                Text(g.kind.hint, color = p.muted, style = MaterialTheme.typography.bodySmall)
+                            }
+                            OutlinedButton(onClick = {
+                                scope.launch {
+                                    runCatching { api!!.revokeChiefGrant(g) }
+                                        .onSuccess { grants = grants - g; tell(ChiefGrant.REVOKED) }
+                                        .onError { tell(it.message ?: "Couldn't save") }
+                                }
+                            }) { Text("Revoke", color = p.text) }
+                        }
+                    }
+                }
+            }
             checkup?.takeIf { hasCheckup }?.let { c ->
                 Section(null) {
                     SwitchRow(Checkup.LABEL, c.caption, c.on) { switch(c, "on", c.copy(on = it)) }
