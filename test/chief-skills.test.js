@@ -48,7 +48,7 @@ test('a skill given to the Chief on the Skills page is loaded in its next turn a
   assert.match(told, /<instructions>[^]*Your skills \(load one with the Skill tool when it fits\):\n- chief:board: [^]*- botdot:house-style: How the owner wants things written\.[^]*<\/instructions>/, 'a change of its skills is a change of its instructions');
   // The pack is the turn's own: gone once the turn ended.
   const dirs = turn.args.flatMap((a, i) => (a === '--plugin-dir' ? [turn.args[i + 1]] : []));
-  assert.equal(dirs.length, 2);
+  assert.equal(dirs.length, 3, 'the shipped chief:* and kit:* skills and the pack');
   await waitFor(() => !fs.existsSync(dirs.find((d) => d.includes('skill-packs'))), { what: 'the pack to be removed' });
   assert.doesNotMatch(context(await say(chatId, 'Thanks')), /<instructions>/, 'not told again while they stay the same');
 });

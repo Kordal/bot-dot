@@ -8,6 +8,8 @@
 !install.sh
 !public/
 !chief-skills/
+# The skills every bot and the Chief get (#398).
+!bot-skills/
 !vendor/
 !deploy/desktop/
 # The What's new notes the server shows after an update (#219).
