@@ -161,7 +161,7 @@ test('web: side by side from 780px of the main column, by a container query: no 
 });
 
 test('web: the bot\'s stream stays open while its chat is the view', () => {
-  assert.match(app, /if \(v !== 'bot' && state\.botStream\)/);
+  assert.match(app, /if \(v !== 'bot'\) for \(const es of state\.botStreams\.splice\(0\)\) es\.close\(\);/);
   assert.doesNotMatch(app, /state\.view === '(botsettings|botjobs|chiefsettings)'/, 'the three are no views any more');
 });
 

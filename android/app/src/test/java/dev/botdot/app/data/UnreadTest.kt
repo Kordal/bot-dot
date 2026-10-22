@@ -183,6 +183,13 @@ class UnreadTest {
         assertEquals(Unread.Asked.MESSAGE, Unread.asked(Run(id = "r", trigger = "bot", customPrompt = true, fromBot = BotRef("b2"))))
     }
 
+    @Test fun aBotsReminderStandsAloneWithNothingAboveIt() {
+        // A reminder the bot set went off (#343): botdot posted it, so no message of the owner stands above it.
+        val fed = Api.JSON.decodeFromString(Run.serializer(), """{"id":"r","kind":"reminder","trigger":"reminder","prompt":"","customPrompt":true,"status":"success","result":"⏰ Check in"}""")
+        assertEquals(Unread.Asked.REMINDER, Unread.asked(fed))
+        assertFalse("the \"New\" line goes above it", Unread.mine(fed))
+    }
+
     @Test fun aCalledRunSaysCalled() {
         val called = Run(id = "r", trigger = "call", jobName = "Motion")
         assertEquals(Unread.Asked.JOB, Unread.asked(called))

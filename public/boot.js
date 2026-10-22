@@ -30,10 +30,12 @@ document.addEventListener('click', (e) => {
   const figure = loadFigure();
   state.status = await api('/status').catch(() => null);
   await loadFeatures();
+  // A document's own tab (#348): the document alone, none of the app.
+  if (location.hash.startsWith('#doc/')) return DocPage.show(location.hash, docPageTools());
   showAdminLink();
   await figure;
   const [view, hashSub] = location.hash.slice(1).split('/');
-  // A room's invite link (rooms.js, ADR 064): "Join" opens once rooms are known; the page opens on the list of rooms.
+  // A room's invite link (rooms.js, ADR 067): "Join" opens once rooms are known; the page opens on the list of rooms.
   const sub = view === 'rooms' && typeof joinFromLink === 'function' && joinFromLink(hashSub) ? undefined : hashSub;
   if (sub && view === 'runs') state.selectedRun = sub;
   if (sub && (view === 'chief' || view === 'chiefsettings')) state.chatId = sub;
@@ -44,7 +46,7 @@ document.addEventListener('click', (e) => {
   if (opensSetup(setupNow)) {
     setView('setup');
   } else {
-    const known = ['chief', 'dashboard', 'bot', 'group', 'rooms', 'needs', ...Panel.NAMES, 'runs', 'vault', 'skills', 'settings', 'setup', 'connectors'].includes(view);
+    const known = ['chief', 'dashboard', 'bot', 'group', 'rooms', 'needs', ...Panel.NAMES, 'runs', 'vault', 'skills', 'pages', 'settings', 'setup', 'connectors'].includes(view);
     setView(known ? view : 'chief', BOT_NAMES.includes(view) || GROUP_NAMES.includes(view) || view === 'rooms' ? sub : undefined);
     if (!known) showList(); // phones start on the contact list
     showWhatsNew(); // after an update: what changed, once (whats-new.js)

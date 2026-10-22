@@ -138,6 +138,13 @@ test('web: the bot chat hands the run\'s drafts on, from a server with drafts on
   assert.deepEqual(off.got.drafts, [], 'an app whose server does not list it behaves as before');
 });
 
+test('web: the bot chat follows every run that is going, each in its own row (ADR 062), and the streams of runs drawn before close', () => {
+  const all = cut('function followBotRuns(running)', '// A bot\'s running run as it happens');
+  assert.match(all, /for \(const es of state\.botStreams\.splice\(0\)\) es\.close\(\);\n  running\.forEach\(followBotRun\);/);
+  assert.match(cut('function renderBotChat()', '// Rejects when the task did not go'), /followBotRuns\(runs\.filter\(\(r\) => r\.status === 'running'\)\);/);
+  assert.match(cut('function followBotRun(run)', '// Follow a running run'), /state\.botStreams\.push\(es\);/);
+});
+
 test('web: the bot chat draws the draft in the running run\'s row and nowhere else; its end and a refresh draw the reply as before', () => {
   const render = cut('function botThreadHTML', '// The notes other bots left for a bot');
   const [running, ended] = render.split("} else {\n      const failed = ['error', 'stopped', 'interrupted'].includes(r.status);");
@@ -146,7 +153,7 @@ test('web: the bot chat draws the draft in the running run\'s row and nowhere el
   assert.equal(drafts().ctx.draftHTML('Text\nmore', true), '<div class="stack draft-stack"><div class="bubble from-bot draft"><div class="md"><p>Text<br>more</p></div></div></div>');
   assert.doesNotMatch(ended, /replyDrafts|draft/i, 'an ended run is drawn as it always was: the same HTML, footer, choices, files and chips');
   const follow = cut('function followBotRun(run)', '// Follow a running run');
-  assert.match(follow, /watchRun\(run\.id, \(\) => \{ state\.botStream = null; replyDrafts\.end\(run\.id\); refresh\(\); \}/, 'the end takes the draft away before the reply is drawn: a Stop leaves none');
+  assert.match(follow, /watchRun\(run\.id, \(\) => \{ state\.botStreams = state\.botStreams\.filter\(\(x\) => x !== es\); replyDrafts\.end\(run\.id\); refresh\(\); \}/, 'the end takes the draft away before the reply is drawn: a Stop leaves none');
   assert.match(follow, /\(text\) => replyDrafts\.say\(run\.id, text, \(\) => \[\$\(`\[data-live="\$\{CSS\.escape\(run\.id\)\}"\]`\), \$\('#bot-thread'\)\]\)/);
 });
 

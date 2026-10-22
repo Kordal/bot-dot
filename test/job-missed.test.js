@@ -3,6 +3,9 @@
 // job waits for the sign-in, and what waits for a bot stays waiting.
 // The first half loads lib/bots.js itself and hands the scheduler its clock; the second starts a server, for what
 // the apps and the Chief read. No test waits for a minute to come.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');

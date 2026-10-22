@@ -307,6 +307,30 @@ fun BotFilesRow(files: List<Attachment>?, top: androidx.compose.ui.unit.Dp = 8.d
     }
 }
 
+/** The pages a run saved (#346): a chip each under its reply, which opens the page in the viewer. Only from a server with `pages`. */
+@Composable
+fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>) {
+    if (pages.isEmpty()) return
+    val p = LocalPaper.current
+    val app = dev.botdot.app.BotDotApp.of(LocalContext.current)
+    val server by app.store.version.value.collectAsState()
+    if (!dev.botdot.app.data.Pages.shows(server?.features)) return
+    val from = LocalPathActions.current?.from.orEmpty()
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        pages.forEach { page ->
+            Row(Modifier.widthIn(max = 320.dp).clip(RoundedCornerShape(14.dp)).background(p.panel).border(1.dp, p.line2, RoundedCornerShape(14.dp))
+                .clickable { DocViewer.open = DocViewer.page(botId, page, from) }.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("📄", fontSize = 18.sp)
+                Column(Modifier.padding(start = 10.dp)) {
+                    Text(page.title, color = p.text, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Page", color = p.faint, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
 private fun isImage(name: String) = name.substringAfterLast('.', "").lowercase() in setOf("png", "jpg", "jpeg", "gif", "webp")
 
 /** A picture a bot sent (a QR code to scan…), shown in the chat; a tap opens it full size. */

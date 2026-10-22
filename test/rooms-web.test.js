@@ -314,7 +314,7 @@ test("web: a bot's settings have the Shared rooms row with room-settings and roo
   assert.equal(ctx.showsRoomSettings(b), false, 'shared rooms off on this machine');
 });
 
-// ---------- an invite link (ADR 064) ----------
+// ---------- an invite link (ADR 067) ----------
 
 const TOKEN = 'T'.repeat(32);
 test('web: an invite link opened waits for rooms, then asks to join; Join posts it and opens the room', async () => {

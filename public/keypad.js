@@ -2,7 +2,8 @@
 // (#508), one key per bot or group, and one chat on the right. This file holds its three rules and draws nothing:
 //   - the pages: from the list's own order (pinned, categories A to Z, Other), so list and keypad never disagree.
 //     The list draws its rows from these pages too.
-//   - a key press: what 1–9, Esc and Ctrl+K do, the digits counted across the pages.
+//   - the digits (#366): a bot's own hotkey, else the free digits counted across the shown keys.
+//   - a key press: what 1–9, Esc and Ctrl+K do.
 //   - a move (#499): where a dragged key lands, as the place the list's drag gives a row.
 // A plain <script>, as window.Keypad; the tests load it with require.
 
@@ -31,16 +32,30 @@ function pages(bots, groups) {
   return all.filter((p) => p.keys.length);
 }
 
-// What a key press does: { key, ctrl, alt, meta, shift, inField } on { keys } (how many keys the keypad shows, on
-// all its pages) → { action: 'open', key } (its index, counted across the pages), { action: 'chief' },
-// { action: 'search' }, or null: the press is the browser's, or the field's. Esc and Ctrl+K work from a text field
-// too; a digit never leaves one. Tab is the browser's: every page is shown, so there is none to move to (#508).
-function press(e, { keys }) {
+// Which key each digit opens (#366): Map(digit → bot or group). A bot with its own `hotkey` (1–9) has it wherever it
+// stands on `pages`, also on a folded page; the digits no bot holds go, in reading order, to the `shown` keys that
+// have none (bots without one, and groups), until they run out. A server without hotkeys: the first nine shown keys.
+function digits(pages, shown) {
+  const map = new Map();
+  for (const p of pages) for (const x of p.keys) if (!x.members && x.hotkey >= 1 && x.hotkey <= 9 && !map.has(x.hotkey)) map.set(x.hotkey, x);
+  const held = new Set(map.values());
+  const free = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter((d) => !map.has(d));
+  for (const x of shown) { if (!free.length) break; if (!held.has(x)) map.set(free.shift(), x); }
+  return map;
+}
+// The digit on a key: its own, or the free one it was given; 0: none.
+const digitOf = (map, x) => { for (const [d, k] of map) if (k === x) return d; return 0; };
+
+// What a key press does: { key, ctrl, alt, meta, shift, inField } on { digits } (the digits that open a key, as
+// digits() gives them) → { action: 'open', digit }, { action: 'chief' }, { action: 'search' }, or null: the press is
+// the browser's, or the field's. Esc and Ctrl+K work from a text field too; a digit never leaves one. Tab is the
+// browser's: every page is shown, so there is none to move to (#508).
+function press(e, { digits: used }) {
   const plain = !e.ctrl && !e.alt && !e.meta;
   if (e.key === 'Escape') return { action: 'chief' };
   if (e.ctrl && !e.alt && !e.meta && /^k$/i.test(e.key)) return { action: 'search' };
   if (!plain || e.inField) return null;
-  if (/^[1-9]$/.test(e.key)) { const n = Number(e.key) - 1; return n < keys ? { action: 'open', key: n } : null; }
+  if (/^[1-9]$/.test(e.key)) { const d = Number(e.key); return used.has(d) ? { action: 'open', digit: d } : null; }
   return null;
 }
 
@@ -72,7 +87,7 @@ function pin(bots, groups, item, at) {
   others.forEach((x, i) => { x.pinned = i + 1; });
 }
 
-const api = { byPlace, byPin, categoryNames, pages, press, move, pin };
+const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Keypad = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

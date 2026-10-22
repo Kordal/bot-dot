@@ -101,7 +101,7 @@ const connectorApprovals = require('./lib/connector-approvals').create(B.DATA_DI
   asks, active: B.isActive, bot: B.bots.get, whatCarriesOn: (ask) => B.whatCarriesOn(ask), carryOn: (found, answers) => B.carryOn(found, answers), appName: B.appName, groupOfRun: B.groupOfRun,
   chiefApps: () => B.connectors.knownApps(), chiefFits: (ask) => chief.lateYesFits(ask.chatId, ask.at), chiefCarryOn: (ask, grant) => chief.doAgain(ask, grant), chiefName: () => chief.named().name,
 });
-// A shared room beyond a talk-only turn (ADR 062): the run its owner's mention starts, each of its tools on a card,
+// A shared room beyond a talk-only turn (ADR 066): the run its owner's mention starts, each of its tools on a card,
 // and what goes to a room on a card, collected by the front door from the outbox.
 const roomRuns = require('./lib/room-runs').create(B.DATA_DIR, { asks, bot: B.bots.get, mayPost: (bot) => B.bots.roomSettings(bot.id)?.allowRooms === true, runMeta: B.runMeta, going: (id) => !!B.runMeta(id) || !!B.waitingRun(id) });
 B.onRoomsOf((botId) => roomRuns.roomsOf(botId));
@@ -217,7 +217,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'room-settings', 'room-runs'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'room-settings', 'room-runs'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -561,6 +561,7 @@ const ROUTES = [
   require('./lib/routes/whats-new').create(ctx),
   require('./lib/routes/usage').create(ctx), // token usage for Settings (#301)
   require('./lib/routes/room-bots').create(ctx), // the bots a shared room may ask, for the front door (#316)
+  require('./lib/routes/pages').create(ctx), // every bot's pages in one list (#361)
   require('./lib/routes/setup').create(ctx),
   require('./lib/routes/memory').create(ctx),
   require('./lib/routes/group-chats').create(ctx),

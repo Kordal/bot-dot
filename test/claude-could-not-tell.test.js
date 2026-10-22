@@ -5,6 +5,9 @@
 // While botdot holds jobs and messages as signed out, a hello from a check that could not tell still says
 // "signed out", also after a restart (BUSY-010); and a sign-in or a sign-out reads its check the same way.
 // The check is the stand-in's: $FAKE_OUT/signed-out, auth-fails and auth-unreadable.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

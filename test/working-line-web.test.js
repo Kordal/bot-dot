@@ -41,7 +41,7 @@ test('web: which event brings a run\'s line: `working_line` with the feature, `o
 // The page with a bot's chat open: its feed's listeners, the run's stream, the status line and the row's words,
 // all the page's own code, over one keeper of lines.
 function page(features, runs = [RUN]) {
-  const state = { features, runs, bots: [NEWS], botStream: null };
+  const state = { features, runs, bots: [NEWS], botStreams: [] };
   const openingLines = OpeningLine.keeper();
   const drawn = { contacts: 0, refreshed: 0 };
   const thread = { dataset: {}, scrollHeight: 0, scrollTop: 0, clientHeight: 0, line: null,

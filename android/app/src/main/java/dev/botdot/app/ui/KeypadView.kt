@@ -68,7 +68,7 @@ import dev.botdot.app.data.Bot
 import kotlinx.serialization.json.JsonElement
 
 // The keypad drawn (#496): every page one under the other (#516), its name over its bots and groups as keys in rows
-// of three, the first nine numbered 1 to 9 across the pages. What a page holds is Keypad.pages; what a key of a
+// of three, numbered 1 to 9 as Keypad.digits gives them (#366). What a page holds is Keypad.pages; what a key of a
 // hardware keyboard does is Keypad.action; where a dragged key lands is Keypad.move (#499).
 
 /** What the keypad shows of the keys of a hardware keyboard, while one is attached. */
@@ -160,7 +160,7 @@ internal fun KeypadView(
         if (hint != null) Text(hint, color = p.faint, fontSize = 12.sp, maxLines = 1, modifier = Modifier.align(Alignment.End).padding(start = 16.dp, end = 16.dp, top = 10.dp))
         // While a key is dragged the keys stand still, so the finger moves the key and not the page.
         Keys(Modifier.weight(1f).fillMaxWidth().testTag(KEYPAD_PAGES), scroll = dragged == null) {
-            var number = 0
+            val digits = Keypad.digits(pages, Keypad.shownKeys(pages, folded))
             pages.forEachIndexed { i, page ->
                 val aimed = aim == Aim(i, null) // a key dragged over it would go last on this page
                 val isFolded = Keypad.isFolded(page, folded)
@@ -172,13 +172,11 @@ internal fun KeypadView(
                         Box(Modifier.height(if (aimed) 2.dp else 1.dp).fillMaxWidth().background(if (aimed) p.text else p.line))
                     }
                 }
-                if (isFolded) return@forEachIndexed // its keys are not shown, nor counted by the digits
-                val first = number
+                if (isFolded) return@forEachIndexed // its keys are not shown, nor given a free digit
                 itemsIndexed(page.keys, key = { _, k -> k.id }) { n, k ->
                     DisposableEffect(k.id) { onDispose { drag.keys.remove(k.id) } }
-                    KeyView(first + n + 1, look(k), lit = k.id == active, aimed = aim == Aim(i, n), modifier = dragging(k)) { onKey(k) }
+                    KeyView(Keypad.digitOf(digits, k), look(k), lit = k.id == active, aimed = aim == Aim(i, n), modifier = dragging(k)) { onKey(k) }
                 }
-                number += page.keys.size
             }
             // The last place, after the last page's keys; with no bot yet, alone, where the first one is asked for.
             askKey(onAsk, aimed = pages.isNotEmpty() && aim == Aim(pages.lastIndex, pages.last().keys.size),
@@ -231,7 +229,7 @@ private val KEY_SHAPE = RoundedCornerShape(20.dp)
 private val KEY_HEIGHT = 88.dp
 
 /**
- * A key: its [number] (1 to 9; none past nine), the head, the name and the line the list's row says. [lit]: its chat
+ * A key: its [number] (1 to 9: a bot's own or a free one, Keypad.digits; 0: none), the head, the name and the line the list's row says. [lit]: its chat
  * is the one open beside the keypad. [aimed]: a dragged key is over it, and would take its place.
  */
 @Composable
@@ -242,7 +240,7 @@ private fun KeyView(number: Int, look: KeyLook, lit: Boolean, modifier: Modifier
             .border(1.dp, if (aimed) p.text else if (lit || look.members != null) p.line2 else p.line, KEY_SHAPE)
             .semantics { selected = lit }.clickable(onClickLabel = look.name, onClick = onClick).padding(horizontal = 14.dp),
     ) {
-        if (number <= 9) Text("$number", color = p.faint, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp))
+        if (number in 1..9) Text("$number", color = p.faint, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp))
         Row(Modifier.align(Alignment.CenterStart).padding(end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box {
                 if (look.members != null) GroupPicture(look.members, 48) else BotFigure(look.color, look.state, 48, look.outfit)
@@ -365,10 +363,10 @@ internal class KeyRelay {
 }
 
 /**
- * Answers the presses [relay] hands on while this keypad is on screen ([Keypad.action]): a digit opens that key,
- * counted across the pages ([onKey]), Esc opens the Chief's chat ([onChief]), Ctrl+K puts the owner in the search box
+ * Answers the presses [relay] hands on while this keypad is on screen ([Keypad.action]): a digit opens the key it
+ * belongs to ([Keypad.digits], [onKey]), Esc opens the Chief's chat ([onChief]), Ctrl+K puts the owner in the search box
  * ([onSearch]). [keysShown]: the keys are on screen, not what the search found. [folded]: the folded categories,
- * whose keys are not on screen, so not counted (#171).
+ * whose keys are not on screen, so given no free digit (#171).
  */
 @Composable
 internal fun KeypadKeys(relay: KeyRelay?, pages: List<Keypad.Page>, keysShown: Boolean, onKey: (Keypad.Key) -> Unit, onChief: () -> Unit, onSearch: () -> Unit, folded: Set<String> = emptySet()) {
@@ -380,9 +378,9 @@ internal fun KeypadKeys(relay: KeyRelay?, pages: List<Keypad.Page>, keysShown: B
     val search by rememberUpdatedState(onSearch)
     DisposableEffect(relay) {
         val handler: (Keypad.Press, Boolean) -> Boolean = { press, typing ->
-            val keys = if (shown) Keypad.shownKeys(now, foldedNow) else emptyList()
-            when (val action = Keypad.action(press, typing, keys.size)) {
-                is Keypad.Action.Open -> { open(keys[action.number - 1]); true }
+            val digits = if (shown) Keypad.digits(now, Keypad.shownKeys(now, foldedNow)) else emptyMap()
+            when (val action = Keypad.action(press, typing, digits.keys)) {
+                is Keypad.Action.Open -> { open(digits.getValue(action.number)); true }
                 Keypad.Action.Chief -> { chief(); true }
                 Keypad.Action.Search -> { search(); true }
                 Keypad.Action.None -> false

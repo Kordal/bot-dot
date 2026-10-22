@@ -61,6 +61,9 @@ import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.BotFiles
 import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.FileView
+import dev.botdot.app.data.PageInfo
+import dev.botdot.app.data.PageRef
+import dev.botdot.app.data.Pages
 import kotlinx.coroutines.launch
 
 /**
@@ -71,8 +74,15 @@ import kotlinx.coroutines.launch
  * `document-viewer` ([DocumentView]); an older one keeps the download.
  */
 object DocViewer {
-    /** A file to open: [src] its API path (DocumentView), [from] who it is from, [botId] whose computer starts for it. */
-    data class Request(val src: String, val name: String, val from: String = "", val botId: String? = null, val path: String? = null)
+    /** A file to open: [src] its API path (DocumentView), [from] who it is from, [botId] whose computer starts for it.
+     *  [text]: a long reply opened as a document (#348, OpenAsDocument), drawn as it is with no [src] to fetch. [page]: a bot's page (#346). */
+    data class Request(val src: String, val name: String, val from: String = "", val botId: String? = null, val path: String? = null, val text: String? = null, val page: PageAt? = null)
+
+    /** Which bot's page, by its slug. */
+    data class PageAt(val botId: String, val slug: String)
+
+    /** A bot's page (#346), opened from a chip under a reply or from its settings. */
+    fun page(botId: String, page: PageRef, from: String): Request = Request(Pages.src(botId, page.slug), page.title, from, page = PageAt(botId, page.slug))
 
     var open by mutableStateOf<Request?>(null)
     /** A path held down in a reply: its sheet with Open and Copy path. */
@@ -133,14 +143,27 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     var tries by remember(req) { mutableIntStateOf(0) }
     var mode by remember(req) { mutableStateOf("source") }
     var menu by remember { mutableStateOf(false) }
+    var exporting by remember(req) { mutableStateOf(false) }
+    val server by app.store.version.value.collectAsState()
     val tell = { t: String -> android.widget.Toast.makeText(context, t, android.widget.Toast.LENGTH_LONG).show() }
     LaunchedEffect(req, api, tries) {
-        val a = api ?: return@LaunchedEffect
         view = null; error = null
+        // A reply opened as a document: its text is here already.
+        if (req.text != null) { view = FileView(name = req.name, kind = "markdown", text = req.text); mode = "rendered"; return@LaunchedEffect }
+        val a = api ?: return@LaunchedEffect
         runCatching { a.viewFile(req.src) }
             .onSuccess { v -> view = v; mode = when (v.kind) { "markdown" -> "rendered"; "csv" -> "table"; else -> "source" } }
             .onFailure { error = it }
     }
+    // A page (#346) is read again when its bot saves it (the feed's `page`) or its job changes, as it is shown now.
+    val saves by app.store.pageSaves.value.collectAsState()
+    var changed by remember(req) { mutableIntStateOf(0) }
+    val saved = req.page?.let { saves["${it.botId}/${it.slug}"] }
+    LaunchedEffect(saved, changed) {
+        if (req.page == null || (saved == null && changed == 0) || view == null) return@LaunchedEffect
+        api?.let { a -> runCatching { a.viewFile(req.src) }.onSuccess { view = it } }
+    }
+    var keeping by remember(req) { mutableStateOf(false) }
     // The ⋯ menu's actions, with the file fetched as it is (not only its start).
     fun withApi(what: String, act: suspend (dev.botdot.app.data.Api) -> Unit) {
         menu = false
@@ -152,7 +175,9 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = p.text) }
             Column(Modifier.weight(1f)) {
                 Text(req.name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val sub = DocumentView.subtitle(req.from, view, shortTime(view?.at))
+                val sub = if (req.text != null) listOfNotNull(req.from.ifBlank { null }, "${dev.botdot.app.data.DocumentExport.words(req.text)} words").joinToString(" · ")
+                    else if (req.page != null) Pages.subtitle(req.from, view?.page)
+                    else DocumentView.subtitle(req.from, view, shortTime(view?.at))
                 if (sub.isNotEmpty()) Text(sub, color = p.muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Box {
@@ -164,7 +189,10 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                             context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText(req.name, text))
                         })
                     }
-                    if (view?.downloadable != false) {
+                    if (view?.kind == "markdown" && dev.botdot.app.data.DocumentExport.shows(server?.features)) {
+                        DropdownMenuItem(text = { Text("Export…", color = p.text) }, onClick = { menu = false; exporting = true })
+                    }
+                    if (req.text == null && view?.downloadable != false) {
                         DropdownMenuItem(text = { Text("Save to Downloads", color = p.text) }, onClick = { withApi("save it") { BotFiles.saveToDownloads(context, it, req.src, req.name); tell("Saving ${req.name} to Downloads") } })
                         DropdownMenuItem(text = { Text("Share…", color = p.text) }, onClick = { withApi("share it") { BotFiles.share(context, it, req.src, req.name) } })
                         DropdownMenuItem(text = { Text("Open in another app", color = p.text) }, onClick = { withApi("open it") { BotFiles.openElsewhere(context, it, req.src, req.name) } })
@@ -174,6 +202,14 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         }
         val v = view
         val e = error
+        val page = v?.page
+        if (req.page != null && page != null) PageBar(page, onKeep = { keeping = true }, onRefresh = {
+            page.keep?.let { k -> withApi("refresh it") { it.runJob(req.page.botId, k.jobId); tell("${req.from.ifBlank { "The bot" }} is refreshing it") } }
+        }, onStop = { withApi("stop it") { it.stopKeepingPage(req.page.botId, page.slug); tell("It no longer keeps up to date"); changed++ } })
+        if (keeping && req.page != null && page != null) KeepSheet(page, req.from, onDismiss = { keeping = false }) { every, time, notify, check ->
+            withApi("keep it up to date") { it.keepPage(req.page.botId, page.slug, every, time, notify, check); keeping = false; tell("It keeps up to date now"); changed++ }
+        }
+        if (exporting && v?.text != null) ExportSheet(req.name, v.text) { exporting = false }
         when {
             e != null -> {
                 val status = (e as? ApiException)?.status
@@ -221,6 +257,68 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** The Export sheet of a Markdown document (#348): Word, PDF or Markdown made by the server and saved to Downloads,
+ *  or the PDF to the phone's share sheet. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
+    val p = LocalPaper.current
+    val context = LocalContext.current
+    val app = BotDotApp.of(context)
+    val api by app.api.collectAsState()
+    val scope = rememberCoroutineScope()
+    val tell = { t: String -> android.widget.Toast.makeText(context, t, android.widget.Toast.LENGTH_LONG).show() }
+    val server by app.store.version.value.collectAsState()
+    // Whether Google Docs is connected, asked as the sheet opens; null until it answers.
+    var googleDocs by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(api) { if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) googleDocs = runCatching { api?.googleDocsConnected() }.getOrNull() }
+    fun make(what: String, act: suspend (java.io.File) -> Unit, format: String) {
+        onDone()
+        val a = api ?: return tell("Not connected to botdot")
+        tell("Making the file…")
+        scope.launch {
+            runCatching { act(a.exportDocument(title, text, format, java.io.File(context.cacheDir, "botfiles/exports"))) }.onError { tell(it.message ?: "Couldn't $what") }
+        }
+    }
+    ModalBottomSheet(onDismissRequest = onDone, containerColor = p.panel) {
+        Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 28.dp)) {
+            Text("DOWNLOAD", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            dev.botdot.app.data.DocumentExport.FORMATS.forEach { (format, label, ext) ->
+                SheetRow(label, ext) { make("save it", { f -> BotFiles.saveToDownloads(context, f); tell("Saved ${f.name} to Downloads") }, format) }
+            }
+            Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
+            if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) {
+                Text("SAVE TO", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                SheetRow("Google Docs", when (googleDocs) { true -> "connected"; false -> "Connect on the web"; null -> "" }) {
+                    onDone()
+                    val a = api ?: return@SheetRow tell("Not connected to botdot")
+                    if (googleDocs == false) return@SheetRow tell("Connect Google Docs on the Connectors page first.")
+                    tell("Saving to Google Docs…")
+                    scope.launch {
+                        runCatching { a.saveToGoogleDocs(title, text) }
+                            .onSuccess { url ->
+                                tell("Saved to Google Docs")
+                                runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            }
+                            .onError { tell(it.message ?: "Couldn't save it to Google Docs") }
+                    }
+                }
+                Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
+            }
+            SheetRow("Share…", "PDF") { make("share it", { f -> BotFiles.shareFile(context, f) }, "pdf") }
+        }
+    }
+}
+
+@Composable
+private fun SheetRow(label: String, end: String, onClick: () -> Unit) {
+    val p = LocalPaper.current
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = p.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(end, color = p.faint, fontSize = 12.5.sp)
     }
 }
 
@@ -291,6 +389,67 @@ private fun CsvTable(text: String, sep: Char) {
                 }
             }
             if (t.rows.isEmpty()) Text("Nothing found.", color = p.muted, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+        }
+    }
+}
+
+/** A page's bar (#346): what keeps it up to date, with Refresh now, Change and Stop, or the button that does. */
+@Composable
+private fun PageBar(page: PageInfo, onKeep: () -> Unit, onRefresh: () -> Unit, onStop: () -> Unit) {
+    val p = LocalPaper.current
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        val keep = page.keep
+        if (keep == null) OutlinedButton(onClick = onKeep) { Text("Keep up to date", color = p.text) }
+        else {
+            Text("↻ Keeps up to date · ${keep.`when`}", color = p.okText, fontSize = 12.5.sp,
+                modifier = Modifier.align(Alignment.CenterVertically).clip(RoundedCornerShape(99.dp)).background(p.okSoft).padding(horizontal = 12.dp, vertical = 6.dp))
+            OutlinedButton(onClick = onRefresh) { Text("Refresh now", color = p.text) }
+            androidx.compose.material3.TextButton(onClick = onKeep) { Text("Change", color = p.muted) }
+            androidx.compose.material3.TextButton(onClick = onStop) { Text("Stop", color = p.muted) }
+        }
+    }
+}
+
+/** "Keep up to date" (#346): how often, at what time, whether to hear of every update, and what to check. The tap is the consent: no card follows. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun KeepSheet(page: PageInfo, from: String, onDismiss: () -> Unit, onKeep: (String, String, String, String) -> Unit) {
+    val p = LocalPaper.current
+    var every by remember { mutableStateOf(page.keep?.every ?: "day") }
+    var time by remember { mutableStateOf(page.keep?.time ?: "07:00") }
+    var notify by remember { mutableStateOf(page.keep?.notify ?: "report-only") }
+    var check by remember { mutableStateOf(page.keep?.check ?: page.sources) }
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.panel) {
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("Keep \u201c${page.title}\u201d up to date", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+            Text("${from.ifBlank { "The bot" }} rewrites the page on this schedule, from the same sources.", color = p.muted, fontSize = 13.5.sp)
+            Text("How often", color = p.muted, fontSize = 12.5.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { Pages.EVERY.forEach { (k, label) -> ModeChip(label, every == k) { every = k } } }
+            if (every != "hour") {
+                Text("At", color = p.muted, fontSize = 12.5.sp)
+                BasicTextField(time, { time = it.take(5) }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = 15.sp), cursorBrush = SolidColor(p.text),
+                    modifier = Modifier.width(110.dp).border(1.dp, p.line2, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 9.dp))
+            }
+            Text("Tell me", color = p.muted, fontSize = 12.5.sp)
+            listOf("report-only" to ("Only when something needs me" to "A quiet update otherwise. The page shows when it changed."),
+                "always" to ("Every time it's updated" to "A short message with what changed.")).forEach { (k, words) ->
+                Row(Modifier.fillMaxWidth().clickable { notify = k }.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
+                    androidx.compose.material3.RadioButton(selected = notify == k, onClick = { notify = k })
+                    Column(Modifier.padding(top = 10.dp)) {
+                        Text(words.first, color = p.text, fontSize = 14.sp)
+                        Text(words.second, color = p.faint, fontSize = 12.sp)
+                    }
+                }
+            }
+            Text("What to check", color = p.muted, fontSize = 12.5.sp)
+            BasicTextField(check, { check = it.take(600) }, textStyle = TextStyle(color = p.text, fontSize = 14.sp), cursorBrush = SolidColor(p.text),
+                modifier = Modifier.fillMaxWidth().height(90.dp).border(1.dp, p.line2, RoundedCornerShape(12.dp)).padding(12.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel", color = p.text) }
+                Button(onClick = { onKeep(every, time, notify, check) }, modifier = Modifier.weight(1.4f),
+                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Keep it up to date") }
+            }
         }
     }
 }

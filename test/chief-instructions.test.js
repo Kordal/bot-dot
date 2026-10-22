@@ -5,7 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, waitFor } = require('./helpers');
+const { startServer, makeBot, waitFor, writeData } = require('./helpers');
 
 let srv, chatId;
 before(async () => {
@@ -85,7 +85,7 @@ test('a chat from before this change gets the current instructions on its next t
   const chat = JSON.parse(fs.readFileSync(file, 'utf8'));
   assert.ok(chat.sessionId && chat.instructionsKey);
   delete chat.instructionsKey; // as botdot kept chats before
-  fs.writeFileSync(file, JSON.stringify(chat));
+  writeData(file, chat);
   const turn = await say(chatId, 'stop writing first');
   assert.ok(turn.args.includes('--resume'));
   assert.match(context(turn), /<instructions>\n[^]*writing_first[^]*<\/instructions>/);

@@ -3,7 +3,7 @@
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#311](https://github.com/Kordal/bot-dot/issues/311)
 - **Changes:** [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) ("Nothing crosses accounts": one narrow path now does, through the front door, when the admin turns it on)
-- **Branch:** built on `nightly`, not on `main`, until the owner decides to bring it over
+- **Branch:** built on `nightly`, merged into `main` on 2026-10-22
 
 ## Context
 

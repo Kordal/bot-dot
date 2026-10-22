@@ -93,6 +93,9 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
       BOT_DOT_TEST_TICK: '1',
       BOT_DOT_REMINDERS_EVERY_MS: '1000',
       BOT_DOT_LINE_EVERY_MS: '50',
+      // How many runs of one bot go at once (ADR 062): a test file of what waits behind a busy bot sets 1 for the
+      // whole file, before it starts its server (oneRunAtATime).
+      ...(process.env.BOT_DOT_RUNS_MAX ? { BOT_DOT_RUNS_MAX: process.env.BOT_DOT_RUNS_MAX } : {}),
       ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -216,16 +219,24 @@ async function restartServer(srv, change = () => {}) {
   return startServer({ dir: srv.dir });
 }
 const readData = (data, file) => JSON.parse(fs.readFileSync(path.join(data, file), 'utf8'));
+// A file of a server that may be running, written as botdot writes its own (lib/jsonfile.js): whole or not at all.
+// A plain writeFileSync truncates the file first, and a server that reads it in that moment takes it for broken and
+// moves it aside (`.broken-…`): a Chief chat would lose its runs, and a test what it set up (#300).
+function writeData(file, value) {
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(value));
+  fs.renameSync(tmp, file);
+}
 // Jobs as bots.json keeps them, changed by id: setJobs(data, { [job.id]: { at, enabled } }).
 function setJobs(data, changes) {
   const all = readData(data, 'bots.json').map((b) => ({ ...b, jobs: (b.jobs || []).map((j) => ({ ...j, ...changes[j.id] })) }));
-  fs.writeFileSync(path.join(data, 'bots.json'), JSON.stringify(all, null, 2));
+  writeData(path.join(data, 'bots.json'), all);
 }
 // What waits in queue.json, changed in place: setQueue(data, (q) => { q.queues[bot.id] = [item]; }).
 function setQueue(data, change) {
   const q = { queues: {}, oneTimeRetries: [], ...(fs.existsSync(path.join(data, 'queue.json')) ? readData(data, 'queue.json') : {}) };
   change(q);
-  fs.writeFileSync(path.join(data, 'queue.json'), JSON.stringify(q));
+  writeData(path.join(data, 'queue.json'), q);
 }
 // The work of a one-time job that came due at `at` and waits its turn, and of a "Run now" that waits, as botdot queues them.
 const onceItem = (job, at) => ({ key: `once:${job.id}`, kind: 'job', jobId: job.id, trigger: 'schedule', at, queuedAt: at });
@@ -417,4 +428,4 @@ async function hookCall(settings, input = { hook_event_name: 'PostToolUse', tool
   return res.ok ? res.json() : null;
 }
 
-module.exports = { vaultSecret, hookCall, startServer, freePort, restartServer, readData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
+module.exports = { vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };

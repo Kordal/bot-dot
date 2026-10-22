@@ -81,6 +81,9 @@ import dev.botdot.app.data.jobWaits
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
@@ -165,6 +168,10 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val chief by store.chief.value.collectAsState()
     val chiefBusy = chief?.busy == true // the logo's dot pulses while it works
     val dash by store.dashboard.value.collectAsState()
+    // The Board's line is looked at again while the list is in front, at once and then once a minute, so a tile's
+    // "5 minutes ago" moves on (botdot works out those words when it is asked).
+    val life = LocalLifecycleOwner.current
+    LaunchedEffect(api) { life.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { while (true) { store.dashboard.refresh(); delay(60_000) } } }
     // The search box: bots by name, and messages in every chat (fetched a moment after you stop typing).
     var query by rememberSaveable { mutableStateOf("") }
     var searching by rememberSaveable { mutableStateOf(false) } // the search box shows only once you ask for it

@@ -6,11 +6,14 @@
 // message of the owner, 24 hours, a job's run of a paused bot. No yes answers "That run has ended". Against a real botdot
 // server with the wait at 1.5 s, the stand-in for Claude and the stand-in connected app. A shorter wait (it was
 // 300 ms) can end on a busy machine before a test reads the card it has just made as still waited for (#503).
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, waitFor, readData, setQueue, seedRuns, sleep, fakeConnectedApp, connectorEnv } = require('./helpers');
+const { startServer, makeBot, waitFor, readData, setQueue, seedRuns, sleep, fakeConnectedApp, connectorEnv, writeData } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 const { isRunOf } = require('./carry-on-helpers');
 
@@ -222,7 +225,7 @@ test("a run the Chief started is started again by botdot itself, and its reply r
       const file = path.join(srv.data, 'chief', `${chat.id}.json`);
       const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
       saved.messages.push({ role: 'user', text: 'Have the bot tell Anna', at: new Date().toISOString() }, { role: 'chief', text: 'Started it.', at: new Date().toISOString(), actions: [{ kind: 'run', text: 'Started News Mailer', botId: bot.id, runId: started.data.id }] });
-      fs.writeFileSync(file, JSON.stringify(saved));
+      writeData(file, saved);
       return started;
     },
   });
@@ -306,7 +309,7 @@ const intoChat = (chat, ...messages) => {
   const file = path.join(srv.data, 'chief', `${chat.id}.json`);
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   saved.messages.push(...messages);
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeData(file, saved);
 };
 // A run of the bot that the Chief starts from a chat: `start` for waitedOut, which records the run in that chat
 // (as its run_bot action does), under a message of the owner.

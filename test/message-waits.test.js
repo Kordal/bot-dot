@@ -5,6 +5,9 @@
 // runs are held and released: no test here waits for a time to pass.
 // A bot that waits for the owner's OK on a connected-app action is in test/connector-wait.test.js; what cannot
 // be reached through the API (a deleted bot, a message that cannot start) in test/message-waits-unit.test.js.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

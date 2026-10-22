@@ -5,6 +5,9 @@
 // its questions stay in the reply as text, for the Chief. A job or tile that waits for its first approval says
 // "Decline and remove".
 // Nothing here waits for a schedule: botdot is stopped, a job is set to every minute, and back on it runs at once.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -14,7 +17,7 @@ const { finishReport } = require('../lib/reporting');
 const { quietRun } = require('../lib/problems');
 const { runCounts, runAsks, asksFields, ownChatMessage } = require('../lib/read');
 const { runSummary } = require('../lib/events');
-const { startServer, restartServer, setJobs, makeBot, feed, waitFor, heldRun, self, seedRuns, readData } = require('./helpers');
+const { startServer, restartServer, setJobs, makeBot, feed, waitFor, heldRun, self, seedRuns, readData, writeData } = require('./helpers');
 
 const DAY = { start: 0, end: 0, timeZone: 'UTC' }; // equal hours: nothing is held
 // Quiet hours that hold now, whatever the hour.
@@ -277,7 +280,7 @@ test("a job's question is never quiet: it is in the chat with its answers, new, 
   } finally { f?.close(); srv.unhold(); await srv.stop(); }
 });
 
-test("a run the Chief started gets no note for answer buttons; a question it writes all the same goes to the Chief as text, and a teammate's request is as before", async () => {
+test("a run the Chief started gets no note for answer buttons; a question it writes all the same goes to the Chief as text, and so does a waiting teammate's, which asks the owner itself", async () => {
   const srv = await startServer();
   try {
     const bot = await makeBot(srv, { name: 'Mail Sorter', emoji: '📬' });
@@ -294,7 +297,7 @@ test("a run the Chief started gets no note for answer buttons; a question it wri
     const file = path.join(srv.data, 'chief', `${chat.id}.json`);
     const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
     saved.messages.push({ role: 'user', text: 'do it', at: new Date().toISOString() }, { role: 'chief', text: "It's still going.", at: new Date().toISOString(), actions: [{ kind: 'run', text: 'Started a bot', runId: run.id }] });
-    fs.writeFileSync(file, JSON.stringify(saved));
+    writeData(file, saved);
     srv.reply('Which account should I use?\n\n[[choices: Work | Private]]');
     srv.release(rec);
     const done = await srv.finished(run.id);
@@ -330,18 +333,32 @@ test("a run the Chief started gets no note for answer buttons; a question it wri
     assert.equal((await botOf(srv, bot)).asks, undefined);
 
     // An owner's own message gets the note, and so does a teammate's request (#233): what it needs from the owner, an
-    // OK on a change or an answer only they can give, it asks them in the reply, which asks the owner.
+    // OK on a change or an answer only they can give, it asks them in the reply. The asker waits, so the questions go
+    // back to it as text and it asks the owner in its own chat, where they are talking: none in the helper's chat.
     const origin = await heldRun(srv, bot, 'Ask the helper');
     assert.ok(origin.rec.system.includes(choices.NOTE));
     await self(srv, origin.token, 'message', { to: helper.id, message: 'Make the VM', priority: true });
     const helped = await srv.nextRun(isRunOf(helper));
     assert.ok(helped.system.includes(choices.NOTE));
     assert.match(helped.system, /needs the owner's OK .*ask them at the end of your reply/);
+    assert.match(helped.system, /They go back with your reply to Mail Sorter, which asks the owner in its own chat/);
     srv.reply('I plan VM 107. Should I make it?\n\n[[choices: Yes | No]]');
     srv.release(helped);
     const answer = await srv.finished((await srv.api(`/runs?botId=${helper.id}`)).data[0].id);
-    assert.deepEqual([answer.result, answer.choices, answer.asks, answer.trigger], ['I plan VM 107. Should I make it?', ['Yes', 'No'], true, 'bot']);
-    assert.equal((await botOf(srv, helper)).asks?.runId, answer.id, 'the helper asks the owner');
+    assert.deepEqual([answer.result, answer.choices, answer.questions, answer.asks, answer.askedAsker, answer.trigger],
+      ['I plan VM 107. Should I make it?\n\nPossible answers: Yes | No', undefined, undefined, undefined, true, 'bot']);
+    const helperNow = await botOf(srv, helper);
+    assert.equal(helperNow.asks, undefined, 'the helper asks the owner nothing in its own chat');
+    assert.notEqual(helperNow.state, 'needs_you');
+    srv.reply('I asked the helper.');
+    srv.release(origin.rec);
+    const back = await srv.nextRun((x) => isRunOf(bot)(x) && x.at > helped.at, 'the asker\'s run with the reply');
+    assert.ok(back.system.includes(choices.NOTE), 'the asker can ask the owner');
+    assert.match(back.stdin, /Possible answers: Yes \| No\n<\/reply>\nThat reply ends with questions for the owner/);
+    assert.match(back.stdin, /send their answer to 🛟 Fleet Helper.* with message_bot/);
+    srv.reply('Fleet Helper asks: should it make VM 107?\n\n[[choices: Yes | No]]');
+    srv.release(back);
+    await waitFor(async () => (await botOf(srv, bot)).asks, { what: 'the asker to ask the owner' });
     srv.reply('Done.');
   } finally { srv.unhold(); await srv.stop(); }
 });

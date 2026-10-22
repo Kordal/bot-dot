@@ -45,8 +45,16 @@ function loadDash(quiet = false) {
     .catch(() => {}).finally(() => { dashLoading = null; });
   return dashLoading;
 }
-// While it's on screen, the stale tiles are read again every little while.
-setInterval(() => { if (state.view === 'dashboard' && !document.hidden) loadDash(); }, 15_000);
+// While it's on screen, the stale tiles are read again every little while. Elsewhere the strip over the list is
+// looked at again once a minute, so a tile's "5 minutes ago" moves on, and on coming back to the page at once.
+let dashTicks = 0;
+setInterval(() => {
+  if (document.hidden) return;
+  dashTicks += 1;
+  if (state.view === 'dashboard') loadDash();
+  else if (dashTicks % 4 === 0) loadDash(true);
+}, 15_000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) loadDash(state.view !== 'dashboard'); });
 
 const LEVEL = { ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--err)' };
 const TINT = { ...LEVEL, faint: 'var(--faint)', muted: 'var(--muted)', text: 'var(--text)' };

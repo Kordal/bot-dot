@@ -1,14 +1,18 @@
 package dev.botdot.app.data
 
 import android.content.ActivityNotFoundException
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.app.DownloadManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -59,6 +63,28 @@ object BotFiles {
         else request.setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, file)
         for ((key, value) in BackupDownload.headers(api)) request.addRequestHeader(key, value)
         (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+    }
+
+    /** An exported document (#348) into Downloads: through MediaStore from Android 10, else the app's own Downloads. */
+    suspend fun saveToDownloads(context: Context, file: File) = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, file.name)
+                put(MediaStore.Downloads.MIME_TYPE, typeOf(file.name))
+            }
+            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: throw ApiException("Couldn't save to Downloads.")
+            (context.contentResolver.openOutputStream(uri) ?: throw ApiException("Couldn't save to Downloads.")).use { out -> file.inputStream().use { it.copyTo(out) } }
+        } else {
+            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: throw ApiException("Couldn't save to Downloads.")
+            file.copyTo(File(dir, file.name), overwrite = true)
+        }
+    }
+
+    /** A file the app made (an exported document) to the phone's share sheet. */
+    fun shareFile(context: Context, file: File) {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
+        val send = Intent(Intent.ACTION_SEND).setType(typeOf(file.name)).putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        context.startActivity(Intent.createChooser(send, file.name).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     private fun typeOf(name: String) = MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase()) ?: "application/octet-stream"

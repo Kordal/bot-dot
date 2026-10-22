@@ -377,7 +377,7 @@ function groupReplyHTML(r, asks = null) {
     ${botFigure(color, r.status === 'error' ? 'failed' : 'idle', 'g-head', bot?.outfit || null, bot?.id || '')}
     <div class="stack">
       <div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(r.botId, r.botName))}</div>
-      <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${botFilesHTML(r.files)}</div>
+      <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}</div>
       ${learnedChips(r)}
       <div class="bubble-meta">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
       ${asks === r.id && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}

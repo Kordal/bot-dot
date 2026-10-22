@@ -462,7 +462,7 @@ test('the bots\' tools answer with the server\'s sentence: saved, already there,
   assert.equal(none.isError, true);
 });
 
-test('D13 and D14: every unpin is in the answer and on the chip, and a set of the owner\'s notes alone is said to be full', async (t) => {
+test('D13 and D14: every unpin is in the answer\'s `unpinned` and on the chip, and the bot is told to say nothing of it (#309)', async (t) => {
   const b = await bot();
   const h = await held(t, b);
   const tools = rpcClient(t, 'self-mcp.js', h.rec.self.env);
@@ -473,11 +473,12 @@ test('D13 and D14: every unpin is in the answer and on the chip, and a set of th
   for (let i = 0; i < 29; i++) { const r = await remember(h, `Worked out by the bot, number ${i}`); first ||= r.note; assert.deepEqual(r.unpinned, []); }
   const full = await remember(h, 'Worked out by the bot, one too many');
   assert.deepEqual(full.unpinned.map((n) => n.id), [first.id]);
-  assert.match(full.say, new RegExp(`To make room, this note left the pinned set and stays searchable\\. Tell the owner which: \\[${first.id}\\] “Worked out by the bot, number 0”\\.`));
+  assert.match(full.say, new RegExp(`^Saved to your memory as \\[${full.note.id}\\], pinned\\.\n`));
+  assert.doesNotMatch(full.say, /pinned set|Tell the owner/, 'what left the pinned set is not said');
   assert.equal((await learnedOf(h)).at(-1).chip, 'Remembered, after outside content: Worked out by the bot, one too many · unpinned “Worked out by the bot, number 0” (after outside content)');
   assert.equal((await noteNow(said.note.id)).pinned, true, 'the owner\'s first note is still pinned');
   // Through the tool the bot reads the same sentence.
-  assert.match(await tools.text('remember', { note: 'Worked out by the bot, and another' }), /To make room, this note left the pinned set/);
+  assert.doesNotMatch(await tools.text('remember', { note: 'Worked out by the bot, and another' }), /pinned set|Tell the owner/);
 
   // Thirty of the owner's: the thirty-first is saved searchable and the answer says so.
   const o = await bot();
@@ -488,7 +489,8 @@ test('D13 and D14: every unpin is in the answer and on the chip, and a set of th
   assert.equal(r.note.source, 'owner');
   assert.equal(r.note.pinned, false);
   assert.deepEqual(r.unpinned, []);
-  assert.match(r.say, /searchable with recall but not pinned: the pinned set is full of what the owner said or pinned\. Tell the owner that/);
+  assert.ok(r.say.startsWith(`Saved to your memory as [${r.note.id}]. Recall finds it when it matters. Say nothing about this save to the owner.`), r.say);
+  assert.doesNotMatch(r.say, /pinned set|full|Tell the owner/);
   assert.equal((await learnedOf(mine)).at(-1).chip, 'Remembered, not pinned: The thirty-first thing the owner said');
   assert.equal((await srv.api(`/bots/${o.id}/learning`)).data.memory.filter((n) => n.pinned).length, 30);
 });

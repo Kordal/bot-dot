@@ -5,7 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, feed, waitFor, ROOT } = require('./helpers');
+const { startServer, makeBot, feed, waitFor, ROOT, writeData } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 const { KIT, SLOTS, NAME, names, pieceProblem, outfitAfter, stored } = require('../lib/pieces');
 
@@ -465,7 +465,7 @@ test('a bot stored with a held object loads without error, is returned without i
     saved.find((x) => x.id === mail.id).outfit = { hat: 'cap', holds: 'envelope' };
     saved.find((x) => x.id === news.id).outfit = { hat: '', holds: 'newspaper' };
     saved.find((x) => x.id === baker.id).outfit = { hat: FEZ, holds: loaf };
-    fs.writeFileSync(file, JSON.stringify(saved));
+    writeData(file, saved);
     b = await startServer({ dir: a.dir });
     const outfits = async () => Object.fromEntries((await b.api('/bots')).data.map((x) => [x.name, x.outfit]));
     assert.deepEqual(await outfits(), { 'Mail Keeper': { hat: 'cap' }, 'News Reader': null, Baker: { hat: FEZ }, Plain: null }, 'the held object is ignored; a bot with a hat is not dressed again, one that only held something counts as never dressed');

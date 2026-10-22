@@ -1,4 +1,4 @@
-// A shared room's cards on the web page (ADR 062, test/need-cards.js, the page's own code): a tool a run from a room
+// A shared room's cards on the web page (ADR 066, test/need-cards.js, the page's own code): a tool a run from a room
 // wants to use, and what would go to a room. The server's title, line, rows and yes word; no yes on a card that can't
 // show all it approves. docs/api.md, "Shared rooms: the owner's mention".
 const { test } = require('node:test');

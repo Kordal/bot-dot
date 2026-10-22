@@ -236,7 +236,7 @@ test('web: a message sent to a working bot empties the box and is drawn among th
   p.ctx.placeStatusLines();
   assert.deepEqual(p.bot.names(), ['bubble-row', 'status-line', 'chat-queued']);
   assert.equal((p.waiting(p.bot).innerHTML.match(/data-take-back=/g) || []).length, 1);
-  const run = cut('async function runBot(botId', '// A bot\'s running run as it happens');
+  const run = cut('async function runBot(botId', '// Every run of the bot that is going');
   assert.doesNotMatch(run, /EventSource|followBotRun|openRun|\/stream/);
 });
 

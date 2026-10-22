@@ -84,6 +84,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var copyPlan by remember { mutableStateOf<dev.botdot.app.data.CopyPlan?>(null) } // the Duplicate confirmation, while it is open
     var copyName by remember { mutableStateOf("") }
     var files by remember { mutableStateOf<List<UploadedFile>?>(null) } // its files (#235), once loaded
+    var pages by remember { mutableStateOf<List<dev.botdot.app.data.PageInfo>?>(null) } // its pages (#346), once loaded
     var fileToDelete by remember { mutableStateOf<UploadedFile?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -105,6 +106,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var mayMessage by remember { mutableStateOf(setOf<String>()) }
     var othersMayAsk by remember { mutableStateOf(true) }
     var rooms by remember { mutableStateOf(dev.botdot.app.data.BotRooms()) } // shared rooms (#316), when the server keeps them
+    var hotkey by remember { mutableStateOf(0) }
     var others by remember { mutableStateOf<List<Bot>>(emptyList()) }
 
     fun fill(b: Bot) {
@@ -113,6 +115,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
         useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
         othersMayAsk = b.othersMayAsk != false
         rooms = b.rooms ?: dev.botdot.app.data.BotRooms()
+        hotkey = b.hotkey ?: 0
     }
 
     LaunchedEffect(api) {
@@ -130,6 +133,13 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     LaunchedEffect(api, keepsFiles) {
         val a = api ?: return@LaunchedEffect
         if (keepsFiles) runCatching { a.botFiles(botId) }.onSuccess { files = it.files }
+    }
+    // Its pages (#346): read again when one of them is saved (the feed's `page`) or the viewer closes (a job changed there).
+    val hasPages = dev.botdot.app.data.Pages.shows(server?.features)
+    val pageSaves by app.store.pageSaves.value.collectAsState()
+    LaunchedEffect(api, hasPages, pageSaves, DocViewer.open == null) {
+        val a = api ?: return@LaunchedEffect
+        if (hasPages) runCatching { a.pages(botId) }.onSuccess { pages = it }
     }
 
     fun save() = scope.launch {
@@ -153,6 +163,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             if (!everyone && (b.mayMessageAll || mayMessage != b.mayMessage.toSet())) put("mayMessage", JsonArray(mayMessage.map { JsonPrimitive(it) }))
             if (b.othersMayAsk != null && othersMayAsk != b.othersMayAsk) put("othersMayAsk", othersMayAsk)
             b.rooms?.let { was -> dev.botdot.app.data.BotRooms.change(was, rooms)?.let { put("rooms", it) } }
+            if (b.hotkey != null && hotkey != b.hotkey) put("hotkey", hotkey)
         }
         if (changes.isEmpty()) return@launch tell("Nothing changed.")
         saving = true
@@ -260,6 +271,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 SwitchRow("May be in shared rooms", "It only talks there: no tools, no notes, nothing of yours.", rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }
                 if (rooms.allowRooms) Choice("Who may mention it", rooms.whoMayMention, dev.botdot.app.data.BotRooms.WHO) { rooms = rooms.copy(whoMayMention = it) }
             }
+            // Its own key on the keypad (#366): only from a server that has it. A digit another bot holds moves here.
+            if (b.hotkey != null) FoldSection("Key on the keypad", if (hotkey in 1..9) "$hotkey" else "By its place") {
+                CheckRow("By its place", "Without one it gets a free digit by its place.", hotkey == 0) { hotkey = 0 }
+                for (d in 1..9) CheckRow("$d", others.firstOrNull { it.hotkey == d }?.let { "Now ${it.name}'s" }, hotkey == d) { on -> hotkey = if (on) d else 0 }
+            }
             // The jobs you said to always approve: their later changes need no OK. Revoke takes one off (saved right away).
             val trusted = b.jobs.filter { it.alwaysApprove }
             if (trusted.isNotEmpty()) FoldSection("Always approved", trusted.joinToString(", ") { it.name }) {
@@ -317,6 +333,20 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                                     }) { Text(if (f.pinned) "📌 Kept in mind" else "Keep in mind", color = if (f.pinned) p.text else p.muted) }
                                     TextButton(onClick = { fileToDelete = f }) { Text("Delete", color = p.err) }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+            // Its pages (#346): what it made for you. Tap one to open it, and keep it up to date from there.
+            pages?.let { list ->
+                FoldSection("Pages", if (list.isEmpty()) "None yet" else "${list.size}") {
+                    Hint(if (list.isEmpty()) "None yet. Ask ${b.name} for a page, a report or an overview." else "Reports, memos and overviews it made for you. Open one to keep it up to date.")
+                    list.forEach { pg ->
+                        key(pg.slug) {
+                            Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(botId, dev.botdot.app.data.PageRef(pg.slug, pg.title), b.name) }.padding(vertical = 6.dp)) {
+                                Text(pg.title, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                Text(dev.botdot.app.data.Pages.line(pg), color = if (pg.keep != null) p.okText else p.muted, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }

@@ -198,6 +198,8 @@ const pageFolded = (p, folded = foldedGroups()) => p.kind !== 'pinned' && !($('#
 // Every key shown in reading order, page after page, with its page and its place there: the digits count them so. A
 // folded page's keys are not shown, so not counted.
 const keypadKeys = (pages) => { const folded = foldedGroups(); return pages.flatMap((p, page) => (pageFolded(p, folded) ? [] : p.keys.map((x, at) => ({ x, page, at })))); };
+// Which key each digit opens (Keypad.digits, #366): a bot's own hotkey, else a free digit by its place among `all`.
+const keypadDigits = (pages, all) => Keypad.digits(pages, all.map((k) => k.x));
 const keypadShown = () => getComputedStyle($('#keypad')).display !== 'none';
 // A key's line, its class and what stands after its name: the list's, with "Asks you" for a bot that asks.
 function keyLine(x) {
@@ -208,13 +210,13 @@ function keyLine(x) {
 // The colour of the dot on a page's heading: the first bot on it that asks, or the member that asks in a group.
 const askColor = (x) => (keyLine(x).cls !== 'asks' ? '' : x.members ? memberColor(x.asks.botId) : x.color);
 const openKey = (x) => (x.members ? setView('group', x.id) : setView('bot', x.id));
-// section: on a phone, the place of the key's page; there the key has no digit.
-function keyHTML(x, i, section = null) {
+// section: on a phone, the place of the key's page; there the key has no digit. digit: the key's (0: none).
+function keyHTML(x, i, section = null, digit = 0) {
   const group = !!x.members;
   const line = keyLine(x);
   const on = group ? state.view === 'group' && state.groupId === x.id : state.view === 'bot' && state.botId === x.id;
   const where = section === null ? `data-key="${i}"` : `data-section-key="${section}.${i}"`;
-  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(x.name)}">${section === null && i < 9 ? `<span class="key-n">${i + 1}</span>` : ''}${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit)}<div class="grow"><div class="top"><span class="name">${esc(x.name)}</span>${line.after}</div><div class="prev ${line.cls}">${line.who ? `${esc(line.who)}: ` : ''}${esc(line.prev)}</div></div></button>`;
+  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(x.name)}">${section === null && digit ? `<span class="key-n">${digit}</span>` : ''}${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit)}<div class="grow"><div class="top"><span class="name">${esc(x.name)}</span>${line.after}</div><div class="prev ${line.cls}">${line.who ? `${esc(line.who)}: ` : ''}${esc(line.prev)}</div></div></button>`;
 }
 // The Board's line: each tile's name and value, or its dot. A tap opens the Board. Not there until the Board is read.
 function boardLine() {
@@ -241,10 +243,11 @@ function drawKeypad() {
   const found = keypadPages();
   const pages = found[0]?.kind === 'pinned' ? found : [{ name: 'Pinned', kind: 'pinned', keys: [] }, ...found];
   const all = keypadKeys(pages);
+  const digits = keypadDigits(pages, all);
   const keys = $('#kp-keys');
   drawBoardLine($('#kp-board'));
   const ask = '<button class="key key-ask" data-key-ask>Ask the Chief for a bot</button>';
-  const keysOf = (i) => all.map((k, n) => (k.page === i ? keyHTML(k.x, n) : '')).join('');
+  const keysOf = (i) => all.map((k, n) => (k.page === i ? keyHTML(k.x, n, null, Keypad.digitOf(digits, k.x)) : '')).join('');
   keys.innerHTML = pages.map((p, i) => `<section class="kp-page${i === 0 ? ' kp-pinned' : ''}${pageFolded(p) ? ' folded' : ''}"><h3 class="kp-page-head" data-page="${i}">${pageHead(p, `data-page-fold="${i}"`)}</h3><div class="kp-page-keys">${i === 0 ? chiefKeyHTML() : ''}${keysOf(i)}${i === pages.length - 1 ? ask : ''}</div></section>`).join('');
   $$('[data-key]', keys).forEach((el) => (el.onclick = () => openKey(all[Number(el.dataset.key)].x)));
   $$('[data-page-fold]', keys).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.pageFold)])));
@@ -336,11 +339,12 @@ function onKeypadKey(e) {
   if (e.defaultPrevented || e.isComposing || $('#modal')?.open || !keypadShown()) return;
   const t = e.target;
   const inField = !!(t?.isContentEditable || t?.matches?.('input, textarea, select'));
-  const all = keypadKeys(keypadPages());
-  const act = Keypad.press({ key: e.key, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey, shift: e.shiftKey, inField }, { keys: all.length });
+  const pages = keypadPages();
+  const digits = keypadDigits(pages, keypadKeys(pages));
+  const act = Keypad.press({ key: e.key, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey, shift: e.shiftKey, inField }, { digits });
   if (!act || (act.action === 'chief' && state.view === 'chief')) return;
   e.preventDefault();
-  if (act.action === 'open') openKey(all[act.key].x);
+  if (act.action === 'open') openKey(digits.get(act.digit));
   else if (act.action === 'chief') openChief();
   else if (act.action === 'search') { $('#contact-search').focus(); $('#contact-search').select(); }
 }

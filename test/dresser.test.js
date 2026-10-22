@@ -6,7 +6,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, feed, waitFor, sleep } = require('./helpers');
+const { startServer, makeBot, feed, waitFor, sleep, writeData } = require('./helpers');
 const { create, question, parse, chosen, BATCH, TRIES } = require('../lib/dresser');
 
 // A list of bots as the dresser sees it, and what it stored.
@@ -205,7 +205,7 @@ test('server: bots from before outfits are dressed after the start, a new one af
   for (const b of saved) if (b.name !== 'Bare') delete b.outfit;
   // One as the stick-figure build left it: a held object and no hat. Nothing of that is left, so it is dressed too.
   saved.find((b) => b.name === 'Server Check').outfit = { hat: '', holds: 'wrench' };
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeData(file, saved);
   fs.writeFileSync(path.join(srv.out, 'result.txt'), `Here are the outfits:\n${JSON.stringify({
     [mail.id]: { hat: 'cap' },
     [servers.id]: { hat: 'hard-hat' },

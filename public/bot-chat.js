@@ -29,6 +29,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
       : r.trigger === 'schedule'
       ? `<div class="bubble-row from-me"><span class="chip">⏰ Scheduled run · ${esc(msgTime(r.startedAt))}</span></div>`
       : r.trigger === 'hello' ? '' // a new bot's first message (#511): you asked nothing
+      : r.kind === 'reminder' ? '' // a reminder it set went off (#343): botdot posted it, nobody asked
       : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
       : r.customPrompt === false
         ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} Ran its main assignment</span></div>`
@@ -56,9 +57,9 @@ function botThreadHTML(bot, runs, newFirst = null) {
       reply = `
         <div class="bubble-row from-bot"><div class="stack">
           ${exchange}
-          <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${botFilesHTML(r.files)}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
+          <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
           ${learnedChips(r)}
-          <div class="bubble-meta">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
+          <div class="bubble-meta">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` · <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
           ${i === runs.length - 1 && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}
         </div></div>`;
     }
@@ -187,7 +188,7 @@ function renderBotChat() {
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));
     // What it learned: a job opens its jobs, a change to its task, rules or skills its settings. A note opens nothing.
     $$('[data-learned]', thread).forEach((el) => (el.onclick = () => { const view = learnedOpens(el.dataset.learned); if (view) setView(view, state.botId); }));
-    followBotRun(runs.find((r) => r.status === 'running'));
+    followBotRuns(runs.filter((r) => r.status === 'running'));
     markSearch(); // what you searched for, marked in the chat
     // From a search match: that run (older runs than the chat shows open on their own).
     if (state.jump?.runId && state.jump.bot?.id === bot.id) {
@@ -252,12 +253,17 @@ function tookRun(botId, run, text, attachments) {
   setQueued(at, [...queuedIn(at), { id: run.id, text: String(text || '').trim(), attachments: Array.isArray(run.attachments) ? run.attachments : attachments, at: run.queuedAt }]);
 }
 
+// Every run of the bot that is going, each from its start again, as the chat is drawn again: a message to a busy
+// bot starts beside the run that is going (ADR 062), and each has its draft and files in its own row.
+function followBotRuns(running) {
+  for (const es of state.botStreams.splice(0)) es.close();
+  running.forEach(followBotRun);
+}
 // A bot's running run as it happens: a file it attaches shows at once, its line goes to the status line as the
 // server says it (its steps are not put in words here), its reply draft into its row, then refresh when it ends.
 function followBotRun(run) {
-  if (state.botStream) { state.botStream.close(); state.botStream = null; }
   if (!run) return;
-  const es = watchRun(run.id, () => { state.botStream = null; replyDrafts.end(run.id); refresh(); }, (file) => {
+  const es = watchRun(run.id, () => { state.botStreams = state.botStreams.filter((x) => x !== es); replyDrafts.end(run.id); refresh(); }, (file) => {
     const live = $(`[data-live="${CSS.escape(run.id)}"]`);
     if (!live || $(`a[href="${CSS.escape(fileHref(file))}"]`, live)) return; // shown already (the stream replays)
     const list = $('.bubble-files', live);
@@ -273,7 +279,7 @@ function followBotRun(run) {
     if (held) { if (plan) held.plan = plan; else delete held.plan; }
     if (state.view === 'bot' && state.botId === run.botId) renderBotChat();
   });
-  state.botStream = es;
+  state.botStreams.push(es);
 }
 
 // Follow a running run (the stream replays what already happened first). onEnd() when the run finishes;

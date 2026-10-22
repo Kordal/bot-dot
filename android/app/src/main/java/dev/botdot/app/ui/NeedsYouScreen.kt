@@ -1247,7 +1247,7 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             }
         }
     } else if (a.isRoomCard) {
-        // A shared room's card: a tool a run from a room wants to use, or what would go to a room (ADR 062). The
+        // A shared room's card: a tool a run from a room wants to use, or what would go to a room (ADR 066). The
         // server's title, line, rows and yes word. Each yes is for that one thing; a card that cannot show all of it
         // offers Decline alone.
         Card(who, a.title, a.roomLine, expandable = true) {

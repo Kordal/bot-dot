@@ -539,7 +539,7 @@ async function signInRoutes(req, res, p) {
     // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
     // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
-    // (ADR 064): a room's maker makes an invite link, and opening one joins.
+    // (ADR 067): a room's maker makes an invite link, and opening one joins.
     return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
@@ -693,7 +693,7 @@ function roomSaid(room, message) {
   }
 }
 const turns = roomTurns.create({ rooms: rooms || /** @type {any} */ ({}), ask: askAccount, changed: (room) => room && roomChanged(room), said: roomSaid, isOn: roomsOn });
-// What the accounts send to rooms after their owner's OK (ADR 062): collected every few seconds while rooms are on.
+// What the accounts send to rooms after their owner's OK (ADR 066): collected every few seconds while rooms are on.
 if (rooms) turns.startCollecting(Number(process.env.BOT_DOT_ROOM_COLLECT_MS) || undefined);
 
 // An account the admin deleted leaves every room.
@@ -707,7 +707,7 @@ function roomsWithout(account) {
 
 // A room's id in a path: /front-door/rooms/<id>[/<what>[/<more>]].
 const ROOM_PATH = /^\/front-door\/rooms\/([0-9a-f]{32})(?:\/(name|invite|link|accept|decline|leave|delete|bots|messages|stop)(?:\/(remove))?)?$/;
-// An invite link's token in a path: /front-door/rooms/join/<token> (ADR 064).
+// An invite link's token in a path: /front-door/rooms/join/<token> (ADR 067).
 const JOIN_PATH = /^\/front-door\/rooms\/join\/([A-Za-z0-9_-]{1,100})$/;
 // The address of a room's invite link, as its maker shares it: the web page, which opens "Join" for it. The token is
 // in the fragment, so it reaches no proxy's log on the way, and the page takes it to the sign-in and back.

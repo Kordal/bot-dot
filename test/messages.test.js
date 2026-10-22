@@ -1,5 +1,8 @@
 // Bots messaging bots (lib/messages.js, bots.js sendBotMessage): who may message whom, starting the
 // other bot or leaving a note, and every limit.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const os = require('os');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');

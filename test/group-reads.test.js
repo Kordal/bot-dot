@@ -3,6 +3,9 @@
 // another member's memory; a turn as its bot's own past run; whose word a note saved in a turn is; a card, a
 // question and the owner's files as the group's. First the block with nothing running, then a real botdot server
 // with the stand-in for Claude, which answers for one bot by its name (test/fixtures/fake-claude.js).
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

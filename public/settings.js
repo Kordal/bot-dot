@@ -192,6 +192,7 @@ function drawChiefSkills(root) {
 const SETTINGS_PAGES = [
   ['runs', 'Activity', '<svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>'],
   ['skills', 'Skills', '<svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>'],
+  ['pages', 'Pages', '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6"/></svg>'], // every bot's pages (#361)
   ['connectors', 'Connectors', '<svg viewBox="0 0 24 24"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"/></svg>'],
   ['vault', 'Vault', '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'],
 ];
@@ -202,7 +203,7 @@ function drawSettingsLinks(root) {
   const box = $('#settings-links', root);
   if (!box) return;
   const running = runningTasks();
-  box.innerHTML = SETTINGS_PAGES.map(([view, label, icon]) => `
+  box.innerHTML = SETTINGS_PAGES.filter(([view]) => view !== 'pages' || (typeof Pages !== 'undefined' && Pages.showsAll())).map(([view, label, icon]) => `
       <button type="button" class="settings-link" data-go="${view}">${icon}<span class="grow">${label}</span>${view === 'runs' && running ? `<span class="pill accent pulse">${tasksRunning(running)}</span>` : ''}<span class="faint">›</span></button>`).join('');
   $$('[data-go]', box).forEach((b) => (b.onclick = () => setView(b.dataset.go)));
 }
@@ -463,7 +464,7 @@ async function showAdminLink() {
   $('#admin-link').classList.toggle('hidden', session?.admin !== true);
   $('#feedback-btn')?.classList.toggle('hidden', session?.feedback !== true);
   feedbackShots = session?.feedbackScreenshots === true;
-  if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account, session?.roomLinks === true); // shared rooms (rooms.js, ADR 060; links ADR 064)
+  if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account, session?.roomLinks === true); // shared rooms (rooms.js, ADR 060; links ADR 067)
 }
 
 // ---------- feedback ----------

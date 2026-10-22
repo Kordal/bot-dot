@@ -1493,3 +1493,78 @@ a.file-path code { color: inherit; }
   .rooms-page { padding: 4px 12px 32px; }
   .room-invite { flex-wrap: wrap; }
 }
+/* A reply opened as a document (#348, document.js): "Open as document" under a long reply, and the document's own tab
+   at reading width, its sections beside it on a wide window, with the Export menu. */
+.doc-open-row { margin-top: 10px; }
+.doc-open svg, .doc-top svg, .doc-menu svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+body.doc-mode { overflow: auto; }
+body.doc-mode > .app { display: none; }
+.doc-page { min-height: 100vh; }
+.doc-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 20px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.doc-crumb { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 13px; }
+.doc-crumb span { white-space: nowrap; }
+.doc-crumb b { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-sp { flex: 1; }
+.doc-meta { color: var(--faint); font-size: 12.5px; white-space: nowrap; }
+.doc-export { position: relative; }
+.doc-menu { position: absolute; right: 0; top: calc(100% + 6px); width: 260px; padding: 6px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; box-shadow: 0 24px 70px rgba(0, 0, 0, .7); z-index: 6; }
+.doc-menu[hidden] { display: none; }
+.doc-menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 9px; background: none; color: var(--text); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.doc-menu button:hover, .doc-menu button:focus-visible { background: var(--sunk); }
+.doc-menu small { margin-left: auto; color: var(--faint); font-size: 12px; }
+.doc-menu-label, .doc-toc-label { color: var(--faint); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; padding: 6px 10px 2px; }
+.doc-menu-sep { height: 1px; background: var(--line); margin: 5px 4px; }
+.doc-wrap { display: grid; grid-template-columns: 220px minmax(0, 760px) 220px; justify-content: center; gap: 40px; padding: 36px 24px 80px; }
+.doc-toc { position: sticky; top: 84px; align-self: start; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.doc-toc-label { padding: 0 0 8px; }
+.doc-toc a { color: var(--muted); text-decoration: none; padding: 3px 0; }
+.doc-toc a:hover { color: var(--text); }
+.doc-md { font-size: 15.5px; line-height: 1.7; }
+.doc-md h1, .doc-md h2, .doc-md h3, .doc-md h4 { scroll-margin-top: 76px; }
+.doc-md > .doc-title:first-child { font-size: 2em; line-height: 1.25; letter-spacing: -.02em; margin-bottom: .6em; }
+.doc-md table { width: 100%; }
+.doc-state { max-width: 420px; margin: 18vh auto 0; text-align: center; }
+.doc-cut { text-align: center; color: var(--muted); font-size: 13px; }
+@media (max-width: 1100px) { .doc-wrap { grid-template-columns: minmax(0, 760px); } .doc-toc { display: none; } }
+@media (max-width: 640px) { .doc-meta { display: none; } .doc-top { padding: 8px 16px; } .doc-wrap { padding: 20px 16px 60px; } .doc-crumb span { display: none; } }
+@media print {
+  body.doc-mode { background: #fff; color: #000; }
+  body.doc-mode .doc-top, body.doc-mode .doc-toc, body.doc-mode .toast { display: none !important; }
+  body.doc-mode .doc-wrap { display: block; padding: 0; }
+  body.doc-mode .doc-md { color: #000; font-size: 11pt; }
+  body.doc-mode .doc-md code, body.doc-mode .doc-md pre, body.doc-mode .doc-md .code-block { background: #f4f4f4; }
+  body.doc-mode .doc-md button { display: none; }
+}
+/* Save to Google Docs (#351): the item's mark, and the line that links to the new document. */
+.doc-gd { width: 16px; height: 16px; border-radius: 3px; background: #4285f4; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; flex: none; }
+.doc-saved { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 7; display: flex; gap: 10px; align-items: center; padding: 9px 16px; border-radius: 99px; background: var(--ink); color: var(--ink-text); font-size: 13.5px; }
+.doc-saved[hidden] { display: none; }
+.doc-saved a { color: inherit; font-weight: 600; text-decoration: none; }
+
+
+/* Pages (#346, pages.js): a chip under the reply, a row in the bot's settings, the bar of a page in the viewer and its
+   "Keep up to date" sheet. */
+.page-chip, .pg-row { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--text); text-decoration: none; }
+.page-chip { max-width: 340px; border: 1px solid var(--line-2); border-radius: 14px; padding: 8px 12px 8px 8px; background: var(--panel); }
+.page-chip:hover, .pg-row:hover { border-color: var(--muted); }
+.pg-icon { width: 30px; height: 36px; border-radius: 6px; background: var(--sunk); display: grid; place-items: center; color: var(--muted); flex: none; }
+.pg-icon svg, .pg-keep svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pg-text { display: flex; flex-direction: column; min-width: 0; }
+.pg-text b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-text span { color: var(--faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-list { display: grid; gap: 6px; margin-top: 8px; }
+.pg-row { padding: 6px 8px 6px 4px; border: 1px solid transparent; border-radius: 12px; }
+.pg-row .pg-text { flex: 1; }
+/* The Pages view (#361): every bot's pages, rows as buttons that open the page beside its bot's chat. */
+.pg-all { display: grid; gap: 2px; padding: 6px; }
+button.pg-row { width: 100%; background: none; font: inherit; text-align: left; cursor: pointer; }
+.pg-live { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+.pg-keep { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; background: var(--ok-soft); color: var(--ok-text); font-size: 12.5px; }
+.pg-sheet .field { margin-top: 14px; }
+.pg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pg-chips input { position: absolute; opacity: 0; pointer-events: none; }
+.pg-chips span { display: inline-block; border: 1px solid var(--line-2); border-radius: 99px; padding: 4px 12px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.pg-chips input:checked + span { background: var(--text); color: var(--bg); border-color: var(--text); }
+.pg-chips input:focus-visible + span { outline: 2px solid var(--mention); outline-offset: 2px; }
+.pg-time input { display: block; width: 140px; margin-top: 6px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; padding: 8px 12px; color: var(--text); font: inherit; color-scheme: dark; }
+.pg-bar { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -225,7 +225,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         YourSide(r, open = r.id in opened)
                         if (new && mine) NewLine(bot?.color)
                         val theirs = @Composable {
-                            TheirSide(r, open = r.id in opened, features = features, draft = vm.draft?.takeIf { it.first == r.id }?.second, plan = r.plan?.takeIf { r.id != planView?.id },
+                            TheirSide(r, open = r.id in opened, features = features, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
                                 learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> onLearned; null -> null } })
                             if (r.id == runs.firstOrNull()?.id && r.status == "success") {
                                 Choices(r.choices) { text, key -> sendFrom(text, key) }
@@ -264,6 +264,7 @@ private fun YourSide(r: Run, open: Boolean = false) {
         Unread.Asked.JOB -> Chip("${Unread.jobChip(r)} · ${shortTime(r.startedAt)}")
         Unread.Asked.SCHEDULE -> Chip("⏰ Scheduled run · ${shortTime(r.startedAt)}")
         Unread.Asked.HELLO -> {} // a new bot's first message: the owner asked nothing
+        Unread.Asked.REMINDER -> {} // a reminder the bot set went off: botdot posted it, the owner asked nothing
         Unread.Asked.CARRIED_ON -> {} // it goes on after your OK: your request stands once, above the first reply
         Unread.Asked.USUAL -> Chip("▶ Ran its main assignment")
         Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments)
@@ -297,7 +298,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
         // the reply as it is written so far stands in the reply's place and grows there (ReplyDraft).
         "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble { Column { MarkdownText(draftSource(draft), copy = false); BotFilesRow(r.files) } }
         "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
-            Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); BotFilesRow(r.files); PlanFold(plan) }
+            Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty()) "Done." else "" }); OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); PlanFold(plan) }
         }
         else -> when (val ended = endedWords(r, features)) {
             // A stopped run the server says nothing of, and every stopped run of a botdot from before `ended-by`.

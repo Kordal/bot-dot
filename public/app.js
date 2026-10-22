@@ -12,7 +12,7 @@ const state = {
   groupId: null, // the group whose chat is open (view 'group')
   roomId: null, // the shared room whose chat is open (view 'rooms', rooms.js); none: the list of rooms
   inbox: {}, // bot id → notes waiting for its next run
-  botStream: null,
+  botStreams: [], // the streams of the bot's runs that are going (bot-chat.js followBotRuns)
   chatNew: false,
   chats: [],
   chatId: null,
@@ -307,6 +307,8 @@ function wireChoices(root, send) {
     };
   });
 }
+// What the document page draws with.
+const docPageTools = () => ({ api, md, esc, toast, msgTime, mdBlocks, chiefName, features: state.features, botName: (id) => botById(id)?.name });
 const copyBtn = (text) => `<button class="copy-btn" data-copy="${esc(text)}" title="Copy" aria-label="Copy">${ICON.copy}</button>`;
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch { /* not a secure page: the old way */ }
@@ -767,6 +769,7 @@ function render() {
   if (state.view === 'runs') renderRuns();
   if (state.view === 'vault' && !$('#view-vault').dataset.ready) renderVault(); // not on every refresh: it would wipe the forms
   if (state.view === 'skills') renderSkills();
+  if (state.view === 'pages') Pages.renderAll();
   if (state.view === 'connectors') renderConnectors();
   if (state.view === 'settings') renderSettings();
   if (state.view === 'setup') renderSetup();
@@ -780,7 +783,7 @@ const runningTasks = () => activityRuns().filter((r) => r.status === 'running').
 const tasksRunning = (n) => `${n} ${n === 1 ? 'task' : 'tasks'} running`;
 // The Settings button: marked while one of its pages is open.
 function markMore() {
-  $('#more-btn').classList.toggle('here', ['runs', 'skills', 'connectors', 'vault', 'settings', 'setup'].includes(state.view));
+  $('#more-btn').classList.toggle('here', ['runs', 'skills', 'pages', 'connectors', 'vault', 'settings', 'setup'].includes(state.view));
   // The logo's dot pulses while the Chief or a bot is working.
   $('#brand').classList.toggle('busy', !!state.chiefBusy || state.bots.some((b) => b.running));
   const ca = $('#chief-avatar');
@@ -819,7 +822,7 @@ function writeHash() {
   history.replaceState(null, '', `#${Panel.name(v, state.panel)}${id ? '/' + id : ''}`);
 }
 function show({ view: v, panel, via }, fresh = false) {
-  if (v !== 'bot' && state.botStream) { state.botStream.close(); state.botStream = null; }
+  if (v !== 'bot') for (const es of state.botStreams.splice(0)) es.close();
   if (v !== 'group') followGroupDrafts(null); // a group that is left follows no turn's draft (groups.js)
   const changed = state.view !== v;
   // Needs you goes back, after its last card, to where it was opened from (needs-return.js).

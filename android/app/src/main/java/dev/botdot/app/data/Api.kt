@@ -12,6 +12,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.encodeToJsonElement
@@ -160,7 +161,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** Invites another account on this machine by its name. */
     suspend fun inviteToRoom(id: String, account: String): Room = roomOf(door("${roomPath(id)}/invite", buildJsonObject { put("account", account) }))
     suspend fun acceptRoom(id: String): Room = roomOf(door("${roomPath(id)}/accept"))
-    /** The room's invite link (ADR 064), for its maker only (others: 403); null for none. */
+    /** The room's invite link (ADR 067), for its maker only (others: 403); null for none. */
     suspend fun roomLink(id: String): RoomLink? = json.decodeFromString<RoomLinkAnswer>(doorGet("${roomPath(id)}/link")).link
     /** A new invite link for the room; the one before stops working. */
     suspend fun makeRoomLink(id: String): RoomLink = json.decodeFromString<RoomLinkAnswer>(door("${roomPath(id)}/link")).link ?: throw ApiException("The front door sent no link.")
@@ -514,6 +515,16 @@ class Api(val baseUrl: String, val session: Session? = null) {
      * throws with status 404, a file on the account's computer while it is off with 409. Only with `document-viewer`.
      */
     suspend fun viewFile(src: String): FileView = json.decodeFromString(get(DocumentView.withQuery(src, "view=1")))
+
+    /** A bot's pages (#346), newest first. */
+    suspend fun pages(botId: String): List<PageInfo> = json.decodeFromString<PageList>(get("/bots/${enc(botId)}/pages")).pages
+    /** Every bot's pages (#361), newest first, each with its bot. Only with `pages-all`. */
+    suspend fun allPages(): List<PageInfo> = json.decodeFromString<PageList>(get("/pages")).pages
+    /** Keeps a page up to date: how often ("hour", "day", "monday"), at what time, whether to hear of every update, what to check. The tap is the consent: no card. */
+    suspend fun keepPage(botId: String, slug: String, every: String, time: String, notify: String, check: String): PageInfo? =
+        json.decodeFromString<PageKept>(send("POST", "${Pages.src(botId, slug)}/keep", buildJsonObject { put("every", every); put("time", time); put("notify", notify); put("check", check) })).page
+    /** Stops keeping it up to date: its job goes. */
+    suspend fun stopKeepingPage(botId: String, slug: String): PageInfo? = json.decodeFromString<PageKept>(send("DELETE", "${Pages.src(botId, slug)}/keep")).page
     /** The viewer's file itself, saved to [dest]. */
     suspend fun downloadTo(src: String, dest: java.io.File) = download(src, dest)
 
@@ -536,6 +547,34 @@ class Api(val baseUrl: String, val session: Session? = null) {
             part.delete(); throw e
         } catch (e: IOException) {
             part.delete(); throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})")
+        }
+    }
+
+    /** Whether Google Docs is connected now (#351, GET /api/export/google-docs). */
+    suspend fun googleDocsConnected(): Boolean =
+        json.parseToJsonElement(get("/export/google-docs")).jsonObject["connected"]?.jsonPrimitive?.booleanOrNull == true
+
+    /** [text] saved as a new Google Doc (#351): its address on docs.google.com. */
+    suspend fun saveToGoogleDocs(title: String, text: String): String =
+        json.parseToJsonElement(send("POST", "/export/google-docs", buildJsonObject { put("title", title); put("text", text) })).jsonObject["url"]?.jsonPrimitive?.contentOrNull
+            ?.takeIf { DocumentExport.isGoogleDoc(it) } ?: throw ApiException("Google Docs saved nothing to open.")
+
+    /** A document made from [text] (#348, POST /api/export): Word, PDF or Markdown, written to [dir] under the name the
+     *  server gives it. Returns the file. */
+    suspend fun exportDocument(title: String, text: String, format: String, dir: java.io.File): java.io.File = withContext(Dispatchers.IO) {
+        val body = buildJsonObject { put("title", title); put("text", text); put("format", format) }
+        val req = request("/export").header("Accept", "*/*").header("X-Bot-Dot", "1").post(body.toString().toRequestBody(JSON_TYPE)).build()
+        try {
+            streamClient.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) readOrThrow(res)
+                val name = DocumentExport.fileName(res.header("Content-Disposition"), format)
+                dir.mkdirs()
+                val dest = java.io.File(dir, name)
+                res.body.byteStream().use { input -> dest.outputStream().use { input.copyTo(it) } }
+                dest
+            }
+        } catch (e: IOException) {
+            throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})")
         }
     }
 
