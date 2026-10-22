@@ -30,6 +30,8 @@ document.addEventListener('click', (e) => {
   const figure = loadFigure();
   state.status = await api('/status').catch(() => null);
   await loadFeatures();
+  // A document's own tab (#348): the document alone, none of the app.
+  if (location.hash.startsWith('#doc/')) return DocPage.show(location.hash, docPageTools());
   showAdminLink();
   await figure;
   const [view, sub] = location.hash.slice(1).split('/');
