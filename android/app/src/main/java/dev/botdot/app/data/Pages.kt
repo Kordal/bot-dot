@@ -56,6 +56,41 @@ object Pages {
 
     /** How often, on the "Keep up to date" sheet: what the server takes, and its words. */
     val EVERY = listOf("hour" to "Every hour", "day" to "Every morning", "monday" to "Every Monday")
+
+    /** A page's blocks (#395): filled in anew at `?blocks=1`. A page has them only from a server with `page-blocks`. */
+    fun blocksSrc(src: String): String = DocumentView.withQuery(src, "blocks=1")
+
+    /**
+     * A grid's rows as a phone draws them: at most two side by side (a chart takes a row of its own), on a wider screen
+     * as many as its columns say (one to four).
+     */
+    fun rows(blocks: List<Block>, columns: Int?, wide: Boolean): List<List<Block>> {
+        val n = if (wide) (columns ?: 1).coerceIn(1, 4) else (columns ?: 1).coerceIn(1, 2)
+        val out = mutableListOf<List<Block>>()
+        var row = mutableListOf<Block>()
+        for (b in blocks) {
+            if (!wide && b.type == "chart") { if (row.isNotEmpty()) out += row; out += listOf(b); row = mutableListOf(); continue }
+            row += b
+            if (row.size == n) { out += row; row = mutableListOf() }
+        }
+        if (row.isNotEmpty()) out += row
+        return out
+    }
+}
+
+/** One part of a page with blocks (#395): Markdown, or a block the kit draws (`type` "error": one that cannot be drawn). */
+@Serializable
+data class PagePart(val md: String? = null, val block: Block? = null)
+
+@Serializable
+data class PageBlocks(val parts: List<PagePart> = emptyList(), val tiles: List<String> = emptyList(), val plain: String? = null)
+
+/** The live feed's `dashboard`: a tile's new value (its id), or the Board changed (null), for an open page whose blocks read it (#395). */
+class TileTicks {
+    private val _value = MutableStateFlow<Pair<String?, Long>>(null to 0L)
+    val value: StateFlow<Pair<String?, Long>> = _value.asStateFlow()
+
+    fun tick(tileId: String?) { _value.value = tileId to _value.value.second + 1 }
 }
 
 @Serializable

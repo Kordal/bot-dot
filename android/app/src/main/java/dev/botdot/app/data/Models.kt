@@ -1393,6 +1393,11 @@ data class Block(
     // A status pill or a callout: ok, warn, err, info or plan; a callout's title.
     val level: String? = null,
     val title: String? = null,
+    // On a bot's page (#395): a hero's line above its title, its lead and tags; a grid's columns.
+    val eyebrow: String? = null,
+    val lead: String? = null,
+    val tags: List<String> = emptyList(),
+    val columns: Int? = null,
 )
 
 /** How a kpi's number changed over its recent values: [dir] up, down or flat; [good] whether that is good news (null: neither). */

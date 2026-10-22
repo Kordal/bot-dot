@@ -147,3 +147,36 @@ function wireCharts(root) {
     el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') hide(); });
   });
 }
+
+// ---------- a page's blocks (#395) ----------
+
+// A bot's page draws the kit between its Markdown (lib/page-blocks.js fills its blocks in): a hero at its top, kpis
+// and charts on cards, status pills and callouts, a grid of them side by side, and a quiet line for a block that
+// cannot be drawn. A colour is "#rrggbb" or a theme name; without one, the accent. words: a colour for text.
+const PAGE_TINT = { ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--err)', faint: 'var(--faint)', muted: 'var(--muted)', text: 'var(--text)' };
+const PAGE_TEXT_TINT = { ...PAGE_TINT, ok: 'var(--ok-text)', warn: 'var(--warn-text)' };
+const pageTint = (c, words = false) => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : (words ? PAGE_TEXT_TINT : PAGE_TINT)[c] || 'var(--mention)');
+
+function pageBlockHTML(b) {
+  switch (b?.type) {
+    case 'hero':
+      return `<header class="pb-hero">${b.eyebrow ? `<div class="pb-eyebrow">${esc(b.eyebrow)}</div>` : ''}<div class="pb-title">${esc(b.title)}</div>${b.lead ? `<p class="pb-lead">${esc(b.lead)}</p>` : ''}${b.tags?.length ? `<div class="pb-tags">${b.tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>` : ''}</header>`;
+    case 'kpi':
+      return `<div class="pb-card">${kitKpi(b, pageTint(b.color), (x) => pageTint(x, true))}</div>`;
+    case 'chart':
+      return `<div class="pb-card">${kitChart(b, pageTint(b.color), (x) => pageTint(x))}</div>`;
+    case 'status':
+      return kitStatus(b);
+    case 'callout':
+      return kitCallout(b);
+    case 'grid':
+      if (b.blocks.every((x) => x.type === 'status')) return `<div class="pb-pills">${b.blocks.map(kitStatus).join('')}</div>`;
+      return `<div class="pb-grid" style="--cols:${Math.min(Math.max(Number(b.columns) || 1, 1), 4)}">${b.blocks.map(pageBlockHTML).join('')}</div>`;
+    default:
+      return `<div class="pb-error" title="${esc(b?.text || '')}">This block could not be drawn</div>`;
+  }
+}
+
+// The page: its Markdown with the chat's own md(), its blocks with the kit, each in a box of its own so that a live
+// value redraws only it.
+const pageHTML = (parts) => parts.map((p, i) => (p.md != null ? md(p.md) : `<div class="pb" data-pb="${i}">${pageBlockHTML(p.block)}</div>`)).join('');

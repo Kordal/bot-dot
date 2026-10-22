@@ -124,6 +124,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     val answeredAway = AnsweredAway()
     /** Pages bots saved (#346), from the feed's `page`: an open page and a bot's list of pages follow. */
     val pageSaves = PageSaves()
+    val tileTicks = TileTicks() // a page's blocks read tiles (#395)
     /** The skill library and the Claude account's skills (for mentions and the skills "/" runs: see Mentions). */
     val skills = Part { a -> a.skills() }
     /** Logins and payments, Bitwarden, memory changes, permissions, skills and tools asked for. (Jobs waiting for your OK
@@ -207,6 +208,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
                 // One tile's new value: put it in place. Otherwise the Board itself changed.
                 val tile = (ev.data["tile"] as? JsonObject)?.let { runCatching { Api.JSON.decodeFromJsonElement(Tile.serializer(), it) }.getOrNull() }
                 if (tile != null) dashboard.update { d -> d.copy(tiles = d.tiles.map { if (it.id == tile.id) tile else it }) } else dashboard.changed()
+                tileTicks.tick(tile?.id)
             }
         }
     }

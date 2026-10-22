@@ -163,6 +163,23 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         if (req.page == null || (saved == null && changed == 0) || view == null) return@LaunchedEffect
         api?.let { a -> runCatching { a.viewFile(req.src) }.onSuccess { view = it } }
     }
+    // A page's blocks (#395) are filled in anew when a tile they read has a new value (the feed's `dashboard`; no id:
+    // the Board changed), and each minute while it is open, which reads its tiles that are due.
+    val tick by app.store.tileTicks.value.collectAsState()
+    suspend fun reblock() {
+        val v = view ?: return
+        if (v.parts == null || v.tiles.isEmpty()) return
+        api?.let { a -> runCatching { a.pageBlocks(req.src) }.onSuccess { r -> if (view === v) view = v.copy(parts = r.parts, tiles = r.tiles, plain = r.plain ?: v.plain) } }
+    }
+    LaunchedEffect(tick) {
+        val (id, n) = tick
+        if (n == 0L || view?.tiles?.let { t -> t.isNotEmpty() && (id == null || id in t) } != true) return@LaunchedEffect
+        kotlinx.coroutines.delay(400)
+        reblock()
+    }
+    LaunchedEffect(req, view?.tiles?.isNotEmpty() == true) {
+        while (view?.tiles?.isNotEmpty() == true) { kotlinx.coroutines.delay(60_000); reblock() }
+    }
     var keeping by remember(req) { mutableStateOf(false) }
     // The ⋯ menu's actions, with the file fetched as it is (not only its start).
     fun withApi(what: String, act: suspend (dev.botdot.app.data.Api) -> Unit) {
@@ -183,7 +200,8 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = p.text) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = p.panel) {
-                    view?.text?.let { text ->
+                    // A page with blocks copies what it shows, its blocks as text and tables; its Source, the Markdown.
+                    (if (mode == "rendered") view?.plain ?: view?.text else view?.text)?.let { text ->
                         DropdownMenuItem(text = { Text("Copy text", color = p.text) }, onClick = {
                             menu = false
                             context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText(req.name, text))
@@ -209,7 +227,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, onDismiss = { keeping = false }) { every, time, notify, check ->
             withApi("keep it up to date") { it.keepPage(req.page.botId, page.slug, every, time, notify, check); keeping = false; tell("It keeps up to date now"); changed++ }
         }
-        if (exporting && v?.text != null) ExportSheet(req.name, v.text) { exporting = false }
+        if (exporting && v?.text != null) ExportSheet(req.name, v.plain ?: v.text) { exporting = false }
         when {
             e != null -> {
                 val status = (e as? ApiException)?.status
@@ -249,7 +267,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 val text = v.text.orEmpty()
                 when {
                     v.kind == "markdown" && mode == "rendered" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
-                        MarkdownText(text, onWeb = null, paths = null)
+                        if (v.parts != null) PageParts(v.parts) else MarkdownText(text, onWeb = null, paths = null)
                         Spacer(Modifier.height(40.dp))
                     }
                     v.kind == "csv" && mode == "table" -> CsvTable(text, DocumentView.sepOf(req.name))

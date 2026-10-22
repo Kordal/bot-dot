@@ -108,6 +108,10 @@ data class FileView(
     val downloadable: Boolean = true,
     /** A bot's page (#346): what it is, beside its text. */
     val page: PageInfo? = null,
+    /** A page with blocks (#395): its Markdown and its blocks to draw, the tiles they read, and its text with the blocks written out. */
+    val parts: List<PagePart>? = null,
+    val tiles: List<String> = emptyList(),
+    val plain: String? = null,
 )
 
 /**

@@ -94,6 +94,7 @@ function followFeed() {
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
     if (d.tile && state.dash) { state.dash.tiles = state.dash.tiles.map((t) => (t.id === d.tile.id ? d.tile : t)); if (state.view === 'dashboard') renderDashboard(); }
     else loadDash(state.view !== 'dashboard');
+    if (typeof DocViewer !== 'undefined') DocViewer.tileChanged(d.tile?.id); // a page whose blocks read it (#395)
   });
   // A reply in the Chief chat that's open, which this page isn't following: a bot's reply posted there, an unasked
   // message, or the Chief answering a message sent from the phone. Show it (after the Chief's own reply, if that's

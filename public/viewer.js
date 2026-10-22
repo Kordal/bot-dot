@@ -4,7 +4,9 @@
 // page draws it: Markdown with the chat's own md(), whose input is escaped first, so HTML in a file stays text;
 // text and code with line numbers; a CSV as a table. Every link that opens it carries data-view (its API path), and
 // downloads as before where the server has no `document-viewer` in its features. A bot's page (#346, public/pages.js)
-// opens here too, with who made it and when it was updated in its header, and its "Keep up to date" in its bar.
+// opens here too, with who made it and when it was updated in its header, and its "Keep up to date" in its bar. A
+// page with blocks (#395, from a server with `page-blocks`) comes with its `parts`: its Markdown and its blocks, which
+// the block kit draws (blocks.js); those bound to the Board's tiles are drawn again when a tile they read changes.
 
 const DocViewer = (() => {
   let cur = null; // { src, name, from, bot, page, view, error, mode, sort, find, full }
@@ -100,7 +102,7 @@ const DocViewer = (() => {
   function bodyHTML(c) {
     const v = c.view;
     if (v.kind === 'image') return `<div class="dv-image"><img src="/api${esc(c.src)}" alt="${esc(c.name)}"></div>`;
-    if (v.kind === 'markdown' && c.mode === 'rendered') return `<article class="md dv-md">${md(v.text)}</article>`;
+    if (v.kind === 'markdown' && c.mode === 'rendered') return v.parts && typeof pageHTML === 'function' ? `<article class="md dv-md dv-page">${pageHTML(v.parts)}</article>` : `<article class="md dv-md">${md(v.text)}</article>`;
     if (v.kind === 'csv' && c.mode === 'table') return tableHTML(c);
     return linesHTML(v.text);
   }
@@ -132,6 +134,7 @@ const DocViewer = (() => {
     $('#chat-row')?.classList.toggle('viewer-full', !!cur?.full);
     $('.main')?.classList.toggle('viewing', !!cur);
     el.innerHTML = cur ? html(cur) : '';
+    if (cur?.view?.parts && typeof wireCharts === 'function') wireCharts(el);
   }
   // Only the table, so the box keeps its words and the focus while they are typed.
   function drawTable() {
@@ -158,6 +161,33 @@ const DocViewer = (() => {
     return load(cur);
   }
   function close() { cur = null; draw(); }
+
+  // A page's blocks filled in anew (#395): when a tile they read has a new value (the live feed's `dashboard`; no id:
+  // the Board changed), and each minute while the page is open, which reads its tiles that are due. Only the blocks
+  // are drawn again, so the page keeps where it is scrolled to.
+  let soon = null;
+  async function reblock(c) {
+    let r;
+    try { r = await api(withQuery(c.src, 'blocks=1')); } catch { return; }
+    if (cur !== c || !c.view?.parts || !Array.isArray(r?.parts)) return;
+    const same = r.parts.length === c.view.parts.length && r.parts.every((p, i) => (p.md != null) === (c.view.parts[i].md != null));
+    c.view = { ...c.view, parts: r.parts, tiles: r.tiles || [], ...(r.plain ? { plain: r.plain } : {}) };
+    if (c.mode !== 'rendered') return;
+    if (!same) return draw();
+    r.parts.forEach((p, i) => {
+      const el = $(`.dv-page [data-pb="${i}"]`, box());
+      if (!el || p.md != null) return;
+      el.innerHTML = pageBlockHTML(p.block);
+      wireCharts(el);
+    });
+  }
+  function tileChanged(id) {
+    const c = cur;
+    if (!c?.view?.parts || !c.view.tiles?.length || (id && !c.view.tiles.includes(id))) return;
+    clearTimeout(soon);
+    soon = setTimeout(() => reblock(c), 400);
+  }
+  if (typeof setInterval === 'function') setInterval(() => { if (cur?.view?.tiles?.length && !document.hidden) reblock(cur); }, 60_000);
   // A bot saved a page, or its job changed (the live feed's `page`): the page on screen is read again.
   function pageChanged(botId, slug) {
     if (cur?.page && cur.page.botId === botId && (!slug || cur.page.slug === slug)) return load(cur, true);
@@ -169,7 +199,8 @@ const DocViewer = (() => {
     if (what === 'close') return close();
     if (what === 'full') { cur.full = !cur.full; return draw(); }
     if (what === 'mode') { cur.mode = btn.dataset.mode; return draw(); }
-    if (what === 'copy') { if (await copyText(cur.view?.text || '')) toast('Copied'); return; }
+    // A page with blocks copies what it shows, its blocks as text and tables; its Source, the Markdown.
+    if (what === 'copy') { if (await copyText((cur.mode === 'rendered' && cur.view?.plain) || cur.view?.text || '')) toast('Copied'); return; }
     if (what === 'sort') {
       const col = Number(btn.dataset.col);
       cur.sort = cur.sort?.col === col ? (cur.sort.dir > 0 ? { col, dir: -1 } : null) : { col, dir: 1 };
@@ -227,7 +258,7 @@ const DocViewer = (() => {
     });
   }
 
-  return { open, close, html, csvRows, tableOf, wire, pageChanged, now: () => cur };
+  return { open, close, html, csvRows, tableOf, wire, pageChanged, tileChanged, now: () => cur };
 })();
 
 if (typeof document !== 'undefined' && document.addEventListener) DocViewer.wire(document);

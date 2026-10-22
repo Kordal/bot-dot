@@ -73,7 +73,8 @@ async function load(src, g) {
   }
   const v = await g.api(`${src.file}${src.file.includes('?') ? '&' : '?'}view=1`);
   if (v.kind !== 'markdown' && v.kind !== 'text') throw new Error('Only a text document opens here.');
-  return { text: v.text || '', who: v.name, at: v.at, back: '', name: v.name, truncated: v.truncated };
+  // A page with blocks (#395): written out as text and tables, with the values they show now.
+  return { text: v.plain || v.text || '', who: v.name, at: v.at, back: '', name: v.name, truncated: v.truncated };
 }
 
 // The title: the first heading, else the file's name, else the start of the first line.

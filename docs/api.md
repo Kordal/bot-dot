@@ -1041,6 +1041,23 @@ When `features` has `pages` ([#346](https://github.com/Kordal/bot-dot/issues/346
 - **Keep up to date.** `POST /api/bots/:id/pages/<slug>/keep` with `{ every: "hour" | "day" | "monday", time: "HH:MM", notify: "report-only" | "always", check }` makes an AI job of that bot that rewrites the page with `save_page` (`201`), or changes the one it has (`200`); it answers `{ page, job }`. The owner's tap is the consent: the job is the owner's (`createdBy: "you"`) and approved at once, with no card. `check` defaults to the page's `sources`. A bad `every` or `time` is `400`. `DELETE` on the same address removes the job: `{ page }` with `keep: null`. A page whose job was removed on the jobs screen has `keep: null` too. "Refresh now" is the job's own `POST /api/bots/:id/jobs/:jobId/run`.
 - **The bot's tool.** `save_page({ title, markdown, page?, sources? })`: `page` the slug of one of its pages to rewrite (always whole), else the title makes the slug and a page of the same title is the same page. Up to 512 KB. It goes through `POST /api/self/session/page` with the run's token, which answers `{ ok, page, created }` and puts `page` on the live feed.
 
+### Blocks in a page
+
+When `features` also has `page-blocks` ([#395](https://github.com/Kordal/bot-dot/issues/395), [ADR 071](adr/071-a-page-draws-the-block-kit-bound-to-the-boards-tiles.md)), a page's Markdown can hold blocks of [the block kit](#the-board), each a fence named after the block with one JSON object (or a list: a row of that block):
+
+````
+```kpi
+{ "label": "Done", "value": 42, "of": 58, "points": [30, 36, 42], "sub": "6 this week" }
+```
+````
+
+- **The blocks.** `hero` `{ eyebrow?, title, lead?, tags? }`; `kpi` `{ label?, value, unit?, of?, sub?, points?, good?: "up" | "down" | "none", max?, min? }`; `chart` `{ title?, style?: line | area | bar | stacked | hbar, unit?, labels?, points? | series: [{ label?, points, color? }], bars?: [{ label, value }] (hbar) }`; `status` `{ text, level }`; `callout` `{ title?, text, level }`; `grid` `{ columns: 1–4, blocks: [{ type: kpi | chart | status | callout, … }] }`. Colours are `#rrggbb` or `ok`, `warn`, `bad`, `faint`, `muted`, `text`. No controls. A fence inside another code fence stays code; a kit fence never closed cannot be drawn, and the lines after it stay Markdown.
+- **Bound to a tile.** A `kpi`, `chart`, `status` or `callout` with `tile` (a tile's id or title) (of tiles of the same title, the page's bot's first) reads that tile's data as a block of the tile does: `bind`, `{{path}}` in its text, a chart's `series` of binds, rules ([The Board](#the-board)). Its values stay live with no AI run: the tile reads them, and a kpi or chart bound to one number gets the tile's recent values (the tile keeps them for the page, from each of its reads). A page that is read reads its tiles that are due; a tile is not read for a page nobody has open.
+- **The view.** `GET …/pages/<slug>?view=1` of a page with blocks adds `parts`: `[{ md } | { block }]` in order, each `block` filled in as a tile's blocks are (a hero as given; a grid with its `blocks`); a block that cannot be drawn is `{ type: "error", text }`, which the apps draw as a quiet "This block could not be drawn". It adds `tiles` (the ids of the tiles its blocks read) and `plain` (the Markdown with every block written out with its values now, as lines and tables). `text` stays the Markdown (the Source view). A page without blocks has none of the three.
+- **Live.** `GET …/pages/<slug>?blocks=1` answers `{ parts, tiles, plain }` filled in anew. An open page asks it when the live feed's `dashboard` names one of its `tiles` (or the Board changed), and once a minute.
+- **Export.** Copy in the rendered view, Open as document and its export take `plain`; the download of a page with blocks (no `?view`) is `plain` too.
+- **save_page** answers `problems` too: a line for each block that cannot be drawn, so the bot fixes it. The page is saved either way.
+
 ### The Chief's pages
 
 When `features` also has `chief-pages` ([#384](https://github.com/Kordal/bot-dot/issues/384), [ADR 069](adr/069-the-chief-keeps-pages-too-by-a-run-of-its-own.md)), the Chief of Staff saves pages too, and the owner keeps them up to date as a bot's.
