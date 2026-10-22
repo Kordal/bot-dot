@@ -719,9 +719,9 @@ async function refresh() {
   try {
     const skillLib = loadSkillLib(); // for mentions
     const groupsRead = loadGroups(); // the groups, beside the bots (groups.js): never rejects
-    const [bots, runs, chief, computers, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/chief'), api('/computers').catch(() => ({})), api('/settings').catch(() => null)]);
+    const [bots, runs, activity, chief, computers, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/runs?groups&limit=200').catch(() => null), api('/chief'), api('/computers').catch(() => ({})), api('/settings').catch(() => null)]);
     if (!state.skillLib) await skillLib; // the first time, the chats wait for it
-    Object.assign(state, { bots, runs, chats: chief.chats, chiefBusy: chief.busy, chiefUnread: Unread.count(chief), computers, groups: await groupsRead });
+    Object.assign(state, { bots, runs, activity: Array.isArray(activity) ? activity : [], chats: chief.chats, chiefBusy: chief.busy, chiefUnread: Unread.count(chief), computers, groups: await groupsRead });
     if (takeChiefName(chief.chief?.name)) drawChiefName();
     if (state.view === 'group' && state.groupId) loadGroupChat(state.groupId);
     // The lines: those of runs and replies that are still going on stay, the rest go. A run's is its working line
@@ -773,7 +773,7 @@ function render() {
 }
 
 // The running tasks, shown beside Activity on Settings (settings.js). The Settings button itself carries no number.
-const runningTasks = () => state.runs.filter((r) => r.status === 'running').length;
+const runningTasks = () => activityRuns().filter((r) => r.status === 'running').length;
 const tasksRunning = (n) => `${n} ${n === 1 ? 'task' : 'tasks'} running`;
 // The Settings button: marked while one of its pages is open.
 function markMore() {

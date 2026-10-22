@@ -13,6 +13,7 @@ function page(runs) {
   const root = element({ '#settings-links': links, '#settings-form': element() });
   const ctx = vm.createContext({
     state: { runs, bots: [], settings: {} },
+    activityRuns: () => runs,
     $: (sel, r) => (r ? r.querySelector(sel) : sel === '#view-settings' ? root : null),
     $$: (sel, r) => r.querySelectorAll(sel),
     setView() {},
@@ -36,4 +37,16 @@ test('web: Settings shows the running tasks beside Activity, also on a refresh t
   const idle = page([{ status: 'success' }]);
   idle.ctx.renderSettings();
   assert.doesNotMatch(idle.links.innerHTML, /running/);
+});
+
+test("web: Activity holds the bots' turns in groups too, and counts them as running (#294)", () => {
+  const ctx = vm.createContext({ state: { runs: [{ id: 'a', startedAt: '2026-10-22T08:00:00Z', status: 'success' }], activity: [
+    { id: 'a', startedAt: '2026-10-22T08:00:00Z', status: 'running' },
+    { id: 'g', groupId: 'dev', startedAt: '2026-10-22T09:00:00Z', status: 'running' },
+  ] } });
+  vm.runInContext(`${cut("// Activity's runs (#294)", 'function renderRunList()')}
+    ${cut('// The running tasks, shown beside Activity', '// The Settings button: marked')}
+    Object.assign(this, { activityRuns, runningTasks });`, ctx);
+  assert.deepEqual(JSON.parse(JSON.stringify(ctx.activityRuns().map((r) => [r.id, r.status]))), [['g', 'running'], ['a', 'success']], "newest first; a bot's own run as the live list has it");
+  assert.equal(ctx.runningTasks(), 1);
 });

@@ -20,15 +20,23 @@ function renderRuns() {
   if (state.selectedRun && !$('#run-view').dataset.id) showRun(state.selectedRun);
 }
 
+// Activity's runs (#294): the bots' own chats (state.runs, which the feed keeps live) and their turns in groups
+// (state.activity, read at each refresh), newest first. A bot's chat never holds its turns in a group.
+function activityRuns() {
+  const own = new Set(state.runs.map((r) => r.id));
+  return [...state.runs, ...(state.activity || []).filter((r) => !own.has(r.id))]
+    .sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')));
+}
+
 function renderRunList() {
   const filter = $('#run-filter')?.value;
-  const runs = state.runs.filter((r) => !filter || r.botId === filter);
+  const runs = activityRuns().filter((r) => !filter || r.botId === filter);
   $('#run-list').innerHTML = runs.length
     ? runs.map((r) => `
       <button class="run-item ${r.id === state.selectedRun ? 'active' : ''}" data-id="${esc(r.id)}" style="--bot-color:${esc(r.botColor || '#6c7cff')}">
         ${runFigure(r)}
         <div class="grow">
-          <div class="title">${esc(r.botName)}</div>
+          <div class="title">${esc(r.botName)}${r.groupId ? ` <span class="faint">in ${esc(groupById(r.groupId)?.name || 'a group')}</span>` : ''}</div>
           <div class="sub">${ago(r.startedAt)} · ${r.jobName ? `⏰ ${esc(r.jobName)} · ` : r.trigger === 'schedule' ? '⏰ ' : ''}${[r.kind === 'script' ? 'no AI' : null, r.durationMs ? dur(r.durationMs) : null].filter(Boolean).join(' · ')}</div>
         </div>
         ${statusPill(r.reporting === 'held' ? 'held' : r.quiet ? 'quiet' : r.status)}
