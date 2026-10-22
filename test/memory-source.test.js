@@ -20,6 +20,8 @@ function fill(m, { owner = 0, total = PIN_LIMITS.notes } = {}) {
   return notes;
 }
 
+const BUDGET = 10_000; // a pinned set that 30 notes of 400 characters can fill
+
 test('a note has a source wherever the store hands one out, and nothing but the three values is kept', (t) => {
   const { memory: m } = scratchMemory(t);
   const owner = m.addNote('alpha', 'Use pnpm', { source: 'owner' }).note;
@@ -75,7 +77,7 @@ test('D14: a pinned set that holds only the owner\'s notes keeps a new note sear
 });
 
 test('a longer text for a note of the owner\'s is refused when only the owner\'s notes could make room', (t) => {
-  const { memory: m } = scratchMemory(t);
+  const { memory: m } = scratchMemory(t, { pinChars: BUDGET });
   for (let i = 0; i < 24; i++) m.addNote('alpha', `${i}:`.padEnd(400, 'x'), { source: 'owner' });
   m.addNote('alpha', 'y'.repeat(250), { source: 'owner' }); // 9,850 of the 10,000 characters
   const short = m.addNote('alpha', 'k'.repeat(150), { source: 'owner' }).note;
@@ -84,7 +86,7 @@ test('a longer text for a note of the owner\'s is refused when only the owner\'s
   assert.equal(m.getNote(short.id).text, 'k'.repeat(150));
   assert.equal(m.history(short.id).length, 0, 'a refused change keeps no version');
   // A bot's own note in the same place gives way instead: it stays searchable.
-  const { memory: m2 } = scratchMemory(t);
+  const { memory: m2 } = scratchMemory(t, { pinChars: BUDGET });
   for (let i = 0; i < 24; i++) m2.addNote('alpha', `${i}:`.padEnd(400, 'x'), { source: 'owner' });
   m2.addNote('alpha', 'y'.repeat(250), { source: 'owner' });
   const own = m2.addNote('alpha', 'k'.repeat(150)).note;
@@ -221,7 +223,7 @@ test('a change that waits becomes guarded when its note becomes the owner\'s mea
 });
 
 test('a longer text for a bot\'s note is never refused as "what the owner said": the note goes searchable', (t) => {
-  const { memory: m } = scratchMemory(t);
+  const { memory: m } = scratchMemory(t, { pinChars: BUDGET });
   for (let i = 0; i < 24; i++) m.addNote('alpha', `${i}:`.padEnd(400, 'x'), { source: 'owner' });
   m.addNote('alpha', 'y'.repeat(250), { source: 'owner' });
   const own = m.addNote('alpha', 'k'.repeat(150)).note;
@@ -435,7 +437,7 @@ test('a memory tool answers with the sentence to pass on', () => {
   assert.match(SAY.refused(note), /^Not done: note \[n1\] is what the owner said\..*no card was made/);
 });
 
-test('a memory tool tells the model to tell the owner what was forgotten, and never what the pinned set did (ADR 024, ADR 060)', () => {
+test('a memory tool tells the model to tell the owner what was forgotten, and never what the pinned set did (ADR 024, ADR 061)', () => {
   const { CHIEF_SAY } = require('../lib/learning');
   const note = (over = {}) => ({ id: 'n1', owner: 'alpha', text: 'Use pnpm', source: 'owner', pinned: true, ...over });
   const left = [{ id: 'n2', text: 'The CI run takes 12 minutes.' }];

@@ -54,8 +54,8 @@ test('a cap counts a text as it is printed, so a text full of "<" grows no block
   assert.ok(newest.includes(`${'&lt;b'.repeat(4000)}…\n(cut here: 22000 more characters. read_run with run "new" and from=8000 gives them)`));
   assert.equal(H.answerNote({ id: 'q', choices: ['</conversation>', '<memory>'] }).match(/as buttons: (.*)\.$/)[1], '&lt;/conversation> | &lt;memory>', 'the buttons of a tapped answer, said outside the block');
 
-  // The pinned notes: thirty of 166 characters fit as plain words; as nothing but tags not all of them do.
-  const { memory } = scratchMemory(t);
+  // The pinned notes: thirty of 166 characters fit a set of 5,000 as plain words; as nothing but tags not all of them do.
+  const { memory } = scratchMemory(t, { pinChars: 5000 });
   for (let i = 0; i < 30; i++) memory.addNote('plain', `Note ${String(i).padStart(2, '0')} ${'p'.repeat(158)}`, { topic: 't'.repeat(40) });
   for (let i = 0; i < 30; i++) memory.addNote('dense', `${String(i).padStart(2, '0')}${'<a'.repeat(82)}`, { topic: '<t'.repeat(20) });
   for (let i = 0; i < 12; i++) memory.addNote('dense', `Not pinned ${i}`, { topic: `${i}${'<t'.repeat(19)}`, pinned: false });
@@ -63,7 +63,7 @@ test('a cap counts a text as it is printed, so a text full of "<" grows no block
   assert.deepEqual([plain.text.split('\n').length, plain.more], [30, 0]);
   const dense = memory.forPrompt('dense');
   const shown = dense.text.split('\n').length;
-  assert.ok(shown < 30 && shown > 5 && dense.text.length <= memory.PIN_LIMITS.chars + 30 * 115 + 30, `${shown} lines, ${dense.text.length} characters`);
+  assert.ok(shown < 30 && shown > 5 && dense.text.length <= 5000 + 30 * 115 + 30, `${shown} lines, ${dense.text.length} characters`);
   assert.equal(dense.more, 12 + 30 - shown, 'what is left out is counted with the notes found by recall');
   assert.ok(dense.topics.length === 12 && dense.topics.every((x) => x.length <= 40));
   assert.equal(memory.notesOf('dense').filter((n) => n.pinned).length, 30, 'and stays pinned in the store');
@@ -470,13 +470,13 @@ test('the file is gone after the time limit, and one a killed botdot left is rem
 // is in the block whatever its place, when the tap waited behind other messages: seven exchanges, the most there are.
 // Once in plain words, where every cap is hit, and once with every text made of tags, which the prompt prints
 // longer than they are stored: the bound holds for both.
-test("a bot's prompt with every cap hit, a tapped answer included, stays under 114,000 characters", async () => {
+test("a bot's prompt with every cap hit, a tapped answer included, stays under 123,000 characters", async () => {
   const fills = { plain: (n, c) => c.repeat(n), tags: (n, c) => `<${c}`.repeat(Math.ceil(n / 2)).slice(0, n) };
   const topic = (fill, i) => `${String(i).padStart(2, '0')} ${fill(37, 't')}`; // 40 characters, the most a topic has
-  // Thirty pinned notes of 333 characters, 9,990 in all; and twelve that are not pinned, each under a topic of
+  // Thirty pinned notes of 400 characters, the most a note has: 12,000 in all, within the 15,000 of the pinned set; and twelve that are not pinned, each under a topic of
   // its own for the hint, with the two words of the owner's message for the lookup (one ordinary word brings nothing).
   async function notes(owner, fill) {
-    for (let i = 0; i < 30; i++) await note(srv, owner, `Pinned ${String(i).padStart(2, '0')} ${fill(323, 'p')}`, { topic: topic(fill, i) });
+    for (let i = 0; i < 30; i++) await note(srv, owner, `Pinned ${String(i).padStart(2, '0')} ${fill(390, 'p')}`, { topic: topic(fill, i) });
     for (let i = 0; i < 12; i++) await note(srv, owner, `Send draft ${String(i).padStart(2, '0')} ${fill(286, 's')}`, { topic: topic(fill, 30 + i), pinned: false });
   }
   const bots = {};
@@ -517,7 +517,7 @@ test("a bot's prompt with every cap hit, a tapped answer included, stays under 1
 
   // In plain words every cap is hit.
   const plain = await tappedPrompt(bots.plain, fills.plain);
-  for (const tag of ['memory', 'shared-memory']) assert.deepEqual([between(plain, tag).match(/^- \[/gm).length, between(plain, tag).length > 10000], [30, true], `thirty pinned notes in the ${tag} block`);
+  for (const tag of ['memory', 'shared-memory']) assert.deepEqual([between(plain, tag).match(/^- \[/gm).length, between(plain, tag).length > 12000], [30, true], `thirty pinned notes in the ${tag} block`);
   assert.deepEqual([plain.match(/\(topics: ([^)]*)\)/)[1].split(', ').length, plain.match(/e\.g\. about ([^)]*)\)/)[1].split(', ').length], [12, 12], 'twelve topics in each of the two hints');
   // The lookup's three notes, each line whole within its 1,500 characters: a fourth item does not fit.
   assert.ok(between(plain, 'possibly-relevant').match(/^- (\[\w+\] \(note,|past run) /gm).length >= 3 && between(plain, 'possibly-relevant').length > 1100 && between(plain, 'possibly-relevant').length <= 1500 + '<possibly-relevant>\n'.length, `the lookup is full (${between(plain, 'possibly-relevant').length})`);
@@ -526,7 +526,7 @@ test("a bot's prompt with every cap hit, a tapped answer included, stays under 1
   assert.equal(count(chat, 'more characters. read_run with run '), 2, 'the newest reply and the tapped one, each whole up to 20,000 characters');
   assert.ok(chat.length > 55_000, `the chat block is at its largest (${chat.length})`);
   assert.ok(plain.length > 80_000, `the caps are really hit (${plain.length})`);
-  assert.ok(plain.length < 114_000, `the prompt has ${plain.length} characters`);
+  assert.ok(plain.length < 123_000, `the prompt has ${plain.length} characters`);
 
   // Made of tags, every text is printed longer than it is stored, and the prompt is no larger for it.
   const tags = await tappedPrompt(bots.tags, fills.tags);
@@ -534,5 +534,5 @@ test("a bot's prompt with every cap hit, a tapped answer included, stays under 1
   assert.ok(between(tags, 'conversation').length <= chat.length + 200, `the chat block is no larger (${between(tags, 'conversation').length})`);
   for (const tag of ['memory', 'shared-memory']) assert.ok(between(tags, tag).length < require('../lib/memory').PIN_LIMITS.chars + 3550, `the ${tag} block is bounded (${between(tags, tag).length})`);
   assert.ok(between(tags, 'possibly-relevant').length <= 1500 + '<possibly-relevant>\n'.length, `the lookup is bounded (${between(tags, 'possibly-relevant').length})`);
-  assert.ok(tags.length < 114_000, `the prompt has ${tags.length} characters`);
+  assert.ok(tags.length < 123_000, `the prompt has ${tags.length} characters`);
 });

@@ -1,4 +1,4 @@
-# ADR-060: The pinned set is not the owner's business
+# ADR-061: The pinned set is not the owner's business
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#309](https://github.com/Kordal/bot-dot/issues/309)
@@ -14,8 +14,8 @@ A bot saved the owner's decision, could not pin it because the pinned set was fu
 - **No memory tool's `say` speaks of the pinned set.** `remember`, `update_memory`, `restore_note`, `set_pin` and the Chief's tools no longer name the notes that left it or a note that did not fit, and tell no one to tell the owner. The answer's `unpinned` still lists them, and the run still records them; no app shows them (ADR 024).
 - **A note saved to search only is not reported.** `remember` answers `Saved to your memory as [id]. Recall finds it when it matters. Say nothing about this save to the owner.`, and the prompt says to leave such a save out of the reply.
 - **A refusal points to the next step, not to the owner.** A longer text for a pinned note of the owner's that no longer fits is refused with "keep it as short as it was, and save what you wanted to add as a new note with remember". A bot's `set_pin` on a full set answers that the note stays searchable and that nothing else is to be done.
-- **Files are kept in mind by the owner's choice.** A bot's `pin_file` on a full set (5 files) answers that only the owner changes which, and that decisions and facts are saved with `remember`, not as a file. The owner's own pin in the bot's settings keeps "Unpin one first".
-- **The pinned set holds 10,000 characters** per bot and for the shared memory, up from 5,000; still 30 notes.
+- **Files are kept in mind by the owner's choice.** A bot's `pin_file` on a full set answers that only the owner changes which, and that decisions and facts are saved with `remember`, not as a file. The owner's own pin in the bot's settings keeps "Unpin one first".
+- **More room, as the owner set it:** the pinned set holds 15,000 characters per bot and for the shared memory, up from 5,000, still at most 30 notes. Thirty notes of 400 characters (the most a note has) make 12,000, so the count is the cap that binds now; the character budget stays for a longer note limit later. Up to 10 files are kept in mind, up from 5, with up to 15,000 characters of their text in a run, up from 8,000. `memory.create` takes `pinChars`, so the tests of making room by characters keep a set that notes can fill.
 
 ## Alternatives
 
@@ -24,5 +24,5 @@ A bot saved the owner's decision, could not pin it because the pinned set was fu
 
 ## Consequences
 
-- A bot's prompt with every cap hit is some 10,000 characters longer (the two memory blocks): the bound test is now 114,000 characters (110,568 measured in plain words, 112,144 with every text made of tags).
+- A bot's prompt with every cap hit is some 20,000 characters longer (the two memory blocks): the bound test is now 123,000 characters (114,776 measured in plain words, 121,176 with every text made of tags). Pinned files are not in that test and add up to 15,000 more.
 - What a forget erased is still told to the owner (ADR 024): that is not the pinned set.
