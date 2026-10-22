@@ -721,6 +721,7 @@ A job with `at` (an ISO date) runs once, then it's removed; its `cron` is that m
 - **The Chief** reads the same line: a job in `list_bots` has `last: { status, text }`, and `get_bot` the job as above.
 
 - `POST /api/bots/:id/jobs/:jobId/approve` with `{ approve: true | false }`: approve a job the Chief or a bot set up, or turn it down, which removes it (see Decline). Owner only. With `ask-continues` in `features`, a job that waits can have `then`, and the answer of a yes `carriesOn` (see What follows a yes). With `staged-changes`, a job that is approved can have a `change` waiting beside it: the same route answers it, and its no keeps the job (see A change that waits).
+- **A check a bot offers** ([ADR 064](adr/064-a-check-a-bot-offers-runs-on-the-owners-yes.md)) needs no approval: a one-time AI job (`at`, `kind: "ai"`, no call, no `notifyUrl`, due within 7 days) a bot sets up in a run the owner started with their own message is `approved: true` at once, and its `add` answers `needsApproval: false`. Every other job a bot sets up or changes waits as before. Apps need nothing new.
 
 ### A job that is called
 
