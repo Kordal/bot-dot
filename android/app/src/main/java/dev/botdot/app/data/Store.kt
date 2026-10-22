@@ -300,9 +300,8 @@ data class Needs(
 
 /**
  * One thing that waits for you: the colour and outfit of the bot it's about (no colour: it is about no bot, and its
- * mark is the Chief's), and what it is in words.
+ * mark is the Chief's), what it is in words, and that [bot]'s id (null: the Chief's), whose key says Needs you (#397).
  */
-/** One thing that waits for the owner: the colour (and hat) of the bot it is about, its line, and that [bot]'s id (null: the Chief's). */
 data class Waiting(val color: String?, val text: String, val outfit: JsonElement? = null, val bot: String? = null)
 
 private const val NO_COLOR = "#888780" // the grey of a bot without a colour (FigureDef.GREY)

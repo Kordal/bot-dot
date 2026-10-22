@@ -401,6 +401,8 @@ internal fun KeypadSections(
     }
 }
 
+private val SECTION_KEY_HEIGHT = 160.dp
+
 /** A key in a phone's section: the head over the name, the list's line and its status, no digit; [wide]: a pinned key, the head beside them. */
 @Composable
 private fun SectionKey(look: KeyLook, wide: Boolean, onClick: () -> Unit) {
@@ -416,7 +418,7 @@ private fun SectionKey(look: KeyLook, wide: Boolean, onClick: () -> Unit) {
             Spacer(Modifier.height(8.dp))
             StatusRow(look)
         }
-    } else Column(box, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    } else Column(box.height(SECTION_KEY_HEIGHT), verticalArrangement = Arrangement.spacedBy(4.dp)) { // two a row, of one height
         KeyHead(look, 40)
         Spacer(Modifier.height(4.dp))
         KeyName(look, 15.sp)

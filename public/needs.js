@@ -112,7 +112,7 @@ function showNeeds() {
     banner.innerHTML = `${needsFigures(items)}<span>Waiting for your OK</span><button class="btn sm primary" id="needs-open">Review</button>`;
     $('#needs-open').onclick = review;
   }
-  drawKeypadNeeds(state.view === 'needs' ? [] : items, review); // the same, on the keypad
+  drawKeypadNeeds(state.view === 'needs' ? [] : items, review, items); // the same, on the keypad
   if (state.view === 'needs') renderNeeds();
   drawChatCards(); // the cards at the end of the open bot's or Chief's chat
   if (state.view === 'group') drawGroupCards(); // the cards at the end of the open group (groups.js)

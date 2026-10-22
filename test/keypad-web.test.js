@@ -154,6 +154,9 @@ test('web: each key says its status and the time of its last action: Working wit
   assert.deepEqual(statusOf(key('Oops')).slice(0, 2), ['Couldn&#39;t finish', 'err'], 'escaped');
   assert.deepEqual(statusOf(key('Calm')), ['Idle', 'idle', ''], 'no run yet: no time');
   assert.equal((p.keys().match(/key-run/g) || []).length, 1, 'only the working key has the line');
+  p.state.runs[0] = { ...p.state.runs[0], status: 'success' };
+  p.ctx.drawKeypad();
+  assert.deepEqual(statusOf(key('News Watcher')), ['Working', 'info', ''], 'its new run not in the list yet: no time from the old one');
   assert.deepEqual(statusOf(p.keys().match(/<button class="key key-chief[\s\S]*?<\/button>/)[0]).slice(0, 2), ['Idle', 'idle'], 'the Chief\'s key too');
   Object.assign(p.state, { chiefBusy: true });
   p.ctx.drawKeypad();
@@ -168,6 +171,8 @@ test('web: a key whose bot a card in Needs you waits for says Needs you; a group
   p.ctx.drawKeypadNeeds([{ kind: 'job', bot: LIGHTS }], () => {});
   assert.equal(statusOf(key('Home Lights'))[0], 'Needs you', 'drawn again when the bots that wait change');
   assert.equal(statusOf(key('Evening'))[0], 'Working', 'a member works');
+  p.ctx.drawKeypadNeeds([], () => {}, [{ kind: 'job', bot: LIGHTS }]);
+  assert.equal(statusOf(key('Home Lights'))[0], 'Needs you', 'on the Needs you page the card is not shown, and the key still says it');
   p.ctx.drawKeypadNeeds([], () => {});
   assert.equal(statusOf(key('Home Lights'))[0], 'Idle');
 });
@@ -200,7 +205,7 @@ test('web: the Board\'s strip is one small kpi card per tile: its title, its fir
     { id: 't4', title: 'Shopping', look: { dot: { filled: true }, face: [{ type: 'list', items: ['Leeks'] }] } },
   ] };
   const p = page({ dash });
-  const cards = [...p.board().matchAll(/<span class="kp-card">([\s\S]*?)<\/span>(?=<span class="kp-card">|<\/button>)/g)].map((m) => m[1]);
+  const cards = [...p.board().matchAll(/<span class="kp-card">([\s\S]*?)<\/span>(?=<span class="kp-card">|<\/div>$)/g)].map((m) => m[1]);
   assert.deepEqual(cards.map(texts), ['Living room 21.5 °C', 'Disk 62 %', 'Heating On', 'Shopping']);
   assert.match(cards[0], /kit-spark/, 'its recent values as a sparkline');
   assert.match(cards[1], /<div class="kit-bar"><i style="width:62%/, 'a kpi inside a row, with its bar');

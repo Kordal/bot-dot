@@ -1414,7 +1414,7 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .kp-head { display: flex; align-items: stretch; gap: 12px; min-height: 0; }
 .kp-board { flex: 1 1 auto; min-width: 0; }
 /* The Board's strip: one card per tile, as wide as it needs between 150 and 220; those that don't fit scroll sideways. */
-.kp-board-line { display: flex; gap: 12px; width: 100%; height: 100%; overflow-x: auto; scrollbar-width: none; border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.kp-board-line { display: flex; gap: 12px; width: 100%; height: 100%; overflow-x: auto; scrollbar-width: none; cursor: pointer; }
 .kp-board-line::-webkit-scrollbar { display: none; }
 .kp-card { flex: 0 0 auto; display: flex; min-width: 150px; max-width: 220px; min-height: 96px; padding: 14px 18px; border: 1px solid var(--line-2); border-radius: 16px; background: var(--panel); }
 .kp-card .kit-kpi { flex: 1; min-width: 0; margin-top: 0; gap: 8px; justify-content: space-between; }

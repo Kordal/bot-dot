@@ -223,7 +223,8 @@ function keyStatus(x) {
   const r = state.runs.find((y) => y.botId === x.id);
   const running = !!x.running || r?.status === 'running';
   const s = Keypad.status({ running, needs: keyLine(x).cls === 'asks' || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null });
-  return { ...s, time: running && r?.startedAt ? Keypad.since(Date.now() - Date.parse(r.startedAt)) : shortTime(r?.startedAt) };
+  // How long it has worked, from the run that is going; a run not in the list yet: no time.
+  return { ...s, time: running ? (r?.status === 'running' && r.startedAt ? Keypad.since(Date.now() - Date.parse(r.startedAt)) : '') : shortTime(r?.startedAt) };
 }
 // The pill's colour by its kind: the block kit's levels, and two of the keys' own (unread, idle).
 const PILL = { working: 'info', needs: 'warn', unread: 'unread', done: 'ok', failed: 'err', idle: 'idle' };
@@ -251,16 +252,19 @@ function stripKpi(t) {
     : `<div class="kit-kpi"><div class="kit-kpi-main"><div class="kit-label">${esc(t.title)}</div><div class="kit-num kp-card-dot">${tileMark(t)}${dot && dot.big ? `<span>${dot.filled === true ? 'On' : dot.filled === false ? 'Off' : '·'}</span>` : ''}</div></div></div>`;
   return `<span class="kp-card">${card}</span>`;
 }
-// The Board's strip: one small kpi card per tile, as many as fit and the rest sideways (on a phone too). A tap opens
-// the Board. Not there until the Board is read.
+// The Board's strip: one small kpi card per tile, as many as fit and the rest sideways (on a phone too). A tap, or
+// Enter on it, opens the Board. A box and not a button, which would not scroll. Not there until the Board is read.
 function boardLine() {
   if (!state.dash) return '';
-  return `<button class="kp-board-line ${state.view === 'dashboard' ? 'active' : ''}" data-board title="Board">${boardTiles().map(stripKpi).join('') || BOARD_EMPTY}</button>`;
+  return `<div class="kp-board-line ${state.view === 'dashboard' ? 'active' : ''}" role="button" tabindex="0" data-board title="Board">${boardTiles().map(stripKpi).join('') || BOARD_EMPTY}</div>`;
 }
 // The Board's line drawn in `el`: the keypad's, or a phone's.
 function drawBoardLine(el) {
   el.innerHTML = boardLine();
-  $$('[data-board]', el).forEach((b) => (b.onclick = () => setView('dashboard')));
+  $$('[data-board]', el).forEach((b) => {
+    b.onclick = () => setView('dashboard');
+    b.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView('dashboard'); } };
+  });
 }
 // The Chief of Staff's key, first on Pinned: its row in the list as a key, with Esc where a bot's key has its digit,
 // and its status: Working while it replies, its new replies, else Idle, and when it last wrote.
@@ -362,9 +366,9 @@ function wireKeyDrags(pages, all, keys) {
   $$('[data-page]', keys).forEach((el) => target(el, Number(el.dataset.page)));
 }
 // Needs you on the keypad and on a phone (#397): one warm card, "N need you", what waits in one line, and Review,
-// which opens as the banner's does. The keys of the bots it waits for say Needs you, so they are drawn again when
-// those bots change.
-function drawKeypadNeeds(items, review) {
+// which opens as the banner's does. The keys of the bots `waits` holds (all that waits, also while the card is not
+// shown on the Needs you page) say Needs you, so they are drawn again when those bots change.
+function drawKeypadNeeds(items, review, waits = items) {
   const lines = [...new Set(items.map(needLine).filter(Boolean))];
   const html = items.length ? `<svg class="kp-needs-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg><span class="kp-needs-text"><b>${items.length} need${items.length === 1 ? 's' : ''} you</b><span>${esc(lines.join(' · '))}</span></span><span class="kp-review">Review</span>` : '';
   for (const id of ['#kp-needs', '#kp-phone-needs']) {
@@ -374,8 +378,8 @@ function drawKeypadNeeds(items, review) {
     el.innerHTML = html;
     el.onclick = review;
   }
-  const waiting = needsBots(items);
-  if ([...waiting].join() !== [...keysWaiting].join()) { keysWaiting = waiting; drawKeypad(); }
+  const waiting = needsBots(waits);
+  if ([...waiting].join() !== [...keysWaiting].join()) { keysWaiting = waiting; renderContacts(); }
 }
 // Digits, Esc and Ctrl+K (Keypad.press), while the keypad is shown and no dialog is open.
 function onKeypadKey(e) {

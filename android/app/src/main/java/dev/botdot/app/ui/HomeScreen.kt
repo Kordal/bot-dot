@@ -330,7 +330,12 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             val r = lastRun[b.id]
             val running = b.running || r?.isRunning == true
             val status = Keypad.status(running, needs = asks(b) || b.id in waitingBots, unread = b.unread, last = r?.status)
-            val time = if (running && r != null) runCatching { Keypad.since(now - java.time.Instant.parse(r.startedAt).toEpochMilli()) }.getOrDefault("") else listTime(r?.startedAt)
+            // How long it has worked, from the run that is going; a run not in the list yet: no time.
+            val time = when {
+                !running -> listTime(r?.startedAt)
+                r?.isRunning == true -> runCatching { Keypad.since(now - java.time.Instant.parse(r.startedAt).toEpochMilli()) }.getOrDefault("")
+                else -> ""
+            }
             // A bot that asks shows its question alone: its pill says Needs you.
             KeyLook(b.name, sub(b).removePrefix("Asks: "), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = asks(b), status = status, time = time)
         }
