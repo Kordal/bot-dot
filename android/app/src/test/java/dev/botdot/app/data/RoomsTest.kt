@@ -58,7 +58,7 @@ class RoomsTest {
         val rows = Mentions.suggest("hi @", w)
         assertEquals(listOf("@Scout", "@Pip"), rows.map { it.text })
         assertEquals(listOf("Scout · ann", "Pip · bob"), rows.map { it.label })
-        assertEquals(listOf("@Pip"), Mentions.find("ask @pip", w).map { it.text })
+        assertEquals(listOf("bob/b7"), Mentions.find("ask @pip", w).map { it.bot }) // matched whatever its case
         assertNull(Rooms.world(null))
     }
 
