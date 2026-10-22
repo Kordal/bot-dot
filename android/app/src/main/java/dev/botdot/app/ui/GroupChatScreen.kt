@@ -520,7 +520,7 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
                 "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
                     // A path in its reply opens in the viewer (#251), from its own folder or the computer.
                     CompositionLocalProvider(LocalPathActions provides rememberPathActions(r.botId, bot?.name ?: r.botName)) {
-                        Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); BotFilesRow(r.files) }
+                        Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); OpenAsDocument(r.result, bot?.name ?: r.botName); BotFilesRow(r.files) }
                     }
                 }
                 else -> when (val ended = endedWords(r, features)) {

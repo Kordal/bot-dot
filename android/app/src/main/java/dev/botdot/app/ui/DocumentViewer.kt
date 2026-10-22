@@ -74,8 +74,9 @@ import kotlinx.coroutines.launch
  * `document-viewer` ([DocumentView]); an older one keeps the download.
  */
 object DocViewer {
-    /** A file to open: [src] its API path (DocumentView), [from] who it is from, [botId] whose computer starts for it. [page]: a bot's page (#346). */
-    data class Request(val src: String, val name: String, val from: String = "", val botId: String? = null, val path: String? = null, val page: PageAt? = null)
+    /** A file to open: [src] its API path (DocumentView), [from] who it is from, [botId] whose computer starts for it.
+     *  [text]: a long reply opened as a document (#348, OpenAsDocument), drawn as it is with no [src] to fetch. [page]: a bot's page (#346). */
+    data class Request(val src: String, val name: String, val from: String = "", val botId: String? = null, val path: String? = null, val text: String? = null, val page: PageAt? = null)
 
     /** Which bot's page, by its slug. */
     data class PageAt(val botId: String, val slug: String)
@@ -142,10 +143,14 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     var tries by remember(req) { mutableIntStateOf(0) }
     var mode by remember(req) { mutableStateOf("source") }
     var menu by remember { mutableStateOf(false) }
+    var exporting by remember(req) { mutableStateOf(false) }
+    val server by app.store.version.value.collectAsState()
     val tell = { t: String -> android.widget.Toast.makeText(context, t, android.widget.Toast.LENGTH_LONG).show() }
     LaunchedEffect(req, api, tries) {
-        val a = api ?: return@LaunchedEffect
         view = null; error = null
+        // A reply opened as a document: its text is here already.
+        if (req.text != null) { view = FileView(name = req.name, kind = "markdown", text = req.text); mode = "rendered"; return@LaunchedEffect }
+        val a = api ?: return@LaunchedEffect
         runCatching { a.viewFile(req.src) }
             .onSuccess { v -> view = v; mode = when (v.kind) { "markdown" -> "rendered"; "csv" -> "table"; else -> "source" } }
             .onFailure { error = it }
@@ -170,7 +175,9 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = p.text) }
             Column(Modifier.weight(1f)) {
                 Text(req.name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val sub = if (req.page != null) Pages.subtitle(req.from, view?.page) else DocumentView.subtitle(req.from, view, shortTime(view?.at))
+                val sub = if (req.text != null) listOfNotNull(req.from.ifBlank { null }, "${dev.botdot.app.data.DocumentExport.words(req.text)} words").joinToString(" · ")
+                    else if (req.page != null) Pages.subtitle(req.from, view?.page)
+                    else DocumentView.subtitle(req.from, view, shortTime(view?.at))
                 if (sub.isNotEmpty()) Text(sub, color = p.muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Box {
@@ -182,7 +189,10 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                             context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText(req.name, text))
                         })
                     }
-                    if (view?.downloadable != false) {
+                    if (view?.kind == "markdown" && dev.botdot.app.data.DocumentExport.shows(server?.features)) {
+                        DropdownMenuItem(text = { Text("Export…", color = p.text) }, onClick = { menu = false; exporting = true })
+                    }
+                    if (req.text == null && view?.downloadable != false) {
                         DropdownMenuItem(text = { Text("Save to Downloads", color = p.text) }, onClick = { withApi("save it") { BotFiles.saveToDownloads(context, it, req.src, req.name); tell("Saving ${req.name} to Downloads") } })
                         DropdownMenuItem(text = { Text("Share…", color = p.text) }, onClick = { withApi("share it") { BotFiles.share(context, it, req.src, req.name) } })
                         DropdownMenuItem(text = { Text("Open in another app", color = p.text) }, onClick = { withApi("open it") { BotFiles.openElsewhere(context, it, req.src, req.name) } })
@@ -199,6 +209,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, onDismiss = { keeping = false }) { every, time, notify, check ->
             withApi("keep it up to date") { it.keepPage(req.page.botId, page.slug, every, time, notify, check); keeping = false; tell("It keeps up to date now"); changed++ }
         }
+        if (exporting && v?.text != null) ExportSheet(req.name, v.text) { exporting = false }
         when {
             e != null -> {
                 val status = (e as? ApiException)?.status
@@ -246,6 +257,68 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** The Export sheet of a Markdown document (#348): Word, PDF or Markdown made by the server and saved to Downloads,
+ *  or the PDF to the phone's share sheet. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
+    val p = LocalPaper.current
+    val context = LocalContext.current
+    val app = BotDotApp.of(context)
+    val api by app.api.collectAsState()
+    val scope = rememberCoroutineScope()
+    val tell = { t: String -> android.widget.Toast.makeText(context, t, android.widget.Toast.LENGTH_LONG).show() }
+    val server by app.store.version.value.collectAsState()
+    // Whether Google Docs is connected, asked as the sheet opens; null until it answers.
+    var googleDocs by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(api) { if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) googleDocs = runCatching { api?.googleDocsConnected() }.getOrNull() }
+    fun make(what: String, act: suspend (java.io.File) -> Unit, format: String) {
+        onDone()
+        val a = api ?: return tell("Not connected to botdot")
+        tell("Making the file…")
+        scope.launch {
+            runCatching { act(a.exportDocument(title, text, format, java.io.File(context.cacheDir, "botfiles/exports"))) }.onError { tell(it.message ?: "Couldn't $what") }
+        }
+    }
+    ModalBottomSheet(onDismissRequest = onDone, containerColor = p.panel) {
+        Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 28.dp)) {
+            Text("DOWNLOAD", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            dev.botdot.app.data.DocumentExport.FORMATS.forEach { (format, label, ext) ->
+                SheetRow(label, ext) { make("save it", { f -> BotFiles.saveToDownloads(context, f); tell("Saved ${f.name} to Downloads") }, format) }
+            }
+            Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
+            if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) {
+                Text("SAVE TO", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                SheetRow("Google Docs", when (googleDocs) { true -> "connected"; false -> "Connect on the web"; null -> "" }) {
+                    onDone()
+                    val a = api ?: return@SheetRow tell("Not connected to botdot")
+                    if (googleDocs == false) return@SheetRow tell("Connect Google Docs on the Connectors page first.")
+                    tell("Saving to Google Docs…")
+                    scope.launch {
+                        runCatching { a.saveToGoogleDocs(title, text) }
+                            .onSuccess { url ->
+                                tell("Saved to Google Docs")
+                                runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            }
+                            .onError { tell(it.message ?: "Couldn't save it to Google Docs") }
+                    }
+                }
+                Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
+            }
+            SheetRow("Share…", "PDF") { make("share it", { f -> BotFiles.shareFile(context, f) }, "pdf") }
+        }
+    }
+}
+
+@Composable
+private fun SheetRow(label: String, end: String, onClick: () -> Unit) {
+    val p = LocalPaper.current
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = p.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(end, color = p.faint, fontSize = 12.5.sp)
     }
 }
 

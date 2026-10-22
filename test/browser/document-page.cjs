@@ -76,6 +76,8 @@ The minimum daily budget eats most of €150 in a few days.`;
     await tab.locator('[data-doc="menu"]').click();
     assert.equal(await tab.locator('.doc-menu').isVisible(), true);
     if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, 'document.png') });
+    // Google Docs is not connected on this server: the item leads to connecting it (#351).
+    await tab.locator('[data-gd-state]', { hasText: 'Connect…' }).waitFor();
     const [word] = await Promise.all([tab.waitForEvent('download'), tab.locator('[data-format="docx"]').click()]);
     assert.equal(word.suggestedFilename(), 'Ads-budget-for-the-Belgian-contractor.docx');
     await tab.locator('[data-doc="menu"]').click();

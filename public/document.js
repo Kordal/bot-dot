@@ -112,6 +112,9 @@ async function show(hash, g) {
         <div class="doc-menu" role="menu" hidden>
           <div class="doc-menu-label">Download</div>
           ${FORMATS.map(([f, label, ext]) => `<button type="button" role="menuitem" data-doc="export" data-format="${f}">${ICON_FILE}${label}<small>${ext}</small></button>`).join('')}
+          ${g.features?.includes('document-google-docs') ? `<div class="doc-menu-sep"></div>
+          <div class="doc-menu-label">Save to</div>
+          <button type="button" role="menuitem" data-doc="gdocs"><span class="doc-gd">G</span>Google Docs<small data-gd-state></small></button>` : ''}
           <div class="doc-menu-sep"></div>
           <button type="button" role="menuitem" data-doc="copy">Copy text</button>
           <button type="button" role="menuitem" data-doc="print">Print</button>
@@ -122,6 +125,7 @@ async function show(hash, g) {
       <nav class="doc-toc" aria-label="On this page"></nav>
       <article class="md doc-md">${g.md(doc.text, doc.botId)}</article>
     </div>
+    <div class="doc-saved" role="status" hidden></div>
     ${doc.truncated ? '<p class="doc-cut">Too large to show whole: this is its start. Download the file for all of it.</p>' : ''}`;
   const sections = outline(page.querySelector('.doc-md'));
   const toc = page.querySelector('.doc-toc');
@@ -141,7 +145,14 @@ async function show(hash, g) {
 function wire(page, doc, g) {
   const menuBtn = page.querySelector('[data-doc="menu"]');
   const menu = page.querySelector('.doc-menu');
-  const open = (on) => { menu.hidden = !on; menuBtn.setAttribute('aria-expanded', String(on)); };
+  const gdState = page.querySelector('[data-gd-state]');
+  let gd = null; // Google Docs connected, as last asked
+  const open = (on) => {
+    menu.hidden = !on;
+    menuBtn.setAttribute('aria-expanded', String(on));
+    // Whether Google Docs is connected, asked each time the menu opens: "connected" or "Connect…".
+    if (on && gdState) g.api('/export/google-docs').then((r) => { gd = !!r.connected; gdState.textContent = gd ? 'connected' : 'Connect…'; }).catch(() => {});
+  };
   document.addEventListener('click', (e) => { if (!e.target.closest('.doc-export')) open(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') open(false); });
   page.addEventListener('click', async (e) => {
@@ -153,6 +164,20 @@ function wire(page, doc, g) {
     if (what === 'print') return window.print();
     if (what === 'copy') {
       try { await navigator.clipboard.writeText(doc.text); g.toast('Copied'); } catch { g.toast("Couldn't copy", true); }
+      return;
+    }
+    if (what === 'gdocs') {
+      if (gd === false) { location.href = '/#connectors'; return; }
+      g.toast('Saving to Google Docs…');
+      try {
+        const r = await g.api('/export/google-docs', { method: 'POST', body: { title: doc.title, text: doc.text } });
+        const saved = page.querySelector('.doc-saved');
+        saved.innerHTML = `Saved to Google Docs <a href="${g.esc(r.url)}" target="_blank" rel="noopener">Open ↗</a>`;
+        saved.hidden = false;
+      } catch (err) {
+        if (err.state === 'not-connected') gd = false;
+        g.toast(err.message || "Couldn't save it to Google Docs", true);
+      }
       return;
     }
     if (what === 'export') {

@@ -318,6 +318,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
                 else -> TheirBubble(shortTime(m.endedAt ?: m.at), copyText = drawn.text, chips = chips, footerEnd = thumbs) {
                     Column {
                         MarkdownText(drawn.text)
+                        if (error == null) OpenAsDocument(drawn.text, LocalChiefName.current)
                         BotFilesRow(files)
                         // A reply that failed after writing: its problem, in a block of its own under the text.
                         if (error != null) MarkdownText(error, color = p.warnText,
@@ -408,6 +409,7 @@ private fun Report(m: ChiefMessage) {
         // A task it didn't finish (`error: true`) is drawn like a failed reply; its text says why.
         Column(Modifier.padding(start = 32.dp).clip(shape).holdToCopy(m.text).background(if (m.failed) p.errSoft else p.sunk).border(1.dp, if (m.failed) p.err.copy(alpha = 0.3f) else p.line2, shape).padding(horizontal = 14.dp, vertical = 10.dp)) {
             if (m.text.isNotBlank()) MarkdownText(m.text) // a file it sent while working has no text
+            if (!m.failed) OpenAsDocument(m.text, m.from?.name.orEmpty())
             BotFilesRow(m.files, top = if (m.text.isNotBlank()) 8.dp else 0.dp)
         }
     }

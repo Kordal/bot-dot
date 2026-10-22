@@ -12,6 +12,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.encodeToJsonElement
@@ -496,6 +497,34 @@ class Api(val baseUrl: String, val session: Session? = null) {
             part.delete(); throw e
         } catch (e: IOException) {
             part.delete(); throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})")
+        }
+    }
+
+    /** Whether Google Docs is connected now (#351, GET /api/export/google-docs). */
+    suspend fun googleDocsConnected(): Boolean =
+        json.parseToJsonElement(get("/export/google-docs")).jsonObject["connected"]?.jsonPrimitive?.booleanOrNull == true
+
+    /** [text] saved as a new Google Doc (#351): its address on docs.google.com. */
+    suspend fun saveToGoogleDocs(title: String, text: String): String =
+        json.parseToJsonElement(send("POST", "/export/google-docs", buildJsonObject { put("title", title); put("text", text) })).jsonObject["url"]?.jsonPrimitive?.contentOrNull
+            ?.takeIf { DocumentExport.isGoogleDoc(it) } ?: throw ApiException("Google Docs saved nothing to open.")
+
+    /** A document made from [text] (#348, POST /api/export): Word, PDF or Markdown, written to [dir] under the name the
+     *  server gives it. Returns the file. */
+    suspend fun exportDocument(title: String, text: String, format: String, dir: java.io.File): java.io.File = withContext(Dispatchers.IO) {
+        val body = buildJsonObject { put("title", title); put("text", text); put("format", format) }
+        val req = request("/export").header("Accept", "*/*").header("X-Bot-Dot", "1").post(body.toString().toRequestBody(JSON_TYPE)).build()
+        try {
+            streamClient.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) readOrThrow(res)
+                val name = DocumentExport.fileName(res.header("Content-Disposition"), format)
+                dir.mkdirs()
+                val dest = java.io.File(dir, name)
+                res.body.byteStream().use { input -> dest.outputStream().use { input.copyTo(it) } }
+                dest
+            }
+        } catch (e: IOException) {
+            throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})")
         }
     }
 

@@ -101,6 +101,9 @@ android {
             it.systemProperty("markdownCases", markdownCases.path); it.inputs.file(markdownCases)
             it.systemProperty("chatLinks", chatLinks.path); it.inputs.file(chatLinks)
         }
+        // Which reply is a document, as the web page decides it (DocumentOpenTest, #348).
+        val documentCases = rootProject.file("../test/fixtures/document-cases.json")
+        unitTests.all { it.systemProperty("documentCases", documentCases.path); it.inputs.file(documentCases) }
         // File paths linked in a reply, as the web page links them (FilePathsTest, #251).
         val filePaths = rootProject.file("../test/fixtures/file-paths.json")
         unitTests.all { it.systemProperty("filePaths", filePaths.path); it.inputs.file(filePaths) }
