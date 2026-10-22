@@ -49,6 +49,8 @@ const pages = require('./lib/front-door/pages');
 const calls = require('./lib/front-door/calls');
 const loadFiles = require('./lib/front-door/load');
 const whatsNew = require('./lib/whats-new');
+const roomStore = require('./lib/front-door/rooms');
+const roomTurns = require('./lib/front-door/room-turns');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -174,6 +176,9 @@ const STATUS = process.env.FRONT_DOOR_STATUS ? path.resolve(process.env.FRONT_DO
 const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null);
 // Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin.
 const FEEDBACK = !ONE_ACCOUNT && !!ADMIN;
+// Shared rooms (ADR 060): never on a machine of one account; elsewhere when the admin turned them on.
+const rooms = ONE_ACCOUNT ? null : roomStore.open(DATA);
+const roomsOn = () => !!rooms && !!ADMIN && rooms.isOn();
 const MAKING = 'Your account is being made. It takes a few minutes; try again then.';
 const STARTING = 'Your account is starting. Try again in a moment.';
 
@@ -533,7 +538,8 @@ async function signInRoutes(req, res, p) {
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
-    return send(res, 200, { admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account) });
+    // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms).
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -574,6 +580,7 @@ async function signInRoutes(req, res, p) {
     console.log(`[front door] the account ${account} sent feedback (${report.kind}, ${report.text.length} characters, ${report.screenshots?.length || 0} screenshots)`);
     return send(res, 201, { ok: true, id: report.id });
   }
+  if (p === '/front-door/rooms' || p.startsWith('/front-door/rooms/')) return roomRoutes(req, res, p);
   const m = p.match(/^\/sign-up\/([A-Za-z0-9_-]{1,100})(\/options)?$/);
   if (!m) return false;
   const [, token, options] = m;
@@ -626,6 +633,190 @@ async function signInRoutes(req, res, p) {
   return signedIn(res, 201, name, body.app, handoff);
 }
 
+// ---------- shared rooms ----------
+
+// Shared rooms (ADR 060): people of several accounts and their bots in one chat, kept here, the one shared piece. Only
+// a signed-in member reaches a room; every name of an account is a session's or the admin's. A bot gets a turn
+// through its own account's botdot server (lib/front-door/room-turns.js), which is the last word on it. A room's text
+// never reaches an account but in a turn of a bot it names, and comes back as a reply's plain text.
+
+const ROOM_HEADERS = (account) => ({ 'x-botdot-account': account, 'x-botdot-room': '1' });
+const ROOM_ANSWER_MAX = 256 * 1024;
+// One request to an account's botdot server, from the front door itself: { status, data }, status 0 when it could
+// not be reached in time. A suspended or deleted account is not asked.
+function askAccount(account, method, to, body, timeoutMs) {
+  if (!doors.accountExists(account) || doors.isSuspended(account)) return Promise.resolve({ status: 0, data: null });
+  return new Promise((resolve) => {
+    const text = body === null || body === undefined ? null : JSON.stringify(body);
+    const headers = { ...ROOM_HEADERS(account), ...(text ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(text) } : {}) };
+    const up = http.request({ socketPath: socketOf(account), method, path: to, headers, timeout: timeoutMs }, (answer) => {
+      const chunks = [];
+      let size = 0;
+      answer.on('data', (c) => { size += c.length; if (size > ROOM_ANSWER_MAX) { up.destroy(); resolve({ status: 0, data: null }); } else chunks.push(c); });
+      answer.on('end', () => {
+        let data = null;
+        try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* not JSON */ }
+        resolve({ status: answer.statusCode, data });
+      });
+      answer.on('error', () => resolve({ status: 0, data: null }));
+    });
+    up.on('timeout', () => up.destroy());
+    up.on('error', () => resolve({ status: 0, data: null }));
+    up.end(text || undefined);
+  });
+}
+
+// The live events of rooms, per account: GET /front-door/rooms/events.
+const roomStreams = new Map(); // account → Set of responses
+function toAccount(account, event, data) {
+  for (const res of roomStreams.get(account) || []) res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+function closeRoomStreams() {
+  for (const set of roomStreams.values()) for (const res of set) res.end();
+  roomStreams.clear();
+}
+const roomsAll = () => (rooms ? rooms.all() : []);
+const roomShown = (room) => rooms.shown(room, turns.working(room.id));
+// A room changed: each member is told.
+function roomChanged(room) {
+  const shown = roomShown(room);
+  for (const m of room.members) toAccount(m.account, 'room', { room: shown });
+}
+// A new message: each member is told, and for a person's or a bot's message (not a notice) each member's account
+// but the writer's may push a notification (best effort).
+function roomSaid(room, message) {
+  for (const m of room.members) {
+    toAccount(m.account, 'room_message', { roomId: room.id, message });
+    if (message.kind === 'text' && (m.account !== message.account || message.bot)) askAccount(m.account, 'POST', '/api/room-notice', { room: { id: room.id, name: room.name }, message }, 10_000);
+  }
+}
+const turns = roomTurns.create({ rooms: rooms || /** @type {any} */ ({}), ask: askAccount, changed: (room) => room && roomChanged(room), said: roomSaid });
+
+// An account the admin deleted leaves every room.
+function roomsWithout(account) {
+  if (!rooms) return;
+  for (const { room, gone } of rooms.dropAccount(account)) {
+    if (gone) { turns.forget(room.id); for (const i of room.invites) toAccount(i.account, 'invite_gone', { id: room.id }); } else roomChanged(room);
+  }
+  roomStreams.delete(account);
+}
+
+// A room's id in a path: /front-door/rooms/<id>[/<what>[/<more>]].
+const ROOM_PATH = /^\/front-door\/rooms\/([0-9a-f]{32})(?:\/(name|invite|accept|decline|leave|delete|bots|messages|stop)(?:\/(remove))?)?$/;
+
+async function roomRoutes(req, res, p) {
+  const account = doors.sessionAccount(sessionOf(req));
+  if (!account) { req.resume(); return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' }); }
+  if (!roomsOn()) { req.resume(); return send(res, 404, { error: 'Not found' }); }
+  if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
+  doors.seen(account);
+  if (p === '/front-door/rooms/events' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
+    res.write(': rooms\n\n');
+    if (!roomStreams.has(account)) roomStreams.set(account, new Set());
+    roomStreams.get(account).add(res);
+    const beat = setInterval(() => res.write(': still here\n\n'), 25_000);
+    res.on('close', () => { clearInterval(beat); roomStreams.get(account)?.delete(res); });
+    return;
+  }
+  if (p === '/front-door/rooms' && req.method === 'GET') {
+    const mine = rooms.roomsOf(account);
+    return send(res, 200, {
+      rooms: mine.filter((r) => rooms.isMember(r, account)).map(roomShown),
+      invites: mine.filter((r) => rooms.isInvited(r, account)).map((r) => rooms.inviteShown(r, account)),
+    });
+  }
+  if (p === '/front-door/rooms' && req.method === 'POST') {
+    const room = rooms.create(account, ((await readJson(req)) || {}).name);
+    console.log(`[front door] the account ${account} made a room (${room.id.slice(0, 8)})`);
+    roomChanged(room);
+    return send(res, 201, { room: roomShown(room) });
+  }
+  const m = p.match(ROOM_PATH);
+  if (!m) { req.resume(); return send(res, 404, { error: 'Not found' }); }
+  const [, id, what = null, more = null] = m;
+  if (what === null && req.method === 'GET') return send(res, 200, { room: roomShown(rooms.memberRoom(id, account)) });
+  if (what === 'messages' && req.method === 'GET') {
+    const q = new URL(req.url, ORIGIN.origin).searchParams;
+    const limit = q.has('limit') ? Number(q.get('limit')) : 50;
+    return send(res, 200, rooms.messages(id, account, { before: q.get('before') || null, limit }));
+  }
+  if (req.method !== 'POST' || what === null || (more && what !== 'bots')) { req.resume(); return send(res, 404, { error: 'Not found' }); }
+  const body = (await readJson(req)) || {};
+  if (what === 'name') {
+    const room = rooms.rename(id, account, body.name);
+    roomChanged(room);
+    return send(res, 200, { room: roomShown(room) });
+  }
+  if (what === 'invite') {
+    const room = rooms.invite(id, account, body.account, doors.accountExists);
+    const invited = room.invites.at(-1).account;
+    console.log(`[front door] the account ${account} invited the account ${invited} to a room (${room.id.slice(0, 8)})`);
+    roomChanged(room);
+    toAccount(invited, 'invite', rooms.inviteShown(room, invited));
+    return send(res, 200, { room: roomShown(room) });
+  }
+  if (what === 'accept') {
+    const room = rooms.accept(id, account);
+    roomChanged(room);
+    roomSaid(room, room.messages.at(-1));
+    return send(res, 200, { room: roomShown(room) });
+  }
+  if (what === 'decline') {
+    const room = rooms.decline(id, account);
+    roomChanged(room);
+    toAccount(account, 'invite_gone', { id: room.id });
+    return send(res, 200, { ok: true });
+  }
+  if (what === 'leave') {
+    const { room, gone } = rooms.leave(id, account);
+    toAccount(account, 'room_gone', { id: room.id });
+    if (gone) { turns.forget(room.id); for (const i of room.invites) toAccount(i.account, 'invite_gone', { id: room.id }); } else { roomChanged(room); roomSaid(room, room.messages.at(-1)); }
+    return send(res, 200, { ok: true });
+  }
+  if (what === 'delete') {
+    const room = rooms.remove(id, account);
+    turns.forget(room.id);
+    console.log(`[front door] the account ${account} deleted a room (${room.id.slice(0, 8)})`);
+    for (const x of room.members) toAccount(x.account, 'room_gone', { id: room.id });
+    for (const i of room.invites) toAccount(i.account, 'invite_gone', { id: room.id });
+    return send(res, 200, { ok: true });
+  }
+  if (what === 'bots' && more === 'remove') {
+    const room = rooms.removeBot(id, account, typeof body.bot === 'string' ? body.bot : '');
+    roomChanged(room);
+    roomSaid(room, room.messages.at(-1));
+    return send(res, 200, { room: roomShown(room) });
+  }
+  if (what === 'bots') {
+    rooms.memberRoom(id, account);
+    const botId = typeof body.bot === 'string' ? body.bot : '';
+    // The bot as its own account answers for it, and only one its room settings let in.
+    const answer = await askAccount(account, 'GET', '/api/room-bots', null, 15_000);
+    if (answer.status !== 200 || !Array.isArray(answer.data?.bots)) return send(res, 502, { error: "Your account's botdot server didn't say which bots may be in rooms. Try again in a moment." });
+    const bot = answer.data.bots.find((b) => b && b.id === botId);
+    if (!bot) return send(res, 404, { error: 'You have no such bot.' });
+    if (bot.rooms?.allowRooms !== true) return send(res, 403, { error: `${String(bot.name || 'This bot').slice(0, 60)} is kept out of rooms. Turn "Rooms" on in its settings first.` });
+    const room = rooms.addBot(id, account, bot);
+    roomChanged(room);
+    roomSaid(room, room.messages.at(-1));
+    return send(res, 200, { room: roomShown(room) });
+  }
+  if (what === 'messages') {
+    const { room, message, named, again } = rooms.post(id, account, body);
+    if (again) return send(res, 200, { message });
+    roomSaid(room, message);
+    turns.person(room, message, named);
+    return send(res, 201, { message });
+  }
+  if (what === 'stop') {
+    rooms.memberRoom(id, account);
+    turns.stop(id);
+    return send(res, 200, { ok: true });
+  }
+  return send(res, 404, { error: 'Not found' });
+}
+
 // ---------- the admin page ----------
 
 // /admin and everything under it: the admin's session alone (FRONT_DOOR_ADMIN), web only, never passed on (ADR 028).
@@ -659,6 +850,15 @@ async function adminRoutes(req, res, p, account) {
     if (!askForUpdate()) return send(res, 409, { error: "This machine can't be updated from here. Run its installer again." });
     console.log('[front door] the admin asked to update botdot: the front door and every account');
     return send(res, 202, updateStatus());
+  }
+  // Shared rooms (ADR 060): the admin's switch for the machine, off until turned on. Off, no room is served and no
+  // turn given; what the rooms hold is kept.
+  if (p === '/admin/rooms' && req.method === 'GET') return send(res, 200, { on: rooms.isOn() });
+  if (p === '/admin/rooms' && req.method === 'POST') {
+    const on = rooms.setOn(((await readJson(req)) || {}).on);
+    console.log(`[front door] the admin turned shared rooms ${on ? 'on' : 'off'}`);
+    if (!on) { for (const r of roomsAll()) turns.stop(r.id); closeRoomStreams(); }
+    return send(res, 200, { on });
   }
   if (p === '/admin/accounts' && req.method === 'GET') {
     switchPastDeadline();
@@ -736,6 +936,7 @@ async function accountAction(req, res, name, action) {
   if (action === 'delete') {
     if (body.name !== name) return send(res, 400, { error: `Type the account's name, ${name}, to delete it.` });
     doors.deleteAccount(name);
+    roomsWithout(name);
     console.log(`[front door] the admin deleted the account ${name}; the machine erases it`);
     askMachine(name);
     return send(res, 200, { ok: true });
@@ -748,9 +949,9 @@ async function accountAction(req, res, name, action) {
 
 // ---------- passing a request on ----------
 
-// Never passed on: the account is the front door's to name, and the Chief's key belongs to the Chief's tools inside
+// Never passed on: the account is the front door's to name, as is a room's turn (x-botdot-room, ADR 060), and the Chief's key belongs to the Chief's tools inside
 // the account, which never come through here.
-const PASSED_OFF = new Set(['x-botdot-account', 'x-chief-key', 'connection', 'keep-alive', 'proxy-connection', 'upgrade']);
+const PASSED_OFF = new Set(['x-botdot-account', 'x-botdot-room', 'x-chief-key', 'connection', 'keep-alive', 'proxy-connection', 'upgrade']);
 function headersFor(req, account) {
   const out = {};
   for (const [k, v] of Object.entries(req.headers)) if (!PASSED_OFF.has(k)) out[k] = v;
