@@ -485,6 +485,21 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .md code { background: var(--sunk); padding: 1px 5px; border-radius: 5px; }
 .md pre { background: var(--sunk); padding: 10px 12px; border-radius: 10px; overflow: auto; }
 .md pre code { background: none; padding: 0; }
+/* A code block's Copy button (#285): in its top-right corner, in a column of its own that the code scrolls beside and
+   a diagram is drawn beside; always there on a touch screen; with a mouse it shows on hover, and on a keyboard's
+   focus. None in a reply that is still being written (its code may be cut short) or on a tile (a tap runs the tile). */
+.md .code-block { position: relative; margin: .5em 0; padding-right: 34px; border-radius: 10px; }
+.md .code-block:has(> pre) { background: var(--sunk); }
+.md .code-block > pre { margin: 0; }
+.md .code-copy { position: absolute; top: 6px; right: 4px; display: inline-flex; padding: 5px; border: 0; border-radius: 7px; background: none; color: var(--muted); cursor: pointer; }
+.md .code-copy:hover { color: var(--text); background: var(--line); }
+.md .code-copy svg { width: 15px; height: 15px; }
+.md .code-block .diagram { margin: 0; }
+.bubble.draft .code-copy, .tile-note .code-copy { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .md .code-copy { opacity: 0; }
+  .md .code-block:hover .code-copy, .md .code-copy:focus-visible { opacity: 1; }
+}
 /* A diagram (diagrams.js): the drawing as wide as the bubble allows, "Show code" under it; the note of one that
    could not be drawn under its code. */
 .md .diagram { margin: .6em 0; }

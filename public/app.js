@@ -316,11 +316,13 @@ async function copyText(text) {
   t.remove();
   return ok;
 }
+// A Copy button: its data-copy, or a code block's text (#285), also while its diagram is drawn in its place.
 document.addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-copy]');
+  const b = e.target.closest('[data-copy], .code-copy');
   if (!b) return;
   e.stopPropagation();
-  if (!(await copyText(b.dataset.copy))) return toast("Couldn't copy", true);
+  const text = b.dataset.copy ?? b.closest('.code-block')?.querySelector('pre')?.textContent ?? '';
+  if (!(await copyText(text))) return toast("Couldn't copy", true);
   b.innerHTML = ICON.copied;
   setTimeout(() => (b.innerHTML = ICON.copy), 1500);
 }, true);
@@ -497,6 +499,11 @@ function mdBlocks(src) {
   return out;
 }
 
+// The Copy button in a code block's corner (#285). The page's copy handler (copyText) copies the text of the block's
+// <pre>, which is the text as written (the HTML holds it escaped), and shows a check for 1.5 s.
+const COPY_ICON = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>';
+const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="Copy code" aria-label="Copy code">${COPY_ICON}</button>`;
+
 function mdHTML(blocks) {
   const inline = (t) =>
     t
@@ -528,8 +535,9 @@ function mdHTML(blocks) {
     else if (b.type === 'heading') out.push(`<h${b.level}>${inline(b.text)}</h${b.level}>`);
     else if (b.type === 'quote') out.push(`<blockquote>${text(b.text)}</blockquote>`);
     else if (b.type === 'rule') out.push('<hr>');
-    // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be.
-    else if (b.type === 'code') out.push(`<pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>`);
+    // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be. Its drawing
+    // takes the place of the <pre> inside the box, so Copy stays in the corner and copies the source.
+    else if (b.type === 'code') out.push(`<div class="code-block"><pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>${CODE_COPY_BTN}</div>`);
     else if (b.type === 'table') out.push('<table>' + b.rows.map((r, ri) => `<tr>${r.map((c) => (ri === 0 ? `<th>${inline(c)}</th>` : `<td>${inline(c)}</td>`)).join('')}</tr>`).join('') + '</table>');
     else out.push(`<p>${text(b.text)}</p>`);
   }
@@ -874,7 +882,7 @@ function showList() { $('#app').classList.remove('in-main'); syncRead(); }
 
 const ICON = {
   back: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',
-  copy: '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>',
+  copy: COPY_ICON,
   copied: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
   send: '<svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg>',
   clip: '<svg viewBox="0 0 24 24"><path d="M20.5 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.6-8.6a3.4 3.4 0 0 1 4.8 4.8l-8.6 8.6a1.8 1.8 0 0 1-2.5-2.5l7.9-7.9"/></svg>',

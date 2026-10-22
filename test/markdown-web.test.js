@@ -14,6 +14,8 @@ const page = vm.createContext({ esc });
 vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
   this.md = md; this.mdBlocks = mdBlocks;`, page);
 const { md, mdBlocks } = page;
+// A reply's HTML without the Copy buttons of its code blocks and their boxes (#285, test/code-copy-web.test.js).
+const noCopy = (html) => html.replace(/<div class="code-block">(<pre[\s\S]*?<\/pre>)<button [^>]*code-copy[\s\S]*?<\/button><\/div>/g, '$1');
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const source = (name) => cases.find((c) => c.name.startsWith(name)).source;
 
@@ -94,14 +96,14 @@ test('web: nothing a bot writes is markup, in any block (Rule 6)', () => {
   assert.equal(html.match(/&lt;script&gt;/g).length, 13, 'every one of them is there, as text');
   // The only tags are the page's own.
   const tags = new Set([...html.matchAll(/<\/?([a-z0-9]+)[^>]*>/g)].map((m) => m[1]));
-  assert.deepEqual([...tags].sort(), ['a', 'blockquote', 'br', 'code', 'h1', 'h3', 'hr', 'li', 'ol', 'p', 'pre', 'table', 'td', 'th', 'tr', 'ul'].sort());
+  assert.deepEqual([...tags].sort(), ['a', 'blockquote', 'br', 'button', 'code', 'div', 'h1', 'h3', 'hr', 'li', 'ol', 'p', 'path', 'pre', 'rect', 'svg', 'table', 'td', 'th', 'tr', 'ul'].sort());
   assert.match(md('7. x'), /^<ol start="7">/);
   assert.doesNotMatch(md('99999999999999999999. x'), /start=/, 'a number too long to be one is text');
 });
 
 test('web: tables, code blocks, links, bold, italic and inline code are drawn as before', () => {
   assert.equal(md('| A | B |\n|---|:-:|\n| 1 | **2** |'), '<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td><strong>2</strong></td></tr></table>');
-  assert.equal(md('```js\nconst a = 1 < 2;\n```'), '<pre><code>const a = 1 &lt; 2;</code></pre>');
+  assert.equal(noCopy(md('```js\nconst a = 1 < 2;\n```')), '<pre><code>const a = 1 &lt; 2;</code></pre>');
   assert.equal(md('See [the page](https://example.com/a?b=1), **bold**, *italic* and `code`.'),
     '<p>See <a href="https://example.com/a?b=1" target="_blank" rel="noopener">the page</a>, <strong>bold</strong>, <em>italic</em> and <code>code</code>.</p>');
   assert.equal(md(''), '');
@@ -113,7 +115,7 @@ test('web: ~~text~~ is struck through wherever the other marks work, never in co
   assert.equal(md('# ~~a~~\n\n- ~~b~~\n\n> ~~c~~\n\n| ~~d~~ |\n|---|\n| **~~e~~** |'),
     '<h1><del>a</del></h1>\n<ul><li><del>b</del></li></ul>\n<blockquote><del>c</del></blockquote>\n<table><tr><th><del>d</del></th></tr><tr><td><strong><del>e</del></strong></td></tr></table>');
   assert.equal(md('`~~code~~` and ~~not~~'), '<p><code>~~code~~</code> and <del>not</del></p>');
-  assert.equal(md('```\n~~kept~~\n```'), '<pre><code>~~kept~~</code></pre>');
+  assert.equal(noCopy(md('```\n~~kept~~\n```')), '<pre><code>~~kept~~</code></pre>');
   assert.equal(md('~~open, ~one~ and ~~ spaced ~~'), '<p>~~open, ~one~ and ~~ spaced ~~</p>', 'unclosed, single or spaced tildes are text');
 });
 
@@ -159,7 +161,7 @@ test('web: a quote has a line on its left and muted text; a rule is one thin lin
 });
 
 test('web: a mermaid block is its escaped code, marked for the page to draw (#177); other code blocks are not marked', () => {
-  assert.equal(md('```mermaid\nflowchart LR\n  A["<b>x</b>"] --> B\n```'),
+  assert.equal(noCopy(md('```mermaid\nflowchart LR\n  A["<b>x</b>"] --> B\n```')),
     '<pre class="mermaid-src"><code>flowchart LR\n  A[&quot;&lt;b&gt;x&lt;/b&gt;&quot;] --&gt; B</code></pre>');
-  assert.equal(md('```\nplain\n```\n\n```Mermaid\nx\n```'), '<pre><code>plain</code></pre>\n<pre><code>x</code></pre>', 'only the word mermaid, as written');
+  assert.equal(noCopy(md('```\nplain\n```\n\n```Mermaid\nx\n```')), '<pre><code>plain</code></pre>\n<pre><code>x</code></pre>', 'only the word mermaid, as written');
 });

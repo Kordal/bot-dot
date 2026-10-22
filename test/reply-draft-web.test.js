@@ -31,10 +31,12 @@ test('web: every stream case of the shared fixture is drawn as its blocks', () =
 test('web: a draft cut mid-table, inside a fence or at an unclosed ** or [ never draws broken', () => {
   const table = md(draftSource('| Host | Free |\n|---|---|\n| pve | 41% |\n| nas | 1'));
   assert.equal(table, '<table><tr><th>Host</th><th>Free</th></tr><tr><td>pve</td><td>41%</td></tr></table>', 'no half row');
-  const code = md(draftSource('```sh\n# rm -rf\n- x'));
+  // Without the Copy buttons of the code blocks and their boxes (#285, test/code-copy-web.test.js).
+  const noCopy = (html) => html.replace(/<div class="code-block">(<pre[\s\S]*?<\/pre>)<button [^>]*code-copy[\s\S]*?<\/button><\/div>/g, '$1');
+  const code = noCopy(md(draftSource('```sh\n# rm -rf\n- x')));
   assert.equal(code, '<pre><code># rm -rf\n- x</code></pre>', 'code stays code');
-  assert.equal(md(draftSource('```mermaid\ngraph TD\nA-->B')), '<pre><code>graph TD\nA--&gt;B</code></pre>', 'a diagram is code until the reply is whole');
-  assert.equal(md(draftSource('```mermaid\ngraph TD\nA-->B\n```\nMore')), '<pre><code>graph TD\nA--&gt;B</code></pre>\n<p>More</p>', 'closed too: no diagram is drawn in a draft');
+  assert.equal(noCopy(md(draftSource('```mermaid\ngraph TD\nA-->B'))), '<pre><code>graph TD\nA--&gt;B</code></pre>', 'a diagram is code until the reply is whole');
+  assert.equal(noCopy(md(draftSource('```mermaid\ngraph TD\nA-->B\n```\nMore'))), '<pre><code>graph TD\nA--&gt;B</code></pre>\n<p>More</p>', 'closed too: no diagram is drawn in a draft');
   assert.equal(md(draftSource('It is **very')), '<p>It is **very</p>');
   assert.equal(md(draftSource('See [the page')), '<p>See [the page</p>');
   // A whole reply is drawn as it is without drafts.

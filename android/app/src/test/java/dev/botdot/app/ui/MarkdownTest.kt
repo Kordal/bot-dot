@@ -130,6 +130,19 @@ class MarkdownTest {
         assertEquals(listOf(Block.Code("val x = 1\n  # not a heading", "kotlin")), parseBlocks("```kotlin\nval x = 1\n  # not a heading\n```"))
     }
 
+    // Copy on a code block (#285): each fenced block copies its text as written, a diagram's block its source;
+    // an inline code and every other block have no Copy (test/code-copy-web.test.js on the web page).
+    @Test fun aCodeBlockCopiesItsTextAsWrittenAndNothingElseHasCopy() {
+        val raw = "echo \"<a href='x'>\" && cat a.txt > b.txt\nif [ \$a -lt 2 ]; then echo &amp; fi"
+        val blocks = parseBlocks("Run this:\n\n```sh\n$raw\n```\n\nThen wait, or run `npm test`.")
+        assertEquals(listOf(null, raw, null), blocks.map { copyTextOf(it) })
+        assertEquals("flowchart LR\n  A[\"<b>x</b>\"] --> B", copyTextOf(parseBlocks("```mermaid\nflowchart LR\n  A[\"<b>x</b>\"] --> B\n```").single()))
+        assertEquals(listOf("one", "two"), parseBlocks("```\none\n```\n```\ntwo\n```").map { copyTextOf(it) })
+        for (b in listOf(Block.Para("`code`"), Block.Heading(1, "`h`"), Block.Item("`i`", null, 0), Block.Quote("`q`"), Block.Rule, Block.Table(listOf(listOf("`t`"))))) {
+            assertEquals(null, copyTextOf(b))
+        }
+    }
+
     @Test fun tablesLeaveOutTheSeparatorRow() {
         assertEquals(listOf(Block.Table(listOf(listOf("A", "B"), listOf("1", "2")))), parseBlocks("| A | B |\n|---|:-:|\n| 1 | 2 |"))
     }

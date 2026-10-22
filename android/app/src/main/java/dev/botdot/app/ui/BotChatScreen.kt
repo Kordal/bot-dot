@@ -285,7 +285,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
     when (r.status) {
         // No bubble while it works: the status line says it; only what it attached so far. From a server with drafts,
         // the reply as it is written so far stands in the reply's place and grows there (ReplyDraft).
-        "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble { Column { MarkdownText(draftSource(draft)); BotFilesRow(r.files) } }
+        "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble { Column { MarkdownText(draftSource(draft), copy = false); BotFilesRow(r.files) } }
         "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
             Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); BotFilesRow(r.files) }
         }

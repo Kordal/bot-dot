@@ -618,11 +618,15 @@ fun Modifier.holdToCopy(text: String?): Modifier {
     return this.pointerInput(text) {
         detectTapGestures(onLongPress = {
             haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-            context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("botdot", text))
-            // Android 13+ shows its own "Copied" note.
-            if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show()
+            copyToClipboard(context, text)
         })
     }
+}
+
+/** [text] to the system clipboard, with a "Copied" note where Android shows none of its own (before 13). */
+fun copyToClipboard(context: android.content.Context, text: String) {
+    context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("botdot", text))
+    if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show()
 }
 
 /** The Chief's reply while it is written, against a botdot from before `message-waits`: there the working line says it ([StatusLine]). */
