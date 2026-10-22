@@ -949,8 +949,8 @@ async function accountAction(req, res, name, action) {
 
 // ---------- passing a request on ----------
 
-// Never passed on: the account is the front door's to name, as is a room's turn (x-botdot-room, ADR 060), and the Chief's key belongs to the Chief's tools inside
-// the account, which never come through here.
+// Never passed on: the account is the front door's to name, a room turn is the front door's alone to ask for (ADR 060),
+// and the Chief's key belongs to the Chief's tools inside the account, which never come through here.
 const PASSED_OFF = new Set(['x-botdot-account', 'x-botdot-room', 'x-chief-key', 'connection', 'keep-alive', 'proxy-connection', 'upgrade']);
 function headersFor(req, account) {
   const out = {};
