@@ -306,7 +306,7 @@ function wireChoices(root, send) {
   });
 }
 // What the document page draws with.
-const docPageTools = () => ({ api, md, esc, toast, msgTime, mdBlocks, chiefName, botName: (id) => botById(id)?.name });
+const docPageTools = () => ({ api, md, esc, toast, msgTime, mdBlocks, chiefName, features: state.features, botName: (id) => botById(id)?.name });
 const copyBtn = (text) => `<button class="copy-btn" data-copy="${esc(text)}" title="Copy" aria-label="Copy">${ICON.copy}</button>`;
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch { /* not a secure page: the old way */ }

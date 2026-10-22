@@ -1499,3 +1499,8 @@ body.doc-mode > .app { display: none; }
   body.doc-mode .doc-md code, body.doc-mode .doc-md pre, body.doc-mode .doc-md .code-block { background: #f4f4f4; }
   body.doc-mode .doc-md button { display: none; }
 }
+/* Save to Google Docs (#351): the item's mark, and the line that links to the new document. */
+.doc-gd { width: 16px; height: 16px; border-radius: 3px; background: #4285f4; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; flex: none; }
+.doc-saved { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 7; display: flex; gap: 10px; align-items: center; padding: 9px 16px; border-radius: 99px; background: var(--ink); color: var(--ink-text); font-size: 13.5px; }
+.doc-saved[hidden] { display: none; }
+.doc-saved a { color: inherit; font-weight: 600; text-decoration: none; }

@@ -245,6 +245,10 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
     val tell = { t: String -> android.widget.Toast.makeText(context, t, android.widget.Toast.LENGTH_LONG).show() }
+    val server by app.store.version.value.collectAsState()
+    // Whether Google Docs is connected, asked as the sheet opens; null until it answers.
+    var googleDocs by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(api) { if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) googleDocs = runCatching { api?.googleDocsConnected() }.getOrNull() }
     fun make(what: String, act: suspend (java.io.File) -> Unit, format: String) {
         onDone()
         val a = api ?: return tell("Not connected to botdot")
@@ -260,6 +264,24 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
                 SheetRow(label, ext) { make("save it", { f -> BotFiles.saveToDownloads(context, f); tell("Saved ${f.name} to Downloads") }, format) }
             }
             Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
+            if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) {
+                Text("SAVE TO", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                SheetRow("Google Docs", when (googleDocs) { true -> "connected"; false -> "Connect on the web"; null -> "" }) {
+                    onDone()
+                    val a = api ?: return@SheetRow tell("Not connected to botdot")
+                    if (googleDocs == false) return@SheetRow tell("Connect Google Docs on the Connectors page first.")
+                    tell("Saving to Google Docs…")
+                    scope.launch {
+                        runCatching { a.saveToGoogleDocs(title, text) }
+                            .onSuccess { url ->
+                                tell("Saved to Google Docs")
+                                runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                            }
+                            .onError { tell(it.message ?: "Couldn't save it to Google Docs") }
+                    }
+                }
+                Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
+            }
             SheetRow("Share…", "PDF") { make("share it", { f -> BotFiles.shareFile(context, f) }, "pdf") }
         }
     }
