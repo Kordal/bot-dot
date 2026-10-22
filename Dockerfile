@@ -48,8 +48,8 @@ COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 # …and Compose, so botdot can update itself (Settings → Updates).
 COPY --from=dockercli /usr/local/libexec/docker/cli-plugins/docker-compose /usr/local/libexec/docker/cli-plugins/docker-compose
 
-# Claude Code 2.1.303 (the bots' engine), Bitwarden CLI 2026.9.0 (the vault).
-RUN npm install -g @anthropic-ai/claude-code@2.1.303 @bitwarden/cli@2026.9.0 \
+# Claude Code 2.1.308 (the bots' engine), Bitwarden CLI 2026.9.0 (the vault).
+RUN npm install -g @anthropic-ai/claude-code@2.1.308 @bitwarden/cli@2026.9.0 \
  && npm cache clean --force \
  && claude --version && bw --version
 
