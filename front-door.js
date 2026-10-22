@@ -691,7 +691,9 @@ function roomSaid(room, message) {
     if (message.kind === 'text' && (m.account !== message.account || message.bot)) askAccount(m.account, 'POST', '/api/room-notice', { room: { id: room.id, name: room.name }, message }, 10_000);
   }
 }
-const turns = roomTurns.create({ rooms: rooms || /** @type {any} */ ({}), ask: askAccount, changed: (room) => room && roomChanged(room), said: roomSaid });
+const turns = roomTurns.create({ rooms: rooms || /** @type {any} */ ({}), ask: askAccount, changed: (room) => room && roomChanged(room), said: roomSaid, isOn: roomsOn });
+// What the accounts send to rooms after their owner's OK (ADR 062): collected every few seconds while rooms are on.
+if (rooms) turns.startCollecting(Number(process.env.BOT_DOT_ROOM_COLLECT_MS) || undefined);
 
 // An account the admin deleted leaves every room.
 function roomsWithout(account) {

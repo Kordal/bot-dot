@@ -29,6 +29,6 @@ test("web: the card stands in the Chief's chat too", () => {
 
 test('web: the page asks for these cards wherever it reads the asks', () => {
   const { app } = require('./web-page');
-  assert.match(app, /api\('\/asks\?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1'\)/);
+  assert.match(app, /api\('\/asks\?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1'\)/);
   assert.doesNotMatch(app, /api\('\/asks(\?vault-switch=1)?'\)/, 'every list of asks the page reads has them');
 });

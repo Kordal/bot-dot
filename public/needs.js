@@ -178,6 +178,15 @@ function needCardHTML(x, here = null) {
     return card(esc(x.a.title), esc(heldLine(x.a) || x.a.reason || ''), body,
       `<button class="btn sm" data-need-no>Decline</button>${cut ? '' : `<button class="btn sm" data-need-always>Always allow this action</button>${long ? '' : '<button class="btn sm primary" data-need-yes>Allow once</button>'}`}`, rows ? 'need-rows' : '');
   }
+  // A shared room's cards (docs/api.md, "Shared rooms: the owner's mention"): a tool a run from a room wants to use,
+  // and what would go to a room. The server's title, why it waits (`meta`), the rows and the yes word. Rows cut short
+  // (the feed's entry), or more than the card can show (`tooLong`), offer no yes: a yes approves only what is seen.
+  if (x.kind === 'ask' && (x.a.kind === 'room-tool' || x.a.kind === 'room-post')) {
+    const rows = ToolCard.rows(x.a.rows);
+    const shut = rowsCut(x.a) || tooLong(x.a);
+    return card(esc(said(x.a.title)), esc(said(x.a.meta)), `${rows}${shut && !rowsCut(x.a) ? '<div class="need-meta">Too long to show in full.</div>' : ''}`,
+      `<button class="btn sm" data-need-no>Decline</button>${shut ? '' : `<button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || 'Allow')}</button>`}`, rows ? 'need-rows' : '');
+  }
   // What the Chief asked to do after it read the web in a chat (docs/api.md, "The Chief reads the web"): the server's
   // title, why it waits (`meta`), and what it sent as `rows`, drawn as an action in a connected app's are. Rows cut
   // short (the feed's entry) or a request too long to show in full offer no yes: the yes does exactly what was sent.
@@ -628,6 +637,6 @@ function answeredWord(x, yes, always, answer) {
 
 async function refreshNeeds() {
   state.memPending = await api(MEMORY_WAITS).catch(() => state.memPending);
-  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1').catch(() => state.asks);
+  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1').catch(() => state.asks);
   await refresh();
 }
