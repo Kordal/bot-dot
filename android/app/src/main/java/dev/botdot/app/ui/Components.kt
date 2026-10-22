@@ -716,7 +716,7 @@ class PendingFiles(private val scope: CoroutineScope, private val context: Conte
 @Composable
 fun Composer(
     placeholder: String,
-    files: PendingFiles,
+    files: PendingFiles?, // null: a chat that takes no files (a shared room), and no "Attach files"
     busy: Boolean,
     outbox: Outbox,
     onSend: (String, List<Attachment>) -> Unit,
@@ -733,7 +733,7 @@ fun Composer(
     val rows = remember(text, mentions) {
         if (mentions == null || !text.selection.collapsed) emptyList() else Mentions.suggest(text.text.substring(0, text.selection.start), mentions)
     }
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> files.add(uris) }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> files?.add(uris) }
     // A message that could not be sent comes back: its text in front of what was typed since, its files in front of
     // those attached since. Also one whose chat was left while it was sent.
     val back = outbox.back
@@ -742,7 +742,7 @@ fun Composer(
         val now = withFailed(failed.text, text.text)
         text = TextFieldValue(now, TextRange(now.length))
         picked = -1
-        files.put(failed.attachments)
+        files?.put(failed.attachments)
     }
     // Text quoted from a message of this chat (QuoteUi.kt): after what is typed, the cursor after it, ready to write.
     val quotes = LocalQuote.current
@@ -758,7 +758,7 @@ fun Composer(
     // It floats over the messages, which fade out behind it.
     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(p.bg.copy(alpha = 0f), p.bg.copy(alpha = 0.85f), p.bg)))
         .navigationBarsPadding().imePadding().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
-        if (files.items.isNotEmpty()) {
+        if (files != null && files.items.isNotEmpty()) {
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 files.items.forEach { f ->
                     FileChip(f.name, note = when (f.status) { "uploading" -> "uploading…"; "failed" -> "failed"; else -> null }, onRemove = { files.remove(f.key) })
@@ -779,7 +779,7 @@ fun Composer(
                 modifier = Modifier.padding(start = 6.dp, bottom = 8.dp).semantics { liveRegion = LiveRegionMode.Polite })
         }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RoundButton(Icons.Filled.Add, "Attach files", size = 48.dp) { pick.launch("*/*") }
+            if (files != null) RoundButton(Icons.Filled.Add, "Attach files", size = 48.dp) { pick.launch("*/*") }
             Row(
                 Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(p.sunk).border(1.dp, p.line2, RoundedCornerShape(24.dp)).padding(start = 16.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.Bottom,
@@ -802,16 +802,16 @@ fun Composer(
                     },
                 )
                 // One message at a time: while one is on its way, Send waits for it.
-                val canSend = !outbox.sending && (text.text.isNotBlank() || files.items.any { it.status == "ready" })
+                val canSend = !outbox.sending && (text.text.isNotBlank() || files?.items?.any { it.status == "ready" } == true)
                 Box(
                     Modifier.padding(2.dp).size(36.dp).clip(CircleShape).background(if (busy) p.err else if (canSend) p.ink else p.line).clickable(role = Role.Button) {
                         if (busy) return@clickable onStop()
-                        if (files.uploading) return@clickable onError("Wait a moment: the files are still uploading.")
+                        if (files?.uploading == true) return@clickable onError("Wait a moment: the files are still uploading.")
                         if (!canSend) return@clickable
                         // The box empties at once, for the next message; a message that did not go comes back (above).
                         val t = text.text.trim()
                         text = TextFieldValue() // no edit: sent as it failed, the message keeps its key (the send takes the line away)
-                        onSend(t, files.take())
+                        onSend(t, files?.take().orEmpty())
                     },
                     contentAlignment = Alignment.Center,
                 ) {

@@ -1246,6 +1246,18 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
                 OutlinedButton(onClick = { decide(a.title, false, null) }) { Text("Decline", color = LocalPaper.current.text) }
             }
         }
+    } else if (a.isRoomCard) {
+        // A shared room's card: a tool a run from a room wants to use, or what would go to a room (ADR 067). The
+        // server's title, line, rows and yes word. Each yes is for that one thing; a card that cannot show all of it
+        // offers Decline alone.
+        Card(who, a.title, a.roomLine, expandable = true) {
+            if (a.rows.isNotEmpty()) Facts(a.rows, whole = LocalCardOpen.current)
+            if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
+            if (a.roomYes) Buttons(a.yes ?: "Allow", { decide(a.title, true, "Allowed") }, "Decline", { decide(a.title, false, null) })
+            else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text("Decline", color = LocalPaper.current.text) }
+            }
+        }
     } else if (a.kind == "bot-change") {
         val parts = a.parts
         Card(who, a.title, a.reason, expandable = true) {

@@ -28,7 +28,7 @@
            then every page one under the other, its bots and groups as keys (#508). The stylesheet shows one or the
            other. -->
       <div class="keypad" id="keypad">
-        <div class="kp-head"><div class="kp-board" id="kp-board"></div><button type="button" class="kp-needs hidden" id="kp-needs"></button></div>
+        <div class="kp-head"><div class="kp-board" id="kp-board"></div><button type="button" class="kp-needs kp-rooms hidden" id="kp-rooms"></button><button type="button" class="kp-needs hidden" id="kp-needs"></button></div>
         <div class="kp-keys" id="kp-keys"></div>
         <div class="kp-hint">1–9 open · Esc Chief · Ctrl+K search</div>
       </div>
@@ -36,7 +36,7 @@
       <!-- A phone's home in place of the list (list.js, drawKeypadSections; #498): the Board's values, every page as a
            section of keys and the Chief's message box. The stylesheet shows it below the list's phone width. -->
       <div class="kp-phone" id="kp-phone">
-        <div class="kp-head"><div class="kp-board" id="kp-phone-board"></div></div>
+        <div class="kp-head"><div class="kp-board" id="kp-phone-board"></div><button type="button" class="kp-needs kp-rooms hidden" id="kp-phone-rooms"></button></div>
         <div class="kp-sections" id="kp-sections"></div>
         <button type="button" class="kp-chief" id="kp-chief"></button>
       </div>
@@ -77,6 +77,8 @@
         <aside id="doc-viewer" class="doc-viewer hidden" aria-label="File"></aside>
       </div>
       <section id="view-runs" class="view page hidden"></section>
+      <!-- Shared rooms with other accounts on this machine: the list, or one room's chat (rooms.js, ADR 060). -->
+      <section id="view-rooms" class="view hidden"></section>
       <section id="view-vault" class="view page hidden"></section>
       <section id="view-connectors" class="view page hidden"></section>
       <section id="view-skills" class="view page hidden"></section>
@@ -131,6 +133,7 @@
   <script src="/workspace.js"></script>
   <script src="/usage.js"></script>
   <script src="/groups.js"></script>
+  <script src="/rooms.js"></script>
   <script src="/claude-card.js"></script>
   <script src="/quiet-runs.js"></script>
   <script src="/skills-search.js"></script>

@@ -315,6 +315,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         }
         if (needs > 0) NeedsRow()
         DashboardStrip(dash, bots.orEmpty(), onClick = onDashboard)
+        RoomsRow(app) { onOpen("rooms") }
     }
     // The keypad, and a phone's sections: the list's own order cut into pages, each bot and group a key that says what its row says.
     val pages = remember(bots, groupsNow, keypad, sections, shared) { if (keypad || sections) Keypad.pages(bots.orEmpty(), groups, shared) else emptyList() }
@@ -429,6 +430,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                     return@LazyColumn
                 }
                 item(key = "dashboard") { DashboardStrip(dash, list, onClick = onDashboard) }
+                if (!figures) item(key = "rooms") { RoomsRow(app) { onOpen("rooms") } }
                 // One block for all of them, so a row you drag above the big figures or across a heading keeps being dragged.
                 items(layout, key = { it }) { row ->
                     val bot = byId[row]

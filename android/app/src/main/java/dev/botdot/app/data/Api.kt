@@ -145,6 +145,54 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** "Update now": the machine switches this account alone to the version the admin installed. */
     suspend fun updateNow(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update/now")).jsonObject)
 
+    // ---------- shared rooms (ADR 060, #318): the front door's own routes ----------
+
+    private suspend fun doorGet(path: String) =
+        call(Request.Builder().url(baseUrl.trimEnd('/') + path).header("Accept", "application/json").get().build())
+    private fun roomOf(answer: String): Room = json.decodeFromString<RoomAnswer>(answer).room ?: throw ApiException("The front door sent no room.")
+    private fun roomPath(id: String) = "/front-door/rooms/${enc(id)}"
+
+    /** The rooms this account is in, and the invitations waiting for it. Asked only where [Rooms.on] says so. */
+    suspend fun rooms(): RoomsAnswer = json.decodeFromString(doorGet("/front-door/rooms"))
+    suspend fun room(id: String): Room = roomOf(doorGet(roomPath(id)))
+    /** A new room, made by this account. A refusal throws the front door's sentence. */
+    suspend fun makeRoom(name: String): Room = roomOf(door("/front-door/rooms", buildJsonObject { put("name", name) }))
+    suspend fun renameRoom(id: String, name: String): Room = roomOf(door("${roomPath(id)}/name", buildJsonObject { put("name", name) }))
+    /** Invites another account on this machine by its name. */
+    suspend fun inviteToRoom(id: String, account: String): Room = roomOf(door("${roomPath(id)}/invite", buildJsonObject { put("account", account) }))
+    suspend fun acceptRoom(id: String): Room = roomOf(door("${roomPath(id)}/accept"))
+    /** The room's invite link (ADR 068), for its maker only (others: 403); null for none. */
+    suspend fun roomLink(id: String): RoomLink? = json.decodeFromString<RoomLinkAnswer>(doorGet("${roomPath(id)}/link")).link
+    /** A new invite link for the room; the one before stops working. */
+    suspend fun makeRoomLink(id: String): RoomLink = json.decodeFromString<RoomLinkAnswer>(door("${roomPath(id)}/link")).link ?: throw ApiException("The front door sent no link.")
+    /** Takes the room's invite link back: it no longer works. */
+    suspend fun dropRoomLink(id: String) { door("${roomPath(id)}/link/remove") }
+    /** What an invite link's [token] opens: the room's name and maker, and whether this account is in it already. */
+    suspend fun roomByLink(token: String): RoomLinkPreview = json.decodeFromString(doorGet("/front-door/rooms/join/${enc(token)}"))
+    /** Joins the room an invite link's [token] opens. */
+    suspend fun joinRoomByLink(token: String): Room = roomOf(door("/front-door/rooms/join/${enc(token)}"))
+    suspend fun declineRoom(id: String) { door("${roomPath(id)}/decline") }
+    /** Leaves the room; this account's bots leave with it. */
+    suspend fun leaveRoom(id: String) { door("${roomPath(id)}/leave") }
+    /** Deletes the room: only its maker may. */
+    suspend fun deleteRoom(id: String) { door("${roomPath(id)}/delete") }
+    /** Puts one of this account's own bots in the room (its id here). */
+    suspend fun addRoomBot(id: String, bot: String): Room = roomOf(door("${roomPath(id)}/bots", buildJsonObject { put("bot", bot) }))
+    suspend fun removeRoomBot(id: String, bot: String): Room = roomOf(door("${roomPath(id)}/bots/remove", buildJsonObject { put("bot", bot) }))
+    /** The newest [limit] messages, or the page before [before]; oldest first. */
+    suspend fun roomMessages(id: String, limit: Int = 50, before: String? = null): RoomPage =
+        json.decodeFromString(doorGet("${roomPath(id)}/messages?limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
+    /** Writes in the room. [key]: as [runBot]'s, a resend with the same key is the same message. */
+    suspend fun sendToRoom(id: String, text: String, key: String? = null): RoomMessage =
+        json.decodeFromString<RoomMessageAnswer>(door("${roomPath(id)}/messages", Rooms.messageBody(text, key))).message ?: throw ApiException("The front door sent no message.")
+    /** Drops the turns of this room that wait. */
+    suspend fun stopRoom(id: String) { door("${roomPath(id)}/stop") }
+    /** The rooms' live events (`room`, `room_gone`, `invite`, `invite_gone`, `room_message`), as feed events. */
+    fun roomEvents(): Flow<FeedEvent> = sse(Request.Builder().url(baseUrl.trimEnd('/') + "/front-door/rooms/events")) { meta, data ->
+        val o = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull() ?: JsonObject(emptyMap())
+        meta.type?.let { FeedEvent(meta.id, it, o) }
+    }
+
     // ---------- version, bots, runs ----------
 
     /** What's new (#219): the notes this account has not seen, newest first, at most 3. Asked only when `features` has `whats-new`. */
@@ -174,7 +222,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
      * asks to remove (`vault-remove=1`), secrets a bot asks to keep in a file (`vault-file=1`) and what the Chief asked to do after it read the web (`chief-action=1`) too:
      * this app draws those cards.
      */
-    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1"))
+    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1"))
     /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
     suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false): Answered =
         Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); put("always", always) }))
@@ -657,8 +705,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     private data class SseMeta(val id: String?, val type: String?)
 
-    private fun <T : Any> sse(path: String, onOpen: () -> Unit = {}, parse: (SseMeta, String) -> T?): Flow<T> = callbackFlow {
-        val req = request(path).header("Accept", "text/event-stream").build()
+    private fun <T : Any> sse(path: String, onOpen: () -> Unit = {}, parse: (SseMeta, String) -> T?): Flow<T> = sse(request(path), onOpen, parse)
+
+    private fun <T : Any> sse(to: Request.Builder, onOpen: () -> Unit = {}, parse: (SseMeta, String) -> T?): Flow<T> = callbackFlow {
+        val req = to.header("Accept", "text/event-stream").build()
         val source = EventSources.createFactory(streamClient).newEventSource(req, object : EventSourceListener() {
             override fun onOpen(eventSource: EventSource, response: Response) = onOpen()
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {

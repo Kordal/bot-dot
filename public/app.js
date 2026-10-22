@@ -10,6 +10,7 @@ const state = {
   botId: null,
   groups: [], // the groups, each with what its chat holds now (GET /api/group-chats, groups.js); none against a server without them
   groupId: null, // the group whose chat is open (view 'group')
+  roomId: null, // the shared room whose chat is open (view 'rooms', rooms.js); none: the list of rooms
   inbox: {}, // bot id → notes waiting for its next run
   botStreams: [], // the streams of the bot's runs that are going (bot-chat.js followBotRuns)
   chatNew: false,
@@ -78,7 +79,7 @@ async function api(path, opts = {}) {
   }
   const data = await res.json().catch(() => ({}));
   // The front door's session ended (signed out, or elsewhere): its sign-in page, the only way back in (ADR 028).
-  if (res.status === 401 && data.signIn === '/sign-in') { location.assign('/sign-in'); throw unreached(); }
+  if (res.status === 401 && data.signIn === '/sign-in') { location.assign(`/sign-in${typeof joinHash === 'function' ? joinHash() : ''}`); throw unreached(); }
   const said = !res.ok && typeof data.error === 'string' && data.error.trim();
   const notThere = !res.ok && !said && [502, 503].includes(res.status); // a gateway: botdot was not reached
   const gaveUp = !res.ok && !said && res.status === 504; // a gateway: botdot did not answer in time
@@ -161,6 +162,7 @@ const botLabel = (b) => (b ? `${botMark(b)}${esc(b.name)}` : '');
 // a mention names a member and gives it the turn: only its members, and their jobs, are matched and suggested, and
 // "@all" is offered first at the start of a message on a botdot that knows it (feature `group-all`, #124).
 const mentionCtx = (chat) => (String(chat).startsWith('group:') ? { chat, bots: groupMembers(groupById(String(chat).slice(6))), library: [], all: state.features.includes('group-all') }
+  : String(chat).startsWith('room:') ? { chat, bots: roomMentionBots(String(chat).slice(5)), library: [] } // a shared room's bots (rooms.js)
   : { chat, bots: [CHIEF_BOT, ...state.bots], library: state.skillLib || [], account: state.skillAccount || [] });
 // The owner's own message with its mentions drawn: a bot as its small head and name, a job or a skill tinted; anything
 // else plain (escaped). Bot and Chief replies stay as they are.
@@ -741,7 +743,7 @@ async function refresh() {
     redrawMarks();
     showJobApprovals();
     api(MEMORY_WAITS).then((p) => { state.memPending = p; showNeeds(); }).catch(() => {});
-    api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
+    api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
     if (state.view === 'bot' && state.botId) loadInbox(state.botId);
@@ -758,6 +760,7 @@ function render() {
   if (state.view === 'dashboard') renderDashboard();
   if (state.view === 'bot') renderBotChat();
   if (state.view === 'group') renderGroupChat();
+  if (state.view === 'rooms') renderRooms();
   if (panelPage() === 'groupsettings') renderGroupSettings();
   if (panelPage() === 'botsettings') renderBotSettings();
   if (panelPage() === 'botjobs') renderBotJobs();
@@ -792,7 +795,7 @@ function renderStatus() {
   if (!state.status?.claudeBin) toast('Claude Code CLI not found. Bots cannot run.', true);
 }
 
-// Views: chief | bot (with state.botId) | group (with state.groupId, groups.js) | runs | skills | vault | settings | setup | connectors | dashboard | needs.
+// Views: chief | bot (with state.botId) | group (with state.groupId, groups.js) | rooms (with state.roomId, rooms.js) | runs | skills | vault | settings | setup | connectors | dashboard | needs.
 // A bot's settings, its jobs and the Chief's settings are no views: they are drawn in the panel beside
 // the chat (panel.js). setView still takes their names, botsettings, botjobs and chiefsettings, and the
 // address keeps them. A group's panel is groupsettings.
@@ -805,6 +808,7 @@ let covered = false; // the panel is over the chat, as last seen
 function setView(v, sub) {
   if (BOT_NAMES.includes(v) && sub) state.botId = sub;
   if (GROUP_NAMES.includes(v) && sub) state.groupId = sub;
+  if (v === 'rooms') state.roomId = sub || null; // a room, or the list of rooms (rooms.js)
   // Asked for by name, the panel is drawn fresh from what is saved.
   show(Panel.next(state, { view: v, covered: panelCovers() }), Panel.NAMES.includes(v));
 }
@@ -814,7 +818,7 @@ function setPanel(what) { show(Panel.next(state, { panel: what })); }
 function leaveBot() { show(Panel.next(state, { gone: true })); }
 function writeHash() {
   const v = state.view;
-  const id = v === 'runs' ? state.selectedRun : v === 'chief' ? state.chatId : v === 'bot' ? state.botId : v === 'group' ? state.groupId : null;
+  const id = v === 'runs' ? state.selectedRun : v === 'chief' ? state.chatId : v === 'bot' ? state.botId : v === 'group' ? state.groupId : v === 'rooms' ? state.roomId : null;
   history.replaceState(null, '', `#${Panel.name(v, state.panel)}${id ? '/' + id : ''}`);
 }
 function show({ view: v, panel, via }, fresh = false) {
@@ -861,7 +865,7 @@ function show({ view: v, panel, via }, fresh = false) {
   if (!panelOnly || (hid && !covered)) requestAnimationFrame(threadToEnd);
 }
 function threadToEnd() {
-  const t = state.view === 'chief' ? $('#chat-thread') : state.view === 'bot' ? $('#bot-thread') : state.view === 'group' ? $('#group-thread') : null;
+  const t = state.view === 'chief' ? $('#chat-thread') : state.view === 'bot' ? $('#bot-thread') : state.view === 'group' ? $('#group-thread') : state.view === 'rooms' ? $('#room-thread') : null;
   if (t && !scrollToNew(t, true)) t.scrollTop = t.scrollHeight;
 }
 

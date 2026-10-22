@@ -104,7 +104,9 @@ const finish = () => {
   try { failed = fs.readFileSync(path.join(OUT, 'error-result.txt'), 'utf8'); } catch { /* it succeeds */ }
   // A refused tool asks nobody by itself (#279): like a bot that follows its prompt, this one asks the owner for each
   // permission it was refused with ask_permission, once, before it ends; not while $FAKE_OUT/no-ask exists.
-  const asked = denials.length && !fs.existsSync(path.join(OUT, 'no-ask')) ? askFor(denials) : Promise.resolve();
+  // Its tool calls first, through the PreToolUse hooks its settings name, as Claude Code runs them (ADR 067).
+  const hooked = preToolHooks();
+  const asked = hooked.then(() => (denials.length && !fs.existsSync(path.join(OUT, 'no-ask')) ? askFor(denials) : undefined));
   const end = () => {
     console.log(JSON.stringify(failed === null
       ? { type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5, permission_denials: denials }
@@ -117,6 +119,24 @@ const finish = () => {
   try { stream = JSON.parse(fs.readFileSync(path.join(OUT, own('stream', '.json')), 'utf8')); } catch { /* the reply comes whole */ }
   asked.then(() => (stream ? streamed(stream, result, end) : end()));
 };
+// The tool calls of $FAKE_OUT/tool-calls.json ([{ tool_name, tool_input }]), each handed to every PreToolUse command
+// hook of its settings on stdin, as Claude Code does: what each hook said is on the record, `hooks`: [{ tool, code,
+// stderr }]. Exit 2 blocks the call; the fake makes no call either way.
+function preToolHooks() {
+  let calls = [];
+  try { calls = JSON.parse(fs.readFileSync(path.join(OUT, 'tool-calls.json'), 'utf8')); } catch { return Promise.resolve(); }
+  const commands = (rec.settings?.hooks?.PreToolUse || []).flatMap((m) => (m.hooks || []).filter((h) => h.type === 'command').map((h) => h.command));
+  if (!commands.length) return Promise.resolve();
+  rec.hooks = [];
+  const one = (command, call) => new Promise((resolve) => {
+    const child = require('child_process').spawn('sh', ['-c', command], { stdio: ['pipe', 'ignore', 'pipe'] });
+    let stderr = '';
+    child.stderr.on('data', (c) => { stderr += c; });
+    child.on('close', (code) => { rec.hooks.push({ tool: call.tool_name, code, stderr: stderr.trim() }); save(); resolve(); });
+    child.stdin.end(JSON.stringify({ hook_event_name: 'PreToolUse', ...call }));
+  });
+  return calls.reduce((p, call) => p.then(() => commands.reduce((q, c) => q.then(() => one(c, call)), Promise.resolve())), Promise.resolve());
+}
 // What a bot's ask_permission sends for the tools it was refused (lib/self-mcp.js): one ask per permission, with what
 // it tried as its reason. What botdot refuses (asked lately, declined this week) the bot is told, and it goes on.
 const PERMISSION_OF = { Bash: 'commands', Edit: 'files', Write: 'files', MultiEdit: 'files', NotebookEdit: 'files', WebSearch: 'web', WebFetch: 'web', Agent: 'helpers', Task: 'helpers' };

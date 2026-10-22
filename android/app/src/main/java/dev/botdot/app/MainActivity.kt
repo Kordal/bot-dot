@@ -89,13 +89,16 @@ import dev.botdot.app.ui.LocalPanelClose
 import dev.botdot.app.ui.LocalPaper
 import dev.botdot.app.ui.Panel
 import dev.botdot.app.ui.SettingsPanel
+import dev.botdot.app.ui.RoomChatScreen
+import dev.botdot.app.ui.RoomSettingsScreen
+import dev.botdot.app.ui.RoomsScreen
 import dev.botdot.app.ui.ShareScreen
 import dev.botdot.app.ui.SignInScreen
 import dev.botdot.app.ui.VaultScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    /** Where a tapped notification wants to go ("bot:<id>" | "chief:<chatId>" | "group:<id>"). */
+    /** Where a tapped notification wants to go ("bot:<id>" | "chief:<chatId>" | "group:<id>" | "room:<id>"). */
     private val openTarget = mutableStateOf<String?>(null)
     /** Files shared from another app (Share → botdot), waiting for you to pick who gets them. */
     private val sharedUris = mutableStateOf<List<Uri>>(emptyList())
@@ -141,13 +144,15 @@ class MainActivity : ComponentActivity() {
                     val t = target ?: return@LaunchedEffect
                     if (server == null || server == "…") return@LaunchedEffect
                     openTarget.value = null
-                    if (t.startsWith("bot:") || t.startsWith("chief:") || t.startsWith("group:") || t == "needs") panelOff.value()
+                    if (t.startsWith("bot:") || t.startsWith("chief:") || t.startsWith("group:") || t.startsWith("room:") || t == "needs") panelOff.value()
                     when {
                         t.startsWith("bot:") -> nav.navigate("bot/${t.removePrefix("bot:")}") { launchSingleTop = true }
                         // A card or a question asked in a group: its notification opens the group.
                         t.startsWith("group:") -> nav.navigate("group/${t.removePrefix("group:")}") { launchSingleTop = true }
                         t.startsWith("chief:") -> nav.navigate("chief/${t.removePrefix("chief:").ifBlank { "latest" }}") { launchSingleTop = true }
                         t == "needs" -> nav.navigate("needs") { launchSingleTop = true }
+                        // A new message in a shared room (room_notice): its notification opens the room.
+                        t.startsWith("room:") -> nav.navigate("room/${t.removePrefix("room:")}") { launchSingleTop = true }
                         // A notification for a reply with one file (the morning paper): open the file itself.
                         t.startsWith(BotFiles.PREFIX) -> app.api.value?.let { api ->
                             scope.launch {
@@ -317,6 +322,16 @@ class MainActivity : ComponentActivity() {
                         // its own panel, the way back to the list is taken already, and a second step back would leave the list.
                         GroupChatScreen(app, id, onSettings = { panelKept = SettingsPanel.toggle(panelKept, groupKey(id)) }, onNeeds = { nav.navigate("needs") },
                             onSignIn = { nav.navigate("settings") { launchSingleTop = true } }) { if (nav.currentBackStackEntry == e) nav.popBackStack() }
+                    }
+                    // Shared rooms (ADR 060): the list, a room's chat, its settings.
+                    composable("rooms") { RoomsScreen(app, onRoom = { nav.navigate("room/$it") { launchSingleTop = true } }) { nav.popBackStack() } }
+                    composable("room/{id}") { e ->
+                        val id = e.arguments?.getString("id") ?: ""
+                        RoomChatScreen(app, id, onSettings = { nav.navigate("room/$id/settings") { launchSingleTop = true } }) { if (nav.currentBackStackEntry == e) nav.popBackStack() }
+                    }
+                    composable("room/{id}/settings") { e ->
+                        val id = e.arguments?.getString("id") ?: ""
+                        RoomSettingsScreen(app, id, onGone = { if (!nav.popBackStack("rooms", inclusive = false)) nav.popBackStack("home", inclusive = false) }) { nav.popBackStack() }
                     }
                     composable("dashboard") { DashboardScreen(app, onBot = { nav.navigate("bot/$it") }, onNeeds = { nav.navigate("needs") }) { nav.popBackStack() } }
                     composable("needs") { e -> NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }, onDone = { if (nav.currentBackStackEntry == e) nav.popBackStack() }) { nav.popBackStack() } }

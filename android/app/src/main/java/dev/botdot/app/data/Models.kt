@@ -189,12 +189,17 @@ data class Bot(
     @SerialName("queued") val queuedValue: JsonElement? = null,
     // Its open question to the owner (`asks-you`), kept as it came. Read it through [asks].
     @SerialName("asks") val asksValue: JsonElement? = null,
+    // Its shared-room settings (`room-settings`, ADR 060), kept as they came. Read them through [rooms].
+    @SerialName("rooms") val roomsValue: JsonElement? = null,
 ) {
     /** The owner's messages that wait until it is free, oldest first; none from a server that keeps none. */
     val queued: List<Queued> get() = Queued.list(queuedValue)
 
     /** What it asks the owner, until the owner writes to it; null when it asks nothing, or the server does not say. */
     val asks: Asks? get() = Asks.of(asksValue)
+
+    /** Whether it may take part in shared rooms and who may mention it there; null from a server that does not say. */
+    val rooms: BotRooms? get() = BotRooms.of(roomsValue)
 }
 
 /** A bot's open question to the owner (`asks` on a bot, docs/api.md): [text] in one line, and the run that asked. */
@@ -649,7 +654,7 @@ data class ChatHit(
 @Serializable
 data class Ask(
     val id: String,
-    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "override" | "chief-action"
+    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "override" | "chief-action" | "room-tool" | "room-post"
     val permission: String? = null,
     val reason: String = "",
     val bot: BotRef? = null,
@@ -770,6 +775,15 @@ data class Ask(
 
     /** Whether such a card takes a yes: it shows all the yes does, no row clipped and nothing too long to show. */
     val chiefActionYes: Boolean get() = kind == "chief-action" && !rowsCut && !tooLong
+
+    /** A shared room's card (kind "room-tool" or "room-post", docs/api.md "Shared rooms: the owner's mention"). */
+    val isRoomCard: Boolean get() = kind == "room-tool" || kind == "room-post"
+
+    /** Why such a card waits, in the server's words (`meta`), or "". */
+    val roomLine: String get() = meta.textOrNull().orEmpty()
+
+    /** Whether such a card takes a yes: it shows all the yes approves, no row clipped and nothing too long to show. */
+    val roomYes: Boolean get() = isRoomCard && !rowsCut && !tooLong
 
     companion object {
         /** A value the card can show: text (also empty: an email without a subject) or a number. */
