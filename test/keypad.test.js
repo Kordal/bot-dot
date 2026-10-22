@@ -64,21 +64,57 @@ test('pages: the list and the keypad share one order: byPlace and categoryNames 
 
 // ---------- keys ----------
 
-// A press: the key, its modifiers, and whether a text field has focus. The keypad: how many keys it shows, on every
-// page together (#508).
-const press = (key, more = {}, at = { keys: 4 }) => Keypad.press({ key, ctrl: false, alt: false, meta: false, shift: false, inField: false, ...more }, at);
+// A press: the key, its modifiers, and whether a text field has focus. The keypad: the digits that open a key (#366).
+const upTo = (n) => new Set(Array.from({ length: n }, (_, i) => i + 1));
+const press = (key, more = {}, at = { digits: upTo(4) }) => Keypad.press({ key, ctrl: false, alt: false, meta: false, shift: false, inField: false, ...more }, at);
 
-test('keys: 1 to 9 open the n-th key of the keypad, counted across its pages', () => {
-  assert.deepEqual(press('1'), { action: 'open', key: 0 });
-  assert.deepEqual(press('4'), { action: 'open', key: 3 });
-  assert.deepEqual(press('9', {}, { keys: 12 }), { action: 'open', key: 8 }, 'twelve keys: 9 is the ninth');
+test('keys: 1 to 9 open the key that digit belongs to', () => {
+  assert.deepEqual(press('1'), { action: 'open', digit: 1 });
+  assert.deepEqual(press('4'), { action: 'open', digit: 4 });
+  assert.deepEqual(press('9', {}, { digits: upTo(9) }), { action: 'open', digit: 9 });
+  assert.deepEqual(press('7', {}, { digits: new Set([2, 7]) }), { action: 'open', digit: 7 }, 'a bot\'s own 7, with only four keys');
 });
 
-test('keys: a digit past the keys, 0, or a digit with Ctrl, Alt or Meta does nothing', () => {
+test('keys: a digit no key has, 0, or a digit with Ctrl, Alt or Meta does nothing', () => {
   assert.equal(press('5'), null);
   assert.equal(press('0'), null);
-  assert.equal(press('1', {}, { keys: 0 }), null, 'no key');
+  assert.equal(press('1', {}, { digits: new Set() }), null, 'no key');
   for (const mod of ['ctrl', 'alt', 'meta']) assert.equal(press('2', { [mod]: true }), null, mod);
+});
+
+// ---------- digits (#366) ----------
+
+test('digits: with no hotkey, the first nine shown keys get 1 to 9 in reading order', () => {
+  const keys = Array.from({ length: 11 }, (_, i) => bot(`b${i}`));
+  const map = Keypad.digits([{ keys }], keys);
+  assert.deepEqual([...map].map(([d, x]) => [d, x.name]), keys.slice(0, 9).map((x, i) => [i + 1, x.name]));
+  assert.equal(Keypad.digitOf(map, keys[9]), 0, 'the tenth has none');
+});
+
+test("digits: a bot's own hotkey is its own; the free digits go to the others in order, groups too", () => {
+  const a = bot('a'), b = bot('b', { hotkey: 1 }), c = bot('c'), g = grp('g'), d = bot('d', { hotkey: 3 });
+  const keys = [a, b, c, g, d];
+  const map = Keypad.digits([{ keys }], keys);
+  assert.deepEqual([a, b, c, g, d].map((x) => Keypad.digitOf(map, x)), [2, 1, 4, 5, 3]);
+});
+
+test('digits: a hotkey works from a folded page, whose keys take no free digit', () => {
+  const a = bot('a'), hid = bot('hid', { hotkey: 2 }), other = bot('other');
+  const map = Keypad.digits([{ keys: [a] }, { keys: [hid, other] }], [a]);
+  assert.equal(map.get(2), hid);
+  assert.equal(map.get(1), a);
+  assert.equal(Keypad.digitOf(map, other), 0);
+  assert.equal(map.size, 2);
+});
+
+test('digits: nine hotkeys leave none for the rest; a group never has one of its own', () => {
+  const own = Array.from({ length: 9 }, (_, i) => bot(`o${i}`, { hotkey: i + 1 }));
+  const g = grp('g', { hotkey: 1 }), x = bot('x');
+  const keys = [g, x, ...own];
+  const map = Keypad.digits([{ keys }], keys);
+  assert.equal(map.get(1).name, 'o0');
+  assert.equal(Keypad.digitOf(map, g), 0);
+  assert.equal(Keypad.digitOf(map, x), 0);
 });
 
 test('keys: while a text field has focus a digit stays in the field', () => {

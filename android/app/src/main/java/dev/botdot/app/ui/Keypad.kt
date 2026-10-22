@@ -95,6 +95,24 @@ internal object Keypad {
     fun shownKeys(pages: List<Page>, folded: Set<String>): List<Key> = pages.filterNot { isFolded(it, folded) }.flatMap { it.keys }
 
     /**
+     * Which key each digit opens (#366). A bot with its own [Bot.hotkey] (1 to 9) has it wherever it stands on [pages],
+     * also on a folded page; the digits no bot holds go, in reading order, to the [shown] keys that have none (bots
+     * without one, and groups), until they run out. A server without hotkeys: the first nine shown keys. The web page
+     * has the same rule.
+     */
+    fun digits(pages: List<Page>, shown: List<Key>): Map<Int, Key> {
+        val map = sortedMapOf<Int, Key>()
+        for (k in pages.flatMap { it.keys }) if (k is Key.OfBot) k.bot.hotkey?.takeIf { it in 1..9 && it !in map }?.let { map[it] = k }
+        val held = map.values.map { it.id }.toSet()
+        val free = (1..9).filter { it !in map }.iterator()
+        for (k in shown) { if (!free.hasNext()) break; if (k.id !in held) map[free.next()] = k }
+        return map
+    }
+
+    /** The digit on [key] in [digits]; 0: none. */
+    fun digitOf(digits: Map<Int, Key>, key: Key): Int = digits.entries.firstOrNull { it.value.id == key.id }?.key ?: 0
+
+    /**
      * Where a dragged key lands (#499): [key] dropped on the page at [to], on its key at [at] (it takes that one's
      * place) or on its heading (no [at]: last there, on its own page too, #516). The place is the one the list's drag gives a row, counted among its
      * own kind as the server counts it: pinned on Pinned, else in the page's category ("" for Other). The bots stand
@@ -122,7 +140,7 @@ internal object Keypad {
 
     /** What a press does on the keypad. */
     sealed interface Action {
-        /** Opens the key with this number (1 to 9), counted across the pages (#516). */
+        /** Opens the key this digit (1 to 9) belongs to ([digits], #366). */
         data class Open(val number: Int) : Action
         /** Opens the Chief's chat again. */
         data object Chief : Action
@@ -133,18 +151,18 @@ internal object Keypad {
     }
 
     /**
-     * What [press] does while the keypad shows [keys] keys, on all its pages. [typing]: a text field has focus, and it
+     * What [press] does while [digits] open a key ([Keypad.digits]). [typing]: a text field has focus, and it
      * keeps every press but Esc and Ctrl+K, so "3 pm" stays in a message. Tab is left alone: every page is on screen,
      * so there is none to move to (#516).
      */
-    fun action(press: Press, typing: Boolean, keys: Int): Action {
+    fun action(press: Press, typing: Boolean, digits: Set<Int>): Action {
         val plain = !press.ctrl && !press.shift && !press.alt && !press.meta
         val digit = press.key.singleOrNull()?.digitToIntOrNull()?.takeIf { it in 1..9 }
         return when {
             press.key == "Escape" && plain -> Action.Chief
             press.key.equals("K", ignoreCase = true) && press.ctrl && !press.shift && !press.alt && !press.meta -> Action.Search
             typing -> Action.None
-            digit != null -> if (plain && digit <= keys) Action.Open(digit) else Action.None
+            digit != null -> if (plain && digit in digits) Action.Open(digit) else Action.None
             else -> Action.None
         }
     }

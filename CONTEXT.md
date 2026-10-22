@@ -87,7 +87,7 @@ One part of the keypad: the pinned bots and groups, one category, or Other, in t
 _Avoid_: tab, screen, folder
 
 **Key**:
-One bot or group on a page of the keypad, with its head (a group's: up to three of its members' heads), its name and its line. The first nine keys are numbered 1 to 9, counted across the pages. Opening a key opens that chat.
+One bot or group on a page of the keypad, with its head (a group's: up to three of its members' heads), its name and its line. A bot can have its own digit (its hotkey, set in its settings or by the Chief), shown on its key wherever it stands; the digits no bot holds number the other keys 1 to 9, counted across the pages. Opening a key opens that chat.
 _Avoid_: tile (a tile is the Board's), button, card (a card waits in Needs you), shortcut
 
 **Helper**:
