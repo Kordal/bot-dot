@@ -146,12 +146,24 @@ function wire(page, doc, g) {
   const menuBtn = page.querySelector('[data-doc="menu"]');
   const menu = page.querySelector('.doc-menu');
   const gdState = page.querySelector('[data-gd-state]');
-  let gd = null; // Google Docs connected, as last asked
+  const gd = {}; // Google Docs as last asked: { configured, connected }, and busy while connecting or saving
   const open = (on) => {
     menu.hidden = !on;
     menuBtn.setAttribute('aria-expanded', String(on));
-    // Whether Google Docs is connected, asked each time the menu opens: "connected" or "Connect…".
-    if (on && gdState) g.api('/export/google-docs').then((r) => { gd = !!r.connected; gdState.textContent = gd ? 'connected' : 'Connect…'; }).catch(() => {});
+    // Asked each time the menu opens, unless it is busy: "connected", "Connect…" or "Not set up".
+    if (on && gdState && !gd.busy) g.api('/export/google-docs').then((r) => { Object.assign(gd, r); if (!gd.busy) gdState.textContent = gdLabel(gd); }).catch(() => {});
+  };
+  const saved = page.querySelector('.doc-saved');
+  const ui = {
+    open: () => window.open('about:blank', '_blank'),
+    row: (text) => { if (gdState) gdState.textContent = text; },
+    // A line at the bottom: progress, the result or what went wrong, with a link that opens a tab of its own.
+    status: (text, { link, error } = {}) => {
+      saved.innerHTML = `${g.esc(text)}${link ? ` <a href="${g.esc(link.href)}" target="_blank" rel="noopener">${g.esc(link.text)}</a>` : ''}`;
+      saved.classList.toggle('err', !!error);
+      saved.hidden = false;
+    },
+    wait: (ms) => new Promise((res) => setTimeout(res, ms)),
   };
   document.addEventListener('click', (e) => { if (!e.target.closest('.doc-export')) open(false); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') open(false); });
@@ -167,17 +179,9 @@ function wire(page, doc, g) {
       return;
     }
     if (what === 'gdocs') {
-      if (gd === false) { location.href = '/#connectors'; return; }
-      g.toast('Saving to Google Docs…');
-      try {
-        const r = await g.api('/export/google-docs', { method: 'POST', body: { title: doc.title, text: doc.text } });
-        const saved = page.querySelector('.doc-saved');
-        saved.innerHTML = `Saved to Google Docs <a href="${g.esc(r.url)}" target="_blank" rel="noopener">Open ↗</a>`;
-        saved.hidden = false;
-      } catch (err) {
-        if (err.state === 'not-connected') gd = false;
-        g.toast(err.message || "Couldn't save it to Google Docs", true);
-      }
+      if (gd.busy) return;
+      gd.busy = true;
+      try { await googleDocs(doc, gd, g, ui); } finally { gd.busy = false; }
       return;
     }
     if (what === 'export') {
@@ -185,6 +189,70 @@ function wire(page, doc, g) {
       try { save(await exportFile(doc, b.dataset.format)); } catch (err) { g.toast(err.message || "Couldn't make the file", true); }
     }
   });
+}
+
+// What the Google Docs row says: st from GET /export/google-docs, { configured, connected }.
+function gdLabel(st) {
+  if (st.configured === false) return 'Not set up';
+  return st.connected === true ? 'connected' : st.connected === false ? 'Connect…' : '';
+}
+
+const GD_POLL = 3000;
+const GD_WAIT = 10 * 60_000;
+
+// "Save to Google Docs" tapped (#351, #378): saves at once while Google Docs is connected; else connects it first, in a sign-in
+// tab of its own (the Connectors page's own path, POST /connectors/connect), and saves once the connection is active.
+// Without connected apps on this server it says so. st: { configured, connected }, kept up to date. ui: { open, row,
+// status, wait }. Called straight from the tap: ui.open() runs before anything awaits, so pop-up blockers allow it.
+async function googleDocs(doc, st, g, ui) {
+  if (st.configured === false) {
+    return ui.status("Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Connectors page, then try again.",
+      { link: { href: '/#connectors', text: 'Open Connectors ↗' }, error: true });
+  }
+  if (st.connected === false) {
+    const win = ui.open();
+    if (!win) return ui.status('Your browser blocked the Google sign-in tab. Allow pop-ups for this page, then tap Google Docs again.', { error: true });
+    ui.row('Connecting…');
+    ui.status('Opening the Google sign-in…');
+    let r;
+    try { r = await g.api('/connectors/connect', { method: 'POST', body: { app: 'googledocs' } }); } catch (e) {
+      win.close();
+      ui.row(gdLabel(st));
+      return ui.status(`Couldn't start connecting Google Docs: ${e.message || 'try again'}`, { error: true });
+    }
+    if (r.noAuth) win.close();
+    else {
+      win.location = r.redirectUrl;
+      ui.status("Sign in to Google in the tab that opened. botdot saves the document when you're done.");
+      let c = null;
+      for (const until = Date.now() + GD_WAIT; Date.now() < until;) {
+        await ui.wait(GD_POLL);
+        c = await g.api(`/connectors/connections/${encodeURIComponent(r.connectionId)}`).catch(() => null);
+        if (c && ['ACTIVE', 'FAILED', 'EXPIRED'].includes(c.status)) break;
+      }
+      if (c?.status !== 'ACTIVE') {
+        ui.row(gdLabel(st));
+        return ui.status(c && ['FAILED', 'EXPIRED'].includes(c.status) ? `Connecting Google Docs didn't work${c.statusReason ? `: ${c.statusReason}` : ''}` : 'The Google sign-in took too long. Tap Google Docs to try again.', { error: true });
+      }
+    }
+    st.connected = true;
+  }
+  ui.row('Saving…');
+  ui.status('Saving to Google Docs…');
+  try {
+    const r = await g.api('/export/google-docs', { method: 'POST', body: { title: doc.title, text: doc.text } });
+    st.connected = true;
+    ui.row(gdLabel(st));
+    ui.status('Saved to Google Docs', { link: { href: r.url, text: 'Open ↗' } });
+  } catch (err) {
+    if (err.state === 'not-connected') {
+      st.connected = false;
+      ui.row(gdLabel(st));
+      return ui.status("Google Docs isn't connected. Tap Google Docs again to connect it.", { error: true });
+    }
+    ui.row(gdLabel(st));
+    ui.status(err.message || "Couldn't save it to Google Docs", { error: true });
+  }
 }
 
 // The file from the server: { name, blob }.
@@ -214,6 +282,6 @@ const stateHTML = (g, title, text) => `<div class="doc-state"><h3>${g.esc(title)
 // state and mdBlocks (app.js) when called.
 root.docButton = (src, text) => button(src, text, { features: state.features, blocks: mdBlocks });
 
-root.DocPage = { LONG_WORDS, SECTIONED_WORDS, words, isLong, address, parse, button, outline, titleOf, load, show, exportFile };
+root.DocPage = { LONG_WORDS, SECTIONED_WORDS, words, isLong, address, parse, button, outline, titleOf, load, show, exportFile, gdLabel, googleDocs };
 
 })(typeof window !== 'undefined' ? window : globalThis);
