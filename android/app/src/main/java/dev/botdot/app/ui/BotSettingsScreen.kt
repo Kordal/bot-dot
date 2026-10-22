@@ -104,6 +104,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var connectors by remember { mutableStateOf(setOf<String>()) }
     var mayMessage by remember { mutableStateOf(setOf<String>()) }
     var othersMayAsk by remember { mutableStateOf(true) }
+    var rooms by remember { mutableStateOf(dev.botdot.app.data.BotRooms()) } // shared rooms (#316), when the server keeps them
     var others by remember { mutableStateOf<List<Bot>>(emptyList()) }
 
     fun fill(b: Bot) {
@@ -111,6 +112,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
         model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux"
         useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
         othersMayAsk = b.othersMayAsk != false
+        rooms = b.rooms ?: dev.botdot.app.data.BotRooms()
     }
 
     LaunchedEffect(api) {
@@ -150,6 +152,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             if (everyone != b.mayMessageAll) put("mayMessageAll", everyone)
             if (!everyone && (b.mayMessageAll || mayMessage != b.mayMessage.toSet())) put("mayMessage", JsonArray(mayMessage.map { JsonPrimitive(it) }))
             if (b.othersMayAsk != null && othersMayAsk != b.othersMayAsk) put("othersMayAsk", othersMayAsk)
+            b.rooms?.let { was -> dev.botdot.app.data.BotRooms.change(was, rooms)?.let { put("rooms", it) } }
         }
         if (changes.isEmpty()) return@launch tell("Nothing changed.")
         saving = true
@@ -251,6 +254,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             // "Other bots may ask it" (#136): only from a server that has it.
             if (others.isNotEmpty() && b.othersMayAsk != null) Section("Other bots") {
                 SwitchRow("Other bots may ask it", "Off keeps it to you: other bots don't see it among their teammates and can't message it.", othersMayAsk) { othersMayAsk = it }
+            }
+            // Shared rooms (ADR 060, #316): whether it may be in rooms with other accounts' bots, and who may mention it there.
+            if (dev.botdot.app.data.BotRooms.shows(server?.features) && b.rooms != null) Section("Shared rooms") {
+                SwitchRow("May be in shared rooms", "It only talks there: no tools, no notes, nothing of yours.", rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }
+                if (rooms.allowRooms) Choice("Who may mention it", rooms.whoMayMention, dev.botdot.app.data.BotRooms.WHO) { rooms = rooms.copy(whoMayMention = it) }
             }
             // The jobs you said to always approve: their later changes need no OK. Revoke takes one off (saved right away).
             val trusted = b.jobs.filter { it.alwaysApprove }
