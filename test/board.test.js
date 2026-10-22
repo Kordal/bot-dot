@@ -312,3 +312,30 @@ test('the server, the web page and the skill say "dashboard" only as an identifi
   assert.deepEqual(left.filter((line) => !COMPOSIO.test(line) && !line.includes(EARLIER_NAME)), []);
   assert.equal(left.filter((line) => line.includes(EARLIER_NAME)).length, 1, "the Chief's one sentence");
 });
+
+test('web: the Board is looked at again on its own, so a tile\'s "5 minutes ago" moves on: every minute away from it, every 15 s on it, and at once on coming back to the page', () => {
+  const calls = [];
+  let tick = null, onVisible = null;
+  const document = { hidden: false, addEventListener: (type, fn) => { if (type === 'visibilitychange') onVisible = fn; } };
+  const page = vm.createContext({
+    state: { view: 'chief' }, document, loadDash: (quiet = false) => calls.push(quiet),
+    setInterval: (fn, ms) => { assert.equal(ms, 15_000); tick = fn; },
+  });
+  vm.runInContext(cut("// While it's on screen, the stale tiles are read again", 'const LEVEL = {'), page);
+  for (let i = 0; i < 8; i++) tick();
+  assert.deepEqual(calls, [true, true], 'away from the Board: a quiet look once a minute');
+  calls.length = 0;
+  page.state.view = 'dashboard';
+  tick();
+  assert.deepEqual(calls, [false], 'on the Board: its stale tiles are read again');
+  calls.length = 0;
+  document.hidden = true;
+  for (let i = 0; i < 8; i++) tick();
+  onVisible();
+  assert.deepEqual(calls, [], 'nothing while the page is hidden');
+  document.hidden = false;
+  onVisible();
+  page.state.view = 'chief';
+  onVisible();
+  assert.deepEqual(calls, [false, true], 'back on the page: at once');
+});
