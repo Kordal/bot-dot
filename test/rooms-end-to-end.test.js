@@ -1,6 +1,8 @@
-// A shared room end to end (ADR 060): the real front door, and two accounts' real botdot servers (Claude Code stood in
-// by fake-claude). An owner puts their bot in a room with another account; a mention there reaches the bot's own
-// account as a talk-only room turn (#315), its room settings decide (#316), and the reply comes back into the room.
+// A shared room end to end (ADR 060, ADR 062): the real front door, and two accounts' real botdot servers (Claude Code
+// stood in by fake-claude). An owner puts their bot in a room with another account; another person's mention there
+// reaches the bot's own account as a talk-only room turn (#315), its room settings decide (#316), and the reply comes
+// back into the room. The owner's own mention starts the bot's run in its own chat instead, every tool of it on the
+// owner's card, and its reply reaches the room after the owner's OK; post_to_room waits on a card the same way.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -13,7 +15,7 @@ let door, ann, bob, annB, bobB;
 before(async () => {
   ann = await startServer({ account: 'ann' });
   bob = await startServer({ account: 'bob' });
-  door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann' } });
+  door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', BOT_DOT_ROOM_COLLECT_MS: '200' } });
   // Each account's socket folder, where the front door looks for it.
   for (const srv of [ann, bob]) fs.symlinkSync(path.dirname(srv.socket), path.join(door.sockets, srv.account));
   annB = await signUp('ann', door.firstLink);
@@ -61,22 +63,73 @@ test("a mention in a room gives another account's bot a talk-only turn in its ow
   await annB.post(`/front-door/rooms/${room.id}/messages`, { text: '@Scout what grows in shade?' });
   await waitFor(async () => (await messagesOf(annB, room.id)).some((m) => m.text === 'Scout · bob answers only bob here.'), { what: 'the refusal' });
 
-  // bob mentions it: a turn in bob's account, with the room as its transcript.
+  // bob mentions it: his own words start Scout's run in its own chat, with its tools, and each tool call waits for
+  // his OK on a card in his Needs you. Nothing of it reaches the room until he OKs the reply.
   bob.reply('Ferns and hostas.');
+  const calls = path.join(bob.out, 'tool-calls.json');
+  fs.writeFileSync(calls, JSON.stringify([{ tool_name: 'Bash', tool_input: { command: 'ls plants' } }, { tool_name: 'WebSearch', tool_input: { query: 'shade plants' } }]));
   await bobB.post(`/front-door/rooms/${room.id}/messages`, { text: '@Scout ann asks what grows in shade' });
+  const run = await bob.nextRun((r) => !!r.settings?.hooks?.PreToolUse, "Scout's run for its owner");
+  assert.ok(!run.args.includes('--tools'), 'a normal run, with its own tools');
+  assert.equal(run.settingsMode, 0o600, 'the settings, and the key they point to, are private');
+  assert.match(run.system, /shared room/);
+  assert.match(run.system, /Garden club/);
+  assert.match(run.system, /@Scout what grows in shade\?/, 'the room before the owner\'s message');
+  assert.match(run.system, /outside content/);
+  assert.match(run.stdin, /ann asks what grows in shade/);
+  const roomCards = async (kind) => (await bob.api('/asks?room-tool=1&room-post=1')).data.filter((a) => a.kind === kind);
+  const first = await waitFor(async () => (await roomCards('room-tool'))[0], { what: 'the card of its first tool' });
+  assert.equal(first.tool, 'Bash');
+  assert.match(first.title, /^Let Scout use Bash\?$/);
+  assert.deepEqual(first.rows, [{ label: 'Command', value: 'ls plants' }]);
+  assert.ok(!(await bob.api('/asks')).data.some((a) => a.kind === 'room-tool'), 'an app that does not ask for the kind is not sent it');
+  assert.equal((await bob.api(`/asks/${first.id}`, { method: 'POST', body: { yes: true } })).status, 200);
+  const second = await waitFor(async () => (await roomCards('room-tool')).find((a) => a.id !== first.id), { what: 'the card of its second tool' });
+  assert.equal(second.tool, 'WebSearch');
+  assert.equal((await bob.api(`/asks/${second.id}`, { method: 'POST', body: { yes: false } })).status, 200);
+  const hooks = await waitFor(() => { const r = bob.runs().find((x) => x.n === run.n); return r?.hooks?.length === 2 ? r.hooks : null; }, { what: 'both tools answered' });
+  fs.rmSync(calls);
+  assert.deepEqual(hooks.map((h) => [h.tool, h.code]), [['Bash', 0], ['WebSearch', 2]], 'a yes lets it through, a no blocks it');
+  assert.match(hooks[1].stderr, /declined/);
+  const post = await waitFor(async () => (await roomCards('room-post'))[0], { what: 'the card of its reply' });
+  assert.match(post.title, /^Post Scout's reply in “Garden club”\?$/);
+  assert.deepEqual(post.rows, [{ label: 'Room', value: 'Garden club' }, { label: 'Text', value: 'Ferns and hostas.' }]);
+  assert.equal(post.text, 'Has a reply for “Garden club”', "the notification's line");
+  assert.ok(!(await messagesOf(annB, room.id)).some((m) => m.bot?.name === 'Scout'), 'nothing in the room before the OK');
+  assert.equal((await bob.api(`/asks/${post.id}`, { method: 'POST', body: { yes: true } })).status, 200);
   await waitFor(async () => (await messagesOf(annB, room.id)).some((m) => m.bot?.name === 'Scout'), { what: "Scout's reply", timeout: 30_000 });
   const reply = (await messagesOf(annB, room.id)).find((m) => m.bot?.name === 'Scout');
   assert.deepEqual({ account: reply.account, bot: reply.bot, text: reply.text }, { account: 'bob', bot: { id: scout.id, name: 'Scout' }, text: 'Ferns and hostas.' });
-  const turn = bob.runs().slice(runsBefore).find((r) => r.args.includes('--tools'));
-  assert.ok(turn, 'Claude Code ran in bob\'s account');
-  assert.equal(turn.args[turn.args.indexOf('--tools') + 1], '', 'talk-only: no tools');
-  assert.match(turn.stdin, /Garden club/);
-  assert.match(turn.stdin, /what grows in shade/);
+  await new Promise((r) => setTimeout(r, 600));
+  assert.equal((await messagesOf(annB, room.id)).filter((m) => m.bot?.name === 'Scout').length, 1, 'collected once');
   assert.equal(ann.runs().length, 0, "nothing ran in ann's account");
 
-  // bob lets anyone mention it: now ann's mention gets a turn too.
+  // In a later run of its own, Scout knows its rooms and may write in one with post_to_room: on bob's card again.
+  bob.hold();
+  const asked = await bob.api(`/bots/${scout.id}/run`, { method: 'POST', body: { prompt: 'Tell the garden club the ferns are in.' } });
+  assert.equal(asked.status, 201, JSON.stringify(asked.data));
+  const own = await bob.nextRun((r) => r.stdin.includes('ferns are in'), "Scout's own run");
+  assert.equal(own.self.env.SELF_ROOMS, '1');
+  assert.match(own.system, /post_to_room/);
+  const said = async (body) => (await fetch(`${own.self.env.SELF_URL}/room-post`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1', 'X-Run-Token': own.self.env.RUN_TOKEN }, body: JSON.stringify(body) })).json();
+  assert.match((await said({ room: 'No such room', text: 'x' })).error, /no room called "No such room"[\s\S]*"Garden club"/);
+  assert.equal((await said({ room: 'garden club', text: 'The ferns are in.' })).ok, true);
+  bob.unhold();
+  await bob.finished(asked.data.id);
+  const written = await waitFor(async () => (await roomCards('room-post')).find((a) => a.rows.at(-1).value === 'The ferns are in.'), { what: 'the card of the post' });
+  assert.match(written.title, /^Let Scout write in “Garden club”\?$/);
+  // Its no keeps it out of the room (checked below, after another turn there).
+  await bob.api(`/asks/${written.id}`, { method: 'POST', body: { yes: false } });
+
+  // bob lets anyone mention it: now ann's mention gets a turn too, talk-only, straight into the room.
   await bob.api(`/bots/${scout.id}`, { method: 'PUT', body: { rooms: { whoMayMention: 'anyone' } } });
   bob.reply('Also ivy.');
+  const runsBefore2 = bob.runs().length;
   await annB.post(`/front-door/rooms/${room.id}/messages`, { text: 'Anything else, @Scout?' });
   await waitFor(async () => (await messagesOf(annB, room.id)).some((m) => m.text === 'Also ivy.'), { what: "Scout's answer to ann", timeout: 30_000 });
+  const turn = bob.runs().slice(runsBefore2).find((r) => r.args.includes('--tools'));
+  assert.ok(turn, "ann's mention is a talk-only turn");
+  assert.equal(turn.args[turn.args.indexOf('--tools') + 1], '', 'talk-only: no tools');
+  assert.match(turn.stdin, /Garden club/);
+  assert.ok(!(await messagesOf(annB, room.id)).some((m) => m.text === 'The ferns are in.'), 'what bob declined never reached the room');
 });

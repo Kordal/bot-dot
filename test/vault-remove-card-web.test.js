@@ -31,5 +31,5 @@ test('web: what a bot wrote on the card is text', () => {
 });
 
 test('web: the page asks for these cards wherever it reads the asks', () => {
-  assert.match(app, /api\('\/asks\?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1'\)/);
+  assert.match(app, /api\('\/asks\?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1'\)/);
 });
