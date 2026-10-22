@@ -112,6 +112,8 @@ data class FileView(
     val parts: List<PagePart>? = null,
     val tiles: List<String> = emptyList(),
     val plain: String? = null,
+    /** A bot's interactive page (#399): its frame on the sandbox's own address, its versions and its live values. */
+    val interactive: InteractiveView? = null,
 )
 
 /**

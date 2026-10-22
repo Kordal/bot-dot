@@ -93,6 +93,10 @@ CGROUP="${BOT_DOT_CGROUP:-/sys/fs/cgroup}"
 # The front door's own user of the machine; its group alone is let into each account's socket folder.
 DOOR_USER=botdot-door
 DOOR_PORT=4700
+# The sandbox's own address for bots' interactive pages (#399, ADR 072): the front door's second port, reached as the
+# same name on HTTPS port 8443, which is another origin than the front door's.
+SITES_PORT=4701
+SITES_HTTPS=8443
 # botdot's source, which this installer is part of.
 SOURCE="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
 # runsc's flags in a rootless Docker (ADR 028, "Spike result"): it cannot make cgroups there, and a computer's
@@ -475,6 +479,8 @@ if [ "$MODE" = uninstall ]; then
   if grep -qs '^# botdot (install.sh)' "$ETC/apparmor.d/botdot-rootlesskit"; then profile=1; fi
   serve=''
   if command -v tailscale >/dev/null 2>&1 && tailscale serve status </dev/null 2>/dev/null | grep -Eq "127\.0\.0\.1:$DOOR_PORT([^0-9]|$)"; then serve=1; fi
+  sites_serve=''
+  if command -v tailscale >/dev/null 2>&1 && tailscale serve status </dev/null 2>/dev/null | grep -Eq "127\.0\.0\.1:$SITES_PORT([^0-9]|$)"; then sites_serve=1; fi
   here=''
   for f in $OWN; do [ ! -e "$DIR/$f" ] || here=1; done
   pkgs=''
@@ -496,7 +502,7 @@ if [ "$MODE" = uninstall ]; then
     for n in $NAMES; do say "  - the account $n: its botdot server, its bots' computers, its rootless Docker, its Linux user botdot-$n, its disk and its data"; done
     [ -z "$units" ] || say "  - botdot's systemd units: $units${shares:+, and the accounts' shares}"
     [ -z "$profile" ] || say "  - the AppArmor profile botdot-rootlesskit"
-    [ -z "$serve" ] || say "  - Tailscale Serve's setting for botdot"
+    [ -z "$serve$sites_serve" ] || say "  - Tailscale Serve's setting for botdot"
     [ -z "$here" ] || say "  - $DIR: every account's bots, chats, memory, vault and backups, and the passkeys"
     say "Docker and Tailscale stay. This can't be undone."
     if [ "${BOT_DOT_YES:-}" != 1 ]; then
@@ -560,6 +566,7 @@ if [ "$MODE" = uninstall ]; then
       rm -f -- "$ETC/apparmor.d/botdot-rootlesskit"
     fi
     if [ -n "$serve" ]; then tailscale serve --https=443 off </dev/null >/dev/null 2>&1 || left "Tailscale Serve's setting for botdot: sudo tailscale serve --https=443 off"; fi
+    if [ -n "$sites_serve" ]; then tailscale serve --https=$SITES_HTTPS off </dev/null >/dev/null 2>&1 || left "Tailscale Serve's setting for botdot's interactive pages: sudo tailscale serve --https=$SITES_HTTPS off"; fi
     if [ -n "$failed" ]; then left "$DIR, as an account in it wasn't removed: run the uninstaller again"
     elif [ -n "$here" ]; then
       # Whatever is still mounted in it, deepest first.
@@ -1048,7 +1055,7 @@ if [ -z "$REACH" ]; then
     unanswered "How will people reach botdot?"
     say ""
     say "How will people reach botdot?"
-    say "  1) a public domain: HTTPS from Caddy, which fetches its own certificate (ports 80 and 443 must be free)"
+    say "  1) a public domain: HTTPS from Caddy, which fetches its own certificate (ports 80, 443 and 8443 must be free)"
     say "  2) a tailnet only: Tailscale Serve gives it an HTTPS name, and nothing is on the internet"
     printf 'Choose 1 or 2: '
     read_line
@@ -1166,6 +1173,11 @@ set_env "$ENV" BOT_DOT_SOCKETS "$SOCKETS"
 set_env "$ENV" COMPOSE_PROJECT_NAME botdot
 # The Android app's signing keys, whose passkey sign-in the front door takes (docs/api.md): given once, kept.
 [ -z "${FRONT_DOOR_ANDROID_KEYS:-}" ] || set_env "$ENV" FRONT_DOOR_ANDROID_KEYS "$FRONT_DOOR_ANDROID_KEYS"
+# Bots' interactive pages (#399, ADR 072): the same name on port 8443, an origin of its own, which the front door
+# answers on its second port. An update sets it up on an install made before it.
+set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "https://$NAME:$SITES_HTTPS"
+set_env "$ENV" FRONT_DOOR_SITES_PORT "$SITES_PORT"
+CADDY_CHANGED=''
 if [ "$REACH" = public ]; then
   set_env "$ENV" COMPOSE_PROFILES public
   TLS="${BOT_DOT_TLS:-$(get_env "$ENV" BOT_DOT_TLS)}"
@@ -1177,7 +1189,14 @@ if [ "$REACH" = public ]; then
     printf '\treverse_proxy 127.0.0.1:%s\n' "$DOOR_PORT"
     # HTTPS only, for a year, on this domain alone: the owner's other subdomains aren't botdot's (#72).
     printf '\theader Strict-Transport-Security "max-age=31536000"\n}\n'
-  } > "$DOOR/Caddyfile"
+    # The sandbox's address, with the same certificate: the front door adds the sandbox's rules to every answer.
+    printf '%s:%s {\n' "$DOMAIN" "$SITES_HTTPS"
+    [ "$TLS" != internal ] || printf '\ttls internal\n'
+    printf '\treverse_proxy 127.0.0.1:%s\n}\n' "$SITES_PORT"
+  } > "$DOOR/Caddyfile.new"
+  # Caddy reads its file when it starts: one that changed (an update that adds the sandbox's address) restarts it.
+  cmp -s "$DOOR/Caddyfile.new" "$DOOR/Caddyfile" 2>/dev/null || CADDY_CHANGED=1
+  mv -f "$DOOR/Caddyfile.new" "$DOOR/Caddyfile"
 else
   set_env "$ENV" COMPOSE_PROFILES ''
 fi
@@ -1187,6 +1206,8 @@ DOOR_COMPOSE="$D compose --project-directory $DOOR"
 # front-door, after the accounts.
 start_door() {
   $DOOR_COMPOSE up -d --remove-orphans </dev/null >/dev/null 2>&1 || $DOOR_COMPOSE up -d --remove-orphans </dev/null
+  [ -z "$CADDY_CHANGED" ] || $DOOR_COMPOSE restart caddy </dev/null >/dev/null 2>&1 || warn "Caddy didn't restart with its new settings. Restart it: cd $DOOR && docker compose restart caddy"
+  CADDY_CHANGED=''
   i=0
   until curl -fsS -o /dev/null -H "Host: $NAME" "http://127.0.0.1:$DOOR_PORT/api/version" 2>/dev/null; do
     i=$((i + 1))
@@ -1854,8 +1875,18 @@ elif ! { [ -f "$RUN/requests.pid" ] && kill -0 "$(cat "$RUN/requests.pid")" 2>/d
   warn "This machine has no systemd, so the accounts sign-up links make are made by a loop started now, which doesn't start again after a restart. Run this installer again after one. Its log: $DIR/requests.log"
 fi
 
+# serve_sites: on a tailnet, Tailscale Serve passes the name's port 8443 to the front door's second port, for bots'
+# interactive pages (#399). Kept as it is when it is there already; a failure leaves botdot working without them.
+serve_sites() {
+  [ "$REACH" = tailnet ] || return 0
+  if tailscale serve status </dev/null 2>/dev/null | grep -Eq "127\.0\.0\.1:$SITES_PORT([^0-9]|$)"; then return 0; fi
+  tailscale serve --bg --https=$SITES_HTTPS "$SITES_PORT" </dev/null >/dev/null 2>&1 \
+    || warn "Tailscale Serve didn't take port $SITES_HTTPS, so bots' interactive pages don't open. Run: sudo tailscale serve --bg --https=$SITES_HTTPS $SITES_PORT"
+}
+
 # An update ends here: how people reach botdot and the admin's link are the install's.
 if [ "$MODE" = update ]; then
+  serve_sites
   phase done
   # The accounts this run couldn't update, once the rest is done (#194).
   [ -z "$NOT_UPDATED" ] || die "Not every account was updated: $NOT_UPDATED. The others run the new version."
@@ -1870,7 +1901,7 @@ if [ "$REACH" = public ]; then
   until curl -fsSk -o /dev/null --resolve "$NAME:443:127.0.0.1" "https://$NAME/api/version" 2>/dev/null; do
     i=$((i + 1))
     if [ "$i" -ge 60 ]; then
-      warn "Caddy doesn't answer on https://$NAME yet. Point the domain's DNS at this machine and keep ports 80 and 443 open: it fetches the certificate by itself. See: cd $DOOR && docker compose logs caddy"
+      warn "Caddy doesn't answer on https://$NAME yet. Point the domain's DNS at this machine and keep ports 80, 443 and 8443 open: it fetches the certificate by itself. See: cd $DOOR && docker compose logs caddy"
       break
     fi
     sleep 1
@@ -1879,6 +1910,7 @@ if [ "$REACH" = public ]; then
 else
   # What tailscale serve says goes to the screen: why it failed, or the link to enable Serve that it waits on.
   tailscale serve --bg "$DOOR_PORT" </dev/null || die "Tailscale Serve didn't start (its message is above). Fix that and run this installer again."
+  serve_sites
   ok "Reachable on your tailnet only, at https://$NAME"
 fi
 

@@ -181,12 +181,14 @@ function rerun(t, env = '', given = {}, { refuse = false, ...options } = {}) {
 test('a first install asks how botdot is reached and the admin\'s name, and remembers both', (t) => {
   const done = installer(t, { dotenv: '', input: '1\nBotdot.Example.com\nann\n' });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
-  assert.match(done.said, /How will people reach botdot\?\n {2}1\) a public domain: HTTPS from Caddy, which fetches its own certificate \(ports 80 and 443 must be free\)\n {2}2\) a tailnet only: Tailscale Serve gives it an HTTPS name, and nothing is on the internet\n/);
+  assert.match(done.said, /How will people reach botdot\?\n {2}1\) a public domain: HTTPS from Caddy, which fetches its own certificate \(ports 80, 443 and 8443 must be free\)\n {2}2\) a tailnet only: Tailscale Serve gives it an HTTPS name, and nothing is on the internet\n/);
   assert.match(done.said, /The domain botdot answers on \(its DNS must point at this machine\)/);
   assert.match(done.said, /Your own account's name, the admin's \(2 to 24 lowercase letters, digits and dashes, starting with a letter\)/);
   assert.equal(done.env.BOT_DOT_REACH, 'public');
   assert.equal(done.env.BOT_DOT_DOMAIN, 'botdot.example.com', 'in lowercase');
   assert.equal(done.env.FRONT_DOOR_ORIGIN, 'https://botdot.example.com');
+  assert.equal(done.env.FRONT_DOOR_SITES_ORIGIN, 'https://botdot.example.com:8443', "bots' interactive pages on an origin of their own (#399)");
+  assert.equal(done.env.FRONT_DOOR_SITES_PORT, '4701');
   assert.equal(done.env.FRONT_DOOR_ADMIN, 'ann');
 
   const again = installer(t, { dotenv: fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8') });
@@ -221,7 +223,7 @@ test('the answers can be given beforehand, and a wrong one is asked again', (t) 
 test('a public install puts Caddy in front of the front door, on the domain alone', (t) => {
   const done = rerun(t);
   assert.equal(done.env.COMPOSE_PROFILES, 'public', 'Caddy starts with the front door');
-  assert.equal(done.read('front-door/Caddyfile'), '# botdot (install.sh): HTTPS for the front door on its public domain. Caddy fetches the certificate.\nbotdot.example.com {\n\treverse_proxy 127.0.0.1:4700\n\theader Strict-Transport-Security "max-age=31536000"\n}\n');
+  assert.equal(done.read('front-door/Caddyfile'), '# botdot (install.sh): HTTPS for the front door on its public domain. Caddy fetches the certificate.\nbotdot.example.com {\n\treverse_proxy 127.0.0.1:4700\n\theader Strict-Transport-Security "max-age=31536000"\n}\nbotdot.example.com:8443 {\n\treverse_proxy 127.0.0.1:4701\n}\n', "and bots' interactive pages on its port 8443 (#399)");
   assert.equal(done.read('front-door/compose.yaml'), fs.readFileSync(path.join(ROOT, 'compose.front-door.yaml'), 'utf8'), 'the front door\'s compose file, from the image');
   assert.ok(done.calls.includes(`compose --project-directory ${done.dir}/front-door up -d --remove-orphans`));
   assert.match(done.system, /^curl -fsSk -o \/dev\/null --resolve botdot\.example\.com:443:127\.0\.0\.1 https:\/\/botdot\.example\.com\/api\/version$/m);
@@ -230,10 +232,11 @@ test('a public install puts Caddy in front of the front door, on the domain alon
 
   const test = rerun(t, '', { BOT_DOT_TLS: 'internal' });
   assert.match(test.read('front-door/Caddyfile'), /botdot\.example\.com \{\n\ttls internal\n\treverse_proxy/, 'a test machine\'s own certificate authority');
+  assert.match(test.read('front-door/Caddyfile'), /botdot\.example\.com:8443 \{\n\ttls internal\n\treverse_proxy 127\.0\.0\.1:4701/);
   assert.equal(test.env.BOT_DOT_TLS, 'internal', 'kept for a rerun');
 
   const late = rerun(t, '', {}, { caddy: false });
-  assert.match(late.said, /Caddy doesn't answer on https:\/\/botdot\.example\.com yet\. Point the domain's DNS at this machine and keep ports 80 and 443 open: it fetches the certificate by itself\./);
+  assert.match(late.said, /Caddy doesn't answer on https:\/\/botdot\.example\.com yet\. Point the domain's DNS at this machine and keep ports 80, 443 and 8443 open: it fetches the certificate by itself\./);
   assert.match(late.said, /\/sign-up\/T0KEN/, 'and the installer goes on to the link');
 });
 
@@ -245,6 +248,8 @@ test('a tailnet install gives the front door its Tailscale name with Serve, and 
   assert.equal(done.env.COMPOSE_PROFILES, '', 'no Caddy');
   assert.equal(done.read('front-door/Caddyfile'), '');
   assert.match(done.system, /^tailscale serve --bg 4700$/m, 'Serve passes the tailnet name\'s HTTPS to the front door on 127.0.0.1');
+  assert.match(done.system, /^tailscale serve --bg --https=8443 4701$/m, "and its port 8443 to the front door's second port, for bots' interactive pages (#399)");
+  assert.equal(done.env.FRONT_DOOR_SITES_ORIGIN, 'https://vm.example.ts.net:8443');
   assert.match(done.said, /Reachable on your tailnet only, at https:\/\/vm\.example\.ts\.net/);
   assert.match(done.said, /Done\. botdot is at https:\/\/vm\.example\.ts\.net/);
 
@@ -1065,7 +1070,8 @@ test("an update runs none of the install's interactive steps: Docker, gVisor, Ca
   const done = installer(t, { again: first, dotenv: '', args: ['--update'] });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   const system = done.system.slice(seen);
-  assert.doesNotMatch(system, /^tailscale /m, 'Tailscale is neither asked nor served again');
+  assert.deepEqual(system.split('\n').filter((l) => /^tailscale /.test(l)), ['tailscale serve status', 'tailscale serve --bg --https=8443 4701'],
+    "Tailscale is neither asked nor served again, but for the sandbox's address an install before #399 lacks");
   assert.doesNotMatch(system, /^apt-get /m);
   assert.doesNotMatch(system, /^curl .*(get\.docker\.com|tailscale\.com|gvisor\.dev)/m);
   assert.doesNotMatch(done.said, /sign-up|Done\. botdot is at|Reachable on your tailnet/);
@@ -1618,6 +1624,31 @@ test("a tailnet install's Serve setting for botdot goes, and Tailscale's others 
   assert.match(done.said, / {2}- Tailscale Serve's setting for botdot\n/);
   assert.match(done.system.slice(before), /^tailscale serve --https=443 off$/m);
   assert.doesNotMatch(done.system.slice(before), /^tailscale (down|logout|up)/m);
+});
+
+test("the sandbox's address for interactive pages (#399): an update adds it and restarts Caddy once, and the uninstaller takes its Serve setting away", (t) => {
+  const first = rerun(t);
+  const caddy = (r) => r.calls.filter((c) => / restart caddy$/.test(c)).length;
+  // An install made before #399: its Caddyfile has no port 8443.
+  fs.writeFileSync(path.join(first.dir, 'front-door', 'Caddyfile'), '# botdot (install.sh): HTTPS for the front door on its public domain. Caddy fetches the certificate.\nbotdot.example.com {\n\treverse_proxy 127.0.0.1:4700\n}\n');
+  const seen = first.calls.length;
+  const updated = installer(t, { again: first, dotenv: '', args: ['--update'] });
+  assert.equal(updated.status, 0, `${updated.said}\n${updated.stderr}`);
+  assert.match(updated.read('front-door/Caddyfile'), /botdot\.example\.com:8443 \{\n\treverse_proxy 127\.0\.0\.1:4701\n\}/);
+  assert.equal(updated.env.FRONT_DOOR_SITES_ORIGIN, 'https://botdot.example.com:8443');
+  assert.equal(caddy({ calls: updated.calls.slice(seen) }), 1, 'Caddy reads its new file');
+  const again = installer(t, { again: updated, dotenv: '', args: ['--update'] });
+  assert.equal(caddy({ calls: again.calls.slice(updated.calls.length) }), 0, 'and an unchanged one restarts nothing');
+
+  const serving = ['#!/bin/sh', 'echo "tailscale $*" >> "$STAND_IN_LOG"', '[ "$1" = serve ] && [ "$2" = status ] && { echo "https://vm.example.ts.net (tailnet only)"; echo "|-- / proxy http://127.0.0.1:4700"; echo "https://vm.example.ts.net:8443 (tailnet only)"; echo "|-- / proxy http://127.0.0.1:4701"; }', 'exit 0', ''].join('\n');
+  const tailnet = installer(t, { dotenv: '', input: '2\nann\n' });
+  const before = tailnet.system.length;
+  const kept = installer(t, { again: tailnet, dotenv: '', args: ['--update'], bins: { tailscale: serving } });
+  assert.doesNotMatch(kept.system.slice(before), /^tailscale serve --bg/m, 'Serve set up already: left as it is');
+  const gone = uninstall(t, kept, { input: 'yes\n', bins: { tailscale: serving } });
+  assert.equal(gone.status, 0, `${gone.said}\n${gone.stderr}`);
+  assert.match(gone.system, /^tailscale serve --https=443 off$/m);
+  assert.match(gone.system, /^tailscale serve --https=8443 off$/m);
 });
 
 test("the uninstaller never touches what isn't botdot's, and says what it couldn't remove", (t) => {

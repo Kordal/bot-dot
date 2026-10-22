@@ -4,12 +4,18 @@
 // Every bot's pages in one list (#361): the Pages view, opened from Settings, from a server with `pages-all`.
 // The Chief's pages (#384), from a server with `chief-pages`: the same routes and viewer with the id `chief`, a chip
 // under its reply, a list in its settings, and a row in the Pages view that opens beside its chat.
+// An interactive page (#399, ADR 072), from a server with `interactive-pages`: the bot's own site, shown in a frame on
+// the sandbox's own address, with no origin of its own (sandbox="allow-scripts" only). The app hands it the values of
+// the tiles it reads and takes one request from it, a link out, which the owner sees before it opens.
 
 const Pages = (() => {
   const ICON = {
     page: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6"/></svg>',
     keep: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6 M20 4v5h-5"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+    site: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18 M7 6.5h.01 M10 6.5h.01"/></svg>',
   };
+  const iconOf = (p) => (p?.kind === 'interactive' ? ICON.site : ICON.page);
   const shows = () => (state.features || []).includes('pages');
   const src = (botId, slug) => `/bots/${encodeURIComponent(botId)}/pages/${encodeURIComponent(slug)}`;
   const CHIEF = 'chief';
@@ -28,7 +34,10 @@ const Pages = (() => {
   }
 
   // The header's second line: "Page by Ops · updated 5m ago".
-  const subtitle = (from, page) => [from ? `Page by ${from}` : 'Page', page ? updated(page) : ''].filter(Boolean).join(' · ');
+  const subtitle = (from, page) => {
+    const what = page?.kind === 'interactive' ? 'Interactive page' : 'Page';
+    return [from ? `${what} by ${from}` : what, page ? updated(page) : ''].filter(Boolean).join(' · ');
+  };
 
   // The viewer's bar on a page: what keeps it up to date, or the button that does.
   function barHTML(page) {
@@ -45,7 +54,7 @@ const Pages = (() => {
     let pages;
     try { pages = (await api(`/bots/${encodeURIComponent(b.id)}/pages`)).pages; } catch { box.innerHTML = '<span class="faint">Couldn\'t load its pages.</span>'; return; }
     if (!pages.length) { box.innerHTML = `<span class="faint">None yet. Ask ${esc(b.name || botName(b.id))} for a page, a report or an overview.</span>`; return; }
-    box.innerHTML = pages.map((p) => `<a class="pg-row" ${attrs(b.id, p)}><span class="pg-icon">${ICON.page}</span><span class="pg-text"><b>${esc(p.title)}</b><span>${esc(updated(p))}${p.keep ? ` · ${esc(p.keep.when)}` : ''}</span></span>${p.keep ? '<span class="pg-live" aria-label="Keeps up to date"></span>' : ''}</a>`).join('');
+    box.innerHTML = pages.map((p) => `<a class="pg-row" ${attrs(b.id, p)}><span class="pg-icon">${iconOf(p)}</span><span class="pg-text"><b>${esc(p.title)}</b><span>${esc(updated(p))}${p.keep ? ` · ${esc(p.keep.when)}` : ''}</span></span>${p.keep ? '<span class="pg-live" aria-label="Keeps up to date"></span>' : ''}</a>`).join('');
   }
 
   // "Keep up to date": how often, whether to hear of every update, and what to check. The tap is the consent: the
@@ -103,7 +112,7 @@ const Pages = (() => {
   const showsAll = () => (state.features || []).includes('pages-all');
   function rowHTML(p) {
     const sub = [p.bot, updated(p), p.keep?.when].filter(Boolean).join(' · ');
-    return `<button type="button" class="pg-row" data-open-page="${esc(`${p.botId}/${p.slug}`)}"><span class="pg-icon">${ICON.page}</span><span class="pg-text"><b>${esc(p.title)}</b><span>${esc(sub)}</span></span>${p.keep ? '<span class="pg-live" aria-label="Keeps up to date"></span>' : ''}</button>`;
+    return `<button type="button" class="pg-row" data-open-page="${esc(`${p.botId}/${p.slug}`)}"><span class="pg-icon">${iconOf(p)}</span><span class="pg-text"><b>${esc(p.title)}</b><span>${esc(sub)}</span></span>${p.keep ? '<span class="pg-live" aria-label="Keeps up to date"></span>' : ''}</button>`;
   }
   function allHTML(pages) {
     const kept = pages.filter((p) => p.keep);
@@ -145,5 +154,67 @@ const Pages = (() => {
     if (state.view === 'pages') renderAll();
   }
 
-  return { chipsHTML, subtitle, barHTML, drawList, openKeep, act, changed, shows, showsAll, showsChief, allHTML, renderAll, openPage, CHIEF };
+  // ---------- an interactive page (#399, ADR 072) ----------
+
+  const ISOLATED = 'Isolated: runs on its own address, cannot see your account, cannot reach the internet.';
+  // The viewer's bar on it: what the sandbox is, then Full screen, Versions and Download.
+  function siteBarHTML(c, download) {
+    const i = c.view.interactive;
+    const older = i.shown !== i.current;
+    return `<div class="dv-bar pg-site-bar">
+      <span class="pg-isolated" title="${esc(ISOLATED)}">${ICON.lock}${esc(ISOLATED)}</span>
+      <span class="dv-sp"></span>
+      <button type="button" class="btn sm" data-dv="full">${c.full ? 'Back beside the chat' : 'Full screen'}</button>
+      <button type="button" class="btn sm" data-dv="versions">Versions</button>
+      ${download}
+    </div>${older ? `<div class="pg-older"><span>You are looking at version ${i.shown}. The page shows version ${i.current}.</span>
+      <button type="button" class="btn sm primary" data-dv="rollback" data-version="${i.shown}">Go back to this version</button>
+      <button type="button" class="btn sm ghost" data-dv="version" data-version="${i.current}">Show the current one</button></div>` : ''}`;
+  }
+  // The frame: scripts only, no origin of its own, no forms, popups or navigation of the app. Without the sandbox's
+  // address (a front door older than #399, or no second address set up), only the download.
+  function siteBodyHTML(c, download) {
+    const i = c.view.interactive;
+    if (!i.frame) return `<div class="dv-state"><h3>This machine can't show interactive pages yet</h3><p class="muted">They need an address of their own, which the admin's next update of botdot sets up. Download it to open it on your device.</p><div class="dv-acts">${download}</div></div>`;
+    return `<iframe class="dv-site" sandbox="allow-scripts" src="${esc(i.frame)}" referrerpolicy="no-referrer" title="${esc(c.name)}" allow="fullscreen 'none'"></iframe>`;
+  }
+  // Its versions, newest first: show one, or make it the page again (roll back). Resolves { show } or { current }, or null.
+  function openVersions(botId, page, i) {
+    return new Promise((resolve) => {
+      let out = null;
+      const row = (v) => `<div class="pg-version${v.n === i.current ? ' on' : ''}"><span class="pg-text"><b>Version ${v.n}${v.n === i.current ? ' · on the page' : ''}</b><span>${esc(ago(v.at))} · ${esc(typeof fmtSize === 'function' ? fmtSize(v.bytes) : `${v.bytes} B`)} · ${v.files} file${v.files === 1 ? '' : 's'}</span></span>
+        <button type="button" class="btn sm ghost" data-show="${v.n}">Show</button>${v.n === i.current ? '' : `<button type="button" class="btn sm" data-current="${v.n}">Go back to it</button>`}</div>`;
+      const m = openModal(`
+        <div class="modal-head"><h2>Versions of “${esc(page.title)}”</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+        <div class="modal-body"><p class="muted" style="margin:0 0 10px">Each time the bot publishes it, a new version. The last ${i.versions.length > 1 ? i.versions.length : 'ten'} are kept.</p>${i.versions.map(row).join('')}</div>`);
+      $$('[data-show]', m).forEach((b) => (b.onclick = () => { out = { show: Number(b.dataset.show) }; m.close(); }));
+      $$('[data-current]', m).forEach((b) => (b.onclick = async () => {
+        b.disabled = true;
+        try { await api(`${src(botId, page.slug)}/versions/${b.dataset.current}`, { method: 'POST' }); } catch (e) { b.disabled = false; return toast(e.message, true); }
+        toast(`The page shows version ${b.dataset.current} again`);
+        out = { current: Number(b.dataset.current) };
+        m.close();
+      }));
+      m.addEventListener('close', () => resolve(out), { once: true });
+    });
+  }
+  async function rollBack(botId, page, n) {
+    try { await api(`${src(botId, page.slug)}/versions/${n}`, { method: 'POST' }); } catch (e) { toast(e.message, true); return false; }
+    toast(`The page shows version ${n} again`);
+    return true;
+  }
+  // The page's one request: a link out. The owner sees where it leads first; it opens in a new tab with nothing of
+  // botdot's (no opener, no referrer).
+  function askOpen(url) {
+    let u;
+    try { u = new URL(url); } catch { return; }
+    if (!['http:', 'https:'].includes(u.protocol)) return;
+    const m = openModal(`
+      <div class="modal-head"><h2>Open a link?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-body"><p style="margin:0 0 6px">The page wants to open <b>${esc(u.host)}</b>:</p><p class="muted pg-link">${esc(u.href)}</p></div>
+      <div class="modal-foot"><button type="button" class="btn" data-dismiss>Cancel</button><button type="button" class="btn primary" id="pg-open">Open</button></div>`);
+    $('#pg-open', m).onclick = () => { window.open(u.href, '_blank', 'noopener,noreferrer'); m.close(); };
+  }
+
+  return { siteBarHTML, siteBodyHTML, openVersions, rollBack, askOpen, ISOLATED, chipsHTML, subtitle, barHTML, drawList, openKeep, act, changed, shows, showsAll, showsChief, allHTML, renderAll, openPage, CHIEF };
 })();

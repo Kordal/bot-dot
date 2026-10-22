@@ -144,15 +144,23 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     var mode by remember(req) { mutableStateOf("source") }
     var menu by remember { mutableStateOf(false) }
     var exporting by remember(req) { mutableStateOf(false) }
+    // An interactive page (#399): the version shown (null: the one the page shows), full screen, its versions' sheet,
+    // and the live values handed to its frame.
+    var version by remember(req) { mutableStateOf<Int?>(null) }
+    val src = version?.let { DocumentView.withQuery(req.src, "version=$it") } ?: req.src
+    var siteFull by remember(req) { mutableStateOf(false) }
+    var versions by remember(req) { mutableStateOf(false) }
+    var values by remember(req) { mutableStateOf<kotlinx.serialization.json.JsonObject?>(null) }
+    androidx.activity.compose.BackHandler(enabled = siteFull) { siteFull = false }
     val server by app.store.version.value.collectAsState()
     val tell = { t: String -> android.widget.Toast.makeText(context, t, android.widget.Toast.LENGTH_LONG).show() }
-    LaunchedEffect(req, api, tries) {
+    LaunchedEffect(req, api, tries, version) {
         view = null; error = null
         // A reply opened as a document: its text is here already.
         if (req.text != null) { view = FileView(name = req.name, kind = "markdown", text = req.text); mode = "rendered"; return@LaunchedEffect }
         val a = api ?: return@LaunchedEffect
-        runCatching { a.viewFile(req.src) }
-            .onSuccess { v -> view = v; mode = when (v.kind) { "markdown" -> "rendered"; "csv" -> "table"; else -> "source" } }
+        runCatching { a.viewFile(src) }
+            .onSuccess { v -> view = v; values = v.interactive?.values; mode = when (v.kind) { "markdown" -> "rendered"; "csv" -> "table"; else -> "source" } }
             .onFailure { error = it }
     }
     // A page (#346) is read again when its bot saves it (the feed's `page`) or its job changes, as it is shown now.
@@ -161,25 +169,35 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     val saved = req.page?.let { saves["${it.botId}/${it.slug}"] }
     LaunchedEffect(saved, changed) {
         if (req.page == null || (saved == null && changed == 0) || view == null) return@LaunchedEffect
-        api?.let { a -> runCatching { a.viewFile(req.src) }.onSuccess { view = it } }
+        // An interactive page with a new version shows the page as it is now.
+        if (view?.interactive != null && version != null) { version = null; return@LaunchedEffect }
+        api?.let { a -> runCatching { a.viewFile(src) }.onSuccess { view = it; values = it.interactive?.values } }
     }
     // A page's blocks (#395) are filled in anew when a tile they read has a new value (the feed's `dashboard`; no id:
     // the Board changed), and each minute while it is open, which reads its tiles that are due.
     val tick by app.store.tileTicks.value.collectAsState()
     suspend fun reblock() {
         val v = view ?: return
+        if (v.interactive != null) {
+            if (v.interactive.tiles.isNotEmpty()) api?.let { a -> runCatching { a.pageValues(src) }.onSuccess { r -> if (view === v) values = r.values } }
+            return
+        }
         if (v.parts == null || v.tiles.isEmpty()) return
         api?.let { a -> runCatching { a.pageBlocks(req.src) }.onSuccess { r -> if (view === v) view = v.copy(parts = r.parts, tiles = r.tiles, plain = r.plain ?: v.plain) } }
     }
     LaunchedEffect(tick) {
         val (id, n) = tick
-        if (n == 0L || view?.tiles?.let { t -> t.isNotEmpty() && (id == null || id in t) } != true) return@LaunchedEffect
+        val reads = view?.interactive?.tiles ?: view?.tiles
+        if (n == 0L || reads?.let { t -> t.isNotEmpty() && (id == null || id in t) } != true) return@LaunchedEffect
         kotlinx.coroutines.delay(400)
         reblock()
     }
-    LaunchedEffect(req, view?.tiles?.isNotEmpty() == true) {
-        while (view?.tiles?.isNotEmpty() == true) { kotlinx.coroutines.delay(60_000); reblock() }
+    val readsTiles = (view?.interactive?.tiles ?: view?.tiles)?.isNotEmpty() == true
+    LaunchedEffect(req, readsTiles) {
+        while ((view?.interactive?.tiles ?: view?.tiles)?.isNotEmpty() == true) { kotlinx.coroutines.delay(60_000); reblock() }
     }
+    // Its download is a zip of the version shown, named as the server names it.
+    val fileName = view?.interactive?.let { view?.name } ?: req.name
     var keeping by remember(req) { mutableStateOf(false) }
     // The ⋯ menu's actions, with the file fetched as it is (not only its start).
     fun withApi(what: String, act: suspend (dev.botdot.app.data.Api) -> Unit) {
@@ -188,7 +206,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         scope.launch { runCatching { act(a) }.onError { tell(it.message ?: "Couldn't $what") } }
     }
     Column(Modifier.fillMaxSize().background(p.bg).systemBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (!siteFull) Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = p.text) }
             Column(Modifier.weight(1f)) {
                 Text(req.name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -211,9 +229,9 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                         DropdownMenuItem(text = { Text("Export…", color = p.text) }, onClick = { menu = false; exporting = true })
                     }
                     if (req.text == null && view?.downloadable != false) {
-                        DropdownMenuItem(text = { Text("Save to Downloads", color = p.text) }, onClick = { withApi("save it") { BotFiles.saveToDownloads(context, it, req.src, req.name); tell("Saving ${req.name} to Downloads") } })
-                        DropdownMenuItem(text = { Text("Share…", color = p.text) }, onClick = { withApi("share it") { BotFiles.share(context, it, req.src, req.name) } })
-                        DropdownMenuItem(text = { Text("Open in another app", color = p.text) }, onClick = { withApi("open it") { BotFiles.openElsewhere(context, it, req.src, req.name) } })
+                        DropdownMenuItem(text = { Text("Save to Downloads", color = p.text) }, onClick = { withApi("save it") { BotFiles.saveToDownloads(context, it, src, fileName); tell("Saving $fileName to Downloads") } })
+                        DropdownMenuItem(text = { Text("Share…", color = p.text) }, onClick = { withApi("share it") { BotFiles.share(context, it, src, fileName) } })
+                        DropdownMenuItem(text = { Text("Open in another app", color = p.text) }, onClick = { withApi("open it") { BotFiles.openElsewhere(context, it, src, fileName) } })
                     }
                 }
             }
@@ -221,7 +239,17 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         val v = view
         val e = error
         val page = v?.page
-        if (req.page != null && page != null) PageBar(page, onKeep = { keeping = true }, onRefresh = {
+        val site = v?.interactive
+        val download = { withApi("save it") { BotFiles.saveToDownloads(context, it, src, fileName); tell("Saving $fileName to Downloads") } }
+        if (req.page != null && site != null) {
+            InteractiveBar(site, siteFull, onFull = { siteFull = true }, onVersions = { versions = true }, onDownload = download,
+                onRollBack = { withApi("go back to it") { it.setPageVersion(req.page.botId, req.page.slug, site.shown); tell("The page shows version ${site.shown} again"); version = null; tries++ } },
+                onCurrent = { version = null })
+            if (versions) VersionsSheet(req.name, site, onShow = { n -> versions = false; version = if (n == site.current) null else n },
+                onCurrent = { n -> versions = false; withApi("go back to it") { it.setPageVersion(req.page.botId, req.page.slug, n); tell("The page shows version $n again"); version = null; tries++ } },
+                onDismiss = { versions = false })
+        }
+        if (req.page != null && page != null && site == null) PageBar(page, onKeep = { keeping = true }, onRefresh = {
             page.keep?.let { k -> withApi("refresh it") { it.runJob(req.page.botId, k.jobId); tell("${req.from.ifBlank { "The bot" }} is refreshing it") } }
         }, onStop = { withApi("stop it") { it.stopKeepingPage(req.page.botId, page.slug); tell("It no longer keeps up to date"); changed++ } })
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, onDismiss = { keeping = false }) { every, time, notify, check ->
@@ -248,6 +276,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             !v.downloadable && v.kind == "none" -> ViewerState("Too large to bring out of the computer", "Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.") {
                 OutlinedButton(onClick = onBack) { Text("Back to the chat", color = p.text) }
             }
+            site != null && req.page != null -> InteractiveFrame(site, values, onDownload = download)
             v.kind == "none" -> ViewerState("No preview for this kind of file", "The app shows Markdown, text, code, CSV and pictures. Open this one on your phone.") {
                 Button(onClick = { withApi("save it") { BotFiles.saveToDownloads(context, it, req.src, req.name); tell("Saving ${req.name} to Downloads") } },
                     colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Save to Downloads") }
@@ -367,7 +396,7 @@ private fun ModeChip(label: String, on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ViewerState(title: String, text: String, actions: @Composable () -> Unit) {
+internal fun ViewerState(title: String, text: String, actions: @Composable () -> Unit) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)

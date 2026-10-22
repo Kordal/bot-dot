@@ -47,8 +47,10 @@ object Pages {
         .filter { it.slug.isNotBlank() }
 
     /** The viewer's second line on a page: "Page by Ops · updated 5m ago". */
-    fun subtitle(from: String, page: PageInfo?, now: java.time.Instant = java.time.Instant.now()): String =
-        listOfNotNull(if (from.isBlank()) "Page" else "Page by $from", page?.let { "updated ${NotesWake.ago(it.updatedAt, now)}" }).joinToString(" · ")
+    fun subtitle(from: String, page: PageInfo?, now: java.time.Instant = java.time.Instant.now()): String {
+        val what = if (page?.kind == "interactive") "Interactive page" else "Page"
+        return listOfNotNull(if (from.isBlank()) what else "$what by $from", page?.let { "updated ${NotesWake.ago(it.updatedAt, now)}" }).joinToString(" · ")
+    }
 
     /** Its line in the bot's settings: "updated 5m ago · Daily at 07:00". */
     fun line(page: PageInfo, now: java.time.Instant = java.time.Instant.now()): String =
@@ -96,6 +98,69 @@ class TileTicks {
 @Serializable
 data class PageRef(val slug: String = "", val title: String = "")
 
+/**
+ * A bot's interactive page as the viewer gets it (#399, ADR 072): [frame] its address on the sandbox's own origin,
+ * signed for a short while (null: this machine has no such address yet), the version [shown] and the one the page
+ * shows ([current]), the versions kept, newest first, and the values of the [tiles] it reads, which the app hands it.
+ */
+@Serializable
+data class InteractiveView(
+    val current: Int = 0,
+    val shown: Int = 0,
+    val versions: List<SiteVersion> = emptyList(),
+    val frame: String? = null,
+    val expires: String? = null,
+    val values: JsonObject? = null,
+    val tiles: List<String> = emptyList(),
+)
+
+@Serializable
+data class SiteVersion(val n: Int = 0, val at: String? = null, val bytes: Long = 0, val files: Int = 0)
+
+@Serializable
+data class PageValues(val values: JsonObject? = null, val tiles: List<String> = emptyList())
+
+/** An interactive page in its frame (#399): what the app may and may not let through. */
+object InteractivePages {
+    const val FEATURE = "interactive-pages"
+    const val ISOLATED = "Isolated: runs on its own address, cannot see your account, cannot reach the internet."
+
+    /** The address the page's own files are under: its frame's address up to its last /. */
+    fun prefix(frame: String): String = frame.substringBeforeLast('/') + "/"
+
+    /** Where a navigation inside the frame goes: its own files stay, a link out is asked about first, anything else stays shut. */
+    sealed interface Go {
+        data object Stay : Go
+        data class Ask(val url: String) : Go
+        data object Block : Go
+    }
+
+    /** The scheme the frame's one request, a link out, arrives on (the script [LISTENER] turns its message into it). */
+    const val OPEN_SCHEME = "botdot-open"
+
+    fun go(frame: String, url: String): Go {
+        if (url.startsWith("$OPEN_SCHEME:")) return linkOut(java.net.URLDecoder.decode(url.removePrefix("$OPEN_SCHEME:"), "UTF-8"))
+        if (url.startsWith(prefix(frame))) return Go.Stay
+        return linkOut(url)
+    }
+
+    private fun linkOut(url: String): Go {
+        val u = runCatching { java.net.URI(url) }.getOrNull() ?: return Go.Block
+        return if ((u.scheme == "https" || u.scheme == "http") && !u.host.isNullOrBlank()) Go.Ask(url.take(2000)) else Go.Block
+    }
+
+    /**
+     * Run in the page once it has loaded: on a phone it is the WebView's own document, so a page's parent.postMessage
+     * comes to itself. Its one request, { botdot: "open", url }, becomes a navigation to [OPEN_SCHEME], which the
+     * WebView never loads but asks the owner about. Nothing else of the page reaches the app: there is no bridge.
+     */
+    const val LISTENER = "(function(){if(window.__botdotOpen)return;window.__botdotOpen=1;window.addEventListener('message',function(e){var d=e.data;" +
+        "if(d&&d.botdot==='open'&&typeof d.url==='string')location.href='$OPEN_SCHEME:'+encodeURIComponent(d.url.slice(0,2000));});})();"
+
+    /** The live values handed to the page: the message it listens for, { botdot: "values", values }. */
+    fun valuesScript(values: JsonObject): String = "window.postMessage({\"botdot\":\"values\",\"values\":$values},'*');"
+}
+
 /** What keeps a page up to date: its job, the schedule in words, and the sheet's own words for it when it has them. */
 @Serializable
 data class PageKeep(val jobId: String = "", val `when`: String = "", val every: String? = null, val time: String? = null, val notify: String = "report-only", val check: String = "")
@@ -112,6 +177,9 @@ data class PageInfo(
     /** On the list of every bot's pages (#361): whose page it is. */
     val botId: String = "",
     val bot: String = "",
+    /** "interactive" for a bot's interactive page (#399); else a page of Markdown. */
+    val kind: String = "",
+    val version: Int? = null,
 )
 
 @Serializable

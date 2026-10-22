@@ -16,7 +16,7 @@ One machine serves several **accounts**, each walled off from the others ([ADR 0
 - **Docker**, with Docker Compose (`docker compose`). The installer offers to install Docker when it's missing, and rootless Docker, gVisor's `runsc` and `setfacl` with `apt-get`.
 - **git** and **curl**, and **make** for a self-built botdot server.
 - **A way in**, one of the two, chosen when you install:
-  - **a public domain** whose DNS points at the machine, with ports 80 and 443 free: Caddy answers there over HTTPS and fetches its own certificate;
+  - **a public domain** whose DNS points at the machine, with ports 80, 443 and 8443 free (8443 is the sandbox's address for interactive pages): Caddy answers there over HTTPS and fetches its own certificate;
   - **a tailnet only**, with a Tailscale account (free for personal use): Tailscale Serve gives botdot an HTTPS name on your tailnet, and nothing is on the internet.
 - **A Claude subscription** (Pro or Max), or an Anthropic API key, for each account. The Chief of Staff and the bots run as Claude Code, signed in with it or on the key.
 - **Disk space:** about 15 GB for each account: botdot's image is about 4 GB and the bots' computer image about 7 GB. An update downloads only botdot's image (it removes the ones no longer used first); the computer's newer image is downloaded when the computer is updated or reset (the screen view's **Update**), and the old one goes then, so leave room for one more of each.
@@ -104,7 +104,7 @@ Your bots run unattended under that sign-in: scheduled jobs run while you sleep,
 
 ## Reach botdot
 
-- **On a public domain,** Caddy fetches the certificate by itself once the domain's DNS points at the machine and ports 80 and 443 are open. Until then the installer says that Caddy doesn't answer yet.
+- **On a public domain,** Caddy fetches the certificate by itself once the domain's DNS points at the machine and ports 80, 443 and 8443 are open. Until then the installer says that Caddy doesn't answer yet.
 - **On a tailnet,** the installer offers to install Tailscale and sign the server in (open the link it shows), then publishes the front door with Tailscale Serve, over HTTPS and on your tailnet only. When Serve isn't enabled on your tailnet yet, the installer shows Tailscale's message with the link to enable it; enable it and run the installer again.
 - **The front door listens only on the machine's own `127.0.0.1:4700`,** and each account's botdot server only on a Unix socket that the front door alone may open. Don't publish either some other way.
 - **On your phone,** open the address in the browser and choose **Add to Home Screen**, or install botdot for Android ([android/](../android/README.md)).
@@ -182,6 +182,7 @@ sudo umount /var/lib/botdot/accounts/ann
 sudo systemctl disable --now botdot-accounts.path botdot-load.timer
 cd /var/lib/botdot/front-door && sudo docker compose down -v
 sudo tailscale serve --https=443 off
+sudo tailscale serve --https=8443 off
 ```
 
 That keeps your data. To remove it too (every account's bots, chats, memory, vault and backups, and the passkeys, for good): `sudo rm -rf /var/lib/botdot`, then `sudo userdel botdot-ann` for each account (and its lines in `/etc/subuid` and `/etc/subgid`), `sudo userdel botdot-door`, `sudo rm -r /etc/systemd/system/botdot-account@.service /etc/systemd/system/botdot-accounts.path /etc/systemd/system/botdot-accounts.service /etc/systemd/system/botdot-load.timer /etc/systemd/system/botdot-load.service /etc/systemd/system.control/botdot-account@*.service.d` (the last are the accounts' CPU and RAM shares), and on Ubuntu 24.04 `sudo apparmor_parser -R /etc/apparmor.d/botdot-rootlesskit && sudo rm /etc/apparmor.d/botdot-rootlesskit`.
