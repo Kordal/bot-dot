@@ -1433,3 +1433,24 @@ a.file-path code { color: inherit; }
   .dv-back { display: grid; margin-left: -8px; }
   .dv-close, .dv-full { display: none; }
 }
+/* Settings → Usage (usage.js, #301): the timeframe, the totals, a bar a day and a bar a bot. */
+.usage-picker { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+.usage-custom { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.usage-custom .field { flex: 1 1 140px; min-width: 0; }
+.usage-custom input[type=date] { width: 100%; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; padding: 8px 12px; color: var(--text); color-scheme: dark; }
+.usage-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.usage-stat { background: var(--sunk); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.usage-stat .faint { font-size: 12px; }
+.usage-stat b { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.usage-chart { display: flex; align-items: flex-end; gap: 2px; height: 96px; padding-top: 4px; border-bottom: 1px solid var(--line-2); }
+.usage-bar { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; }
+.usage-bar i { display: block; width: 100%; background: var(--muted); border-radius: 3px 3px 0 0; }
+.usage-bar:hover i { background: var(--text); }
+.usage-axis { display: flex; justify-content: space-between; font-size: 11.5px; margin-top: 4px; }
+.usage-sub { margin: 14px 0 6px; font-size: 13px; font-weight: 600; }
+.usage-bots { display: grid; gap: 8px; }
+.usage-bot-head { display: flex; gap: 8px; align-items: baseline; font-size: 13.5px; min-width: 0; }
+.usage-bot-head .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.usage-bot-head .muted { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.usage-bot-bar { height: 4px; background: var(--sunk); border-radius: 2px; margin-top: 3px; }
+.usage-bot-bar i { display: block; height: 100%; background: var(--muted); border-radius: 2px; }

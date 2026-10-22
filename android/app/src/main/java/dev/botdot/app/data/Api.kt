@@ -148,6 +148,9 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** The What's new dialog was closed: these notes count as seen, here and on the web page. */
     suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) { send("POST", "/whats-new/seen", WhatsNew.seenBody(entries)) }
 
+    /** Token usage for a range of the account's days (#301); without days, today. */
+    suspend fun usage(from: String? = null, to: String? = null): Usage.Answer = json.decodeFromString(get("/usage${Usage.query(from, to)}"))
+
     suspend fun version(): VersionInfo = json.decodeFromString(get("/version"))
     suspend fun bots(): List<Bot> = json.decodeFromString(get("/bots"))
     suspend fun bot(id: String): Bot = json.decodeFromString(get("/bots/${enc(id)}"))

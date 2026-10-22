@@ -196,6 +196,16 @@ This is the only memory a bot keeps. Claude Code's own memory is switched off fo
 - **Reasoning levels** are read from your Claude Code (`claude --help`), so new ones appear automatically. They're passed as `--effort`, and higher levels think longer. None is sent to models the docs mark as not supporting it (Haiku); Claude Code ignores unsupported levels anyway.
 - **Stored in** `data/settings.json`. Each run records the model and level it asked for, and the model that actually ran (shown in the run's details).
 
+### Usage: tokens
+
+**Settings → Usage** shows how many tokens your bots and the Chief of Staff used, for **Today**, the last **7 days**, the last **30 days** or days you pick (**Custom**):
+
+- **Totals:** input tokens, output tokens, cache read and cache write tokens, and all of them together, as Claude Code reports them. No cost is shown.
+- **By bot:** a row per bot, the most tokens first; the Chief of Staff has its own row, and a group's turn counts for the bot that took it.
+- **Per day:** a bar for each day of the timeframe.
+
+Days follow your time zone. Usage is counted from the update that brought this section, kept for 400 days in `data/usage.json`, and only you see your account's.
+
 ## Bots with a computer
 
 In a bot's settings, switch on **Uses the computer**, or ask the Chief ("let it use the computer"). The bot then works on the account's computer: one Ubuntu desktop running in Docker that stays on, which every bot with a computer shares, controlled with the mouse, keyboard and screenshots, plus a shell and files ([ADR 035](adr/035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md)). The account has one such computer, however many bots use it.
