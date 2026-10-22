@@ -56,7 +56,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
       reply = `
         <div class="bubble-row from-bot"><div class="stack">
           ${exchange}
-          <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${botFilesHTML(r.files)}${planInReply(r, i === runs.length - 1)}</div>
+          <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${botFilesHTML(r.files)}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
           ${learnedChips(r)}
           <div class="bubble-meta">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
           ${i === runs.length - 1 && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}
@@ -110,7 +110,7 @@ function reachNew(botId, first) {
 
 // The plan under a reply that is done (plan.js): folded, its steps inside. Not under the newest run that was stopped
 // or failed before its plan was done: that plan stands above the message box, until the owner dismisses it.
-const planInReply = (r, last) => (globalThis.Plan && r.plan && !(last && stoppedPlan(r)) ? Plan.replyHTML(r.plan) : '');
+function planInReply(r, last) { return globalThis.Plan && r.plan && !(last && stoppedPlan(r)) ? Plan.replyHTML(r.plan) : ''; }
 const stoppedPlan = (r) => !!r && r.status !== 'success' && r.status !== 'running' && Plan.has(r.plan) && !Plan.finished(r.plan) && !Plan.dismissed(r.id);
 // A bot's plan above its message box (plan.js; docs/api.md, "The plan"): its running run's, else the newest run's
 // that was stopped or failed before its plan was done.
@@ -209,8 +209,8 @@ function renderBotChat() {
   updateChatNeeds($('#bot-thread'), bot.id);
   updatePip(bot, runs.find((r) => r.status === 'running' && r.computer));
   setSendBusy($('form', root), false);
+  globalThis.drawBotPlan?.(bot, runs);
   placeStatusLines();
-  drawBotPlan(bot, runs);
 }
 
 // Rejects when the task did not go, with nothing added to the chat (wireComposer, sendFrom). key: as sendToChief's.

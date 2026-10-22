@@ -43,6 +43,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,6 +61,7 @@ import dev.botdot.app.data.ChiefMessage
 import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.Mentions
+import dev.botdot.app.data.PlanView
 import dev.botdot.app.data.Ratings
 import dev.botdot.app.data.Unread
 import dev.botdot.app.data.str
@@ -91,6 +94,12 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val signedOut by app.store.claude.signedOut.collectAsState()
     val activity = vm.activity
     val files = vm.files
+    // Its plan above the message box (docs/api.md, "The plan"): the pending reply's, or the last reply's that was
+    // stopped or failed before its plan was done, until dismissed. Folded to its one line unless opened in this chat.
+    val planChat = "chief:${chatId.orEmpty()}"
+    var planFolded by remember(chatId) { mutableStateOf(app.plans.folded(planChat)) }
+    var planDismissed by remember(chatId) { mutableStateOf(0) } // a dismissal draws the chat again
+    val planView = remember(chat, planDismissed) { chat?.let { c -> PlanView.ofChief(c.id, c.messages, app.plans::dismissed) } }
 
     LaunchedEffect(vm) { vm.notes.collect { scope.launch { snack.showSnackbar(it) } } }
     // From a search match: go to that message (older ones first, if it's not loaded yet).
@@ -160,7 +169,10 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                     RoundButton(Icons.Filled.Add, "New chat") { vm.open(null) }
                 }
             },
-            bottomBar = {
+            bottomBar = { Column {
+                PlanDock(planView, CHIEF_COLOR, LocalChiefName.current, planFolded,
+                    onFold = { planFolded = it; app.plans.setFolded(planChat, it) },
+                    onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
                 Composer(
                     placeholder = "Message the Chief…",
                     files = files,
@@ -172,7 +184,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                     initialText = sharedText,
                     onSignIn = onSignIn.takeIf { signedOut },
                 )
-            },
+            } },
         ) { pad ->
             val messages = chat?.messages.orEmpty()
             val first = chat?.offset ?: 0 // where the loaded messages start in the whole chat
@@ -257,6 +269,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                         // What the owner steered into this reply while the Chief worked (ADR 040), before it, in the order read.
                         if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
                         Message(m, if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
+                            plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
                             onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
                             onDismiss = { vm.dismiss() },
                             thumbs = if (Ratings.shows(m, features, index)) ({ Thumbs(Ratings.value(m.rating)) { vm.rate(index, it) } }) else null)
@@ -272,7 +285,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
 }
 
 @Composable
-private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<CharSequence, (() -> Unit)?>>, lineSaysIt: Boolean, draft: String = "", onBuild: () -> Unit, onDismiss: () -> Unit, thumbs: (@Composable () -> Unit)? = null) {
+private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<CharSequence, (() -> Unit)?>>, lineSaysIt: Boolean, draft: String = "", plan: dev.botdot.app.data.Plan? = null, onBuild: () -> Unit, onDismiss: () -> Unit, thumbs: (@Composable () -> Unit)? = null) {
     val p = LocalPaper.current
     when {
         m.role == "user" -> MyBubble(m.text, m.attachments)
@@ -299,6 +312,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
                     Column {
                         Text(error.orEmpty(), color = p.text)
                         BotFilesRow(files)
+                        PlanFold(plan)
                     }
                 }
                 else -> TheirBubble(shortTime(m.endedAt ?: m.at), copyText = drawn.text, chips = chips, footerEnd = thumbs) {
@@ -308,6 +322,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
                         // A reply that failed after writing: its problem, in a block of its own under the text.
                         if (error != null) MarkdownText(error, color = p.warnText,
                             modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.warnSoft).padding(horizontal = 12.dp, vertical = 8.dp))
+                        PlanFold(plan) // the steps of its work, folded under it
                     }
                 }
             }

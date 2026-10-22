@@ -130,6 +130,10 @@ _Avoid_: status message, progress message, narration
 A bot's, the Chief of Staff's or a group member's reply as it is being written, shown in the place of that reply and growing there while the run works, in the chat that is open. Only the reply: never the opening line, text before a tool call, its answer buttons or a pass. The reply takes its place when the run ends. It is never a new reply and is kept nowhere.
 _Avoid_: streaming message, typing indicator, partial reply
 
+**Plan**:
+The steps a bot or the Chief of Staff writes down for work of several steps, each done, at work or to do. The owner sees it above the message box while the work goes on, folded under the reply once it is done, and as "Stopped at step N of M" when the work was stopped or failed before its steps were done, until the owner dismisses it. Only what the bot wrote with its plan tool is a plan, never steps it lists in a reply. It is never a new reply. Not the Chief's proposal to build a bot, which waits for Approve.
+_Avoid_: todo list, task list, checklist, progress
+
 **Look**:
 A Chief of Staff turn the botdot server starts by itself, a few times a day outside quiet hours, in which the Chief only reads (what it knows about the user, and the web) and decides whether there is one thing worth telling them. It ends with one unasked message or with nothing, and nothing leaves no trace.
 _Avoid_: heartbeat, check-in, proactive turn

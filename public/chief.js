@@ -548,7 +548,7 @@ async function showChat(id) {
       </div>`;
     $$('.suggestion', thread).forEach((b) => (b.onclick = withKey((key) => sendFrom(form, () => sendToChief(b.textContent, [], key)))));
     setSendBusy(form, false);
-    drawChiefPlan(null, null);
+    globalThis.drawChiefPlan?.(null, null);
     placeStatusLines(); // a line of the chat that was here goes
     if (!matchMedia('(pointer: coarse)').matches) form.text.focus();
     return;
@@ -573,7 +573,7 @@ async function showChat(id) {
   if (chat.busy) chiefTurns.set(id, chiefActivity(chat.messages.filter((m) => m.pending).pop()?.activity)); else chiefTurns.delete(id);
   chiefQueued.set(id, queuedList(chat.queued));
   thread._last = chat.messages.filter((m) => m.role === 'chief').pop() || null; // the reply whose plan shows above the box
-  drawChiefPlan(id, thread._last);
+  globalThis.drawChiefPlan?.(id, thread._last);
   placeStatusLines();
   updateChatNeeds(thread, 'chief');
   thread.scrollTop = thread.scrollHeight;
@@ -645,7 +645,7 @@ async function sendToChief(text, attachments = [], key = messageKey()) {
     sentOver(at, key); // the message as botdot took it stands where the page's own stood
     thread.insertAdjacentHTML('beforeend', userBubble({ text: text || 'Have a look at the attached files.', attachments }) + chiefBubble({ pending: true }));
     thread._last = { pending: true }; // a new reply: a stopped plan above the box goes
-    drawChiefPlan(id, thread._last);
+    globalThis.drawChiefPlan?.(id, thread._last);
     (thread._mine ||= []).push({ text, attachments });
     updateChatNeeds(thread, 'chief'); // the cards stay last
     chiefTurns.set(id, ''); // its reply began: the working line says so, with Stop
@@ -681,7 +681,7 @@ function followChief(id) {
     } else if (ev.type === 'plan') {
       const pending = { ...(thread._last?.pending ? thread._last : { pending: true, at: '' }), plan: ev.plan || undefined };
       thread._last = pending;
-      drawChiefPlan(id, pending);
+      globalThis.drawChiefPlan?.(id, pending);
     } else if (ev.type === 'reply_draft') {
       // The reply as it is written, in the row of the reply (the last one: the chat may have been drawn again).
       if (showsDrafts()) replyDrafts.say(`chief:${id}`, String(ev.text ?? ''), () => [$$('[data-pending]', thread).pop(), thread]);
@@ -708,7 +708,7 @@ function followChief(id) {
       // A bot's reply that came in meanwhile, or the next turn that began (see followFeed): show the whole chat again.
       if (state.chatReload) { state.chatReload = false; return showChat(id); }
       thread._last = ev.message || null;
-      drawChiefPlan(id, thread._last); // its plan goes under the reply, or stands as stopped
+      globalThis.drawChiefPlan?.(id, thread._last); // its plan goes under the reply, or stands as stopped
       if (ev.message) {
         // In the place of the row this page drew for it; a reply it drew none for goes to the end.
         if (row && row.isConnected !== false) { row.outerHTML = chiefBubble(ev.message, true); placeStatusLines(); } // the reply arrives (chiefArrives)

@@ -318,14 +318,14 @@ div.plan-head { cursor: default; }
 .plan-mark { width: 18px; height: 18px; flex: none; margin-top: 1px; display: grid; place-items: center; }
 .plan-mark svg { width: 18px; height: 18px; stroke-width: 2; }
 .plan-step.done { color: var(--faint); text-decoration: line-through; text-decoration-color: #5f5f5f; }
-.plan-step.done .plan-mark svg { color: var(--ok); }
+.plan-step.done .plan-mark svg { color: var(--ok-text); }
 .plan-step.doing { background: var(--sunk); color: var(--text); }
 .plan-step.doing em { display: block; font-style: normal; color: var(--muted); font-size: 12px; }
 .plan-step.doing .plan-mark i, .plan-spin { display: block; width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--c, var(--ok)); animation: plan-spin 1s linear infinite; flex: none; }
 .plan-step.todo { color: #d0d0d0; }
 .plan-step.todo .plan-mark i { display: block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid #5f5f5f; }
 .plan-step.cut { color: var(--warn-text); }
-.plan-step.cut .plan-mark svg { color: var(--warn); }
+.plan-step.cut .plan-mark svg { color: var(--warn-text); }
 .plan-step.left { color: var(--faint); }
 .plan-step.left .plan-mark i { display: block; width: 12px; height: 12px; border-radius: 50%; border: 1.5px dashed #5f5f5f; }
 .plan-card.stopped .plan-step.done { text-decoration: none; }
@@ -338,7 +338,7 @@ div.plan-head { cursor: default; }
 .plan-fold { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 4px; }
 .plan-fold summary { list-style: none; display: flex; align-items: center; gap: 6px; min-height: 32px; color: var(--muted); font-size: 12.5px; cursor: pointer; }
 .plan-fold summary::-webkit-details-marker { display: none; }
-.plan-fold summary svg { width: 14px; height: 14px; color: var(--ok); stroke-width: 2.2; }
+.plan-fold summary svg { width: 14px; height: 14px; color: var(--ok-text); stroke-width: 2.2; }
 .plan-fold ol { margin: 2px 0 4px; padding-left: 22px; color: var(--faint); font-size: 12.5px; }
 .plan-fold li.done { text-decoration: line-through; text-decoration-color: #5f5f5f; }
 /* "@" suggestions, above the message box. */

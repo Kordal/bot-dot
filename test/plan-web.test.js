@@ -105,6 +105,6 @@ test('web: its touch targets are 44px, and the page draws it above the box and f
   assert.match(app, /<div class="plan-slot"><\/div>/);
   assert.match(app, /if \(ev\.type === 'plan'\) onPlan\?\.\(ev\.plan \|\| null\)/, 'a bot\'s run stream');
   assert.match(app, /ev\.type === 'plan'\) \{\n\s*const pending/, 'the Chief\'s stream');
-  assert.match(app, /drawBotPlan\(bot, runs\)/);
-  assert.match(app, /drawChiefPlan\(id, thread\._last\)/);
+  assert.match(app, /drawBotPlan\?\.\(bot, runs\)/);
+  assert.match(app, /drawChiefPlan\?\.\(id, thread\._last\)/);
 });
