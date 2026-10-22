@@ -46,9 +46,8 @@ The whole room is outside content from its first word, also the bot owner's own 
 - A bot answers only when @mentioned. Its owner picks who may mention it: only the owner (default) or anyone in the room. A bot that may not be mentioned by the sender is not asked.
 - Bots may hand on to each other by naming one, under the ADR 019 rule: the line stops after 12 replies without a person.
 
-**Limits, set and enforced in the bot's own account:**
+**The bot's own account decides:**
 
-- **20 room turns per bot per room per day** by default, changeable by the bot's owner. Past it the server refuses the turn and the room says the bot is done for today.
 - The account refuses a turn the bot's room settings do not allow, whatever the front door asks: the account, not the broker, is the last word on its own bot.
 - Each room turn shows in the owner's activity ("answered in room X"), since it uses the owner's Claude login.
 
@@ -66,7 +65,7 @@ The whole room is outside content from its first word, also the bot owner's own 
 | Prompt injection between people | A room turn has no tools, so text can only change what the bot says. Nothing it says in a room is acted on in its own account. |
 | Leakage of the owner's data | A room turn gets no notes, recall, files, Vault list or private chats; its prompt holds only its name and description. |
 | Memory poisoning | Nothing is saved from a room turn: no notes, no skills. |
-| Cost abuse (others burn the owner's Claude use) | Mention-only, by default only the owner may mention, 20 turns per bot per room per day, 12 replies without a person. |
+| Cost abuse (others burn the owner's Claude use) | Mention-only, by default only the owner may mention, 12 replies without a person (ADR 019). No daily turn limit: the owner decided against one (AGENTS.md rule 5); an owner who sees misuse lets only themselves mention the bot, or removes it from the room. |
 | Impersonation | Labels come from the front door's account names; a bot's or person's own text cannot set them. Only an owner adds their own bots. |
 | A crafted reply from a compromised account | The front door stores and shows reply text only, size-checked, drawn by the apps' own code. |
 | The front door turned into a bridge | One route, one header the front door alone sets, one shape (transcript in, text out). The route is refused without the header and without the admin switch. |
@@ -84,7 +83,7 @@ The whole room is outside content from its first word, also the bot owner's own 
 
 - ADR 028's "nothing crosses accounts" now has one exception: room text in, reply text out, through the front door, only with the admin switch on. A bug in the broker could leak one room's text to the wrong account; the broker is small and gets its own tests.
 - A bot in a room is much less useful than in its owner's chat: it can only talk. That is the price of the safe default.
-- The 20-turns-a-day limit is a usage limit inside an account, which AGENTS.md rule 5 otherwise forbids. It is kept as an abuse guard, like ADR 019's 12 replies, not as a budget: it shows no cost or gauge, only "done for today" in that room.
+- There is no daily turn limit (AGENTS.md rule 5). If the owner lets anyone mention their bot, the people in the room can use the owner's Claude use as much as they like; the default (only the owner) avoids that.
 - The front door keeps people's text for the first time (until now only Feedback, ADR 048). The admin page still never shows it.
 - The work lives on the `nightly` branch, built and tested there; nothing reaches `main`, the images or the phones until the owner merges `nightly`.
 - Tickets: talk-only room turn in the account server; per-bot room settings; rooms in the front door with the admin switch; Rooms on the web; Rooms on Android.
