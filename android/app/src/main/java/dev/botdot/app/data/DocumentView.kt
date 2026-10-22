@@ -106,6 +106,8 @@ data class FileView(
     val truncated: Boolean = false,
     /** false: a file on the computer over 1 MB, which can't be brought out whole (no Save, Share or Open elsewhere). */
     val downloadable: Boolean = true,
+    /** A bot's page (#346): what it is, beside its text. */
+    val page: PageInfo? = null,
 )
 
 /**

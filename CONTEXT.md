@@ -83,7 +83,7 @@ The home of a wide window ([ADR 029](docs/adr/029-a-wide-window-opens-on-the-key
 _Avoid_: grid, dashboard, launcher, home screen
 
 **Page**:
-One part of the keypad: the pinned bots and groups, one category, or Other, in the list's order. A page with no bot or group is left out, except Pinned on the web page, which always stands first with the Chief of Staff's key. Every app shows every page at once, one under the other under its heading.
+One part of the keypad (for what a bot writes, see A bot's page): the pinned bots and groups, one category, or Other, in the list's order. A page with no bot or group is left out, except Pinned on the web page, which always stands first with the Chief of Staff's key. Every app shows every page at once, one under the other under its heading.
 _Avoid_: tab, screen, folder
 
 **Key**:
@@ -97,6 +97,10 @@ _Avoid_: subagent, copy, clone, worker
 **A bot's files**:
 What the user (or a teammate) gave a bot, kept in its folder until the user deletes them. Every task of the bot names them. Not the files a bot attaches to its reply, which are kept with that reply.
 _Avoid_: uploads, attachments (in what the user reads)
+
+**A bot's page**:
+A lasting page a bot writes for the user in Markdown (a report, a memo, an overview), kept in its folder, opened in the app and listed under Pages in its settings. "Keep up to date" gives it a job that rewrites it ([ADR 065](docs/adr/065-a-page-is-a-bots-markdown-kept-up-to-date-by-the-owners-tap.md)). Never HTML. Not a page of the keypad, and not the Board.
+_Avoid_: artifact, document, report (for the page itself)
 
 **Kept in mind**:
 Of a bot's file: its text, or the bot's summary of it, comes with every task of the bot. The API calls it `pinned`; the user reads "Keep in mind", so it is never mixed up with a pinned bot or a pinned note.

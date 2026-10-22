@@ -14,6 +14,12 @@ function followFeed() {
   ['login_request', 'login_request_closed'].forEach((t) => es.addEventListener(t, () => { pollLoginRequests(); soon(); })); // soon: the bot's face shows it needs you
   es.addEventListener('run_steered', soon); // a run read a message the owner steered into it (ADR 040): the refresh draws it there
   es.addEventListener('bitwarden', () => pollBitwarden());
+  // A bot saved a page (#346): an open page and the bot's list of pages follow (public/pages.js).
+  es.addEventListener('page', (e) => {
+    let d = {};
+    try { d = JSON.parse(e.data); } catch { /* not ours */ }
+    if (typeof Pages !== 'undefined') Pages.changed(d);
+  });
   // A chat's new replies changed: its dots follow, in every app.
   es.addEventListener('unread', (e) => {
     let d = {};
