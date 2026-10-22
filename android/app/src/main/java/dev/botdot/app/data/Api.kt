@@ -491,6 +491,25 @@ class Api(val baseUrl: String, val session: Session? = null) {
         }
     }
 
+    /** A document made from [text] (#348, POST /api/export): Word, PDF or Markdown, written to [dir] under the name the
+     *  server gives it. Returns the file. */
+    suspend fun exportDocument(title: String, text: String, format: String, dir: java.io.File): java.io.File = withContext(Dispatchers.IO) {
+        val body = buildJsonObject { put("title", title); put("text", text); put("format", format) }
+        val req = request("/export").header("Accept", "*/*").header("X-Bot-Dot", "1").post(body.toString().toRequestBody(JSON_TYPE)).build()
+        try {
+            streamClient.newCall(req).execute().use { res ->
+                if (!res.isSuccessful) readOrThrow(res)
+                val name = DocumentExport.fileName(res.header("Content-Disposition"), format)
+                dir.mkdirs()
+                val dest = java.io.File(dir, name)
+                res.body.byteStream().use { input -> dest.outputStream().use { input.copyTo(it) } }
+                dest
+            }
+        } catch (e: IOException) {
+            throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})")
+        }
+    }
+
     suspend fun downloadApp(dest: java.io.File, onProgress: (Float) -> Unit) = withContext(Dispatchers.IO) {
         val req = request("/app/android.apk").header("Accept", "application/vnd.android.package-archive").get().build()
         try {
