@@ -29,6 +29,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
       : r.trigger === 'schedule'
       ? `<div class="bubble-row from-me"><span class="chip">⏰ Scheduled run · ${esc(msgTime(r.startedAt))}</span></div>`
       : r.trigger === 'hello' ? '' // a new bot's first message (#511): you asked nothing
+      : r.kind === 'reminder' ? '' // a reminder it set went off (#343): botdot posted it, nobody asked
       : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
       : r.customPrompt === false
         ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} Ran its main assignment</span></div>`
@@ -58,7 +59,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
           ${exchange}
           <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${botFilesHTML(r.files)}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
           ${learnedChips(r)}
-          <div class="bubble-meta">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
+          <div class="bubble-meta">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` · <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
           ${i === runs.length - 1 && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}
         </div></div>`;
     }
