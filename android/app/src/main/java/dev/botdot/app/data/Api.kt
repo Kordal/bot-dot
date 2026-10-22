@@ -550,9 +550,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
         }
     }
 
-    /** Whether Google Docs is connected now (#351, GET /api/export/google-docs). */
-    suspend fun googleDocsConnected(): Boolean =
-        json.parseToJsonElement(get("/export/google-docs")).jsonObject["connected"]?.jsonPrimitive?.booleanOrNull == true
+    /** Whether Google Docs is connected now, and whether connected apps are set up at all (#351, #378, GET /api/export/google-docs). */
+    suspend fun googleDocsStatus(): DocumentExport.GoogleDocsStatus = json.parseToJsonElement(get("/export/google-docs")).jsonObject.let { o ->
+        DocumentExport.GoogleDocsStatus(configured = o["configured"]?.jsonPrimitive?.booleanOrNull != false, connected = o["connected"]?.jsonPrimitive?.booleanOrNull == true)
+    }
 
     /** [text] saved as a new Google Doc (#351): its address on docs.google.com. */
     suspend fun saveToGoogleDocs(title: String, text: String): String =

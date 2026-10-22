@@ -1540,6 +1540,7 @@ body.doc-mode > .app { display: none; }
 .doc-gd { width: 16px; height: 16px; border-radius: 3px; background: #4285f4; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; flex: none; }
 .doc-saved { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 7; display: flex; gap: 10px; align-items: center; padding: 9px 16px; border-radius: 99px; background: var(--ink); color: var(--ink-text); font-size: 13.5px; }
 .doc-saved[hidden] { display: none; }
+.doc-saved.err { background: var(--err-soft); color: var(--err); max-width: calc(100vw - 32px); border-radius: 14px; }
 .doc-saved a { color: inherit; font-weight: 600; text-decoration: none; }
 
 

@@ -51,3 +51,96 @@ test('the boot opens a document address as the document alone; every chat draws 
   assert.ok(html.indexOf('/document.js') < html.indexOf('/app.js'), 'loaded before app.js');
   assert.match(read('style.css'), /body\.doc-mode > \.app \{ display: none; \}/);
 });
+
+// Save to Google Docs from the Export menu (#378): the tap used to set the address to /#connectors, which changed nothing
+// on a document page, so it looked dead. Now it connects Google Docs right there and saves, or says why it can't.
+function gdHarness({ answers = {}, popup = true } = {}) {
+  const calls = [];
+  const said = [];
+  const rows = [];
+  const win = { closed: false, location: null, close() { this.closed = true; } };
+  const g = {
+    esc,
+    api: async (p, opts = {}) => {
+      calls.push(`${opts.method || 'GET'} ${p}`);
+      const a = answers[`${opts.method || 'GET'} ${p}`];
+      const v = typeof a === 'function' ? a() : a;
+      if (v instanceof Error) throw v;
+      return v;
+    },
+  };
+  const ui = { open: () => (popup ? win : null), row: (t) => rows.push(t), status: (t, o = {}) => said.push({ t, ...o }), wait: async () => {} };
+  return { calls, said, rows, win, g, ui };
+}
+const doc = { title: 'Plan', text: '# Plan\n\nx' };
+const plain = (v) => JSON.parse(JSON.stringify(v));
+
+test('Google Docs row: what it says for each answer of the server', () => {
+  assert.equal(DocPage.gdLabel({ configured: true, connected: true }), 'connected');
+  assert.equal(DocPage.gdLabel({ configured: true, connected: false }), 'Connect…');
+  assert.equal(DocPage.gdLabel({ configured: false, connected: false }), 'Not set up');
+  assert.equal(DocPage.gdLabel({ connected: false }), 'Connect…', 'an older server, without configured');
+  assert.equal(DocPage.gdLabel({}), '', 'not asked yet');
+});
+
+test('Google Docs not connected: the tap opens the sign-in tab, waits for the connection and then saves', async () => {
+  const states = ['INITIATED', 'ACTIVE'];
+  const h = gdHarness({ answers: {
+    'POST /connectors/connect': { redirectUrl: 'https://backend.composio.dev/s/abc', connectionId: 'ca_1' },
+    'GET /connectors/connections/ca_1': () => ({ id: 'ca_1', status: states.shift() }),
+    'POST /export/google-docs': { url: 'https://docs.google.com/document/d/1AbCdEfGhIjK/edit' },
+  } });
+  const st = { configured: true, connected: false };
+  await DocPage.googleDocs(doc, st, h.g, h.ui);
+  assert.deepEqual(h.calls, ['POST /connectors/connect', 'GET /connectors/connections/ca_1', 'GET /connectors/connections/ca_1', 'POST /export/google-docs']);
+  assert.equal(h.win.location, 'https://backend.composio.dev/s/abc', 'the sign-in in the tab opened on the tap');
+  assert.equal(st.connected, true);
+  assert.deepEqual(plain(h.rows), ['Connecting…', 'Saving…', 'connected']);
+  const last = h.said.at(-1);
+  assert.equal(last.t, 'Saved to Google Docs');
+  assert.equal(last.link.href, 'https://docs.google.com/document/d/1AbCdEfGhIjK/edit');
+  assert.ok(h.said.some((s) => /Sign in to Google in the tab that opened/.test(s.t)), 'says what to do meanwhile');
+});
+
+test('Google Docs: no Composio on this server says so; a blocked pop-up, a failed connect and a failed sign-in say what went wrong', async () => {
+  let h = gdHarness();
+  await DocPage.googleDocs(doc, { configured: false, connected: false }, h.g, h.ui);
+  assert.deepEqual(h.calls, [], 'nothing to ask');
+  assert.match(h.said[0].t, /connected apps aren't set up on this server/);
+  assert.equal(h.said[0].link.href, '/#connectors');
+  assert.equal(h.said[0].error, true);
+
+  h = gdHarness({ popup: false });
+  await DocPage.googleDocs(doc, { configured: true, connected: false }, h.g, h.ui);
+  assert.deepEqual(h.calls, []);
+  assert.match(h.said[0].t, /blocked the Google sign-in tab/);
+
+  h = gdHarness({ answers: { 'POST /connectors/connect': new Error('Composio rejected the API key') } });
+  await DocPage.googleDocs(doc, { configured: true, connected: false }, h.g, h.ui);
+  assert.equal(h.win.closed, true, 'the empty tab closes');
+  assert.match(h.said.at(-1).t, /Couldn't start connecting Google Docs: Composio rejected the API key/);
+  assert.equal(h.rows.at(-1), 'Connect…');
+
+  h = gdHarness({ answers: { 'POST /connectors/connect': { redirectUrl: 'https://x.test/s', connectionId: 'ca_2' }, 'GET /connectors/connections/ca_2': { status: 'FAILED', statusReason: 'denied' } } });
+  await DocPage.googleDocs(doc, { configured: true, connected: false }, h.g, h.ui);
+  assert.ok(!h.calls.includes('POST /export/google-docs'));
+  assert.equal(h.said.at(-1).t, "Connecting Google Docs didn't work: denied");
+});
+
+test('Google Docs connected: saves at once; a connection gone since says to tap again to connect', async () => {
+  let h = gdHarness({ answers: { 'POST /export/google-docs': { url: 'https://docs.google.com/document/d/1AbCdEfGhIjK/edit' } } });
+  await DocPage.googleDocs(doc, { configured: true, connected: true }, h.g, h.ui);
+  assert.deepEqual(h.calls, ['POST /export/google-docs']);
+  assert.equal(h.said.at(-1).t, 'Saved to Google Docs');
+  const st = { configured: true, connected: true };
+  h = gdHarness({ answers: { 'POST /export/google-docs': Object.assign(new Error('Google Docs is not connected.'), { state: 'not-connected' }) } });
+  await DocPage.googleDocs(doc, st, h.g, h.ui);
+  assert.equal(st.connected, false);
+  assert.match(h.said.at(-1).t, /Tap Google Docs again to connect it/);
+  assert.equal(h.rows.at(-1), 'Connect…');
+});
+
+test('the Export menu no longer sends a document page to /#connectors, which does nothing there', () => {
+  assert.doesNotMatch(read('document.js'), /location\.href = '\/#connectors'/);
+  assert.match(read('document.js'), /try \{ await googleDocs\(doc, gd, g, ui\); \}/);
+});

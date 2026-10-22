@@ -17,10 +17,10 @@ function fakeConnectors({ configured = true, apps = ['googledocs'], fields = ['t
 }
 
 test('status: connected only when Google Docs has a working connection', async () => {
-  assert.deepEqual(await docGoogle.status(fakeConnectors()), { connected: true });
-  assert.deepEqual(await docGoogle.status(fakeConnectors({ apps: ['gmail', 'googledrive'] })), { connected: false });
-  assert.deepEqual(await docGoogle.status(fakeConnectors({ configured: false })), { connected: false });
-  assert.deepEqual(await docGoogle.status({ configured: () => true, connectedApps: async () => { throw new Error('down'); } }), { connected: false });
+  assert.deepEqual(await docGoogle.status(fakeConnectors()), { configured: true, connected: true });
+  assert.deepEqual(await docGoogle.status(fakeConnectors({ apps: ['gmail', 'googledrive'] })), { configured: true, connected: false });
+  assert.deepEqual(await docGoogle.status(fakeConnectors({ configured: false })), { configured: false, connected: false }, 'no Composio: says so');
+  assert.deepEqual(await docGoogle.status({ configured: () => true, connectedApps: async () => { throw new Error('down'); } }), { configured: true, connected: false });
 });
 
 test('save: the Markdown under its title through the Markdown action, run at once, and the document\'s address back', async () => {
@@ -46,7 +46,7 @@ test('the route: the owner asks and is told it is not connected; the Chief may n
   const srv = await startServer();
   try {
     assert.ok((await srv.api('/version')).data.features.includes('document-google-docs'));
-    assert.deepEqual((await srv.api('/export/google-docs')).data, { connected: false });
+    assert.equal((await srv.api('/export/google-docs')).data.connected, false);
     const r = await srv.api('/export/google-docs', { method: 'POST', body: { title: 'T', text: 'x' } });
     assert.equal(r.status, 409);
     assert.equal(r.data.state, 'not-connected');

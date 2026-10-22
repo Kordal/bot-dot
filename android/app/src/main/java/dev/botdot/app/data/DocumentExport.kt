@@ -21,6 +21,19 @@ object DocumentExport {
     const val GOOGLE_DOCS = "document-google-docs"
     fun savesToGoogleDocs(features: Collection<String>?): Boolean = features != null && GOOGLE_DOCS in features
 
+    /** The Google Docs row (#378), from GET /api/export/google-docs: null until it answers. An older server sends no
+     *  `configured`: then it counts as set up. */
+    data class GoogleDocsStatus(val configured: Boolean = true, val connected: Boolean = false)
+    fun googleDocsLabel(s: GoogleDocsStatus?): String = when {
+        s == null -> ""
+        !s.configured -> "Not set up"
+        s.connected -> "connected"
+        else -> "Connect…"
+    }
+    const val GOOGLE_DOCS_APP = "googledocs"
+    const val GOOGLE_DOCS_NOT_SET_UP = "Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Connectors page, then try again."
+    const val GOOGLE_DOCS_SIGN_IN = "Sign in to Google in the browser, then come back and tap Google Docs again to save."
+
     /** Only a Google Doc's own address is opened from the server's answer. */
     fun isGoogleDoc(url: String): Boolean = Regex("^https://docs\\.google\\.com/document/d/[A-Za-z0-9_-]+/edit$").matches(url)
 

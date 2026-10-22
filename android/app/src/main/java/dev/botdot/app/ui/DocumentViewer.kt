@@ -269,17 +269,17 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
     val context = LocalContext.current
     val app = BotDotApp.of(context)
     val api by app.api.collectAsState()
-    val scope = rememberCoroutineScope()
     val tell = { t: String -> android.widget.Toast.makeText(context, t, android.widget.Toast.LENGTH_LONG).show() }
     val server by app.store.version.value.collectAsState()
-    // Whether Google Docs is connected, asked as the sheet opens; null until it answers.
-    var googleDocs by remember { mutableStateOf<Boolean?>(null) }
-    LaunchedEffect(api) { if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) googleDocs = runCatching { api?.googleDocsConnected() }.getOrNull() }
+    // Google Docs as the server says when the sheet opens: null until it answers.
+    var googleDocs by remember { mutableStateOf<dev.botdot.app.data.DocumentExport.GoogleDocsStatus?>(null) }
+    LaunchedEffect(api) { if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) googleDocs = runCatching { api?.googleDocsStatus() }.getOrNull() }
+    // The work outlives the sheet, which closes on the tap: in the app's scope, not the sheet's.
     fun make(what: String, act: suspend (java.io.File) -> Unit, format: String) {
         onDone()
         val a = api ?: return tell("Not connected to botdot")
         tell("Making the file…")
-        scope.launch {
+        app.scope.launch {
             runCatching { act(a.exportDocument(title, text, format, java.io.File(context.cacheDir, "botfiles/exports"))) }.onError { tell(it.message ?: "Couldn't $what") }
         }
     }
@@ -292,18 +292,36 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
             Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
             if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) {
                 Text("SAVE TO", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
-                SheetRow("Google Docs", when (googleDocs) { true -> "connected"; false -> "Connect on the web"; null -> "" }) {
+                // Not connected: the tap connects Google Docs (the Connectors page's own path) with the sign-in in the
+                // browser (#378); without connected apps on this server it says so.
+                SheetRow("Google Docs", dev.botdot.app.data.DocumentExport.googleDocsLabel(googleDocs)) {
                     onDone()
                     val a = api ?: return@SheetRow tell("Not connected to botdot")
-                    if (googleDocs == false) return@SheetRow tell("Connect Google Docs on the Connectors page first.")
-                    tell("Saving to Google Docs…")
-                    scope.launch {
-                        runCatching { a.saveToGoogleDocs(title, text) }
-                            .onSuccess { url ->
-                                tell("Saved to Google Docs")
-                                runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    val gd = googleDocs
+                    if (gd != null && !gd.configured) return@SheetRow tell(dev.botdot.app.data.DocumentExport.GOOGLE_DOCS_NOT_SET_UP)
+                    fun save() {
+                        tell("Saving to Google Docs…")
+                        app.scope.launch {
+                            runCatching { a.saveToGoogleDocs(title, text) }
+                                .onSuccess { url ->
+                                    tell("Saved to Google Docs")
+                                    runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                                }
+                                .onError { tell(if ((it as? ApiException)?.status == 409) "Google Docs isn't connected. Tap Google Docs again to connect it." else it.message ?: "Couldn't save it to Google Docs") }
+                        }
+                    }
+                    if (gd?.connected != false) return@SheetRow save()
+                    tell("Opening the Google sign-in…")
+                    app.scope.launch {
+                        runCatching { a.connectApp(dev.botdot.app.data.DocumentExport.GOOGLE_DOCS_APP) }
+                            .onSuccess { link ->
+                                if (link.noAuth) save()
+                                else link.redirectUrl?.let {
+                                    context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(it)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                                    tell(dev.botdot.app.data.DocumentExport.GOOGLE_DOCS_SIGN_IN)
+                                } ?: tell("Couldn't start connecting Google Docs")
                             }
-                            .onError { tell(it.message ?: "Couldn't save it to Google Docs") }
+                            .onError { tell("Couldn't start connecting Google Docs: ${it.message ?: "try again"}") }
                     }
                 }
                 Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
