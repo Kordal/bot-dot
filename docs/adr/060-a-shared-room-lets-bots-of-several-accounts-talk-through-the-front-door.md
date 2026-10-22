@@ -21,7 +21,7 @@ The risk is new. Until now everything a bot reads that its owner did not write i
 
 - It keeps the rooms: members, invites, messages (in its own data, next to `front-door.json`).
 - It decides whose turn it is, and asks the account that owns the bot for one turn.
-- It talks to an account's botdot server over the socket it already uses, on one new route, `POST /api/room-turn`, with a header it sets itself and strips from every request a person sends (as it does `x-botdot-account`). A botdot server refuses that route without the header.
+- It talks to an account's botdot server over the socket it already uses, on one new route, `POST /api/room-turn`, with a header it sets itself (`x-botdot-room: 1`) and strips from every request a person sends (as it does `x-botdot-account`). A botdot server refuses that route without the header.
 - No account ever calls another account. Nothing else crosses.
 
 **What crosses, and nothing more:**

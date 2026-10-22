@@ -539,12 +539,14 @@ function tellChiefOfHeld(a, { answer, error }) {
 const ctx = { ACCOUNT, audit, secretFiles, callKeys, callRefusals, keys, vault, bitwarden, store, readyForSecrets, setup, updates,
   UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, backups, connectedApps, tools, chiefReview, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, macApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
-  chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; }, ...shared };
+  chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; },
+  fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
 ctx.computerRoutes = require('./lib/routes/computers').create(ctx);
 ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
 const ROUTES = [
   require('./lib/routes/system').create(ctx),
+  require('./lib/routes/room-turn').create(ctx), // a bot's reply in a shared room, for the front door only (ADR 060)
   ctx.computerRoutes.ofAccount, // the account's computer for every bot: its reset and update (#107)
   require('./lib/routes/backups').create(ctx),
   require('./lib/routes/files').create(ctx),
