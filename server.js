@@ -416,13 +416,14 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // was asked, and is done on their yes (doHeldAction). Reading is free, and so is what is a request to the owner
 // already or is guarded on its own: asking for a skill or a tool (a card), asking for a login (a card), asking for a
 // reset of the account's computer (a card of its own, lib/routes/computers.js), the
-// Chief's notes (they are "outside" after a read and a forget waits, ADR 017), stopping a run, the checkup's
+// Chief's notes (they are "outside" after a read and a forget waits, ADR 017), a task for a bot (it starts as a run
+// that read the web, so the bot's own guards hold it, ADR 066), stopping a run, the checkup's
 // proposals (the owner picks them), and the steer hook reading the owner's own messages (ADR 040). A new SSH key
 // (vault/ssh-keys) and a change to one (vault/:id) wait too, but their routes hold them themselves, after their own
 // refusals, so a call they refuse never becomes a card (lib/routes/vault.js).
 // A connected app's actions follow their own grants (ADR 047): a write waits on its own card, and an "Always allow"
 // lets it through also after the web. Removing a lasting grant of the Chief's only takes trust away.
-const FREE_AFTER_WEB = /^(asks|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
+const FREE_AFTER_WEB = /^(asks|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'));
 // What the held request does, as the title of its card: "Make the bot “Leaker”", "Give Scout a task".
 function heldTitle(method, parts, body) {
