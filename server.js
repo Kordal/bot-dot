@@ -547,6 +547,7 @@ ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
 const ROUTES = [
   require('./lib/routes/system').create(ctx),
   require('./lib/routes/room-turn').create(ctx), // a bot's reply in a shared room, for the front door only (ADR 060)
+  require('./lib/routes/room-notice').create(ctx), // a new message in a shared room rings the owner, from the front door only (ADR 060)
   ctx.computerRoutes.ofAccount, // the account's computer for every bot: its reset and update (#107)
   require('./lib/routes/backups').create(ctx),
   require('./lib/routes/files').create(ctx),
