@@ -432,6 +432,19 @@ test('web: digits open keys counted across the pages, unless a text field has fo
   assert.equal(p.said.views.length, 2, 'nothing else opened');
 });
 
+test("web: a bot's own hotkey shows on its key and opens it, also from a folded page; the free digits go to the rest (#366)", () => {
+  const p = page({ bots: [NEWS, { ...INBOX, hotkey: 1 }, LIGHTS, GARDEN] });
+  assert.deepEqual(keysOf(p.keys()).map((k) => k.split(' ').slice(0, 2).join(' ')), ['2 Garden', '3 News', '4 Home', '5 Evening', '1 Inbox']);
+  assert.ok(p.key('1'));
+  assert.deepEqual(p.said.views.at(-1), ['bot', 'inbox']);
+  assert.ok(p.key('2'));
+  assert.deepEqual(p.said.views.at(-1), ['bot', 'garden']);
+  const folded = page({ bots: [NEWS, { ...INBOX, hotkey: 9 }, LIGHTS, GARDEN], folded: ['Money'] });
+  assert.ok(!keysOf(folded.keys()).some((k) => k.includes('Inbox')), 'Money is folded');
+  assert.ok(folded.key('9'));
+  assert.deepEqual(folded.said.views.at(-1), ['bot', 'inbox'], 'its 9 still opens it');
+});
+
 test('web: the keys do nothing where the keypad is not shown, under a dialog, or for a key already taken', () => {
   const narrow = page({ shown: false });
   assert.equal(narrow.key('1'), false);

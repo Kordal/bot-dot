@@ -104,6 +104,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var connectors by remember { mutableStateOf(setOf<String>()) }
     var mayMessage by remember { mutableStateOf(setOf<String>()) }
     var othersMayAsk by remember { mutableStateOf(true) }
+    var hotkey by remember { mutableStateOf(0) }
     var others by remember { mutableStateOf<List<Bot>>(emptyList()) }
 
     fun fill(b: Bot) {
@@ -111,6 +112,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
         model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux"
         useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
         othersMayAsk = b.othersMayAsk != false
+        hotkey = b.hotkey ?: 0
     }
 
     LaunchedEffect(api) {
@@ -150,6 +152,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             if (everyone != b.mayMessageAll) put("mayMessageAll", everyone)
             if (!everyone && (b.mayMessageAll || mayMessage != b.mayMessage.toSet())) put("mayMessage", JsonArray(mayMessage.map { JsonPrimitive(it) }))
             if (b.othersMayAsk != null && othersMayAsk != b.othersMayAsk) put("othersMayAsk", othersMayAsk)
+            if (b.hotkey != null && hotkey != b.hotkey) put("hotkey", hotkey)
         }
         if (changes.isEmpty()) return@launch tell("Nothing changed.")
         saving = true
@@ -251,6 +254,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             // "Other bots may ask it" (#136): only from a server that has it.
             if (others.isNotEmpty() && b.othersMayAsk != null) Section("Other bots") {
                 SwitchRow("Other bots may ask it", "Off keeps it to you: other bots don't see it among their teammates and can't message it.", othersMayAsk) { othersMayAsk = it }
+            }
+            // Its own key on the keypad (#366): only from a server that has it. A digit another bot holds moves here.
+            if (b.hotkey != null) FoldSection("Key on the keypad", if (hotkey in 1..9) "$hotkey" else "By its place") {
+                CheckRow("By its place", "Without one it gets a free digit by its place.", hotkey == 0) { hotkey = 0 }
+                for (d in 1..9) CheckRow("$d", others.firstOrNull { it.hotkey == d }?.let { "Now ${it.name}'s" }, hotkey == d) { on -> hotkey = if (on) d else 0 }
             }
             // The jobs you said to always approve: their later changes need no OK. Revoke takes one off (saved right away).
             val trusted = b.jobs.filter { it.alwaysApprove }

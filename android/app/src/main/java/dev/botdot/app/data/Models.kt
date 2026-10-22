@@ -181,6 +181,7 @@ data class Bot(
     val mayMessageAll: Boolean = false, // it may message every other bot, bots made later too
     val mayMessage: List<String> = emptyList(),
     val othersMayAsk: Boolean? = null, // "Other bots may ask it" (#136); null from a server without it, which shows no switch
+    val hotkey: Int? = null, // its own digit on the keypad, 1 to 9, 0 for none (#366); null from a server without it, which shows no setting
     val overrides: List<BotOverride> = emptyList(), // the rules the owner lifted for it with "Allow always for this bot" (#253)
     val unread: Int = 0, // its new replies, as the botdot server counts them; 0 from a server without the feature
     val firstUnread: String? = null, // the run that is the first of them in its chat: the "New" line goes there
