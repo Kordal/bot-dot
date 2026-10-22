@@ -141,6 +141,7 @@ function drawContacts() {
   const pages = Keypad.pages(matching, chats);
   top.push(...(pages.find((p) => p.kind === 'pinned')?.keys || []).map(row));
   items.push(...top);
+  if (!q && typeof roomsRowHTML === 'function') items.push(roomsRowHTML()); // shared rooms, when they are on (rooms.js)
   if (items.length) items.push('<div class="contact-sep"></div>');
   const rest = pages.filter((p) => p.kind !== 'pinned');
   const cats = categoryNames(bots.filter((b) => !(b.pinned > 0)), state.groups.filter((g) => !(g.pinned > 0)));
@@ -173,6 +174,7 @@ function drawContacts() {
   $$('[data-contact]').forEach((el) => (el.onclick = () => {
     if (el.dataset.contact === 'chief') openChief();
     else if (el.dataset.contact === 'dashboard') setView('dashboard');
+    else if (el.dataset.contact === 'rooms') setView('rooms');
     else if (el.dataset.kind === 'group') setView('group', el.dataset.contact.slice(6));
     else setView('bot', el.dataset.contact);
   }));
@@ -250,6 +252,7 @@ function drawKeypad() {
   $$('[data-key-ask]', keys).forEach((el) => (el.onclick = askChief));
   wireKeyDrags(pages, all, keys);
   drawKeypadSections(found);
+  if (typeof drawRoomsKeys === 'function') drawRoomsKeys(); // shared rooms, beside Needs you (rooms.js)
 }
 // A page's dot, on its heading on the keypad or on a phone: in the colour of the first bot on it that asks.
 function pageDot(p) {
@@ -454,7 +457,7 @@ const draggedPlace = (x) => (x.members ? groupsIn(draggedIn(x)).indexOf(x) + 1 :
 // The last bot's row in a category: the groups there stand after it.
 const lastBotRow = (cat) => $$(`#contacts [data-contact]:not([data-kind="group"])[data-group="${CSS.escape(cat)}"]`).pop() || null;
 function wireDrags() {
-  $$('#contacts [data-contact]:not([data-contact="chief"]):not([data-contact="dashboard"])').forEach((el) => {
+  $$('#contacts [data-contact]:not([data-contact="chief"]):not([data-contact="dashboard"]):not([data-contact="rooms"])').forEach((el) => {
     el.ondragstart = (e) => {
       e.dataTransfer.setData(BOT_DRAG, el.dataset.contact);
       e.dataTransfer.effectAllowed = 'move';
@@ -470,7 +473,7 @@ function wireDrags() {
       renderContacts();
     };
   });
-  $$('#contacts [data-contact]:not([data-contact="dashboard"]), #contacts [data-group-head]').forEach((el) => {
+  $$('#contacts [data-contact]:not([data-contact="dashboard"]):not([data-contact="rooms"]), #contacts [data-group-head]').forEach((el) => {
     el.ondragover = (e) => {
       if (!e.dataTransfer.types.includes(BOT_DRAG)) return;
       e.preventDefault();

@@ -463,6 +463,7 @@ async function showAdminLink() {
   $('#admin-link').classList.toggle('hidden', session?.admin !== true);
   $('#feedback-btn')?.classList.toggle('hidden', session?.feedback !== true);
   feedbackShots = session?.feedbackScreenshots === true;
+  if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account); // shared rooms (rooms.js, ADR 060)
 }
 
 // ---------- feedback ----------
