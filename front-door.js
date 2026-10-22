@@ -795,7 +795,7 @@ async function roomRoutes(req, res, p) {
     const answer = await askAccount(account, 'GET', '/api/room-bots', null, 15_000);
     if (answer.status !== 200 || !Array.isArray(answer.data?.bots)) return send(res, 502, { error: "Your account's botdot server didn't say which bots may be in rooms. Try again in a moment." });
     const bot = answer.data.bots.find((b) => b && b.id === botId);
-    if (!bot) return send(res, 404, { error: 'You have no such bot.' });
+    if (!bot) return send(res, 404, { error: 'You have no such bot that may be in rooms. Turn "Rooms" on in its settings first.' });
     if (bot.rooms?.allowRooms !== true) return send(res, 403, { error: `${String(bot.name || 'This bot').slice(0, 60)} is kept out of rooms. Turn "Rooms" on in its settings first.` });
     const room = rooms.addBot(id, account, bot);
     roomChanged(room);

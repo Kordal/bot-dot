@@ -239,6 +239,10 @@ test("bots hand on by naming each other, and stop after 12 replies without a per
   const asking = turnsAsked.filter((t) => t.account === 'fay').at(-1).body.messages.at(-1);
   assert.equal(asking.bot, true);
   assert.equal(asking.name, 'Ping');
+  // Its owner turned rooms off since: the account leaves it out of room-bots (#316), and it gets no turn.
+  accounts.fay.bots = [bot('ping', 'Ping')];
+  await fay.post(`/front-door/rooms/${room.id}/messages`, { text: '@Pong?' });
+  await waitFor(async () => (await messagesOf(fay, room.id)).some((m) => m.text === 'Pong · fay is kept out of rooms by its owner.'), { what: 'the kept-out notice' });
 });
 
 test("a person's own x-botdot-room never reaches an account, and a deleted account leaves its rooms", async () => {
