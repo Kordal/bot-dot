@@ -61,7 +61,7 @@ const DocViewer = (() => {
     copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11 M7 10l5 5 5-5 M5 20h14"/></svg>',
   };
-  const downloadHTML = (c, primary = false) => (c.view?.downloadable === false ? '' : `<a class="btn sm${primary ? ' primary' : ''}" href="/api${esc(c.src)}" ${/\.pdf$/i.test(c.name) ? 'target="_blank" rel="noopener"' : `download="${esc(c.name)}"`}>${ICON.down}Download</a>`);
+  const downloadHTML = (c, primary = false) => (c.view?.downloadable === false ? '' : `<a class="btn sm${primary ? ' primary' : ''}" href="/api${esc(c.src)}" ${/\.pdf$/i.test(c.name) ? 'target="_blank" rel="noopener"' : `download="${esc(c.view?.interactive ? c.view.name : c.name)}"`}>${ICON.down}Download</a>`);
   const stateHTML = (title, text, acts) => `<div class="dv-state"><h3>${esc(title)}</h3><p class="muted">${esc(text)}</p><div class="dv-acts">${acts}</div></div>`;
 
   function headHTML(c) {
@@ -119,6 +119,8 @@ const DocViewer = (() => {
     }
     const v = c.view;
     if (v.downloadable === false) return `${headHTML(c)}<div class="dv-body">${stateHTML('Too large to bring out of the computer', 'Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.', '<button type="button" class="btn sm" data-dv="close">Back to the chat</button>')}</div>`;
+    // A bot's interactive page (#399): its frame on the sandbox's own address.
+    if (v.interactive && c.page) return `${headHTML(c)}${Pages.siteBarHTML(c, downloadHTML(c))}<div class="dv-body dv-site-body">${Pages.siteBodyHTML(c, downloadHTML(c, true))}</div>`;
     if (v.kind === 'none') return `${headHTML(c)}<div class="dv-body">${stateHTML('No preview for this kind of file', 'The app shows Markdown, text, code, CSV and pictures. Open this one on your device.', downloadHTML(c, true))}</div>`;
     const cut = v.truncated ? `<div class="dv-cut"><b>Too large to show whole.</b> Showing its start (up to 1 MB or 1,000 lines). ${v.downloadable === false ? '' : 'Download it to see everything.'}</div>` : '';
     return `${headHTML(c)}${barHTML(c)}${cut}<div class="dv-body">${bodyHTML(c)}</div>`;
@@ -135,7 +137,47 @@ const DocViewer = (() => {
     $('.main')?.classList.toggle('viewing', !!cur);
     el.innerHTML = cur ? html(cur) : '';
     if (cur?.view?.parts && typeof wireCharts === 'function') { wireCharts(el); wireTables(el); }
+    const site = $('iframe.dv-site', el);
+    if (site) { const c = cur; site.onload = () => handValues(c); }
   }
+
+  // An interactive page in full screen or back (#399): everything but its frame is drawn again, so the page keeps
+  // what the owner did in it; an address that ran out is signed anew, which loads it again.
+  function around(c) {
+    const el = box();
+    const i = c.view.interactive;
+    if (!el || !$('iframe.dv-site', el) || (i.expires && Date.parse(i.expires) < Date.now())) return load(c, true);
+    const t = document.createElement('div');
+    t.innerHTML = html(c);
+    const fresh = [...t.children];
+    const old = [...el.children];
+    if (fresh.length !== old.length) return draw();
+    el.classList.toggle('full', !!c.full);
+    $('#chat-row')?.classList.toggle('viewer-full', !!c.full);
+    old.forEach((n, j) => { if (!n.classList.contains('dv-site-body')) n.replaceWith(fresh[j]); });
+  }
+
+  // An interactive page's live values (#399): the values of the tiles it reads, handed to its frame when it has loaded
+  // and again when one changes. Its origin is opaque, so the message names none ('*'); only that frame gets it.
+  function handValues(c, values = c.view?.interactive?.values) {
+    const f = $('iframe.dv-site', box());
+    if (cur !== c || !f?.contentWindow || !values || !Object.keys(values).length) return;
+    f.contentWindow.postMessage({ botdot: 'values', values }, '*');
+  }
+  async function revalue(c) {
+    let r;
+    try { r = await api(withQuery(c.src, 'values=1')); } catch { return; }
+    if (cur !== c || !c.view?.interactive || !r?.values) return;
+    c.view.interactive = { ...c.view.interactive, values: r.values, tiles: r.tiles || [] };
+    handValues(c, r.values);
+  }
+  // The one thing a frame may ask (#399): a link out, which the owner sees first. Nothing else is taken.
+  if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('message', (e) => {
+    const f = $('iframe.dv-site', box());
+    const d = e.data;
+    if (!f || e.source !== f.contentWindow || !cur?.view?.interactive) return;
+    if (d && typeof d === 'object' && d.botdot === 'open' && typeof d.url === 'string') Pages.askOpen(d.url.slice(0, 2000));
+  });
   // Only the table, so the box keeps its words and the focus while they are typed.
   function drawTable() {
     const body = $('.dv-body', box());
@@ -184,21 +226,33 @@ const DocViewer = (() => {
   }
   function tileChanged(id) {
     const c = cur;
+    if (c?.view?.interactive) {
+      if (!c.view.interactive.tiles?.length || (id && !c.view.interactive.tiles.includes(id))) return;
+      clearTimeout(soon);
+      soon = setTimeout(() => revalue(c), 400);
+      return;
+    }
     if (!c?.view?.parts || !c.view.tiles?.length || (id && !c.view.tiles.includes(id))) return;
     clearTimeout(soon);
     soon = setTimeout(() => reblock(c), 400);
   }
-  if (typeof setInterval === 'function') setInterval(() => { if (cur?.view?.tiles?.length && !document.hidden) reblock(cur); }, 60_000);
+  if (typeof setInterval === 'function') setInterval(() => {
+    if (document.hidden || !cur?.view) return;
+    if (cur.view.interactive?.tiles?.length) revalue(cur); else if (cur.view.tiles?.length) reblock(cur);
+  }, 60_000);
   // A bot saved a page, or its job changed (the live feed's `page`): the page on screen is read again.
   function pageChanged(botId, slug) {
-    if (cur?.page && cur.page.botId === botId && (!slug || cur.page.slug === slug)) return load(cur, true);
+    if (cur?.page && cur.page.botId === botId && (!slug || cur.page.slug === slug)) {
+      if (cur.view?.interactive) cur.src = cur.src.replace(/\?version=\d+$/, ''); // a new version shows the page as it is now
+      return load(cur, true);
+    }
     return null;
   }
 
   async function act(btn) {
     const what = btn.dataset.dv;
     if (what === 'close') return close();
-    if (what === 'full') { cur.full = !cur.full; return draw(); }
+    if (what === 'full') { cur.full = !cur.full; return cur.view?.interactive ? around(cur) : draw(); }
     if (what === 'mode') { cur.mode = btn.dataset.mode; return draw(); }
     // A page with blocks copies what it shows, its blocks as text and tables; its Source, the Markdown.
     if (what === 'copy') { if (await copyText((cur.mode === 'rendered' && cur.view?.plain) || cur.view?.text || '')) toast('Copied'); return; }
@@ -206,6 +260,17 @@ const DocViewer = (() => {
       const col = Number(btn.dataset.col);
       cur.sort = cur.sort?.col === col ? (cur.sort.dir > 0 ? { col, dir: -1 } : null) : { col, dir: 1 };
       return drawTable();
+    }
+    // An interactive page's versions (#399): one shown, or the page set back to one.
+    if (cur.page && cur.view?.interactive && ['versions', 'version', 'rollback'].includes(what)) {
+      const c = cur;
+      const show = (n) => { c.src = withQuery(c.src.replace(/\?version=\d+$/, ''), `version=${n}`); return load(c, true); };
+      if (what === 'version') return show(Number(btn.dataset.version));
+      if (what === 'rollback') { if (await Pages.rollBack(c.page.botId, c.view.page, Number(btn.dataset.version)) && cur === c) load(c, true); return; }
+      const r = await Pages.openVersions(c.page.botId, c.view.page, c.view.interactive);
+      if (r?.show && cur === c) return show(r.show);
+      if (r?.current && cur === c) return show(r.current);
+      return;
     }
     if (cur.page && ['keep', 'refresh', 'stop'].includes(what)) {
       const c = cur;

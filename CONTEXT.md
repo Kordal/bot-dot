@@ -103,8 +103,12 @@ What the user (or a teammate) gave a bot, kept in its folder until the user dele
 _Avoid_: uploads, attachments (in what the user reads)
 
 **A bot's page**:
-A lasting page a bot writes for the user in Markdown (a report, a memo, an overview), kept in its folder, opened in the app and listed under Pages in its settings. "Keep up to date" gives it a job that rewrites it ([ADR 065](docs/adr/065-a-page-is-a-bots-markdown-kept-up-to-date-by-the-owners-tap.md)). Never HTML. Not a page of the keypad, and not the Board.
+A lasting page a bot writes for the user in Markdown (a report, a memo, an overview), kept in its folder, opened in the app and listed under Pages in its settings. "Keep up to date" gives it a job that rewrites it ([ADR 065](docs/adr/065-a-page-is-a-bots-markdown-kept-up-to-date-by-the-owners-tap.md)). Never HTML, except an interactive page. Not a page of the keypad, and not the Board.
 _Avoid_: artifact, document, report (for the page itself)
+
+**Interactive page**:
+A bot's page that is a small site it built on its computer (views, filters, a kanban), shown in a sandbox on an address of its own that can't see the account or reach the internet, with its versions ([ADR 072](docs/adr/072-an-interactive-page-is-a-bots-static-site-sandboxed-on-an-address-of-its-own.md)). The one kind of page that is HTML.
+_Avoid_: app, artifact, website (in what the user reads)
 
 **Kept in mind**:
 Of a bot's file: its text, or the bot's summary of it, comes with every task of the bot. The API calls it `pinned`; the user reads "Keep in mind", so it is never mixed up with a pinned bot or a pinned note.

@@ -521,6 +521,11 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** A page's blocks filled in anew (#395). */
     suspend fun pageBlocks(src: String): PageBlocks = json.decodeFromString(get(Pages.blocksSrc(src)))
 
+    /** An interactive page's live values (#399): the values of the tiles it reads, for its frame. */
+    suspend fun pageValues(src: String): PageValues = json.decodeFromString(get(DocumentView.withQuery(src, "values=1")))
+    /** Rolls an interactive page back (#399): a version still kept becomes the one it shows. */
+    suspend fun setPageVersion(botId: String, slug: String, version: Int): PageInfo? = json.decodeFromString<PageKept>(send("POST", "${Pages.src(botId, slug)}/versions/$version")).page
+
     /** A bot's pages (#346), newest first. */
     suspend fun pages(botId: String): List<PageInfo> = json.decodeFromString<PageList>(get("/bots/${enc(botId)}/pages")).pages
     /** Every bot's pages (#361), newest first, each with its bot. Only with `pages-all`. */

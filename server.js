@@ -15,6 +15,7 @@ const B = require('./lib/bots');
 const botFiles = require('./lib/bot-files'); // a bot's files, for a held card's title (#235)
 const audit = require('./lib/audit').create(B.DATA_DIR);
 const calls = require('./lib/calls');
+const sitesLib = require('./lib/sites'); // interactive pages' sandbox (#399)
 const whatsNew = require('./lib/whats-new');
 const callKeys = calls.keyStore(B.DATA_DIR); // the keys of the jobs that can be called (ADR 026)
 const callRefusals = calls.refusalLog(B.DATA_DIR); // the calls each job refused, the last ones
@@ -168,6 +169,9 @@ const CSP = [
   "font-src 'self'", "img-src 'self' data: blob: https:", "media-src 'self' data: blob:",
   "connect-src 'self'", "frame-src 'self'", "frame-ancestors 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'",
 ].join('; ');
+// The web page framing a bot's interactive page (#399, ADR 072): the sandbox's own address, as the front door names it,
+// is the one more address its frames may show.
+const cspFor = (req) => { const sites = sitesLib.sitesOrigin(req); return sites && req.socket[FROM_FRONT_DOOR] ? CSP.replace("frame-src 'self'", `frame-src 'self' ${sites}`) : CSP; };
 // The frame the page's diagrams are drawn in (public/diagram-frame.html, ADR 041): its own scripts, Mermaid's styles
 // and the page's font, and nothing else from anywhere, so a bot's diagram loads nothing while Mermaid draws it.
 const FRAME = path.join(PUBLIC, 'diagram-frame.html');
@@ -195,7 +199,7 @@ async function serveStatic(req, res) {
     return res.end('Not found');
   }
   const type = MIME[path.extname(file)] || 'application/octet-stream';
-  const headers = { 'Content-Type': type, 'Cache-Control': 'no-cache', ...(type === 'text/html' ? { 'Content-Security-Policy': file === FRAME ? FRAME_CSP : CSP } : {}) };
+  const headers = { 'Content-Type': type, 'Cache-Control': 'no-cache', ...(type === 'text/html' ? { 'Content-Security-Policy': file === FRAME ? FRAME_CSP : cspFor(req) } : {}) };
   if (st.size > STATIC_MAX) return sendFile(res, file, headers);
   const key = `${st.size}-${st.mtimeMs}`;
   let c = staticCache.get(file);
@@ -223,7 +227,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -706,6 +710,9 @@ async function handle(req, res) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     return res.end(denied);
   }
+  // A file of a bot's interactive page (#399, ADR 072), asked for by the front door on the sandbox's own address: that
+  // file, and nothing else of botdot, whatever the address asks for.
+  if (req.socket[FROM_FRONT_DOOR] && req.headers['x-botdot-sandbox'] === '1') return B.pages.sites.serve(req, res, B.pages.hasVersion);
   const screen = parseComputerPath(req.url);
   if (screen) return serveScreen(req, res, screen).catch(() => { if (!res.headersSent) res.writeHead(502); res.end(); });
   let url;

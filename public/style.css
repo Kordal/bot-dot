@@ -1725,6 +1725,17 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pg-chips input:focus-visible + span { outline: 2px solid var(--mention); outline-offset: 2px; }
 .pg-time input { display: block; width: 140px; margin-top: 6px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; padding: 8px 12px; color: var(--text); font: inherit; color-scheme: dark; }
 .pg-bar { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* An interactive page (#399): its frame fills the viewer, under a bar that says it is isolated. */
+.pg-isolated { display: inline-flex; align-items: center; gap: 6px; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.pg-isolated svg { flex: none; color: var(--ok-text); }
+.pg-older { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 20px; border-bottom: 1px solid var(--warn-line); background: var(--warn-soft); font-size: 13px; }
+.pg-older span { flex: 1 1 220px; }
+.dv-body.dv-site-body { display: flex; padding: 0; overflow: hidden; }
+.dv-site { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); color-scheme: dark; }
+.pg-version { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+.pg-version .pg-text { flex: 1; }
+.pg-version.on b { color: var(--ok-text); }
+.pg-link { margin: 0; overflow-wrap: anywhere; font: 12.5px/1.5 var(--mono); }
 
 /* A bot's page with blocks (#395): the kit between its Markdown, wider than a plain document. */
 /* A table (#396): sorted by its header, searched and filtered; in a narrow box, a list. */

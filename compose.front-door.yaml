@@ -4,7 +4,8 @@
 # account's rootless Docker (compose.yaml).
 #
 # People reach it in one of two ways, chosen at install (install.sh writes .env and, for a domain, the Caddyfile):
-#   a public domain: Caddy (the `public` profile) answers on ports 80 and 443 and fetches its own certificates
+#   a public domain: Caddy (the `public` profile) answers on ports 80, 443 and 8443 (bots' interactive pages, #399) and
+#                    fetches its own certificates
 #   a tailnet only:  Tailscale Serve gives the front door its HTTPS name, and nothing is on the internet
 services:
   front-door:
@@ -29,6 +30,9 @@ services:
       FRONT_DOOR_ANDROID_KEYS: ${FRONT_DOOR_ANDROID_KEYS:-}
       FRONT_DOOR_HOST: 127.0.0.1
       FRONT_DOOR_PORT: ${FRONT_DOOR_PORT:-4700}
+      # Bots' interactive pages (#399, ADR 072): the sandbox's own address, on the front door's second port.
+      FRONT_DOOR_SITES_ORIGIN: ${FRONT_DOOR_SITES_ORIGIN:-}
+      FRONT_DOOR_SITES_PORT: ${FRONT_DOOR_SITES_PORT:-4701}
       FRONT_DOOR_SOCKETS: /sockets
       FRONT_DOOR_DATA: /data
       FRONT_DOOR_REQUESTS: /requests
@@ -45,7 +49,8 @@ services:
     image: caddy:2.10.2@sha256:c3d7ee5d2b11f9dc54f947f68a734c84e9c9666c92c88a7f30b9cba5da182adb
     profiles: [public]
     restart: unless-stopped
-    # Ports 80 and 443 of the machine: HTTPS for the domain, and the challenge that fetches its certificate.
+    # Ports 80, 443 and 8443 of the machine: HTTPS for the domain and for bots' interactive pages on its port 8443, and
+    # the challenge that fetches its certificate.
     network_mode: host
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]

@@ -29,6 +29,9 @@
 // FRONT_DOOR_LOAD     the folder where root's step writes the machine's load and each account's use of its share
 //                     (install.sh --load), which the admin page shows (lib/front-door/load.js)
 // FRONT_DOOR_HOST, FRONT_DOOR_PORT   where it listens (default 127.0.0.1:4700), behind Caddy or Tailscale Serve
+// FRONT_DOOR_SITES_ORIGIN  the sandbox's own address for bots' interactive pages (#399, ADR 072), another origin than
+//                     FRONT_DOOR_ORIGIN (install.sh: the same name on port 8443), e.g. https://botdot.example.com:8443.
+//                     Unset: no interactive page opens. FRONT_DOOR_SITES_PORT: where it listens (default 4701)
 // FRONT_DOOR_ANDROID_KEYS  the SHA-256 fingerprints of the Android app's signing certificates (AA:BB:…, comma
 //                     separated) besides botdot's release key, which is always named: the app's passkey sign-in is
 //                     taken from those, and /.well-known/assetlinks.json names them. Only apps from before the
@@ -60,6 +63,17 @@ if (!ORIGIN || !['http:', 'https:'].includes(ORIGIN.protocol)) {
   process.exit(1);
 }
 const RP_ID = ORIGIN.hostname;
+// The sandbox's own address (#399, ADR 072): only another origin than the front door's own, or none.
+const SITES_ORIGIN = (() => {
+  if (!process.env.FRONT_DOOR_SITES_ORIGIN) return null;
+  let u = null;
+  try { u = new URL(process.env.FRONT_DOOR_SITES_ORIGIN); } catch { /* said below */ }
+  if (!u || !['http:', 'https:'].includes(u.protocol) || u.origin === ORIGIN.origin || u.pathname !== '/') {
+    console.error(`[front door] FRONT_DOOR_SITES_ORIGIN must be an address of its own, another origin than ${ORIGIN.origin}: interactive pages don't open`);
+    return null;
+  }
+  return u;
+})();
 const DATA = path.resolve(process.env.FRONT_DOOR_DATA || path.join(__dirname, 'front-door-data'));
 // One account (the Mac app's local botdot server): its name, and the setup key that makes its passkey.
 const ONE_ACCOUNT = process.env.FRONT_DOOR_ONE_ACCOUNT || null;
@@ -980,7 +994,8 @@ async function accountAction(req, res, name, action) {
 
 // Never passed on: the account is the front door's to name, a room turn is the front door's alone to ask for (ADR 060),
 // and the Chief's key belongs to the Chief's tools inside the account, which never come through here.
-const PASSED_OFF = new Set(['x-botdot-account', 'x-botdot-room', 'x-chief-key', 'connection', 'keep-alive', 'proxy-connection', 'upgrade']);
+// The sandbox's request for a file (#399) and its address are the front door's alone to say, too.
+const PASSED_OFF = new Set(['x-botdot-account', 'x-botdot-room', 'x-chief-key', 'x-botdot-sandbox', 'x-botdot-sites', 'connection', 'keep-alive', 'proxy-connection', 'upgrade']);
 function headersFor(req, account) {
   const out = {};
   for (const [k, v] of Object.entries(req.headers)) if (!PASSED_OFF.has(k)) out[k] = v;
@@ -988,6 +1003,7 @@ function headersFor(req, account) {
   if (cookie) out.cookie = cookie; else delete out.cookie;
   out['x-forwarded-proto'] = ORIGIN.protocol.slice(0, -1);
   out['x-botdot-account'] = account;
+  if (SITES_ORIGIN) out['x-botdot-sites'] = SITES_ORIGIN.origin;
   return out;
 }
 
@@ -1116,6 +1132,64 @@ server.on('upgrade', (req, socket, head) => {
     socket.on('close', () => up.destroy());
   });
 });
+
+// ---------- the sandbox's own address: bots' interactive pages (#399, ADR 072) ----------
+
+// A file of an interactive page: GET /<account>/<token>/<path>, the token signed by that account's botdot server for its
+// owner alone and for a short while. Passed on without a cookie or any header of the browser's, and answered with
+// the sandbox's rules whatever botdot says: the page runs in a sandbox of its own (no origin, so no cookie, storage or
+// API of the front door's), loads only its own files under its own address, reaches nothing else, and is framed by the
+// front door's own page alone. A request on this address never reaches any other route.
+const SITES_PATH = /^\/([a-z][a-z0-9-]{1,23})\/([A-Za-z0-9_-]{10,400}\.[A-Za-z0-9_-]{32})\/([^#]*)$/;
+function sitesHeaders(prefix) {
+  const own = `${SITES_ORIGIN.origin}${prefix}`;
+  return {
+    'Content-Security-Policy': [
+      'sandbox allow-scripts', "default-src 'none'", `script-src ${own} 'unsafe-inline'`, `style-src ${own} 'unsafe-inline'`, `img-src ${own} data: blob:`,
+      `font-src ${own} data:`, `media-src ${own} data: blob:`, `connect-src ${own}`, "worker-src 'none'", "frame-src 'none'", "object-src 'none'",
+      "form-action 'none'", "base-uri 'none'", `frame-ancestors ${ORIGIN.origin}`,
+    ].join('; '),
+    // The page's own origin is opaque, so its scripts and its fetch of data.json are requests from another origin.
+    'Access-Control-Allow-Origin': '*',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), display-capture=(), usb=(), serial=(), bluetooth=(), payment=()',
+    'X-Robots-Tag': 'noindex',
+  };
+}
+function sitesAnswer(req, res) {
+  const fail = (status, text) => {
+    req.resume();
+    res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "sandbox; default-src 'none'" });
+    res.end(text);
+  };
+  if (String(req.headers.host || '').toLowerCase() !== SITES_ORIGIN.host) return fail(403, `This address answers only as ${SITES_ORIGIN.host}.`);
+  if (req.method !== 'GET' && req.method !== 'HEAD') return fail(405, 'Only pages are read here.');
+  const m = String(req.url || '').split('?')[0].match(SITES_PATH); // a query (a bundle's cache busting) is dropped
+  if (!m || !doors.accountExists(m[1]) || doors.isSuspended(m[1])) return fail(404, 'Not found');
+  const [, account, token, rest] = m;
+  const headers = { host: 'sandbox', 'x-botdot-account': account, 'x-botdot-sandbox': '1', ...(req.headers['if-none-match'] ? { 'if-none-match': String(req.headers['if-none-match']).slice(0, 200) } : {}) };
+  const up = http.request({ socketPath: socketOf(account), method: req.method, path: `/sandbox/${token}/${rest}`, headers, timeout: 30_000 }, (answer) => {
+    const out = sitesHeaders(`/${account}/${token}/`);
+    for (const k of ['content-type', 'content-length', 'etag', 'cache-control']) if (answer.headers[k]) out[k] = answer.headers[k];
+    res.writeHead(answer.statusCode, out);
+    answer.pipe(res);
+  });
+  up.on('timeout', () => up.destroy());
+  up.on('error', () => { if (res.headersSent) res.destroy(); else fail(502, "This account's botdot server isn't running. Try again in a moment."); });
+  res.on('close', () => { if (!res.writableFinished) up.destroy(); });
+  up.end();
+}
+const SITES_PORT = Number(process.env.FRONT_DOOR_SITES_PORT) || 4701;
+if (SITES_ORIGIN) {
+  const sites = http.createServer((req, res) => {
+    try { sitesAnswer(req, res); } catch (e) { console.error(`[front door] sandbox: ${e.message}`); if (!res.headersSent) { res.writeHead(500); res.end(); } else res.destroy(); }
+  });
+  sites.on('upgrade', (req, socket) => socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'));
+  // A port taken leaves interactive pages closed, never the front door.
+  sites.on('error', (e) => console.error(`Interactive pages can't open on ${HOST}:${SITES_PORT}: ${e.message}`));
+  sites.listen(SITES_PORT, HOST, () => console.log(`Interactive pages are at ${SITES_ORIGIN.origin} (listening on ${HOST}:${SITES_PORT})`));
+}
 
 for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => process.exit(0));
 

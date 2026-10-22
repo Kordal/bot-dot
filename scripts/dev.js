@@ -79,6 +79,9 @@ const answers = () => new Promise((resolve) => {
   start(['front-door.js'], {
     FRONT_DOOR_ORIGIN: ORIGIN,
     FRONT_DOOR_PORT: String(PORT),
+    // Bots' interactive pages (#399): the next port, another origin than the front door's.
+    FRONT_DOOR_SITES_ORIGIN: `http://localhost:${PORT + 1}`,
+    FRONT_DOOR_SITES_PORT: String(PORT + 1),
     FRONT_DOOR_HOST: '127.0.0.1',
     FRONT_DOOR_DATA: DOOR_DATA,
     FRONT_DOOR_SOCKETS: sockets,
