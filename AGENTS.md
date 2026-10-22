@@ -121,5 +121,6 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 | `test/` | The server's and the web page's tests (`npm test`) |
 | `deploy/`, `install.sh`, `compose*.yaml`, `Dockerfile` | Hosting, images and the installer |
 | `chief-skills/` | Skills the Chief of Staff ships with |
+| `bot-skills/` | Skills every bot and the Chief of Staff ship with, as the plugin `kit` (`kit:pages`) |
 | `.claude/skills/` | The agent skills named in [How work enters](#how-work-enters), copied unchanged from their source ([README](.claude/skills/README.md)) |
 | `CONTEXT.md` | The product's vocabulary |

@@ -79,7 +79,7 @@ test('brokered Claude keeps private MCP settings and can use a skill and owner u
   assert.equal(rec.args[rec.args.indexOf('--append-system-prompt-file')+1],rec.promptFile.path);assert.ok(!rec.args.includes('--append-system-prompt'));
   assert.match(rec.promptFile.path,/\/homes\/[^/]+\/[0-9a-f]{16}-botdot-prompt-[^/]+\.txt$/);assert.deepEqual([rec.promptFile.uid,rec.promptFile.mode],[61000,0o600]);
   assert.deepEqual([rec.env.CLAUDE_CODE_DISABLE_AUTO_MEMORY,rec.env.CLAUDE_CODE_DISABLE_CLAUDE_MDS],['1','1']);assert.ok(rec.args.includes('--strict-mcp-config'));
-  assert.deepEqual(rec.skills,['botdot:safe-report']);assert.ok(fs.existsSync(rec.promptFile.path));
+  assert.deepEqual(rec.skills,['botdot:safe-report','kit:pages']);assert.ok(fs.existsSync(rec.promptFile.path));
   const attachment=await self(srv,token,'file',{path:up.data.file});
   assert.equal(attachment.data.ok,true,JSON.stringify(attachment.data));
   const downloaded=await fetch(`${srv.base}/api/files/${run.id}/${attachment.data.file.name}`);
