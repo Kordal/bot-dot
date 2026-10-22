@@ -61,7 +61,7 @@ const DocViewer = (() => {
     copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11 M7 10l5 5 5-5 M5 20h14"/></svg>',
   };
-  const downloadHTML = (c, primary = false) => (c.view?.downloadable === false ? '' : `<a class="btn sm${primary ? ' primary' : ''}" href="/api${esc(c.src)}" ${/\.pdf$/i.test(c.name) ? 'target="_blank" rel="noopener"' : `download="${esc(c.name)}"`}>${ICON.down}Download</a>`);
+  const downloadHTML = (c, primary = false) => (c.view?.downloadable === false ? '' : `<a class="btn sm${primary ? ' primary' : ''}" href="/api${esc(c.src)}" ${/\.pdf$/i.test(c.name) ? 'target="_blank" rel="noopener"' : `download="${esc(c.view?.interactive ? c.view.name : c.name)}"`}>${ICON.down}Download</a>`);
   const stateHTML = (title, text, acts) => `<div class="dv-state"><h3>${esc(title)}</h3><p class="muted">${esc(text)}</p><div class="dv-acts">${acts}</div></div>`;
 
   function headHTML(c) {
@@ -139,6 +139,22 @@ const DocViewer = (() => {
     if (cur?.view?.parts && typeof wireCharts === 'function') { wireCharts(el); wireTables(el); }
     const site = $('iframe.dv-site', el);
     if (site) { const c = cur; site.onload = () => handValues(c); }
+  }
+
+  // An interactive page in full screen or back (#399): everything but its frame is drawn again, so the page keeps
+  // what the owner did in it; an address that ran out is signed anew, which loads it again.
+  function around(c) {
+    const el = box();
+    const i = c.view.interactive;
+    if (!el || !$('iframe.dv-site', el) || (i.expires && Date.parse(i.expires) < Date.now())) return load(c, true);
+    const t = document.createElement('div');
+    t.innerHTML = html(c);
+    const fresh = [...t.children];
+    const old = [...el.children];
+    if (fresh.length !== old.length) return draw();
+    el.classList.toggle('full', !!c.full);
+    $('#chat-row')?.classList.toggle('viewer-full', !!c.full);
+    old.forEach((n, j) => { if (!n.classList.contains('dv-site-body')) n.replaceWith(fresh[j]); });
   }
 
   // An interactive page's live values (#399): the values of the tiles it reads, handed to its frame when it has loaded
@@ -236,7 +252,7 @@ const DocViewer = (() => {
   async function act(btn) {
     const what = btn.dataset.dv;
     if (what === 'close') return close();
-    if (what === 'full') { cur.full = !cur.full; return draw(); }
+    if (what === 'full') { cur.full = !cur.full; return cur.view?.interactive ? around(cur) : draw(); }
     if (what === 'mode') { cur.mode = btn.dataset.mode; return draw(); }
     // A page with blocks copies what it shows, its blocks as text and tables; its Source, the Markdown.
     if (what === 'copy') { if (await copyText((cur.mode === 'rendered' && cur.view?.plain) || cur.view?.text || '')) toast('Copied'); return; }

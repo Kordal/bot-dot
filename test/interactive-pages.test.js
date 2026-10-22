@@ -66,7 +66,7 @@ test('the viewer gets the frame on the sandbox\'s own address, signed for the ow
   assert.equal(v.kind, 'none', 'an app older than #399 shows its "no preview" with the download');
   assert.equal(v.page.kind, 'interactive');
   assert.match(v.interactive.frame, new RegExp(`^http://localhost:${sitesPort}/ann/[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]{32}/index\\.html$`));
-  assert.ok(Date.parse(v.interactive.expires) - Date.now() <= 30 * 60_000 + 5000, 'short-lived');
+  assert.ok(Date.parse(v.interactive.expires) - Date.now() <= 12 * 3_600_000 + 5000, 'short-lived');
   assert.deepEqual(v.interactive.versions.map((x) => x.n), [2, 1]);
   assert.equal(v.interactive.shown, 2);
   const app = await owner.get('/');

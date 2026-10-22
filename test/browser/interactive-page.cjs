@@ -101,6 +101,17 @@ const PAGE = `<!doctype html><meta charset="utf-8"><title>Roadmap</title>
     assert.match(await modal.innerText(), /Version 1 · on the page/);
     await modal.locator('[data-dismiss]').first().click();
 
+    // Full screen and back keep the frame, and what the owner did in it.
+    await page.evaluate(() => { document.querySelector('iframe.dv-site').dataset.mark = '1'; });
+    await viewer.locator('[data-dv="full"].btn').click();
+    await viewer.locator('[data-dv="full"].btn', { hasText: 'Back beside the chat' }).waitFor();
+    assert.equal(await viewer.locator('iframe.dv-site').getAttribute('data-mark'), '1', 'the same frame, not loaded again');
+    assert.ok(await viewer.evaluate((el) => el.classList.contains('full')));
+    await viewer.locator('[data-dv="full"].btn').click();
+    await viewer.locator('[data-dv="full"].btn', { hasText: 'Full screen' }).waitFor();
+    assert.equal(await viewer.locator('iframe.dv-site').getAttribute('data-mark'), '1');
+    assert.match(await viewer.locator('a[download]').first().getAttribute('download'), /^roadmap\.zip$/);
+
     await page.setViewportSize({ width: 390, height: 844 });
     if (shots) await page.screenshot({ path: path.join(shots, 'phone-interactive.png') });
     assert.deepEqual(errors, []);

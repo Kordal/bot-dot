@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -88,7 +89,8 @@ fun InteractiveFrame(site: InteractiveView, values: JsonObject?, onDownload: () 
         return
     }
     val bg = p.bg.toArgb()
-    AndroidView(modifier = Modifier.fillMaxSize(), factory = { ctx ->
+    // A new address (another version, or a new publish) is a new WebView, so what it may load is checked against it.
+    key(frame) { AndroidView(modifier = Modifier.fillMaxSize(), factory = { ctx ->
         WebView(ctx).apply {
             setBackgroundColor(bg)
             settings.javaScriptEnabled = true
@@ -122,7 +124,7 @@ fun InteractiveFrame(site: InteractiveView, values: JsonObject?, onDownload: () 
             web.tag = values
             values?.let { web.evaluateJavascript(InteractivePages.valuesScript(it), null) }
         }
-    })
+    }) }
     asking?.let { url -> LinkOut(url) { asking = null } }
 }
 

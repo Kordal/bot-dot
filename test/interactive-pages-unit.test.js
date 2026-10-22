@@ -67,6 +67,14 @@ test('versions: each publish a new one, the last ten kept, roll back, and a Mark
   assert.ok(!fs.existsSync(path.join(data, 'sites', 'ops')), "a deleted bot's pages go with it");
 });
 
+test('a bot keeps at most PAGES_MAX interactive pages; a new version of one is still published', (t) => {
+  const pages = pagesLib.create(scratch(t));
+  for (let i = 0; i < sites.PAGES_MAX; i++) pages.publish('ops', { title: `Page ${i}`, files: [file('index.html')] });
+  assert.throws(() => pages.publish('ops', { title: 'One more', files: [file('index.html')] }), /You have 20 interactive pages, the most a bot keeps/);
+  assert.equal(pages.publish('ops', { page: 'page-0', files: [file('index.html')] }).version, 2);
+  assert.equal(pages.hasVersion('ops', 'page-0', 2), true, 'read anew after the write');
+});
+
 test('a signed address names one version for a while, and a changed or old one is refused', () => {
   const { token, expires } = sites.sign({ botId: 'ops', slug: 'roadmap', version: 3 }, 1_000_000);
   assert.equal(Date.parse(expires), 1_000_000 + sites.TOKEN_MS);

@@ -1186,6 +1186,8 @@ if (SITES_ORIGIN) {
     try { sitesAnswer(req, res); } catch (e) { console.error(`[front door] sandbox: ${e.message}`); if (!res.headersSent) { res.writeHead(500); res.end(); } else res.destroy(); }
   });
   sites.on('upgrade', (req, socket) => socket.end('HTTP/1.1 404 Not Found\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'));
+  // A port taken leaves interactive pages closed, never the front door.
+  sites.on('error', (e) => console.error(`Interactive pages can't open on ${HOST}:${SITES_PORT}: ${e.message}`));
   sites.listen(SITES_PORT, HOST, () => console.log(`Interactive pages are at ${SITES_ORIGIN.origin} (listening on ${HOST}:${SITES_PORT})`));
 }
 
