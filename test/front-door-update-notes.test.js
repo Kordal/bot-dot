@@ -67,7 +67,7 @@ test("none while nothing waits, when the account's server doesn't say, or for no
 test("whatsNew.after and newest read the notes' folder", () => {
   assert.equal(whatsNew.newest(notes), '2026-10-22-second');
   assert.deepEqual(whatsNew.after('2026-10-21-first', { dir: notes }).map((n) => n.id), ['2026-10-22-second']);
-  assert.deepEqual(whatsNew.after('2026-10-19-gone', { dir: notes, max: 2 }).map((n) => n.id), ['2026-10-22-second', '2026-10-21-first']);
+  assert.deepEqual(whatsNew.after('2026-10-19-gone', { dir: notes }).map((n) => n.id), ['2026-10-22-second', '2026-10-21-first', '2026-10-20-old'], 'all of them, no cap (#380)');
   assert.deepEqual(whatsNew.after(null, { dir: notes }), []);
   assert.equal(whatsNew.newest(path.join(notes, 'none')), null);
 });

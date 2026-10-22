@@ -4,7 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { cut, answer, element } = require('./web-page');
+const { cut, read, answer, element } = require('./web-page');
 
 const READY = { autoUpdate: false, asked: false, canUpdate: true, ready: { version: 'abc1234', from: '0123456', since: '2026-10-21T10:00:00.000Z', deadline: '2026-10-28T10:00:00.000Z' }, last: null };
 
@@ -32,7 +32,8 @@ function page({ features = ['accounts'], session = { updates: true }, update = R
       return answer(200, update)();
     },
   });
-  vm.runInContext(`${cut('// ---------- when this account switches to a new version ----------', '// ---------- signing out everywhere ----------')}
+  vm.runInContext(`${read('whats-new.js')}
+    ${cut('// ---------- when this account switches to a new version ----------', '// ---------- signing out everywhere ----------')}
     Object.assign(this, { loadUpdateCard, drawUpdateCard, updateCardText });`, ctx);
   return { ctx, calls, toasts, card, box, now };
 }
@@ -117,4 +118,13 @@ test("web: while a version waits, its What's new shows under Updates (#303)", as
   await older.ctx.loadUpdateCard();
   assert.equal(older.card.hidden, false);
   assert.doesNotMatch(older.card.innerHTML, /What's new/, 'an older front door: no notes, the card as before');
+});
+
+test('web: every note a waiting version brings shows under Updates, past the newest three as titles that open (#380)', async () => {
+  const entries = Array.from({ length: 14 }, (_, i) => ({ id: `2026-10-${String(30 - i).padStart(2, '0')}-n`, title: `Note ${i + 1}`, points: ['One', 'Two'] }));
+  const { ctx, card } = page({ notes: answer(200, { entries }) });
+  await ctx.loadUpdateCard();
+  assert.match(card.innerHTML, /14 changes, newest first/);
+  assert.equal((card.innerHTML.match(/<section>/g) || []).length, 3);
+  assert.equal((card.innerHTML.match(/<details><summary>Note \d+<\/summary>/g) || []).length, 11);
 });
