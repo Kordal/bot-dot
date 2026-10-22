@@ -71,6 +71,7 @@ test('the routes: GET /api/whats-new shows a new note once it came, POST /api/wh
   let srv = await startServer({ env });
   try {
     assert.ok((await srv.api('/version')).data.features.includes('whats-new'));
+    assert.equal((await srv.api('/version')).data.whatsNew, '2026-10-20-before', 'the newest note it ships, for the front door (#303)');
     assert.deepEqual((await srv.api('/whats-new')).data, { entries: [] }, 'the notes before count as seen');
     write(notes, '2026-10-21-example', note('Example', 3)); // an update brought it
     const r = await srv.api('/whats-new');

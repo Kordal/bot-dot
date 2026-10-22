@@ -247,7 +247,7 @@ test('web: the panel has the name, the members each with a way to take it out, "
   p.ctx.renderGroupSettings();
   assert.match(root.innerHTML, /<label class="field">Name<input type="text" id="gs-name" maxlength="60"/);
   assert.match(root.innerHTML, /<button type="button" class="btn sm" id="gs-add">＋ Add a bot<\/button>/);
-  assert.match(root.innerHTML, /<button type="button" class="btn danger" id="gs-delete">Delete this group<\/button>\s*<p class="faint gs-note">Its chat is erased\. No bot is deleted\.<\/p>/);
+  assert.match(root.innerHTML, /<button type="button" class="btn danger" id="gs-delete">Delete this group<\/button><\/div>/, 'no hint under it: the confirmation says what it erases');
   assert.equal(parts['#gs-name'].value, 'Dev');
   assert.deepEqual([...parts['#gs-members'].innerHTML.matchAll(/<span class="grow">(.*?)<\/span>\s*<button type="button" class="icon-btn sm" data-take-out="(\w+)" title="(.*?)"/g)].map((m) => m.slice(1)),
     [['Coder', 'coder', 'Take Coder out of the group'], ['Reviewer', 'reviewer', 'Take Reviewer out of the group'], ['Issue Writer', 'writer', 'Take Issue Writer out of the group']]);

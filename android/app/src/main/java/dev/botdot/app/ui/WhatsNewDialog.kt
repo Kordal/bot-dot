@@ -9,6 +9,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.WhatsNew
@@ -25,13 +26,19 @@ fun WhatsNewDialog(entries: List<WhatsNew.Entry>, onClose: () -> Unit) {
         onDismissRequest = onClose,
         title = { Text(WhatsNew.TITLE) },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                for (e in entries) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(e.title, fontWeight = FontWeight.SemiBold)
-                    for (point in e.points) Text("•  $point")
-                }
-            }
+            Column(Modifier.verticalScroll(rememberScrollState())) { WhatsNewEntries(entries) }
         },
         confirmButton = { TextButton(onClick = onClose) { Text(WhatsNew.GOT_IT, color = p.text) } },
     )
+}
+
+/** The notes as the dialog draws them: also under Settings → Updates while a version waits (#303). */
+@Composable
+fun WhatsNewEntries(entries: List<WhatsNew.Entry>, color: Color = Color.Unspecified) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        for (e in entries) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(e.title, color = color, fontWeight = FontWeight.SemiBold)
+            for (point in e.points) Text("•  $point", color = color)
+        }
+    }
 }

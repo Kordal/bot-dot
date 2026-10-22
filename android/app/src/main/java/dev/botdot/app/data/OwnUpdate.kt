@@ -29,13 +29,12 @@ data class OwnUpdate(
     val ready get() = deadline != null
     val moving get() = asked || last == "switching"
 
-    /** What the section says, in the web page's words. */
+    /** What the section says, in the web page's words: nothing while nothing waits or moves. */
     fun text(zone: ZoneId = ZoneId.systemDefault()): String = when {
         moving -> "Moving to the new version. Your bots restart in a minute or two."
         ready -> "A new version${readyVersion?.let { " ($it)" } ?: ""} is ready. Your account moves to it by itself on ${day(deadline!!, zone)}, or now if you choose."
         last == "kept" || last == "failed" -> "The last move to a new version didn't happen: ${error?.ifBlank { null } ?: "the admin can see why"}."
-        autoUpdate -> "Your account moves to each new version when the admin updates botdot."
-        else -> "Your account is on the newest version the admin installed."
+        else -> ""
     }
 
     companion object {

@@ -8,7 +8,9 @@ const { cut, answer, element } = require('./web-page');
 
 const READY = { autoUpdate: false, asked: false, canUpdate: true, ready: { version: 'abc1234', from: '0123456', since: '2026-10-21T10:00:00.000Z', deadline: '2026-10-28T10:00:00.000Z' }, last: null };
 
-function page({ features = ['accounts'], session = { updates: true }, update = READY, after = null, confirmed = true } = {}) {
+const NOTES = { entries: [{ id: '2026-10-22-b', title: 'Second <b>', points: ['One', 'Two'] }, { id: '2026-10-21-a', title: 'First', points: ['Three', 'Four'] }] };
+
+function page({ features = ['accounts'], session = { updates: true }, update = READY, after = null, confirmed = true, notes = answer(200, NOTES) } = {}) {
   const calls = [];
   const toasts = [];
   const box = element();
@@ -17,7 +19,7 @@ function page({ features = ['accounts'], session = { updates: true }, update = R
   card.hidden = true;
   const ctx = vm.createContext({
     state: { features },
-    esc: (s) => String(s),
+    esc: (s) => String(s).replace(/</g, '&lt;'),
     toast: (text, bad = false) => toasts.push([text, bad]),
     confirm: () => confirmed,
     setTimeout: () => 0, clearTimeout: () => {},
@@ -25,6 +27,7 @@ function page({ features = ['accounts'], session = { updates: true }, update = R
     fetch: async (url, opts) => {
       calls.push([url, opts]);
       if (url === '/front-door/session') return answer(200, session)();
+      if (url === '/front-door/update/notes') return notes();
       if (opts?.method === 'POST') return (after || answer(200, { ...update, autoUpdate: JSON.parse(opts.body).autoUpdate ?? update.autoUpdate }))();
       return answer(200, update)();
     },
@@ -42,7 +45,7 @@ test('web: Settings shows Updates only where the front door says this account ch
   assert.match(shown.card.innerHTML, /A new version \(abc1234\) is ready/);
   assert.match(shown.card.innerHTML, /id="update-now"[^>]*>Update now</);
   assert.doesNotMatch(shown.card.innerHTML, /id="auto-update"[^>]* checked/, 'off, as the front door keeps it');
-  assert.deepEqual(shown.calls.map(([u]) => u), ['/front-door/session', '/front-door/update'], "the front door's own routes, not botdot's /api");
+  assert.deepEqual(shown.calls.map(([u]) => u), ['/front-door/session', '/front-door/update', '/front-door/update/notes'], "the front door's own routes, not botdot's /api");
 
   for (const hidden of [page({ session: { updates: false } }), page({ features: [] })]) {
     await hidden.ctx.loadUpdateCard();
@@ -83,5 +86,35 @@ test('web: the card says what became of the last move, and that it moves now', (
   const { ctx } = page();
   assert.match(ctx.updateCardText({ autoUpdate: true, asked: true, last: null }), /^Moving to the new version/);
   assert.match(ctx.updateCardText({ autoUpdate: false, last: { state: 'kept', error: "Its new botdot server didn't start" } }), /didn't happen: Its new botdot server didn't start\./);
-  assert.match(ctx.updateCardText({ autoUpdate: true, last: null, ready: null }), /when the admin updates botdot/);
+  assert.equal(ctx.updateCardText({ autoUpdate: true, last: null, ready: null }), '', 'nothing waits or moves: the switch says it all');
+  assert.equal(ctx.updateCardText({ autoUpdate: false, last: null, ready: null }), '');
+});
+
+test("web: the switch says what On and Off do, and no line follows while nothing waits", async () => {
+  const { ctx, card } = page({ update: { autoUpdate: true, asked: false, canUpdate: false, ready: null, last: null } });
+  await ctx.loadUpdateCard();
+  assert.match(card.innerHTML, /On: Always use the latest botdot version\.[\s\S]*Off: Update when you're ready, before the admin's deadline\./);
+  assert.doesNotMatch(card.innerHTML, /id="update-said"/);
+  assert.doesNotMatch(card.innerHTML, /What's new/);
+});
+
+test("web: while a version waits, its What's new shows under Updates (#303)", async () => {
+  const { ctx, card, calls, box } = page();
+  await ctx.loadUpdateCard();
+  assert.deepEqual(calls.map(([u]) => u), ['/front-door/session', '/front-door/update', '/front-door/update/notes']);
+  assert.match(card.innerHTML, /What's new[\s\S]*<h3>Second &lt;b><\/h3><ul><li>One<\/li><li>Two<\/li><\/ul>[\s\S]*<h3>First<\/h3>/, 'newest first, as text');
+  assert.match(card.innerHTML, /id="update-now"[\s\S]*What's new/, 'below the controls');
+  box.checked = true;
+  await box.onchange();
+  assert.match(card.innerHTML, /Second &lt;b>/, 'kept when the card is drawn again');
+
+  const none = page({ update: { autoUpdate: true, asked: false, canUpdate: false, ready: null, last: null } });
+  await none.ctx.loadUpdateCard();
+  assert.ok(!none.calls.some(([u]) => u === '/front-door/update/notes'), 'nothing waits: not asked');
+  assert.doesNotMatch(none.card.innerHTML, /What's new/);
+
+  const older = page({ notes: answer(404, { error: 'Not found' }) });
+  await older.ctx.loadUpdateCard();
+  assert.equal(older.card.hidden, false);
+  assert.doesNotMatch(older.card.innerHTML, /What's new/, 'an older front door: no notes, the card as before');
 });

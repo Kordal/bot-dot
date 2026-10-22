@@ -48,6 +48,7 @@ const limits = require('./lib/front-door/limits');
 const pages = require('./lib/front-door/pages');
 const calls = require('./lib/front-door/calls');
 const loadFiles = require('./lib/front-door/load');
+const whatsNew = require('./lib/whats-new');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -318,6 +319,27 @@ function ownUpdate(name) {
   const last = s && s.state !== 'waiting' ? { state: s.state, at: s.at, ...(s.error !== undefined ? { error: s.error } : {}) } : null;
   return { autoUpdate: doors.autoUpdate(name), asked, canUpdate: !asked && !!s && ['waiting', 'kept', 'failed'].includes(s.state), ready, last };
 }
+// What a waiting version brings (#303): the notes this front door's version ships after the newest one the account's
+// botdot server ships, which it says in its /api/version. A server that doesn't say (older than #303), or doesn't
+// answer: none.
+function newestNoteOf(account) {
+  return new Promise((resolve) => {
+    const up = http.request({ socketPath: socketOf(account), method: 'GET', path: '/api/version', headers: { 'x-botdot-account': account }, timeout: 5000 }, (answer) => {
+      let body = '';
+      answer.setEncoding('utf8');
+      answer.on('data', (c) => { if (body.length < BODY_MAX) body += c; });
+      answer.on('end', () => { try { resolve(answer.statusCode === 200 ? JSON.parse(body).whatsNew ?? null : null); } catch { resolve(null); } });
+      answer.on('error', () => resolve(null));
+    });
+    up.on('timeout', () => up.destroy());
+    up.on('error', () => resolve(null));
+    up.end();
+  });
+}
+async function pendingNotes(account) {
+  if (!ownUpdate(account).ready) return [];
+  return whatsNew.after(await newestNoteOf(account));
+}
 function askSwitch(name) {
   if (!REQUESTS || !store.ACCOUNT_NAME.test(name)) return false;
   try { fs.writeFileSync(path.join(REQUESTS, SWITCH(name)), `${new Date().toISOString()}\n`, { flag: 'wx', mode: 0o640 }); } catch (e) {
@@ -515,7 +537,7 @@ async function signInRoutes(req, res, p) {
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
-  if (p === '/front-door/update' || p === '/front-door/update/now') {
+  if (p === '/front-door/update' || p === '/front-door/update/now' || p === '/front-door/update/notes') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     if (!choosesUpdates(account)) return send(res, 404, { error: 'Not found' });
@@ -523,6 +545,8 @@ async function signInRoutes(req, res, p) {
       switchPastDeadline({ only: account });
       return send(res, 200, ownUpdate(account));
     }
+    // What's new in the version it waits for (#303): none while nothing waits.
+    if (p === '/front-door/update/notes') return req.method === 'GET' ? send(res, 200, { entries: await pendingNotes(account) }) : send(res, 404, { error: 'Not found' });
     if (req.method !== 'POST') return send(res, 404, { error: 'Not found' });
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
     const body = (await readJson(req)) || {};
