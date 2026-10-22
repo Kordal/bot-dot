@@ -24,6 +24,18 @@ test("web: the settings offer the key from a server with bot-hotkeys, each digit
   assert.match(ctx.hotkeyRow({ id: 'b', hotkey: 3 }), /<option value="3" selected>3<\/option>/, 'its own digit, not "now" its own');
 });
 
+test('web: the key\'s choice stands beside its text, no wider than its share, in a wide window and on a phone', () => {
+  const { read } = require('./web-page');
+  const { rulesAt, winner } = require('./css-rules');
+  const SELECT = [{ tag: 'div', classes: ['card', 'settings-card', 'bs-rows'], index: 3 }, { tag: 'div', classes: ['bs-row'], index: 2 }, { tag: 'select', classes: [], index: 3 }];
+  for (const wide of [1400, 900, 390]) {
+    const rules = rulesAt(read('style.css'), wide);
+    assert.equal(winner(rules, SELECT, 'width').value, 'auto', `${wide}: not the full width that covers the text`);
+    assert.equal(winner(rules, SELECT, 'flex').value, 'none', `${wide}`);
+    assert.equal(winner(rules, SELECT, 'max-width').value, 'min(45%, 220px)', `${wide}: the text keeps the rest`);
+  }
+});
+
 test('web: saving sends hotkey as a number once it was chosen, and nothing where it was not or is not shown', () => {
   const ctx = vm.createContext({ readDisabledSkills: () => [], readLlmFields: () => ({}) });
   vm.runInContext(`${cut('function readBotForm(', '// Switched-off machine/built-in skills')}\nthis.readBotForm = readBotForm;`, ctx);

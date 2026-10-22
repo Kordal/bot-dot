@@ -1147,6 +1147,7 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .bs-row .grow { display: grid; gap: 6px; min-width: 0; }
 .bs-row .faint { font-size: 12.5px; line-height: 1.45; }
 .bs-row .switch { margin-top: 2px; }
+.bs-row > select { flex: none; width: auto; max-width: min(45%, 220px); } /* beside the text, as wide as its choice (#366's key) */
 .bs-icon { width: 22px; flex: none; text-align: center; }
 .bs-link { width: 100%; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .bs-link:hover b { text-decoration: underline; text-underline-offset: 2px; }
