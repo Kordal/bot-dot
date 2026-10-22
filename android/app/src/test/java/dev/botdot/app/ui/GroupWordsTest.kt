@@ -202,8 +202,9 @@ class GroupWordsTest {
 
     @Test fun withOneOrderThePinnedBotsAndGroupsStandByTheirPlace() {
         val mixed = Group.list("""[{"id":"g5","name":"Top","members":["cook","coder"],"pinned":1},{"id":"g6","name":"Mid","members":["cook","coder"],"pinned":3}]""")
-        assertEquals(listOf("group:g5", "fleet", "group:g6", "news"), ListLayout.rows(bots, mixed, emptySet(), shared = true).pins)
-        assertEquals("a server from before it: the bots first", listOf("fleet", "news", "group:g5", "group:g6"), ListLayout.rows(bots, mixed, emptySet()).pins)
+        val later = bots.map { if (it.pinned > 0) it.copy(pinned = it.pinned * 2) else it } // fleet 2, news 4
+        assertEquals(listOf("group:g5", "fleet", "group:g6", "news"), ListLayout.rows(later, mixed, emptySet(), shared = true).pins)
+        assertEquals("a server from before it: the bots first", listOf("fleet", "news", "group:g5", "group:g6"), ListLayout.rows(later, mixed, emptySet()).pins)
         // A bot and a group on the same place (kept from before one order): the bot first.
         assertEquals(listOf("fleet", "group:g5", "news"), ListLayout.rows(bots, groups.filter { it.id == "g5" }, emptySet(), shared = true).pins)
     }

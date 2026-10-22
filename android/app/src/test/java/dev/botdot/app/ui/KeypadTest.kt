@@ -202,7 +202,8 @@ class KeypadTest {
         assertNull("onto its own key", sharedMove("lights", 0, 1))
         assertNull("the last one, on its own heading", sharedMove("group:evening", 0))
         // In a category the bots still stand before the groups.
-        assertEquals(inside("Home", 1), sharedMove("group:kitchen", 1, 0))
+        assertEquals(inside("Home", 1), sharedMove("mail", 1, 0))
+        assertEquals("a pinned group onto a bot there: the first group", inside("Home", 1), sharedMove("group:evening", 1, 0))
     }
 
     // The update a move sends: the list's drag's (ListLayout.change), for a bot and for a group
