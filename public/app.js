@@ -741,7 +741,7 @@ async function refresh() {
     redrawMarks();
     showJobApprovals();
     api(MEMORY_WAITS).then((p) => { state.memPending = p; showNeeds(); }).catch(() => {});
-    api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
+    api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
     if (state.view === 'bot' && state.botId) loadInbox(state.botId);

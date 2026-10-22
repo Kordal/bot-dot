@@ -648,7 +648,7 @@ data class ChatHit(
 @Serializable
 data class Ask(
     val id: String,
-    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "override" | "chief-action"
+    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "override" | "chief-action" | "room-tool" | "room-post"
     val permission: String? = null,
     val reason: String = "",
     val bot: BotRef? = null,
@@ -769,6 +769,15 @@ data class Ask(
 
     /** Whether such a card takes a yes: it shows all the yes does, no row clipped and nothing too long to show. */
     val chiefActionYes: Boolean get() = kind == "chief-action" && !rowsCut && !tooLong
+
+    /** A shared room's card (kind "room-tool" or "room-post", docs/api.md "Shared rooms: the owner's mention"). */
+    val isRoomCard: Boolean get() = kind == "room-tool" || kind == "room-post"
+
+    /** Why such a card waits, in the server's words (`meta`), or "". */
+    val roomLine: String get() = meta.textOrNull().orEmpty()
+
+    /** Whether such a card takes a yes: it shows all the yes approves, no row clipped and nothing too long to show. */
+    val roomYes: Boolean get() = isRoomCard && !rowsCut && !tooLong
 
     companion object {
         /** A value the card can show: text (also empty: an email without a subject) or a number. */

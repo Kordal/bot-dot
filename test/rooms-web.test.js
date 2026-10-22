@@ -265,6 +265,30 @@ test("web: the room's settings: Remove only on this account's bots, Delete only 
   assert.doesNotMatch(root.innerHTML, /data-delete-room/);
 });
 
+test("web: the room's settings close on their ✕, after every redraw", async () => {
+  const p = page({ answer: (url) => (url.endsWith('/name') ? [200, { room: { ...ROOM, name: 'Trip 2' } }] : [200, { rooms: [ROOM], invites: [] }]) });
+  p.ctx.setRoomsOn(true, 'me');
+  await p.flush();
+  const root = element();
+  let closed = 0;
+  const modal = element({ '#room-panel': root }, { close: () => { closed++; } });
+  p.ctx.openModal = () => modal;
+  const parts = {};
+  const form = element({}, { querySelector: (sel) => (parts[sel] ||= element()), querySelectorAll: () => [], name: { value: 'Trip 2' } });
+  root.querySelector = (sel) => (sel === '#room-form' ? form : null);
+  p.ctx.openRoomSettings(ROOM.id);
+  assert.match(root.innerHTML, /data-dismiss>✕<\/button>/);
+  parts['[data-dismiss]'].onclick();
+  assert.equal(closed, 1);
+  // A change draws the panel again; its new ✕ still closes it.
+  delete parts['[data-dismiss]'];
+  parts['[data-rename]'].onclick({ target: parts['[data-rename]'] });
+  for (let i = 0; i < 5 && !parts['[data-dismiss]']; i++) await p.flush();
+  assert.match(root.innerHTML, /<h2>Trip 2<\/h2>/);
+  parts['[data-dismiss]'].onclick();
+  assert.equal(closed, 2);
+});
+
 // ---------- a bot's settings ----------
 
 test("web: a bot's settings have the Shared rooms row with room-settings and rooms on, and save sends rooms", () => {

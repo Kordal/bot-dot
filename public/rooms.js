@@ -495,6 +495,8 @@ function openRoomSettings(id) {
         </div>
       </form>`;
     const form = $('#room-form', root);
+    // The panel is drawn after openModal wired its dismiss buttons, so the ✕ is wired here, on every draw.
+    $('[data-dismiss]', form).onclick = () => m.close();
     const act = async (button, fn) => {
       button.disabled = true;
       showBoxNote(form, '');
