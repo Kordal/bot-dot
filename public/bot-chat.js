@@ -56,7 +56,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
       reply = `
         <div class="bubble-row from-bot"><div class="stack">
           ${exchange}
-          <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${botFilesHTML(r.files)}</div>
+          <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${botFilesHTML(r.files)}${planInReply(r, i === runs.length - 1)}</div>
           ${learnedChips(r)}
           <div class="bubble-meta">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
           ${i === runs.length - 1 && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}
@@ -106,6 +106,23 @@ function reachNew(botId, first) {
     mine.runs = runs;
     if (state.view === 'bot' && state.botId === botId) renderBotChat();
   }).catch(() => { if (reached === mine) reached = null; }); // the server couldn't be asked: the next draw asks again
+}
+
+// The plan under a reply that is done (plan.js): folded, its steps inside. Not under the newest run that was stopped
+// or failed before its plan was done: that plan stands above the message box, until the owner dismisses it.
+const planInReply = (r, last) => (globalThis.Plan && r.plan && !(last && stoppedPlan(r)) ? Plan.replyHTML(r.plan) : '');
+const stoppedPlan = (r) => !!r && r.status !== 'success' && r.status !== 'running' && Plan.has(r.plan) && !Plan.finished(r.plan) && !Plan.dismissed(r.id);
+// A bot's plan above its message box (plan.js; docs/api.md, "The plan"): its running run's, else the newest run's
+// that was stopped or failed before its plan was done.
+function drawBotPlan(bot, runs) {
+  const slot = $('#view-bot .plan-slot');
+  if (!slot || !globalThis.Plan) return;
+  slot.style.setProperty('--c', bot.color);
+  const working = runs.find((r) => r.status === 'running');
+  const last = runs[runs.length - 1];
+  const view = working ? (working.plan ? { kind: 'live', plan: working.plan, id: working.id, who: bot.name } : null)
+    : stoppedPlan(last) ? { kind: 'stopped', plan: last.plan, id: last.id, who: bot.name } : null;
+  Plan.draw(slot, `bot:${bot.id}`, view, () => { delete $('#view-bot').dataset.sig; renderBotChat(); });
 }
 
 function renderBotChat() {
@@ -193,6 +210,7 @@ function renderBotChat() {
   updatePip(bot, runs.find((r) => r.status === 'running' && r.computer));
   setSendBusy($('form', root), false);
   placeStatusLines();
+  drawBotPlan(bot, runs);
 }
 
 // Rejects when the task did not go, with nothing added to the chat (wireComposer, sendFrom). key: as sendToChief's.
@@ -249,7 +267,12 @@ function followBotRun(run) {
     const t = $('#bot-thread');
     if (t && t.scrollHeight - t.scrollTop - t.clientHeight < 200) t.scrollTop = t.scrollHeight;
   }, (line) => { if (openingLines.say(`bot:${run.botId}`, line, run.id)) { renderContacts(); placeStatusLines(); } },
-  (text) => replyDrafts.say(run.id, text, () => [$(`[data-live="${CSS.escape(run.id)}"]`), $('#bot-thread')]));
+  (text) => replyDrafts.say(run.id, text, () => [$(`[data-live="${CSS.escape(run.id)}"]`), $('#bot-thread')]),
+  (plan) => {
+    const held = state.runs.find((r) => r.id === run.id);
+    if (held) { if (plan) held.plan = plan; else delete held.plan; }
+    if (state.view === 'bot' && state.botId === run.botId) renderBotChat();
+  });
   state.botStream = es;
 }
 
@@ -257,13 +280,15 @@ function followBotRun(run) {
 // onFile(file) for a file it attached; onLine(text) with its line, each time the server says one: its working
 // line, or its opening line from a server without the working line. Its steps are not read: the words for what
 // a run is doing are the server's. onDraft(text) with its reply draft, from a server that has drafts ('' for none).
-function watchRun(runId, onEnd, onFile, onLine, onDraft) {
+// onPlan(plan) with its plan each time it changes (null when it was cleared; plan.js).
+function watchRun(runId, onEnd, onFile, onLine, onDraft, onPlan) {
   const es = new EventSource(`/api/runs/${runId}/stream`);
   es.onmessage = (msg) => {
     const ev = JSON.parse(msg.data);
     if (ev.type === 'file') onFile?.(ev.file); // a file it attached: shown at once
     if (OpeningLine.says(ev.type, state.features)) onLine?.(ev.text);
     if (ev.type === 'reply_draft' && showsDrafts()) onDraft?.(String(ev.text ?? ''));
+    if (ev.type === 'plan') onPlan?.(ev.plan || null);
     if (ev.type === 'run_end') { es.close(); onEnd?.(); }
   };
   es.onerror = () => es.close();

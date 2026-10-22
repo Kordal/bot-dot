@@ -12,6 +12,7 @@ function composerHTML(placeholder, ctx = '') {
   return `
     <form class="composer" autocomplete="off">
       <div class="composer-wrap">
+        <div class="plan-slot"></div>
         <div class="away-line${away.on ? '' : ' hidden'}" role="status">Can't reach botdot. Trying again…</div>
         <div class="claude-line${signedOut.on && !away.on ? '' : ' hidden'}" role="status">${signedOutHTML()}</div>
         ${ctx ? `<div class="ctx">${ctx}</div>` : ''}
@@ -440,15 +441,32 @@ function chiefBubble(m, last = false, index = null) {
       : m.text
         ? `<div class="md">${md(m.text)}</div>${files}${m.error ? `<div class="problem-line"><div class="md">${md(m.error)}</div></div>` : ''}`
         : files;
+  // Its plan, folded under the reply (plan.js); a stopped or failed reply's stands above the message box instead.
+  const plan = !m.pending && globalThis.Plan && m.plan && !(last && chiefStopped(m)) ? Plan.replyHTML(m.plan) : '';
   return `
     <div class="bubble-row from-bot"${m.pending ? ' data-pending' : ''}>
       <div class="stack">
-        ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}">${body}</div>` : m.pending ? draftHTML(replyDrafts.of(`chief:${state.chatId}`)) : ''}
+        ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}">${body}${plan}</div>` : m.pending ? draftHTML(replyDrafts.of(`chief:${state.chatId}`)) : ''}
         <div class="actions">${(m.actions || []).map(actionChip).join('')}</div>
         ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
         ${last && !m.pending ? choicesHTML(m.choices) + questionsHTML(m.questions) : ''}
       </div>
     </div>`;
+}
+
+// The Chief's plan (plan.js; docs/api.md, "The plan"): what its reply is about, by the chat. An id for a reply's
+// plan, for Dismiss: the chat and the time the reply began.
+const chiefPlanId = (chatId, m) => `chief:${chatId}:${m?.at || ''}`;
+const chiefStopped = (m) => !!m && !m.pending && !!m.error && Plan.has(m.plan) && !Plan.finished(m.plan) && !Plan.dismissed(chiefPlanId(state.chatId, m));
+// view: the pending reply's plan, live; else the last reply's, when it was stopped or failed before it was done.
+function drawChiefPlan(chatId, last) {
+  const slot = $('#view-chief .plan-slot');
+  if (!slot || !globalThis.Plan) return;
+  slot.style.setProperty('--c', CHIEF_COLOR);
+  const view = !chatId || !last ? null
+    : last.pending ? (last.plan ? { kind: 'live', plan: last.plan, id: chiefPlanId(chatId, last), who: chiefName() } : null)
+    : chiefStopped(last) ? { kind: 'stopped', plan: last.plan, id: chiefPlanId(chatId, last), who: chiefName() } : null;
+  Plan.draw(slot, `chief:${chatId || ''}`, view, () => { if (state.chatId === chatId) showChat(chatId); });
 }
 
 // What Approve sends to answer a bot's plan for the Chief (the server knows it).
@@ -530,6 +548,7 @@ async function showChat(id) {
       </div>`;
     $$('.suggestion', thread).forEach((b) => (b.onclick = withKey((key) => sendFrom(form, () => sendToChief(b.textContent, [], key)))));
     setSendBusy(form, false);
+    drawChiefPlan(null, null);
     placeStatusLines(); // a line of the chat that was here goes
     if (!matchMedia('(pointer: coarse)').matches) form.text.focus();
     return;
@@ -553,6 +572,8 @@ async function showChat(id) {
   // Its reply that is going on, and what waits for it: both as the server has them now.
   if (chat.busy) chiefTurns.set(id, chiefActivity(chat.messages.filter((m) => m.pending).pop()?.activity)); else chiefTurns.delete(id);
   chiefQueued.set(id, queuedList(chat.queued));
+  thread._last = chat.messages.filter((m) => m.role === 'chief').pop() || null; // the reply whose plan shows above the box
+  drawChiefPlan(id, thread._last);
   placeStatusLines();
   updateChatNeeds(thread, 'chief');
   thread.scrollTop = thread.scrollHeight;
@@ -623,6 +644,8 @@ async function sendToChief(text, attachments = [], key = messageKey()) {
     $$('.choices, .ask-card', thread).forEach((c) => c.remove()); // answered
     sentOver(at, key); // the message as botdot took it stands where the page's own stood
     thread.insertAdjacentHTML('beforeend', userBubble({ text: text || 'Have a look at the attached files.', attachments }) + chiefBubble({ pending: true }));
+    thread._last = { pending: true }; // a new reply: a stopped plan above the box goes
+    drawChiefPlan(id, thread._last);
     (thread._mine ||= []).push({ text, attachments });
     updateChatNeeds(thread, 'chief'); // the cards stay last
     chiefTurns.set(id, ''); // its reply began: the working line says so, with Stop
@@ -655,6 +678,10 @@ function followChief(id) {
       if (chiefTurns.get(id) !== chiefActivity(ev)) { chiefTurns.set(id, chiefActivity(ev)); placeStatusLines(); }
     } else if (ev.type === 'opening_line') {
       if (openingLines.say(`chief:${id}`, ev.text)) placeStatusLines();
+    } else if (ev.type === 'plan') {
+      const pending = { ...(thread._last?.pending ? thread._last : { pending: true, at: '' }), plan: ev.plan || undefined };
+      thread._last = pending;
+      drawChiefPlan(id, pending);
     } else if (ev.type === 'reply_draft') {
       // The reply as it is written, in the row of the reply (the last one: the chat may have been drawn again).
       if (showsDrafts()) replyDrafts.say(`chief:${id}`, String(ev.text ?? ''), () => [$$('[data-pending]', thread).pop(), thread]);
@@ -680,6 +707,8 @@ function followChief(id) {
       replyDrafts.end(`chief:${id}`); // and its draft: the reply takes its place
       // A bot's reply that came in meanwhile, or the next turn that began (see followFeed): show the whole chat again.
       if (state.chatReload) { state.chatReload = false; return showChat(id); }
+      thread._last = ev.message || null;
+      drawChiefPlan(id, thread._last); // its plan goes under the reply, or stands as stopped
       if (ev.message) {
         // In the place of the row this page drew for it; a reply it drew none for goes to the end.
         if (row && row.isConnected !== false) { row.outerHTML = chiefBubble(ev.message, true); placeStatusLines(); } // the reply arrives (chiefArrives)
