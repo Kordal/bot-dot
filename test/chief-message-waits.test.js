@@ -7,7 +7,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, restartServer, makeBot, waitFor, feed, readData } = require('./helpers');
+const { startServer, restartServer, makeBot, waitFor, feed, readData, writeData } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 let srv;
@@ -90,7 +90,7 @@ test("the turn is built when it starts: a plan's Approve that waited answers the
   const file = path.join(srv.data, 'chief', `${id}.json`);
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   saved.messages.push({ role: 'suggestion', from: { id: 'designer', name: 'Bot Designer', emoji: '🎨', color: '#888' }, text: 'A bot that waters the plants.', at: new Date().toISOString(), status: 'pending' });
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeData(file, saved);
   srv.hold();
   await say(id, 'What is the weather?');
   const turn = await chiefTurn(srv, 'the first turn', (x) => /What is the weather\?/.test(x.stdin));

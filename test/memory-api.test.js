@@ -4,7 +4,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, heldRun, self, sharedByBot, waitFor } = require('./helpers');
+const { startServer, makeBot, heldRun, self, sharedByBot, waitFor, writeData } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 let srv, chiefEnv;
@@ -366,7 +366,7 @@ test('an index from before version 2 gets Chief ids of the replies themselves, k
   const file = path.join(server.data, 'chief', `${chat.id}.json`);
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   saved.messages.push({ role: 'report', text: 'A late report', at: new Date().toISOString() });
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeData(file, saved);
   const { DatabaseSync } = require('node:sqlite');
   const db = new DatabaseSync(path.join(server.data, 'memory.db'));
   const [right, wrong] = [`chief-${chat.id}-1`, `chief-${chat.id}-2`];

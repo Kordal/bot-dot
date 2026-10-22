@@ -6,7 +6,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, heldRun, self, feed, waitFor, sleep } = require('./helpers');
+const { startServer, makeBot, heldRun, self, feed, waitFor, sleep, writeData } = require('./helpers');
 
 let srv, doctor, coder, mail;
 before(async () => {
@@ -385,7 +385,7 @@ test("the Chief's hand-off: the final reply goes to the Chief's chat as a turn o
   saved.title = 'Status of the bots';
   saved.messages.push({ role: 'user', text: 'ask bots about their status', at: new Date().toISOString() },
     { role: 'chief', text: "I've asked Fleet Doctor.", at: new Date().toISOString(), actions: [{ kind: 'run', text: 'Started 🩺 Fleet Doctor', runId: asker.run.id }] });
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeData(file, saved);
   srv.release(asker.rec);
   await srv.finished(asker.run.id);
   for (const [rec, text] of [[c, 'Coder: fine.'], [m, 'Mail Bot: fine.']]) await self(srv, rec.self.env.RUN_TOKEN, 'message', { to: doctor.id, message: text, priority: true });

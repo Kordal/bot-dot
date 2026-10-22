@@ -14,7 +14,7 @@ const { finishReport } = require('../lib/reporting');
 const { quietRun } = require('../lib/problems');
 const { runCounts, runAsks, asksFields, ownChatMessage } = require('../lib/read');
 const { runSummary } = require('../lib/events');
-const { startServer, restartServer, setJobs, makeBot, feed, waitFor, heldRun, self, seedRuns, readData } = require('./helpers');
+const { startServer, restartServer, setJobs, makeBot, feed, waitFor, heldRun, self, seedRuns, readData, writeData } = require('./helpers');
 
 const DAY = { start: 0, end: 0, timeZone: 'UTC' }; // equal hours: nothing is held
 // Quiet hours that hold now, whatever the hour.
@@ -294,7 +294,7 @@ test("a run the Chief started gets no note for answer buttons; a question it wri
     const file = path.join(srv.data, 'chief', `${chat.id}.json`);
     const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
     saved.messages.push({ role: 'user', text: 'do it', at: new Date().toISOString() }, { role: 'chief', text: "It's still going.", at: new Date().toISOString(), actions: [{ kind: 'run', text: 'Started a bot', runId: run.id }] });
-    fs.writeFileSync(file, JSON.stringify(saved));
+    writeData(file, saved);
     srv.reply('Which account should I use?\n\n[[choices: Work | Private]]');
     srv.release(rec);
     const done = await srv.finished(run.id);

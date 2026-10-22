@@ -5,7 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, heldRun, self, waitFor } = require('./helpers');
+const { startServer, makeBot, heldRun, self, waitFor, writeData } = require('./helpers');
 const { kit, BASH, WEB, isRunOf } = require('./carry-on-helpers');
 
 let srv, refuse, asksOf, runsOf, answer, lastRun, refused, carriedOn, startsNothing;
@@ -27,7 +27,7 @@ test('a run the Chief started is handed back to the Chief, in the chat that star
   saved.title = 'Watch the news';
   saved.messages.push({ role: 'user', text: 'Make a news bot and start it', at: new Date().toISOString() },
     { role: 'chief', text: 'Started it.', at: new Date().toISOString(), actions: [{ kind: 'run', text: 'Started News Watcher', botId: bot.id, runId: run.id }] });
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeData(file, saved);
   refuse([WEB]);
   srv.unhold();
   srv.release(rec);
