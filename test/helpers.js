@@ -93,6 +93,9 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
       BOT_DOT_TEST_TICK: '1',
       BOT_DOT_REMINDERS_EVERY_MS: '1000',
       BOT_DOT_LINE_EVERY_MS: '50',
+      // How many runs of one bot go at once (ADR 062): a test file of what waits behind a busy bot sets 1 for the
+      // whole file, before it starts its server (oneRunAtATime).
+      ...(process.env.BOT_DOT_RUNS_MAX ? { BOT_DOT_RUNS_MAX: process.env.BOT_DOT_RUNS_MAX } : {}),
       ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

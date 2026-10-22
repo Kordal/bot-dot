@@ -11,7 +11,7 @@ const state = {
   groups: [], // the groups, each with what its chat holds now (GET /api/group-chats, groups.js); none against a server without them
   groupId: null, // the group whose chat is open (view 'group')
   inbox: {}, // bot id → notes waiting for its next run
-  botStream: null,
+  botStreams: [], // the streams of the bot's runs that are going (bot-chat.js followBotRuns)
   chatNew: false,
   chats: [],
   chatId: null,
@@ -815,7 +815,7 @@ function writeHash() {
   history.replaceState(null, '', `#${Panel.name(v, state.panel)}${id ? '/' + id : ''}`);
 }
 function show({ view: v, panel, via }, fresh = false) {
-  if (v !== 'bot' && state.botStream) { state.botStream.close(); state.botStream = null; }
+  if (v !== 'bot') for (const es of state.botStreams.splice(0)) es.close();
   if (v !== 'group') followGroupDrafts(null); // a group that is left follows no turn's draft (groups.js)
   const changed = state.view !== v;
   // Needs you goes back, after its last card, to where it was opened from (needs-return.js).

@@ -3,6 +3,9 @@
 // own queue without holding up the others, mentions in the replies give nobody a turn, and "Stop all" ends them
 // all. A message without it still goes one member after another. Against a real botdot server and the stand-in for
 // Claude (test/fixtures/fake-claude.js), which answers and is held for one bot by its name.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

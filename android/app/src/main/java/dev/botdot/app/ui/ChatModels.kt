@@ -266,34 +266,36 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         viewModelScope.launch { runCatching { app.api.value?.stopRun(r.id) }; refresh() }
     }
 
-    /** The reply of the run at work as it is written so far, by its run (ReplyDraft): drawn in its place. */
-    var draft by mutableStateOf<Pair<String, String>?>(null)
+    /** The reply of each run at work as it is written so far, by its run (ReplyDraft): drawn in its place. */
+    var drafts by mutableStateOf<Map<String, String>>(emptyMap())
         private set
 
-    // Follow the run that's going on now: what it attaches, its line as it changes, its draft, its end.
-    private var following: String? = null
-    private var stream: Job? = null
+    // Follow every run that's going on now (a message to a busy bot starts beside the run that is going, ADR 062):
+    // what each attaches, its line as it changes, its draft, its end.
+    private val streams = mutableMapOf<String, Job>()
     private fun follow() {
         // The lines of its runs that still go on, as this list has them; those of runs that ended go.
         app.store.lines.sync(OpeningLine.live(all, app.store.lines.features)) { it == "bot:$botId" }
-        val r = all.firstOrNull { it.isRunning }
-        if (r?.id == following) return
-        following = r?.id
-        stream?.cancel()
-        draft = null // the run it was of ended: its reply stands in its place
-        if (r == null) return
-        stream = viewModelScope.launch {
-            runCatching {
-                app.api.value?.runStream(r.id)?.collect { ev ->
-                    when (ev) {
-                        is RunEvent.Step -> Unit // a working bot is its status line: the steps are in the run's details
-                        is RunEvent.Text -> Unit // the reply shows when it's done, or grows as its draft
-                        is RunEvent.Draft -> if (ReplyDraft.shows(app.store.version.value.value?.features)) draft = ev.text.takeIf { it.isNotEmpty() }?.let { r.id to it }
-                        is RunEvent.End -> kicks.tryEmit(Unit) // the draft stays until the reply that takes its place is read (follow)
-                        is RunEvent.File -> kicks.tryEmit(Unit) // show it now: a QR code to scan can't wait for the reply
-                        is RunEvent.Line -> app.store.lines.streamed("bot:$botId", ev, r.id)
-                        // Its plan as it changes: on the run as this chat holds it, until the run is read again.
-                        is RunEvent.Planned -> all = all.map { if (it.id == r.id) it.copy(planValue = ev.value?.takeIf { v -> v !is kotlinx.serialization.json.JsonNull }) else it }
+        val going = all.filter { it.isRunning }
+        val ids = going.map { it.id }.toSet()
+        // The runs that ended: their streams go, and their drafts, whose replies stand in their place.
+        streams.keys.filter { it !in ids }.forEach { streams.remove(it)?.cancel() }
+        if (drafts.keys.any { it !in ids }) drafts = drafts.filterKeys { it in ids }
+        for (r in going) {
+            if (r.id in streams) continue
+            streams[r.id] = viewModelScope.launch {
+                runCatching {
+                    app.api.value?.runStream(r.id)?.collect { ev ->
+                        when (ev) {
+                            is RunEvent.Step -> Unit // a working bot is its status line: the steps are in the run's details
+                            is RunEvent.Text -> Unit // the reply shows when it's done, or grows as its draft
+                            is RunEvent.Draft -> if (ReplyDraft.shows(app.store.version.value.value?.features)) drafts = if (ev.text.isEmpty()) drafts - r.id else drafts + (r.id to ev.text)
+                            is RunEvent.End -> kicks.tryEmit(Unit) // the draft stays until the reply that takes its place is read (follow)
+                            is RunEvent.File -> kicks.tryEmit(Unit) // show it now: a QR code to scan can't wait for the reply
+                            is RunEvent.Line -> app.store.lines.streamed("bot:$botId", ev, r.id)
+                            // Its plan as it changes: on the run as this chat holds it, until the run is read again.
+                            is RunEvent.Planned -> all = all.map { if (it.id == r.id) it.copy(planValue = ev.value?.takeIf { v -> v !is kotlinx.serialization.json.JsonNull }) else it }
+                        }
                     }
                 }
             }

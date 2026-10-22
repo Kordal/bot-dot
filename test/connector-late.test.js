@@ -6,6 +6,9 @@
 // message of the owner, 24 hours, a job's run of a paused bot. No yes answers "That run has ended". Against a real botdot
 // server with the wait at 1.5 s, the stand-in for Claude and the stand-in connected app. A shorter wait (it was
 // 300 ms) can end on a busy machine before a test reads the card it has just made as still waited for (#503).
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

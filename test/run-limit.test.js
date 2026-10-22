@@ -3,6 +3,9 @@
 // constant on the server; these servers have it at a second or two (BOT_DOT_RUN_LIMIT_MS). It counts from the
 // run's start, the time the run waits for the owner included: a run that is ended while it waits for an OK keeps
 // its card, and the yes starts the bot again.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, makeBot, heldRun, feed, waitFor, fakeConnectedApp, connectorEnv } = require('./helpers');

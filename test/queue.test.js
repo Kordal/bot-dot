@@ -1,6 +1,9 @@
 // A busy bot's queue (bots.js startOrQueue): at most 10 AI runs wait their turn. When it's full, work is
 // never reported as taken and then dropped: a message goes to the inbox, "Run now" says so, and a follow-up
 // waits until there's room. A one-time job that finds it full is in test/one-time-queued.test.js.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
