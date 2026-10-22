@@ -62,8 +62,9 @@ fun PageBlock(b: Block) {
         "grid" -> if (b.blocks.all { it.type == "status" }) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { b.blocks.forEach { KitStatus(it) } }
         } else BoxWithConstraints {
+            val wide = maxWidth >= 600.dp
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Pages.rows(b.blocks, b.columns, wide = maxWidth >= 600.dp).forEach { row ->
+                Pages.rows(b.blocks, b.columns, wide).forEach { row ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         row.forEach { x -> Column(Modifier.weight(1f)) { PageBlock(x) } }
                     }
