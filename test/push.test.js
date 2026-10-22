@@ -85,6 +85,20 @@ test('what needs the owner rings once, not while the web page is in use, and aga
   assert.equal(take(f, ev('login_request', { id: 'l1', kind: 'login', botName: 'Shopper', site: 'shop.example' }))[0].body, 'Asks for the shop.example login');
 });
 
+test('what one run waits on rings once, as its card of several, also when an ask joins it or one is answered on its own', () => {
+  const rung = new Set();
+  const f = push.follower({ rung });
+  const batch = { id: 'run-r1', title: 'Scout wants 2 things for “Find a flat”', count: 2 };
+  const a1 = { id: 'a1', kind: 'permission', botName: 'Scout', text: 'Asks to browse the web', batch };
+  const a2 = { id: 'a2', kind: 'connector-action', botName: 'Scout', text: 'Wants to send email with Gmail', batch };
+  assert.deepEqual(take(f, ev('asks', { waiting: 2, list: [a1, a2] })).map((n) => [n.title, n.body, n.tag]), [['Scout', batch.title, 'ask:batch:run-r1']]);
+  const a3 = { ...a2, id: 'a3', batch: { ...batch, count: 3 } };
+  assert.deepEqual(take(f, ev('asks', { waiting: 3, list: [a1, a2, a3] })), [], 'an ask that joins the card rings nothing');
+  assert.deepEqual(take(f, ev('asks', { waiting: 2, list: [a2, a3] })), [], 'nor does the first answered on its own');
+  take(f, ev('asks', { waiting: 0, list: [] }));
+  assert.equal(rung.size, 0, 'all answered: it may ring again');
+});
+
 test("a bot's plan rings unless its chat is on screen, and Claude's sign-out once per sign-out, also while the web page is in use", () => {
   const shown = new Set(['chief:c2']);
   const f = push.follower({ rung: new Set(), onScreen: (c) => shown.has(c) });

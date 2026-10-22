@@ -84,7 +84,7 @@ async function runTileSource(tile, source, where, extra = {}) {
   return extra.image ? { type: r.type, data: r.image } : r.body;
 }
 // askBrief is lib/routes/shared.js's, made below once asks and connectorApprovals are.
-const asks = asksLib.create(B.DATA_DIR, { describe: (a) => askBrief(a) }); // permissions and skills bots ask the owner for
+const asks = asksLib.create(B.DATA_DIR, { describe: (a, list) => askBrief(a, list) }); // permissions and skills bots ask the owner for
 const secretFiles = require('./lib/secret-files').create(B.DATA_DIR); // Vault secrets kept in files, by the owner's yes (#253)
 // A change a bot proposed to its own instructions keeps the run that proposed it: the bot carries on after the yes (ADR 009).
 B.onChangeRequested((change) => asks.add({ kind: 'bot-change', ...change }, { runId: change.by === 'bot' ? change.runId || null : null }));
@@ -212,7 +212,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -274,7 +274,7 @@ async function attention() {
       memory: memory.length,
       memoryChanges: memory.map((p) => ({ id: p.id, action: p.action, botId: p.botId || null, botName: botOf(p.botId)?.name || (p.by === CHIEF_NOTES ? chief.named().name : null), botColor: botOf(p.botId)?.color || (p.by === CHIEF_NOTES ? chief.CHIEF.color : null), text: feed.clip(p.action === 'remove' ? p.current?.text : p.text, 200), ...learningWords.cardOf(p), ...(p.guarded ? { guarded: true } : {}), ...groupOfCard(p.runId), at: p.at })),
     },
-    asks: asks.list().map(askBrief),
+    asks: ((list) => list.map((a) => askBrief(a, list)))(asks.list()),
     update: { available: !!updates.lastStatus().available },
   };
 }

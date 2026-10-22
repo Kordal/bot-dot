@@ -603,6 +603,13 @@ legend { font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 0 6p
 .need-card:not(.open) .need-change div.faint-strike { -webkit-line-clamp: 2; }
 /* The same for a script that changes (a job's, a tile's): the script that goes, struck, above the one that comes. */
 .need-card:not(.open) .need-change pre.faint-strike { -webkit-line-clamp: 2; }
+/* One card per run (#277): what one run waits on, with Allow all and Decline all, spans the page's width and holds
+   each ask's own card, flat, in a grid of its own. */
+.need-batch { padding: 16px; display: flex; flex-direction: column; gap: 8px; grid-column: 1 / -1; }
+.need-batch .need-own { overflow-wrap: anywhere; }
+.need-batch-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; margin-top: 4px; }
+.need-batch-items .need-card { box-shadow: none; background: var(--bg); }
+.chat-needs .need-batch-items { grid-template-columns: minmax(0, 1fr); }
 /* The same cards at the end of a chat: what that bot (or the Chief) waits for. */
 .chat-needs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; max-width: 560px; }
 .chat-needs:empty { display: none; }

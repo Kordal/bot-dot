@@ -20,7 +20,7 @@ const CODE = [
   cut('const needsDone = new Map();', '// The buttons on need cards'),
   cut('const chatDecided = new Map();', '// "Always approve" a script job'),
   cut('async function decide(x, yes', 'async function refreshNeeds() {'),
-  'this.page = { needsItems, needCardHTML, renderNeeds, leaveNeeds, stayOnNeeds, chatNeeds, updateChatNeeds, decide, thenLine, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, answeredAway, drawChatCards, toHeldCard, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
+  'this.page = { batched, decideBatch, needsItems, needCardHTML, renderNeeds, leaveNeeds, stayOnNeeds, chatNeeds, updateChatNeeds, decide, thenLine, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, answeredAway, drawChatCards, toHeldCard, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
 ].join('\n');
 
 // The page with what the server sent. state: asks, bots (with their jobs), dash, approvals.
@@ -35,7 +35,7 @@ function page({ state = {}, answer = () => ({ ok: true }), screen = {} } = {}) {
     esc, state: st, loginReq: { pending: [] }, CHIEF_COLOR, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff', color: CHIEF_COLOR }, BACK_BTN: '',
     botById: (id) => st.bots.find((b) => b.id === id), colorOf: (b) => b?.color || '#888780',
     botLabel: (b) => (b ? `<svg class="fig fig-small"></svg>${esc(b.name)}` : ''),
-    CSS: { escape: (s) => s }, PLAN_APPROVAL: '', loadDash() {}, wireNeedCards() {},
+    CSS: { escape: (s) => s }, PLAN_APPROVAL: '', loadDash() {}, wireNeedCards() {}, wireBatchCards() {},
     api: async (url, opts) => { calls.push([url, opts.method, opts.body]); const a = answer(url, opts.body); if (a instanceof Error) throw a; return a; },
     toast: (text, bad) => toasts.push([text, !!bad]), whileBusy,
     refreshNeeds: () => { refreshed++; },

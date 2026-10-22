@@ -88,7 +88,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Answered
+import dev.botdot.app.data.Api
 import dev.botdot.app.data.Ask
+import dev.botdot.app.data.AskCard
+import dev.botdot.app.data.askCards
 import dev.botdot.app.data.AskSkill
 import dev.botdot.app.data.BitwardenStatus
 import dev.botdot.app.data.ChiefChatSummary
@@ -109,6 +112,7 @@ import dev.botdot.app.data.GroupRef
 import dev.botdot.app.data.groupOfChat
 import dev.botdot.app.data.ToolCard
 import dev.botdot.app.data.VaultTypes
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -207,6 +211,8 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
         answered()
     }
     val jobWho = { b: Bot, j: Job -> inGroup(b.named(), cardGroups[CardGroups.jobKey(b.id, j.id)]) }
+    val chiefWho = chiefNamed()
+    val askWho = { a: Ask -> inGroup(a.bot?.let { whoOf(it.id, it.name) } ?: chiefWho, a.group) }
     val memWho = { m: MemoryChange -> inGroup(whoOf(m.botId, bots.firstOrNull { it.id == m.botId }?.name ?: m.bot?.name ?: "A bot"), m.group) }
     // What one tap may approve: what a card shows in words. A script is answered on its own card.
     val all = approveAll(
@@ -298,9 +304,26 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                         onDecline = { decide(tileKey(t), who, tileCard(t).title, false) { api!!.approveTile(t.id, false) } })
                 }
                 // A permission or a skill a bot (or the Chief) asked for, and a tool the Chief asks to install for a bot.
-                items(asks.filter { a -> decided.none { it.key == "a:${a.id}" } }, key = { "a:${it.id}" }) { a ->
-                    val who = inGroup(a.bot?.let { whoOf(it.id, it.name) } ?: chiefNamed(), a.group)
-                    AskApproval(a, who) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
+                // What one run waits on is one card (#277): Allow all and Decline all above each ask's own card.
+                items(askCards(asks.filter { a -> decided.none { it.key == "a:${a.id}" } }), key = { it.key }) { card ->
+                    when (card) {
+                        is AskCard.One -> {
+                            val a = card.ask
+                            val who = askWho(a)
+                            AskApproval(a, who) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
+                        }
+                        is AskCard.Several -> AskBatchCard(card, askWho(card.asks.first()),
+                            onAll = { yes ->
+                                answerAll(scope, api!!, card, yes, ::tell, after = { load(); answered() }) { a, label ->
+                                    val done = Decided("a:${a.id}", askWho(a), askTitle(a), label)
+                                    decided = decided + done
+                                    store.answeredAway.add(a, done.title, done.label)
+                                }
+                            }) { a ->
+                            val who = askWho(a)
+                            AskApproval(a, who) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
+                        }
+                    }
                 }
                 // A bot's plan for the Chief: nothing happens until you approve it, here or in its chat.
                 items(plans.filter { c -> decided.none { it.key == "p:${c.id}" } }, key = { "p:${it.id}" }) { c ->
@@ -424,10 +447,23 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
                 onApprove = { decide("m:${m.id}", card.title, true) { api!!.settleMemoryChange(m.id, true) } },
                 onDecline = { decide("m:${m.id}", card.title, false) { api!!.settleMemoryChange(m.id, false) } })
         }
-        myAsks.forEach { a ->
-            // In the Chief's chat the card of a tool, and of a changed bot, says which bot it is for, as it looks now.
-            val who = if (chief || group != null) a.bot?.let { named(bots.firstOrNull { b -> b.id == it.id }, it.name, it.color) } else null
-            AskApproval(a, who, chiefChat) { title, yes, label, always -> decide("a:${a.id}", title, yes, label) { api!!.answerAsk(a.id, yes, always) } }
+        // In the Chief's chat the card of a tool, and of a changed bot, says which bot it is for, as it looks now.
+        val askWho = { a: Ask -> if (chief || group != null) a.bot?.let { named(bots.firstOrNull { b -> b.id == it.id }, it.name, it.color) } else null }
+        val oneAsk: @Composable (Ask) -> Unit = { a ->
+            AskApproval(a, askWho(a), chiefChat) { title, yes, label, always -> decide("a:${a.id}", title, yes, label) { api!!.answerAsk(a.id, yes, always) } }
+        }
+        // What one run waits on is one card here too (#277).
+        askCards(myAsks).forEach { card ->
+            when (card) {
+                is AskCard.One -> oneAsk(card.ask)
+                is AskCard.Several -> AskBatchCard(card, askWho(card.asks.first()),
+                    onAll = { yes ->
+                        answerAll(cs, api!!, card, yes, { error = it }, after = { load(); answered() }) { a, label ->
+                            decided = decided + Decided("a:${a.id}", null, askTitle(a), label)
+                            error = null
+                        }
+                    }, each = oneAsk)
+            }
         }
         // A tile this bot suggested for the Board.
         mySuggestions.forEach { x ->
@@ -1102,6 +1138,62 @@ private fun ChangedParts(parts: List<ChangedPart>) {
             if (t.now.isNotEmpty()) Text(t.now, color = p.text, fontSize = 13.sp, maxLines = if (open) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
         }
     }
+}
+
+/**
+ * The card of everything one run waits on (#277): whose, the server's title, a line for each ask whose yes "Allow all"
+ * leaves to its own buttons, Allow all and Decline all, and each ask's own card under it, with its own buttons.
+ */
+@Composable
+private fun AskBatchCard(card: AskCard.Several, who: Named?, onAll: (Boolean) -> kotlinx.coroutines.Job, each: @Composable (Ask) -> Unit) {
+    // Busy while the answer goes: a second tap sends nothing.
+    var busy by remember(card.id) { mutableStateOf(false) }
+    val all = { yes: Boolean -> if (!busy) { busy = true; onAll(yes).invokeOnCompletion { busy = false } } }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Card(who, card.title.ifBlank { "${card.asks.size} things wait for your OK" }) {
+            batchOwnLine(card.asks)?.let { Muted(it) }
+            if (card.asks.any { it.batch?.own != true && !it.rowsCut }) Buttons("Allow all", { all(true) }, "Decline all", { all(false) }, enabled = !busy)
+            else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                OutlinedButton(onClick = { all(false) }, enabled = !busy) { Text("Decline all", color = LocalPaper.current.text) }
+            }
+        }
+        Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { card.asks.forEach { each(it) } }
+    }
+}
+
+/**
+ * "Allow all" or "Decline all" (`POST /api/asks/batch/:id`, with the ids the card shows): [record] gets each ask the
+ * server answered with its card's label; one it could not answer keeps its card, and [tell] says why.
+ */
+private fun answerAll(scope: CoroutineScope, api: Api, card: AskCard.Several, yes: Boolean, tell: (String) -> Unit, after: suspend () -> Unit, record: (Ask, String) -> Unit): kotlinx.coroutines.Job = scope.launch {
+    runCatching { api.answerAskBatch(card.id, yes, card.asks.map { it.id }) }
+        .onSuccess { r ->
+            for (d in r.done) {
+                val a = card.asks.firstOrNull { it.id == d.id } ?: continue
+                if (d.error != null) tell(d.error) else record(a, answeredLabel(answeredWord(null, d.answered, yes), d.answered?.carriesOn.takeIf { yes }))
+            }
+        }
+        .onError { tell(it.message ?: "That didn't work") }
+    after()
+}
+
+/** The line that names the asks "Allow all" leaves to their own Allow (`own`), as on the web page; null for none. */
+internal fun batchOwnLine(asks: List<Ask>): String? {
+    val own = asks.filter { it.batch?.own == true }.map { "“${it.title.ifBlank { it.line }}”" }
+    return when (own.size) {
+        0 -> null
+        1 -> "Allow all leaves ${own[0]} to its own Allow."
+        else -> "Allow all leaves ${own.dropLast(1).joinToString(", ")} and ${own.last()} to their own Allow."
+    }
+}
+
+/** An ask's card title as its own card draws it, for the faded line once it is answered. */
+internal fun askTitle(a: Ask): String = when {
+    a.kind == "permission" -> "Let it ${a.what?.label ?: a.permission}?"
+    a.written -> skillTitle(a)
+    ToolCard.isTool(a) -> ToolCard.parts(a).title
+    a.kind == "skill" -> "Install the skill \"${a.skill?.name.orEmpty()}\"?"
+    else -> a.title.ifBlank { a.line }
 }
 
 /**

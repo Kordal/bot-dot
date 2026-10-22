@@ -421,8 +421,10 @@ test('every ask of the feed has its line, and yesOn "card" for a changed bot and
   assert.deepEqual({ ...asks[1], at: null }, { id: 'a-skill', kind: 'skill', ...who, what: null, skill: 'tidy-desk', text: TEXTS['a-skill'], at: null });
   assert.deepEqual({ ...asks[2], at: null }, { id: 'a-tool', kind: 'tool', ...who, what: null, skill: null, tool: 'gh', text: TEXTS['a-tool'], at: null });
   // An action in a connected app has its card's own fields too: nobody waits for this one since botdot started.
-  assert.deepEqual({ ...asks[6], at: null, stoppedAt: null }, { id: 'a-act', kind: 'connector-action', ...who, what: null, skill: null, title: 'Send email with Gmail?',
-    rows: [{ label: 'To', value: 'friend@example.com' }, { label: 'Text', value: 'The secret plan' }], held: false, stoppedAt: null, text: TEXTS['a-act'], yesOn: 'card', then: { who: 'bot', text: 'It carries on when you allow it.' }, at: null });
+  assert.deepEqual({ ...asks[6], at: null, stoppedAt: null, batch: undefined }, { id: 'a-act', kind: 'connector-action', ...who, what: null, skill: null, title: 'Send email with Gmail?',
+    rows: [{ label: 'To', value: 'friend@example.com' }, { label: 'Text', value: 'The secret plan' }], held: false, stoppedAt: null, text: TEXTS['a-act'], yesOn: 'card', then: { who: 'bot', text: 'It carries on when you allow it.' }, at: null, batch: undefined });
+  // It shares the card of its run with the other asks of that run (#277).
+  assert.match(asks[6].batch.title, /^Mail Sorter wants \d things for /);
   assert.ok(Date.parse(asks[6].stoppedAt) >= Date.parse(asks[6].at));
   // A changed bot has its card's own fields beside its line, so an app can draw it where it was asked for.
   assert.deepEqual({ ...asks[4], at: null }, { id: 'a-change', kind: 'bot-change', ...who, what: null, skill: null, by: 'chief', title: 'Change Mail Sorter: commands and new rules?',
