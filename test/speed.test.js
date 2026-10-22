@@ -1,5 +1,8 @@
 // What keeps botdot light: screenshots kept apart from run logs, waiting for a run without polling,
 // compressed and cached answers, and a quick cron.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

@@ -2,6 +2,9 @@
 // it is going, and a waiting message whose turn came always finds its run startable through the API. So this file
 // loads lib/bots.js itself, on a scratch data folder and the stand-in for Claude: a deleted bot takes its waiting
 // work with it, and a message that cannot start is a failed run with its sentence, not a console line.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');

@@ -3,6 +3,9 @@
 // starts; the reply says which runs were stopped too. A run an earlier reply started and a teammate's run go on,
 // what waits behind the reply and behind each stopped run starts, and the Chief gets no turn for what Stop ended.
 // The turns are played by the stand-in for Claude; the runs are real runs, asked for as the Chief's tools ask.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

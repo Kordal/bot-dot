@@ -3,6 +3,9 @@
 // process uses (its prompt, its MCP and settings files) goes once that process is gone, and a process that lingers is
 // ended after a moment. A Chief's turn is the same. The stand-in for Claude stays on after its result while
 // $FAKE_OUT/linger exists.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

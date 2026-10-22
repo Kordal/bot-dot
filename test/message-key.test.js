@@ -2,6 +2,9 @@
 // sends the message again with the key it gave it, and botdot, which took it the first time, starts nothing
 // and adds nothing. For a Chief chat and for a bot; a message that waits its turn waits once (ADR 011); a refused
 // request does not use its key up; the keys survive a restart and are forgotten after 24 hours.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

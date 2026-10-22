@@ -225,7 +225,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         YourSide(r, open = r.id in opened)
                         if (new && mine) NewLine(bot?.color)
                         val theirs = @Composable {
-                            TheirSide(r, open = r.id in opened, features = features, draft = vm.draft?.takeIf { it.first == r.id }?.second, plan = r.plan?.takeIf { r.id != planView?.id },
+                            TheirSide(r, open = r.id in opened, features = features, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
                                 learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> onLearned; null -> null } })
                             if (r.id == runs.firstOrNull()?.id && r.status == "success") {
                                 Choices(r.choices) { text, key -> sendFrom(text, key) }

@@ -1,6 +1,9 @@
 // What carries on survives (ADR 009, bots.js carryOn and startQueued): behind a busy bot the work waits in the
 // bot's queue under a key of its own, is still there after a restart and starts once; with the queue full the yes
 // only changes the setting; and a one-time job that is gone from the bot's jobs still runs again.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

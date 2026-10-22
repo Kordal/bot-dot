@@ -3,6 +3,9 @@
 // own memory is off for them, a Claude Code too old for that file starts nothing, and no text from memory or
 // from a chat can pose as markup in a prompt. First the parts that need nothing running, then real botdot
 // servers with the stand-in for Claude, which reads the prompt from its file as Claude Code does.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

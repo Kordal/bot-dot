@@ -1,5 +1,8 @@
 // Queued work survives a restart (bots.js, data/queue.json): what waited runs once when botdot is back, work that
 // may no longer run is dropped, a broken queue file is kept aside, and one-time jobs missed while it was off catch up.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

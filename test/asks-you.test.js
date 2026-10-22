@@ -5,6 +5,9 @@
 // its questions stay in the reply as text, for the Chief. A job or tile that waits for its first approval says
 // "Decline and remove".
 // Nothing here waits for a schedule: botdot is stopped, a job is set to every minute, and back on it runs at once.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

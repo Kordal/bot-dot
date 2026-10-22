@@ -3,6 +3,9 @@
 // Stop make a run `stopped`; a sign-out of Claude makes it a run that failed, which is passed on to the Chief's
 // chat that started it, keeps its connected-app card and can carry on after an OK. The limit is in
 // test/run-limit.test.js, Stop in a Chief chat in test/chief-stop.test.js.
+// Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
+// once, and at that limit the same holds).
+process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
