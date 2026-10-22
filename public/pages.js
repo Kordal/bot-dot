@@ -1,6 +1,7 @@
 // A bot's pages (#346, ADR 065; docs/api.md, "Pages"): what a bot saved with save_page, a chip under its reply, a list
 // in its settings, opened in the document viewer (viewer.js) with who made it and when it was updated, and "Keep up
 // to date": the owner's tap makes a job that rewrites it, with no card to approve. Only from a server with `pages`.
+// Every bot's pages in one list (#361): the Pages view, opened from Settings, from a server with `pages-all`.
 
 const Pages = (() => {
   const ICON = {
@@ -93,13 +94,50 @@ const Pages = (() => {
     return false;
   }
 
-  // The live feed's `page`: a bot saved one. The page on screen and the list in its settings follow.
+  // The Pages view (#361): the pages kept up to date first, then the others, each with its bot, newest first as the
+  // server lists them. A row opens the page in the viewer, beside its bot's chat.
+  const showsAll = () => (state.features || []).includes('pages-all');
+  function rowHTML(p) {
+    const sub = [p.bot, updated(p), p.keep?.when].filter(Boolean).join(' · ');
+    return `<button type="button" class="pg-row" data-open-page="${esc(`${p.botId}/${p.slug}`)}"><span class="pg-icon">${ICON.page}</span><span class="pg-text"><b>${esc(p.title)}</b><span>${esc(sub)}</span></span>${p.keep ? '<span class="pg-live" aria-label="Keeps up to date"></span>' : ''}</button>`;
+  }
+  function allHTML(pages) {
+    const kept = pages.filter((p) => p.keep);
+    const other = pages.filter((p) => !p.keep);
+    const section = (title, list) => (list.length ? `<h3 class="page-sub">${title}</h3><div class="card pg-all">${list.map(rowHTML).join('')}</div>` : '');
+    return `${SUB_BACK}
+    <div class="section-head"><div><h1>Pages</h1><p>Made by your bots</p></div></div>
+    ${pages.length ? `${section('Kept up to date', kept)}${section(kept.length ? 'Other pages' : 'All pages', other)}`
+      : '<div class="card empty" style="padding:36px 20px">No pages yet. Ask a bot for a page, a report or an overview: it shows here, and under the bot\'s reply.</div>'}`;
+  }
+  function openPage(p) {
+    setView('bot', p.botId);
+    DocViewer.open({ src: src(p.botId, p.slug), name: p.title, from: p.bot, page: { botId: p.botId, slug: p.slug } });
+  }
+  async function renderAll() {
+    const root = $('#view-pages');
+    let pages;
+    try { pages = (await api('/pages')).pages; } catch (e) {
+      if (state.view === 'pages') root.innerHTML = `${SUB_BACK}<div class="card empty">Couldn't load the pages.</div>`;
+      return;
+    }
+    if (state.view !== 'pages') return;
+    root.innerHTML = allHTML(pages);
+    $$('[data-open-page]', root).forEach((b) => (b.onclick = () => {
+      const [botId, slug] = b.dataset.openPage.split('/');
+      const p = pages.find((x) => x.botId === botId && x.slug === slug);
+      if (p) openPage(p);
+    }));
+  }
+
+  // The live feed's `page`: a bot saved one. The page on screen, the list in its settings and the Pages view follow.
   function changed(d) {
     if (!d?.botId) return;
     DocViewer.pageChanged(d.botId, d.slug);
     const list = $('#page-list');
     if (list && $('#view-botsettings')?.dataset.bot === d.botId) drawList({ id: d.botId, name: botName(d.botId) }, list);
+    if (state.view === 'pages') renderAll();
   }
 
-  return { chipsHTML, subtitle, barHTML, drawList, openKeep, act, changed, shows };
+  return { chipsHTML, subtitle, barHTML, drawList, openKeep, act, changed, shows, showsAll, allHTML, renderAll, openPage };
 })();

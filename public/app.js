@@ -766,6 +766,7 @@ function render() {
   if (state.view === 'runs') renderRuns();
   if (state.view === 'vault' && !$('#view-vault').dataset.ready) renderVault(); // not on every refresh: it would wipe the forms
   if (state.view === 'skills') renderSkills();
+  if (state.view === 'pages') Pages.renderAll();
   if (state.view === 'connectors') renderConnectors();
   if (state.view === 'settings') renderSettings();
   if (state.view === 'setup') renderSetup();
@@ -779,7 +780,7 @@ const runningTasks = () => activityRuns().filter((r) => r.status === 'running').
 const tasksRunning = (n) => `${n} ${n === 1 ? 'task' : 'tasks'} running`;
 // The Settings button: marked while one of its pages is open.
 function markMore() {
-  $('#more-btn').classList.toggle('here', ['runs', 'skills', 'connectors', 'vault', 'settings', 'setup'].includes(state.view));
+  $('#more-btn').classList.toggle('here', ['runs', 'skills', 'pages', 'connectors', 'vault', 'settings', 'setup'].includes(state.view));
   // The logo's dot pulses while the Chief or a bot is working.
   $('#brand').classList.toggle('busy', !!state.chiefBusy || state.bots.some((b) => b.running));
   const ca = $('#chief-avatar');

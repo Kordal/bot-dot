@@ -1519,6 +1519,9 @@ body.doc-mode > .app { display: none; }
 .pg-list { display: grid; gap: 6px; margin-top: 8px; }
 .pg-row { padding: 6px 8px 6px 4px; border: 1px solid transparent; border-radius: 12px; }
 .pg-row .pg-text { flex: 1; }
+/* The Pages view (#361): every bot's pages, rows as buttons that open the page beside its bot's chat. */
+.pg-all { display: grid; gap: 2px; padding: 6px; }
+button.pg-row { width: 100%; background: none; font: inherit; text-align: left; cursor: pointer; }
 .pg-live { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
 .pg-keep { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; background: var(--ok-soft); color: var(--ok-text); font-size: 12.5px; }
 .pg-sheet .field { margin-top: 14px; }

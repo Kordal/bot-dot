@@ -326,10 +326,11 @@ class MainActivity : ComponentActivity() {
                         LiveScreen(app, id, name) { nav.popBackStack() }
                     }
                     composable("settings") {
-                        SettingsScreen(app, onSkills = { nav.navigate("skills") }, onConnectors = { nav.navigate("connectors") }, onVault = { nav.navigate("vault") },
+                        SettingsScreen(app, onSkills = { nav.navigate("skills") }, onConnectors = { nav.navigate("connectors") }, onVault = { nav.navigate("vault") }, onPages = { nav.navigate("pages") },
                             onChangeServer = { nav.navigate("connect") }, onBattery = { askBackgroundOk() }) { nav.popBackStack() }
                     }
                     composable("skills") { SkillsScreen(app) { nav.popBackStack() } }
+                    composable("pages") { PagesScreen(app) { nav.popBackStack() } }
                     composable("connectors") { ConnectorsScreen(app) { nav.popBackStack() } }
                     composable("vault") { VaultScreen(app) { nav.popBackStack() } }
                     composable("share") {
