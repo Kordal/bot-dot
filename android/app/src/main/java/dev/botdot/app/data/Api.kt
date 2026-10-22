@@ -385,6 +385,28 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun deleteBotFile(botId: String, file: String): UploadedFileList =
         json.decodeFromString(send("DELETE", "/bots/${enc(botId)}/files/${enc(file.substringAfterLast('/'))}"))
     suspend fun downloadBotFile(botId: String, file: String, dest: java.io.File) = download("/bots/${enc(botId)}/files/${enc(file.substringAfterLast('/'))}", dest)
+    /** A folder of a bot's workspace (#296): [root] is "server" or "computer", [path] relative to it. Only with `workspace-files`. */
+    suspend fun workspace(botId: String, root: String, path: String): WorkspaceListing = json.decodeFromString(get(WorkspaceFiles.list(botId, root, path)))
+    /** What deleting [path] takes, for its confirmation. */
+    suspend fun workspaceCount(botId: String, root: String, path: String): WorkspaceCount = json.decodeFromString(get(WorkspaceFiles.count(botId, root, path)))
+    suspend fun deleteFromWorkspace(botId: String, root: String, path: String) { send("DELETE", WorkspaceFiles.list(botId, root, path)) }
+    suspend fun makeWorkspaceFolder(botId: String, path: String, name: String) { send("POST", WorkspaceFiles.folder(botId), buildJsonObject { put("path", path); put("name", name) }) }
+    /** Rename or move, in the bot's folder on botdot: [to] is the new path. */
+    suspend fun moveInWorkspace(botId: String, from: String, to: String) { send("POST", WorkspaceFiles.move(botId), buildJsonObject { put("from", from); put("to", to) }) }
+    /** Uploads one file into folder [path] of the bot's folder on botdot (another name when that one is taken). */
+    suspend fun uploadToWorkspace(resolver: ContentResolver, uri: Uri, botId: String, path: String) = withContext(Dispatchers.IO) {
+        val (name, size) = describe(resolver, uri)
+        if (size != null && size > WorkspaceFiles.MAX_BYTES) throw ApiException("$name is over 25 MB.")
+        val body = object : RequestBody() {
+            override fun contentType() = "application/octet-stream".toMediaType()
+            override fun contentLength() = size ?: -1L
+            override fun writeTo(sink: BufferedSink) {
+                resolver.openInputStream(uri)?.use { sink.writeAll(it.source()) } ?: throw IOException("Can't open $name")
+            }
+        }
+        call(request(WorkspaceFiles.upload(botId, path)).header("X-Bot-Dot", "1").header("X-File-Name", enc(name)).post(body).build())
+        Unit
+    }
     suspend fun computer(botId: String): ComputerInfo = json.decodeFromString(get("/bots/${enc(botId)}/computer"))
     suspend fun startComputer(botId: String) { send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "start") }) }
     /**

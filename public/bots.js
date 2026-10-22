@@ -212,6 +212,10 @@ function renderBotSettings(force = false) {
           <span class="bs-icon">📎</span>
           <div class="grow"><b>Files</b><div class="faint">What you gave it. It sees this list in every task; a file kept in mind comes with every task.</div><div id="file-list" class="bs-files"><span class="faint">Loading…</span></div></div>
         </div>` : ''}
+        ${state.features.includes('workspace-files') ? `<div class="bs-row" id="bs-workspace">
+          <span class="bs-icon">🗂</span>
+          <div class="grow"><b>Workspace</b><div class="faint">Every file in its folder: what it keeps, makes and clones.</div><div id="ws-box" class="ws"></div></div>
+        </div>` : ''}
         <div class="bs-row" id="bs-always">
           <span class="bs-icon">✓</span>
           <div class="grow"><b>Always approved</b><div id="always-picks"></div></div>
@@ -395,6 +399,7 @@ function renderBotSettings(force = false) {
   drawBotSettingsLive(b); // and the rules you lifted
 
   if ($('#file-list', root)) drawBotFiles(b);
+  if ($('#ws-box', root) && typeof Workspace !== 'undefined') Workspace.open(b, $('#ws-box', root)); // public/workspace.js (#296)
 
   const dup = $('#duplicate-bot', root);
   if (dup) dup.onclick = () => openDuplicate(b);
