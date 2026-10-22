@@ -120,9 +120,6 @@ if (B.connectors.configured()) B.connectors.connections().catch((e) => console.e
 // owner's answer. Made before anything describes an ask (asks above).
 const shared = require('./lib/routes/shared').create({ asks, connectorApprovals, audit });
 const { askBrief, changeOf, noOfWaiting, thenOfWaiting, groupOfCard, askedOf, withLine, chiefTurn } = shared;
-// A tool a run was refused: ask the owner for that permission, unless they said no to it lately. The ask keeps the
-// run. While a changed bot that gives the permission waits, the run joins that card, whatever was declined before.
-B.onRefused((bot, permission, reason, runId) => { if (!asks.declinedRecently(bot.id, permission) || asks.changeHolds(bot.id, permission, bot)) asks.add({ kind: 'permission', botId: bot.id, permission, reason }, { runId, bot }); });
 B.chatOfRun((runId) => chief.chatOfRun(runId));
 B.chatToTell((chatId) => chief.chatToTell(chatId));
 connectorApprovals.start(); // no run of before the start waits for an answer any more

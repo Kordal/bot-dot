@@ -1,6 +1,6 @@
 // A bot may use helpers (#226): Claude Code's Agent tool (Task in older versions) is the permission "use helpers",
 // off by default. Its card turns both on, the next run is given them, and only a bot that has them is told how to
-// use helpers. A refused Agent call asks the owner like a refused command (lib/bots.js askForRefused).
+// use helpers. A bot refused the Agent tool asks the owner for helpers with ask_permission, as for any refused tool (ADR 054).
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

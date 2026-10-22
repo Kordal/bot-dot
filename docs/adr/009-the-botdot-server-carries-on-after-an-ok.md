@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Owning task:** OK-001
 - **Changed by:** [ADR 047](047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md): a late yes on the Chief's card in a connected app starts a Chief turn that holds a one-use grant
+- **Changed by:** [ADR 054](054-a-permission-card-comes-only-from-the-bots-ask.md): a refused tool makes no ask by itself; the permission ask that keeps the run comes only from the bot's `ask_permission`
 
 ## Context
 
