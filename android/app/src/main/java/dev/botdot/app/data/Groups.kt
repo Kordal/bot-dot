@@ -26,7 +26,7 @@ fun hasGroups(features: Collection<String>?): Boolean = features != null && GROU
 const val GROUP_ALL = "group-all"
 fun hasGroupAll(features: Collection<String>?): Boolean = features != null && GROUP_ALL in features
 
-/** The pinned bots and groups share one order (#276, ADR 057): a server that announces it counts a bot's `pinned` and
+/** The pinned bots and groups share one order (#276, ADR 058): a server that announces it counts a bot's `pinned` and
  *  a group's in one sequence, so a group can stand before a bot. Without it, the pinned groups after the pinned bots. */
 const val PINS_SHARED = "pins-shared"
 fun hasPinsShared(features: Collection<String>?): Boolean = features != null && PINS_SHARED in features

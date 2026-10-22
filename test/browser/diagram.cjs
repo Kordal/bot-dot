@@ -67,12 +67,15 @@ const REPLY = `Here is how it goes:\n\n${FLOW}\n\nA broken one:\n\n${BAD}\n\nA c
     assert.equal(await first.locator('.diagram-toggle').innerText(), 'Show code');
 
     // The broken one is its code, with the note, and the rest of the reply is there.
-    const bad = reply.locator(':scope > pre.mermaid-src');
+    const bad = reply.locator(':scope > .code-block > pre.mermaid-src');
     assert.equal(await bad.count(), 1);
     assert.match(await bad.innerText(), /\(\(\( nope/);
-    assert.equal(await reply.locator(':scope > .diagram-note').innerText(), 'Diagram could not be drawn');
-    assert.equal(await reply.locator(':scope > pre:not(.mermaid-src)').innerText(), 'const a = 1;', 'other code as before');
+    assert.equal(await reply.locator(':scope > .code-block > .diagram-note').innerText(), 'Diagram could not be drawn');
+    assert.equal(await reply.locator(':scope > .code-block > pre:not(.mermaid-src)').innerText(), 'const a = 1;', 'other code as before');
     assert.match(await reply.innerText(), /That's all\./);
+    // Each block keeps its Copy in its box, a drawn one too (#285).
+    assert.equal(await reply.locator('.code-block > .code-copy[aria-label="Copy code"]').count(), await reply.locator('.code-block').count());
+    assert.equal(await first.locator('xpath=..').locator(':scope > .code-copy').count(), 1, 'the drawing keeps the Copy of its source');
 
     // The careful one ran nothing, and has no HTML from its labels and no link to follow.
     const careful = reply.locator('.diagram').nth(1);

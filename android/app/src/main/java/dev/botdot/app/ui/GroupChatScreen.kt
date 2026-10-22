@@ -469,7 +469,7 @@ private fun GroupDraft(text: String, bot: Bot?, name: String, color: String?) {
         Spacer(Modifier.size(6.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(name, color = parseColor(color, p.muted), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
-            TheirBubble { MarkdownText(draftSource(text)) }
+            TheirBubble { MarkdownText(draftSource(text), copy = false) }
         }
     }
 }

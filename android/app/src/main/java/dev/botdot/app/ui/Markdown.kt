@@ -17,14 +17,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +39,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -58,6 +64,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.FilePaths
+import kotlinx.coroutines.delay
 
 /** The words in the home screen's search box, marked in the chats you open (each word, and words it starts). */
 object SearchMarks {
@@ -94,6 +101,22 @@ internal fun chatOnWeb(baseUrl: String, kind: String, id: String) = baseUrl.trim
  *  where the web page draws it (#177). Only in a chat: null for any other block or without [onWeb]. */
 internal fun webLinkUnder(b: Block, onWeb: String?): String? = onWeb?.takeIf { b is Block.Code && b.lang == "mermaid" }
 
+/** What a block's Copy button copies (#285): a code block's text as written, a diagram's block its source; null for
+ *  every other block, so an inline `code` has none (test/code-copy-web.test.js on the web page). */
+internal fun copyTextOf(b: Block): String? = (b as? Block.Code)?.text
+
+/** A code block's Copy button: [text] to the system clipboard, and a check for 1.5 s. */
+@Composable
+private fun CopyCode(text: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) { if (copied) { delay(1500); copied = false } }
+    IconButton(onClick = { copyToClipboard(context, text); copied = true }, modifier = modifier.size(40.dp)) {
+        Icon(if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy, contentDescription = if (copied) "Copied" else "Copy code",
+            tint = LocalPaper.current.muted, modifier = Modifier.size(16.dp))
+    }
+}
+
 /**
  * What a file path in a bot's reply does (#251, [FilePaths]): a tap opens it in the viewer, a long press offers Open
  * and Copy path. A bot's chat gives it to its replies, from a server with `document-viewer`; without one, a path is text.
@@ -110,9 +133,11 @@ private const val PATH_TAG = "path"
 private const val FILE_ICON = "file-icon"
 
 /** Enough Markdown for bots' replies: headings, lists, quotes, code, tables, bold, links. [onWeb]: where this chat
- *  opens on the web page, for the link under a diagram's code ([webLinkUnder]). [paths]: what a file path does. */
+ *  opens on the web page, for the link under a diagram's code ([webLinkUnder]). [paths]: what a file path does.
+ *  [copy]: a Copy button on each code block (#285); none in a reply still being written (its code may be cut short)
+ *  or on a tile (a tap runs the tile), as on the web page. */
 @Composable
-fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current) {
+fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current, copy: Boolean = true) {
     val p = LocalPaper.current
     val blocks = remember(text) { parseBlocks(text) }
     // Its styled text, made once (and again only when the text, the searched words or the colours change), not on
@@ -153,8 +178,12 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                     is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
                         modifier = above.padding(start = 10.dp))
                     is Block.Code -> {
-                        Text(b.text, fontFamily = GeistMono, fontSize = 12.5.sp, color = color,
-                            modifier = above.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp)).horizontalScroll(rememberScrollState()).padding(10.dp))
+                        // Copy in its top-right corner (#285), in a column of its own that the code scrolls beside.
+                        Row(above.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp))) {
+                            Text(b.text, fontFamily = GeistMono, fontSize = 12.5.sp, color = color,
+                                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(10.dp))
+                            if (copy) copyTextOf(b)?.let { key(i, it) { CopyCode(it) } }
+                        }
                         webLinkUnder(b, onWeb)?.let { url ->
                             Text(buildAnnotatedString { withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = p.muted, textDecoration = TextDecoration.Underline)))) { append("Open on web") } },
                                 fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))

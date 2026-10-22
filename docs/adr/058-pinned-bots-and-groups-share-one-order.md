@@ -1,4 +1,4 @@
-# ADR-057: Pinned bots and groups share one order
+# ADR-058: Pinned bots and groups share one order
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#276](https://github.com/Kordal/bot-dot/issues/276)

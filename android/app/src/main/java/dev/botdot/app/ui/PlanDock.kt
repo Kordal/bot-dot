@@ -1,0 +1,232 @@
+package dev.botdot.app.ui
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.botdot.app.data.Plan
+import dev.botdot.app.data.PlanView
+
+/**
+ * A bot's or the Chief's plan in a dock above the message box (docs/api.md, "The plan"). Folded, as it starts on a
+ * phone: one line, "Plan · step 3 of 5", the step at work and a thin bar; a tap opens it. Open: a grab handle that
+ * folds it, "Plan 2 of 5" with a ring, then the steps: done ones struck through, the one at work with its words. A
+ * long plan folds the steps that are done into one row, and its list has a most height and fades at its end. A
+ * stopped plan says "Stopped at step N of M", with Dismiss and nothing to carry on: the owner just writes.
+ */
+@Composable
+fun PlanDock(view: PlanView?, color: String?, who: String, folded: Boolean, onFold: (Boolean) -> Unit, onDismiss: () -> Unit) {
+    if (view == null) return
+    val p = LocalPaper.current
+    val accent = parseColor(color, p.ok)
+    val plan = view.plan
+    val shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
+    Column(
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)
+            .semantics { paneTitle = if (view.stopped) "$who's plan, stopped" else "$who's plan" },
+    ) {
+        when {
+            view.stopped -> Stopped(plan, onDismiss)
+            folded -> Folded(plan, accent) { onFold(false) }
+            else -> Open(plan, accent) { onFold(true) }
+        }
+    }
+}
+
+@Composable
+private fun Folded(plan: Plan, accent: Color, onOpen: () -> Unit) {
+    val p = LocalPaper.current
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = "Open the plan", role = Role.Button, onClick = onOpen)
+            .semantics { stateDescription = "Folded" }.padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = accent)
+        Text("Plan", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Text("step ${plan.step} of ${plan.total}", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        Text(plan.now?.let { it.doing.ifEmpty { it.text } }.orEmpty(), color = p.text, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+    }
+    Bar(plan, accent)
+}
+
+@Composable
+private fun Open(plan: Plan, accent: Color, onFold: () -> Unit) {
+    val p = LocalPaper.current
+    var showDone by remember(plan.total) { mutableStateOf(false) }
+    // The grab handle: a tap folds the plan to its one line.
+    Box(
+        Modifier.fillMaxWidth().height(24.dp).clickable(onClickLabel = "Fold the plan", role = Role.Button, onClick = onFold).semantics { stateDescription = "Open" },
+        contentAlignment = Alignment.Center,
+    ) { Box(Modifier.width(32.dp).height(4.dp).clip(CircleShape).background(Color(0xFF5F5F5F))) }
+    Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Plan", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text("${plan.done} of ${plan.total}", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 12.5.sp)
+        Spacer(Modifier.weight(1f))
+        Ring(plan, accent)
+    }
+    val hide = !showDone && plan.total > Plan.MANY && plan.done > 1
+    val shown = if (hide) plan.steps.filter { it.status != Plan.DONE } else plan.steps
+    val long = plan.total > Plan.MANY
+    Column(
+        Modifier.fillMaxWidth().heightIn(max = 280.dp)
+            .then(if (long) Modifier.graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithContent {
+                drawContent()
+                // The list fades at its end: there is more below.
+                drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - 28.dp.toPx(), endY = size.height), blendMode = BlendMode.DstIn)
+            } else Modifier)
+            .verticalScroll(rememberScrollState()).padding(bottom = if (long) 20.dp else 8.dp),
+    ) {
+        if (hide) Row(
+            Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(onClickLabel = "Show the steps that are done", role = Role.Button) { showDone = true }.padding(horizontal = 18.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(20.dp))
+            Text("${plan.done} steps done · show", color = p.muted, fontSize = 14.sp)
+        }
+        shown.forEach { StepRow(it, accent) }
+    }
+}
+
+@Composable
+private fun StepRow(s: Plan.Step, accent: Color) {
+    val p = LocalPaper.current
+    Row(
+        Modifier.fillMaxWidth().background(if (s.status == Plan.DOING) p.sunk else Color.Transparent).heightIn(min = 40.dp).padding(horizontal = 18.dp, vertical = 9.dp)
+            .semantics(mergeDescendants = true) { stateDescription = when (s.status) { Plan.DONE -> "Done"; Plan.DOING -> "In progress"; else -> "To do" } },
+        verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(Modifier.size(20.dp).padding(top = 1.dp), contentAlignment = Alignment.Center) {
+            when (s.status) {
+                Plan.DONE -> Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(20.dp))
+                Plan.DOING -> CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = accent)
+                else -> Box(Modifier.size(13.dp).border(1.5.dp, Color(0xFF5F5F5F), CircleShape))
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(s.text, color = when (s.status) { Plan.DONE -> p.faint; Plan.DOING -> p.text; else -> Color(0xFFD0D0D0) }, fontSize = 14.5.sp, lineHeight = 20.sp,
+                textDecoration = if (s.status == Plan.DONE) TextDecoration.LineThrough else null)
+            if (s.status == Plan.DOING && s.doing.isNotEmpty() && s.doing != s.text) Text(s.doing, color = p.muted, fontSize = 12.5.sp)
+        }
+    }
+}
+
+@Composable
+private fun Stopped(plan: Plan, onDismiss: () -> Unit) {
+    val p = LocalPaper.current
+    Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Plan", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text("Stopped at step ${plan.step} of ${plan.total}", color = p.warnText, fontFamily = FontFamily.Monospace, fontSize = 12.5.sp)
+    }
+    if (plan.done > 0) StoppedRow(if (plan.done == 1) "1 step done" else "${plan.done} steps done", p.faint) { Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(20.dp)) }
+    plan.now?.takeIf { it.status != Plan.DONE }?.let { now -> StoppedRow(now.text, p.warnText) { Icon(Icons.Filled.Close, null, tint = p.warn, modifier = Modifier.size(20.dp)) } }
+    if (plan.left > 0) StoppedRow(if (plan.left == 1) "1 step not started" else "${plan.left} steps not started", p.faint) {
+        Canvas(Modifier.size(13.dp)) { drawCircle(Color(0xFF5F5F5F), style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 3f)))) }
+    }
+    Box(
+        Modifier.padding(start = 10.dp, bottom = 6.dp).heightIn(min = 48.dp).clip(CircleShape).clickable(onClickLabel = "Dismiss the plan", role = Role.Button, onClick = onDismiss).padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) { Text("Dismiss", color = p.text, fontWeight = FontWeight.Medium, fontSize = 14.sp) }
+}
+
+@Composable
+private fun StoppedRow(text: String, tint: Color, mark: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 7.dp), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) { mark() }
+        Text(text, color = tint, fontSize = 14.5.sp, modifier = Modifier.weight(1f))
+    }
+}
+
+/** The thin bar of a folded plan: how much of it is done. */
+@Composable
+private fun Bar(plan: Plan, accent: Color) {
+    val p = LocalPaper.current
+    val part = if (plan.total == 0) 0f else plan.done.toFloat() / plan.total
+    Canvas(Modifier.fillMaxWidth().height(3.dp).semantics { contentDescription = "${plan.done} of ${plan.total} done" }) {
+        drawRect(p.sunk)
+        drawRect(accent, size = Size(size.width * part, size.height))
+    }
+}
+
+/** The ring of an open plan: how much of it is done. */
+@Composable
+private fun Ring(plan: Plan, accent: Color) {
+    val p = LocalPaper.current
+    val part = if (plan.total == 0) 0f else plan.done.toFloat() / plan.total
+    Canvas(Modifier.size(28.dp).semantics { contentDescription = "${plan.done} of ${plan.total} done" }) {
+        val w = 4.dp.toPx()
+        val box = Size(size.width - w, size.height - w)
+        val at = Offset(w / 2, w / 2)
+        drawArc(p.line2, 0f, 360f, false, at, box, style = Stroke(w))
+        drawArc(accent, -90f, 360f * part, false, at, box, style = Stroke(w))
+    }
+}
+
+/** The plan under a reply that is done: one line, "Plan · 5 of 5 done", that opens to its steps. */
+@Composable
+fun PlanFold(plan: Plan?) {
+    if (plan == null) return
+    val p = LocalPaper.current
+    var open by remember(plan) { mutableStateOf(false) }
+    Column(Modifier.padding(top = 6.dp)) {
+        Row(
+            Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (open) "Fold the plan" else "Show the plan", role = Role.Button) { open = !open },
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (plan.finished) Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(16.dp))
+            Text("Plan · ${plan.done} of ${plan.total} done ${if (open) "⌄" else "›"}", color = p.muted, fontSize = 13.sp)
+        }
+        if (open) plan.steps.forEachIndexed { i, s ->
+            Text("${i + 1}. ${s.text}", color = p.faint, fontSize = 13.sp, lineHeight = 18.sp, textDecoration = if (s.status == Plan.DONE) TextDecoration.LineThrough else null, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
+        }
+    }
+}

@@ -1,4 +1,4 @@
-// One order for everything pinned (#276, ADR 057): a bot's `pinned` and a group's count in one sequence, so a group
+// One order for everything pinned (#276, ADR 058): a bot's `pinned` and a group's count in one sequence, so a group
 // can stand before a bot on the Pinned page. Pinning, moving, unpinning or deleting either kind numbers both again,
 // and a botdot server from before it keeps its view on the first start: the pinned groups after the pinned bots.
 const { test, before, after } = require('node:test');

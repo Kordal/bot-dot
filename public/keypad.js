@@ -11,7 +11,7 @@
 const AZ = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' });
 // The order the owner gave: by `order` in a category, A to Z where it is 0 (before the first move, like the server).
 const byPlace = (a, b) => (a.order || Infinity) - (b.order || Infinity) || AZ(a.name, b.name);
-// The pinned bots and groups share one order (#276, ADR 057); two with the same place (kept from before it): the bot first.
+// The pinned bots and groups share one order (#276, ADR 058); two with the same place (kept from before it): the bot first.
 const byPin = (a, b) => a.pinned - b.pinned || !!a.members - !!b.members;
 const isPinned = (x) => x.pinned > 0;
 // The categories, A to Z: those of the bots and those of the groups. A category can hold groups and no bot.

@@ -292,6 +292,8 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
                         is RunEvent.End -> kicks.tryEmit(Unit) // the draft stays until the reply that takes its place is read (follow)
                         is RunEvent.File -> kicks.tryEmit(Unit) // show it now: a QR code to scan can't wait for the reply
                         is RunEvent.Line -> app.store.lines.streamed("bot:$botId", ev, r.id)
+                        // Its plan as it changes: on the run as this chat holds it, until the run is read again.
+                        is RunEvent.Planned -> all = all.map { if (it.id == r.id) it.copy(planValue = ev.value?.takeIf { v -> v !is kotlinx.serialization.json.JsonNull }) else it }
                     }
                 }
             }
@@ -568,6 +570,8 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
                         "activity" -> activity += OpeningLine.chiefActivity(o)
                         "opening_line" -> app.store.lines.say("chief:$id", o.str("text"))
                         "reply_draft" -> if (ReplyDraft.shows(app.store.version.value.value?.features)) draft = o.str("text")
+                        // Its plan as it changes: on the pending reply as this chat holds it, until the chat is read again.
+                        "plan" -> chat = chat?.let { c -> c.copy(messages = c.messages.map { m -> if (m.pending && m.role == "chief") m.copy(planValue = o["plan"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }) else m }) }
                         "done" -> { activity.clear(); app.store.lines.end("chief:$id") } // the reply is here, or it couldn't finish; its draft stands until it is read
                         "action" -> kick(whole = false) // persisted actions are clickable even while the Chief waits
                         "steered" -> kick(whole = false) // the reply read a message the owner steered into it (ADR 040)

@@ -55,6 +55,15 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
     lateinit var notifier: Notifier
     val feed by lazy { Feed(scope, getSharedPreferences("feed", MODE_PRIVATE)) }
 
+    /** Each chat's plan as the owner left it: folded or open, and the stopped plans dismissed (PlanMemory). */
+    val plans by lazy {
+        val prefs = getSharedPreferences("plan", MODE_PRIVATE)
+        dev.botdot.app.data.PlanMemory(object : dev.botdot.app.data.PlanMemory.Keep {
+            override fun read(key: String) = prefs.getString(key, null)
+            override fun write(key: String, value: String) { prefs.edit { putString(key, value) } }
+        })
+    }
+
     /** The search match to show when its chat opens (set by the home screen's search). */
     var jump: dev.botdot.app.data.ChatHit? = null
 

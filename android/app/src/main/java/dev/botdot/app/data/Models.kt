@@ -388,8 +388,13 @@ data class Run(
     @SerialName("botColor") val botColorValue: JsonElement? = null,
     // What the owner steered into it and it read (`steer`, ADR 040), kept as it came. Read it through [steered].
     @SerialName("steered") val steeredValue: JsonElement? = null,
+    // Its plan (`plan`), kept as it came. Read it through [plan].
+    @SerialName("plan") val planValue: JsonElement? = null,
 ) {
     val isRunning get() = status == "running"
+
+    /** The steps of its work, as the server read them from its TodoWrite calls, or null for none. */
+    val plan: Plan? get() = Plan.of(planValue)
 
     /** The owner's messages it read while it worked, in the order read; none from a server without `steer`. */
     val steered: List<Steered> get() = Steered.list(steeredValue)
@@ -538,7 +543,12 @@ data class ChiefMessage(
     val rating: String? = null, // an unasked message: "up" or "down" as the owner rated it, or none
     // A Chief reply: what the owner steered into it and it read (`chief-steer`, ADR 040), kept as it came. Read it through [steered].
     @SerialName("steered") val steeredValue: JsonElement? = null,
+    // A Chief reply's plan (`plan`), kept as it came. Read it through [plan].
+    @SerialName("plan") val planValue: JsonElement? = null,
 ) {
+    /** The steps of its work, or null for none. */
+    val plan: Plan? get() = Plan.of(planValue)
+
     /** The owner's messages this reply read while it worked, in the order read: drawn before it, without buttons. */
     val steered: List<Steered> get() = Steered.list(steeredValue)
 
@@ -582,6 +592,10 @@ sealed interface RunEvent {
     data class Line(val text: String, val working: Boolean = false) : RunEvent
     /** Its reply as it is written so far, the whole draft ("" when a tool call took it away): see [ReplyDraft]. */
     data class Draft(val text: String) : RunEvent
+    /** Its plan, each time it changes, kept as it came: the whole plan, or none when it was cleared (docs/api.md, "The plan"). */
+    data class Planned(val value: JsonElement?) : RunEvent {
+        val plan: Plan? get() = Plan.of(value)
+    }
 
     companion object {
         /** One event of the stream as the server sent it; null for one this app does not draw. */
@@ -593,6 +607,7 @@ sealed interface RunEvent {
             "opening_line" -> Line(o.str("text"))
             "working_line" -> Line(o.str("text"), working = true)
             "reply_draft" -> Draft(o.str("text"))
+            "plan" -> Planned(o["plan"])
             else -> null
         }
     }

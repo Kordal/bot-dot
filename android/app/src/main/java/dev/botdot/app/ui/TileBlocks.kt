@@ -151,7 +151,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
             val size = when (b.size) { "small" -> 12.sp; "large" -> 18.sp; else -> 13.5.sp }
             when {
                 t.isEmpty() -> Faint()
-                b.markdown && b.lines == null -> MarkdownText(t, color = if (b.muted) p.muted else p.text)
+                b.markdown && b.lines == null -> MarkdownText(t, color = if (b.muted) p.muted else p.text, copy = false)
                 else -> Text(if (b.markdown) plain(t) else t, color = if (b.muted) p.muted else p.text, fontSize = size, lineHeight = size * 1.45f,
                     fontWeight = if (b.size == "large") FontWeight.SemiBold else null, maxLines = b.lines ?: Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
             }
