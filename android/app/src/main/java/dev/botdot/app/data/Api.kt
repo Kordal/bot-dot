@@ -518,6 +518,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
      * throws with status 404, a file on the account's computer while it is off with 409. Only with `document-viewer`.
      */
     suspend fun viewFile(src: String): FileView = json.decodeFromString(get(DocumentView.withQuery(src, "view=1")))
+    /** A page's blocks filled in anew (#395). */
+    suspend fun pageBlocks(src: String): PageBlocks = json.decodeFromString(get(Pages.blocksSrc(src)))
 
     /** A bot's pages (#346), newest first. */
     suspend fun pages(botId: String): List<PageInfo> = json.decodeFromString<PageList>(get("/bots/${enc(botId)}/pages")).pages
