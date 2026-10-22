@@ -3,10 +3,11 @@
 // Beside the chat in a wide window, over it in a narrow one. botdot sends the file's start as JSON (?view=1) and this
 // page draws it: Markdown with the chat's own md(), whose input is escaped first, so HTML in a file stays text;
 // text and code with line numbers; a CSV as a table. Every link that opens it carries data-view (its API path), and
-// downloads as before where the server has no `document-viewer` in its features.
+// downloads as before where the server has no `document-viewer` in its features. A bot's page (#346, public/pages.js)
+// opens here too, with who made it and when it was updated in its header, and its "Keep up to date" in its bar.
 
 const DocViewer = (() => {
-  let cur = null; // { src, name, from, bot, view, error, mode, sort, find, full }
+  let cur = null; // { src, name, from, bot, page, view, error, mode, sort, find, full }
 
   const withQuery = (src, q) => `${src}${src.includes('?') ? '&' : '?'}${q}`;
   const KB = (n) => (typeof fmtSize === 'function' ? fmtSize(n) : `${n} B`);
@@ -63,7 +64,7 @@ const DocViewer = (() => {
 
   function headHTML(c) {
     const v = c.view;
-    const sub = [c.from ? `From ${c.from}` : '', v ? KB(v.size) : '', v?.at ? msgTime(v.at) : ''].filter(Boolean).join(' · ');
+    const sub = c.page ? Pages.subtitle(c.from, v?.page) : [c.from ? `From ${c.from}` : '', v ? KB(v.size) : '', v?.at ? msgTime(v.at) : ''].filter(Boolean).join(' · ');
     return `<div class="dv-head">
       <button type="button" class="icon-btn dv-back" data-dv="close" aria-label="Back to the chat">${ICON.back}</button>
       <div class="dv-title"><b>${esc(c.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>
@@ -77,6 +78,7 @@ const DocViewer = (() => {
     const text = ['markdown', 'text', 'csv'].includes(v.kind);
     const table = v.kind === 'csv' && c.mode === 'table' ? tableOf(rowsOf(c), null, c) : null;
     return `<div class="dv-bar">
+      ${c.page && v.page ? Pages.barHTML(v.page) : ''}
       ${v.kind === 'markdown' ? seg(c, [['rendered', 'Rendered'], ['source', 'Source']]) : v.kind === 'csv' ? seg(c, [['table', 'Table'], ['source', 'Source']]) : ''}
       ${table ? `<input class="dv-find" type="search" placeholder="Find in table" aria-label="Find in table" value="${esc(c.find)}"><span class="dv-count faint">${table.total} rows · ${table.cols} columns</span>` : ''}
       <span class="dv-sp"></span>
@@ -136,19 +138,30 @@ const DocViewer = (() => {
     if (body && cur?.view) body.innerHTML = bodyHTML(cur);
   }
 
-  async function load(c) {
+  // again: a page read anew after its bot saved it, or after its job changed, keeps the way it is shown and where
+  // it is scrolled to.
+  async function load(c, again = false) {
     c.rows = null;
     try { c.view = await api(withQuery(c.src, 'view=1')); c.error = null; } catch (e) { c.view = null; c.error = e; }
-    if (c.view) c.mode = c.view.kind === 'markdown' ? 'rendered' : c.view.kind === 'csv' ? 'table' : 'source';
-    if (cur === c) draw();
+    if (c.view && !again) c.mode = c.view.kind === 'markdown' ? 'rendered' : c.view.kind === 'csv' ? 'table' : 'source';
+    if (cur !== c) return;
+    const top = again ? $('.dv-body', box())?.scrollTop : 0;
+    draw();
+    if (top) $('.dv-body', box()).scrollTop = top;
   }
   // Opens a file: src is its API path (no /api), as data-view says it.
-  function open({ src, name, from = '', bot = '' }) {
-    cur = { src, name, from, bot, view: null, error: null, mode: 'source', sort: null, find: '', full: false };
+  // page: { botId, slug } for a bot's page (#346); its src is then the page's own address.
+  function open({ src, name, from = '', bot = '', page = null }) {
+    cur = { src, name, from, bot, page, view: null, error: null, mode: 'source', sort: null, find: '', full: false };
     draw();
     return load(cur);
   }
   function close() { cur = null; draw(); }
+  // A bot saved a page, or its job changed (the live feed's `page`): the page on screen is read again.
+  function pageChanged(botId, slug) {
+    if (cur?.page && cur.page.botId === botId && (!slug || cur.page.slug === slug)) return load(cur, true);
+    return null;
+  }
 
   async function act(btn) {
     const what = btn.dataset.dv;
@@ -160,6 +173,11 @@ const DocViewer = (() => {
       const col = Number(btn.dataset.col);
       cur.sort = cur.sort?.col === col ? (cur.sort.dir > 0 ? { col, dir: -1 } : null) : { col, dir: 1 };
       return drawTable();
+    }
+    if (cur.page && ['keep', 'refresh', 'stop'].includes(what)) {
+      const c = cur;
+      if (await Pages.act(what, c.page.botId, c.view?.page, c.from) && cur === c) load(c, true);
+      return;
     }
     if (what === 'start') {
       const c = cur;
@@ -184,7 +202,9 @@ const DocViewer = (() => {
       if (!el || !state.features.includes('document-viewer') || e.metaKey || e.ctrlKey || e.shiftKey) return;
       e.preventDefault();
       e.stopPropagation();
-      open({ src: el.dataset.view, name: el.dataset.viewName || el.dataset.view.split('/').pop(), from: fromOf(el), bot: el.dataset.viewBot || '' });
+      // data-view-page: "<botId>/<slug>" of a bot's page (#346).
+      const [pageBot, slug] = (el.dataset.viewPage || '').split('/');
+      open({ src: el.dataset.view, name: el.dataset.viewName || el.dataset.view.split('/').pop(), from: fromOf(el), bot: el.dataset.viewBot || '', page: slug ? { botId: pageBot, slug } : null });
     }, true);
     doc.addEventListener('click', (e) => {
       const btn = e.target.closest?.('#doc-viewer [data-dv]');
@@ -206,7 +226,7 @@ const DocViewer = (() => {
     });
   }
 
-  return { open, close, html, csvRows, tableOf, wire, now: () => cur };
+  return { open, close, html, csvRows, tableOf, wire, pageChanged, now: () => cur };
 })();
 
 if (typeof document !== 'undefined' && document.addEventListener) DocViewer.wire(document);

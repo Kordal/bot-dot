@@ -389,8 +389,13 @@ data class Run(
     @SerialName("steered") val steeredValue: JsonElement? = null,
     // Its plan (`plan`), kept as it came. Read it through [plan].
     @SerialName("plan") val planValue: JsonElement? = null,
+    // The pages it saved (`pages`, #346), kept as they came. Read them through [pages].
+    @SerialName("pages") val pagesValue: JsonElement? = null,
 ) {
     val isRunning get() = status == "running"
+
+    /** The pages it saved with save_page, once each; none from a server without `pages`. */
+    val pages: List<PageRef> get() = Pages.refs(pagesValue)
 
     /** The steps of its work, as the server read them from its TodoWrite calls, or null for none. */
     val plan: Plan? get() = Plan.of(planValue)

@@ -212,6 +212,10 @@ function renderBotSettings(force = false) {
           <span class="bs-icon">📎</span>
           <div class="grow"><b>Files</b><div class="faint">What you gave it. It sees this list in every task; a file kept in mind comes with every task.</div><div id="file-list" class="bs-files"><span class="faint">Loading…</span></div></div>
         </div>` : ''}
+        ${state.features.includes('pages') ? `<div class="bs-row" id="bs-pages">
+          <span class="bs-icon">📄</span>
+          <div class="grow"><b>Pages</b><div class="faint">Reports, memos and overviews it made for you. Open one to keep it up to date.</div><div id="page-list" class="pg-list"><span class="faint">Loading…</span></div></div>
+        </div>` : ''}
         ${state.features.includes('workspace-files') ? `<div class="bs-row" id="bs-workspace">
           <span class="bs-icon">🗂</span>
           <div class="grow"><b>Workspace</b><div class="faint">Every file in its folder: what it keeps, makes and clones.</div><div id="ws-box" class="ws"></div></div>
@@ -397,6 +401,7 @@ function renderBotSettings(force = false) {
   drawBotSettingsLive(b); // and the rules you lifted
 
   if ($('#file-list', root)) drawBotFiles(b);
+  if ($('#page-list', root) && typeof Pages !== 'undefined') Pages.drawList(b, $('#page-list', root)); // public/pages.js (#346)
   if ($('#ws-box', root) && typeof Workspace !== 'undefined') Workspace.open(b, $('#ws-box', root)); // public/workspace.js (#296)
 
   const dup = $('#duplicate-bot', root);

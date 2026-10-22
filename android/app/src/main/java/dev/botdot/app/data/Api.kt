@@ -466,6 +466,14 @@ class Api(val baseUrl: String, val session: Session? = null) {
      * throws with status 404, a file on the account's computer while it is off with 409. Only with `document-viewer`.
      */
     suspend fun viewFile(src: String): FileView = json.decodeFromString(get(DocumentView.withQuery(src, "view=1")))
+
+    /** A bot's pages (#346), newest first. */
+    suspend fun pages(botId: String): List<PageInfo> = json.decodeFromString<PageList>(get("/bots/${enc(botId)}/pages")).pages
+    /** Keeps a page up to date: how often ("hour", "day", "monday"), at what time, whether to hear of every update, what to check. The tap is the consent: no card. */
+    suspend fun keepPage(botId: String, slug: String, every: String, time: String, notify: String, check: String): PageInfo? =
+        json.decodeFromString<PageKept>(send("POST", "${Pages.src(botId, slug)}/keep", buildJsonObject { put("every", every); put("time", time); put("notify", notify); put("check", check) })).page
+    /** Stops keeping it up to date: its job goes. */
+    suspend fun stopKeepingPage(botId: String, slug: String): PageInfo? = json.decodeFromString<PageKept>(send("DELETE", "${Pages.src(botId, slug)}/keep")).page
     /** The viewer's file itself, saved to [dest]. */
     suspend fun downloadTo(src: String, dest: java.io.File) = download(src, dest)
 

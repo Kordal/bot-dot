@@ -1456,3 +1456,27 @@ a.file-path code { color: inherit; }
 .usage-bot-head .muted { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .usage-bot-bar { height: 4px; background: var(--sunk); border-radius: 2px; margin-top: 3px; }
 .usage-bot-bar i { display: block; height: 100%; background: var(--muted); border-radius: 2px; }
+
+/* Pages (#346, pages.js): a chip under the reply, a row in the bot's settings, the bar of a page in the viewer and its
+   "Keep up to date" sheet. */
+.page-chip, .pg-row { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--text); text-decoration: none; }
+.page-chip { max-width: 340px; border: 1px solid var(--line-2); border-radius: 14px; padding: 8px 12px 8px 8px; background: var(--panel); }
+.page-chip:hover, .pg-row:hover { border-color: var(--muted); }
+.pg-icon { width: 30px; height: 36px; border-radius: 6px; background: var(--sunk); display: grid; place-items: center; color: var(--muted); flex: none; }
+.pg-icon svg, .pg-keep svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pg-text { display: flex; flex-direction: column; min-width: 0; }
+.pg-text b { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-text span { color: var(--faint); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-list { display: grid; gap: 6px; margin-top: 8px; }
+.pg-row { padding: 6px 8px 6px 4px; border: 1px solid transparent; border-radius: 12px; }
+.pg-row .pg-text { flex: 1; }
+.pg-live { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+.pg-keep { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; background: var(--ok-soft); color: var(--ok-text); font-size: 12.5px; }
+.pg-sheet .field { margin-top: 14px; }
+.pg-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pg-chips input { position: absolute; opacity: 0; pointer-events: none; }
+.pg-chips span { display: inline-block; border: 1px solid var(--line-2); border-radius: 99px; padding: 4px 12px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.pg-chips input:checked + span { background: var(--text); color: var(--bg); border-color: var(--text); }
+.pg-chips input:focus-visible + span { outline: 2px solid var(--mention); outline-offset: 2px; }
+.pg-time input { display: block; width: 140px; margin-top: 6px; background: var(--bg); border: 1px solid var(--line-2); border-radius: 12px; padding: 8px 12px; color: var(--text); font: inherit; color-scheme: dark; }
+.pg-bar { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -122,6 +122,8 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     val cardGroups = CardGroups()
     /** Asks answered on the Needs you screen, for the chats their cards stood in to say so (AnsweredAway). */
     val answeredAway = AnsweredAway()
+    /** Pages bots saved (#346), from the feed's `page`: an open page and a bot's list of pages follow. */
+    val pageSaves = PageSaves()
     /** The skill library and the Claude account's skills (for mentions and the skills "/" runs: see Mentions). */
     val skills = Part { a -> a.skills() }
     /** Logins and payments, Bitwarden, memory changes, permissions, skills and tools asked for. (Jobs waiting for your OK
@@ -147,7 +149,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         // The botdot is known (right after the app starts) or another one was chosen: what's looked at loads (again).
         scope.launch {
             var had: String? = null
-            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); _chiefName.value = ChiefName.ROLE; turnLines.clear(); cardGroups.clear(); answeredAway.clear(); parts.forEach { it.clear() }; had = a?.baseUrl } }
+            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); _chiefName.value = ChiefName.ROLE; turnLines.clear(); cardGroups.clear(); answeredAway.clear(); pageSaves.clear(); parts.forEach { it.clear() }; had = a?.baseUrl } }
         }
     }
 
@@ -158,6 +160,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         claude.handle(ev) // Claude signed out, or in again
         turnLines.handle(ev) // what a member at work in a group said it is doing
         cardGroups.handle(ev) // the group a waiting job or tile was asked in
+        pageSaves.handle(ev) // a bot saved a page (#346)
         // What happens in a group: who works in it, its newest reply, its question, its stopped line, its new replies.
         // At once, and again from botdot where a list fetched meanwhile may be from before the event.
         if (ev.type.startsWith("group_")) {

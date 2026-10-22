@@ -84,6 +84,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var copyPlan by remember { mutableStateOf<dev.botdot.app.data.CopyPlan?>(null) } // the Duplicate confirmation, while it is open
     var copyName by remember { mutableStateOf("") }
     var files by remember { mutableStateOf<List<UploadedFile>?>(null) } // its files (#235), once loaded
+    var pages by remember { mutableStateOf<List<dev.botdot.app.data.PageInfo>?>(null) } // its pages (#346), once loaded
     var fileToDelete by remember { mutableStateOf<UploadedFile?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -128,6 +129,13 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     LaunchedEffect(api, keepsFiles) {
         val a = api ?: return@LaunchedEffect
         if (keepsFiles) runCatching { a.botFiles(botId) }.onSuccess { files = it.files }
+    }
+    // Its pages (#346): read again when one of them is saved (the feed's `page`) or the viewer closes (a job changed there).
+    val hasPages = dev.botdot.app.data.Pages.shows(server?.features)
+    val pageSaves by app.store.pageSaves.value.collectAsState()
+    LaunchedEffect(api, hasPages, pageSaves, DocViewer.open == null) {
+        val a = api ?: return@LaunchedEffect
+        if (hasPages) runCatching { a.pages(botId) }.onSuccess { pages = it }
     }
 
     fun save() = scope.launch {
@@ -309,6 +317,20 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                                     }) { Text(if (f.pinned) "📌 Kept in mind" else "Keep in mind", color = if (f.pinned) p.text else p.muted) }
                                     TextButton(onClick = { fileToDelete = f }) { Text("Delete", color = p.err) }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+            // Its pages (#346): what it made for you. Tap one to open it, and keep it up to date from there.
+            pages?.let { list ->
+                FoldSection("Pages", if (list.isEmpty()) "None yet" else "${list.size}") {
+                    Hint(if (list.isEmpty()) "None yet. Ask ${b.name} for a page, a report or an overview." else "Reports, memos and overviews it made for you. Open one to keep it up to date.")
+                    list.forEach { pg ->
+                        key(pg.slug) {
+                            Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(botId, dev.botdot.app.data.PageRef(pg.slug, pg.title), b.name) }.padding(vertical = 6.dp)) {
+                                Text(pg.title, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                Text(dev.botdot.app.data.Pages.line(pg), color = if (pg.keep != null) p.okText else p.muted, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
