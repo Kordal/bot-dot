@@ -226,7 +226,7 @@ test('web: a Board tile that asks a busy bot says "<Bot> will do it when it is f
   // The note goes after its moment, as "Asked" does.
   b.timers.forEach((fn) => fn());
   assert.equal(b.ctx.tapped.has('t1'), false);
-  assert.match(cut('function tileHTML(t, waiting) {', 'function renderDashboard() {'), /const note = waiting \? 'Waiting for your OK' : tapped\.get\(t\.id\)/, 'drawn as the tile\'s line, as text');
+  assert.match(cut('function tileHTML(t, waiting, sourced = false) {', 'function renderDashboard() {'), /const note = waiting \? 'Waiting for your OK' : tapped\.get\(t\.id\)/, 'drawn as the tile\'s line, as text');
 });
 
 test('web: a tile whose bot was free says "Asked <Bot>", as before; a bot the page does not know is "Its bot"', async () => {
