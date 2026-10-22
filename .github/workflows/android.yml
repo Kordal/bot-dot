@@ -40,6 +40,8 @@ jobs:
           EVENT: ${{ github.event_name }}
         run: |
           release() { echo "$1"; echo "release=$2" >> "$GITHUB_OUTPUT"; exit 0; }
+          # Only main is released to the phones: a run by hand on another branch (nightly) releases nothing.
+          [ "$GITHUB_REF" = refs/heads/main ] || release "Not main ($GITHUB_REF_NAME): no release." false
           [ "$EVENT" = schedule ] || release "Run by hand: releasing." true
           TAG="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("android-v"))] | sort_by(.createdAt) | last | .tagName // empty')"
           [ -n "$TAG" ] || release "No Android release yet: releasing." true
