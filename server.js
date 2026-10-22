@@ -112,10 +112,13 @@ B.onRunEnded((meta) => { connectorApprovals.runEnded(meta); roomRuns.runEnded(me
 chief.connectorsWith({
   // Before Composio has answered once since botdot started, a late yes's turn is given the app of its grant: its call
   // asks Composio all the same.
-  open: ({ chatId, grants }) => {
-    const apps = B.connectors.knownApps() ?? [...new Set(grants.map((g) => g.app))];
-    return apps.length ? { ...connectorApprovals.openChief({ chatId, grants }), apps } : null;
+  // A look's session (ADR 070) is for the apps it names that are connected, and only reads.
+  open: ({ chatId, grants, apps: only = null, readOnly = false }) => {
+    const known = B.connectors.knownApps() ?? [...new Set(grants.map((g) => g.app))];
+    const apps = only ? only.filter((a) => known.includes(a)) : known;
+    return apps.length ? { ...connectorApprovals.openChief({ chatId, grants, ...(readOnly ? { apps, readOnly } : {}) }), apps } : null;
   },
+  connected: () => B.connectors.knownApps() || [],
   close: (session, ended) => connectorApprovals.closeChief(session.turnId, ended),
   chatGone: (chatId) => connectorApprovals.chatGone(chatId),
 });

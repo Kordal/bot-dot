@@ -49,8 +49,11 @@ fixes. botdot updates itself from Settings → Updates.
 - The Chief can use every connected app in a chat you started ([ADR 047](docs/adr/047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md)):
   its writes wait for your OK on a card unless you always allowed that action for it, and an app's answer
   is outside content, after which what it changes in botdot waits for a card. A turn botdot started (a
-  checkup, a look, a reminder, a bot's result) has no connected apps, except the one a late yes on its card
-  starts. Composio's key and the apps' tokens never reach the Chief.
+  checkup, a reminder, a bot's result) has no connected apps, except the one a late yes on its card
+  starts. A look (the Chief writing first) reads your mail and calendar (Gmail, Google Calendar, Outlook)
+  when connected, and only reads: botdot refuses anything else in it, without a card
+  ([ADR 070](docs/adr/070-a-look-reads-the-owners-mail-and-calendar-read-only.md)). Composio's key and the
+  apps' tokens never reach the Chief.
 - Script jobs, and jobs the Chief or a bot set up, wait for your approval before they run.
 
 ## The docker-helper

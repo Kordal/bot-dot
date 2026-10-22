@@ -1,6 +1,7 @@
 # ADR-047: The Chief uses connected apps in the owner's turns, and every write waits for an OK
 
 - **Status:** Accepted (by the owner, 2026-10-20)
+- **Changed by:** [ADR 070](070-a-look-reads-the-owners-mail-and-calendar-read-only.md) (a look reads the owner's mail and calendar, read-only: decision 4 no longer holds for looks)
 - **Owning task:** [#184](https://github.com/Kordal/bot-dot/issues/184) (this record); implemented by [#185](https://github.com/Kordal/bot-dot/issues/185)
 - **Changes:** [ADR 009](009-the-botdot-server-carries-on-after-an-ok.md) (a late yes on the Chief's connected-app card starts a Chief turn that holds a grant), [ADR 010](010-a-connected-app-action-waits-in-its-run.md) (adds the Chief as a second kind of caller; the Chief's card goes when the owner writes in that chat, unlike a bot's card of a run the Chief started), [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (a connected app's answer counts as the web)
 - **Supersedes:** the lines of the Chief's instructions on connected apps (`lib/chief.js`): "A bot can use an app once it's connected and given to that bot" and "You can't connect apps yourself", only where they say the Chief can't use an app
