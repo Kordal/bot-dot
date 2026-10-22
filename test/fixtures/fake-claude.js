@@ -53,6 +53,8 @@ const OUT = process.env.FAKE_OUT;
 const who = (() => { const i = args.indexOf('--name'); return i < 0 ? '' : String(args[i + 1] || '').replace(/^\S+\s+/, '').replace(/[^\p{L}\p{N}_-]/gu, ''); })();
 const own = (name, ext = '') => (who && fs.existsSync(path.join(OUT, `${name}-${who}${ext}`)) ? `${name}-${who}${ext}` : `${name}${ext}`);
 const n = `${Date.now()}-${process.pid}`;
+// What every result line reports as used (Token usage, #301).
+const USAGE = { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 300, cache_creation_input_tokens: 40 };
 const val = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : null; };
 let mcp = { mcpServers: {} };
 try { const mc = val('--mcp-config'); mcp = JSON.parse(mc.trim().startsWith('{') ? mc : fs.readFileSync(mc, 'utf8')); } catch { /* none */ }
@@ -105,8 +107,8 @@ const finish = () => {
   const asked = denials.length && !fs.existsSync(path.join(OUT, 'no-ask')) ? askFor(denials) : Promise.resolve();
   const end = () => {
     console.log(JSON.stringify(failed === null
-      ? { type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, num_turns: 1, duration_ms: 5, permission_denials: denials }
-      : { type: 'result', subtype: 'success', is_error: true, result: failed, session_id: `fake-${n}`, total_cost_usd: 0.01, num_turns: 1, duration_ms: 5 }));
+      ? { type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5, permission_denials: denials }
+      : { type: 'result', subtype: 'success', is_error: true, result: failed, session_id: `fake-${n}`, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5 }));
     const gone = () => { if (!fs.existsSync(path.join(OUT, 'linger'))) process.exit(failed === null ? 0 : 1); };
     gone();
     setInterval(gone, 20);

@@ -231,6 +231,7 @@ function renderSettings() {
         ? custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')
         : '<p class="muted settings-hint" style="margin:0">None: every bot uses the default. Change a bot in its settings (⚙ in its chat).</p>'}
     </div>
+    ${state.features.includes('token-usage') ? '<div class="card settings-card" id="usage-card"></div>' : ''}
     <div class="card settings-card bs-rows" id="install-card" hidden></div>
     ${pushCardHTML()}
     <div class="card settings-card" id="backups-card">
@@ -246,6 +247,7 @@ function renderSettings() {
   if (signOut) signOut.onclick = signOutEverywhere;
   drawSettingsLinks(root);
   loadBackupsCard();
+  if ($('#usage-card', root) && typeof Usage !== 'undefined') Usage.open($('#usage-card', root)); // public/usage.js (#301)
   const form = $('#settings-form', root);
   wireLlmFields(form, 'default');
   $('#refresh-models', root).onclick = async (e) => {

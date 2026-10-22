@@ -137,6 +137,10 @@ fun SettingsScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
             ) { Text("Save") }
 
+            // Usage (#301): only from a server that counts it.
+            val usageApi = api
+            if (usageApi != null && dev.botdot.app.data.Usage.shows(server?.features)) UsageSection(usageApi)
+
             // Claude's sign-in (the setup page's first step), for when it has to be done again.
             setup?.let { s ->
                 // An Anthropic API key as well as the subscription (#35): only from a server that takes one.
