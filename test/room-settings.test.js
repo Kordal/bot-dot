@@ -87,3 +87,18 @@ test('mayAnswerInRoom: rooms on, and the owner asks or anyone may', () => {
   assert.equal(mayAnswerInRoom({ rooms: { allowRooms: true, whoMayMention: 'anyone' } }, { byOwner: false }), true);
   assert.equal(mayAnswerInRoom(null, { byOwner: true }), false);
 });
+
+test("the room turn follows the bot's settings: out of rooms, then owner-only", async () => {
+  const bot = await makeBot(srv, { name: 'Gate' });
+  const turn = (account) => srv.api('/room-turn', { method: 'POST', headers: { 'x-botdot-room': '1' }, body: {
+    bot: bot.id, room: { id: 'r1', name: 'Room' }, messages: [{ account, name: 'Someone', bot: false, text: '@Gate hi' }],
+  } });
+  let r = await turn(srv.account);
+  assert.equal(r.status, 403);
+  assert.match(r.data.error, /doesn't answer in rooms/);
+  await put(bot, { allowRooms: true });
+  r = await turn('another-account');
+  assert.equal(r.status, 403);
+  assert.match(r.data.error, /doesn't answer others in rooms/);
+  await srv.api(`/bots/${bot.id}`, { method: 'DELETE' });
+});

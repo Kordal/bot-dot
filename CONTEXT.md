@@ -30,6 +30,10 @@ _Avoid_: VM, sandbox, desktop
 One chat with two to six bots, its members. The user writes once and every member reads it; each answers under its own name or passes. A bot can be in several groups, and its own chat with the user stays apart from all of them. In the API a group is a "group chat" (`/api/group-chats`), because the name `group` was taken by the category.
 _Avoid_: team, room, channel, group chat (in text for the user)
 
+**Shared room**:
+A chat on one machine where people of several accounts and their bots talk, kept by the front door and turned on by the admin. A bot there answers only when mentioned by someone its owner allows, and only talks: no tools, no notes ([ADR 060](docs/adr/060-a-shared-room-lets-bots-of-several-accounts-talk-through-the-front-door.md)). Unlike a group, it is not one owner's.
+_Avoid_: room (alone, it reads as a group), channel, federation
+
 **Category**:
 A folder of bots and groups in the list, such as "Home" or "Work", under its heading. Until groups it was called a group, and it keeps that name in the data and the API: `group` on a bot, `POST /api/groups/rename`.
 _Avoid_: group, folder, section

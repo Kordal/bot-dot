@@ -131,6 +131,17 @@ test("the session cookie stays with the front door: the botdot server doesn't ge
   } finally { stand.close(); }
 });
 
+test("a person can't ask for a room turn: the front door strips the room header (ADR 060)", async () => {
+  const { b } = await signUp('rue');
+  const stand = await standIn(door, 'rue');
+  try {
+    assert.equal((await b.post('/api/room-turn', { bot: 'x' }, { 'X-Botdot-Room': '1' })).status, 200);
+    const got = stand.seen.at(-1);
+    assert.equal(got.url, '/api/room-turn');
+    assert.equal(got.headers['x-botdot-room'], undefined, 'the botdot server never sees it from a person');
+  } finally { stand.close(); }
+});
+
 test('a request without a session never reaches a botdot server', async () => {
   const counts = () => Object.values(stands).map((s) => s.seen.length).join();
   const was = counts();
