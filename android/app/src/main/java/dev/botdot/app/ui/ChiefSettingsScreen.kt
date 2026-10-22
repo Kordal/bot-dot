@@ -36,12 +36,13 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.AppSettings
 import dev.botdot.app.data.Checkup
+import dev.botdot.app.data.ChiefName
 import dev.botdot.app.data.ChiefSkills
 import dev.botdot.app.data.Skill
 import dev.botdot.app.data.SettingsInfo
 import kotlinx.coroutines.launch
 
-/** The Chief's settings (its figure and name in its chat): its model and reasoning, your rules for it, your skills for it and its earlier chats. */
+/** The Chief's settings (its figure and name in its chat): its name, its model and reasoning, your rules for it, your skills for it and its earlier chats. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> Unit) {
@@ -67,6 +68,11 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
     val hasSkills = ChiefSkills.shows(server?.features)
     var library by remember { mutableStateOf<List<Skill>>(emptyList()) }
     LaunchedEffect(api, hasSkills) { if (hasSkills) runCatching { api?.skills() }.onSuccess { if (it != null) library = it.library }.onError { tell(it.message ?: "Couldn't load") } }
+    // Its name, as a bot's is in its settings (#379), only from a server that has names; renamed with Save.
+    val hasName = ChiefName.FEATURE in server?.features.orEmpty()
+    val chiefName by app.store.chiefName.collectAsState()
+    var name by remember(chiefName) { mutableStateOf(ChiefName.field(chiefName)) }
+    val renames = hasName && ChiefName.changed(name, chiefName)
     // A refused or failed change puts the switch back and says why.
     fun switch(before: Checkup, field: String, now: Checkup) {
         checkup = now
@@ -79,6 +85,9 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
         topBar = { TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(LocalChiefName.current, style = MaterialTheme.typography.titleMedium) }, actions = { PanelClose() }) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (hasName) Section("Name") {
+                OutlinedTextField(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.ROLE) })
+            }
             Section("Model and reasoning", "What the Chief uses to plan, create and manage your bots.") {
                 Choice("Model", edit.chiefModel, listOf("" to "Same as the default") + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }
                 if (canThink(edit.chiefModel.ifBlank { edit.defaultModel })) Choice("Reasoning", edit.chiefEffort, listOf("" to "Same as the default") + info.efforts.map { it.id to it.label }) { edit = edit.copy(chiefEffort = it) }
@@ -100,8 +109,14 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
                 }
             }
             Button(
-                onClick = { scope.launch { runCatching { api!!.saveSettings(edit) }.onSuccess { info = it; edit = it.settings; tell("Saved. The Chief uses it from its next reply.") }.onError { tell(it.message ?: "Couldn't save") } } },
-                enabled = edit != info.settings, modifier = Modifier.fillMaxWidth(),
+                onClick = {
+                    scope.launch {
+                        // A refused name (a bot's, say) is put back and the server's sentence shown; the rest still saves.
+                        if (renames) runCatching { api!!.renameChief(name.trim()) }.onSuccess { name = ChiefName.field(it); tell("Renamed.") }.onError { name = ChiefName.field(chiefName); tell(it.message ?: "Couldn't rename") }
+                        if (edit != info.settings) runCatching { api!!.saveSettings(edit) }.onSuccess { info = it; edit = it.settings; tell("Saved. The Chief uses it from its next reply.") }.onError { tell(it.message ?: "Couldn't save") }
+                    }
+                },
+                enabled = edit != info.settings || renames, modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
             ) { Text("Save") }
             checkup?.takeIf { hasCheckup }?.let { c ->

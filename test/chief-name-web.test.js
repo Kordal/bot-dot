@@ -111,3 +111,61 @@ test('the feed\'s chief_name renames the Chief on the page at once', () => {
   assert.match(part, /drawChiefName\(\)/);
   assert.match(app, /takeChiefName\(chief\.chief\?\.name\)/, 'and from GET /api/chief');
 });
+
+// The name field of the Chief's settings (#379), with a stand-in server.
+function rename({ answers = [], had = 'Chief of Staff' } = {}) {
+  const field = element({}, { value: '' });
+  const calls = [], toasts = [], drawn = [];
+  const CHIEF_BOT = { name: had };
+  const ctx = vm.createContext({
+    CHIEF_BOT, CHIEF_ROLE: 'Chief of Staff', toast: (...a) => toasts.push(a),
+    chiefName: () => CHIEF_BOT.name,
+    takeChiefName: (n) => { const v = n && n.trim() ? n.trim() : 'Chief of Staff'; if (v === CHIEF_BOT.name) return false; CHIEF_BOT.name = v; return true; },
+    renderContacts: () => drawn.push('list'), drawChiefName: () => drawn.push('head'), drawPanelHead: () => drawn.push('panel'),
+    api: async (path, opts = {}) => {
+      calls.push([opts.method || 'GET', path, opts.body && JSON.parse(JSON.stringify(opts.body))]);
+      const a = answers.shift();
+      if (a instanceof Error) throw a;
+      return a;
+    },
+  });
+  vm.runInContext(`${cut('// Renames the Chief from its settings', '// The library skills you gave the Chief')}
+    this.renameChief = renameChief;`, ctx);
+  return { ctx, field, calls, toasts, drawn, CHIEF_BOT };
+}
+
+test('the Chief\'s settings rename it, as a bot is renamed, and every place says the new name at once', async () => {
+  const t = rename({ answers: [{ name: 'Ada' }] });
+  t.field.value = ' Ada ';
+  await t.ctx.renameChief(t.field);
+  assert.deepEqual(t.calls, [['PUT', '/settings/chief-name', { name: 'Ada' }]]);
+  assert.equal(t.CHIEF_BOT.name, 'Ada');
+  assert.deepEqual(t.drawn, ['list', 'head', 'panel']);
+  assert.equal(t.field.value, 'Ada');
+});
+
+test('an emptied name gives back Chief of Staff, and the field shows its placeholder', async () => {
+  const t = rename({ had: 'Ada', answers: [{ name: 'Chief of Staff' }] });
+  t.field.value = '';
+  await t.ctx.renameChief(t.field);
+  assert.deepEqual(t.calls, [['PUT', '/settings/chief-name', { name: '' }]]);
+  assert.equal(t.CHIEF_BOT.name, 'Chief of Staff');
+  assert.equal(t.field.value, '');
+});
+
+test('a name the server refuses puts the field back, with its sentence', async () => {
+  const t = rename({ had: 'Ada', answers: [Object.assign(new Error('Coder is the name of one of your bots.'), { status: 400 })] });
+  t.field.value = 'Coder';
+  await t.ctx.renameChief(t.field);
+  assert.equal(t.CHIEF_BOT.name, 'Ada');
+  assert.equal(t.field.value, 'Ada');
+  assert.deepEqual(t.toasts, [['Coder is the name of one of your bots.', true]]);
+  assert.deepEqual(t.drawn, []);
+});
+
+test('the Chief\'s settings have a name field only from a server that has names', () => {
+  const part = cut('function renderChiefSettings()', '\n}\n');
+  assert.match(part, /state\.features\.includes\('chief-name'\)/);
+  assert.match(part, /id="chief-rename"[^>]*maxlength="40"/);
+  assert.match(part, /renameChief\(rename\)/);
+});

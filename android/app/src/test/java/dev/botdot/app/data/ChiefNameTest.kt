@@ -37,4 +37,13 @@ class ChiefNameTest {
         assertFalse(ChiefName.ask(null, new))
         assertFalse(ChiefName.ask(listOf("chief-name"), null))
     }
+
+    @Test fun theSettingsFieldRenamesIt() {
+        assertEquals("the role's own name: an empty field with its placeholder", "", ChiefName.field("Chief of Staff"))
+        assertEquals("Ada", ChiefName.field(" Ada "))
+        assertTrue(ChiefName.changed("Max", "Ada"))
+        assertFalse("same name, spaces aside", ChiefName.changed(" Ada ", "Ada"))
+        assertFalse("empty is the role's own name", ChiefName.changed("", "Chief of Staff"))
+        assertTrue("emptied: back to Chief of Staff", ChiefName.changed("", "Ada"))
+    }
 }

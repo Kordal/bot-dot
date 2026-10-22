@@ -491,6 +491,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun setup(): SetupInfo = json.decodeFromString(get("/setup?fresh"))
     /** The owner's answer to the question for the Chief's name (ChiefName): "" keeps "Chief of Staff". A refusal throws the server's words. */
     suspend fun nameChief(name: String): SetupInfo = json.decodeFromString(send("PUT", "/setup", buildJsonObject { put("chiefName", name) }))
+    /** Renames the Chief from its settings (ChiefName): "" gives back "Chief of Staff". Returns the name it now has; a refusal throws the server's words. */
+    suspend fun renameChief(name: String): String = json.parseToJsonElement(send("PUT", "/settings/chief-name", buildJsonObject { put("name", name) })).jsonObject["name"]?.jsonPrimitive?.content ?: ChiefName.ROLE
     suspend fun claudeLogin(): LoginLink = json.decodeFromString(send("POST", "/setup/claude/login"))
     suspend fun claudeLogout() { send("DELETE", "/setup/claude") }
     /** Signs in with the code. The status after it, which may be a check that could not tell (claudeCouldNotTell); null when the server sent none. */
