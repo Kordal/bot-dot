@@ -1035,6 +1035,16 @@ When `features` has `pages` ([#346](https://github.com/Kordal/bot-dot/issues/346
 - **Keep up to date.** `POST /api/bots/:id/pages/<slug>/keep` with `{ every: "hour" | "day" | "monday", time: "HH:MM", notify: "report-only" | "always", check }` makes an AI job of that bot that rewrites the page with `save_page` (`201`), or changes the one it has (`200`); it answers `{ page, job }`. The owner's tap is the consent: the job is the owner's (`createdBy: "you"`) and approved at once, with no card. `check` defaults to the page's `sources`. A bad `every` or `time` is `400`. `DELETE` on the same address removes the job: `{ page }` with `keep: null`. A page whose job was removed on the jobs screen has `keep: null` too. "Refresh now" is the job's own `POST /api/bots/:id/jobs/:jobId/run`.
 - **The bot's tool.** `save_page({ title, markdown, page?, sources? })`: `page` the slug of one of its pages to rewrite (always whole), else the title makes the slug and a page of the same title is the same page. Up to 512 KB. It goes through `POST /api/self/session/page` with the run's token, which answers `{ ok, page, created }` and puts `page` on the live feed.
 
+### The Chief's pages
+
+When `features` also has `chief-pages` ([#384](https://github.com/Kordal/bot-dot/issues/384), [ADR 069](adr/069-the-chief-keeps-pages-too-by-a-run-of-its-own.md)), the Chief of Staff saves pages too, and the owner keeps them up to date as a bot's.
+
+- **The Chief's tool.** `save_page({ title, markdown, page?, sources? })`, as a bot's, in every turn. It goes through `POST /api/chief/pages` with the Chief's key (`403` for anyone else), which answers `{ ok, page, created }` and puts `page` with `botId: "chief"` on the live feed. It is never held after the web. The text is `pages/<slug>.md` in the Chief's folder.
+- **Its reply lists the pages it saved** in `pages: [{ slug, title }]`, as a run does; the apps draw a chip for each under it.
+- **The owner's routes are a bot's with the id `chief`:** `GET /api/bots/chief/pages`, `GET /api/bots/chief/pages/<slug>?view=1`, and `POST`/`DELETE …/<slug>/keep` with the same body and answers, except that no job is made: `keep.jobId` is `page-<slug>` and the answer is `{ page }`. `GET /api/pages` lists the Chief's pages with `botId: "chief"` and `bot` the Chief's name. The apps list them in the Chief's settings.
+- **Refresh now** is `POST /api/bots/chief/jobs/page-<slug>/run`: `202` while the run starts, `409` while a look, a checkup or another page's run is at work, `404` for a page not kept up to date.
+- **The keeping run** is the Chief in a session of its own, as a look's, with web search, web pages, botdot's reading tools and `save_page`; it is handed the page. Its last words are posted in the chat the owner last used, as the Chief's message with `kept: { slug, title }`, `pages` and `startedBy: "botdot"`: always with `notify: "always"`, else only when something needs the owner.
+
 ## A document
 
 When `features` has `document-export` ([#348](https://github.com/Kordal/bot-dot/issues/348)), a long reply can be opened as a document and taken out of botdot as a file.

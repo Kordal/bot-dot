@@ -157,12 +157,20 @@ function renderChiefSettings() {
         <div class="grow"><b>Always approved</b><div class="faint">What you said to always allow on its cards. Revoke one and it asks you again.</div><div id="chief-always-picks"></div></div>
         <span class="faint bs-chev">›</span>
       </div>
-    </div>${CHECKUP_HTML}
+    </div>${typeof Pages !== 'undefined' && Pages.showsChief() ? `
+    <h3 class="page-sub">Pages</h3>
+    <div class="card settings-card bs-rows">
+      <div class="bs-row" id="chief-pages">
+        <span class="bs-icon">📄</span>
+        <div class="grow"><b>Its pages</b><div class="faint">Reports, memos and overviews it made for you. Open one to keep it up to date.</div><div id="chief-page-list" class="pg-list"><span class="faint">Loading…</span></div></div>
+      </div>
+    </div>` : ''}${CHECKUP_HTML}
     <h3 class="page-sub">Previous chats</h3>
     <div class="card settings-card settings-links" id="chief-chats"></div>`;
   renderChatList();
   drawChiefSkills(root);
   loadChiefAlways(root);
+  if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefName() }, $('#chief-page-list', root)); // public/pages.js (#384)
   $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
   loadCheckup();
   const form = $('#chief-form', root);

@@ -101,4 +101,14 @@ class PagesTest {
         saves.handle(FeedEvent("b.3", "run_finished", buildJsonObject { put("botId", "ops") }))
         assertEquals(mapOf("ops/hq-health" to "b.1"), saves.value.value)
     }
+
+    @Test fun theChiefsPagesShowOnlyFromAServerWithChiefPagesAndComeOnItsReply() {
+        assertFalse(Pages.showsChief(listOf("pages", "document-viewer")))
+        assertTrue(Pages.showsChief(listOf("pages", "document-viewer", "chief-pages")))
+        assertFalse(Pages.showsChief(listOf("chief-pages")))
+        assertEquals("/bots/chief/pages/team", Pages.src(Pages.CHIEF, "team"))
+        val m = Api.JSON.decodeFromString(ChiefMessage.serializer(), """{"role":"chief","text":"Saved it.","pages":[{"slug":"team","title":"Team"},{"title":"no slug"}]}""")
+        assertEquals(listOf(PageRef("team", "Team")), m.pages)
+        assertEquals(emptyList<PageRef>(), Api.JSON.decodeFromString(ChiefMessage.serializer(), """{"role":"chief","text":"Hi."}""").pages)
+    }
 }

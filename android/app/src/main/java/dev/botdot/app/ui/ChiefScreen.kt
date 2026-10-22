@@ -320,6 +320,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
                         MarkdownText(drawn.text)
                         if (error == null) OpenAsDocument(drawn.text, LocalChiefName.current)
                         BotFilesRow(files)
+                        PageChips(dev.botdot.app.data.Pages.CHIEF, m.pages, LocalChiefName.current) // the pages it saved (#384)
                         // A reply that failed after writing: its problem, in a block of its own under the text.
                         if (error != null) MarkdownText(error, color = p.warnText,
                             modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.warnSoft).padding(horizontal = 12.dp, vertical = 8.dp))

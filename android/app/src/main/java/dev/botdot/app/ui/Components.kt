@@ -307,15 +307,16 @@ fun BotFilesRow(files: List<Attachment>?, top: androidx.compose.ui.unit.Dp = 8.d
     }
 }
 
-/** The pages a run saved (#346): a chip each under its reply, which opens the page in the viewer. Only from a server with `pages`. */
+/** The pages a run saved (#346): a chip each under its reply, which opens the page in the viewer. Only from a server with `pages`; the Chief's (#384) only with `chief-pages`. [name]: whose page, when the chat does not say it. */
 @Composable
-fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>) {
+fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>, name: String? = null) {
     if (pages.isEmpty()) return
     val p = LocalPaper.current
     val app = dev.botdot.app.BotDotApp.of(LocalContext.current)
     val server by app.store.version.value.collectAsState()
     if (!dev.botdot.app.data.Pages.shows(server?.features)) return
-    val from = LocalPathActions.current?.from.orEmpty()
+    if (botId == dev.botdot.app.data.Pages.CHIEF && !dev.botdot.app.data.Pages.showsChief(server?.features)) return
+    val from = name ?: LocalPathActions.current?.from.orEmpty()
     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         pages.forEach { page ->
             Row(Modifier.widthIn(max = 320.dp).clip(RoundedCornerShape(14.dp)).background(p.panel).border(1.dp, p.line2, RoundedCornerShape(14.dp))
