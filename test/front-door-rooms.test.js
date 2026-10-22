@@ -190,6 +190,7 @@ test('an owner adds only their own bot that its settings let in; a mention gives
   assert.equal(turn.length, 1);
   assert.equal(turn[0].account, 'ann');
   assert.equal(turn[0].headers['x-botdot-room'], '1');
+  assert.equal(turn[0].headers['x-bot-dot'], '1', 'a botdot server takes no write without it');
   assert.equal(turn[0].headers['x-botdot-account'], 'ann');
   assert.equal(turn[0].body.bot, 'scout');
   assert.deepEqual(turn[0].body.room, { id: room.id, name: 'Mixed' });
