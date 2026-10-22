@@ -264,8 +264,15 @@ test('web: the Chief\'s own reply ends the line of a turn the page does not foll
   f.emit('chief_started', { chatId: 'c1' });
   f.emit('chief_reply', { chatId: 'c1', status: 'success', from: { id: 'surf', name: 'Web Surfer' } });
   assert.equal(f.ctx.chiefTurns.has('c1'), true, 'a bot\'s reply posted there: the Chief still replies');
+  f.emit('chief_reply', { chatId: 'c1', status: 'success', btw: true, text: 'Halfway' });
+  assert.equal(f.ctx.chiefTurns.has('c1'), true, 'a "/btw" answer beside the reply (#386): the Chief still replies');
   f.emit('chief_reply', { chatId: 'c1', status: 'success' });
   assert.equal(f.ctx.chiefTurns.has('c1'), false);
+  // A "/btw" answer in the chat on screen shows at once, also while the page follows the reply.
+  const open = feed({ stream: { close() {} } });
+  open.emit('chief_reply', { chatId: 'c1', status: 'success', btw: true });
+  assert.deepEqual(open.did.shown, ['c1']);
+  assert.equal(open.state.chatReload, false);
   // A reply the page follows ends with its stream: the next turn's start may come before that.
   const followed = feed({ stream: { close() {} } });
   followed.emit('chief_started', { chatId: 'c1' });

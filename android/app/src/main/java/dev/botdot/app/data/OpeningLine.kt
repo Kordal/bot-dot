@@ -272,7 +272,8 @@ class OpeningLines {
             }
             "run_finished" -> end("bot:${d.str("botId")}", d.str("id").ifEmpty { return })
             // The Chief's own reply ended (also when it failed or was stopped); a bot's report in its chat doesn't end it.
-            "chief_reply" -> if (d["from"].let { it == null || it is kotlinx.serialization.json.JsonNull }) end("chief:${d.str("chatId")}")
+            // A bot's file or a "/btw" answer (#386) beside the reply doesn't end it.
+            "chief_reply" -> if (d["from"].let { it == null || it is kotlinx.serialization.json.JsonNull } && d.str("btw") != "true") end("chief:${d.str("chatId")}")
             "reset" -> clear() // the lists are read again
             "hello" -> {
                 OpeningLine.features(d)?.let { serverHas(it) }
