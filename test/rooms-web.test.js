@@ -53,7 +53,7 @@ function page({ answer = () => [200, { rooms: [ROOM], invites: [INVITE] }], myBo
     Unread: { tint: (c) => c }, ICON: { back: '<back>' }, BACK_BTN: '<button data-back></button>',
     composerHTML: () => '<form class="composer"></form>', wireComposer() {},
   });
-  vm.runInContext(`${src}\nObject.assign(this, { rooms, door, setRoomsOn, loadRooms, loadRoomChat, roomsRowHTML, drawRoomsKeys, roomsListHTML, roomThreadHTML, roomMessageHTML, roomMentionBots, roomWorkingHTML, sendToRoom, answerInvite, openRoomSettings, roomById, roomNews, markRoomSeen });`, ctx);
+  vm.runInContext(`${src}\nObject.assign(this, { rooms, door, setRoomsOn, loadRooms, loadRoomChat, roomsRowHTML, drawRoomsKeys, roomsListHTML, roomThreadHTML, roomMessageHTML, roomMentionBots, roomWorkingHTML, sendToRoom, answerInvite, openRoomSettings, roomById, roomNews, markRoomSeen, joinFromLink, joinHash, roomLinkHTML });`, ctx);
   const flush = () => new Promise((r) => setImmediate(r));
   return { ctx, state, said, els, flush };
 }
@@ -67,7 +67,7 @@ test('web: the page loads rooms.js after boot.js, and has a Rooms view and a Roo
   assert.match(html, /id="kp-rooms"/);
   assert.match(html, /id="kp-phone-rooms"/);
   // The session says it: on or off, and whose session it is.
-  assert.ok(settings.includes("if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account);"));
+  assert.ok(settings.includes("if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account, session?.roomLinks === true);"));
   // The view comes back from the address, with its room.
   assert.match(read('boot.js'), /'group', 'rooms', 'needs'/);
   assert.ok(cut('function setView(v, sub) {', '// The panel\'s own controls').includes("if (v === 'rooms') state.roomId = sub || null;"));
@@ -288,4 +288,74 @@ test("web: a bot's settings have the Shared rooms row with room-settings and roo
   ctx.state.features = ['room-settings'];
   ctx.rooms.on = false;
   assert.equal(ctx.showsRoomSettings(b), false, 'shared rooms off on this machine');
+});
+
+// ---------- an invite link (ADR 063) ----------
+
+const TOKEN = 'T'.repeat(32);
+test('web: an invite link opened waits for rooms, then asks to join; Join posts it and opens the room', async () => {
+  const p = page({ answer: (url, opts) => (url.startsWith('/front-door/rooms/join/') ? (opts.method === 'POST' ? [200, { room: ROOM }] : [200, { room: { id: ROOM.id, name: 'Trip', by: 'ann' }, member: false }]) : [200, { rooms: [], invites: [] }]) });
+  const form = element({}, {});
+  form.querySelector = () => element();
+  p.ctx.openModal = (h) => { p.said.modals.push(h); return element({ '#room-join': form }, { close() {} }); };
+  assert.equal(p.ctx.joinFromLink('nothing'), false);
+  assert.equal(p.ctx.joinFromLink(`join=${TOKEN}`), true);
+  assert.equal(p.ctx.joinHash(), `#rooms/join=${TOKEN}`, 'kept for the sign-in page to come back to');
+  assert.ok(read('app.js').includes("location.assign(`/sign-in${typeof joinHash === 'function' ? joinHash() : ''}`)"));
+  assert.ok(require('../lib/front-door/pages').SCRIPT.includes("/^#rooms[/]join=[A-Za-z0-9_-]{1,100}$/.test(location.hash) ? location.hash : ''"), 'signed in, back to the link');
+  assert.match(read('boot.js'), /view === 'rooms' && typeof joinFromLink === 'function' && joinFromLink\(hashSub\)/);
+  await p.flush();
+  assert.deepEqual(p.said.calls, [], 'nothing asked while rooms are off');
+  p.ctx.setRoomsOn(true, 'me', true);
+  await p.flush();
+  assert.ok(p.said.calls.some((c) => c[0] === 'GET' && c[1] === `/front-door/rooms/join/${TOKEN}`));
+  assert.match(p.said.modals.at(-1), /Join Trip\?/);
+  assert.match(p.said.modals.at(-1), /ann made this room/);
+  assert.equal(p.ctx.joinHash(), '', 'asked once');
+  await form.onsubmit({ preventDefault() {} });
+  assert.deepEqual(p.said.calls.at(-1), ['POST', `/front-door/rooms/join/${TOKEN}`]);
+  assert.ok(p.ctx.roomById(ROOM.id));
+  assert.deepEqual(p.said.views.at(-1), ['rooms', ROOM.id]);
+});
+
+test('web: an invite link of a room this account is in opens the room; one that ended says so', async () => {
+  const p = page({ answer: (url) => (url.startsWith('/front-door/rooms/join/') ? [200, { room: { id: ROOM.id, name: 'Trip', by: 'me' }, member: true }] : [200, { rooms: [ROOM], invites: [] }]) });
+  p.ctx.setRoomsOn(true, 'me', true);
+  p.ctx.joinFromLink(`join=${TOKEN}`);
+  await p.flush();
+  assert.deepEqual(p.said.views.at(-1), ['rooms', ROOM.id]);
+  const gone = page({ answer: (url) => (url.startsWith('/front-door/rooms/join/') ? [404, { error: 'This invite link was taken back or has ended. Ask for a new one.' }] : [200, { rooms: [], invites: [] }]) });
+  gone.ctx.setRoomsOn(true, 'me', true);
+  gone.ctx.joinFromLink(`join=${TOKEN}`);
+  await gone.flush();
+  assert.deepEqual(gone.said.toasts.at(-1), ['This invite link was taken back or has ended. Ask for a new one.', true]);
+});
+
+test("web: the room's maker sees its invite link in the settings, with Copy, New link and Take back; others see none", async () => {
+  assert.equal(page().ctx.roomLinkHTML(undefined), '');
+  assert.match(page().ctx.roomLinkHTML(null), /data-make-link>Make an invite link/);
+  const h = page().ctx.roomLinkHTML({ url: `https://botdot.example/#rooms/join=${TOKEN}`, expires: '2026-10-29T12:00:00Z' });
+  assert.match(h, new RegExp(`value="https://botdot.example/#rooms/join=${TOKEN}"`));
+  assert.match(h, /data-copy-link>Copy/);
+  assert.match(h, /data-make-link>New link/);
+  assert.match(h, /data-drop-link>Take back/);
+
+  const link = { url: `https://botdot.example/#rooms/join=${TOKEN}`, expires: '2026-10-29T12:00:00Z' };
+  const p = page({ answer: (url) => (url.endsWith('/link') ? [200, { link }] : [200, { rooms: [ROOM, { ...ROOM, id: 'c'.repeat(32), by: 'ann' }], invites: [] }]) });
+  p.ctx.setRoomsOn(true, 'me', true);
+  await p.flush();
+  const root = element();
+  p.ctx.openModal = (x) => { p.said.modals.push(x); return element({ '#room-panel': root }); };
+  const form = element({}, {});
+  root.querySelector = (sel) => (sel === '#room-form' ? form : null);
+  form.querySelector = () => element();
+  form.querySelectorAll = () => [];
+  p.ctx.openRoomSettings(ROOM.id);
+  await p.flush();
+  assert.match(root.innerHTML, /data-copy-link>Copy/, 'drawn again once read');
+  assert.ok(p.said.calls.some((c) => c[0] === 'GET' && c[1] === `/front-door/rooms/${ROOM.id}/link`));
+  const before = p.said.calls.length;
+  p.ctx.openRoomSettings('c'.repeat(32));
+  await p.flush();
+  assert.equal(p.said.calls.slice(before).some((c) => c[1].endsWith('/link')), false, 'only the maker asks for it');
 });

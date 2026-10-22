@@ -269,6 +269,84 @@ test('turned off, every room route is 404 and the rooms are kept', async () => {
   assert.equal((await a.get(`/front-door/rooms/${room.id}`)).data.room.name, 'Kept');
 });
 
+test("a room's invite link: only its maker makes or takes it back, it names no account, and opening it joins", async () => {
+  const a = await admin();
+  const hal = await owner('hal');
+  const ida = await owner('ida');
+  const halLive = events(hal);
+  try {
+    assert.equal((await hal.get('/front-door/session')).data.roomLinks, true);
+    const room = (await a.post('/front-door/rooms', { name: 'Linked' })).data.room;
+    assert.deepEqual((await a.get(`/front-door/rooms/${room.id}/link`)).data, { link: null });
+    const made = await a.post(`/front-door/rooms/${room.id}/link`, {});
+    assert.equal(made.status, 200, made.text);
+    const { url, expires } = made.data.link;
+    const m = url.match(/^https?:\/\/[^/]+\/#rooms\/join=([A-Za-z0-9_-]{32})$/);
+    assert.ok(m, url);
+    const token = m[1];
+    assert.ok(!url.includes('ann') && !url.includes(room.id), 'the link names no account and no room');
+    const days = (Date.parse(expires) - Date.now()) / 86_400_000;
+    assert.ok(days > 6.9 && days <= rooms.LINK_DAYS, String(days));
+    assert.deepEqual((await a.get(`/front-door/rooms/${room.id}/link`)).data.link, { url, expires });
+    // Every member's copy of the room keeps it out.
+    assert.equal(JSON.stringify((await a.get(`/front-door/rooms/${room.id}`)).data).includes(token), false);
+
+    // A member who did not make the room: neither makes nor sees it.
+    await a.post(`/front-door/rooms/${room.id}/invite`, { account: 'ida' });
+    await ida.post(`/front-door/rooms/${room.id}/accept`, {});
+    assert.equal((await ida.get(`/front-door/rooms/${room.id}/link`)).status, 403);
+    assert.equal((await ida.post(`/front-door/rooms/${room.id}/link`, {})).status, 403);
+    assert.equal((await ida.post(`/front-door/rooms/${room.id}/link/remove`, {})).status, 403);
+    assert.equal((await hal.get(`/front-door/rooms/${room.id}/link`)).status, 404);
+
+    // Without a session: sign in first. A token that isn't one: 404.
+    assert.equal((await door.browser().get(`/front-door/rooms/join/${token}`)).status, 401);
+    assert.equal((await hal.get('/front-door/rooms/join/' + 'x'.repeat(32))).status, 404);
+    assert.equal((await hal.post('/front-door/rooms/join/nope', {})).status, 404);
+
+    const seen = await hal.get(`/front-door/rooms/join/${token}`);
+    assert.equal(seen.status, 200, seen.text);
+    assert.deepEqual(seen.data, { room: { id: room.id, name: 'Linked', by: 'ann' }, member: false });
+    const joined = await hal.post(`/front-door/rooms/join/${token}`, {});
+    assert.equal(joined.status, 200, joined.text);
+    assert.deepEqual(joined.data.room.members.map((x) => x.account), ['ann', 'ida', 'hal']);
+    await waitFor(() => halLive.got.some((e) => e.event === 'room' && e.data.room.id === room.id), { what: 'the room event' });
+    assert.equal((await messagesOf(a, room.id)).at(-1).text, 'hal joined the room with its invite link.');
+    // Again: in already, nothing changes.
+    assert.equal((await hal.get(`/front-door/rooms/join/${token}`)).data.member, true);
+    assert.equal((await hal.post(`/front-door/rooms/join/${token}`, {})).data.room.members.length, 3);
+
+    // A new link: the one before stops working. Taken back: none works.
+    const next = (await a.post(`/front-door/rooms/${room.id}/link`, {})).data.link;
+    assert.notEqual(next.url, url);
+    assert.equal((await ida.get(`/front-door/rooms/join/${token}`)).status, 404);
+    assert.equal((await a.post(`/front-door/rooms/${room.id}/link/remove`, {})).data.link, null);
+    assert.equal((await ida.get(`/front-door/rooms/join/${next.url.split('join=')[1]}`)).status, 404);
+    assert.deepEqual((await a.get(`/front-door/rooms/${room.id}/link`)).data, { link: null });
+  } finally { halLive.close(); }
+});
+
+test('an invite link: ends after its days, and an invitation by name is taken by joining with it', () => {
+  const dir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'rooms-link-'));
+  const store = rooms.open(dir);
+  const t0 = Date.parse('2026-10-22T12:00:00Z');
+  const room = store.create('ann', 'R', t0);
+  store.invite(room.id, 'ann', 'bob', () => true);
+  const { token } = store.makeLink(room.id, 'ann', t0);
+  assert.equal(store.linkPreview(token, 'bob', t0 + 1000).member, false);
+  const { joined } = store.joinByLink(token, 'bob', t0 + 1000);
+  assert.equal(joined, true);
+  assert.deepEqual(store.get(room.id).invites, []);
+  assert.equal(store.link(room.id, 'ann', t0 + rooms.LINK_DAYS * 86_400_000 + 1), null);
+  assert.throws(() => store.joinByLink(token, 'cat', t0 + rooms.LINK_DAYS * 86_400_000 + 1), (e) => e.status === 404);
+  // Read again from the file: the link is kept.
+  assert.equal(rooms.open(dir).linkPreview(token, 'cat', t0 + 2000).room.id, room.id);
+  // Its maker leaves: the link goes with them.
+  store.leave(room.id, 'ann', t0 + 3000);
+  assert.throws(() => store.linkPreview(token, 'cat', t0 + 4000), (e) => e.status === 404);
+  require('fs').rmSync(dir, { recursive: true, force: true });
+});
+
 test('namedIn: names by the mention name, without case, outside code, each bot of that name once', () => {
   const room = { bots: [{ account: 'a', id: '1', name: 'Fleet Doctor' }, { account: 'b', id: '2', name: 'fleet doctor' }, { account: 'a', id: '3', name: 'Scout' }] };
   assert.deepEqual(rooms.namedIn(room, '@fleetdoctor and @FleetDoctor, not `@Scout`, not x@Scout').map((b) => b.id), ['1', '2']);

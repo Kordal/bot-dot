@@ -118,6 +118,17 @@ data class RoomPage(val messages: List<RoomMessage> = emptyList(), val more: Boo
 @Serializable
 internal data class RoomAnswer(val room: Room? = null)
 
+/** A room's invite link (ADR 063): the address its maker shares, and when it stops working. */
+@Serializable
+data class RoomLink(val url: String = "", val expires: String? = null)
+
+@Serializable
+internal data class RoomLinkAnswer(val link: RoomLink? = null)
+
+/** What an invite link opens: the room's [room] id, name and maker, and whether this account is a [member] already. */
+@Serializable
+data class RoomLinkPreview(val room: RoomRef = RoomRef(), val member: Boolean = false)
+
 @Serializable
 internal data class RoomMessageAnswer(val message: RoomMessage? = null)
 
@@ -130,6 +141,17 @@ object Rooms {
     /** Whether to show Rooms: behind a front door (`accounts`) whose session says they are on. */
     fun on(features: Collection<String>?, session: JsonObject?): Boolean =
         features?.contains("accounts") == true && (session?.get("rooms") as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true
+
+    /** Whether the front door makes invite links for rooms (`roomLinks` in its session, ADR 063). */
+    fun links(session: JsonObject?): Boolean = (session?.get("roomLinks") as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true
+
+    private val JOIN = Regex("(?:^|[#/])join=([A-Za-z0-9_-]{1,100})\\s*$")
+
+    /**
+     * The token of an invite link as the owner pasted it: the whole link (`https://<machine>/#rooms/join=<token>`) or
+     * its end; null for text that isn't one.
+     */
+    fun linkToken(text: String): String? = JOIN.find(text.trim())?.groupValues?.get(1)
 
     /** The account this app is signed in as, when the front door says (`account` in its session); null otherwise. */
     fun account(session: JsonObject?): String? = (session?.get("account") as? JsonPrimitive)?.takeIf { it.isString }?.content?.ifBlank { null }
