@@ -132,8 +132,8 @@ function drawContacts() {
       </button>`;
   };
   const matching = bots.filter((b) => !q || `${b.name} ${b.description} ${b.group}`.toLowerCase().includes(q));
-  // The groups (groups.js): one row each, found by its name, its category and its members' names. Their place is
-  // counted among the groups only: the pinned ones stand after the pinned bots, a category's after its bots.
+  // The groups (groups.js): one row each, found by its name, its category and its members' names. The pinned ones
+  // share one order with the pinned bots (#276); a category's stand after its bots, counted among the groups.
   const chats = state.groups.filter((g) => !q || groupSearchText(g).includes(q));
   // The rows are the keypad's pages (keypad.js): the pinned bots and groups right below the Chief, in the order you
   // gave them; the rest by category.
@@ -440,9 +440,10 @@ const inGroup = (g) => state.bots.filter((b) => !(b.pinned > 0) && (b.group || '
 const placeOf = (bot) => inGroup(bot.group || '').indexOf(bot) + 1;
 
 // Drag a bot or a group anywhere in the list: a gap opens where it would land, among the pinned ones or in a
-// category (its heading = first there). Dropping it there pins, reorders or moves it to that category. A group's
-// place is counted among the groups (docs/api.md, Groups): it lands among the groups of where it is dropped, after
-// the bots there, and a bot lands among the bots, before the groups.
+// category (its heading = first there). Dropping it there pins, reorders or moves it to that category. The pinned
+// bots and groups share one order (#276), so there it lands right where it is dropped. In a category a group's
+// place is counted among the groups (docs/api.md, Groups): it lands among the groups there, after the bots, and a
+// bot lands among the bots, before the groups.
 const BOT_DRAG = 'application/x-botdot-bot';
 let dragId = null; // the row being dragged, by its `data-contact`: a bot's id, or "group:<id>" (dragover can't read the drag's data)
 const draggedGroup = () => (String(dragId || '').startsWith('group:') ? groupById(dragId.slice(6)) : null);
@@ -450,8 +451,8 @@ const dragged = () => draggedGroup() || state.bots.find((b) => b.id === dragId) 
 // Where what is dragged stands now: its category, and its place there among its own kind.
 const draggedIn = (x) => (x.members ? x.category : x.group) || '';
 const draggedPlace = (x) => (x.members ? groupsIn(draggedIn(x)).indexOf(x) + 1 : placeOf(x));
-// The last bot's row among the pinned ones (cat null) or in a category: the groups there stand after it.
-const lastBotRow = (cat) => $$(`#contacts [data-contact]:not([data-kind="group"])${cat === null ? '[data-pin]' : `[data-group="${CSS.escape(cat)}"]`}`).pop() || null;
+// The last bot's row in a category: the groups there stand after it.
+const lastBotRow = (cat) => $$(`#contacts [data-contact]:not([data-kind="group"])[data-group="${CSS.escape(cat)}"]`).pop() || null;
 function wireDrags() {
   $$('#contacts [data-contact]:not([data-contact="chief"]):not([data-contact="dashboard"])').forEach((el) => {
     el.ondragstart = (e) => {
@@ -477,12 +478,11 @@ function wireDrags() {
       const d = el.dataset;
       const group = !!draggedGroup();
       const cat = d.contact === 'chief' || d.pin ? null : 'groupHead' in d ? d.groupHead : d.group;
-      // Over a row of the other kind: a group goes first among the groups there, a bot last among the bots,
-      // and the gap opens between the two.
-      if (d.contact && d.contact !== 'chief' && group !== (d.kind === 'group')) {
-        const bots = cat === null ? state.bots.filter((b) => b.pinned > 0).length : inGroup(cat).length;
-        const at = group ? 1 : bots + 1;
-        return openGap(cat === null ? { pinned: at } : { group: cat, order: at }, lastBotRow(cat) || $(`#contacts [data-group-head="${CSS.escape(cat || '')}"]`) || $('#contacts [data-contact="chief"]') || el, false);
+      // In a category, over a row of the other kind: a group goes first among the groups there, a bot last among
+      // the bots, and the gap opens between the two. Among the pinned ones either kind lands where it is dropped.
+      if (cat !== null && d.contact && group !== (d.kind === 'group')) {
+        const at = group ? 1 : inGroup(cat).length + 1;
+        return openGap({ group: cat, order: at }, lastBotRow(cat) || $(`#contacts [data-group-head="${CSS.escape(cat)}"]`) || el, false);
       }
       // Above or below the row under the pointer (always below the Chief and a heading).
       const above = d.contact && d.contact !== 'chief' && e.clientY < el.getBoundingClientRect().top + el.offsetHeight / 2;
@@ -490,15 +490,16 @@ function wireDrags() {
         : 'groupHead' in d ? { group: d.groupHead, order: 1 }
         : d.pin ? { pinned: Number(d.pin) + (above ? 0 : 1) }
         : { group: d.group, order: Number(d.place) + (above ? 0 : 1) };
-      // A group dropped on the Chief or on a heading is the first group there: after the bots that are drawn.
-      openGap(spot, (group && !d.kind && lastBotRow(cat)) || el, above);
+      // A group dropped on a heading is the first group there: after the bots that are drawn. On the Chief it is
+      // pinned first, right below it.
+      openGap(spot, (group && cat !== null && !d.kind && lastBotRow(cat)) || el, above);
     };
     el.ondrop = (e) => dropAt(e, gapSpot);
   });
 }
 
-// The gap that opens where the dragged row would land. spot: { pinned: n } or { group, order: n } (1 = first),
-// counted among its own kind. `group` there is a category, by the name a bot's field has in the API.
+// The gap that opens where the dragged row would land. spot: { pinned: n } (1 = first), counted among the pinned
+// bots and groups together, or { group, order: n }, counted among its own kind. `group` there is a category, by the name a bot's field has in the API.
 let gapSpot = null;
 const sameSpot = (a, b) => !!a && !!b && a.pinned === b.pinned && a.group === b.group && a.order === b.order;
 function openGap(spot, el, above) {
@@ -538,18 +539,15 @@ function dropAt(e, spot) {
   (isGroup ? moveGroup : moveBot)(row, spot.group, spot.order - (own && own < spot.order ? 1 : 0));
 }
 
-// Put the pinned ones in order again, as the server does; unpinned ones get a place in their group back.
-function renumberPins() { state.bots.filter((b) => b.pinned > 0).sort((a, b) => a.pinned - b.pinned).forEach((b, i) => { b.pinned = i + 1; }); }
+// Unpinned ones get a place in their group back, as the server gives it.
 function renumberGroup(g) { inGroup(g).forEach((b, i) => { b.order = i + 1; }); }
 
-// Pin a bot at a place below the Chief (1 = first; 0 = unpin: last in its group), the others making room.
+// Pin a bot at a place below the Chief (1 = first; 0 = unpin: last in its group), the other pinned bots and groups
+// making room.
 async function pinBot(bot, at) {
   if (bot.pinned === at) return renderContacts();
-  const others = state.bots.filter((b) => b.pinned > 0 && b !== bot).sort((a, b) => a.pinned - b.pinned);
-  if (at > 0) others.splice(Math.min(at, others.length + 1) - 1, 0, bot);
   const was = bot.pinned;
-  bot.pinned = 0;
-  others.forEach((b, i) => { b.pinned = i + 1; });
+  Keypad.pin(state.bots, state.groups, bot, at);
   if (at > 0) { bot.order = 0; renumberGroup(bot.group || ''); } else if (was > 0) { bot.order = Infinity; renumberGroup(bot.group || ''); }
   renderContacts(); // right away; the save follows
   try { await api(`/bots/${bot.id}`, { method: 'PUT', body: { pinned: at } }); } catch (err) { toast(err.message, true); }
@@ -560,7 +558,7 @@ async function pinBot(bot, at) {
 async function moveBot(bot, group, at) {
   const from = bot.group || '';
   const wasPinned = bot.pinned > 0;
-  if (wasPinned) { bot.pinned = 0; renumberPins(); }
+  if (wasPinned) Keypad.pin(state.bots, state.groups, bot, 0);
   const others = inGroup(group).filter((b) => b !== bot);
   others.splice(Math.min(at, others.length + 1) - 1, 0, bot);
   bot.group = group;

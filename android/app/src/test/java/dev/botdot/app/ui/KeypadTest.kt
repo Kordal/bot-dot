@@ -35,6 +35,16 @@ class KeypadTest {
         assertEquals(listOf(Keypad.Kind.PINNED, Keypad.Kind.CATEGORY), pages.map { it.kind })
     }
 
+    @Test fun withOneOrderThePinnedPageHoldsBotsAndGroupsByTheirPlace() {
+        val pages = Keypad.pages(
+            listOf(bot("news", pinned = 3), bot("fleet", pinned = 1), bot("cook", "Home")),
+            listOf(group("dev", pinned = 4), group("ops", pinned = 2), group("kitchen", "Home")),
+            shared = true,
+        )
+        assertEquals(listOf("Pinned: fleet group:ops news group:dev", "Home: cook group:kitchen"), read(pages))
+        assertEquals(listOf(true, false), pages.map { it.shared })
+    }
+
     @Test fun eachCategoryIsAPageFromAToZAndOtherIsLast() {
         val pages = Keypad.pages(listOf(bot("loose"), bot("coder", "work"), bot("cook", "Home"), bot("saver", "Money")), emptyList())
         assertEquals(listOf("Home: cook", "Money: saver", "work: coder", "Other: loose"), read(pages))
@@ -170,6 +180,29 @@ class KeypadTest {
     @Test fun aKeyOnNoPageOrAPageThatIsNotThereMovesNothing() {
         assertNull(Keypad.move(movePages, Keypad.Key.OfBot(bot("ghost", "Home")), 1))
         assertNull(Keypad.move(movePages, movePages[1].keys[0], 7))
+    }
+
+    // Moves on a Pinned page of one order (#276): a group before a bot, a bot after a group
+
+    private val sharedPages = Keypad.pages(
+        listOf(bot("news", "Work", pinned = 1), bot("lights", pinned = 2), bot("garden", "Home", order = 1), bot("mail", "Home", order = 2)),
+        listOf(group("evening", pinned = 3), group("kitchen", "Home", order = 1)),
+        shared = true,
+    )
+    private fun sharedMove(id: String, to: Int, at: Int? = null) = Keypad.move(sharedPages, sharedPages.flatMap { it.keys }.single { it.id == id }, to, at)
+
+    @Test fun onAPinnedPageOfOneOrderAKeyLandsWhereItIsDropped() {
+        assertEquals(listOf("Pinned: news lights group:evening", "Home: garden mail group:kitchen"), read(sharedPages))
+        assertEquals("a group onto the first bot: first", pinned(1), sharedMove("group:evening", 0, 0))
+        assertEquals("a group between two bots", pinned(2), sharedMove("group:evening", 0, 1))
+        assertEquals("a bot onto the group after it: below it", pinned(3), sharedMove("news", 0, 2))
+        assertEquals("a group from a category, between two bots", pinned(2), sharedMove("group:kitchen", 0, 1))
+        assertEquals("on the Pinned heading: last of them all", pinned(4), sharedMove("group:kitchen", 0))
+        assertEquals("a bot from a category, onto a group: before it", pinned(3), sharedMove("mail", 0, 2))
+        assertNull("onto its own key", sharedMove("lights", 0, 1))
+        assertNull("the last one, on its own heading", sharedMove("group:evening", 0))
+        // In a category the bots still stand before the groups.
+        assertEquals(inside("Home", 1), sharedMove("group:kitchen", 1, 0))
     }
 
     // The update a move sends: the list's drag's (ListLayout.change), for a bot and for a group

@@ -198,6 +198,27 @@ class GroupWordsTest {
         assertNull(at("nobody", "pins", "coder"))
     }
 
+    // One order for the pinned bots and groups (#276): with `pins-shared` a group can stand before a bot.
+
+    @Test fun withOneOrderThePinnedBotsAndGroupsStandByTheirPlace() {
+        val mixed = Group.list("""[{"id":"g5","name":"Top","members":["cook","coder"],"pinned":1},{"id":"g6","name":"Mid","members":["cook","coder"],"pinned":3}]""")
+        assertEquals(listOf("group:g5", "fleet", "group:g6", "news"), ListLayout.rows(bots, mixed, emptySet(), shared = true).pins)
+        assertEquals("a server from before it: the bots first", listOf("fleet", "news", "group:g5", "group:g6"), ListLayout.rows(bots, mixed, emptySet()).pins)
+        // A bot and a group on the same place (kept from before one order): the bot first.
+        assertEquals(listOf("fleet", "group:g5", "news"), ListLayout.rows(bots, groups.filter { it.id == "g5" }, emptySet(), shared = true).pins)
+    }
+
+    @Test fun withOneOrderABigFigureCountsAmongAllThePinnedOnes() {
+        fun at(key: String, pins: List<String>, layout: List<String> = listOf("pins")) = ListLayout.dropped(layout, pins, key, shared = true)
+        assertEquals("a group before the bots", ListLayout.Place.Pinned(1), at("group:g5", listOf("group:g5", "fleet", "news")))
+        assertEquals("a group between two bots", ListLayout.Place.Pinned(2), at("group:g5", listOf("fleet", "group:g5", "news")))
+        assertEquals("a bot after a group", ListLayout.Place.Pinned(3), at("fleet", listOf("group:g5", "news", "fleet")))
+        assertEquals("above the big figures: last of them all", ListLayout.Place.Pinned(4), at("group:g1", listOf("fleet", "news", "group:g5"), listOf("group:g1", "pins", "g:Programming", "coder")))
+        assertEquals(ListLayout.Place.Pinned(4), at("coder", listOf("fleet", "group:g5", "news"), listOf("coder", "pins", "g:Programming", "reviewer")))
+        assertEquals(dev.botdot.app.data.hasPinsShared(listOf("groups", "pins-shared")) to dev.botdot.app.data.hasPinsShared(listOf("groups")), true to false)
+        assertFalse(dev.botdot.app.data.hasPinsShared(null))
+    }
+
     // ---------- the word ----------
 
     private fun sources(): File = generateSequence(File("").absoluteFile) { it.parentFile }.map { File(it, "src/main/java/dev/botdot/app") }.first { it.exists() }

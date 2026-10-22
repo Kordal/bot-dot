@@ -38,9 +38,8 @@ const turnLineOf = (groupId, botId) => [...turnLines.values()].find((l) => l.gro
 
 // ---------- the list ----------
 
-// A group's place is counted among the groups only (docs/api.md, Groups): the pinned ones in the order of
-// `pinned`, a category's in the order of `order`.
-const pinnedGroups = (list = state.groups) => list.filter((g) => g.pinned > 0).sort(Keypad.byPin);
+// A group's place in a category is counted among the groups only (docs/api.md, Groups), in the order of `order`.
+// The pinned ones share one order with the pinned bots (Keypad.pin).
 const groupsIn = (category, list = state.groups) => list.filter((g) => !(g.pinned > 0) && (g.category || '') === category).sort(byPlace);
 // The categories of the list, A–Z: those of the bots and those of the groups. A category can hold groups and no bot.
 const categoryNames = Keypad.categoryNames;
@@ -90,13 +89,11 @@ async function placeGroup(g, body, said = '') {
   } catch (e) { toast(e.message, true); }
   refresh();
 }
-// Pin a group at a place among the pinned groups (1 = first), the others making room.
+// Pin a group at a place among the pinned bots and groups (1 = first; one order, #276), the others making room.
 function pinGroup(g, at) {
   if (g.pinned === at) return renderContacts();
   const from = g.category || '';
-  const others = pinnedGroups().filter((x) => x !== g);
-  others.splice(Math.min(at, others.length + 1) - 1, 0, g);
-  others.forEach((x, i) => { x.pinned = i + 1; });
+  Keypad.pin(state.bots, state.groups, g, at);
   g.order = 0;
   groupsIn(from).forEach((x, i) => { x.order = i + 1; });
   return placeGroup(g, { pinned: at });
@@ -105,7 +102,7 @@ function pinGroup(g, at) {
 function moveGroup(g, category, at) {
   const from = g.category || '';
   const wasPinned = g.pinned > 0;
-  if (wasPinned) { g.pinned = 0; pinnedGroups().forEach((x, i) => { x.pinned = i + 1; }); }
+  if (wasPinned) Keypad.pin(state.bots, state.groups, g, 0);
   const others = groupsIn(category).filter((x) => x !== g);
   others.splice(Math.min(at, others.length + 1) - 1, 0, g);
   g.category = category;

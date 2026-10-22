@@ -5,8 +5,9 @@ import dev.botdot.app.data.Group
 
 /**
  * The keypad: the home of a window from 840 dp wide (#494). Its pages are the list's own order ([ListLayout.rows])
- * cut where a category begins, so the list and the keypad never disagree: the pinned bots then the pinned groups,
- * each category A to Z with its bots and then its groups, and Other last. Its keys answer a hardware keyboard. The
+ * cut where a category begins, so the list and the keypad never disagree: the pinned bots and groups (in one order
+ * where the server shares it, #276, else the bots first), each category A to Z with its bots and then its groups,
+ * and Other last. Its keys answer a hardware keyboard. The
  * web page and the Mac draw the same rule. Nothing here asks the botdot server anything.
  */
 internal object Keypad {
@@ -55,15 +56,19 @@ internal object Keypad {
         }
     }
 
-    data class Page(val name: String, val kind: Kind, val keys: List<Key>)
+    /** [shared]: its keys are in one order of bots and groups (the Pinned page of a server with `pins-shared`). */
+    data class Page(val name: String, val kind: Kind, val keys: List<Key>, val shared: Boolean = false)
 
-    /** The pages, first to last, with their keys in the order of the list's rows. A page with no key is left out. */
-    fun pages(bots: List<Bot>, groups: List<Group>): List<Page> {
-        val rows = ListLayout.rows(bots, groups, folded = emptySet())
+    /**
+     * The pages, first to last, with their keys in the order of the list's rows. A page with no key is left out.
+     * [shared]: the server counts the pinned bots and groups in one order (`pins-shared`, #276).
+     */
+    fun pages(bots: List<Bot>, groups: List<Group>, shared: Boolean = false): List<Page> {
+        val rows = ListLayout.rows(bots, groups, folded = emptySet(), shared = shared)
         val botOf = bots.associateBy { it.id }
         val groupOf = groups.associateBy { ListLayout.groupRow(it.id) }
         fun key(row: String): Key? = botOf[row]?.let { Key.OfBot(it) } ?: groupOf[row]?.let { Key.OfGroup(it) }
-        val pages = mutableListOf(Page(PINNED, Kind.PINNED, rows.pins.mapNotNull(::key)))
+        val pages = mutableListOf(Page(PINNED, Kind.PINNED, rows.pins.mapNotNull(::key), shared))
         // Rows under no heading are those of the one category there is: bots in none, Other.
         var category = ""
         val keys = mutableListOf<Key>()
@@ -94,13 +99,14 @@ internal object Keypad {
      * place) or on its heading (no [at]: last there, on its own page too, #516). The place is the one the list's drag gives a row, counted among its
      * own kind as the server counts it: pinned on Pinned, else in the page's category ("" for Other). The bots stand
      * before the groups on a page, so a bot dropped on a group is the last bot and a group dropped on a bot the first
-     * group. null: it stays where it is, or there is no such key or page. The web page and the Mac have the same rule.
+     * group, except on a [Page.shared] Pinned page: there both kinds are one order and a key lands where it is dropped
+     * (#276). null: it stays where it is, or there is no such key or page. The web page has the same rule.
      */
     fun move(pages: List<Page>, key: Key, to: Int, at: Int? = null): ListLayout.Place? {
         val target = pages.getOrNull(to) ?: return null
         val from = pages.indexOfFirst { p -> p.keys.any { it.id == key.id } }
         if (from < 0) return null
-        val kin = { k: Key -> (k is Key.OfGroup) == (key is Key.OfGroup) }
+        val kin = { k: Key -> target.shared || (k is Key.OfGroup) == (key is Key.OfGroup) }
         val rest = target.keys.filter { it.id != key.id }
         val place = (if (at == null) rest else rest.take(at.coerceAtLeast(0))).count(kin) + 1
         if (from == to && place == target.keys.filter(kin).indexOfFirst { it.id == key.id } + 1) return null

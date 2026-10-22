@@ -120,14 +120,15 @@ internal object ListLayout {
     fun isGroup(key: String) = key.startsWith(GROUP)
     fun groupOf(key: String) = key.removePrefix(GROUP)
 
-    /** [pins]: the pinned bots' ids, then the pinned groups' rows. [layout]: every row's key, top to bottom. */
+    /** [pins]: the pinned bots' ids and the pinned groups' rows, in their order. [layout]: every row's key, top to bottom. */
     class Rows(val pins: List<String>, val layout: List<String>)
 
     /**
      * The rows as the server's places say them. A category is one of the bots' or of the groups': it can hold groups
-     * and no bot. Bots never placed show A to Z. [folded]: the categories whose heading alone shows.
+     * and no bot. Bots never placed show A to Z. [folded]: the categories whose heading alone shows. [shared]: the
+     * server counts the pinned bots and groups in one order (`pins-shared`, #276); else the pinned bots come first.
      */
-    fun rows(bots: List<Bot>, groups: List<Group>, folded: Set<String>): Rows {
+    fun rows(bots: List<Bot>, groups: List<Group>, folded: Set<String>, shared: Boolean = false): Rows {
         val (pinned, rest) = bots.partition { it.pinned > 0 }
         val loose = groups.filter { it.pinned <= 0 }
         val categories = (rest.map { it.group } + loose.map { it.category }).distinct().sortedWith(compareBy<String> { it.isEmpty() }.thenBy { it.lowercase() })
@@ -141,10 +142,15 @@ internal object ListLayout {
                 addAll(Groups.inCategory(groups, category).map { groupRow(it.id) })
             }
         }
-        return Rows(pinned.sortedBy { it.pinned }.map { it.id } + Groups.pinned(groups).map { groupRow(it.id) }, layout)
+        val pins = if (!shared) pinned.sortedBy { it.pinned }.map { it.id } + Groups.pinned(groups).map { groupRow(it.id) }
+        // One order; a bot and a group on the same place (kept from before it): the bot first, as the server sorts them.
+        else (pinned.map { Triple(it.pinned, 0, it.id) } + Groups.pinned(groups).map { Triple(it.pinned, 1, groupRow(it.id)) })
+            .sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
+        return Rows(pins, layout)
     }
 
-    /** Where a dragged row was let go: pinned at a place, or in a category at a place. Both count from 1, among its own kind. */
+    /** Where a dragged row was let go: pinned at a place, or in a category at a place. Both count from 1, among its own
+     *  kind, except a pinned place where the server shares one order: among the pinned bots and groups together. */
     sealed interface Place {
         data class Pinned(val at: Int) : Place
         data class In(val category: String, val at: Int) : Place
@@ -153,17 +159,20 @@ internal object ListLayout {
     /**
      * The place of the row [key] in the list as it is drawn while dragging. A bot's place is among the bots and a
      * group's among the groups (docs/api.md, Groups): a group let go between two bots is the first group of that
-     * category, and a bot let go under a group is the last bot there. null for a row that is not in the list.
+     * category, and a bot let go under a group is the last bot there. Among the big figures, with [shared] (one order
+     * for the pinned bots and groups, #276), either kind is counted among all of them. null for a row that is not in
+     * the list.
      */
-    fun dropped(layout: List<String>, pins: List<String>, key: String): Place? {
+    fun dropped(layout: List<String>, pins: List<String>, key: String, shared: Boolean = false): Place? {
         val group = isGroup(key)
         val same = { k: String -> k != PINS && !isHeading(k) && isGroup(k) == group }
+        val pinned = { k: String -> shared || same(k) }
         val pin = pins.indexOf(key)
-        if (pin >= 0) return Place.Pinned(pins.take(pin).count(same) + 1) // a big figure, moved among the others
+        if (pin >= 0) return Place.Pinned(pins.take(pin).count(pinned) + 1) // a big figure, moved among the others
         val at = layout.indexOf(key)
         val line = layout.indexOf(PINS)
         if (at < 0) return null
-        if (at < line) return Place.Pinned(pins.count(same) + 1) // above the big figures: the last of the pinned ones
+        if (at < line) return Place.Pinned(pins.count(pinned) + 1) // above the big figures: the last of the pinned ones
         val head = (at - 1 downTo line + 1).firstOrNull { isHeading(layout[it]) }
         return Place.In(head?.let { categoryOf(layout[it]) }.orEmpty(), layout.subList((head ?: line) + 1, at).count(same) + 1)
     }

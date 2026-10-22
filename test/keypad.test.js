@@ -15,12 +15,14 @@ test('pages: with no categories every bot and group is on one page, Other', () =
   assert.deepEqual(shape(Keypad.pages([bot('Writer'), bot('Coder')], [grp('Dev')])), ['other:Other: Coder, Writer, #Dev']);
 });
 
-test('pages: pinned bots then pinned groups are the first page, in the order of `pinned`', () => {
+test('pages: the pinned bots and groups are the first page, in the one order of `pinned` (#276)', () => {
   const pages = Keypad.pages(
-    [bot('Coder', { group: 'Work' }), bot('Lights', { pinned: 2, group: 'Home' }), bot('News', { pinned: 1 })],
-    [grp('Dev', { pinned: 2 }), grp('Evening', { pinned: 1, category: 'Home' }), grp('Ops', { category: 'Work' })],
+    [bot('Coder', { group: 'Work' }), bot('Lights', { pinned: 3, group: 'Home' }), bot('News', { pinned: 1 })],
+    [grp('Dev', { pinned: 4 }), grp('Evening', { pinned: 2, category: 'Home' }), grp('Ops', { category: 'Work' })],
   );
-  assert.deepEqual(shape(pages), ['pinned:Pinned: News, Lights, #Evening, #Dev', 'category:Work: Coder, #Ops']);
+  assert.deepEqual(shape(pages), ['pinned:Pinned: News, #Evening, Lights, #Dev', 'category:Work: Coder, #Ops']);
+  // A bot and a group on the same place (kept from before one order): the bot first, as the page stood then.
+  assert.deepEqual(shape(Keypad.pages([bot('News', { pinned: 1 })], [grp('Dev', { pinned: 1 })])), ['pinned:Pinned: News, #Dev']);
 });
 
 test('pages: categories A to Z, whatever their case, and Other last', () => {
@@ -110,7 +112,7 @@ const MOVE_BOTS = [
   bot('Garden', { group: 'Home', order: 1 }), bot('Mail', { group: 'Home', order: 2 }), bot('Cook', { group: 'Home', order: 3 }),
   bot('Notes'),
 ];
-const MOVE_GROUPS = [grp('Evening', { pinned: 1 }), grp('Kitchen', { category: 'Home', order: 1 }), grp('Porch', { category: 'Home', order: 2 })];
+const MOVE_GROUPS = [grp('Evening', { pinned: 3 }), grp('Kitchen', { category: 'Home', order: 1 }), grp('Porch', { category: 'Home', order: 2 })];
 const movePages = () => Keypad.pages(MOVE_BOTS, MOVE_GROUPS);
 // Drag the key called `name` and drop it on page `to`: on its key at `at`, or on its heading (no `at`).
 const move = (name, to, at) => { const pages = movePages(); return Keypad.move(pages, pages.flatMap((p) => p.keys).find((k) => k.name === name), to, at); };
@@ -131,7 +133,6 @@ test('moves: a key dropped on another key of its page takes that key\'s place, c
 test('moves: bots stay before groups: a bot dropped on a group is the last bot, a group on a bot the first group', () => {
   assert.deepEqual(move('Garden', 1, 4), { group: 'Home', order: 3 });
   assert.deepEqual(move('Porch', 1, 0), { group: 'Home', order: 1 });
-  assert.deepEqual(move('News', 0, 2), { pinned: 2 }, 'a pinned bot onto a pinned group: the last pinned bot');
 });
 
 test('moves: dropped where it is, or on its own page\'s heading when it is last there already, a key does not move', () => {
@@ -140,22 +141,40 @@ test('moves: dropped where it is, or on its own page\'s heading when it is last 
   assert.equal(move('Lights', 0, 1), null);
   assert.equal(move('Cook', 1), null, 'the last bot of its page');
   assert.equal(move('Evening', 0), null);
-  assert.equal(move('Lights', 0, 2), null, 'a bot onto a group of its page when it is the last bot already');
 });
 
-test('moves: on the Pinned heading a key is pinned last among its kind; on a category\'s it goes last there; on Other\'s it leaves its category', () => {
-  assert.deepEqual(move('Mail', 0), { pinned: 3 });
-  assert.deepEqual(move('Kitchen', 0), { pinned: 2 }, 'a group: last among the pinned groups');
+test('moves: on the Pinned heading a key is pinned last; on a category\'s it goes last there; on Other\'s it leaves its category', () => {
+  assert.deepEqual(move('Mail', 0), { pinned: 4 });
+  assert.deepEqual(move('Kitchen', 0), { pinned: 4 }, 'a group: last of everything pinned');
   assert.deepEqual(move('Notes', 1), { group: 'Home', order: 4 });
   assert.deepEqual(move('Evening', 1), { group: 'Home', order: 3 }, 'a pinned group to a category: last among its groups');
   assert.deepEqual(move('Lights', 2), { group: '', order: 2 }, 'a pinned bot onto Other');
   assert.deepEqual(move('Cook', 2), { group: '', order: 2 });
 });
 
-test('moves: on its own page\'s heading a key goes last there among its kind (#508)', () => {
+test('moves: on its own page\'s heading a key goes last there (#508)', () => {
   assert.deepEqual(move('Mail', 1), { group: 'Home', order: 3 });
   assert.deepEqual(move('Kitchen', 1), { group: 'Home', order: 2 });
-  assert.deepEqual(move('News', 0), { pinned: 2 });
+  assert.deepEqual(move('News', 0), { pinned: 3 });
+});
+
+test('moves: on Pinned bots and groups share one order: a group goes before a bot, a bot after a group (#276)', () => {
+  assert.deepEqual(move('Evening', 0, 0), { pinned: 1 }, 'a group onto the first bot: first');
+  assert.deepEqual(move('Evening', 0, 1), { pinned: 2 }, 'a group between two bots');
+  assert.deepEqual(move('News', 0, 2), { pinned: 3 }, 'a bot onto the group after it: below the group');
+  assert.deepEqual(move('Lights', 0, 2), { pinned: 3 }, 'the last bot onto the group after it');
+  assert.deepEqual(move('Kitchen', 0, 1), { pinned: 2 }, 'a group from a category, between two pinned bots');
+  assert.deepEqual(move('Kitchen', 0, 0), { pinned: 1 }, 'onto the first key, as onto the Chief: pinned first');
+  assert.deepEqual(move('Mail', 0, 2), { pinned: 3 }, 'a bot from a category, onto a pinned group: before it');
+  // The issue's two moves, each from what the one before left.
+  const team = (name, pinned) => grp(name, { pinned });
+  let pages = Keypad.pages([bot('Builder', { pinned: 1 }), bot('Quoter', { pinned: 2 })], [team('Builder Team', 3), team('Quoter Team', 4)]);
+  const key = (name) => pages[0].keys.find((k) => k.name === name);
+  assert.deepEqual(Keypad.move(pages, key('Builder Team'), 0, 0), { pinned: 1 });
+  pages = Keypad.pages([bot('Builder', { pinned: 2 }), bot('Quoter', { pinned: 3 })], [team('Builder Team', 1), team('Quoter Team', 4)]);
+  assert.deepEqual(shape(pages), ['pinned:Pinned: #Builder Team, Builder, Quoter, #Quoter Team']);
+  assert.deepEqual(Keypad.move(pages, key('Quoter Team'), 0, 1), { pinned: 2 });
+  assert.equal(Keypad.move(pages, key('Builder'), 0, 1), null, 'onto its own key');
 });
 
 test('moves: a key dropped on a key of another page takes that key\'s place there', () => {
