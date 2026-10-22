@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** CHF-001
-- **Changed by:** CHF-006 (no `WebFetch`; the record of unasked messages; what counts as "nothing")
+- **Changed by:** CHF-006 (no `WebFetch`; the record of unasked messages; what counts as "nothing"); [ADR 070](070-a-look-reads-the-owners-mail-and-calendar-read-only.md) (a look reads the owner's mail and calendar, read-only)
 
 ## Context
 
