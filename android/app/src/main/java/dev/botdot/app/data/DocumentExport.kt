@@ -17,6 +17,13 @@ object DocumentExport {
 
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
 
+    /** Save to Google Docs (#351), from a server whose `features` name it. */
+    const val GOOGLE_DOCS = "document-google-docs"
+    fun savesToGoogleDocs(features: Collection<String>?): Boolean = features != null && GOOGLE_DOCS in features
+
+    /** Only a Google Doc's own address is opened from the server's answer. */
+    fun isGoogleDoc(url: String): Boolean = Regex("^https://docs\\.google\\.com/document/d/[A-Za-z0-9_-]+/edit$").matches(url)
+
     /** Words: what stands between white space, as the web page counts them. */
     fun words(text: String): Int = text.split(Regex("\\s+")).count { it.isNotEmpty() }
 
