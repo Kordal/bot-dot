@@ -97,7 +97,7 @@ import dev.botdot.app.ui.VaultScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    /** Where a tapped notification wants to go ("bot:<id>" | "chief:<chatId>" | "group:<id>"). */
+    /** Where a tapped notification wants to go ("bot:<id>" | "chief:<chatId>" | "group:<id>" | "room:<id>"). */
     private val openTarget = mutableStateOf<String?>(null)
     /** Files shared from another app (Share → botdot), waiting for you to pick who gets them. */
     private val sharedUris = mutableStateOf<List<Uri>>(emptyList())
@@ -143,13 +143,15 @@ class MainActivity : ComponentActivity() {
                     val t = target ?: return@LaunchedEffect
                     if (server == null || server == "…") return@LaunchedEffect
                     openTarget.value = null
-                    if (t.startsWith("bot:") || t.startsWith("chief:") || t.startsWith("group:") || t == "needs") panelOff.value()
+                    if (t.startsWith("bot:") || t.startsWith("chief:") || t.startsWith("group:") || t.startsWith("room:") || t == "needs") panelOff.value()
                     when {
                         t.startsWith("bot:") -> nav.navigate("bot/${t.removePrefix("bot:")}") { launchSingleTop = true }
                         // A card or a question asked in a group: its notification opens the group.
                         t.startsWith("group:") -> nav.navigate("group/${t.removePrefix("group:")}") { launchSingleTop = true }
                         t.startsWith("chief:") -> nav.navigate("chief/${t.removePrefix("chief:").ifBlank { "latest" }}") { launchSingleTop = true }
                         t == "needs" -> nav.navigate("needs") { launchSingleTop = true }
+                        // A new message in a shared room (room_notice): its notification opens the room.
+                        t.startsWith("room:") -> nav.navigate("room/${t.removePrefix("room:")}") { launchSingleTop = true }
                         // A notification for a reply with one file (the morning paper): open the file itself.
                         t.startsWith(BotFiles.PREFIX) -> app.api.value?.let { api ->
                             scope.launch {
