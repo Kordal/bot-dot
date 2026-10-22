@@ -46,6 +46,23 @@ test('web: after an update the unseen notes show newest first with one button, a
   assert.match(p.modal.html, /data-dismiss>Got it<\/button>/);
 });
 
+test('web: every note comes (#380): past the newest three, titles that open, under a count', async () => {
+  const many = Array.from({ length: 12 }, (_, i) => ({ id: `2026-10-${String(30 - i).padStart(2, '0')}-n`, title: `Note ${i + 1} <i>`, points: [`Point of ${i + 1}`, 'More'] }));
+  const p = page({ entries: many });
+  await p.ctx.showWhatsNew();
+  assert.match(p.modal.html, /12 changes, newest first/);
+  assert.equal((p.modal.html.match(/<section>/g) || []).length, 3, 'the newest three in full');
+  assert.equal((p.modal.html.match(/<details>/g) || []).length, 9, 'the other nine as titles that open');
+  assert.match(p.modal.html, /<summary>Note 12 &lt;i&gt;<\/summary><ul><li>Point of 12<\/li>/);
+  assert.ok(p.modal.html.indexOf('Note 3 ') < p.modal.html.indexOf('<details>'), 'newest first');
+  p.modal.close();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(JSON.stringify(p.calls.at(-1)[1].body), JSON.stringify({ id: '2026-10-30-n' }), 'all of them seen');
+  const few = page();
+  await few.ctx.showWhatsNew();
+  assert.doesNotMatch(few.modal.html, /changes, newest first|<details>/, 'two notes: both in full, no count');
+});
+
 test('web: closing it (Got it, ✕ or Escape all close the dialog) marks the newest note seen', async () => {
   const p = page();
   await p.ctx.showWhatsNew();

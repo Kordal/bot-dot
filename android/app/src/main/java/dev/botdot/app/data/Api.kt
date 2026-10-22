@@ -195,7 +195,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     // ---------- version, bots, runs ----------
 
-    /** What's new (#219): the notes this account has not seen, newest first, at most 3. Asked only when `features` has `whats-new`. */
+    /** What's new (#219): the notes this account has not seen, newest first, every one (#380). Asked only when `features` has `whats-new`. */
     suspend fun whatsNew(): List<WhatsNew.Entry> = WhatsNew.shown(json.decodeFromString<WhatsNew.Answer>(get("/whats-new")))
     /** The What's new dialog was closed: these notes count as seen, here and on the web page. */
     suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) { send("POST", "/whats-new/seen", WhatsNew.seenBody(entries)) }
@@ -486,6 +486,9 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun saveSettings(s: AppSettings): SettingsInfo = json.decodeFromString(send("PUT", "/settings", json.encodeToJsonElement(s) as JsonObject))
     /** The Chief's checkup; null from a server that answered without it. Only with `checkup` in its features. */
     suspend fun checkup(): Checkup? = Checkup.answer(get("/settings/checkup"))
+    /** The Chief's lasting grants of one kind (ChiefGrant), and Revoke of one: a refusal throws the server's words. */
+    suspend fun chiefGrants(kind: ChiefGrant.Kind): List<ChiefGrant> = ChiefGrant.of(kind, get(kind.path))
+    suspend fun revokeChiefGrant(g: ChiefGrant): List<ChiefGrant> = ChiefGrant.of(g.kind, send("DELETE", g.kind.path, buildJsonObject { put(g.kind.key, g.id) }))
     /** Switches one of the checkup's two switches ([field]: "on" or "webSearch"); a refusal throws the server's words. */
     suspend fun setCheckup(field: String, value: Boolean): Checkup? = Checkup.answer(send("PUT", "/settings/checkup", buildJsonObject { put(field, value) }))
     suspend fun setup(): SetupInfo = json.decodeFromString(get("/setup?fresh"))

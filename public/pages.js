@@ -2,6 +2,8 @@
 // in its settings, opened in the document viewer (viewer.js) with who made it and when it was updated, and "Keep up
 // to date": the owner's tap makes a job that rewrites it, with no card to approve. Only from a server with `pages`.
 // Every bot's pages in one list (#361): the Pages view, opened from Settings, from a server with `pages-all`.
+// The Chief's pages (#384), from a server with `chief-pages`: the same routes and viewer with the id `chief`, a chip
+// under its reply, a list in its settings, and a row in the Pages view that opens beside its chat.
 
 const Pages = (() => {
   const ICON = {
@@ -10,7 +12,9 @@ const Pages = (() => {
   };
   const shows = () => (state.features || []).includes('pages');
   const src = (botId, slug) => `/bots/${encodeURIComponent(botId)}/pages/${encodeURIComponent(slug)}`;
-  const botName = (id) => (state.bots || []).find((b) => b.id === id)?.name || '';
+  const CHIEF = 'chief';
+  const showsChief = () => shows() && (state.features || []).includes('chief-pages');
+  const botName = (id) => (id === CHIEF ? chiefName() : (state.bots || []).find((b) => b.id === id)?.name || '');
   const updated = (p) => `updated ${ago(p.updatedAt)}`;
 
   // What opens a page in the viewer: a link with data-view, as every file the viewer opens.
@@ -19,7 +23,7 @@ const Pages = (() => {
   // The chips under a reply: the pages its run saved.
   function chipsHTML(run) {
     const list = Array.isArray(run?.pages) ? run.pages.filter((p) => p && typeof p.slug === 'string') : [];
-    if (!list.length || !shows() || !state.features.includes('document-viewer')) return '';
+    if (!list.length || !shows() || !state.features.includes('document-viewer') || (run.botId === CHIEF && !showsChief())) return '';
     return `<div class="bubble-files">${list.map((p) => `<a class="page-chip" ${attrs(run.botId, p)} title="Open ${esc(p.title)}"><span class="pg-icon">${ICON.page}</span><span class="pg-text"><b>${esc(p.title)}</b><span>Page</span></span></a>`).join('')}</div>`;
   }
 
@@ -40,7 +44,7 @@ const Pages = (() => {
     if (!box) return;
     let pages;
     try { pages = (await api(`/bots/${encodeURIComponent(b.id)}/pages`)).pages; } catch { box.innerHTML = '<span class="faint">Couldn\'t load its pages.</span>'; return; }
-    if (!pages.length) { box.innerHTML = `<span class="faint">None yet. Ask ${esc(b.name)} for a page, a report or an overview.</span>`; return; }
+    if (!pages.length) { box.innerHTML = `<span class="faint">None yet. Ask ${esc(b.name || botName(b.id))} for a page, a report or an overview.</span>`; return; }
     box.innerHTML = pages.map((p) => `<a class="pg-row" ${attrs(b.id, p)}><span class="pg-icon">${ICON.page}</span><span class="pg-text"><b>${esc(p.title)}</b><span>${esc(updated(p))}${p.keep ? ` · ${esc(p.keep.when)}` : ''}</span></span>${p.keep ? '<span class="pg-live" aria-label="Keeps up to date"></span>' : ''}</a>`).join('');
   }
 
@@ -111,7 +115,7 @@ const Pages = (() => {
       : '<div class="card empty" style="padding:36px 20px">No pages yet. Ask a bot for a page, a report or an overview: it shows here, and under the bot\'s reply.</div>'}`;
   }
   function openPage(p) {
-    setView('bot', p.botId);
+    if (p.botId === CHIEF) setView('chief'); else setView('bot', p.botId);
     DocViewer.open({ src: src(p.botId, p.slug), name: p.title, from: p.bot, page: { botId: p.botId, slug: p.slug } });
   }
   async function renderAll() {
@@ -136,8 +140,10 @@ const Pages = (() => {
     DocViewer.pageChanged(d.botId, d.slug);
     const list = $('#page-list');
     if (list && $('#view-botsettings')?.dataset.bot === d.botId) drawList({ id: d.botId, name: botName(d.botId) }, list);
+    const own = $('#chief-page-list');
+    if (own && d.botId === CHIEF) drawList({ id: CHIEF, name: chiefName() }, own);
     if (state.view === 'pages') renderAll();
   }
 
-  return { chipsHTML, subtitle, barHTML, drawList, openKeep, act, changed, shows, showsAll, allHTML, renderAll, openPage };
+  return { chipsHTML, subtitle, barHTML, drawList, openKeep, act, changed, shows, showsAll, showsChief, allHTML, renderAll, openPage, CHIEF };
 })();

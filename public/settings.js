@@ -132,6 +132,7 @@ async function setCheckup(key, value) {
 function renderChiefSettings() {
   const root = $('#view-chiefsettings');
   if (root.dataset.ready) renderChatList();
+  if (root.dataset.ready && !root.dataset.always) loadChiefAlways(root);
   if (!state.settings || root.dataset.ready) return;
   root.dataset.ready = '1';
   const s = state.settings;
@@ -151,11 +152,25 @@ function renderChiefSettings() {
         <div class="grow"><b>Your skills for it</b><div class="faint">From your library, beside its own. Only you change them.</div><div id="chief-skill-picks"><span class="faint">Loading…</span></div></div>
         <span class="faint bs-chev">›</span>
       </div>
-    </div>${CHECKUP_HTML}
+      <div class="bs-row hidden" id="chief-always">
+        <span class="bs-icon">✓</span>
+        <div class="grow"><b>Always approved</b><div class="faint">What you said to always allow on its cards. Revoke one and it asks you again.</div><div id="chief-always-picks"></div></div>
+        <span class="faint bs-chev">›</span>
+      </div>
+    </div>${typeof Pages !== 'undefined' && Pages.showsChief() ? `
+    <h3 class="page-sub">Pages</h3>
+    <div class="card settings-card bs-rows">
+      <div class="bs-row" id="chief-pages">
+        <span class="bs-icon">📄</span>
+        <div class="grow"><b>Its pages</b><div class="faint">Reports, memos and overviews it made for you. Open one to keep it up to date.</div><div id="chief-page-list" class="pg-list"><span class="faint">Loading…</span></div></div>
+      </div>
+    </div>` : ''}${CHECKUP_HTML}
     <h3 class="page-sub">Previous chats</h3>
     <div class="card settings-card settings-links" id="chief-chats"></div>`;
   renderChatList();
   drawChiefSkills(root);
+  loadChiefAlways(root);
+  if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefName() }, $('#chief-page-list', root)); // public/pages.js (#384)
   $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
   loadCheckup();
   const form = $('#chief-form', root);
@@ -169,6 +184,36 @@ function renderChiefSettings() {
       toast('Saved. The Chief uses it from its next reply.');
     } catch (err) { toast(err.message, true); }
   };
+}
+
+// The Chief's lasting grants, "Always allow" on its cards (#381): the actions in connected apps (ADR 047) and the
+// types of change after the web (ADR 055), from a server that has each. Asked again each time its settings open
+// (the Chief may have removed one by chat, a card may have added one); hidden while there is none. app.js
+// clears root.dataset.always while they are closed.
+const CHIEF_ALWAYS = [
+  { feature: 'chief-connectors', path: '/chief/connector-actions', key: 'action', desc: 'In a connected app, with any details.',
+    list: (r) => (r.grants || (r.actions || []).map((action) => ({ action, label: action }))).map((g) => ({ id: g.action, label: g.label })) },
+  { feature: 'more-always', path: '/chief/after-web', key: 'type', desc: 'Also after it read the web in a chat.',
+    list: (r) => (r.types || []).map((t) => ({ id: t.type, label: t.label[0].toUpperCase() + t.label.slice(1) })) },
+];
+async function loadChiefAlways(root) {
+  root.dataset.always = '1';
+  const row = $('#chief-always', root);
+  const kinds = CHIEF_ALWAYS.filter((k) => state.features.includes(k.feature));
+  const lists = await Promise.all(kinds.map((k) => api(k.path).then(k.list).catch(() => [])));
+  const items = kinds.flatMap((k, i) => lists[i].map((x) => ({ ...x, id: `${k.path} ${x.id}`, desc: k.desc })));
+  row.classList.toggle('hidden', !items.length);
+  if (!items.length) return;
+  const on = new Set(items.map((x) => x.id));
+  foldPicker($('#chief-always-picks', root), items, on, () => {}, {
+    action: { label: 'Revoke', run: async (id) => {
+      const k = CHIEF_ALWAYS.find((x) => id.startsWith(`${x.path} `));
+      try { await api(k.path, { method: 'DELETE', body: { [k.key]: id.slice(k.path.length + 1) } }); } catch (e) { toast(e.message, true); return false; }
+      toast('Revoked: it asks you again');
+      if (on.size <= 1) row.classList.add('hidden');
+      return true;
+    } },
+  });
 }
 
 // The library skills you gave the Chief (settings.chiefSkills): ticked as a bot's are in its settings, saved at once.
@@ -371,8 +416,7 @@ async function loadUpdateCard() {
 
 function updateNotesHTML(u) {
   if (!u.ready || !updateNotes.length) return '';
-  return `<div class="whats-new update-notes"><h3 class="page-sub">What's new</h3>${updateNotes.map((e) => `
-        <section><h3>${esc(e.title)}</h3><ul>${e.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></section>`).join('')}</div>`;
+  return `<div class="whats-new update-notes"><h3 class="page-sub">What's new</h3>${whatsNewNotesHTML(updateNotes)}</div>`;
 }
 
 function updateCardText(u) {

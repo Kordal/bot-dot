@@ -64,4 +64,11 @@ class WhatsNewTest {
         val body = Api.JSON.parseToJsonElement(r.body!!.utf8()).jsonObject
         assertEquals("2026-10-21-b", body["id"]!!.jsonPrimitive.content)
     }
+
+    @Test fun everyNoteComesTheNewestThreeOpenTheRestAsTitles() {
+        val many = (1..12).map { WhatsNew.Entry("2026-10-${30 - it}-n", "Note $it") }
+        assertEquals("12 changes, newest first. Tap a title for more.", WhatsNew.countLine(many))
+        assertEquals(listOf(true, true, true, false), (0..3).map { WhatsNew.openAtFirst(it) })
+        assertEquals(null, WhatsNew.countLine(many.take(3)))
+    }
 }

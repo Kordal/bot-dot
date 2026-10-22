@@ -154,7 +154,7 @@ test("a write waits for the owner's card inside the turn: Allow once, Decline an
   const always = await card(srv, [first.id, second.id]);
   assert.deepEqual((await answer(srv, always, { yes: true, always: true })).data, { ok: true });
   assert.equal(said(await third), '{"done":true}');
-  assert.deepEqual((await srv.api('/chief/connector-actions')).data, { actions: ['gmail:GMAIL_SEND_EMAIL'] });
+  assert.deepEqual((await srv.api('/chief/connector-actions')).data, { actions: ['gmail:GMAIL_SEND_EMAIL'], grants: [{ action: 'gmail:GMAIL_SEND_EMAIL', label: 'Send email with Gmail' }] });
   assert.equal(said(await send({ ...MAIL, subject: 'Third' })), '{"done":true}', 'goes through with any arguments');
   assert.deepEqual(app.executed.slice(before + 1).map((x) => x.args.subject), ['Running very late', 'Third']);
   const bot = await makeBot(srv, { name: 'Mailer', emoji: '📮', connectors: ['gmail'] });
@@ -166,13 +166,13 @@ test("a write waits for the owner's card inside the turn: Allow once, Decline an
   await answer(srv, botCard, { yes: true, always: true });
   await botCall;
   srv.release(run.rec);
-  assert.deepEqual((await srv.api('/chief/connector-actions')).data, { actions: ['gmail:GMAIL_SEND_EMAIL'] });
+  assert.deepEqual((await srv.api('/chief/connector-actions')).data, { actions: ['gmail:GMAIL_SEND_EMAIL'], grants: [{ action: 'gmail:GMAIL_SEND_EMAIL', label: 'Send email with Gmail' }] });
   assert.deepEqual((await srv.api(`/bots/${bot.id}/connector-actions`)).data, ['gmail:GMAIL_SEND_EMAIL']);
 
   // The Chief lists its grants and removes one by chat; it cannot add one. The next call waits again.
-  assert.deepEqual(JSON.parse(said(await rpcClient(t, 'mcp-server.js', turn.rec.botdot.env).call('connector_grants', {}))), { actions: ['gmail:GMAIL_SEND_EMAIL'] });
+  assert.deepEqual(JSON.parse(said(await rpcClient(t, 'mcp-server.js', turn.rec.botdot.env).call('connector_grants', {}))), { actions: ['gmail:GMAIL_SEND_EMAIL'], grants: [{ action: 'gmail:GMAIL_SEND_EMAIL', label: 'Send email with Gmail' }] });
   const removed = await srv.asChief('/chief/connector-actions', { method: 'DELETE', body: { action: 'gmail:GMAIL_SEND_EMAIL' } });
-  assert.deepEqual([removed.status, removed.data], [200, { ok: true, actions: [] }]);
+  assert.deepEqual([removed.status, removed.data], [200, { ok: true, actions: [], grants: [] }]);
   assert.equal((await srv.asChief('/chief/connector-actions', { method: 'DELETE', body: { action: 'gmail:GMAIL_SEND_EMAIL' } })).status, 404);
   assert.equal((await srv.asChief('/chief/connector-actions', { method: 'POST', body: { action: 'gmail:GMAIL_SEND_EMAIL' } })).status, 403, 'no route adds one');
   assert.deepEqual((await srv.api(`/bots/${bot.id}/connector-actions`)).data, ['gmail:GMAIL_SEND_EMAIL'], "the bot's grant stays");

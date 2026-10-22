@@ -220,7 +220,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'room-settings', 'room-runs'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -410,7 +410,7 @@ const CHIEF_ROUTES = [
   ['GET', /^bots\/[^/]+\/(computer\/(status|logs)|files)$/],
   ['GET', /^computer\/status$/],
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
-  ['POST', /^(bots|skills|asks|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|connectors\/session\/(actions|run|wait))$/],
+  ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|connectors\/session\/(actions|run|wait))$/],
   ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['PUT', /^(bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
   ['DELETE', /^(chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
@@ -423,14 +423,15 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // was asked, and is done on their yes (doHeldAction). Reading is free, and so is what is a request to the owner
 // already or is guarded on its own: asking for a skill or a tool (a card), asking for a login (a card), asking for a
 // reset of the account's computer (a card of its own, lib/routes/computers.js), the
-// Chief's notes (they are "outside" after a read and a forget waits, ADR 017), a task for a bot (it starts as a run
+// Chief's notes (they are "outside" after a read and a forget waits, ADR 017), the Chief's own pages (a page from
+// the web is what a page is for, and it changes nothing else, ADR 069), a task for a bot (it starts as a run
 // that read the web, so the bot's own guards hold it, ADR 066), stopping a run, the checkup's
 // proposals (the owner picks them), and the steer hook reading the owner's own messages (ADR 040). A new SSH key
 // (vault/ssh-keys) and a change to one (vault/:id) wait too, but their routes hold them themselves, after their own
 // refusals, so a call they refuse never becomes a card (lib/routes/vault.js).
 // A connected app's actions follow their own grants (ADR 047): a write waits on its own card, and an "Always allow"
 // lets it through also after the web. Removing a lasting grant of the Chief's only takes trust away.
-const FREE_AFTER_WEB = /^(asks|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
+const FREE_AFTER_WEB = /^(asks|chief\/pages|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'));
 // What the held request does, as the title of its card: "Make the bot “Leaker”", "Give Scout a task".
 function heldTitle(method, parts, body) {

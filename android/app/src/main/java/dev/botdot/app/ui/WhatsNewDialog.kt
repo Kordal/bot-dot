@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
@@ -8,10 +9,15 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.WhatsNew
 
 /**
@@ -35,10 +41,17 @@ fun WhatsNewDialog(entries: List<WhatsNew.Entry>, onClose: () -> Unit) {
 /** The notes as the dialog draws them: also under Settings → Updates while a version waits (#303). */
 @Composable
 fun WhatsNewEntries(entries: List<WhatsNew.Entry>, color: Color = Color.Unspecified) {
+    val p = LocalPaper.current
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        for (e in entries) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(e.title, color = color, fontWeight = FontWeight.SemiBold)
-            for (point in e.points) Text("•  $point", color = color)
+        WhatsNew.countLine(entries)?.let { Text(it, color = p.muted, fontSize = 13.sp) }
+        entries.forEachIndexed { i, e ->
+            // Past the newest few (#380): the title alone, its points on a tap.
+            var open by remember(e.id) { mutableStateOf(WhatsNew.openAtFirst(i)) }
+            val title = if (WhatsNew.openAtFirst(i)) Modifier else Modifier.clickable { open = !open }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(if (WhatsNew.openAtFirst(i)) e.title else (if (open) "▾  " else "▸  ") + e.title, color = color, fontWeight = FontWeight.SemiBold, modifier = title)
+                if (open) for (point in e.points) Text("•  $point", color = color)
+            }
         }
     }
 }

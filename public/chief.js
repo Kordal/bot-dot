@@ -434,13 +434,15 @@ const chiefQueued = new Map();
 // bubble as under a bot's own message, under the text and above the problem, and alone when the reply has no words.
 function chiefBubble(m, last = false, index = null) {
   const files = !m.pending && Array.isArray(m.files) && m.files.length ? botFilesHTML(m.files) : '';
+  // The pages it saved in this reply (#384, public/pages.js), as under a bot's reply.
+  const pages = !m.pending && typeof Pages !== 'undefined' ? Pages.chipsHTML({ botId: 'chief', pages: m.pages }) : '';
   const body = m.pending
     ? '' // its draft, from a server that has drafts, is drawn in its place as it grows (followChief)
     : m.error && !m.text
       ? `<div class="md">${md(m.error)}</div>${files}`
       : m.text
-        ? `<div class="md">${md(m.text)}</div>${index != null && !m.error ? globalThis.docButton?.({ chat: state.chatId, at: index }, m.text) || '' : ''}${files}${m.error ? `<div class="problem-line"><div class="md">${md(m.error)}</div></div>` : ''}`
-        : files;
+        ? `<div class="md">${md(m.text)}</div>${index != null && !m.error ? globalThis.docButton?.({ chat: state.chatId, at: index }, m.text) || '' : ''}${files}${pages}${m.error ? `<div class="problem-line"><div class="md">${md(m.error)}</div></div>` : ''}`
+        : files + pages;
   // Its plan, folded under the reply (plan.js); a stopped or failed reply's stands above the message box instead.
   const plan = !m.pending && globalThis.Plan && m.plan && !(last && chiefStopped(m)) ? Plan.replyHTML(m.plan) : '';
   return `

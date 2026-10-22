@@ -1,5 +1,5 @@
 // What's new (#219): the notes in whats-new/ (a title and 2 to 4 points each), shown once per account after an update
-// that brings one, newest first and at most 3; a new account and a server that just got What's new have seen all.
+// that brings one, newest first, every one (#380); a new account and a server that just got What's new have seen all.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -38,7 +38,7 @@ test('a note with no title, 1 point or 5 points is refused; a good one reads as 
   assert.deepEqual(whatsNew.parse('# Faster replies\r\n\r\n- One <b>bold</b>\n-  Two  \n'), { title: 'Faster replies', points: ['One <b>bold</b>', 'Two'] });
 });
 
-test('unseen notes: none at first, then the new ones newest first and at most 3, until seen', () => {
+test('unseen notes: none at first, then every new one newest first, until seen', () => {
   const dir = tmp(), dataDir = tmp();
   write(dir, '2026-10-01-old');
   fs.writeFileSync(path.join(dir, 'README.md'), 'not a note');
@@ -46,7 +46,7 @@ test('unseen notes: none at first, then the new ones newest first and at most 3,
   for (const d of ['02', '03', '04', '05', '06']) write(dir, `2026-10-${d}-new`); // nobody asked before the update
   assert.deepEqual(whatsNew.create({ dir: tmp(), dataDir: tmp() }).unseen(), [], 'a new account has seen the notes up to now');
   write(dir, '2026-10-07-broken', note('Broken', 5));
-  assert.deepEqual(w.unseen().map((n) => n.id), ['2026-10-06-new', '2026-10-05-new', '2026-10-04-new']);
+  assert.deepEqual(w.unseen().map((n) => n.id), ['2026-10-06-new', '2026-10-05-new', '2026-10-04-new', '2026-10-03-new', '2026-10-02-new'], 'none left out (#380)');
   assert.deepEqual(w.unseen()[0], { id: '2026-10-06-new', title: 'Note 2026-10-06-new', points: ['Point 1', 'Point 2', 'Point 3'] });
   w.seen('2026-10-06-new');
   assert.deepEqual(w.unseen(), []);

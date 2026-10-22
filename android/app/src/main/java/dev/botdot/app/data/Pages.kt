@@ -23,6 +23,14 @@ object Pages {
     const val FEATURE_ALL = "pages-all"
     fun showsAll(features: Collection<String>?): Boolean = shows(features) && FEATURE_ALL in features!!
 
+    /**
+     * The Chief's pages (#384, ADR 069): at a bot's page routes with this id, from a server whose `features` also name
+     * `chief-pages`: a chip under its reply, a list in its settings, a row on the Pages screen.
+     */
+    const val CHIEF = "chief"
+    const val FEATURE_CHIEF = "chief-pages"
+    fun showsChief(features: Collection<String>?): Boolean = shows(features) && FEATURE_CHIEF in features!!
+
     /** The Pages screen's two sections: the pages kept up to date, then the others, each newest first as the server lists them. */
     fun split(pages: List<PageInfo>): Pair<List<PageInfo>, List<PageInfo>> = pages.partition { it.keep != null }
 

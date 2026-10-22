@@ -9,7 +9,7 @@ function page({ features = ['document-viewer', 'pages'], answers = {} } = {}) {
   const calls = [];
   const ctx = vm.createContext({
     state: { features, bots: [{ id: 'ops', name: 'Ops' }], view: 'bot', botId: 'ops' },
-    esc, encodeURIComponent, ago: () => '5m ago', toast() {}, DocViewer: { pageChanged() {} }, SUB_BACK: '',
+    esc, encodeURIComponent, ago: () => '5m ago', chiefName: () => 'Kai', toast() {}, DocViewer: { pageChanged() {} }, SUB_BACK: '',
     api: async (p, opts = {}) => { calls.push([p, opts.method || 'GET', opts.body]); return answers[p] ?? {}; },
   });
   vm.runInContext(`${read('pages.js')}\nthis.Pages = Pages;`, ctx);
@@ -80,4 +80,17 @@ test('web: Pages opens from Settings only from a server with pages-all, and has 
   assert.match(read('index.html'), /id="view-pages"/);
   assert.match(read('app.js'), /state\.view === 'pages'\) Pages\.renderAll\(\)/);
   assert.match(read('boot.js'), /'skills', 'pages'/);
+});
+
+test("web: the Chief's pages (#384) open at the bots' page routes with the id chief, by its name, only from a server with chief-pages", async () => {
+  const { Pages, calls } = page({ features: ['document-viewer', 'pages', 'chief-pages'] });
+  const html = Pages.chipsHTML({ botId: 'chief', pages: [{ slug: 'team', title: 'Team' }] });
+  assert.match(html, /data-view="\/bots\/chief\/pages\/team"/);
+  assert.match(html, /data-view-from="Kai"/);
+  assert.equal(page().Pages.chipsHTML({ botId: 'chief', pages: [{ slug: 'team', title: 'Team' }] }), '', 'a server without chief-pages');
+  await Pages.act('refresh', 'chief', { slug: 'team', keep: { jobId: 'page-team' } }, 'Kai');
+  assert.deepEqual(calls.at(-1).slice(0, 2), ['/bots/chief/jobs/page-team/run', 'POST']);
+  // Under its reply, and as a list in its settings.
+  assert.match(read('chief.js'), /Pages\.chipsHTML\(\{ botId: 'chief', pages: m\.pages \}\)/);
+  assert.match(read('settings.js'), /id="chief-page-list"/);
 });
