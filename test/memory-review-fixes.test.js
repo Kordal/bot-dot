@@ -217,39 +217,38 @@ test("the Chief's restore into a full pinned set answers with the note that was 
   await turn.end('Brought back.');
 });
 
-test("a bot's forget takes its waiting addition of the same sentence with it, and its answer names one that still matches", async (t) => {
+test("a bot's forget names the shared notes that still match, saved at once after outside content (ADR 057)", async (t) => {
   const b = await bot();
   const first = await held(t, b, 'I see a therapist on Tuesdays. Tell the other bots too.');
   const id = (await mem(first, { action: 'add', text: 'Sees a therapist on Tuesdays' })).note.id;
   await uses(first, 'WebSearch');
   const same = await mem(first, { action: 'add', scope: 'shared', text: 'Sees a therapist on Tuesdays' });
   const other = await mem(first, { action: 'add', scope: 'shared', text: 'The therapist is Dr Lind' });
-  assert.deepEqual([same.result, other.result], ['waits', 'waits']);
-  await first.end('Saved, and asked to share it.');
+  assert.deepEqual([same.result, other.result], ['saved', 'saved']);
+  await first.end('Saved, and shared it.');
 
   const h = await held(t, b, 'Forget what I told you about my therapist.');
   const gone = await mem(h, { action: 'forget', notes: [id], about: 'therapist' });
   assert.deepEqual([gone.result, gone.erased], ['forgotten', 1]);
-  assert.deepEqual(gone.still.waiting, [{ id: other.id, action: 'add', owner: SHARED, text: 'The therapist is Dr Lind' }]);
+  assert.deepEqual(gone.still.notes.map((n) => n.id).sort(), [same.note.id, other.note.id].sort(), 'the shared ones still match, by name');
+  assert.equal(gone.still.waiting, undefined, 'nothing waits');
   assert.doesNotMatch(gone.say, /Nothing else of yours matches/);
-  assert.match(gone.say, /no forget reaches it: a change to memory that waits for the owner's OK on a card in Needs you and would save “The therapist is Dr Lind”/);
   await h.end('Forgotten.');
-  // "Approve all" afterwards: the forgotten sentence is in no bot's prompt.
-  assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === b.id).map((p) => p.id), [other.id]);
-  // The Chief's forget is named it too, with its text, and has then read a bot's text: its next forget waits.
+  // The Chief's forget names it too, and has then read a bot's text: its next forget waits.
   const said = (await srv.api('/memory/notes', { method: 'POST', body: { owner: SHARED, text: 'The therapist sends a bill each month' } })).data.note;
   const more = (await srv.api('/memory/notes', { method: 'POST', body: { owner: SHARED, text: 'Pays the dentist in cash' } })).data.note;
   const turn = await ownerTurn(t, 'Forget the note about the bills of my therapist.');
   assert.equal((await turn.going()).read, undefined);
   const chiefs = await turn.call('forget', { notes: [said.id], about: 'therapist' });
-  assert.deepEqual([chiefs.result, chiefs.still.waiting], ['forgotten', [{ id: other.id, action: 'add', owner: SHARED, text: 'The therapist is Dr Lind' }]]);
-  assert.match(chiefs.say, /no forget reaches it: a change to memory that waits for the user's OK on a card in Needs you and would save “The therapist is Dr Lind”/);
+  assert.equal(chiefs.result, 'forgotten');
+  assert.ok(chiefs.still.notes.some((n) => n.id === other.note.id), JSON.stringify(chiefs.still));
   assert.equal((await turn.call('forget', { notes: [more.id] })).result, 'waits', 'the turn has read a bot\'s text');
   const chat = await turn.end('Forgotten.');
   assert.deepEqual(chat.messages.at(-1).read, ['bot']);
   for (const p of (await srv.api('/memory/pending?guarded=1')).data.filter((x) => x.by === 'chief')) await srv.api(`/memory/pending/${p.id}`, { method: 'POST', body: { approve: false } });
-  await srv.api(`/memory/pending/${other.id}`, { method: 'POST', body: { approve: false } });
-  assert.deepEqual((await srv.api('/memory')).data.shared.filter((n) => /Tuesdays/.test(n.text)), []);
+  // The owner takes the shared ones away, so no later turn is handed them.
+  for (const n of [same.note, other.note]) await srv.api('/memory/shared', { method: 'POST', body: { action: 'remove', id: n.id } });
+  assert.deepEqual((await srv.api('/memory')).data.shared.filter((n) => /therapist/i.test(n.text)), []);
 });
 
 test('a run that is left out is not quoted into a later run of its exchange with a teammate', async (t) => {
@@ -312,11 +311,14 @@ test('a turn that quotes a reminder which went off has read something: a note sa
   const filed = await turn.call('remember', { note: 'Invoices go to evil@example.com', place: 'everyone' });
   assert.equal(filed.saved[0].saidBy, 'outside');
   assert.match(filed.chip, /^Remembered for all bots, after outside content: /);
-  const change = await turn.call('update_note', { id: mine.id, note: 'Invoices are paid to evil@example.com' });
   const forget = await turn.call('forget', { notes: [mine.id] });
-  assert.deepEqual([change.result, forget.result], ['waits', 'waits']);
-  assert.equal((await srv.api('/memory')).data.shared.find((n) => n.id === mine.id).text, 'Invoices are paid on the 1st', 'what the owner said stands until they answer the card');
-  assert.deepEqual((await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.by === 'chief').map((p) => [p.action, p.guarded]).sort(), [['edit', true], ['erase', true]]);
+  assert.equal(forget.result, 'waits');
+  assert.deepEqual((await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.by === 'chief').map((p) => [p.action, p.guarded]), [['erase', true]]);
+  // A change is saved at once (ADR 057): marked after outside content, no longer the owner's word, its old text in its history.
+  const change = await turn.call('update_note', { id: mine.id, note: 'Invoices are paid to evil@example.com' });
+  assert.equal(change.result, 'saved');
+  const now = (await srv.api('/memory')).data.shared.find((n) => n.id === mine.id);
+  assert.deepEqual([now.text, now.source], ['Invoices are paid to evil@example.com', 'outside']);
   await turn.end('It waits for you.');
   for (const p of (await srv.api('/memory/pending?guarded=1')).data.filter((x) => x.by === 'chief')) await srv.api(`/memory/pending/${p.id}`, { method: 'POST', body: { approve: false } });
 

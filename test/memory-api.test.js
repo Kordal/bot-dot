@@ -216,7 +216,7 @@ test('learning cannot be turned down: "learning" from an older app or the Chief 
   assert.equal((await self(srv, token, 'memory', { action: 'add', text: 'ALPACA saved by the bot' })).status, 200);
 });
 
-test('memory review uses its chosen model, sees notes/runs, and shared changes require owner approval', async (t) => {
+test('memory review uses its chosen model, sees notes/runs, saves shared additions and changes at once, and a shared removal requires owner approval', async (t) => {
   const bot = await makeBot(srv, { name: 'Reviewed memory' });
   const old = await finishedRun(srv, bot, 'Review PANGOLIN situation', 'PANGOLIN observations');
   await add(srv, bot.id, 'PANGOLIN pinned owner note');
@@ -236,19 +236,15 @@ test('memory review uses its chosen model, sees notes/runs, and shared changes r
   assert.match(rec.stdin, /don't contact anyone/);
   assert.equal(rec.self.env.SELF_CAN_EDIT, '0');
   assert.match(await tools.text('remember', { note: 'PANGOLIN review lesson' }), /Saved/);
-  assert.match(await tools.text('remember', { note: 'PANGOLIN proposed fact', scope: 'shared' }), /this is your memory review, so a change to the shared memory waits for the owner's OK/);
-  assert.match(await tools.text('update_memory', { id: shared.id, note: 'PANGOLIN changed shared fact', reason: 'Review correction' }), /waits for the owner's OK/);
-  let pending = (await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id);
-  assert.equal(pending.length, 2);
-  assert.equal((await srv.asChief(`/memory/pending/${pending[0].id}`, { method: 'POST', body: { approve: true } })).status, 403);
-  const added = pending.find((p) => p.action === 'add');
-  await srv.api(`/memory/pending/${added.id}`, { method: 'POST', body: { approve: false } });
-  const edited = pending.find((p) => p.action === 'edit');
-  await srv.api(`/memory/pending/${edited.id}`, { method: 'POST', body: { approve: true } });
+  // Shared additions and changes are saved at once (ADR 057); a removal waits.
+  assert.match(await tools.text('remember', { note: 'PANGOLIN proposed fact', scope: 'shared' }), /^Saved to the shared memory/);
+  assert.match(await tools.text('update_memory', { id: shared.id, note: 'PANGOLIN changed shared fact', reason: 'Review correction' }), /^Updated note/);
+  assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id), []);
   assert.equal((await srv.api(`/memory/notes/${shared.id}/history`)).data[0].reason, 'Review correction');
   assert.match(await tools.text('remove_note', { id: shared.id }), /waits for the owner's OK/);
-  pending = (await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id);
+  const pending = (await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id);
   assert.equal(pending.length, 1);
+  assert.equal((await srv.asChief(`/memory/pending/${pending[0].id}`, { method: 'POST', body: { approve: true } })).status, 403);
   await srv.api(`/memory/pending/${pending[0].id}`, { method: 'POST', body: { approve: false } });
   assert.ok((await srv.api('/memory/shared')).data.memory.some((n) => n.id === shared.id));
   srv.release(rec); await srv.finished(r.run.id);
@@ -281,7 +277,8 @@ test('a full server restart retains notes, versions, pending approvals, exclusio
   server.hold();
   const review = (await server.api(`/memory/review/${bot.id}`, { method: 'POST' })).data;
   const rec = await server.nextRun((x) => x.self && x.stdin.includes('This run is your memory review'));
-  await self(server, rec.self.env.RUN_TOKEN, 'memory', { action: 'add', scope: 'shared', text: 'CHINCHILLA pending approval' });
+  const shared = (await self(server, rec.self.env.RUN_TOKEN, 'memory', { action: 'add', scope: 'shared', text: 'CHINCHILLA shared' })).data.note;
+  await self(server, rec.self.env.RUN_TOKEN, 'memory', { action: 'remove', id: shared.id }); // a removal in the review waits
   server.release(rec); await server.finished(review.run.id);
   await server.stop();
   server = await startServer({ dir });

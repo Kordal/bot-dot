@@ -211,17 +211,19 @@ test("in a turn a member handed on, a forget and a change to a note the owner st
   const forget = await mem(handed, { action: 'forget', notes: [code.id], about: 'gate code' });
   assert.deepEqual([forget.result, forget.erased], ['waits', undefined], JSON.stringify(forget));
   assert.match(forget.say, /^Not done: a forget erases for good, and this run has read outside content\. It waits for the owner on a card in Needs you \("Forget for good" or "Keep"\)\. Nothing is erased until then\./);
-  const edit = await mem(handed, { action: 'edit', id: pnpm.id, text: 'The owner uses npm now.' });
-  assert.equal(edit.result, 'waits', JSON.stringify(edit));
   const removal = await mem(handed, { action: 'remove', id: pnpm.id });
   assert.equal(removal.result, 'waits', JSON.stringify(removal));
-  // Three cards, each guarded and the group's; an app that does not ask for guarded changes is sent none of them.
+  // Two cards, each guarded and the group's; an app that does not ask for guarded changes is sent none of them.
   const cards = (await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.botId === coder.id);
-  assert.deepEqual(cards.map((p) => [p.action, p.guarded, p.groupId]).sort(), [['edit', true, group.id], ['erase', true, group.id], ['remove', true, group.id]].sort());
+  assert.deepEqual(cards.map((p) => [p.action, p.guarded, p.groupId]).sort(), [['erase', true, group.id], ['remove', true, group.id]].sort());
   assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === coder.id), []);
-  // Nothing is erased and nothing changed: both notes stand as the owner said them.
-  const notes = (await srv.api('/memory')).data.bots.find((b) => b.id === coder.id).notes;
-  assert.deepEqual(notes.filter((n) => [code.id, pnpm.id].includes(n.id)).map((n) => [n.text, n.source]).sort(), [['The gate code is MAGNOLIA.', 'owner'], ['The owner always uses pnpm.', 'owner']]);
+  // Nothing is erased: both notes stand as the owner said them.
+  const notesNow = async () => (await srv.api('/memory')).data.bots.find((b) => b.id === coder.id).notes.filter((n) => [code.id, pnpm.id].includes(n.id)).map((n) => [n.text, n.source]).sort();
+  assert.deepEqual(await notesNow(), [['The gate code is MAGNOLIA.', 'owner'], ['The owner always uses pnpm.', 'owner']]);
+  // A change is saved at once (ADR 057), and the note is then no longer the owner's word.
+  const edit = await mem(handed, { action: 'edit', id: pnpm.id, text: 'The owner uses npm now.' });
+  assert.equal(edit.result, 'saved', JSON.stringify(edit));
+  assert.deepEqual(await notesNow(), [['The gate code is MAGNOLIA.', 'owner'], ['The owner uses npm now.', 'outside']]);
   // And what it saves itself is not the owner's word.
   assert.equal((await mem(handed, { action: 'add', scope: 'self', text: 'Writer says the owner uses npm.' })).note.source, 'outside');
   letGo(srv, coder);

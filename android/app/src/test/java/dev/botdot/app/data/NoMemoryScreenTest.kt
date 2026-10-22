@@ -94,18 +94,6 @@ class NoMemoryScreenTest {
         assertEquals("Forget for good", memoryCard(change(forget), null).title)
     }
 
-    // "Always allow for this bot" (#280): the server's second yes and its question, on an addition and a change only.
-    @Test fun theCardHasTheServersAlwaysWhereItSendsOne() {
-        val always = ""","always":"Always allow for this bot","alwaysAsk":"Let this bot add and change shared notes without asking?"}"""
-        val withIt = { json: String -> memoryCard(change(json.trimEnd().removeSuffix("}") + always), now) }
-        assertEquals("Always allow for this bot", withIt(add).always)
-        assertEquals("Let this bot add and change shared notes without asking?", withIt(add).alwaysAsk)
-        assertEquals("Always allow for this bot", withIt(edit).always)
-        assertNull("a removal never has it", withIt(remove).always)
-        assertNull("a guarded change never has it", withIt(changeSaid).always)
-        assertNull(memoryCard(change(add), now).always)
-    }
-
     @Test fun againstAServerThatDoesNotAnnounceTheCardsTheCardReadsAsToday() {
         val older = { json: String -> memoryCard(change(json), before) }
         assertEquals(MemoryCard("Add to the shared memory", "after reading outside content · said in a mail", null, "The owner flies from Brussels.", "Approve", "Decline"), older(add))

@@ -291,7 +291,6 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                 items(memory.filter { m -> decided.none { it.key == "m:${m.id}" } }, key = { "m:${it.id}" }) { m ->
                     val card = memoryCard(m, features)
                     MemoryApproval(card, memWho(m),
-                        onAlways = { decide("m:${m.id}", memWho(m), card.title, true, "Always allowed") { api!!.settleMemoryChange(m.id, true, always = true) } },
                         onApprove = { decide("m:${m.id}", memWho(m), card.title, true) { api!!.settleMemoryChange(m.id, true) } },
                         onDecline = { decide("m:${m.id}", memWho(m), card.title, false) { api!!.settleMemoryChange(m.id, false) } })
                 }
@@ -443,7 +442,6 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
         mems.forEach { m ->
             val card = memoryCard(m, features)
             MemoryApproval(card, if (group != null) whoOf(bots.firstOrNull { it.id == m.botId }) else null,
-                onAlways = { decide("m:${m.id}", card.title, true, "Always allowed") { api!!.settleMemoryChange(m.id, true, always = true) } },
                 onApprove = { decide("m:${m.id}", card.title, true) { api!!.settleMemoryChange(m.id, true) } },
                 onDecline = { decide("m:${m.id}", card.title, false) { api!!.settleMemoryChange(m.id, false) } })
         }
@@ -1026,17 +1024,14 @@ private fun TileApproval(who: Named?, t: Tile, then: String?, onApprove: () -> U
  * block, what goes above what comes, so that a closed card shows the start of both.
  */
 @Composable
-private fun MemoryApproval(card: MemoryCard, who: Named?, onAlways: () -> Unit, onApprove: () -> Unit, onDecline: () -> Unit) {
-    // "Always allow for this bot" (#280), where the server offers it: it asks first, in the server's words.
-    var asking by remember(card) { mutableStateOf(false) }
-    if (asking) AlwaysQuestion(card.alwaysAsk ?: "${card.always}?", card.always ?: "") { asking = false; if (it) onAlways() }
+private fun MemoryApproval(card: MemoryCard, who: Named?, onApprove: () -> Unit, onDecline: () -> Unit) {
     Card(who, card.title, card.meta, expandable = true) {
         if (card.was != null && card.now.isNotEmpty() && card.oneBlock) WasNow(card.was, card.now)
         else {
             if (card.was != null) Body(card.was)
             if (card.now.isNotEmpty()) Body(card.now)
         }
-        Buttons(card.yes, onApprove, card.no, onDecline, onAlways = card.always?.let { { asking = true } }, alwaysLabel = card.always ?: "Always approve")
+        Buttons(card.yes, onApprove, card.no, onDecline)
     }
 }
 

@@ -259,7 +259,7 @@ test('web: the Needs-you card and the always-approved list show the words', () =
   const html = box.needCardHTML({ kind: 'job', key: 'job:j1', bot: { id: 'b1', name: 'Probe' }, job });
   assert.match(html, /<div class="need-meta">Mondays at 10:00 · a script, no AI · added by the Chief<\/div>/);
   assert.ok(!html.includes('0 10 * * 1'), 'no cron on the card');
-  assert.match(app, /desc: j\.line \|\| jobLine\(j\) \}\)\), trustedOn/, 'the always-approved list of the bot\'s settings');
+  assert.match(app, /desc: jobLine\(j\) \}\)\), trustedOn/, 'the always-approved list of the bot\'s settings');
 });
 
 // A stand-in for a job card: every element asked for exists, and keeps what is written to it.

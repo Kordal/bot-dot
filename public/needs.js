@@ -138,7 +138,7 @@ function needCardHTML(x, here = null) {
     const was = said(p.current?.text), now = said(p.text);
     return card(esc(said(p.title)), [shortTime(p.at), said(p.meta), said(p.reason)].filter(Boolean).map(esc).join(' · '),
       p.action === 'edit' ? changeBlock(was, now, 'div') : `<div class="need-body"><div class="nb">${esc(p.action === 'remove' ? was : now)}</div></div>`,
-      `<button class="btn sm" data-need-no>${esc(said(p.no))}</button>${said(p.always) ? `<button class="btn sm" data-need-always>${esc(said(p.always))}</button>` : ''}<button class="btn sm primary" data-need-yes>${esc(said(p.yes))}</button>`);
+      `<button class="btn sm" data-need-no>${esc(said(p.no))}</button><button class="btn sm primary" data-need-yes>${esc(said(p.yes))}</button>`);
   }
   if (x.kind === 'ask' && x.a.kind === 'permission') return card(`Let it ${esc(x.a.what?.label || x.a.permission)}?`, x.a.reason ? esc(x.a.reason) : '',
     `<div class="need-body"><div class="nb">${esc((x.a.what?.hint || '').replace(/^./, (c) => c.toUpperCase()))}. It can't until you allow it; you can change this in its settings.</div></div>`,
@@ -450,7 +450,7 @@ function wireNeedCards(root, items) {
     // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a yes that turns on a call or
     // a notify address says "Creating connection…" with a spinner.
     if (yes) yes.onclick = () => whileApproving(yes, x.job, () => decide(x, true));
-    if (always) always.onclick = () => { if (x.kind === 'memory') { if (confirm(said(x.p.alwaysAsk) || `${said(x.p.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'chief-action') { if (confirm(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(x.a.chief ? `Allow this exact connector action for ${CHIEF_BOT.name} from now on, with any arguments?` : 'Allow this exact connector action for this bot in future runs, with any arguments?')) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
+    if (always) always.onclick = () => { if (x.a?.kind === 'chief-action') { if (confirm(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(x.a.chief ? `Allow this exact connector action for ${CHIEF_BOT.name} from now on, with any arguments?` : 'Allow this exact connector action for this bot in future runs, with any arguments?')) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => { if (!asksBeforeNo(x) || confirm('Remove this job?')) whileBusy(no, 'Declining…', () => decide(x, false)); };
     if (op) op.onclick = () => openNeed(x);
     el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
@@ -567,7 +567,7 @@ async function decide(x, yes, redraw = true, always = false) {
     else if (x.kind === 'tilesug') { answer = await api(`/dashboard/suggestions/${x.s.id}`, { method: 'POST', body: { add: yes } }); loadDash(true); }
     // A bot's plan: Approve answers it in its Chief chat, like the button there; the Chief works on it in the background.
     else if (x.kind === 'suggestion') await (yes ? api(`/chief/chats/${x.chat.id}/messages`, { method: 'POST', body: { text: PLAN_APPROVAL } }) : api(`/chief/chats/${x.chat.id}/dismiss`, { method: 'POST' }));
-    else answer = await api(`/memory/pending/${x.p.id}`, { method: 'POST', body: { approve: yes, ...(always ? { always } : {}) } });
+    else answer = await api(`/memory/pending/${x.p.id}`, { method: 'POST', body: { approve: yes } });
   } catch (e) { toast(e.message, true); return; }
   markAnswered(x, yes, always, answer, chats);
   if (redraw) refreshNeeds();
@@ -616,7 +616,7 @@ function markAnswered(x, yes, always, answer, chats) {
 // tile the server's (`text` of the answer: "Declined and removed", "Kept as it was: …", "Changed: …") in place of
 // "Declined", and of "Approved" on a change. A memory change always reads the server's: "Forgotten", "Kept".
 function answeredWord(x, yes, always, answer) {
-  if (always) return x.kind === 'memory' || x.a?.kind === 'chief-action' ? 'Always allowed' : 'Always approved';
+  if (always) return x.a?.kind === 'chief-action' ? 'Always allowed' : 'Always approved';
   if (x.kind === 'tilesug') return yes ? 'On your Board' : 'Not added';
   const waits = x.kind === 'job' ? x.job : x.kind === 'tile' ? x.t : null;
   const servers = x.kind === 'memory' || (waits && (!yes || changeOf(waits))) ? said(answer?.text) : '';

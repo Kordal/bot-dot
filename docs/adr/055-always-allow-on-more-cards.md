@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#280](https://github.com/Kordal/bot-dot/issues/280)
+- **Partly superseded by:** [ADR 057](057-a-note-is-saved-without-an-ok.md) (a bot's shared notes need no card at all, so "Always allow for this bot" is gone)
 - **Changes:** [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (every change of the Chief's after the web waits) and [ADR 015](015-the-server-records-who-said-a-note.md) (every shared-note change after outside content waits)
 
 ## Context
