@@ -1,6 +1,6 @@
 ---
 name: pages
-description: "Build a page from blocks the app draws (hero, kpis, charts, pills, callouts), its numbers bound to Board tiles so they stay live. Use for a page, overview, report or status page."
+description: "Build a page from blocks the app draws (hero, kpis, charts, pills, callouts, tables), its numbers bound to Board tiles so they stay live. Use for a page, overview, report or status page."
 ---
 
 # A page from blocks
@@ -25,12 +25,13 @@ A fence that holds a list draws a row of that block: ```` ```kpi [{…}, {…}, 
 | `status` | a state in a word or three: a pill | `text`, `level` (`ok`, `warn`, `err`, `info`, `plan`) |
 | `callout` | what needs the owner, or a warning: the one thing to read | `title`, `text` (Markdown), `level` (as status) |
 | `grid` | blocks side by side (kpi, chart, status, callout) | `columns` (1 to 4), `blocks` (each with its `type`) |
+| `table` | a list of items with several columns: issues, tasks, servers, features | `title`, `columns` (1 to 8 of `{ "label", "type" }`), `rows`, `filter` (a status column), `sort` (a column, or `{ "column", "dir": "desc" }`), `pageSize` (default 10) |
 
 - **A number is a kpi, not a sentence.** "Disk is at 71%" in prose is lost; a kpi with its change is read at a glance.
 - **A series is a chart.** Weekly counts, a value over days: `bar` for counts per period, `line` or `area` for a value over time, `stacked` for parts of a whole per period, `hbar` to compare a few named things (by area, by bot, by server).
 - **A state is a pill.** Use `ok` for fine, `warn` for needs a look soon, `err` for broken, `plan` for planned, `info` for neutral.
 - **What waits for the owner is a callout,** at most one or two per page, near the top. If nothing waits, leave it out.
-- **Prefer blocks over prose tables.** Numbers go in kpis and charts, states in pills. A list of items with several columns (issues, tasks, servers) stays a Markdown table for now.
+- **Prefer blocks over prose tables.** Numbers go in kpis and charts, states in pills, a list of items with several columns (issues, tasks, servers) in a `table` block: the owner sorts it, searches it and filters it, and on a phone it is a list.
 
 ## The skeleton
 
@@ -41,7 +42,7 @@ Most pages follow this order:
 3. A `callout` for what needs the owner, if anything does.
 4. One or two `chart`s, side by side in a `grid` with `"columns": 2`.
 5. A row of `status` pills, when there are several parts to check (services, builds, backups).
-6. Short Markdown sections for what the numbers don't say: what changed, why, what comes next. Then a Markdown table for a list of items, if one is needed.
+6. Short Markdown sections for what the numbers don't say: what changed, why, what comes next. Then a `table` for a list of items, if one is needed.
 
 Keep it to one screen and a little more. A page that needs scrolling through ten charts is two pages.
 
@@ -54,6 +55,30 @@ Keep it to one screen and a little more. A page that needs scrolling through ten
 - **Real values only.** Write only numbers you read or counted this run. Never guess, round up a trend or fill in a chart with made-up points. Leave a block out rather than invent it.
 - **Plain words in the lead and callouts:** the finding, not the method ("Two backups failed this week", not "Analysis of backup logs shows…").
 - Everything a bot writes is drawn as text: no HTML, no colours other than the levels.
+
+## Tables
+
+````
+```table
+{ "title": "Features", "columns": [
+    { "label": "Feature" },
+    { "label": "State", "type": "status", "levels": { "Done": "ok", "In progress": "info", "Planned": "plan" } },
+    { "label": "Issue", "type": "ref", "link": "https://github.com/owner/repo/issues/{n}" },
+    { "label": "Changed", "type": "date" }
+  ],
+  "rows": [
+    ["Copy button on code", "Done", "#285 · PR #288", "2026-10-20"],
+    ["Rooms between accounts", "In progress", "#371", "2026-10-22"]
+  ],
+  "filter": "State", "sort": "Feature" }
+```
+````
+
+- **Column types:** `text` (the default), `number` (sorts as a number; `unit` after it), `date` (ISO 8601: shown as "3 days ago", or the day for one to come), `status` (a pill), `ref` (`#123`, `PR #123`, several joined with " · ": each a link when the column has `link` with `{n}` for the number).
+- **The first column names the row:** on a phone it is the title of each line, with the first `ref` under it and the first `status` as a pill on the right.
+- **A status's colour** comes from the column's `levels`, else from its words (done, failed, planned…). Keep a column's states to a few fixed words so `filter` offers them as All / Done / In progress / Planned.
+- **Rows** are lists in the columns' order, or objects by label (`{ "Feature": "…", "State": "Done" }`). Up to 500; write them all, the app pages them.
+- **Live rows:** bind it to a tile whose read answers a list (open issues, deploys): `"tile": "Issues", "bind": "value"`, and each column's `item` is the field of a row (`{ "label": "Title", "item": "title" }`). The owner's sort and filter stay while new rows come in.
 
 ## Live numbers: bind to a tile
 
@@ -116,12 +141,10 @@ Three complete pages. Copy their shape, not their numbers: use the owner's real 
 - The content pages moved to review; two need the owner's text.
 - The contact form bug is fixed.
 
-## Next
-
-| Task | Who | Due |
-| --- | --- | --- |
-| Hosting plan | the owner | 25 Oct |
-| Final texts | Writer bot | 30 Oct |
+```table
+{ "title": "Next", "columns": [{ "label": "Task" }, { "label": "Who" }, { "label": "State", "type": "status" }, { "label": "Due", "type": "date" }],
+  "rows": [["Hosting plan", "the owner", "Waiting", "2026-10-25"], ["Final texts", "Writer bot", "In progress", "2026-10-30"]], "sort": "Due" }
+```
 ````
 
 ### A server status page, live

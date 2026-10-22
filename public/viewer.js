@@ -102,7 +102,7 @@ const DocViewer = (() => {
   function bodyHTML(c) {
     const v = c.view;
     if (v.kind === 'image') return `<div class="dv-image"><img src="/api${esc(c.src)}" alt="${esc(c.name)}"></div>`;
-    if (v.kind === 'markdown' && c.mode === 'rendered') return v.parts && typeof pageHTML === 'function' ? `<article class="md dv-md dv-page">${pageHTML(v.parts)}</article>` : `<article class="md dv-md">${md(v.text)}</article>`;
+    if (v.kind === 'markdown' && c.mode === 'rendered') return v.parts && typeof pageHTML === 'function' ? `<article class="md dv-md dv-page">${pageHTML(v.parts, c.src)}</article>` : `<article class="md dv-md">${md(v.text)}</article>`;
     if (v.kind === 'csv' && c.mode === 'table') return tableHTML(c);
     return linesHTML(v.text);
   }
@@ -134,7 +134,7 @@ const DocViewer = (() => {
     $('#chat-row')?.classList.toggle('viewer-full', !!cur?.full);
     $('.main')?.classList.toggle('viewing', !!cur);
     el.innerHTML = cur ? html(cur) : '';
-    if (cur?.view?.parts && typeof wireCharts === 'function') wireCharts(el);
+    if (cur?.view?.parts && typeof wireCharts === 'function') { wireCharts(el); wireTables(el); }
   }
   // Only the table, so the box keeps its words and the focus while they are typed.
   function drawTable() {
@@ -177,8 +177,9 @@ const DocViewer = (() => {
     r.parts.forEach((p, i) => {
       const el = $(`.dv-page [data-pb="${i}"]`, box());
       if (!el || p.md != null) return;
-      el.innerHTML = pageBlockHTML(p.block);
+      el.innerHTML = pageBlockHTML(p.block, `${c.src}#${i}`);
       wireCharts(el);
+      wireTables(el);
     });
   }
   function tileChanged(id) {

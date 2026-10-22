@@ -1727,6 +1727,47 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pg-bar { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 /* A bot's page with blocks (#395): the kit between its Markdown, wider than a plain document. */
+/* A table (#396): sorted by its header, searched and filtered; in a narrow box, a list. */
+.kit-table { container-type: inline-size; container-name: ktable; min-width: 0; font-size: 13.5px; color: var(--text); }
+.kit-table-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-bottom: 10px; }
+.kit-table-bar b { font-weight: 600; font-size: 14px; }
+.kit-table-bar .kit-count { font: 12px var(--mono); color: var(--faint); }
+.kit-table-bar .sp { flex: 1; }
+.kit-find { font: inherit; font-size: 13px; color: var(--text); background: transparent; border: 1px solid var(--line-2); border-radius: 99px; padding: 6px 14px; width: 220px; max-width: 100%; outline: none; }
+.kit-find:focus { border-color: var(--muted); }
+.kit-find::placeholder { color: var(--faint); }
+.kit-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line-2); border-radius: 99px; padding: 3px; gap: 2px; }
+.kit-seg button { font: inherit; font-size: 12.5px; padding: 4px 12px; border-radius: 99px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.kit-seg button.on { background: var(--sunk); color: var(--text); }
+.md table.kit-tbl, .kit-tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 0; display: table; }
+.kit-tbl th { text-align: left; font-weight: 500; color: var(--faint); font-size: 12px; padding: 0; border: 0; border-bottom: 1px solid var(--line-2); white-space: nowrap; background: none; }
+.kit-tbl th button { font: inherit; color: inherit; background: none; border: 0; padding: 8px 12px; cursor: pointer; width: 100%; text-align: inherit; }
+.kit-tbl th.on { color: var(--text); }
+.kit-tbl th .ar { font-size: 10px; margin-left: 4px; }
+.kit-tbl td { padding: 11px 12px; border: 0; border-bottom: 1px solid var(--line); vertical-align: middle; background: none; }
+.kit-tbl tbody tr:hover td { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.kit-tbl .r { text-align: right; }
+.kit-tbl td.soft, .kit-tbl td.r { color: var(--muted); font-size: 12.5px; }
+.kit-ref { font: 12px var(--mono); color: var(--mention); }
+.kit-ref a { color: inherit; text-decoration: none; }
+.kit-ref a:hover { text-decoration: underline; }
+.kit-tlist { display: none; }
+.kit-trow { display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.kit-trow .n { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.kit-trow .n > span { display: block; margin-top: 2px; }
+.kit-trow .n .kit-ref { font-size: 11.5px; }
+.kit-tfoot { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--faint); font-size: 12px; margin-top: 12px; }
+.kit-pager { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); }
+.kit-pager button { font: inherit; font-size: 14px; color: var(--text); background: none; border: 1px solid var(--line-2); border-radius: 8px; padding: 0 8px; cursor: pointer; }
+.kit-pager button:disabled { color: var(--faint); cursor: default; opacity: .5; }
+.kit-table-empty { padding: 12px 0; font-size: 13px; }
+@container ktable (max-width: 560px) {
+  .kit-tbl { display: none; }
+  .md table.kit-tbl { display: none; }
+  .kit-tlist { display: block; }
+  .kit-find { width: 100%; }
+  .kit-table-bar .sp { display: none; }
+}
 .dv-md.dv-page { max-width: 1040px; }
 .dv-page .pb { margin: 16px 0; }
 .pb-hero { margin: 8px 0 4px; }

@@ -198,6 +198,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
         "kpi" -> KitKpi(b, tint(b.color, color), compact = where == "compact")
         "status" -> KitStatus(b)
         "callout" -> KitCallout(b)
+        "table" -> KitTableView(b)
         "image" -> TileImage(b, ctl)
         "chat" -> if (ctl.openChat != null && ctl.chatName != null) TextButton(onClick = ctl.openChat) {
             SmallFigure(ctl.chatColor, ctl.chatOutfit, 17.dp)

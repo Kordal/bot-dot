@@ -40,7 +40,7 @@ test('web: a grid side by side, a row of pills, and a quiet line for a block tha
 
 test('web: the viewer draws a page\'s parts, redraws its blocks from the live feed, and copies it as text', () => {
   const viewer = read('viewer.js');
-  assert.match(viewer, /v\.parts && typeof pageHTML === 'function' \? `<article class="md dv-md dv-page">\$\{pageHTML\(v\.parts\)\}<\/article>`/);
+  assert.match(viewer, /v\.parts && typeof pageHTML === 'function' \? `<article class="md dv-md dv-page">\$\{pageHTML\(v\.parts, c\.src\)\}<\/article>`/);
   assert.match(viewer, /withQuery\(c\.src, 'blocks=1'\)/);
   assert.match(viewer, /cur\.mode === 'rendered' && cur\.view\?\.plain/);
   assert.match(read('feed.js'), /DocViewer\.tileChanged\(d\.tile\?\.id\)/);
