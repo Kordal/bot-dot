@@ -15,14 +15,14 @@ const at = (iso) => new Date(iso);
 // The looks of a botdot server started at `started`, with a clock the test sets.
 function make({ started = '2026-10-05T06:00:00Z', dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-look-')), answer = 'Your backup check never finished. Want me to run it again?' } = {}) {
   const w = {
-    dir, clock: at(started), busy: false, answer, posted: [], ids: [], inputs: [], runs: 0, log: [],
+    dir, clock: at(started), busy: false, answer, posted: [], ids: [], offered: [], inputs: [], runs: 0, log: [],
     settings: { unaskedPerDay: 3, quietHours: { start: 22, end: 7, timeZone: 'UTC' } },
   };
   w.looks = look.create({
     dataDir: dir, settings: { get: () => w.settings }, busy: () => w.busy, now: () => w.clock, log: (l) => w.log.push(l),
     input: ({ raised }) => { w.inputs.push(raised); return { system: 's', prompt: 'p' }; },
     run: async () => { w.runs++; if (w.answer instanceof Error) throw w.answer; return typeof w.answer === 'function' ? w.answer() : w.answer; },
-    post: (text, id) => { w.posted.push(text); w.ids.push(id); return 'chat-1'; },
+    post: (text, id, asked) => { w.posted.push(text); w.ids.push(id); w.offered.push(asked); return 'chat-1'; },
   });
   w.tickAt = (iso) => { w.clock = at(iso); return w.looks.tick(); };
   return w;
@@ -99,6 +99,21 @@ test('NOTHING, an empty answer and a failed turn post nothing and are not counte
   assert.equal(look.messageOf('  Your disk has nothing new, but the backup is late.\n'), 'Your disk has nothing new, but the backup is late.');
   assert.equal(look.messageOf('No updates from Fleet Doctor since Tuesday: want me to check why?'), 'No updates from Fleet Doctor since Tuesday: want me to check why?');
   assert.equal(look.messageOf('Nothingness is a fine name for your quiet-hours bot.'), 'Nothingness is a fine name for your quiet-hours bot.');
+});
+
+test('a last line [[choices: …]] becomes answer buttons: the message and its record are the text without it (#341)', async () => {
+  const w = make({ answer: 'Three of your jobs failed this week. Want a daily summary of job failures?\n[[choices: Yes | Not now]]' });
+  assert.deepEqual(await w.tickAt('2026-10-05T08:53:00Z'), { looked: true, posted: true, chatId: 'chat-1' });
+  assert.deepEqual(w.posted, ['Three of your jobs failed this week. Want a daily summary of job failures?']);
+  assert.deepEqual(w.offered, [{ choices: ['Yes', 'Not now'], questions: null }]);
+  assert.equal(w.looks.raised()[0].text, 'Three of your jobs failed this week. Want a daily summary of job failures?');
+  // A message with no such line has none; one that is only the line is no message.
+  w.answer = 'Your backup check never finished.';
+  await w.tickAt('2026-10-05T12:38:00Z');
+  assert.deepEqual(w.offered[1], { choices: null, questions: null });
+  w.answer = '[[choices: Yes | No]]';
+  assert.deepEqual(await w.tickAt('2026-10-05T16:23:00Z'), { looked: true, posted: false });
+  assert.match(look.systemPrompt(), /end it with one last line \[\[choices: Yes \| No\]\]/);
 });
 
 test('a "nothing" with a sentence after it posts nothing and is not counted', async () => {
