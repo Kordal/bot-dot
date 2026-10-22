@@ -188,7 +188,7 @@ test('web: a running run draws no bubble: no typing dots, no steps, no Details, 
   const follow = app.slice(app.indexOf('function followBotRun'), app.indexOf('function watchRun('));
   assert.doesNotMatch(follow, /stepsHTML|\.activity|\.steps/);
   assert.match(follow, /live\.insertAdjacentHTML\('beforeend', html\)/, 'a file it attaches shows at once');
-  assert.match(app, /<button data-details="\$\{esc\(r\.id\)\}">Details<\/button>\$\{copyBtn\(body\)\}/, 'a finished reply keeps Details');
+  assert.match(app, /\$\{r\.kind === 'reminder' \? '' : ` · <button data-details="\$\{esc\(r\.id\)\}">Details<\/button>`\}\$\{copyBtn\(body\)\}/, 'a finished reply keeps Details, a reminder that went off has none (#343)');
 });
 
 test('web: Stop stops the line\'s run, and a Stop that fails leaves the chat and says why', async () => {
