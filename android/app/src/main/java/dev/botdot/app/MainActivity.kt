@@ -74,6 +74,7 @@ import dev.botdot.app.ui.DashboardScreen
 import dev.botdot.app.ui.LiveScreen
 import dev.botdot.app.ui.SettingsScreen
 import dev.botdot.app.ui.SkillsScreen
+import dev.botdot.app.ui.PagesScreen
 import dev.botdot.app.ui.BotDotTheme
 import dev.botdot.app.ui.DocumentViewerHost
 import dev.botdot.app.ui.ChiefScreen
