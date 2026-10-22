@@ -640,7 +640,8 @@ async function signInRoutes(req, res, p) {
 // through its own account's botdot server (lib/front-door/room-turns.js), which is the last word on it. A room's text
 // never reaches an account but in a turn of a bot it names, and comes back as a reply's plain text.
 
-const ROOM_HEADERS = (account) => ({ 'x-botdot-account': account, 'x-botdot-room': '1' });
+// x-bot-dot: a botdot server takes no write without it (as from a page of its own).
+const ROOM_HEADERS = (account) => ({ 'x-botdot-account': account, 'x-botdot-room': '1', 'x-bot-dot': '1' });
 const ROOM_ANSWER_MAX = 256 * 1024;
 // One request to an account's botdot server, from the front door itself: { status, data }, status 0 when it could
 // not be reached in time. A suspended or deleted account is not asked.
