@@ -234,26 +234,10 @@ test("the Android release builds on GitHub's machines, and no workflow builds or
   }
 });
 
-// #85: once a day, a newer stable Claude Code becomes one pull request on bump/claude-code. GITHUB_TOKEN may push
-// and open it, and nothing more; a pull request it opens starts no pull_request workflow, so it starts Tests and
-// Install on the branch by hand (workflow_dispatch), which needs actions: write.
-test('the Claude Code bump runs daily or by hand, with only the permissions it needs', () => {
-  const wf = workflow('claude-code-bump.yml');
-  assert.deepEqual(Object.keys(wf.on).sort(), ['schedule', 'workflow_dispatch']);
-  assert.equal(wf.on.schedule.length, 1);
-  assert.match(wf.on.schedule[0].cron, /^\d+ \d+ \* \* \*$/, 'once a day');
-  assert.deepEqual(wf.permissions, { contents: 'write', 'pull-requests': 'write', actions: 'write' });
-  const text = fs.readFileSync(path.join(WORKFLOWS, 'claude-code-bump.yml'), 'utf8');
-  assert.doesNotMatch(text, /\bsecrets\./, 'GITHUB_TOKEN only, no other secret');
-  for (const m of text.matchAll(/uses: (\S+)/g)) assert.match(m[1], /@[0-9a-f]{40}$/, `${m[1]} is pinned by commit`);
-  const run = Object.values(wf.jobs).flatMap((job) => job.steps).map((st) => st.run || '').join('\n');
-  assert.match(run, /npm view @anthropic-ai\/claude-code dist-tags\.latest/, 'the latest tag, never next');
-  assert.match(run, /node deploy\/claude-code-pin\.js Dockerfile /);
-  assert.match(run, /BRANCH=bump\/claude-code/);
-  assert.match(run, /gh pr create /);
-  assert.match(run, /gh pr edit /);
-  assert.match(run, /gh workflow run tests\.yml --repo "\$GITHUB_REPOSITORY" --ref "\$BRANCH"/);
-  assert.match(run, /gh workflow run install\.yml --repo "\$GITHUB_REPOSITORY" --ref "\$BRANCH"/);
-  // What it starts can be started by hand.
-  for (const name of ['tests.yml', 'install.yml']) assert.ok('workflow_dispatch' in workflow(name).on, name);
+// #306: Claude Code is bumped by hand in the Dockerfile; no workflow opens bump pull requests.
+test('no workflow bumps Claude Code', () => {
+  assert.ok(!fs.existsSync(path.join(WORKFLOWS, 'claude-code-bump.yml')));
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    assert.doesNotMatch(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'), /dist-tags\.latest|bump\/claude-code/, name);
+  }
 });
