@@ -26,6 +26,11 @@ fun hasGroups(features: Collection<String>?): Boolean = features != null && GROU
 const val GROUP_ALL = "group-all"
 fun hasGroupAll(features: Collection<String>?): Boolean = features != null && GROUP_ALL in features
 
+/** The pinned bots and groups share one order (#276, ADR 058): a server that announces it counts a bot's `pinned` and
+ *  a group's in one sequence, so a group can stand before a bot. Without it, the pinned groups after the pinned bots. */
+const val PINS_SHARED = "pins-shared"
+fun hasPinsShared(features: Collection<String>?): Boolean = features != null && PINS_SHARED in features
+
 /** The groups of a botdot server with these [features]: one without groups is asked nothing, and has none. */
 suspend fun Api.groupsOf(features: Collection<String>?): List<Group> = if (hasGroups(features)) groups() else emptyList()
 
@@ -41,7 +46,7 @@ fun groupOfChat(chat: String?): String? = chat?.takeIf { it.startsWith("group:")
 /**
  * A group, with what its chat holds now (`GET /api/group-chats`). [members]: bot ids, in the group's order.
  * [category], [pinned] and [order]: its place in the list, as a bot's `group`, `pinned` and `order`, counted among
- * the groups. What its chat holds is kept as it came: one of a kind this app does not expect leaves the groups readable.
+ * the groups; with `pins-shared`, [pinned] counts in one order with the pinned bots. What its chat holds is kept as it came: one of a kind this app does not expect leaves the groups readable.
  */
 @Serializable
 data class Group(
@@ -343,7 +348,7 @@ class TurnLines(private val features: () -> Collection<String>? = { null }) {
 
 /** The groups, and what the feed says of them at once, before the list is read again. */
 object Groups {
-    /** The pinned groups, in the order of `pinned`: they stand after the pinned bots. */
+    /** The pinned groups, in the order of `pinned`: after the pinned bots, unless they share one order ([PINS_SHARED]). */
     fun pinned(groups: List<Group>): List<Group> = groups.filter { it.pinned > 0 }.sortedBy { it.pinned }
 
     /** A category's groups that are not pinned, in their order: they stand after its bots (ADR 018). */

@@ -68,7 +68,7 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
     ${cut('function contactLine(b, r, working)', 'function drawContacts() {')}
     ${cut('// ---------- the keypad', '// ---------- search in every chat ----------')}
     ${cut('function foldedGroups()', '// Drag a bot or a group anywhere')}
-    ${cut('// Put the pinned ones in order again', '// Chips for picking')}
+    ${cut('// Unpinned ones get a place in their group back', '// Chips for picking')}
     const renderContacts = () => drawKeypad();
     ${cut('// The tiles of the Board', '// The strip at the top of the list')}
     const botById = (id) => state.bots.find((x) => x.id === id);
@@ -77,7 +77,7 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
     ${cutGroups('const turnLines = new Map();', '// ---------- the list ----------')}
     ${cutGroups('// The picture of a group:', '// What the picture is drawn from')}
     ${cutGroups('// A group\'s row in the list: the line under its name', 'function groupContactHTML(g) {')}
-    ${cutGroups('// A group\'s place is counted among the groups only', '// What the search box finds a group by')}
+    ${cutGroups('// A group\'s place in a category is counted', '// What the search box finds a group by')}
     ${cutGroups('// A group dragged in the list', '// ---------- making and changing a group')}
     Object.assign(this, { drawKeypad, onKeypadKey, sayTurnLine });`, ctx);
   ctx.drawKeypad();
@@ -283,6 +283,23 @@ test('web: a key dropped on another page\'s heading pins it, moves it to that ca
   assert.ok(dragKey(p, 0, { page: 1 }));
   assert.deepEqual(p.said.puts.at(-1), ['PUT', '/bots/garden', { group: 'Money', order: 2, pinned: 0 }], 'a pinned bot onto a category: unpinned and moved, as moveBot sends it');
   assert.deepEqual(pagesNow(p), ['Pinned: News Watcher', 'Money: Inbox Sweeper, Garden Log, Evening', 'Other: Notes, Home Lights']);
+});
+
+test('web: on Pinned a group dropped on a bot\'s key stands before it, and a bot dropped on a group\'s after it (#276)', async () => {
+  const p = page();
+  // Pinned: Garden · Home: News, Lights, Evening · Money: Inbox
+  assert.ok(dragKey(p, 3, { page: 0 }));
+  assert.deepEqual(p.said.puts.at(-1), ['PUT', '/group-chats/g1', { pinned: 2 }], 'onto Pinned\'s heading: pinned last');
+  await new Promise(setImmediate);
+  assert.deepEqual(pagesNow(p), ['Pinned: Garden Log, Evening', 'Home: News Watcher, Home Lights', 'Money: Inbox Sweeper']);
+  assert.ok(dragKey(p, 1, { key: 0 }));
+  assert.deepEqual(p.said.puts.at(-1), ['PUT', '/group-chats/g1', { pinned: 1 }], 'a group onto the first bot: first');
+  await new Promise(setImmediate);
+  assert.deepEqual(pagesNow(p), ['Pinned: Evening, Garden Log', 'Home: News Watcher, Home Lights', 'Money: Inbox Sweeper'], 'shown at once, before the bot');
+  assert.ok(dragKey(p, 2, { key: 1 }));
+  assert.deepEqual(p.said.puts.at(-1), ['PUT', '/bots/news', { pinned: 2 }], 'a bot onto the second key: between the group and the bot');
+  await new Promise(setImmediate);
+  assert.deepEqual(pagesNow(p), ['Pinned: Evening, News Watcher, Garden Log', 'Home: Home Lights', 'Money: Inbox Sweeper']);
 });
 
 test('web: a key dropped where it is, or on its own page\'s heading when it is last there, sends nothing', () => {

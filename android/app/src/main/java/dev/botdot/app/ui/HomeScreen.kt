@@ -76,6 +76,7 @@ import dev.botdot.app.data.Groups
 import dev.botdot.app.data.OpeningLine
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.WhatsNew
+import dev.botdot.app.data.hasPinsShared
 import dev.botdot.app.data.jobWaits
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -124,6 +125,8 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     var refreshing by remember { mutableStateOf(false) }
 
     val server by store.version.value.collectAsState() // for the app update banner
+    // The pinned bots and groups in one order (#276): a server from before it keeps the pinned groups after the bots.
+    val shared = hasPinsShared(server?.features)
     // Feedback beside Settings (#216): shown when the front door says it goes to an admin page, asked once per server.
     var feedbackOn by remember(api) { mutableStateOf(false) }
     var feedbackShots by remember(api) { mutableStateOf(false) } // and takes screenshots (#223)
@@ -178,14 +181,14 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     // groups' rows ("group:<id>"), in your order. While you drag, this is the order you see; letting go saves where
     // the row ended up.
     val layout = remember { mutableStateListOf<String>() }
-    val pins = remember { mutableStateListOf<String>() } // the pinned bots' ids, then the pinned groups' rows, in your order
+    val pins = remember { mutableStateListOf<String>() } // the pinned bots' ids and the pinned groups' rows, in your order
     var dragging by remember { mutableStateOf<String?>(null) }
     val haptic = LocalHapticFeedback.current
     // Categories you folded: only their heading shows (remembered on this phone).
     val folded by app.settings.foldedGroups.collectAsState(initial = emptySet())
     fun syncLayout() {
         if (dragging != null) return
-        val rows = ListLayout.rows(bots.orEmpty(), groups, folded)
+        val rows = ListLayout.rows(bots.orEmpty(), groups, folded, shared)
         pins.clear()
         pins.addAll(rows.pins)
         layout.clear()
@@ -196,7 +199,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     suspend fun load() = coroutineScope {
         listOf(store.bots, store.groups, store.chief, store.recent, store.needs, store.dashboard).forEach { launch { it.refresh() } }
     }
-    LaunchedEffect(bots, groupsNow, folded) { syncLayout() }
+    LaunchedEffect(bots, groupsNow, folded, shared) { syncLayout() }
     // Worked out once per list of bots, not again for every row that's drawn.
     val byId = remember(bots) { bots.orEmpty().associateBy { it.id } }
     val groupById = remember(groupsNow) { groups.associateBy { ListLayout.groupRow(it.id) } }
@@ -231,7 +234,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         val id = dragging ?: return
         dragging = null
         haptic.performHapticFeedback(HapticFeedbackType.GestureEnd)
-        val place = ListLayout.dropped(layout, pins, id) ?: return
+        val place = ListLayout.dropped(layout, pins, id, shared) ?: return
         val group = groupById[id]
         val bot = bots.orEmpty().firstOrNull { it.id == id }
         if (group == null && bot == null) return
@@ -307,7 +310,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         DashboardStrip(dash, bots.orEmpty(), onClick = onDashboard)
     }
     // The keypad, and a phone's sections: the list's own order cut into pages, each bot and group a key that says what its row says.
-    val pages = remember(bots, groupsNow, keypad, sections) { if (keypad || sections) Keypad.pages(bots.orEmpty(), groups) else emptyList() }
+    val pages = remember(bots, groupsNow, keypad, sections, shared) { if (keypad || sections) Keypad.pages(bots.orEmpty(), groups, shared) else emptyList() }
     fun look(k: Keypad.Key): KeyLook = when (k) {
         is Keypad.Key.OfBot -> k.bot.let { b -> KeyLook(b.name, sub(b), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = asks(b)) }
         is Keypad.Key.OfGroup -> {
@@ -443,7 +446,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                             else LazyRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp).clip(RoundedCornerShape(16.dp)).background(ground), state = pinState) {
                                 item(key = CHIEF) { Pin(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, active = active == CHIEF, outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
                                 items(pins, key = { it }) { id ->
-                                    // A pinned group: its picture as a big figure, after the pinned bots.
+                                    // A pinned group: its picture as a big figure, in its place among the pinned ones.
                                     groupById[id]?.let { g ->
                                         ReorderableItem(pinReorder, key = id) { lifted ->
                                             val line = groupLine(g, list, turnLines)

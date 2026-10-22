@@ -77,14 +77,14 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     ${cut('let gapSpot = null;', 'function openGap(spot, el, above) {')}
     function openGap(spot, el, above) { this.gaps.push([spot, el.name, !!above]); gapSpot = spot; }
     function closeGap() {}
-    ${cut('function dropAt(e, spot) {', '// Put the pinned ones in order again')}
+    ${cut('function dropAt(e, spot) {', '// Unpinned ones get a place in their group back')}
     ${cut('const chatParts = ', '// What the page knows about')}
     ${cut('// ---------- the sent message, there at once ----------', '// Stop a run.')}
     ${cut('// ---------- the reply draft ----------', '// ---------- data ----------')}
     function pinBot(...a) { this.placed = ['pinBot', ...a.slice(1)]; }
     function moveBot(...a) { this.placed = ['moveBot', ...a.slice(1)]; }
     ${src}
-    Object.assign(this, { hasGroups, canMakeGroup, ids: (c) => chatItems(c).map((x) => x.id), mentionCtx, escMentions, drawContacts, pinnedGroups, groupsIn, categoryNames, turnLines, GROUP_MAX, isGoOn,
+    Object.assign(this, { hasGroups, canMakeGroup, ids: (c) => chatItems(c).map((x) => x.id), mentionCtx, escMentions, drawContacts, groupsIn, categoryNames, turnLines, GROUP_MAX, isGoOn,
       drag: (id) => { dragId = id; }, chat: () => groupChat, open: (c) => { groupChat = c; }, replyDrafts, followGroups, followGroupDrafts });`, ctx);
   // A chat that is read, as loadGroupChat leaves it.
   const chat = (items = [], more = {}) => { const c = { id: state.groupId, items: new Map(), more: false, working: [], asks: null, limit: null, loaded: false, want: 50, asked: 0 }; ctx.takeGroupPage(c, { items, more: false, working: [], asks: null, limit: null, ...more }); ctx.open(c); return c; };
@@ -297,9 +297,9 @@ test('web: "Add a bot" picks among the bots that are not members, as many as the
 
 // ---------- the list ----------
 
-test("web: a group is one row in its category, after the category's bots; a pinned one stands after the pinned bots", () => {
+test("web: a group is one row in its category, after the category's bots; a pinned one stands in the one order of the pinned bots", () => {
   const ops = { ...DEV, id: 'g2', name: 'Ops', members: ['weather', 'shopper'], category: 'House', order: 1 };
-  const top = { ...DEV, id: 'g3', name: 'Top', members: ['coder', 'weather'], category: 'Programming', pinned: 1, order: 0 };
+  const top = { ...DEV, id: 'g3', name: 'Top', members: ['coder', 'weather'], category: 'Programming', pinned: 2, order: 0 };
   const second = { ...DEV, id: 'g4', name: 'Alpha', members: ['coder', 'weather'], category: 'Programming', order: 2 };
   const loose = { ...DEV, id: 'g5', name: 'Loose', members: ['coder', 'shopper'], category: '', order: 1 };
   const empty = { ...DEV, id: 'g6', name: 'Lab', members: ['coder', 'shopper'], category: 'Lab', order: 1 };
@@ -315,8 +315,14 @@ test("web: a group is one row in its category, after the category's bots; a pinn
     'a category that holds only a group is there, and "Other" holds a group without a category');
   assert.match(list.innerHTML, /<button class="contact active" data-contact="group:g1" data-kind="group" data-group="Programming" data-place="1" draggable="true" title="[^"]+">/);
   assert.match(list.innerHTML, /<button class="contact " data-contact="group:g4" data-kind="group" data-group="Programming" data-place="2" draggable="true" title="[^"]+">/, 'its place is counted among the groups');
-  assert.match(list.innerHTML, /<button class="contact " data-contact="group:g3" data-kind="group" data-pin="1" draggable="true" title="[^"]+">/);
+  assert.match(list.innerHTML, /<button class="contact " data-contact="group:g3" data-kind="group" data-pin="2" draggable="true" title="[^"]+">/);
   assert.match(list.innerHTML, /data-fold="Programming" title="Hide this category">[\s\S]*?Programming <span class="faint">5<\/span>/, 'bots and groups are counted together');
+  // A group pinned before a bot stands above it (#276).
+  p.state.groups.find((g) => g.id === 'g3').pinned = 1;
+  p.state.bots.find((b) => b.id === 'shopper').pinned = 2;
+  p.ctx.drawContacts();
+  const pins = [...list.innerHTML.matchAll(/data-contact="([^"]*)"[^>]*data-pin="(\d+)"/g)].map((m) => `${m[1]}:${m[2]}`);
+  assert.deepEqual(pins, ['group:g3:1', 'shopper:2']);
 });
 
 test('web: the search box finds a group by its name, its category and its members, and a hit in a group opens the group', () => {
@@ -458,11 +464,11 @@ test('web: a group is dragged among the groups: dropped on a place it is pinned 
 
 test('web: the gap opens where the dragged row would land: a group among the groups, after the bots, and a bot among the bots', () => {
   const second = { ...DEV, id: 'g4', name: 'Alpha', order: 2 };
-  const top = { ...DEV, id: 'g3', name: 'Top', pinned: 1, order: 0 };
+  const top = { ...DEV, id: 'g3', name: 'Top', pinned: 2, order: 0 };
   const p = page({ bots: [...BOTS.slice(0, 4), { ...SHOPPER, pinned: 1, order: 0 }], groups: [DEV, second, top] });
   const row = (name, dataset) => element({}, { name, dataset, offsetHeight: 60, getBoundingClientRect: () => ({ top: 100 }) });
   const rows = {
-    chief: row('chief', { contact: 'chief' }), shopper: row('shopper', { contact: 'shopper', pin: '1' }), top: row('top', { contact: 'group:g3', kind: 'group', pin: '1' }),
+    chief: row('chief', { contact: 'chief' }), shopper: row('shopper', { contact: 'shopper', pin: '1' }), top: row('top', { contact: 'group:g3', kind: 'group', pin: '2' }),
     house: row('# House', { groupHead: 'House' }), weather: row('weather', { contact: 'weather', group: 'House', place: '1' }),
     prog: row('# Programming', { groupHead: 'Programming' }), coder: row('coder', { contact: 'coder', group: 'Programming', place: '1' }), writer: row('writer', { contact: 'writer', group: 'Programming', place: '3' }),
     dev: row('dev', { contact: 'group:g1', kind: 'group', group: 'Programming', place: '1' }), alpha: row('alpha', { contact: 'group:g4', kind: 'group', group: 'Programming', place: '2' }),
@@ -482,14 +488,17 @@ test('web: the gap opens where the dragged row would land: a group among the gro
   assert.deepEqual(over('weather'), [{ group: 'House', order: 1 }, 'weather', false]);
   assert.deepEqual(over('house'), [{ group: 'House', order: 1 }, 'weather', false], 'on a heading: the first group, after the bots that are drawn');
   assert.deepEqual(over('lab'), [{ group: 'Lab', order: 1 }, '# Lab', false], 'a category without a bot: under its heading');
-  assert.deepEqual(over('chief'), [{ pinned: 1 }, 'shopper', false], 'on the Chief: the first pinned group, after the pinned bots');
-  assert.deepEqual(over('shopper'), [{ pinned: 1 }, 'shopper', false]);
-  assert.deepEqual(over('top'), [{ pinned: 2 }, 'top', false]);
+  // Among the pinned ones a group lands where it is dropped, before or after a bot (#276).
+  assert.deepEqual(over('chief'), [{ pinned: 1 }, 'chief', false], 'on the Chief: pinned first, right below it');
+  assert.deepEqual(over('shopper', 110), [{ pinned: 1 }, 'shopper', true], 'above a pinned bot');
+  assert.deepEqual(over('shopper'), [{ pinned: 2 }, 'shopper', false]);
+  assert.deepEqual(over('top'), [{ pinned: 3 }, 'top', false]);
   // A bot that is dragged: as before among the bots, and over a group last among the bots there.
   p.ctx.drag('weather');
   assert.deepEqual(over('coder', 110), [{ group: 'Programming', order: 1 }, 'coder', true]);
   assert.deepEqual(over('dev'), [{ group: 'Programming', order: 4 }, 'writer', false], 'over a group: after the last bot, before the groups');
-  assert.deepEqual(over('top'), [{ pinned: 2 }, 'shopper', false]);
+  assert.deepEqual(over('top'), [{ pinned: 3 }, 'top', false], 'below a pinned group');
+  assert.deepEqual(over('top', 110), [{ pinned: 2 }, 'top', true], 'above it');
   assert.deepEqual(over('prog'), [{ group: 'Programming', order: 1 }, '# Programming', false]);
   assert.deepEqual(over('chief'), [{ pinned: 1 }, 'chief', false]);
   // Anything else that is dragged over the list is not ours.
