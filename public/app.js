@@ -79,7 +79,7 @@ async function api(path, opts = {}) {
   }
   const data = await res.json().catch(() => ({}));
   // The front door's session ended (signed out, or elsewhere): its sign-in page, the only way back in (ADR 028).
-  if (res.status === 401 && data.signIn === '/sign-in') { location.assign('/sign-in'); throw unreached(); }
+  if (res.status === 401 && data.signIn === '/sign-in') { location.assign(`/sign-in${typeof joinHash === 'function' ? joinHash() : ''}`); throw unreached(); }
   const said = !res.ok && typeof data.error === 'string' && data.error.trim();
   const notThere = !res.ok && !said && [502, 503].includes(res.status); // a gateway: botdot was not reached
   const gaveUp = !res.ok && !said && res.status === 504; // a gateway: botdot did not answer in time

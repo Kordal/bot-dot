@@ -1,6 +1,8 @@
 package dev.botdot.app.ui
 
+import android.content.Intent
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -57,6 +60,8 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.Queued
 import dev.botdot.app.data.Room
+import dev.botdot.app.data.RoomLink
+import dev.botdot.app.data.RoomLinkPreview
 import dev.botdot.app.data.RoomMessage
 import dev.botdot.app.data.Rooms
 import kotlinx.coroutines.CoroutineStart
@@ -93,6 +98,12 @@ internal object RoomWords {
         else -> "$rooms room${if (rooms == 1) "" else "s"}"
     }
 
+    /** Under a room's invite link: until when it works (ADR 064). */
+    fun linkUntil(l: RoomLink): String = l.expires?.let { "Works until ${shortTime(it)}." }.orEmpty()
+
+    const val LINK_HINT = "Anyone with an account on this machine who opens it can join. It works for 7 days."
+    const val NOT_A_LINK = "That isn't a room's invite link."
+
     /** What a failed action says: the front door's own sentence, or that it was not reached. */
     fun failed(e: Throwable): String = if (e is ApiException && e.said) e.message.orEmpty() else e.message ?: "That didn't work"
 }
@@ -111,7 +122,9 @@ fun RoomsScreen(app: BotDotApp, onRoom: (String) -> Unit, onBack: () -> Unit) {
     val snack = remember { SnackbarHostState() }
     val list by app.rooms.list.collectAsState()
     val on by app.rooms.on.collectAsState()
+    val links by app.rooms.links.collectAsState()
     var making by rememberSaveable { mutableStateOf(false) }
+    var joining by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { app.rooms.refresh() }
     fun act(block: suspend () -> Unit) = scope.launch { runCatching { block() }.onError { snack.showSnackbar(RoomWords.failed(it)) } }
 
@@ -122,13 +135,18 @@ fun RoomsScreen(app: BotDotApp, onRoom: (String) -> Unit, onBack: () -> Unit) {
         onRoom(room.id)
     }, onClose = { making = false })
 
+    if (joining) JoinDialog(app, onJoined = { id -> joining = false; onRoom(id) }, onClose = { joining = false })
+
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
                 title = { Text(ROOMS, style = MaterialTheme.typography.titleMedium) },
-                actions = { if (on) TextButton(onClick = { making = true }) { Text("New room", color = p.text) } })
+                actions = {
+                    if (on && links) TextButton(onClick = { joining = true }) { Text("Join", color = p.text) }
+                    if (on) TextButton(onClick = { making = true }) { Text("New room", color = p.text) }
+                })
         },
     ) { pad ->
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -185,6 +203,53 @@ private fun NameDialog(title: String, label: String, start: String, button: Stri
                 busy = true
                 scope.launch { runCatching { onDone(text.trim()) }.onError { error = RoomWords.failed(it) }; busy = false }
             }) { Text(button, color = p.text) }
+        },
+        dismissButton = { TextButton(onClick = onClose, enabled = !busy) { Text("Cancel", color = p.text) } },
+    )
+}
+
+/**
+ * Joining with an invite link (ADR 064): the owner pastes the link someone shared, sees the room's name and who made
+ * it, and joins. A room this account is in already just opens.
+ */
+@Composable
+private fun JoinDialog(app: BotDotApp, onJoined: (String) -> Unit, onClose: () -> Unit) {
+    val p = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    var text by rememberSaveable { mutableStateOf("") }
+    var seen by remember { mutableStateOf<RoomLinkPreview?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val api = { app.api.value ?: throw ApiException(NOT_CONNECTED) }
+    fun go(block: suspend () -> Unit) {
+        busy = true
+        scope.launch { runCatching { block() }.onError { error = RoomWords.failed(it) }; busy = false }
+    }
+    AlertDialog(
+        onDismissRequest = { if (!busy) onClose() },
+        title = { Text(seen?.let { "Join ${it.room.name}?" } ?: "Join a room") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                val room = seen
+                if (room == null) {
+                    OutlinedTextField(text, { text = it.take(400); error = null }, label = { Text("Invite link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                } else {
+                    Text("${room.room.by.ifBlank { "Someone" }} made this room and shared its invite link.", color = p.text)
+                    Text("Everyone in it reads what is written there. Bots you add answer only when mentioned, and only talk.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                }
+                error?.let { Text(it, color = p.err) }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = !busy && text.isNotBlank(), onClick = {
+                val token = Rooms.linkToken(text)
+                val room = seen
+                if (token == null) error = RoomWords.NOT_A_LINK
+                else if (room == null) go {
+                    val got = api().roomByLink(token)
+                    if (got.member) onJoined(got.room.id) else seen = got
+                } else go { val joined = api().joinRoomByLink(token); app.rooms.took(joined); onJoined(joined.id) }
+            }) { Text(if (seen == null) "Next" else "Join", color = p.text) }
         },
         dismissButton = { TextButton(onClick = onClose, enabled = !busy) { Text("Cancel", color = p.text) } },
     )
@@ -376,7 +441,13 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
     val list by app.rooms.list.collectAsState()
     val mine by app.rooms.account.collectAsState()
     val bots by app.store.bots.value.collectAsState()
+    val links by app.rooms.links.collectAsState()
     val room = list?.rooms?.firstOrNull { it.id == roomId }
+    val maker = links && room != null && Rooms.mayDelete(room, mine)
+    var link by remember { mutableStateOf<RoomLink?>(null) }
+    var linkRead by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    LaunchedEffect(maker) { if (maker) runCatching { app.api.value?.roomLink(roomId) }.onSuccess { link = it; linkRead = true } }
     var name by rememberSaveable(room?.name) { mutableStateOf(room?.name.orEmpty()) }
     var invite by rememberSaveable { mutableStateOf("") }
     var asking by remember { mutableStateOf<String?>(null) } // "leave" or "delete", while its confirmation is open
@@ -423,6 +494,23 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
                 r.invites.forEach { i -> Text("${i.account} · invited by ${i.by}", color = p.muted, style = MaterialTheme.typography.bodyMedium) }
                 OutlinedTextField(invite, { invite = it.take(60) }, label = { Text("Invite an account on this machine") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 if (invite.isNotBlank()) OutlinedButton(enabled = !busy, onClick = { act("Invited") { app.rooms.took(api().inviteToRoom(roomId, invite.trim())); invite = "" } }) { Text("Invite", color = p.text) }
+            }
+            if (maker && linkRead) Section("Invite link", RoomWords.LINK_HINT) {
+                val l = link
+                if (l == null) {
+                    OutlinedButton(enabled = !busy, onClick = { act { link = api().makeRoomLink(roomId) } }) { Text("Make an invite link", color = p.text) }
+                } else {
+                    SelectionContainer { Text(l.url, color = p.text, style = MaterialTheme.typography.bodyMedium) }
+                    Text(RoomWords.linkUntil(l), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(enabled = !busy, onClick = {
+                            val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, l.url)
+                            context.startActivity(Intent.createChooser(send, r.name))
+                        }) { Text("Share", color = p.text) }
+                        TextButton(enabled = !busy, onClick = { act("A new link: the one before no longer works") { link = api().makeRoomLink(roomId) } }) { Text("New link", color = p.text) }
+                        TextButton(enabled = !busy, onClick = { act("Taken back") { api().dropRoomLink(roomId); link = null } }) { Text("Take back", color = p.err) }
+                    }
+                }
             }
             Section("Bots", "A bot answers only when mentioned, and only talks: no tools, no notes. Its owner says who may mention it, in its settings.") {
                 if (r.bots.isEmpty()) Hint("No bots yet.")

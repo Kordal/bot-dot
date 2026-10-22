@@ -11,7 +11,8 @@
 // on: the session says rooms are on for this account. me: this account's name, as the front door labels it.
 // list: the rooms this account is in. invites: the invitations waiting for it. chats: room id → its messages read
 // so far, { items, more, loaded }. seen: room id → the id of its last message read here (this browser).
-const rooms = { on: false, me: '', list: [], invites: [], known: false, chats: new Map(), stream: null, seen: {} };
+// links: the front door makes invite links (ADR 064). joining: the token of an invite link opened, until it is answered.
+const rooms = { on: false, me: '', links: false, list: [], invites: [], known: false, chats: new Map(), stream: null, seen: {}, joining: null };
 try { rooms.seen = JSON.parse(localStorage.getItem('botdot.rooms.seen') || '{}') || {}; } catch { /* private mode */ }
 
 const ROOM_GREY = '#888780';
@@ -42,11 +43,13 @@ async function door(path, opts = {}) {
 }
 
 // The session's word (settings.js, showAdminLink): on or off, and whose session it is. Off takes every room away.
-function setRoomsOn(on, account = '') {
+function setRoomsOn(on, account = '', links = false) {
   const was = rooms.on;
   rooms.on = on === true;
   rooms.me = typeof account === 'string' ? account : '';
+  rooms.links = rooms.on && links === true;
   if (rooms.on && !was) { loadRooms(); followRooms(); }
+  if (rooms.on) openJoin();
   if (!rooms.on) {
     rooms.stream?.close();
     Object.assign(rooms, { stream: null, list: [], invites: [], known: false });
@@ -236,6 +239,65 @@ async function answerInvite(id, yes, button) {
   drawRooms();
 }
 
+// ---------- joining with an invite link (ADR 064) ----------
+
+// "#rooms/join=<token>": the link a room's maker shares. True when `sub` is one, kept to open "Join" once rooms are on.
+const JOIN = /^join=([A-Za-z0-9_-]{1,100})$/;
+function joinFromLink(sub) {
+  const m = JOIN.exec(String(sub || ''));
+  if (!m) return false;
+  rooms.joining = m[1];
+  openJoin();
+  return true;
+}
+// The link's fragment, while one waits, for the sign-in page to come back to.
+const joinHash = () => (rooms.joining ? `#rooms/join=${rooms.joining}` : '');
+// A link opened in a page that is open already.
+if (typeof addEventListener === 'function') addEventListener('hashchange', () => {
+  const [view, sub] = location.hash.slice(1).split('/');
+  if (view === 'rooms' && joinFromLink(sub)) setView('rooms');
+});
+
+// Asks once whether to join the room the waiting link opens; a member is taken to the room. A link that doesn't work
+// says so. Nothing while rooms are off: an account of this machine without them sees that it can't join.
+async function openJoin() {
+  const token = rooms.joining;
+  if (!token || !rooms.on) return;
+  rooms.joining = null;
+  let seen;
+  try { seen = await door(`/rooms/join/${encodeURIComponent(token)}`); } catch (e) { toast(e.message, true); return; }
+  const room = seen?.room;
+  if (!room?.id) return;
+  if (seen.member) { setView('rooms', room.id); return; }
+  const m = openModal(`
+    <form id="room-join">
+      <div class="modal-head"><h2>Join ${esc(room.name)}?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-body">
+        <p>${esc(room.by || 'Someone')} made this room and shared its invite link.</p>
+        <p class="muted">Everyone in it reads what is written there. Bots you add answer only when @mentioned, and only talk.</p>
+        <div class="send-note hidden" role="alert"></div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" data-dismiss>Not now</button>
+        <button class="btn primary">Join</button>
+      </div>
+    </form>`);
+  const form = $('#room-join', m);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const button = $('.btn.primary', form);
+    if (button.disabled) return;
+    button.disabled = true;
+    showBoxNote(form, '');
+    try {
+      const got = await door(`/rooms/join/${encodeURIComponent(token)}`, { method: 'POST' });
+      if (got?.room?.id) { takeRoom(got.room); m.close(); setView('rooms', got.room.id); }
+    } catch (err) { showBoxNote(form, err.message); button.disabled = false; }
+    drawRooms();
+  };
+  return m;
+}
+
 // ---------- a room's chat ----------
 
 function renderRoomChat(root, r) {
@@ -400,6 +462,7 @@ function openRoomSettings(id) {
   if (!r) return;
   const m = openModal('<div id="room-panel"></div>');
   const root = $('#room-panel', m);
+  let link; // the room's invite link, for its maker: undefined until read, null for none
   const draw = () => {
     const room = roomById(id);
     if (!room) { m.close(); return; }
@@ -407,6 +470,7 @@ function openRoomSettings(id) {
     const mayAdd = state.bots.filter((b) => b.rooms?.allowRooms === true && !inRoom.has(b.id));
     const keptOut = state.bots.filter((b) => b.rooms && b.rooms.allowRooms !== true).length;
     const invited = Array.isArray(room.invites) ? room.invites : [];
+    const maker = rooms.links && room.by === rooms.me;
     root.innerHTML = `
       <form id="room-form" autocomplete="off">
         <div class="modal-head"><h2>${esc(room.name)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
@@ -416,6 +480,7 @@ function openRoomSettings(id) {
             <div class="room-list">${roomPeople(room).map((a) => `<div class="room-item"><span class="grow">${esc(a)}${a === rooms.me ? ' <span class="faint">(you)</span>' : ''}${a === room.by ? ' <span class="faint">made the room</span>' : ''}</span></div>`).join('')}
             ${invited.map((i) => `<div class="room-item"><span class="grow faint">${esc(i.account)} · invited</span></div>`).join('')}</div>
             <span class="room-inline"><input type="text" name="account" maxlength="60" placeholder="Account name to invite"><button type="button" class="btn sm" data-invite>Invite</button></span>
+            ${maker ? roomLinkHTML(link) : ''}
           </div>
           <div class="field">Bots <span class="hint">each answers only when @mentioned, and only talks</span>
             <div class="room-list">${roomBots(room).map((b) => `<div class="room-item">${botFigure(b.color || ROOM_GREY, 'idle', 'sm')}<span class="grow">${esc(roomBotLabel(b))}</span>${isMine(b) ? `<button type="button" class="link-btn" data-remove-bot="${esc(b.id)}">Remove</button>` : ''}</div>`).join('') || '<div class="faint">No bot yet.</div>'}</div>
@@ -440,6 +505,12 @@ function openRoomSettings(id) {
     const post = (path, body) => door(`/rooms/${encodeURIComponent(id)}${path}`, { method: 'POST', body });
     $('[data-rename]', form).onclick = (e) => act(e.target, async () => takeRoom((await post('/name', { name: form.name.value.trim() }))?.room));
     $('[data-invite]', form).onclick = (e) => act(e.target, async () => { takeRoom((await post('/invite', { account: form.account.value.trim() }))?.room); });
+    const makeLink = $('[data-make-link]', form);
+    if (makeLink) makeLink.onclick = () => act(makeLink, async () => { link = (await post('/link'))?.link || null; });
+    const dropLink = $('[data-drop-link]', form);
+    if (dropLink) dropLink.onclick = () => act(dropLink, async () => { await post('/link/remove'); link = null; });
+    const copyLink = $('[data-copy-link]', form);
+    if (copyLink) copyLink.onclick = () => navigator.clipboard?.writeText(link.url).then(() => toast('Link copied'), () => $('[name=link]', form)?.select());
     const add = $('[data-add-bot]', form);
     if (add) add.onclick = () => act(add, async () => takeRoom((await post('/bots', { bot: form.bot.value }))?.room));
     $$('[data-remove-bot]', form).forEach((el) => (el.onclick = () => act(el, async () => takeRoom((await post('/bots/remove', { bot: el.dataset.removeBot }))?.room))));
@@ -455,5 +526,17 @@ function openRoomSettings(id) {
     form.onsubmit = (e) => e.preventDefault();
   };
   draw();
+  if (rooms.links && r.by === rooms.me) door(`/rooms/${encodeURIComponent(id)}/link`).then((got) => { link = got?.link || null; draw(); }, () => {});
   return m;
 }
+
+// The maker's invite link: the link with Copy, a new one and Take back; or "Make an invite link". Nothing until read.
+function roomLinkHTML(link) {
+  if (link === undefined) return '';
+  const hint = '<div class="faint">Anyone with an account on this machine who opens it can join. It works for 7 days.</div>';
+  if (!link) return `<span class="room-inline"><button type="button" class="btn sm" data-make-link>Make an invite link</button></span>${hint}`;
+  const until = new Date(link.expires).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return `<span class="room-inline"><input type="text" name="link" readonly value="${esc(link.url)}" aria-label="Invite link"><button type="button" class="btn sm" data-copy-link>Copy</button></span>
+            <span class="room-inline"><span class="faint grow">Works until ${esc(until)}.</span><button type="button" class="link-btn" data-make-link>New link</button><button type="button" class="link-btn danger-text" data-drop-link>Take back</button></span>`;
+}
+

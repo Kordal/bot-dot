@@ -538,8 +538,9 @@ async function signInRoutes(req, res, p) {
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
-    // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms).
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn() });
+    // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
+    // (ADR 064): a room's maker makes an invite link, and opening one joins.
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -705,7 +706,12 @@ function roomsWithout(account) {
 }
 
 // A room's id in a path: /front-door/rooms/<id>[/<what>[/<more>]].
-const ROOM_PATH = /^\/front-door\/rooms\/([0-9a-f]{32})(?:\/(name|invite|accept|decline|leave|delete|bots|messages|stop)(?:\/(remove))?)?$/;
+const ROOM_PATH = /^\/front-door\/rooms\/([0-9a-f]{32})(?:\/(name|invite|link|accept|decline|leave|delete|bots|messages|stop)(?:\/(remove))?)?$/;
+// An invite link's token in a path: /front-door/rooms/join/<token> (ADR 064).
+const JOIN_PATH = /^\/front-door\/rooms\/join\/([A-Za-z0-9_-]{1,100})$/;
+// The address of a room's invite link, as its maker shares it: the web page, which opens "Join" for it. The token is
+// in the fragment, so it reaches no proxy's log on the way, and the page takes it to the sign-in and back.
+const linkOut = (l) => (l ? { url: `${ORIGIN.origin}/#rooms/join=${l.token}`, expires: l.expires } : null);
 
 async function roomRoutes(req, res, p) {
   const account = doors.sessionAccount(sessionOf(req));
@@ -735,21 +741,41 @@ async function roomRoutes(req, res, p) {
     roomChanged(room);
     return send(res, 201, { room: roomShown(room) });
   }
+  const j = p.match(JOIN_PATH);
+  if (j && req.method === 'GET') return send(res, 200, rooms.linkPreview(j[1], account));
+  if (j && req.method === 'POST') {
+    req.resume();
+    const { room, joined } = rooms.joinByLink(j[1], account);
+    if (joined) {
+      console.log(`[front door] the account ${account} joined a room with its invite link (${room.id.slice(0, 8)})`);
+      roomChanged(room);
+      roomSaid(room, room.messages.at(-1));
+    }
+    return send(res, 200, { room: roomShown(room) });
+  }
   const m = p.match(ROOM_PATH);
   if (!m) { req.resume(); return send(res, 404, { error: 'Not found' }); }
   const [, id, what = null, more = null] = m;
   if (what === null && req.method === 'GET') return send(res, 200, { room: roomShown(rooms.memberRoom(id, account)) });
+  if (what === 'link' && req.method === 'GET') return send(res, 200, { link: linkOut(rooms.link(id, account)) });
   if (what === 'messages' && req.method === 'GET') {
     const q = new URL(req.url, ORIGIN.origin).searchParams;
     const limit = q.has('limit') ? Number(q.get('limit')) : 50;
     return send(res, 200, rooms.messages(id, account, { before: q.get('before') || null, limit }));
   }
-  if (req.method !== 'POST' || what === null || (more && what !== 'bots')) { req.resume(); return send(res, 404, { error: 'Not found' }); }
+  if (req.method !== 'POST' || what === null || (more && what !== 'bots' && what !== 'link')) { req.resume(); return send(res, 404, { error: 'Not found' }); }
   const body = (await readJson(req)) || {};
   if (what === 'name') {
     const room = rooms.rename(id, account, body.name);
     roomChanged(room);
     return send(res, 200, { room: roomShown(room) });
+  }
+  // Only the room's maker: a new link (the one before stops working), or none.
+  if (what === 'link') {
+    if (more === 'remove') return send(res, 200, { link: rooms.dropLink(id, account) });
+    const link = linkOut(rooms.makeLink(id, account));
+    console.log(`[front door] the account ${account} made an invite link for a room (${id.slice(0, 8)}, until ${link.expires})`);
+    return send(res, 200, { link });
   }
   if (what === 'invite') {
     const room = rooms.invite(id, account, body.account, doors.accountExists);

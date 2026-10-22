@@ -160,6 +160,16 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** Invites another account on this machine by its name. */
     suspend fun inviteToRoom(id: String, account: String): Room = roomOf(door("${roomPath(id)}/invite", buildJsonObject { put("account", account) }))
     suspend fun acceptRoom(id: String): Room = roomOf(door("${roomPath(id)}/accept"))
+    /** The room's invite link (ADR 064), for its maker only (others: 403); null for none. */
+    suspend fun roomLink(id: String): RoomLink? = json.decodeFromString<RoomLinkAnswer>(doorGet("${roomPath(id)}/link")).link
+    /** A new invite link for the room; the one before stops working. */
+    suspend fun makeRoomLink(id: String): RoomLink = json.decodeFromString<RoomLinkAnswer>(door("${roomPath(id)}/link")).link ?: throw ApiException("The front door sent no link.")
+    /** Takes the room's invite link back: it no longer works. */
+    suspend fun dropRoomLink(id: String) { door("${roomPath(id)}/link/remove") }
+    /** What an invite link's [token] opens: the room's name and maker, and whether this account is in it already. */
+    suspend fun roomByLink(token: String): RoomLinkPreview = json.decodeFromString(doorGet("/front-door/rooms/join/${enc(token)}"))
+    /** Joins the room an invite link's [token] opens. */
+    suspend fun joinRoomByLink(token: String): Room = roomOf(door("/front-door/rooms/join/${enc(token)}"))
     suspend fun declineRoom(id: String) { door("${roomPath(id)}/decline") }
     /** Leaves the room; this account's bots leave with it. */
     suspend fun leaveRoom(id: String) { door("${roomPath(id)}/leave") }

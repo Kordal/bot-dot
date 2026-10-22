@@ -131,4 +131,23 @@ class RoomsTest {
         assertEquals(obj("""{"text":"hi","key":"k1"}"""), Rooms.messageBody("hi", "k1"))
         assertEquals(obj("""{"text":"hi"}"""), Rooms.messageBody("hi", null))
     }
+    @Test fun anInviteLinkIsReadFromWhatTheOwnerPastes() {
+        val t = "Abc_-123".repeat(4)
+        assertEquals(t, Rooms.linkToken("https://botdot.example/#rooms/join=$t"))
+        assertEquals(t, Rooms.linkToken("  https://botdot.example/#rooms/join=$t \n"))
+        assertEquals(t, Rooms.linkToken("join=$t"))
+        assertNull(Rooms.linkToken("https://botdot.example/#rooms/abc"))
+        assertNull(Rooms.linkToken("https://botdot.example/#rooms/join=bad token"))
+        assertNull(Rooms.linkToken("hello"))
+    }
+
+    @Test fun theSessionSaysWhetherRoomsHaveInviteLinks() {
+        assertTrue(Rooms.links(obj("""{"rooms":true,"roomLinks":true}""")))
+        assertFalse(Rooms.links(obj("""{"rooms":true}""")))
+        assertFalse(Rooms.links(obj("""{"roomLinks":"true"}""")))
+        assertFalse(Rooms.links(null))
+        assertEquals(RoomLinkPreview(RoomRef("r1", "Trip", "ann"), member = true), Api.JSON.decodeFromString<RoomLinkPreview>("""{"room":{"id":"r1","name":"Trip","by":"ann"},"member":true}"""))
+        assertEquals(RoomLink("https://x/#rooms/join=t", "2026-10-29T12:00:00.000Z"), Api.JSON.decodeFromString<RoomLinkAnswer>("""{"link":{"url":"https://x/#rooms/join=t","expires":"2026-10-29T12:00:00.000Z"}}""").link)
+        assertNull(Api.JSON.decodeFromString<RoomLinkAnswer>("""{"link":null}""").link)
+    }
 }

@@ -26,6 +26,9 @@ class RoomsHub(private val scope: CoroutineScope, private val api: StateFlow<Api
     private val _account = MutableStateFlow<String?>(null)
     /** The account this app is signed in as, as the front door says; null until it does. */
     val account: StateFlow<String?> = _account.asStateFlow()
+    private val _links = MutableStateFlow(false)
+    /** The front door makes invite links for rooms (ADR 064). */
+    val links: StateFlow<Boolean> = _links.asStateFlow()
     private val _list = MutableStateFlow<RoomsAnswer?>(null)
     /** The rooms and the invitations; null until read. */
     val list: StateFlow<RoomsAnswer?> = _list.asStateFlow()
@@ -38,12 +41,14 @@ class RoomsHub(private val scope: CoroutineScope, private val api: StateFlow<Api
         scope.launch {
             combine(api, features.map { it?.features?.contains("accounts") == true }.distinctUntilChanged()) { a, accounts -> a to accounts }.collectLatest { (a, accounts) ->
                 _on.value = false
+                _links.value = false
                 _account.value = null
                 _list.value = null
                 if (a == null || !accounts) return@collectLatest
                 val session = runCatching { a.frontDoorSession() }.getOrNull()
                 _account.value = Rooms.account(session)
                 _on.value = Rooms.on(listOf("accounts"), session)
+                _links.value = _on.value && Rooms.links(session)
                 if (_on.value) refresh()
             }
         }
