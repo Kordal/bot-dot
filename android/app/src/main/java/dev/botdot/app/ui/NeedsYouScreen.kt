@@ -285,6 +285,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                 items(memory.filter { m -> decided.none { it.key == "m:${m.id}" } }, key = { "m:${it.id}" }) { m ->
                     val card = memoryCard(m, features)
                     MemoryApproval(card, memWho(m),
+                        onAlways = { decide("m:${m.id}", memWho(m), card.title, true, "Always allowed") { api!!.settleMemoryChange(m.id, true, always = true) } },
                         onApprove = { decide("m:${m.id}", memWho(m), card.title, true) { api!!.settleMemoryChange(m.id, true) } },
                         onDecline = { decide("m:${m.id}", memWho(m), card.title, false) { api!!.settleMemoryChange(m.id, false) } })
                 }
@@ -419,6 +420,7 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
         mems.forEach { m ->
             val card = memoryCard(m, features)
             MemoryApproval(card, if (group != null) whoOf(bots.firstOrNull { it.id == m.botId }) else null,
+                onAlways = { decide("m:${m.id}", card.title, true, "Always allowed") { api!!.settleMemoryChange(m.id, true, always = true) } },
                 onApprove = { decide("m:${m.id}", card.title, true) { api!!.settleMemoryChange(m.id, true) } },
                 onDecline = { decide("m:${m.id}", card.title, false) { api!!.settleMemoryChange(m.id, false) } })
         }
@@ -717,7 +719,7 @@ internal fun busyWord(label: String, connects: Boolean = false): String = if (co
     "Save" -> "Saving…"
     "Install" -> "Installing…"
     "Add" -> "Adding…"
-    else -> "$label…"
+    else -> if (label.startsWith("Always allow ") || label.startsWith("Allow always ")) "Allowing…" else "$label…" // the server's "Always allow reminders" (#280)
 }
 
 /**
@@ -988,16 +990,28 @@ private fun TileApproval(who: Named?, t: Tile, then: String?, onApprove: () -> U
  * block, what goes above what comes, so that a closed card shows the start of both.
  */
 @Composable
-private fun MemoryApproval(card: MemoryCard, who: Named?, onApprove: () -> Unit, onDecline: () -> Unit) {
+private fun MemoryApproval(card: MemoryCard, who: Named?, onAlways: () -> Unit, onApprove: () -> Unit, onDecline: () -> Unit) {
+    // "Always allow for this bot" (#280), where the server offers it: it asks first, in the server's words.
+    var asking by remember(card) { mutableStateOf(false) }
+    if (asking) AlwaysQuestion(card.alwaysAsk ?: "${card.always}?", card.always ?: "") { asking = false; if (it) onAlways() }
     Card(who, card.title, card.meta, expandable = true) {
         if (card.was != null && card.now.isNotEmpty() && card.oneBlock) WasNow(card.was, card.now)
         else {
             if (card.was != null) Body(card.was)
             if (card.now.isNotEmpty()) Body(card.now)
         }
-        Buttons(card.yes, onApprove, card.no, onDecline)
+        Buttons(card.yes, onApprove, card.no, onDecline, onAlways = card.always?.let { { asking = true } }, alwaysLabel = card.always ?: "Always approve")
     }
 }
+
+/** The question before a second yes that lasts (#280): [text] in the server's words, answered with [label] or Cancel. */
+@Composable
+private fun AlwaysQuestion(text: String, label: String, done: (Boolean) -> Unit) = AlertDialog(
+    onDismissRequest = { done(false) },
+    text = { Text(text) },
+    confirmButton = { TextButton(onClick = { done(true) }) { Text(label, color = LocalPaper.current.text) } },
+    dismissButton = { TextButton(onClick = { done(false) }) { Text("Cancel", color = LocalPaper.current.text) } },
+)
 
 /** A warning, set apart in amber: that of a tool from a link, and that of a login used on another website; the app puts the sign in front. Closed, it keeps two lines in sight. */
 @Composable
@@ -1130,11 +1144,17 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         // What the Chief asked to do after it read the web in a chat: the server's title and line, and what it sent
         // as rows, drawn as an action's are. The yes does exactly that, so a card that cannot show it all offers
         // Decline alone.
+        // A request of a type the owner may let through for good (#280) has the server's second yes, `always`, which
+        // asks first with the server's `warning`.
+        val always = a.always?.takeIf { it.isNotBlank() && a.chiefActionYes }
+        var asking by remember(a.id) { mutableStateOf(false) }
+        if (asking && always != null) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { "$always?" }, always) { asking = false; if (it) answer(a.title, true, "Always allowed", true) }
         Card(who, a.title, a.chiefActionLine, expandable = true) {
             if (a.rows.isNotEmpty()) Facts(a.rows, whole = LocalCardOpen.current)
             if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
             ThenLine(then)
-            if (a.chiefActionYes) Buttons("Approve", { decide(a.title, true, "Approved") }, "Decline", { decide(a.title, false, null) })
+            if (a.chiefActionYes) Buttons("Approve", { decide(a.title, true, "Approved") }, "Decline", { decide(a.title, false, null) },
+                onAlways = always?.let { { asking = true } }, alwaysLabel = always ?: "Always approve")
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 OutlinedButton(onClick = { decide(a.title, false, null) }) { Text("Decline", color = LocalPaper.current.text) }
             }

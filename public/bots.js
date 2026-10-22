@@ -375,15 +375,17 @@ function renderBotSettings(force = false) {
 
   foldPicker($('#bot-picks', root), state.bots.filter((x) => x.id !== b.id).map((x) => ({ id: x.id, label: x.name, desc: x.description.slice(0, 120) })), sel.mayMessage, saveSoon,
     { none: 'Nobody', sum: () => (others.length > 1 && others.every((id) => sel.mayMessage.has(id)) ? 'Everyone' : [...sel.mayMessage].map((id) => botById(id)?.name || id).join(', ')) });
-  // The jobs you said to always approve: their later changes need no OK. Untick one and it asks again.
-  const trusted = (b.jobs || []).filter((j) => j.alwaysApprove);
+  // The jobs you said to always approve: their later changes need no OK. Untick one and it asks again. With them, its
+  // changes to the shared notes when you said "Always allow for this bot" on such a card (#280).
+  const SHARED = '@shared-notes';
+  const trusted = [...(b.sharedNotesAlways ? [{ id: SHARED, name: 'Changes to shared notes', line: 'It adds and changes shared notes without asking. Removals still ask.' }] : []), ...(b.jobs || []).filter((j) => j.alwaysApprove)];
   const alwaysBox = $('#always-picks', root);
   $('#bs-always', root).classList.toggle('hidden', !trusted.length);
   const trustedOn = new Set(trusted.map((j) => j.id));
-  if (trusted.length) foldPicker(alwaysBox, trusted.map((j) => ({ id: j.id, label: j.name, desc: jobLine(j) })), trustedOn, () => {}, {
+  if (trusted.length) foldPicker(alwaysBox, trusted.map((j) => ({ id: j.id, label: j.name, desc: j.line || jobLine(j) })), trustedOn, () => {}, {
     action: { label: 'Revoke', run: async (id) => {
-      try { await api(`/bots/${b.id}/jobs/${id}`, { method: 'PUT', body: { alwaysApprove: false } }); } catch (e) { toast(e.message, true); return false; }
-      toast('Revoked: its next change waits for your OK');
+      try { await (id === SHARED ? api(`/bots/${b.id}/shared-notes-always`, { method: 'DELETE' }) : api(`/bots/${b.id}/jobs/${id}`, { method: 'PUT', body: { alwaysApprove: false } })); } catch (e) { toast(e.message, true); return false; }
+      toast(id === SHARED ? 'Revoked: its next shared note waits for your OK' : 'Revoked: its next change waits for your OK');
       if (!trustedOn.size || (trustedOn.size === 1 && trustedOn.has(id))) $('#bs-always', root).classList.add('hidden');
       refresh();
       return true;
