@@ -88,6 +88,9 @@ import dev.botdot.app.ui.LocalPanelClose
 import dev.botdot.app.ui.LocalPaper
 import dev.botdot.app.ui.Panel
 import dev.botdot.app.ui.SettingsPanel
+import dev.botdot.app.ui.RoomChatScreen
+import dev.botdot.app.ui.RoomSettingsScreen
+import dev.botdot.app.ui.RoomsScreen
 import dev.botdot.app.ui.ShareScreen
 import dev.botdot.app.ui.SignInScreen
 import dev.botdot.app.ui.VaultScreen
@@ -316,6 +319,16 @@ class MainActivity : ComponentActivity() {
                         // its own panel, the way back to the list is taken already, and a second step back would leave the list.
                         GroupChatScreen(app, id, onSettings = { panelKept = SettingsPanel.toggle(panelKept, groupKey(id)) }, onNeeds = { nav.navigate("needs") },
                             onSignIn = { nav.navigate("settings") { launchSingleTop = true } }) { if (nav.currentBackStackEntry == e) nav.popBackStack() }
+                    }
+                    // Shared rooms (ADR 060): the list, a room's chat, its settings.
+                    composable("rooms") { RoomsScreen(app, onRoom = { nav.navigate("room/$it") { launchSingleTop = true } }) { nav.popBackStack() } }
+                    composable("room/{id}") { e ->
+                        val id = e.arguments?.getString("id") ?: ""
+                        RoomChatScreen(app, id, onSettings = { nav.navigate("room/$id/settings") { launchSingleTop = true } }) { if (nav.currentBackStackEntry == e) nav.popBackStack() }
+                    }
+                    composable("room/{id}/settings") { e ->
+                        val id = e.arguments?.getString("id") ?: ""
+                        RoomSettingsScreen(app, id, onGone = { if (!nav.popBackStack("rooms", inclusive = false)) nav.popBackStack("home", inclusive = false) }) { nav.popBackStack() }
                     }
                     composable("dashboard") { DashboardScreen(app, onBot = { nav.navigate("bot/$it") }, onNeeds = { nav.navigate("needs") }) { nav.popBackStack() } }
                     composable("needs") { e -> NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }, onDone = { if (nav.currentBackStackEntry == e) nav.popBackStack() }) { nav.popBackStack() } }
