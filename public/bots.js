@@ -86,11 +86,16 @@ function readBotForm(form, sel) {
     mayMessageAll: sel.others.every((id) => sel.mayMessage.has(id)),
     mayMessage: [...sel.mayMessage],
     othersMayAsk: form.othersMayAsk.checked,
+    ...(hotkeyChanged(form) ? { hotkey: Number(form.hotkey.value) } : {}),
     allowedTools: form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean),
     permissionMode: form.permissionMode.value,
     ...readLlmFields(form, 'bot'),
   };
 }
+
+// The key was chosen on this page (#366): only then is it sent, so a page drawn earlier never takes back a digit the
+// Chief has given another bot since.
+const hotkeyChanged = (form) => !!form.hotkey && [...form.hotkey.options].find((o) => o.defaultSelected)?.value !== form.hotkey.value;
 
 // Switched-off machine/built-in skills: unticked switches, plus earlier ones that aren't shown right now.
 function readDisabledSkills(form) {
@@ -147,6 +152,17 @@ function foldPicker(box, items, selected, onChange, { none = 'None', empty = 'No
   draw();
 }
 
+// Its own key on the keypad (#366): a digit that opens its chat in a wide window, wherever it stands. A digit another
+// bot holds says whose it is, and choosing it moves it here.
+function hotkeyRow(b) {
+  const holder = (d) => state.bots.find((x) => x.id !== b.id && x.hotkey === d);
+  const option = (d) => `<option value="${d}" ${(b.hotkey || 0) === d ? 'selected' : ''}>${d}${holder(d) ? ` (now ${esc(holder(d).name)})` : ''}</option>`;
+  return `<div class="bs-row">
+          <span class="bs-icon">⌨</span>
+          <div class="grow"><b>Key on the keypad</b><div class="faint">Its digit in a wide window, wherever it stands. Without one it gets a free digit by its place.</div></div>
+          <select name="hotkey" aria-label="Key on the keypad"><option value="0" ${b.hotkey ? '' : 'selected'}>By its place</option>${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(option).join('')}</select>
+        </div>`;
+}
 function renderBotSettings(force = false) {
   const root = $('#view-botsettings');
   const bot = state.bots.find((b) => b.id === state.botId);
@@ -183,6 +199,7 @@ function renderBotSettings(force = false) {
           <div class="grow"><b>Pinned below the Chief</b></div>
           <label class="switch"><input type="checkbox" id="bs-pinned" ${b.pinned > 0 ? 'checked' : ''} aria-label="Pinned below the Chief"><span></span></label>
         </div>
+        ${state.features.includes('bot-hotkeys') ? hotkeyRow(b) : ''}
         <div class="bs-row" id="bs-skills">
           <span class="bs-icon">✦</span>
           <div class="grow"><b>Skills</b>${b.useSkills === false ? '<div class="faint">Skills are off for this bot. <button type="button" class="link-btn" data-skills-on>Turn them on</button></div>' : '<div id="skill-picks"><span class="faint">Loading…</span></div>'}</div>

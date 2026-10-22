@@ -11,7 +11,7 @@ import org.junit.Test
  * keyboard does on it. The cases are the spec's, the same as the web page's.
  */
 class KeypadTest {
-    private fun bot(id: String, category: String = "", order: Int = 0, pinned: Int = 0) = Bot(id = id, name = id.replaceFirstChar { it.uppercase() }, group = category, order = order, pinned = pinned)
+    private fun bot(id: String, category: String = "", order: Int = 0, pinned: Int = 0, hotkey: Int? = null) = Bot(id = id, name = id.replaceFirstChar { it.uppercase() }, group = category, order = order, pinned = pinned, hotkey = hotkey)
     private fun group(id: String, category: String = "", order: Int = 0, pinned: Int = 0) =
         Group.list("""[{"id":"$id","name":"${id.uppercase()}","members":["a","b"],"category":"$category","order":$order,"pinned":$pinned}]""").single()
 
@@ -78,7 +78,7 @@ class KeypadTest {
     // Keys
 
     private fun press(key: String, ctrl: Boolean = false, shift: Boolean = false, alt: Boolean = false, meta: Boolean = false) = Keypad.Press(key, ctrl, shift, alt, meta)
-    private fun on(p: Keypad.Press, typing: Boolean = false, keys: Int = 9) = Keypad.action(p, typing, keys)
+    private fun on(p: Keypad.Press, typing: Boolean = false, keys: Int = 9) = Keypad.action(p, typing, (1..keys).toSet())
 
     @Test fun aDigitOpensTheKeyWithItsNumber() {
         for (n in 1..9) assertEquals(Keypad.Action.Open(n), on(press("$n")))
@@ -92,6 +92,35 @@ class KeypadTest {
         assertEquals(Keypad.Action.Open(4), on(press("4"), keys = 4))
         assertEquals(Keypad.Action.None, on(press("5"), keys = 4))
         assertEquals(Keypad.Action.None, on(press("1"), keys = 0))
+    }
+
+    @Test fun aDigitOpensOnlyWhereAKeyHasIt() {
+        assertEquals(Keypad.Action.Open(7), Keypad.action(press("7"), typing = false, digits = setOf(2, 7)))
+        assertEquals(Keypad.Action.None, Keypad.action(press("3"), typing = false, digits = setOf(2, 7)))
+    }
+
+    // Digits (#366): a bot's own hotkey, else the free digits by place
+
+    /** Each digit with the id of the key it opens. */
+    private fun read(digits: Map<Int, Keypad.Key>) = digits.map { (d, k) -> "$d ${k.id}" }
+
+    @Test fun withNoHotkeyTheFirstNineShownKeysGetOneToNine() {
+        val pages = Keypad.pages((1..11).map { bot("b${it.toString().padStart(2, '0')}") }, emptyList())
+        val digits = Keypad.digits(pages, Keypad.shownKeys(pages, emptySet()))
+        assertEquals((1..9).map { "$it b${it.toString().padStart(2, '0')}" }, read(digits))
+        assertEquals(0, Keypad.digitOf(digits, pages.single().keys[9]))
+    }
+
+    @Test fun aBotsOwnHotkeyIsItsAndTheFreeDigitsGoToTheRestGroupsToo() {
+        val pages = Keypad.pages(listOf(bot("a", order = 1), bot("b", order = 2, hotkey = 1), bot("c", order = 3), bot("d", order = 4, hotkey = 3)), listOf(group("g")))
+        val digits = Keypad.digits(pages, Keypad.shownKeys(pages, emptySet()))
+        assertEquals(listOf("1 b", "2 a", "3 d", "4 c", "5 group:g"), read(digits))
+    }
+
+    @Test fun aHotkeyWorksFromAFoldedPageWhoseKeysTakeNoFreeDigit() {
+        val pages = Keypad.pages(listOf(bot("news", pinned = 1), bot("cook", "Home", hotkey = 2), bot("lights", "Home")), emptyList())
+        val digits = Keypad.digits(pages, Keypad.shownKeys(pages, setOf("Home")))
+        assertEquals(listOf("1 news", "2 cook"), read(digits))
     }
 
     @Test fun aDigitWithAModifierDoesNothing() {
