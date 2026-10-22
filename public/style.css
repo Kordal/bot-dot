@@ -574,6 +574,10 @@ dialog.wide { width: min(1080px, calc(100% - 24px)); }
 /* What's new after an update (whats-new.js): a title and a few points per note. */
 .whats-new h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
 .whats-new ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.whats-new-count { margin: 0; color: var(--muted); font-size: 13px; }
+/* Past the newest three (#380): a title that opens to its points. */
+.whats-new details summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+.whats-new details[open] summary { margin-bottom: 6px; }
 /* The same notes under Settings → Updates while a version waits (#303). */
 .update-notes { display: grid; gap: 14px; margin-top: 18px; }
 .update-notes h3.page-sub { margin: 0; font-size: 13px; }

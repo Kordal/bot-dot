@@ -14,6 +14,8 @@ object WhatsNew {
     const val FEATURE = "whats-new"
     const val TITLE = "What's new"
     const val GOT_IT = "Got it"
+    /** Every note since the last one seen comes (#380): the newest this many show in full, the rest as titles that open. */
+    const val OPEN = 3
 
     @Serializable data class Entry(val id: String = "", val title: String = "", val points: List<String> = emptyList())
     @Serializable data class Answer(val entries: List<Entry> = emptyList())
@@ -23,6 +25,13 @@ object WhatsNew {
 
     /** The notes worth a dialog: those with an id and a title, as the server sent them (newest first). */
     fun shown(answer: Answer): List<Entry> = answer.entries.filter { it.id.isNotBlank() && it.title.isNotBlank() }
+
+    /** The line above more than [OPEN] notes, as on the web page; none for fewer. */
+    fun countLine(entries: List<Entry>): String? =
+        if (entries.size > OPEN) "${entries.size} changes, newest first. Tap a title for more." else null
+
+    /** Whether a note shows its points before a tap: the newest [OPEN] do. */
+    fun openAtFirst(index: Int): Boolean = index < OPEN
 
     /** What closing the dialog sends, any way it is closed: everything up to the newest note shown is seen. */
     fun seenBody(entries: List<Entry>): JsonObject = buildJsonObject { put("id", entries.first().id) }

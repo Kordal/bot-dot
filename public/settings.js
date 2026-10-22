@@ -371,8 +371,7 @@ async function loadUpdateCard() {
 
 function updateNotesHTML(u) {
   if (!u.ready || !updateNotes.length) return '';
-  return `<div class="whats-new update-notes"><h3 class="page-sub">What's new</h3>${updateNotes.map((e) => `
-        <section><h3>${esc(e.title)}</h3><ul>${e.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></section>`).join('')}</div>`;
+  return `<div class="whats-new update-notes"><h3 class="page-sub">What's new</h3>${whatsNewNotesHTML(updateNotes)}</div>`;
 }
 
 function updateCardText(u) {
