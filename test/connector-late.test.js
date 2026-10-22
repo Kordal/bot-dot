@@ -10,7 +10,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, waitFor, readData, setQueue, seedRuns, sleep, fakeConnectedApp, connectorEnv } = require('./helpers');
+const { startServer, makeBot, waitFor, readData, setQueue, seedRuns, sleep, fakeConnectedApp, connectorEnv, writeData } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 const { isRunOf } = require('./carry-on-helpers');
 
@@ -222,7 +222,7 @@ test("a run the Chief started is started again by botdot itself, and its reply r
       const file = path.join(srv.data, 'chief', `${chat.id}.json`);
       const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
       saved.messages.push({ role: 'user', text: 'Have the bot tell Anna', at: new Date().toISOString() }, { role: 'chief', text: 'Started it.', at: new Date().toISOString(), actions: [{ kind: 'run', text: 'Started News Mailer', botId: bot.id, runId: started.data.id }] });
-      fs.writeFileSync(file, JSON.stringify(saved));
+      writeData(file, saved);
       return started;
     },
   });
@@ -306,7 +306,7 @@ const intoChat = (chat, ...messages) => {
   const file = path.join(srv.data, 'chief', `${chat.id}.json`);
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   saved.messages.push(...messages);
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeData(file, saved);
 };
 // A run of the bot that the Chief starts from a chat: `start` for waitedOut, which records the run in that chat
 // (as its run_bot action does), under a message of the owner.

@@ -6,7 +6,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, restartServer, makeBot, feed, waitFor, readData, self } = require('./helpers');
+const { startServer, restartServer, makeBot, feed, waitFor, readData, self, writeData } = require('./helpers');
 
 let srv, surfer, mail;
 before(async () => {
@@ -35,7 +35,7 @@ async function chatOn(on, ...runs) {
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   saved.messages.push({ role: 'user', text: 'do it', at: new Date().toISOString() },
     { role: 'chief', text: "It's still going.", at: new Date().toISOString(), actions: runs.map((r) => ({ kind: 'run', text: 'Started a bot', runId: r.id })) });
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeData(file, saved);
   return chat;
 }
 const chatOf = async (chat, on = srv) => (await on.api(`/chief/chats/${chat.id}`)).data;

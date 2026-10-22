@@ -6,7 +6,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, heldRun, self, waitFor } = require('./helpers');
+const { startServer, makeBot, heldRun, self, waitFor, writeData } = require('./helpers');
 const { heldPermissions, grantWords, staleChange } = require('../lib/asks');
 const { kit, BASH, WEB, isRunOf } = require('./carry-on-helpers');
 
@@ -149,7 +149,7 @@ test('a run the Chief started that joins its changed bot is started again by the
   const file = path.join(srv.data, 'chief', `${chat.id}.json`);
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   saved.messages.at(-1).actions = [{ kind: 'run', text: 'Started Scout', botId: bot.id, runId: run.id }];
-  fs.writeFileSync(file, JSON.stringify(saved));
+  writeData(file, saved);
   refuse([WEB]);
   srv.unhold();
   srv.release(rec);
