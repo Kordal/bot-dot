@@ -55,6 +55,8 @@ import dev.botdot.app.data.NotesWake
 import dev.botdot.app.data.Learned
 import dev.botdot.app.data.MEMORY_CHIPS
 import dev.botdot.app.data.announces
+import dev.botdot.app.data.Plan
+import dev.botdot.app.data.PlanView
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.SentTo
 import dev.botdot.app.data.Unread
@@ -132,6 +134,11 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     val features = server?.features
     val stays = sendStays(features) // Send stays while it works, and Stop is the word on the working line
     val signedOut by app.store.claude.signedOut.collectAsState()
+    // Its plan above the message box (docs/api.md, "The plan"): the run at work's, or the newest run's that was stopped
+    // before its plan was done, until dismissed. Folded to its one line unless the owner opened it in this chat.
+    var planFolded by remember(botId) { mutableStateOf(app.plans.folded(chatKey)) }
+    var planDismissed by remember(botId) { mutableStateOf(0) } // a dismissal draws the chat again
+    val planView = remember(runs, planDismissed) { PlanView.ofBot(runs, app.plans::dismissed) }
 
     // From the message box: a message that did not go comes back into it, with the line that says why.
     fun sendText(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments) }
@@ -158,7 +165,10 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     if (jobs.isNotEmpty()) RoundButton(Icons.Filled.Schedule, "Scheduled jobs", dot = jobs.any { it.waits }, onClick = onJobs)
                 }
             },
-            bottomBar = {
+            bottomBar = { Column {
+                PlanDock(planView, bot?.color, bot?.name ?: "It", planFolded,
+                    onFold = { planFolded = it; app.plans.setFolded(chatKey, it) },
+                    onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
                 Composer(
                     placeholder = "Give ${bot?.name ?: "it"} a task…",
                     files = files,
@@ -170,7 +180,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     initialText = sharedText,
                     onSignIn = onSignIn.takeIf { signedOut },
                 )
-            },
+            } },
         ) { pad ->
             LazyColumn(
                 Modifier.fillMaxSize(),
@@ -215,7 +225,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         YourSide(r, open = r.id in opened)
                         if (new && mine) NewLine(bot?.color)
                         val theirs = @Composable {
-                            TheirSide(r, open = r.id in opened, features = features, draft = vm.draft?.takeIf { it.first == r.id }?.second,
+                            TheirSide(r, open = r.id in opened, features = features, draft = vm.draft?.takeIf { it.first == r.id }?.second, plan = r.plan?.takeIf { r.id != planView?.id },
                                 learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> onLearned; null -> null } })
                             if (r.id == runs.firstOrNull()?.id && r.status == "success") {
                                 Choices(r.choices) { text, key -> sendFrom(text, key) }
@@ -263,7 +273,7 @@ private fun YourSide(r: Run, open: Boolean = false) {
 }
 
 @Composable
-private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String>? = null, draft: String? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList()) {
+private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String>? = null, draft: String? = null, plan: Plan? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList()) {
     val p = LocalPaper.current
     val footer = shortTime(r.endedAt ?: r.startedAt)
     // What it learned is the server's line where the server writes it (`memory-chips`): printed whole. Before, cut as it was.
@@ -287,13 +297,13 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
         // the reply as it is written so far stands in the reply's place and grows there (ReplyDraft).
         "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble { Column { MarkdownText(draftSource(draft), copy = false); BotFilesRow(r.files) } }
         "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
-            Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); BotFilesRow(r.files) }
+            Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); BotFilesRow(r.files); PlanFold(plan) }
         }
         else -> when (val ended = endedWords(r, features)) {
             // A stopped run the server says nothing of, and every stopped run of a botdot from before `ended-by`.
-            is Ended.Stopped -> TheirBubble(footer, chips = learned, wholeChips = whole) { Text(ended.text, color = p.muted) }
+            is Ended.Stopped -> TheirBubble(footer, chips = learned, wholeChips = whole) { Column { Text(ended.text, color = p.muted); PlanFold(plan) } }
             is Ended.Problem -> TheirBubble(footer, error = true, copyText = r.error?.ifBlank { null } ?: ended.text, chips = learned, wholeChips = whole) {
-                Text(ended.text, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                Column { Text(ended.text, color = p.text, style = MaterialTheme.typography.bodyLarge); PlanFold(plan) }
             }
         }
     }

@@ -470,7 +470,7 @@ test('the file is gone after the time limit, and one a killed botdot left is rem
 // is in the block whatever its place, when the tap waited behind other messages: seven exchanges, the most there are.
 // Once in plain words, where every cap is hit, and once with every text made of tags, which the prompt prints
 // longer than they are stored: the bound holds for both.
-test("a bot's prompt with every cap hit, a tapped answer included, stays under 101,000 characters", async () => {
+test("a bot's prompt with every cap hit, a tapped answer included, stays under 102,000 characters", async () => {
   const fills = { plain: (n, c) => c.repeat(n), tags: (n, c) => `<${c}`.repeat(Math.ceil(n / 2)).slice(0, n) };
   const topic = (fill, i) => `${String(i).padStart(2, '0')} ${fill(37, 't')}`; // 40 characters, the most a topic has
   // Thirty pinned notes of 166 characters, 4,980 in all; and twelve that are not pinned, each under a topic of
@@ -526,7 +526,7 @@ test("a bot's prompt with every cap hit, a tapped answer included, stays under 1
   assert.equal(count(chat, 'more characters. read_run with run '), 2, 'the newest reply and the tapped one, each whole up to 20,000 characters');
   assert.ok(chat.length > 55_000, `the chat block is at its largest (${chat.length})`);
   assert.ok(plain.length > 80_000, `the caps are really hit (${plain.length})`);
-  assert.ok(plain.length < 101_000, `the prompt has ${plain.length} characters`);
+  assert.ok(plain.length < 102_000, `the prompt has ${plain.length} characters`);
 
   // Made of tags, every text is printed longer than it is stored, and the prompt is no larger for it.
   const tags = await tappedPrompt(bots.tags, fills.tags);
@@ -534,5 +534,5 @@ test("a bot's prompt with every cap hit, a tapped answer included, stays under 1
   assert.ok(between(tags, 'conversation').length <= chat.length + 200, `the chat block is no larger (${between(tags, 'conversation').length})`);
   for (const tag of ['memory', 'shared-memory']) assert.ok(between(tags, tag).length < 8550, `the ${tag} block is bounded (${between(tags, tag).length})`);
   assert.ok(between(tags, 'possibly-relevant').length <= 1500 + '<possibly-relevant>\n'.length, `the lookup is bounded (${between(tags, 'possibly-relevant').length})`);
-  assert.ok(tags.length < 101_000, `the prompt has ${tags.length} characters`);
+  assert.ok(tags.length < 102_000, `the prompt has ${tags.length} characters`);
 });

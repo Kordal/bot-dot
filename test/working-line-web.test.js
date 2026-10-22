@@ -210,7 +210,7 @@ function watching(features) {
   class EventSource { constructor(url) { this.url = url; this.closed = false; streams.push(this); } close() { this.closed = true; } }
   const got = { lines: [], files: [], ended: 0 };
   const ctx = vm.createContext({ ...noDrafts, JSON, OpeningLine, EventSource, state: { features } });
-  vm.runInContext(`${cut('function watchRun(runId, onEnd, onFile, onLine, onDraft) {', '// ---------- live screen preview')}\nthis.watchRun = watchRun;`, ctx);
+  vm.runInContext(`${cut('function watchRun(runId, onEnd, onFile, onLine, onDraft, onPlan) {', '// ---------- live screen preview')}\nthis.watchRun = watchRun;`, ctx);
   ctx.watchRun('r1', () => got.ended++, (file) => got.files.push(file), (text) => got.lines.push(text));
   const emit = (ev) => streams[0].onmessage({ data: JSON.stringify(ev) });
   return { got, streams, emit };
