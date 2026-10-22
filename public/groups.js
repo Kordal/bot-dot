@@ -210,8 +210,7 @@ function renderGroupSettings() {
           <div id="gs-members"></div>
           <div><button type="button" class="btn sm" id="gs-add">＋ Add a bot</button></div>
         </div>
-        <div class="bs-foot"><button type="button" class="btn danger" id="gs-delete">Delete this group</button>
-          <p class="faint gs-note">Its chat is erased. No bot is deleted.</p></div>
+        <div class="bs-foot"><button type="button" class="btn danger" id="gs-delete">Delete this group</button></div>
       </div>`;
     const name = $('#gs-name', root);
     name.value = g.name;

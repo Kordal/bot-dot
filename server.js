@@ -15,6 +15,7 @@ const B = require('./lib/bots');
 const botFiles = require('./lib/bot-files'); // a bot's files, for a held card's title (#235)
 const audit = require('./lib/audit').create(B.DATA_DIR);
 const calls = require('./lib/calls');
+const whatsNew = require('./lib/whats-new');
 const callKeys = calls.keyStore(B.DATA_DIR); // the keys of the jobs that can be called (ADR 026)
 const callRefusals = calls.refusalLog(B.DATA_DIR); // the calls each job refused, the last ones
 const callsSeen = calls.seenStore(B.DATA_DIR); // the signatures of the signed calls each job took lately (#37)
@@ -240,7 +241,8 @@ const withoutFile = ({ file, ...a }) => a;
 async function versionInfo() {
   const u = await updates.status().catch(() => null);
   const revision = u?.version?.revision || GIT_REV;
-  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES, docker: fs.existsSync('/.dockerenv'), android: withoutFile(androidApp() || {}), mac: withoutFile(macApp() || {}) };
+  // whatsNew: the newest note this version ships, so the front door can say what a waiting update brings (#303).
+  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES, docker: fs.existsSync('/.dockerenv'), android: withoutFile(androidApp() || {}), mac: withoutFile(macApp() || {}), whatsNew: whatsNew.newest() };
 }
 
 // What needs the owner, now: for the feed's first message and to notice changes.

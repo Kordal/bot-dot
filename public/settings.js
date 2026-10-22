@@ -220,7 +220,6 @@ function renderSettings() {
     <form id="settings-form" autocomplete="off">
       <div class="card settings-card">
         <h3 class="page-sub" style="margin-top:0">Default model and reasoning</h3>
-        <p class="muted settings-hint">Used by every bot that doesn't choose its own. A higher reasoning level thinks longer before answering: better results on hard tasks, but slower.</p>
         ${llmFieldsHTML('default', { model: s.defaultModel, effort: s.defaultEffort })}
         <div class="catalog-line">${catalogLine()} <button type="button" class="link-btn" id="refresh-models">Check for new models</button></div>
       </div>
@@ -317,7 +316,7 @@ function pushCardHTML() {
   return `<div class="card settings-card bs-rows" id="push-card">
       <div class="bs-row">
         <span class="bs-icon">🔔</span>
-        <div class="grow"><b>Notifications on this device</b><div class="faint">Replies, and what needs you, as the phone app shows them.</div></div>
+        <div class="grow"><b>Notifications on this device</b></div>
         <label class="switch"><input type="checkbox" id="push-on" disabled aria-label="Notifications on this device"><span></span></label>
       </div>
     </div>`;
@@ -353,15 +352,26 @@ function openTarget(target) {
 
 // Settings → "Updates" (#259, ADR 053): the owner's "Update automatically" and, when the admin installed a version this
 // account waits for, "Update now". Both are the front door's own routes, never botdot's, and only where the front door
-// says this account chooses (its session's `updates`): not on a machine of one account.
+// says this account chooses (its session's `updates`): not on a machine of one account. While a version waits, its
+// What's new under them (#303): the notes the front door says it brings, kept for the card's next drawings.
+let updateNotes = [];
 async function loadUpdateCard() {
   if (!state.features.includes('accounts')) return;
   let u = null;
   try {
     const session = await fetch('/front-door/session').then((r) => (r.ok ? r.json() : null));
     if (session?.updates === true) u = await fetch('/front-door/update').then((r) => (r.ok ? r.json() : null));
+    // An older front door has no such route: no notes.
+    const notes = u?.ready ? await fetch('/front-door/update/notes').then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
+    updateNotes = Array.isArray(notes?.entries) ? notes.entries.filter((e) => e && typeof e.title === 'string' && Array.isArray(e.points)) : [];
   } catch { /* nothing to show */ }
   drawUpdateCard(u);
+}
+
+function updateNotesHTML(u) {
+  if (!u.ready || !updateNotes.length) return '';
+  return `<div class="whats-new update-notes"><h3 class="page-sub">What's new</h3>${updateNotes.map((e) => `
+        <section><h3>${esc(e.title)}</h3><ul>${e.points.map((p) => `<li>${esc(p)}</li>`).join('')}</ul></section>`).join('')}</div>`;
 }
 
 function updateCardText(u) {
@@ -369,7 +379,7 @@ function updateCardText(u) {
   if (u.asked || u.last?.state === 'switching') return 'Moving to the new version. Your bots restart in a minute or two.';
   if (u.ready) return `A new version${u.ready.version ? ` (${u.ready.version})` : ''} is ready. Your account moves to it by itself on ${day(u.ready.deadline)}, or now if you choose.`;
   if (u.last && (u.last.state === 'kept' || u.last.state === 'failed')) return `The last move to a new version didn't happen: ${u.last.error || 'the admin can see why'}.`;
-  return u.autoUpdate ? 'Your account moves to each new version when the admin updates botdot.' : 'Your account is on the newest version the admin installed.';
+  return '';
 }
 
 function drawUpdateCard(u) {
@@ -380,11 +390,12 @@ function drawUpdateCard(u) {
   card.innerHTML = `
       <h3 class="page-sub" style="margin-top:0">Updates</h3>
       <div class="bs-rows"><div class="bs-row">
-        <div class="grow"><b>Update automatically</b><div class="faint">Off: when the admin updates, your bots keep working on the version they run until you choose, up to a deadline the admin sets.</div></div>
+        <div class="grow"><b>Update automatically</b><div class="faint">On: Always use the latest botdot version.</div><div class="faint">Off: Update when you're ready, before the admin's deadline.</div></div>
         <label class="switch"><input type="checkbox" id="auto-update" aria-label="Update automatically"${u.autoUpdate ? ' checked' : ''}><span></span></label>
       </div></div>
-      <p class="muted settings-hint" id="update-said">${esc(updateCardText(u))}</p>
-      ${u.canUpdate ? '<button type="button" class="btn" id="update-now">Update now</button>' : ''}`;
+      ${updateCardText(u) ? `<p class="muted settings-hint" id="update-said">${esc(updateCardText(u))}</p>` : ''}
+      ${u.canUpdate ? '<button type="button" class="btn" id="update-now">Update now</button>' : ''}
+      ${updateNotesHTML(u)}`;
   const box = $('#auto-update', card);
   box.onchange = async () => {
     box.disabled = true;

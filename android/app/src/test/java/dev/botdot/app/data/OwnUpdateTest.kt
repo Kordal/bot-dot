@@ -80,6 +80,13 @@ class OwnUpdateTest {
         assertFalse(u.ready)
         assertNull(u.readyVersion)
         assertEquals("The last move to a new version didn't happen: Its new botdot server didn't start.", u.text())
-        assertEquals("Your account moves to each new version when the admin updates botdot.", OwnUpdate.of(obj("{}")).text())
+        assertEquals("nothing waits or moves: the switch's own two lines say it all", "", OwnUpdate.of(obj("{}")).text())
+    }
+
+    @Test fun readsWhatAWaitingVersionBrings() = runBlocking {
+        door.enqueue(json("""{"entries":[{"id":"2026-10-22-b","title":"Second","points":["One","Two"]},{"id":"","title":"No id","points":["x","y"]}]}"""))
+        val notes = api.updateNotes()
+        assertEquals("/front-door/update/notes", door.takeRequest().target)
+        assertEquals(listOf(WhatsNew.Entry("2026-10-22-b", "Second", listOf("One", "Two"))), notes)
     }
 }

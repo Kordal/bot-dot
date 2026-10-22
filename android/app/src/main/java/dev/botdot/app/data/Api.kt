@@ -138,6 +138,9 @@ class Api(val baseUrl: String, val session: Session? = null) {
         call(Request.Builder().url(baseUrl.trimEnd('/') + "/front-door/update").header("Accept", "application/json").get().build())).jsonObject)
     /** The owner's "Update automatically". A refusal throws the front door's sentence. */
     suspend fun setAutoUpdate(on: Boolean): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update", OwnUpdate.body(on))).jsonObject)
+    /** What's new in the version this account waits for (#303), newest first. Asked only while [OwnUpdate.ready]. */
+    suspend fun updateNotes(): List<WhatsNew.Entry> = WhatsNew.shown(json.decodeFromString<WhatsNew.Answer>(
+        call(Request.Builder().url(baseUrl.trimEnd('/') + "/front-door/update/notes").header("Accept", "application/json").get().build())))
     /** "Update now": the machine switches this account alone to the version the admin installed. */
     suspend fun updateNow(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update/now")).jsonObject)
 

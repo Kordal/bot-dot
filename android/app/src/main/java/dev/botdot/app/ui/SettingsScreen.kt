@@ -82,6 +82,7 @@ fun SettingsScreen(
     var backups by remember { mutableStateOf<dev.botdot.app.data.BackupInfo?>(null) }
     var backingUp by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<dev.botdot.app.data.OwnUpdate?>(null) }
+    var updateNotes by remember { mutableStateOf<List<dev.botdot.app.data.WhatsNew.Entry>>(emptyList()) } // what a waiting version brings (#303)
     var confirmUpdateNow by remember { mutableStateOf(false) }
     var updatePolls by remember { mutableStateOf(0) } // a new look each time, also when the answer is the same
     // Notifications turned off for this app (or never allowed): say so, checked again whenever you come back.
@@ -111,6 +112,8 @@ fun SettingsScreen(
                 // Updates: only where the front door says this account chooses when it switches (ADR 053).
                 val session = runCatching { a.frontDoorSession() }.getOrNull()
                 update = if (dev.botdot.app.data.OwnUpdate.on(server?.features, session)) runCatching { a.ownUpdate() }.getOrNull() else null
+                // An older front door has no such route: no notes.
+                updateNotes = if (update?.ready == true) runCatching { a.updateNotes() }.getOrDefault(emptyList()) else emptyList()
             }
             launch { runCatching { a.backups() }.onSuccess { backups = it } }
         }
@@ -127,7 +130,7 @@ fun SettingsScreen(
         topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("Settings", style = MaterialTheme.typography.titleMedium) }) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Section("Default model and reasoning", "Every bot that doesn't choose its own uses this. More reasoning is better on hard tasks, but slower.") {
+            Section("Default model and reasoning") {
                 Choice("Model", edit.defaultModel, models) { edit = edit.copy(defaultModel = it) }
                 if (canThink(edit.defaultModel)) Choice("Reasoning", edit.defaultEffort, efforts) { edit = edit.copy(defaultEffort = it) }
             }
@@ -237,14 +240,19 @@ fun SettingsScreen(
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Update automatically", color = p.text, style = MaterialTheme.typography.bodyLarge)
-                            Hint("Off: when the admin updates, your bots keep working on the version they run until you choose, up to a deadline the admin sets.")
+                            Hint("On: Always use the latest botdot version.")
+                            Hint("Off: Update when you're ready, before the admin's deadline.")
                         }
                         androidx.compose.material3.Switch(checked = u.autoUpdate, onCheckedChange = { on ->
                             scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it }.onError { tell(it.message ?: "Couldn't change it") } }
                         })
                     }
-                    Hint(u.text())
+                    u.text().takeIf { it.isNotEmpty() }?.let { Hint(it) }
                     if (u.canUpdate) OutlinedButton(onClick = { confirmUpdateNow = true }) { Text("Update now", color = p.text) }
+                    if (u.ready && updateNotes.isNotEmpty()) {
+                        Text(dev.botdot.app.data.WhatsNew.TITLE, color = p.text, style = MaterialTheme.typography.titleSmall)
+                        WhatsNewEntries(updateNotes, color = p.text)
+                    }
                 }
                 // While it moves, the section follows it.
                 if (u.moving) LaunchedEffect(u, updatePolls) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it }; updatePolls++ }

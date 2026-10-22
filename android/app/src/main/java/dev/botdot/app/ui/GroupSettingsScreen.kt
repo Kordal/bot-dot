@@ -136,7 +136,6 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                 if (Groups.addable(g, bots).isNotEmpty()) OutlinedButton(onClick = { adding = true }) { Text("＋ Add a bot", color = p.text) }
             }
             OutlinedButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text("Delete this group", color = p.err) }
-            Hint("Its chat is erased. No bot is deleted.")
         }
     }
 
