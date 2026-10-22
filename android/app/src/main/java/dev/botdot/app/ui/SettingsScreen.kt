@@ -65,7 +65,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     app: BotDotApp,
-    onSkills: () -> Unit, onConnectors: () -> Unit, onVault: () -> Unit,
+    onSkills: () -> Unit, onConnectors: () -> Unit, onVault: () -> Unit, onPages: () -> Unit,
     onChangeServer: () -> Unit, onBattery: () -> Unit, onBack: () -> Unit,
 ) {
     val p = LocalPaper.current
@@ -267,6 +267,7 @@ fun SettingsScreen(
 
             Section("More") {
                 Link("✦ Skills", onSkills)
+                if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link("📄 Pages", onPages) // every bot's pages (#361)
                 Link("🔌 Connectors", onConnectors)
                 Link("🔐 Vault", onVault)
                 if (notifyOn) Link("🔔 Notifications in the background", onBattery)

@@ -470,6 +470,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     /** A bot's pages (#346), newest first. */
     suspend fun pages(botId: String): List<PageInfo> = json.decodeFromString<PageList>(get("/bots/${enc(botId)}/pages")).pages
+    /** Every bot's pages (#361), newest first, each with its bot. Only with `pages-all`. */
+    suspend fun allPages(): List<PageInfo> = json.decodeFromString<PageList>(get("/pages")).pages
     /** Keeps a page up to date: how often ("hour", "day", "monday"), at what time, whether to hear of every update, what to check. The tap is the consent: no card. */
     suspend fun keepPage(botId: String, slug: String, every: String, time: String, notify: String, check: String): PageInfo? =
         json.decodeFromString<PageKept>(send("POST", "${Pages.src(botId, slug)}/keep", buildJsonObject { put("every", every); put("time", time); put("notify", notify); put("check", check) })).page

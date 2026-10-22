@@ -19,6 +19,17 @@ object Pages {
 
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features && DocumentView.FEATURE in features
 
+    /** Every bot's pages in one list (#361): Pages on Settings, from a server whose `features` also name `pages-all`. */
+    const val FEATURE_ALL = "pages-all"
+    fun showsAll(features: Collection<String>?): Boolean = shows(features) && FEATURE_ALL in features!!
+
+    /** The Pages screen's two sections: the pages kept up to date, then the others, each newest first as the server lists them. */
+    fun split(pages: List<PageInfo>): Pair<List<PageInfo>, List<PageInfo>> = pages.partition { it.keep != null }
+
+    /** A row's line on the Pages screen: "Ops · updated 5m ago · Daily at 07:00". */
+    fun allLine(page: PageInfo, now: java.time.Instant = java.time.Instant.now()): String =
+        listOfNotNull(page.bot.ifBlank { null }, line(page, now)).joinToString(" · ")
+
     /** A page's address: with `?view=1` the viewer reads it, with its `page`. */
     fun src(botId: String, slug: String): String = "/bots/${Api.enc(botId)}/pages/${Api.enc(slug)}"
 
@@ -55,6 +66,9 @@ data class PageInfo(
     val updatedAt: String? = null,
     val file: String = "",
     val keep: PageKeep? = null,
+    /** On the list of every bot's pages (#361): whose page it is. */
+    val botId: String = "",
+    val bot: String = "",
 )
 
 @Serializable

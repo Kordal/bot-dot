@@ -78,6 +78,22 @@ class PagesTest {
         assertEquals("DELETE", server.takeRequest().method)
     }
 
+    @Test fun everyBotsPagesComeInOneListKeptOnesFirst() = runBlocking {
+        assertTrue(Pages.showsAll(listOf("document-viewer", "pages", "pages-all")))
+        assertFalse(Pages.showsAll(listOf("document-viewer", "pages")))
+        assertFalse(Pages.showsAll(null))
+
+        server.enqueue(json("""{"pages":[{"botId":"ops","bot":"Ops","slug":"router-ports","title":"Router ports","updatedAt":"2026-10-22T07:04:00Z","keep":null},{"botId":"ops","bot":"Ops","slug":"hq-health","title":"hq health","updatedAt":"2026-10-22T07:00:00Z","keep":{"jobId":"j1","when":"Daily at 07:00"}},{"botId":"w","bot":"Writer","slug":"memo","title":"Memo","updatedAt":"2026-10-22T06:00:00Z","keep":null}]}"""))
+        val all = api.allPages()
+        assertEquals("/api/pages", server.takeRequest().target)
+        val (kept, other) = Pages.split(all)
+        assertEquals(listOf("hq-health"), kept.map { it.slug })
+        assertEquals(listOf("router-ports", "memo"), other.map { it.slug })
+        val now = Instant.parse("2026-10-22T07:05:00Z")
+        assertEquals("Ops · updated 5m ago · Daily at 07:00", Pages.allLine(kept[0], now))
+        assertEquals("Writer · updated 1h ago", Pages.allLine(other[1], now))
+    }
+
     @Test fun theFeedsPageEventIsKeptByBotAndSlug() {
         val saves = PageSaves()
         saves.handle(FeedEvent("b.1", "page", buildJsonObject { put("botId", "ops"); put("slug", "hq-health"); put("updatedAt", "2026-10-22T07:00:00Z") }))

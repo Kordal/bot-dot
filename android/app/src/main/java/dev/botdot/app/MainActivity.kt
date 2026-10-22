@@ -74,6 +74,7 @@ import dev.botdot.app.ui.DashboardScreen
 import dev.botdot.app.ui.LiveScreen
 import dev.botdot.app.ui.SettingsScreen
 import dev.botdot.app.ui.SkillsScreen
+import dev.botdot.app.ui.PagesScreen
 import dev.botdot.app.ui.BotDotTheme
 import dev.botdot.app.ui.DocumentViewerHost
 import dev.botdot.app.ui.ChiefScreen
@@ -326,10 +327,11 @@ class MainActivity : ComponentActivity() {
                         LiveScreen(app, id, name) { nav.popBackStack() }
                     }
                     composable("settings") {
-                        SettingsScreen(app, onSkills = { nav.navigate("skills") }, onConnectors = { nav.navigate("connectors") }, onVault = { nav.navigate("vault") },
+                        SettingsScreen(app, onSkills = { nav.navigate("skills") }, onConnectors = { nav.navigate("connectors") }, onVault = { nav.navigate("vault") }, onPages = { nav.navigate("pages") },
                             onChangeServer = { nav.navigate("connect") }, onBattery = { askBackgroundOk() }) { nav.popBackStack() }
                     }
                     composable("skills") { SkillsScreen(app) { nav.popBackStack() } }
+                    composable("pages") { PagesScreen(app) { nav.popBackStack() } }
                     composable("connectors") { ConnectorsScreen(app) { nav.popBackStack() } }
                     composable("vault") { VaultScreen(app) { nav.popBackStack() } }
                     composable("share") {
