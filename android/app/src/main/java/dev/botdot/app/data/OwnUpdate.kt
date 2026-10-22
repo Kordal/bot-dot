@@ -13,7 +13,7 @@ import java.util.Locale
  * Settings → Updates (#259, ADR 053): when this account switches to a new version. The owner's "Update automatically",
  * and "Update now" for a version the admin installed, which the account waits for until the admin's deadline. Both are
  * the front door's own routes (`/front-door/update`), never botdot's; shown only where the front door says this
- * account chooses (its session's `updates`): not on a machine of one account, nor for the admin's account.
+ * account chooses (its session's `updates`): not on a machine of one account.
  */
 data class OwnUpdate(
     val autoUpdate: Boolean = true,

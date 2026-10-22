@@ -1716,10 +1716,10 @@ wait_for() {
   WAITING="${WAITING:+$WAITING, }$1"
 }
 
+# The admin's own account first, then the others. The admin's waits by the same rule as any other's (#274).
 state="$(door_state "$ADMIN")"
-phase switch "$ADMIN"
 # shellcheck disable=SC2086 # its share's three numbers, after its state
-each_account "$ADMIN" ${state#* }
+if waits "$ADMIN"; then wait_for "$ADMIN"; else phase switch "$ADMIN"; each_account "$ADMIN" ${state#* }; fi
 for other in "$ACCOUNTS"/*/; do
   other="$(basename "$other")"
   [ "$other" != "$ADMIN" ] && [ -f "$ACCOUNTS/$other/compose.yaml" ] || continue

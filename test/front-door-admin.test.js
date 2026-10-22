@@ -153,7 +153,7 @@ test("the front door tells the web page whether its session is the admin's, so t
   const was = seen();
   const mine = await (await admin()).get('/front-door/session');
   assert.equal(mine.status, 200, mine.text);
-  assert.deepEqual(mine.data, { admin: true, feedback: true, feedbackScreenshots: true, updates: false });
+  assert.deepEqual(mine.data, { admin: true, feedback: true, feedbackScreenshots: true, updates: true });
   const hers = await fay.get('/front-door/session');
   assert.equal(hers.status, 200, hers.text);
   assert.deepEqual(hers.data, { admin: false, feedback: true, feedbackScreenshots: true, updates: true });
