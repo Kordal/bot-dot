@@ -91,6 +91,27 @@ test('a scheduled run with a question is never private: delivered as a reply, he
   assert.ok(quietRun(scheduled({ choices: ['Yes', 'No'] })));
 });
 
+test('a report that ends with a question asks as a final reply does: its buttons or its card, not the marker as text (#292)', () => {
+  const now = new Date();
+  // The question went in the report (notify_owner), the final reply says nothing to the owner.
+  const report = scheduled({ result: 'Sorted: 2.', ownerReport: { message: 'A new issue #209.\nSummarize it?\n[[choices: Summarize #209 | Summarize the comment | None]]', urgent: false } });
+  finishReport(report, now, DAY);
+  assert.deepEqual([report.reporting, report.result, report.choices], ['delivered', 'A new issue #209.\nSummarize it?\n\nSorted: 2.', ['Summarize #209', 'Summarize the comment', 'None']]);
+  assert.ok(runAsks(report) && !report.result.includes('[['));
+  // A card in the report, an empty reply.
+  const card = scheduled({ ownerReport: { message: `Two things.\n${CARD}`, urgent: false } });
+  finishReport(card, now, DAY);
+  assert.deepEqual([card.result, card.questions], ['Two things.', ['Which account should I send it from?', 'Who is in copy?', 'When?']]);
+  // The final reply's own buttons stay; the report's line leaves the text all the same.
+  const both = scheduled({ result: 'Should I pay them?', choices: ['Yes', 'No'], ownerReport: { message: 'Three new invoices.\n[[choices: A | B]]', urgent: false } });
+  finishReport(both, now, DAY);
+  assert.deepEqual([both.result, both.choices], ['Three new invoices.\n\nShould I pay them?', ['Yes', 'No']]);
+  // At night it is held as a report is.
+  const night = scheduled({ ownerReport: { message: 'Archive it?\n[[choices: Yes | No]]', urgent: false } });
+  finishReport(night, now, nightNow());
+  assert.deepEqual([night.reporting, night.result, night.choices], ['held', 'Archive it?', ['Yes', 'No']]);
+});
+
 test('who is asked: the owner by their own bot\'s reply, also in a run a teammate started (#233), never in a run the Chief started', () => {
   const reply = { status: 'success', trigger: 'manual', result: 'Send it?', choices: ['Yes', 'No'] };
   assert.equal(runAsks(reply), true);
