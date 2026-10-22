@@ -439,7 +439,7 @@ function chiefBubble(m, last = false, index = null) {
     : m.error && !m.text
       ? `<div class="md">${md(m.error)}</div>${files}`
       : m.text
-        ? `<div class="md">${md(m.text)}</div>${files}${m.error ? `<div class="problem-line"><div class="md">${md(m.error)}</div></div>` : ''}`
+        ? `<div class="md">${md(m.text)}</div>${index != null && !m.error ? globalThis.docButton?.({ chat: state.chatId, at: index }, m.text) || '' : ''}${files}${m.error ? `<div class="problem-line"><div class="md">${md(m.error)}</div></div>` : ''}`
         : files;
   // Its plan, folded under the reply (plan.js); a stopped or failed reply's stands above the message box instead.
   const plan = !m.pending && globalThis.Plan && m.plan && !(last && chiefStopped(m)) ? Plan.replyHTML(m.plan) : '';
@@ -481,15 +481,15 @@ const suggestionBubble = (m) => `
   </div></div>`;
 
 // A bot the Chief handed a task, with its final reply once the teammates it asked had answered.
-const reportBubble = (m) => `
+const reportBubble = (m, at = null) => `
   <div class="bubble-row from-me"><div class="stack from-bot-msg">
     <div class="bot-msg-label">Message from ${m.from ? botLabel(m.from) : 'a bot'}</div>
-    ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text)}</div>${botFilesHTML(m.files)}</div>
+    ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text)}</div>${at != null ? globalThis.docButton?.({ chat: state.chatId, at }, m.text) || '' : ''}${botFilesHTML(m.files)}</div>
     <div class="bubble-meta">${copyBtn(m.text)}</div>` : `<div class="bubble from-other-bot report-msg">${botFilesHTML(m.files)}</div>`}
   </div></div>`;
 
 // at: the message's place in the whole chat (the chat may have come in part, from `offset` on).
-const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m) : steeredBubbles(m.steered) + chiefBubble(m, i === all.length - 1, at));
+const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m, at) : steeredBubbles(m.steered) + chiefBubble(m, i === all.length - 1, at));
 // What the owner steered into a reply while the Chief worked (ADR 040): their messages, before that reply, without buttons.
 const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
 

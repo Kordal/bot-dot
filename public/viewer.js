@@ -83,6 +83,7 @@ const DocViewer = (() => {
       ${table ? `<input class="dv-find" type="search" placeholder="Find in table" aria-label="Find in table" value="${esc(c.find)}"><span class="dv-count faint">${table.total} rows · ${table.cols} columns</span>` : ''}
       <span class="dv-sp"></span>
       ${text ? `<button type="button" class="btn sm" data-dv="copy">${ICON.copy}Copy</button>` : ''}
+      ${v.kind === 'markdown' && globalThis.DocPage && state.features.includes('document-export') ? `<a class="btn sm" href="/${esc(DocPage.address({ file: c.src }))}" target="_blank" rel="noopener">Open as document</a>` : ''}
       ${downloadHTML(c)}
     </div>`;
   }

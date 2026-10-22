@@ -1457,6 +1457,49 @@ a.file-path code { color: inherit; }
 .usage-bot-bar { height: 4px; background: var(--sunk); border-radius: 2px; margin-top: 3px; }
 .usage-bot-bar i { display: block; height: 100%; background: var(--muted); border-radius: 2px; }
 
+/* A reply opened as a document (#348, document.js): "Open as document" under a long reply, and the document's own tab
+   at reading width, its sections beside it on a wide window, with the Export menu. */
+.doc-open-row { margin-top: 10px; }
+.doc-open svg, .doc-top svg, .doc-menu svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+body.doc-mode { overflow: auto; }
+body.doc-mode > .app { display: none; }
+.doc-page { min-height: 100vh; }
+.doc-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 20px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.doc-crumb { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 13px; }
+.doc-crumb span { white-space: nowrap; }
+.doc-crumb b { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.doc-sp { flex: 1; }
+.doc-meta { color: var(--faint); font-size: 12.5px; white-space: nowrap; }
+.doc-export { position: relative; }
+.doc-menu { position: absolute; right: 0; top: calc(100% + 6px); width: 260px; padding: 6px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; box-shadow: 0 24px 70px rgba(0, 0, 0, .7); z-index: 6; }
+.doc-menu[hidden] { display: none; }
+.doc-menu button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 0; border-radius: 9px; background: none; color: var(--text); font: inherit; font-size: 13.5px; text-align: left; cursor: pointer; }
+.doc-menu button:hover, .doc-menu button:focus-visible { background: var(--sunk); }
+.doc-menu small { margin-left: auto; color: var(--faint); font-size: 12px; }
+.doc-menu-label, .doc-toc-label { color: var(--faint); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; padding: 6px 10px 2px; }
+.doc-menu-sep { height: 1px; background: var(--line); margin: 5px 4px; }
+.doc-wrap { display: grid; grid-template-columns: 220px minmax(0, 760px) 220px; justify-content: center; gap: 40px; padding: 36px 24px 80px; }
+.doc-toc { position: sticky; top: 84px; align-self: start; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.doc-toc-label { padding: 0 0 8px; }
+.doc-toc a { color: var(--muted); text-decoration: none; padding: 3px 0; }
+.doc-toc a:hover { color: var(--text); }
+.doc-md { font-size: 15.5px; line-height: 1.7; }
+.doc-md h1, .doc-md h2, .doc-md h3, .doc-md h4 { scroll-margin-top: 76px; }
+.doc-md > .doc-title:first-child { font-size: 2em; line-height: 1.25; letter-spacing: -.02em; margin-bottom: .6em; }
+.doc-md table { width: 100%; }
+.doc-state { max-width: 420px; margin: 18vh auto 0; text-align: center; }
+.doc-cut { text-align: center; color: var(--muted); font-size: 13px; }
+@media (max-width: 1100px) { .doc-wrap { grid-template-columns: minmax(0, 760px); } .doc-toc { display: none; } }
+@media (max-width: 640px) { .doc-meta { display: none; } .doc-top { padding: 8px 16px; } .doc-wrap { padding: 20px 16px 60px; } .doc-crumb span { display: none; } }
+@media print {
+  body.doc-mode { background: #fff; color: #000; }
+  body.doc-mode .doc-top, body.doc-mode .doc-toc, body.doc-mode .toast { display: none !important; }
+  body.doc-mode .doc-wrap { display: block; padding: 0; }
+  body.doc-mode .doc-md { color: #000; font-size: 11pt; }
+  body.doc-mode .doc-md code, body.doc-mode .doc-md pre, body.doc-mode .doc-md .code-block { background: #f4f4f4; }
+  body.doc-mode .doc-md button { display: none; }
+}
+
 /* Pages (#346, pages.js): a chip under the reply, a row in the bot's settings, the bar of a page in the viewer and its
    "Keep up to date" sheet. */
 .page-chip, .pg-row { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--text); text-decoration: none; }

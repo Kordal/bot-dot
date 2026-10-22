@@ -264,6 +264,7 @@ private fun YourSide(r: Run, open: Boolean = false) {
         Unread.Asked.JOB -> Chip("${Unread.jobChip(r)} · ${shortTime(r.startedAt)}")
         Unread.Asked.SCHEDULE -> Chip("⏰ Scheduled run · ${shortTime(r.startedAt)}")
         Unread.Asked.HELLO -> {} // a new bot's first message: the owner asked nothing
+        Unread.Asked.REMINDER -> {} // a reminder the bot set went off: botdot posted it, the owner asked nothing
         Unread.Asked.CARRIED_ON -> {} // it goes on after your OK: your request stands once, above the first reply
         Unread.Asked.USUAL -> Chip("▶ Ran its main assignment")
         Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments)
