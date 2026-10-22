@@ -269,6 +269,8 @@ class Notifier(
             "approvals" -> if (!replay) approvals(d)
             "asks" -> if (!replay) d.arr("list")?.let { l -> sync("ask:", askNeeds(l.map { it.jsonObject })) }
             "bitwarden" -> if (!replay) bitwarden(d)
+            // A new message in a shared room (ADR 060): who wrote it, under the room's name.
+            "room_notice" -> roomNoticeOf(ev)?.let { roomMessage(it, at) }
             "claude" -> if (!replay) claude(d)
             // The chat was read, in any app: its notification here goes away.
             "unread", "chat_seen" -> {
@@ -458,6 +460,23 @@ class Notifier(
         // A Chief chat is named by its title, and a group by its name: who said it stands under that.
         if (chief || groupOfChat(chat) != null) style.setConversationTitle(title?.ifBlank { null } ?: old?.conversationTitle ?: if (chief) chiefName() else "A group").setGroupConversation(true)
         notify(chat, chatBuilder(chat, style, at, quiet).setContentIntent(openApp(open)).setLargeIcon(if (chief) head(CHIEF_ID, CHIEF_COLOR) else head(from.id, from.color, from.outfit)))
+    }
+
+    /** A shared room's messages stack in one notification under the room's name. No Reply: a room is the front door's. */
+    private fun roomMessage(n: RoomNotice, at: Long) {
+        val style = NotificationCompat.MessagingStyle(me)
+        stackOf(n.key)?.messages?.takeLast(KEEP_MESSAGES - 1)?.forEach { style.addMessage(it) }
+        // A bot of this account wears its own head; anyone else is a dot.
+        val icon = if (n.color != null) head(n.botId, n.color) else dot(null, HEAD_PX)
+        style.addMessage(n.text.take(1000), at, Person.Builder().setKey(n.from).setName(n.from).setIcon(IconCompat.createWithBitmap(icon)).build())
+        style.setConversationTitle(n.room).setGroupConversation(true)
+        notify(n.key, builder(CH_UPDATES, at, false)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setContentTitle(n.from)
+            .setContentText(n.text.take(200))
+            .setStyle(style)
+            .setContentIntent(openApp(n.key))
+            .setPublicVersion(hidden(CH_UPDATES, "New message")))
     }
 
     /** After you replied from the notification: your words show under the chat's messages (null: it didn't send, just stop waiting). */
@@ -810,6 +829,24 @@ internal fun runText(status: String, result: String, problem: String, error: Str
 }
 
 internal fun isChat(tag: String) = tag.startsWith("bot:") || tag.startsWith("chief:")
+
+// ---------- a shared room (ADR 060; docs/api.md, "A new message in a shared room") ----------
+
+/** What a room's notification shows: its tag ("room:<id>"), the room's name, who wrote (as the front door labels them),
+ *  the server's short preview, and the head of a bot of this account ([botId], [color]; null for anyone else). */
+internal data class RoomNotice(val key: String, val room: String, val from: String, val text: String, val botId: String?, val color: String?)
+
+/**
+ * A new message in a shared room (`room_notice`), or null when it rings nothing: no room, or the web page is in use,
+ * where the room shows already. The server sends none for the owner's own words.
+ */
+internal fun roomNoticeOf(ev: FeedEvent): RoomNotice? {
+    if (ev.type != "room_notice" || ev.data.str("webActive") == "true") return null
+    val id = ev.data.str("roomId").ifEmpty { return null }
+    val from = ev.data["from"] as? JsonObject
+    return RoomNotice("room:$id", ev.data.str("roomName").ifBlank { "A room" }, from?.str("name")?.ifBlank { null } ?: "Someone",
+        ev.data.str("preview"), from?.str("botId")?.ifBlank { null }, from?.str("color")?.ifBlank { null })
+}
 
 // ---------- a group (Milestone 10; docs/api.md, "A card and a question in a group") ----------
 

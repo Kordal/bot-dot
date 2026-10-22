@@ -3,8 +3,9 @@
 // that can't be loaded shows offline.html, the one file it keeps. Nothing else is cached: not the app, not the API.
 // The page registers it on every load (install.js), and again when "Notifications on this device" is turned on (push.js).
 //
-// A push is { title, body, target, tag }: `target` is "bot:<id>", "chief:<chatId>", "group:<id>", "needs" (Needs you)
-// or "app"; `tag` names the notification, so a newer one of the same chat or card takes its place.
+// A push is { title, body, target, tag }: `target` is "bot:<id>", "chief:<chatId>", "group:<id>", "room:<id>" (a
+// shared room), "needs" (Needs you) or "app"; `tag` names the notification, so a newer one of the same chat or card
+// takes its place.
 
 // Where a target opens: the page's own address for it.
 const ID = /^[\w.-]{1,80}$/;
@@ -13,6 +14,7 @@ function hashOf(target) {
   const i = t.indexOf(':');
   const [kind, id] = i > 0 ? [t.slice(0, i), t.slice(i + 1)] : [t, ''];
   if (['bot', 'chief', 'group'].includes(kind) && ID.test(id)) return `#${kind}/${id}`;
+  if (kind === 'room' && ID.test(id)) return `#rooms/${id}`; // a shared room (ADR 060): the page's Rooms view
   if (t === 'needs') return '#needs';
   return '#chief';
 }
