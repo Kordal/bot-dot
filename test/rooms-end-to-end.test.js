@@ -1,4 +1,4 @@
-// A shared room end to end (ADR 060, ADR 066): the real front door, and two accounts' real botdot servers (Claude Code
+// A shared room end to end (ADR 060, ADR 067): the real front door, and two accounts' real botdot servers (Claude Code
 // stood in by fake-claude). An owner puts their bot in a room with another account; another person's mention there
 // reaches the bot's own account as a talk-only room turn (#315), its room settings decide (#316), and the reply comes
 // back into the room. The owner's own mention starts the bot's run in its own chat instead, every tool of it on the

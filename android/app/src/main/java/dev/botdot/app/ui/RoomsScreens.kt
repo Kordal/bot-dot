@@ -98,7 +98,7 @@ internal object RoomWords {
         else -> "$rooms room${if (rooms == 1) "" else "s"}"
     }
 
-    /** Under a room's invite link: until when it works (ADR 067). */
+    /** Under a room's invite link: until when it works (ADR 068). */
     fun linkUntil(l: RoomLink): String = l.expires?.let { "Works until ${shortTime(it)}." }.orEmpty()
 
     const val LINK_HINT = "Anyone with an account on this machine who opens it can join. It works for 7 days."
@@ -209,7 +209,7 @@ private fun NameDialog(title: String, label: String, start: String, button: Stri
 }
 
 /**
- * Joining with an invite link (ADR 067): the owner pastes the link someone shared, sees the room's name and who made
+ * Joining with an invite link (ADR 068): the owner pastes the link someone shared, sees the room's name and who made
  * it, and joins. A room this account is in already just opens.
  */
 @Composable

@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#280](https://github.com/Kordal/bot-dot/issues/280)
+- **Changed by:** [ADR 066](066-a-task-the-chief-gives-a-bot-after-the-web-needs-no-card.md): a task the Chief gives a bot is not held; the bot's run starts as one that read the web
 - **Partly superseded by:** [ADR 059](059-a-note-is-saved-without-an-ok.md) (a bot's shared notes need no card at all, so "Always allow for this bot" is gone)
 - **Changes:** [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (every change of the Chief's after the web waits) and [ADR 015](015-the-server-records-who-said-a-note.md) (every shared-note change after outside content waits)
 

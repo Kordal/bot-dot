@@ -74,17 +74,18 @@ mac-install: ## Build the Mac app and put it in Applications in place of the one
 	@./macos/install.sh "$(APPLICATIONS)"
 
 # A self-built botdot server (CONTEXT.md): both images from this source, named without a registry, which
-# install.sh then installs without a token or a download. SERVER_IMAGE and COMPUTER_IMAGE rename them.
+# install.sh then installs without a token or a download. SERVER_IMAGE and COMPUTER_IMAGE rename them. The label
+# dev.botdot.self-built marks them, so make staging can find a nameless one an earlier build left (deploy/staging.sh).
 SERVER_IMAGE ?= bot-dot/server:latest
 COMPUTER_IMAGE ?= bot-dot/desktop:latest
 .PHONY: images
 images: ## Build botdot's server image and the bots' computer image from this source, for a self-built botdot server (needs Docker)
-	docker build -t "$(SERVER_IMAGE)" --label "org.opencontainers.image.revision=$$(git rev-parse HEAD 2>/dev/null || true)" .
-	docker build -t "$(COMPUTER_IMAGE)" deploy/desktop
+	docker build -t "$(SERVER_IMAGE)" --label dev.botdot.self-built=true --label "org.opencontainers.image.revision=$$(git rev-parse HEAD 2>/dev/null || true)" .
+	docker build -t "$(COMPUTER_IMAGE)" --label dev.botdot.self-built=true deploy/desktop
 
 # A staging botdot server moved to another branch (deploy/staging.sh, docs/install-linux.md).
 .PHONY: staging
-staging: ## Move a self-built staging server to branch REF: check the disk, fetch, checkout, pull, make images, install.sh (needs Docker)
+staging: ## Move a self-built staging server to branch REF: check the disk, fetch, checkout, pull, make images, install.sh, then keep the running and the previous image and trim the build cache (needs Docker)
 	@SERVER_IMAGE="$(SERVER_IMAGE)" COMPUTER_IMAGE="$(COMPUTER_IMAGE)" MAKE="$(MAKE)" sh deploy/staging.sh "$(REF)"
 
 .PHONY: tools-real

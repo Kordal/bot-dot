@@ -1,4 +1,4 @@
-# ADR-066: The owner's mention in a room runs the bot, with every step on a card
+# ADR-067: The owner's mention in a room runs the bot, with every step on a card
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Amends:** [ADR 060](060-a-shared-room-lets-bots-of-several-accounts-talk-through-the-front-door.md) ("A room turn is talk-only", "Out of scope: acting on someone else's request", "What crosses")

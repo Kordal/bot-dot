@@ -1,4 +1,4 @@
-// What a bot does in a shared room beyond a talk-only turn (ADR 066): the outbox the front door collects, each post
+// What a bot does in a shared room beyond a talk-only turn (ADR 067): the outbox the front door collects, each post
 // and each tool of a run from a room on the owner's card, the hook that blocks a tool unless the owner said yes, and
 // the front door's side: a 202 for the owner's run, the posts put in their rooms once, and the bots at work.
 process.env.BOT_DOT_ROOM_TOOL_WAIT_MS = '300'; // a tool's card waits this long for the owner here

@@ -35,7 +35,7 @@ document.addEventListener('click', (e) => {
   showAdminLink();
   await figure;
   const [view, hashSub] = location.hash.slice(1).split('/');
-  // A room's invite link (rooms.js, ADR 067): "Join" opens once rooms are known; the page opens on the list of rooms.
+  // A room's invite link (rooms.js, ADR 068): "Join" opens once rooms are known; the page opens on the list of rooms.
   const sub = view === 'rooms' && typeof joinFromLink === 'function' && joinFromLink(hashSub) ? undefined : hashSub;
   if (sub && view === 'runs') state.selectedRun = sub;
   if (sub && (view === 'chief' || view === 'chiefsettings')) state.chatId = sub;

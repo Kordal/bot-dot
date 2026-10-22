@@ -1,4 +1,4 @@
-# ADR-067: A room invites with a link its maker shares
+# ADR-068: A room invites with a link its maker shares
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#339](https://github.com/Kordal/bot-dot/issues/339)

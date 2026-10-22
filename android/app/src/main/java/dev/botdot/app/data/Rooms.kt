@@ -118,7 +118,7 @@ data class RoomPage(val messages: List<RoomMessage> = emptyList(), val more: Boo
 @Serializable
 internal data class RoomAnswer(val room: Room? = null)
 
-/** A room's invite link (ADR 067): the address its maker shares, and when it stops working. */
+/** A room's invite link (ADR 068): the address its maker shares, and when it stops working. */
 @Serializable
 data class RoomLink(val url: String = "", val expires: String? = null)
 
@@ -142,7 +142,7 @@ object Rooms {
     fun on(features: Collection<String>?, session: JsonObject?): Boolean =
         features?.contains("accounts") == true && (session?.get("rooms") as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true
 
-    /** Whether the front door makes invite links for rooms (`roomLinks` in its session, ADR 067). */
+    /** Whether the front door makes invite links for rooms (`roomLinks` in its session, ADR 068). */
     fun links(session: JsonObject?): Boolean = (session?.get("roomLinks") as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true
 
     private val JOIN = Regex("(?:^|[#/])join=([A-Za-z0-9_-]{1,100})\\s*$")

@@ -104,7 +104,7 @@ const finish = () => {
   try { failed = fs.readFileSync(path.join(OUT, 'error-result.txt'), 'utf8'); } catch { /* it succeeds */ }
   // A refused tool asks nobody by itself (#279): like a bot that follows its prompt, this one asks the owner for each
   // permission it was refused with ask_permission, once, before it ends; not while $FAKE_OUT/no-ask exists.
-  // Its tool calls first, through the PreToolUse hooks its settings name, as Claude Code runs them (ADR 066).
+  // Its tool calls first, through the PreToolUse hooks its settings name, as Claude Code runs them (ADR 067).
   const hooked = preToolHooks();
   const asked = hooked.then(() => (denials.length && !fs.existsSync(path.join(OUT, 'no-ask')) ? askFor(denials) : undefined));
   const end = () => {
