@@ -215,7 +215,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -394,9 +394,10 @@ function chiefChatOf(req, by) {
 // (vault/ssh-keys), change an SSH key's bots and name (vault/:id) and ask the owner to remove an entry on a card
 // (vault/remove), only in a turn the owner started and never with a key of its own, which the routes check (#181,
 // #182, #183). Of connected apps it may call the routes of a session, which take only the token of a turn that has
-// one (ADR 047), and list and remove its own lasting grants, never add one.
+// one (ADR 047), and list and remove its own lasting grants, never add one. The same for the types of its changes
+// the owner let through after the web (chief/after-web, #280).
 const CHIEF_ROUTES = [
-  ['GET', /^(bots|skills|connectors|runs|memory|chief\/reminders|chief\/memory|chief\/connector-actions|vault|dashboard|tools|tools\/find|group-chats)$/],
+  ['GET', /^(bots|skills|connectors|runs|memory|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|vault|dashboard|tools|tools\/find|group-chats)$/],
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
   ['GET', /^runs\/[^/]+\/wait$/],
   ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup$/],
@@ -406,7 +407,7 @@ const CHIEF_ROUTES = [
   ['POST', /^(bots|skills|asks|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|connectors\/session\/(actions|run|wait))$/],
   ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['PUT', /^(bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
-  ['DELETE', /^(chief\/connector-actions|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
+  ['DELETE', /^(chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
 const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method && re.test(parts.join('/')));
 
@@ -422,7 +423,7 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // refusals, so a call they refuse never becomes a card (lib/routes/vault.js).
 // A connected app's actions follow their own grants (ADR 047): a write waits on its own card, and an "Always allow"
 // lets it through also after the web. Removing a lasting grant of the Chief's only takes trust away.
-const FREE_AFTER_WEB = /^(asks|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
+const FREE_AFTER_WEB = /^(asks|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'));
 // What the held request does, as the title of its card: "Make the bot “Leaker”", "Give Scout a task".
 function heldTitle(method, parts, body) {
@@ -470,19 +471,29 @@ function heldTitle(method, parts, body) {
 // read: the body, when the route has read it already.
 async function holdAfterWeb(req, res, method, parts, chatId, turn, read = null) {
   const body = read || (method === 'DELETE' ? {} : await readBody(req));
+  // A type the owner always allowed on such a card (#280) is done now, as a yes on its card would do it.
+  const type = asksLib.afterWebType(method, parts.join('/'), body);
+  if (type && B.settings.afterWeb().includes(type)) {
+    const out = await replayAsChief({ method, path: parts.join('/'), body, chatId, startedBy: turn.startedBy });
+    return send(res, out.status, out.body);
+  }
   const a = asks.add({ kind: 'chief-action', botId: null, chatId, method, path: parts.join('/'), body, title: heldTitle(method, parts, body), startedBy: turn.startedBy });
   return send(res, 202, { held: true, id: a.id, say: "Not done yet: you read the web in this chat, so this waits for the user's OK on a card in Needs you. When they approve, botdot does it exactly as you sent it and tells you in this chat. Tell the user in one line that it waits for them; don't send it again." });
 }
 // The owner's yes on such a card: the request is done now, as it was sent, with the Chief's rights and nothing
 // more, and the Chief is told in its chat. Its answer: { ok, done, error? }.
-async function doHeldAction(a) {
+// always: "Always allow" on a card whose request is of a type that may be (#280): that type is let through from now on.
+async function doHeldAction(a, always = false) {
   if (asksLib.actionRows(a.body).more) throw httpError(409, "This is too long to show in full, so it can't be approved. Decline it.");
+  const type = always && !a.meta ? asksLib.afterWebType(a.method, a.path, a.body) : null;
+  if (always && !type) throw httpError(409, "This can't be always allowed. Approve it once, or decline it.");
   asks.take(a.id);
+  if (type) { B.settings.allowAfterWeb(type); audit('chief.after-web-allowed', 'you', { type }); }
   const out = await replayAsChief(a);
   const done = out.status < 400;
   const error = done ? null : out.body?.error || `It failed (${out.status}).`;
   try { tellChiefOfHeld(a, { answer: out.body, error }); } catch (e) { console.error(`[asks] the Chief was not told of ${a.id}: ${e.message}`); }
-  return { ok: true, done, ...(error ? { error } : {}) };
+  return { ok: true, done, ...(type ? { always: type } : {}), ...(error ? { error } : {}) };
 }
 // The held request through api() itself, with a request and an answer of its own: { status, body }.
 function replayAsChief(a) {

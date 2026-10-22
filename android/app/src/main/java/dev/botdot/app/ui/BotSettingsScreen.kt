@@ -253,8 +253,22 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 SwitchRow("Other bots may ask it", "Off keeps it to you: other bots don't see it among their teammates and can't message it.", othersMayAsk) { othersMayAsk = it }
             }
             // The jobs you said to always approve: their later changes need no OK. Revoke takes one off (saved right away).
+            // With them, its changes to the shared notes when you said "Always allow for this bot" on such a card (#280).
             val trusted = b.jobs.filter { it.alwaysApprove }
-            if (trusted.isNotEmpty()) FoldSection("Always approved", trusted.joinToString(", ") { it.name }) {
+            if (trusted.isNotEmpty() || b.sharedNotesAlways) FoldSection("Always approved", (listOfNotNull(SHARED_NOTES.takeIf { b.sharedNotesAlways }) + trusted.map { it.name }).joinToString(", ")) {
+                if (b.sharedNotesAlways) androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(SHARED_NOTES, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                        Text("It adds and changes shared notes without asking. Removals still ask.", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedButton(onClick = {
+                        scope.launch {
+                            runCatching { api!!.revokeSharedNotesAlways(botId) }
+                                .onSuccess { saved -> bot = b.copy(sharedNotesAlways = saved.sharedNotesAlways); tell("Revoked: its next shared note waits for your OK") }
+                                .onError { tell(it.message ?: "Couldn't save") }
+                        }
+                    }) { Text("Revoke", color = p.text) }
+                }
                 trusted.forEach { j ->
                     androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -443,3 +457,6 @@ internal fun SkillRow(name: String, desc: String, more: String, checked: Boolean
         }
     }
 }
+
+/** The row of "Always approved" for a bot's changes to the shared notes (#280), as on the web page. */
+private const val SHARED_NOTES = "Changes to shared notes"
