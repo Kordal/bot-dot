@@ -1,4 +1,4 @@
-# ADR-054: "Always allow" on more cards
+# ADR-055: "Always allow" on more cards
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#280](https://github.com/Kordal/bot-dot/issues/280)
