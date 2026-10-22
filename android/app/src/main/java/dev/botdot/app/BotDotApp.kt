@@ -140,6 +140,9 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
     /** True while the activity is resumed: the app is in front, and what it shows is being looked at. */
     val resumed = MutableStateFlow(false)
 
+    /** Shared rooms (ADR 060): on or not for this account, its rooms and invitations, followed while the app is in front. */
+    val rooms by lazy { dev.botdot.app.data.RoomsHub(scope, api, store.version.value, resumed) }
+
     /**
      * Tells the botdot server which chat is on screen while the app is in front, so it counts as read everywhere
      * (ADR 005). Only to a server that keeps read positions (`unread` in its features). It follows the activity's
