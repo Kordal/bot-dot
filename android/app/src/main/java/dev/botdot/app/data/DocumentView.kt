@@ -18,8 +18,8 @@ object DocumentView {
     /** A file a bot attached to its reply ("<runId>/<name>"). */
     fun runFile(file: String): String = "/files/" + file.split('/').joinToString("/") { Api.enc(it) }
 
-    /** One of a bot's files (#235), by its path in the bot's folder ("uploads/…"). */
-    fun botFile(botId: String, file: String): String = "/bots/${Api.enc(botId)}/files/${Api.enc(file.substringAfterLast('/'))}"
+    /** One of a bot's files (#235), or the Chief's ([UploadedFiles.CHIEF], #383), by its path in its folder ("uploads/…"). */
+    fun botFile(botId: String, file: String): String = UploadedFiles.owner(botId) + "/files/${Api.enc(file.substringAfterLast('/'))}"
 
     /** A file a path in a bot's reply names, or one the owner sent it (relative to its folder). */
     fun pathFile(botId: String, path: String): String = "/bots/${Api.enc(botId)}/path?path=${Api.enc(path)}"

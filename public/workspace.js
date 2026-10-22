@@ -1,14 +1,15 @@
 // A bot's workspace in its settings (#296; docs/api.md, "A bot's workspace"): every file in its folder on botdot's
 // server, to open in the viewer (viewer.js), download, upload into, rename, move and delete, and, for a bot that uses
 // the computer, its folder there, to open, download and delete in while the computer runs. Only from a server whose
-// features have `workspace-files`; bots.js draws the box, this file fills it.
+// features have `workspace-files`; bots.js draws the box, this file fills it. The Chief's settings (settings.js) open
+// its own folder here too, from a server with `chief-files` (#383): its `bot` is { name, base: '/chief' }, with no computer.
 
 const Workspace = (() => {
   const MAX_FILES = 10;
   const MAX_BYTES = 25 * 1024 * 1024;
   let cur = null; // { bot, box, root, path, data, error, sort, hidden }
 
-  const base = (c) => `/bots/${encodeURIComponent(c.bot.id)}/workspace`;
+  const base = (c) => `${c.bot.base || `/bots/${encodeURIComponent(c.bot.id)}`}/workspace`; // the Chief's (#383): base '/chief'
   const query = (c, p) => `?root=${c.root}&path=${encodeURIComponent(p)}`;
   const KB = (n) => (typeof fmtSize === 'function' ? fmtSize(n) : `${n} B`);
   const when = (iso) => (iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '');
@@ -86,18 +87,18 @@ const Workspace = (() => {
     return `${roots}${nav}${bar}${note}<div class="ws-list">${rows}</div>${more}`;
   }
 
-  function draw() { if (cur?.box) cur.box.innerHTML = html(cur); }
+  function draw(c = cur) { if (c?.box) c.box.innerHTML = html(c); }
 
   // Only the answer of the last folder asked for is drawn: an older, slower one is dropped.
   async function load(c = cur) {
     const seq = (c.seq = (c.seq || 0) + 1);
     c.data = null; c.error = null;
-    draw();
+    draw(c);
     let data = null; let error = null;
     try { data = await api(`${base(c)}${query(c, c.path)}`); } catch (e) { error = e; }
     if (c.seq !== seq) return;
     c.data = data; c.error = error;
-    if (cur === c) draw();
+    draw(c);
   }
 
   const entryOf = (c, btn) => c.data?.entries.find((e) => e.path === btn.closest('[data-path]')?.dataset.path);
@@ -158,11 +159,14 @@ const Workspace = (() => {
     }
   }
 
-  // Fills `box` with the bot's workspace, at the top of its folder on botdot.
+  // Fills `box` with the bot's workspace, at the top of its folder on botdot. Each box keeps its own place: the
+  // Chief's settings stay drawn while a bot's open and close (#383), and a tap in a box acts on that box's folder.
   function open(bot, box) {
-    cur = { bot, box, root: 'server', path: '', data: null, error: null, sort: 'name', hidden: false };
-    box.onclick = (ev) => { const btn = ev.target.closest?.('[data-ws]'); if (btn) { ev.preventDefault(); act(btn); } };
+    const c = { bot, box, root: 'server', path: '', data: null, error: null, sort: 'name', hidden: false };
+    cur = c;
+    box.onclick = (ev) => { const btn = ev.target.closest?.('[data-ws]'); if (btn) { ev.preventDefault(); cur = c; act(btn); } };
     box.onchange = (ev) => {
+      cur = c;
       const t = ev.target;
       if (t.matches?.('[data-ws-sort]')) { cur.sort = t.value; draw(); }
       else if (t.matches?.('[data-ws-hidden]')) { cur.hidden = t.checked; draw(); }

@@ -460,13 +460,14 @@ function renderBotSettings(force = false) {
   };
 }
 
-// Its files (#235): what the owner gave it, newest first, each to open, keep in mind (pin) or delete.
-async function drawBotFiles(b, data = null) {
-  const box = $('#file-list');
+// Its files (#235): what the owner gave it, newest first, each to open, keep in mind (pin) or delete. The Chief's
+// (#383) the same, in its settings: `b` is then { name, base: '/chief' }.
+async function drawBotFiles(b, data = null, box = $('#file-list')) {
   if (!box) return;
-  try { data = data || await api(`/bots/${b.id}/files`); } catch { box.innerHTML = '<span class="faint">Couldn\'t load its files.</span>'; return; }
+  const base = b.base || `/bots/${b.id}`;
+  try { data = data || await api(`${base}/files`); } catch { box.innerHTML = '<span class="faint">Couldn\'t load its files.</span>'; return; }
   if (!data.files.length) { box.innerHTML = '<span class="faint">None yet. Attach a file in its chat.</span>'; return; }
-  const one = (f) => `/bots/${b.id}/files/${encodeURIComponent(f.file.split('/').pop())}`; // its API path; its link is /api + that
+  const one = (f) => `${base}/files/${encodeURIComponent(f.file.split('/').pop())}`; // its API path; its link is /api + that
   box.innerHTML = data.files.map((f) => `
     <div class="bs-file" data-file="${esc(f.file)}">
       <a class="grow" href="/api${one(f)}" target="_blank" rel="noopener"${state.features.includes('document-viewer') ? ` data-view="${esc(one(f))}" data-view-name="${esc(f.name)}" data-view-from="${esc(b.name)}"` : ''}>${esc(f.name)}</a>
@@ -477,11 +478,11 @@ async function drawBotFiles(b, data = null) {
   box.querySelectorAll('.bs-file').forEach((row) => {
     const f = data.files.find((x) => x.file === row.dataset.file);
     row.querySelector('[data-file-pin]').onclick = async () => {
-      try { drawBotFiles(b, await api(one(f), { method: 'PUT', body: { pinned: !f.pinned } })); } catch (e) { toast(e.message, true); }
+      try { drawBotFiles(b, await api(one(f), { method: 'PUT', body: { pinned: !f.pinned } }), box); } catch (e) { toast(e.message, true); }
     };
     row.querySelector('[data-file-delete]').onclick = async () => {
       if (!confirm(`Delete ${f.name}? ${b.name} won't have it any more.`)) return;
-      try { drawBotFiles(b, await api(one(f), { method: 'DELETE' })); } catch (e) { toast(e.message, true); }
+      try { drawBotFiles(b, await api(one(f), { method: 'DELETE' }), box); } catch (e) { toast(e.message, true); }
     };
   });
 }

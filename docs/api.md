@@ -873,6 +873,14 @@ When `features` has `chief-skills`, the owner gives library skills to the Chief 
 - **Only the owner** gives the Chief a skill or takes one away. The Chief's own tools: `"chief"` in their `bots` is ignored and their `bots` never takes a skill from the Chief, a `PUT /api/skills/:name` of a skill the Chief has is refused with `403 { error }`, and `PUT /api/settings` stays the owner's. A bot's `update_skill` of a skill it wrote answers `{ ok: false, error }` once the Chief has that skill too.
 - A server without `chief-skills` keeps no list: an app shows no choice for the Chief there.
 
+### The Chief's files and workspace
+
+When `features` has `chief-files` ([#383](https://github.com/Kordal/bot-dot/issues/383)), the Chief has [files](#bots) and a [workspace](#a-bots-workspace) as a bot has, and its settings show them as a bot's do.
+
+- **Its files** are what the owner attached in its chats, in `uploads/` of its folder (`data/workspaces/_chief`). Every Chief turn is told which there are (the newest 30) and may read them; a file kept in mind comes with every turn, its text or the Chief's own summary, with a bot's limits (10 files, 15,000 characters). `GET /api/chief/files` answers `{ files, maxPinned }` as `GET /api/bots/:id/files` does, and `GET`, `PUT { pinned }` and `DELETE` of `/api/chief/files/<name>` open, keep in mind and delete one, the owner's. The Chief's own `pin_file` keeps one in mind (`PUT` with `{ pinned, summary? }`, answered with `{ file, files, maxPinned }`) only in a turn the owner started (else `403`), and saves its summary of one; it never opens or deletes one by these routes (`403`).
+- **Its workspace** is `/api/chief/workspace…`, the routes of [a bot's workspace](#a-bots-workspace) for its folder on this server, the owner's alone (the Chief gets `403`). It has no folder on the computer: `root=computer` is `400`. Writes are in the audit log as a bot's, with `bot: "_chief"`.
+- The apps name the Chief's files and workspace by the id `_chief`, which no bot has. A server without `chief-files` has neither route, and an app shows neither section for the Chief.
+
 ### The Chief's memory
 
 [ADR 017](adr/017-the-chief-files-a-note-with-a-bot-in-the-owners-turns.md). The Chief has notes of its own (`owner: "chief"`), files a note where it belongs, and lists, corrects, removes, restores and forgets notes wherever they are. No app draws any of it: the owner asks the Chief. An app needs nothing new for it, so `features` announces nothing: the chip of a change that waits is the action's `text`, and the change is a guarded change (Memory, The contract).
