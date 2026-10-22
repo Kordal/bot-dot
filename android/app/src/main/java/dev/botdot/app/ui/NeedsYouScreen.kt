@@ -211,6 +211,8 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
         answered()
     }
     val jobWho = { b: Bot, j: Job -> inGroup(b.named(), cardGroups[CardGroups.jobKey(b.id, j.id)]) }
+    val chiefWho = chiefNamed()
+    val askWho = { a: Ask -> inGroup(a.bot?.let { whoOf(it.id, it.name) } ?: chiefWho, a.group) }
     val memWho = { m: MemoryChange -> inGroup(whoOf(m.botId, bots.firstOrNull { it.id == m.botId }?.name ?: m.bot?.name ?: "A bot"), m.group) }
     // What one tap may approve: what a card shows in words. A script is answered on its own card.
     val all = approveAll(
@@ -303,7 +305,6 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                 }
                 // A permission or a skill a bot (or the Chief) asked for, and a tool the Chief asks to install for a bot.
                 // What one run waits on is one card (#277): Allow all and Decline all above each ask's own card.
-                val askWho = { a: Ask -> inGroup(a.bot?.let { whoOf(it.id, it.name) } ?: chiefNamed(), a.group) }
                 items(askCards(asks.filter { a -> decided.none { it.key == "a:${a.id}" } }), key = { it.key }) { card ->
                     when (card) {
                         is AskCard.One -> {
