@@ -239,6 +239,23 @@ class KeypadUiTest {
         rule.onNodeWithText("Coder").assertIsDisplayed()
     }
 
+    @Test @Config(qualifiers = "w840dp-h600dp")
+    fun eachKeySaysItsStatusAndTime() {
+        fun status(k: Keypad.Key) = (k as Keypad.Key.OfBot).bot.let {
+            when (it.id) {
+                "cook" -> KeyLook(it.name, "Dinner at 7", it.color, status = Keypad.status(last = "success"), time = "18:02")
+                "coder" -> KeyLook(it.name, "Fixing the build", it.color, "working", status = Keypad.status(running = true), time = "2 min")
+                else -> KeyLook(it.name, "Which branch?", it.color, asks = true, status = Keypad.status(needs = true))
+            }
+        }
+        rule.setContent { KeypadView(pages, active = null, look = ::status, onKey = {}, onAsk = {}, modifier = Modifier.fillMaxSize()) }
+        rule.onNodeWithText("Done").assertIsDisplayed()
+        rule.onNodeWithText("18:02").assertIsDisplayed()
+        rule.onNodeWithText("Working").assertIsDisplayed()
+        rule.onNodeWithText("2 min").assertIsDisplayed()
+        rule.onNodeWithText("Needs you").assertIsDisplayed()
+    }
+
     /** A phone's home, as MainActivity lays it out below 600 dp: the sections are the NavHost's home, and a chat takes the whole screen. */
     @Composable
     private fun Phone() {

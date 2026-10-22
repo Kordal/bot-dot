@@ -300,9 +300,9 @@ data class Needs(
 
 /**
  * One thing that waits for you: the colour and outfit of the bot it's about (no colour: it is about no bot, and its
- * mark is the Chief's), and what it is in words.
+ * mark is the Chief's), what it is in words, and that [bot]'s id (null: the Chief's), whose key says Needs you (#397).
  */
-data class Waiting(val color: String?, val text: String, val outfit: JsonElement? = null)
+data class Waiting(val color: String?, val text: String, val outfit: JsonElement? = null, val bot: String? = null)
 
 private const val NO_COLOR = "#888780" // the grey of a bot without a colour (FigureDef.GREY)
 
@@ -310,7 +310,7 @@ fun waitingOf(bots: List<Bot>, chief: ChiefOverview?, needs: Needs?, dash: Dashb
     val byId = bots.associateBy { it.id }
     // As the web page marks it: a bot as it looks now, in the colour the server sent for one that is gone, else grey.
     val about = { ref: BotRef?, text: String ->
-        if (ref == null) Waiting(null, text) else byId[ref.id].let { b -> Waiting(b?.color ?: ref.color ?: NO_COLOR, text, b?.outfit) }
+        if (ref == null) Waiting(null, text) else byId[ref.id].let { b -> Waiting(b?.color ?: ref.color ?: NO_COLOR, text, b?.outfit, ref.id) }
     }
     val nameOf = { id: String?, fallback: String -> byId[id]?.name ?: fallback }
     return buildList {
@@ -319,7 +319,7 @@ fun waitingOf(bots: List<Bot>, chief: ChiefOverview?, needs: Needs?, dash: Dashb
             add(about(r.bot, if (r.kind == "card") "$who wants to pay on ${r.site}" else "$who needs a login for ${r.site}"))
         }
         if (needs?.bitwardenLocked == true) add(about(needs.bitwarden?.wantedBy, "Bitwarden is locked"))
-        bots.forEach { b -> b.jobs.filter { it.waits }.forEach { j -> add(Waiting(b.color ?: NO_COLOR, "${b.name}: ${jobWaits(j)}", b.outfit)) } }
+        bots.forEach { b -> b.jobs.filter { it.waits }.forEach { j -> add(Waiting(b.color ?: NO_COLOR, "${b.name}: ${jobWaits(j)}", b.outfit, b.id)) } }
         // A guarded change is not one to the shared memory: its line is the server's title ("Forget for good").
         needs?.memory?.forEach { m ->
             val who = nameOf(m.botId, m.bot?.name ?: "A bot")

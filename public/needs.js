@@ -76,6 +76,30 @@ const fedJobThen = (botId, jobId) => (Array.isArray(state.approvals?.jobs) ? sta
 
 const needsFigures = (items) => `<span class="needs-figs">${items.map((x, i) => `<i style="animation-delay:${(i * 0.15).toFixed(2)}s">${x.bot ? botMark(x.bot) : Figure.small(CHIEF_COLOR, Figure.CHIEF)}</i>`).join('')}</span>`;
 
+// What one thing waits on, in a few words, for the one-line summary on the keypad's Needs you card (#397): its card's
+// title where the server sends one, else the words its card is drawn with.
+function needLine(x) {
+  const a = x.a || {};
+  switch (x.kind) {
+    case 'batch': return x.title || 'Several actions';
+    case 'job': return jobCard(x.job).title;
+    case 'tile': return tileCard(x.t).title;
+    case 'memory': return said(x.p.title) || 'A memory change';
+    case 'suggestion': return `A plan: ${x.chat.title}`;
+    case 'tilesug': return `“${x.s.tile.title}” on the Board`;
+    case 'bitwarden': return 'Bitwarden is locked';
+    case 'pay': return `Pay on ${x.r.site}`;
+    case 'login': return `A login for ${x.r.site}`;
+    default:
+      if (a.kind === 'permission') return `Let it ${a.what?.label || a.permission}`;
+      if (ToolCard.is(a)) return said(a.title) || 'A tool to install';
+      if (a.kind === 'skill' && !a.written) return `The skill “${a.skill?.name || ''}”`;
+      return said(a.title) || said(a.text) || 'An OK';
+  }
+}
+// The bots something waits for: a key of theirs says "Needs you".
+const needsBots = (items) => new Set(items.flatMap((x) => (x.kind === 'batch' ? x.items : [x]).map((y) => y.bot?.id).filter(Boolean)));
+
 // The banner: one small head per thing, in its bot's colour and hat, nothing to count. Review opens the one thing, or the page for several.
 function showNeeds() {
   tellTab();
@@ -88,7 +112,7 @@ function showNeeds() {
     banner.innerHTML = `${needsFigures(items)}<span>Waiting for your OK</span><button class="btn sm primary" id="needs-open">Review</button>`;
     $('#needs-open').onclick = review;
   }
-  drawKeypadNeeds(state.view === 'needs' ? [] : items, review); // the same, on the keypad
+  drawKeypadNeeds(state.view === 'needs' ? [] : items, review, items); // the same, on the keypad
   if (state.view === 'needs') renderNeeds();
   drawChatCards(); // the cards at the end of the open bot's or Chief's chat
   if (state.view === 'group') drawGroupCards(); // the cards at the end of the open group (groups.js)

@@ -46,4 +46,23 @@ class BoardWordsTest {
         assertEquals("Refreshes only when tapped.$change", refreshLine(Tile(id = "t", every = 0)))
         assertNull(refreshLine(Tile(id = "t")))
     }
+
+    // The strip over the keys (#397): one kpi card per tile, the web page's rule (list.js, stripKpi)
+
+    @Test fun aStripCardIsTheTilesTitleOverItsFirstNumber() {
+        val face = listOf(dev.botdot.app.data.Block(type = "text", text = "hi"), dev.botdot.app.data.Block(type = "row", blocks = listOf(dev.botdot.app.data.Block(type = "kpi", text = "62", unit = "%", ratio = 0.62))))
+        val disk = stripKpi(Tile(id = "t1", title = "Disk", look = dev.botdot.app.data.TileLook(face = face)))!!
+        assertEquals(listOf("Disk", "62", "%", "0.62"), listOf(disk.label, disk.text, disk.unit, disk.ratio.toString()))
+        val temp = stripKpi(Tile(id = "t2", title = "Living room", look = dev.botdot.app.data.TileLook(face = listOf(dev.botdot.app.data.Block(type = "value", text = "21.5", unit = "°C", points = listOf(20.7, 21.5))))))!!
+        assertEquals(listOf(20.7, 21.5), temp.points)
+        val bar = stripKpi(Tile(id = "t3", title = "Backup", look = dev.botdot.app.data.TileLook(face = listOf(dev.botdot.app.data.Block(type = "progress", text = "40 %", unit = "%", ratio = 0.4)))))!!
+        assertNull("a bar's text has its unit already", bar.unit)
+        assertEquals("a tile with no number: its one-line value", "3 items", stripKpi(Tile(id = "t4", title = "Shopping", look = dev.botdot.app.data.TileLook(short = "3 items")))?.text)
+        assertNull("nor that: its dot", stripKpi(Tile(id = "t5", title = "Heating", kind = "switch", look = dev.botdot.app.data.TileLook())))
+    }
+
+    @Test fun theNeedsYouCardCountsWhatWaits() {
+        assertEquals("1 needs you", needsCount(1))
+        assertEquals("3 need you", needsCount(3))
+    }
 }

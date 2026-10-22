@@ -270,4 +270,26 @@ class KeypadTest {
         assertEquals(Keypad.Home.LIST, Keypad.home(839))
         assertEquals(Keypad.Home.KEYPAD, Keypad.home(840))
     }
+
+    // A key's status (#397): the web page's cases (test/keypad.test.js)
+
+    @Test fun aKeysStatusIsWorkingThenNeedsYouThenUnreadThenWhatItsLastRunDid() {
+        assertEquals(Keypad.Status(Keypad.StatusKind.WORKING, "Working"), Keypad.status(running = true, needs = true, unread = 3, last = "error"))
+        assertEquals(Keypad.Status(Keypad.StatusKind.NEEDS, "Needs you"), Keypad.status(needs = true, unread = 3))
+        assertEquals(Keypad.Status(Keypad.StatusKind.UNREAD, "2 unread"), Keypad.status(unread = 2, last = "success"))
+        assertEquals(Keypad.Status(Keypad.StatusKind.DONE, "Done"), Keypad.status(last = "success"))
+        assertEquals(Keypad.Status(Keypad.StatusKind.FAILED, "Couldn't finish"), Keypad.status(last = "error"))
+        assertEquals(Keypad.Status(Keypad.StatusKind.FAILED, "Couldn't finish"), Keypad.status(last = "interrupted"))
+        assertEquals("the owner stopped it", Keypad.Status(Keypad.StatusKind.IDLE, "Idle"), Keypad.status(last = "stopped"))
+        assertEquals(Keypad.Status(Keypad.StatusKind.IDLE, "Idle"), Keypad.status())
+    }
+
+    @Test fun howLongARunHasBeenGoing() {
+        assertEquals("<1 min", Keypad.since(0))
+        assertEquals("<1 min", Keypad.since(-5_000))
+        assertEquals("<1 min", Keypad.since(59_999))
+        assertEquals("2 min", Keypad.since(125_000))
+        assertEquals("1 h", Keypad.since(3_600_000))
+        assertEquals("1 h 5 min", Keypad.since(3_900_000))
+    }
 }

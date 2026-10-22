@@ -1410,20 +1410,36 @@ a.file-chip.link:hover { border-color: var(--faint); }
   .sidebar.searching .keypad { flex: none; padding-bottom: 8px; }
   .sidebar.searching .kp-keys, .sidebar.searching .kp-hint { display: none; }
 }
-.kp-head { display: flex; align-items: flex-end; gap: 24px; min-height: 0; }
-.kp-board { flex: 1; min-width: 0; }
-/* The Board's line: each tile's name over its value. The tiles that don't fit go to the next row, which is cut off. */
-.kp-board-line { display: flex; flex-wrap: wrap; gap: 0 32px; height: 52px; overflow: hidden; width: 100%; border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
-.kp-board-line .t { display: flex; flex-direction: column; height: 52px; justify-content: flex-end; }
-.kp-board-line .lbl { font-size: 12px; color: var(--muted); white-space: nowrap; }
-.kp-board-line .t b { font-weight: 300; font-size: 24px; line-height: 1.15; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; align-items: center; min-height: 28px; }
-.kp-board-line .t b i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
-.kp-board-line .t b i.off { background: none; box-shadow: inset 0 0 0 1.5px var(--c); }
-.kp-board-line .none { align-self: flex-end; color: var(--muted); font-size: 13px; }
+/* Over the keys (#397): the Board's strip of small kpi cards, then Needs you as one warm card, and Rooms. */
+.kp-head { display: flex; align-items: stretch; gap: 12px; min-height: 0; }
+.kp-board { flex: 1 1 auto; min-width: 0; }
+/* The Board's strip: one card per tile, as wide as it needs between 150 and 220; those that don't fit scroll sideways. */
+.kp-board-line { display: flex; gap: 12px; width: 100%; height: 100%; overflow-x: auto; scrollbar-width: none; cursor: pointer; }
+.kp-board-line::-webkit-scrollbar { display: none; }
+.kp-card { flex: 0 0 auto; display: flex; min-width: 150px; max-width: 220px; min-height: 96px; padding: 14px 18px; border: 1px solid var(--line-2); border-radius: 16px; background: var(--panel); }
+.kp-card .kit-kpi { flex: 1; min-width: 0; margin-top: 0; gap: 8px; justify-content: space-between; }
+.kp-card .kit-kpi.has-spark { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+.kp-card .kit-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kp-card .kit-num { font-size: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kp-card .kit-num small { font-size: 13px; }
+.kp-card .kit-spark { flex: none; width: 100%; min-width: 0; height: 22px; }
+.kp-card .kit-bar { height: 4px; }
+.kp-card-dot { display: flex; align-items: center; gap: 8px; font-size: 20px; }
+.kp-card-dot i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.kp-card-dot i.off { background: none; box-shadow: inset 0 0 0 1.5px var(--c); }
+.kp-board-line:hover .kp-card, .kp-board-line.active .kp-card { border-color: var(--faint); }
+.kp-board-line .none { align-self: center; color: var(--muted); font-size: 13px; }
 .kp-board-line .none b { color: var(--text); font-weight: 500; }
-.kp-board-line:hover .t b, .kp-board-line.active .t b { text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 4px; }
 .kp-needs { flex: none; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 6px 10px; border-radius: 10px; color: var(--muted); font: inherit; font-size: 12.5px; cursor: pointer; }
 .kp-needs:hover { background: var(--sunk); color: var(--text); }
+/* Needs you: "N need you", what waits in one line, and Review. */
+.kp-needs.kp-needs-card { flex: 0 1 380px; min-width: 260px; gap: 12px; padding: 14px 18px; border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); border-radius: 16px; background: var(--warn-soft); color: var(--text); font-size: 14px; text-align: left; }
+.kp-needs.kp-needs-card:hover { background: color-mix(in srgb, var(--warn) 18%, var(--bg)); }
+.kp-needs-ico { flex: none; width: 20px; height: 20px; fill: none; stroke: var(--warn-text); stroke-width: 1.8; stroke-linecap: round; }
+.kp-needs-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.kp-needs-text b { color: var(--warn-text); font-weight: 600; }
+.kp-needs-text span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; }
+.kp-review { flex: none; padding: 7px 16px; border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); border-radius: 99px; font-size: 13.5px; }
 /* A page's dot, in the colour of a bot on it that asks; the keys' hint under them. */
 .kp-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--c); margin-left: 6px; vertical-align: 1px; }
 .kp-hint { flex: none; padding: 0 0 14px; font: 11px/1 var(--mono); color: var(--faint); white-space: nowrap; text-align: right; }
@@ -1433,27 +1449,29 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .kp-page + .kp-page { margin-top: 24px; }
 .kp-page-head { display: flex; align-items: center; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
 .kp-page-head b { font-weight: 400; margin-left: 6px; letter-spacing: 0; }
-.kp-page-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 88px; gap: 12px; }
-/* Pinned (#513): the Chief and the pinned bots, set apart from the categories on a panel right under the Board. */
-.kp-pinned { padding: 14px; border-radius: 20px; background: var(--sunk); }
-.kp-pinned .kp-page-head { border-bottom: 0; padding-bottom: 0; }
-.kp-pinned .key { background: var(--bg); }
-.kp-pinned .key:hover { border-color: var(--line-2); }
-.kp-pinned .key.active { border-color: var(--faint); }
-.key { position: relative; display: flex; align-items: center; gap: 14px; min-width: 0; border: 1px solid var(--line); border-radius: 14px; padding: 0 16px; background: transparent; text-align: left; font: inherit; color: inherit; cursor: pointer; }
-.key:hover { background: var(--sunk); }
-.key.active { border-color: var(--line-2); background: var(--sunk); }
-.key.is-group { border-color: var(--line-2); }
-.key .avatar, .key .group-pic { width: 48px; height: 48px; }
+.kp-page-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(116px, auto); gap: 14px; }
+/* Pinned (#513): the Chief and the pinned bots first, right under the Board; their keys are larger (#397). */
+.kp-pinned .kp-page-keys { grid-auto-rows: minmax(140px, auto); }
+.kp-pinned .key { padding: 22px 22px 18px; }
+.kp-pinned .key .avatar, .kp-pinned .key .group-pic { width: 56px; height: 56px; }
+/* A key: the head, the name, its line, and its status pill with the time of its last action (#397). */
+.key { position: relative; display: flex; align-items: flex-start; gap: 16px; min-width: 0; border: 1px solid var(--line-2); border-radius: 18px; padding: 18px 20px 16px; background: var(--panel); text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.key:hover { border-color: var(--faint); }
+.key.active { border-color: var(--muted); }
+.key.is-group { border-style: dashed; }
+.key .avatar, .key .group-pic { flex: none; width: 48px; height: 48px; }
 .key .group-pic > i { width: 30px; height: 30px; }
 .key .group-pic > i:nth-child(3) { left: 9px; }
-.key-n { position: absolute; top: 10px; right: 12px; font: 500 11.5px/1 var(--mono); color: var(--faint); }
-.key .top { display: flex; align-items: center; gap: 8px; padding-right: 14px; }
-.key .name { font-weight: 600; font-size: 14px; letter-spacing: -.01em; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.key .prev { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.key .grow { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.key-n { position: absolute; top: 14px; right: 16px; font: 500 11.5px/1 var(--mono); color: var(--faint); }
+.key .top { display: flex; align-items: center; gap: 8px; padding-right: 22px; }
+.key .name { font-weight: 600; font-size: 16px; letter-spacing: -.01em; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.key .prev { font-size: 13.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .key .prev.working, .key .prev.asks { color: var(--text); }
-.key .prev.asks { font-weight: 500; }
-.key-ask { border-style: dashed; justify-content: center; color: var(--faint); font-size: 13px; }
+.key-status { display: flex; align-items: center; gap: 10px; margin-top: 10px; min-width: 0; }
+.key-status .kit-pill { font-size: 13px; padding: 4px 12px; }
+.key-time { font-size: 13px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.key-ask { border-style: dashed; align-items: center; justify-content: center; background: transparent; color: var(--faint); font-size: 14px; }
 .key-ask:hover { color: var(--text); }
 /* A key dragged (#499): it fades where it was; the key or the heading it would land on is marked. */
 .key.drag-ghost { opacity: .35; }
@@ -1478,23 +1496,42 @@ a.file-chip.link:hover { border-color: var(--faint); }
   .sidebar:not(.searching) .contacts { display: none; }
   .sidebar.searching .kp-phone { display: none; } /* the search's results, as the list's */
 }
-.kp-phone .kp-head { padding: 2px 16px 10px; }
-.kp-sections { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 12px 12px; }
+/* On a phone the strip scrolls sideways over Needs you, which takes the whole width. */
+.kp-phone .kp-head { flex-direction: column; gap: 10px; padding: 2px 16px 12px; }
+.kp-phone .kp-card { min-width: 132px; min-height: 84px; padding: 12px 16px; }
+.kp-phone .kp-card .kit-num { font-size: 24px; }
+.kp-phone .kp-card .kit-spark, .kp-phone .kp-card .kit-bar { display: none; }
+.kp-phone .kp-needs.kp-needs-card { flex: none; min-width: 0; }
+.kp-phone .kp-needs-ico { display: none; }
+.kp-phone .kp-needs-text span { -webkit-line-clamp: 1; }
+.kp-sections { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 12px; }
 .kp-section + .kp-section { margin-top: 18px; }
-.kp-sec-head { display: flex; align-items: center; margin: 0 4px 8px; font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.kp-sec-head { display: flex; align-items: center; margin: 0 0 10px; font: 500 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
 .kp-sec-head b { font-weight: 400; margin-left: 6px; letter-spacing: 0; }
-.kp-sec-keys { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.kp-sec-keys .key { flex-direction: column; justify-content: flex-start; gap: 6px; min-height: 104px; padding: 12px 6px 10px; text-align: center; }
-.kp-sec-keys .key .grow { width: 100%; min-width: 0; }
-.kp-sec-keys .key .top { justify-content: center; gap: 4px; padding-right: 0; }
-.kp-sec-keys .key .name { font-size: 13px; }
-.kp-sec-keys .key .prev { font-size: 11.5px; }
-.kp-sec-keys .key .avatar, .kp-sec-keys .key .group-pic { width: 40px; height: 40px; }
+/* Pinned: one key a row, head beside the name, as on the wide keypad; the other pages two a row, head over the name. */
+.kp-sec-keys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.kp-sec-pinned .kp-sec-keys { grid-template-columns: minmax(0, 1fr); }
+.kp-sec-keys .key { gap: 14px; padding: 16px; border-radius: 16px; }
+.kp-sec-keys .key .name { font-size: 15px; }
+.kp-sec-keys .key .prev { font-size: 13px; }
+.kp-sec-keys .key-status { margin-top: 8px; }
+.kp-section:not(.kp-sec-pinned) .key { flex-direction: column; gap: 10px; }
+.kp-section:not(.kp-sec-pinned) .key .grow { align-self: stretch; }
+.kp-section:not(.kp-sec-pinned) .key .avatar, .kp-section:not(.kp-sec-pinned) .key .group-pic { width: 40px; height: 40px; }
 .kp-sec-keys .key .group-pic > i { width: 26px; height: 26px; }
 .kp-sec-keys .key .group-pic > i:nth-child(3) { left: 7px; }
 /* The Chief's message box: a tap opens the Chief's chat, ready to write in. */
 .kp-chief { flex: none; display: flex; align-items: center; gap: 8px; margin: 6px 12px 10px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 16px; background: transparent; color: var(--faint); font: inherit; font-size: 14px; text-align: left; cursor: text; }
 .kp-chief span { flex: 1; }
+/* ---------- a key's status, on the keypad and a phone's sections (list.js, keyStatus; #397) ----------
+   The pill's two colours of its own (unread, idle; the rest are the block kit's), and the thin line along a working
+   key: the one motion of a key, stopped under reduced motion. */
+.kit-pill.unread { color: #a99cf8; background: color-mix(in srgb, #8b7cf6 16%, var(--bg)); }
+.kit-pill.idle { color: var(--muted); background: var(--sunk); }
+.key-run { position: relative; display: block; height: 2px; margin-top: 12px; border-radius: 2px; background: var(--line-2); overflow: hidden; }
+.key-run::after { content: ""; position: absolute; inset: 0 auto 0 0; width: 35%; border-radius: 2px; background: var(--mention); animation: key-run 2.4s ease-in-out infinite; }
+@keyframes key-run { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) { .key-run::after { animation: none; width: 100%; opacity: .6; } }
 /* Quote (#97, chief.js initQuote): by text selected in a chat message, above it (below on a touch screen). */
 .quote-btn { position: fixed; z-index: 40; border: 1px solid var(--line-2); background: var(--sunk); color: var(--text); padding: 6px 14px; border-radius: 99px; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; box-shadow: var(--shadow-lg); }
 .quote-btn:hover { background: var(--line-2); }

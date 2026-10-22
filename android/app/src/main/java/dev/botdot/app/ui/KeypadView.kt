@@ -1,5 +1,9 @@
 package dev.botdot.app.ui
 
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -79,11 +83,14 @@ internal const val ASK_FOR_A_BOT = "Ask the Chief for a bot"
 
 /**
  * What a key shows: the head (or a group's [members]), the name and the line the list's row has for it ([who]: the
- * bot named before it in a group's line). [asks]: it asks the owner something, and has the mark in place of the dots.
+ * bot named before it in a group's line). [asks]: it asks the owner something, and has the mark beside its name.
+ * [status]: its pill ([Keypad.status], #397), with [time] beside it: when it last did something, or how long it has
+ * been working.
  */
 internal data class KeyLook(
     val name: String, val line: String, val color: String?, val state: String = "idle", val who: String = "",
     val outfit: JsonElement? = null, val unread: Int = 0, val asks: Boolean = false, val members: List<Bot>? = null,
+    val status: Keypad.Status = Keypad.status(), val time: String = "",
 )
 
 /**
@@ -175,7 +182,7 @@ internal fun KeypadView(
                 if (isFolded) return@forEachIndexed // its keys are not shown, nor given a free digit
                 itemsIndexed(page.keys, key = { _, k -> k.id }) { n, k ->
                     DisposableEffect(k.id) { onDispose { drag.keys.remove(k.id) } }
-                    KeyView(Keypad.digitOf(digits, k), look(k), lit = k.id == active, aimed = aim == Aim(i, n), modifier = dragging(k)) { onKey(k) }
+                    KeyView(Keypad.digitOf(digits, k), look(k), lit = k.id == active, aimed = aim == Aim(i, n), big = page.kind == Keypad.Kind.PINNED, modifier = dragging(k)) { onKey(k) }
                 }
             }
             // The last place, after the last page's keys; with no bot yet, alone, where the first one is asked for.
@@ -225,37 +232,96 @@ private fun Keys(modifier: Modifier, scroll: Boolean = true, content: LazyGridSc
     userScrollEnabled = scroll, content = content,
 )
 
-private val KEY_SHAPE = RoundedCornerShape(20.dp)
-private val KEY_HEIGHT = 88.dp
+private val KEY_SHAPE = RoundedCornerShape(18.dp)
+private val KEY_HEIGHT = 124.dp
+private val BIG_KEY_HEIGHT = 148.dp
 
 /**
- * A key: its [number] (1 to 9: a bot's own or a free one, Keypad.digits; 0: none), the head, the name and the line the list's row says. [lit]: its chat
- * is the one open beside the keypad. [aimed]: a dragged key is over it, and would take its place.
+ * A key (#397): its [number] (1 to 9: a bot's own or a free one, Keypad.digits; 0: none), the head, the name, the line
+ * the list's row says, and its status pill with its time; a thin line runs along it while it works. [lit]: its chat is
+ * the one open beside the keypad. [aimed]: a dragged key is over it, and would take its place. [big]: a pinned key,
+ * which is larger.
  */
 @Composable
-private fun KeyView(number: Int, look: KeyLook, lit: Boolean, modifier: Modifier = Modifier, aimed: Boolean = false, onClick: () -> Unit) {
+private fun KeyView(number: Int, look: KeyLook, lit: Boolean, modifier: Modifier = Modifier, aimed: Boolean = false, big: Boolean = false, onClick: () -> Unit) {
     val p = LocalPaper.current
     Box(
-        modifier.fillMaxWidth().height(KEY_HEIGHT).clip(KEY_SHAPE).background(if (lit) p.sunk else Color.Transparent)
-            .border(1.dp, if (aimed) p.text else if (lit || look.members != null) p.line2 else p.line, KEY_SHAPE)
-            .semantics { selected = lit }.clickable(onClickLabel = look.name, onClick = onClick).padding(horizontal = 14.dp),
+        modifier.fillMaxWidth().height(if (big) BIG_KEY_HEIGHT else KEY_HEIGHT).clip(KEY_SHAPE).background(p.panel)
+            .border(1.dp, if (aimed) p.text else if (lit) p.muted else p.line2, KEY_SHAPE)
+            .semantics { selected = lit }.clickable(onClickLabel = look.name, onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
-        if (number in 1..9) Text("$number", color = p.faint, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp))
-        Row(Modifier.align(Alignment.CenterStart).padding(end = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                if (look.members != null) GroupPicture(look.members, 48) else BotFigure(look.color, look.state, 48, look.outfit)
-                if (look.asks) AsksMark(look.color, Modifier.align(Alignment.TopEnd))
-            }
-            Spacer(Modifier.width(12.dp))
+        if (number in 1..9) Text("$number", color = p.faint, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.TopEnd))
+        Row(Modifier.padding(end = 14.dp)) {
+            KeyHead(look, if (big) 52 else 44)
+            Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(look.name, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (!look.asks) UnreadDots(look.unread, look.color, Modifier.padding(start = 6.dp))
-                }
-                KeyLine(look, 12.5.sp, maxLines = 2)
+                KeyName(look, 16.sp)
+                KeyLine(look, 13.sp, maxLines = 1)
+                Spacer(Modifier.height(10.dp))
+                StatusRow(look)
             }
         }
     }
+}
+
+/** The head on a key, or a group's heads, with the mark of one that asks. */
+@Composable
+private fun KeyHead(look: KeyLook, size: Int) {
+    Box {
+        if (look.members != null) GroupPicture(look.members, size) else BotFigure(look.color, look.state, size, look.outfit)
+        if (look.asks) AsksMark(look.color, Modifier.align(Alignment.TopEnd))
+    }
+}
+
+@Composable
+private fun KeyName(look: KeyLook, fontSize: TextUnit) {
+    Text(look.name, color = LocalPaper.current.text, fontSize = fontSize, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+/** The tag of a key's status pill (KeypadUiTest). */
+internal const val KEY_STATUS = "key-status"
+
+/** A key's status pill and its time, and under them a thin line while it works. */
+@Composable
+private fun StatusRow(look: KeyLook) {
+    val p = LocalPaper.current
+    val (fg, bg) = statusColors(look.status.kind)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.clip(RoundedCornerShape(99.dp)).background(bg).padding(horizontal = 10.dp, vertical = 3.dp).testTag(KEY_STATUS), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(fg))
+            Spacer(Modifier.size(6.dp))
+            Text(look.status.text, color = fg, fontSize = 12.5.sp, maxLines = 1)
+        }
+        if (look.time.isNotEmpty()) Text(look.time, color = p.faint, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp))
+    }
+    if (look.status.kind == Keypad.StatusKind.WORKING) RunLine()
+}
+
+private val VIOLET = Color(0xFF8B7CF6)
+
+/** A pill's words and its ground, by its kind: the block kit's levels, and violet for unread, grey for idle. */
+@Composable
+private fun statusColors(kind: Keypad.StatusKind): Pair<Color, Color> {
+    val p = LocalPaper.current
+    return when (kind) {
+        Keypad.StatusKind.WORKING -> p.mention to p.mention.copy(alpha = 0.14f)
+        Keypad.StatusKind.NEEDS -> p.warnText to p.warnSoft
+        Keypad.StatusKind.UNREAD -> Color(0xFFA99CF8) to VIOLET.copy(alpha = 0.16f)
+        Keypad.StatusKind.DONE -> p.okText to p.okSoft
+        Keypad.StatusKind.FAILED -> p.err to p.errSoft
+        Keypad.StatusKind.IDLE -> p.muted to p.sunk
+    }
+}
+
+/** The thin line along a working key: a short stretch of blue that runs across it, standing still where animations are off. */
+@Composable
+private fun RunLine() {
+    val p = LocalPaper.current
+    val shift by rememberInfiniteTransition(label = "run").animateFloat(0f, 1f, infiniteRepeatable(tween(2400)), label = "run")
+    Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(2.dp)).background(p.line2).drawBehind {
+        val w = size.width * 0.35f
+        drawRect(p.mention, topLeft = Offset(-w + (size.width + w) * shift, 0f), size = androidx.compose.ui.geometry.Size(w, size.height))
+    })
 }
 
 /** What a key says under its name, as the list's row: what it asks stands out from what it last said. Nothing for no line. */
@@ -291,8 +357,6 @@ private fun LazyGridScope.askKey(onAsk: () -> Unit, aimed: Boolean = false, modi
 /** The Chief's message box at the foot of a phone's home. */
 internal const val ASK_THE_CHIEF = "Ask the Chief…"
 
-private val SECTION_KEY_HEIGHT = 108.dp
-
 /**
  * A phone's home (#498): the same pages as the keypad, one under the other, each a section under its name and count
  * (and the dot of a bot on it that asks) with its keys in rows of three and no digits; above them [header] (Needs
@@ -310,8 +374,8 @@ internal fun KeypadSections(
     Column(modifier) {
         header()
         LazyVerticalGrid(
-            GridCells.Fixed(3), Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+            GridCells.Fixed(2), Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             for (page in pages) {
                 val isFolded = Keypad.isFolded(page, folded)
@@ -320,7 +384,9 @@ internal fun KeypadSections(
                         PageLabel(page, look, p.faint, isFolded.takeIf { folds(page, onFold) })
                     }
                 }
-                if (!isFolded) items(page.keys, key = { it.id }) { k -> SectionKey(look(k)) { onKey(k) } }
+                // Pinned: one key a row, the head beside the name; the other pages two a row (#397).
+                val pinned = page.kind == Keypad.Kind.PINNED
+                if (!isFolded) items(page.keys, key = { it.id }, span = { GridItemSpan(if (pinned) maxLineSpan else 1) }) { k -> SectionKey(look(k), wide = pinned) { onKey(k) } }
             }
         }
         val shape = RoundedCornerShape(16.dp)
@@ -335,24 +401,30 @@ internal fun KeypadSections(
     }
 }
 
-/** A key in a phone's section: the head over the name and the list's line, and no digit. */
+private val SECTION_KEY_HEIGHT = 160.dp
+
+/** A key in a phone's section: the head over the name, the list's line and its status, no digit; [wide]: a pinned key, the head beside them. */
 @Composable
-private fun SectionKey(look: KeyLook, onClick: () -> Unit) {
+private fun SectionKey(look: KeyLook, wide: Boolean, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Column(
-        Modifier.fillMaxWidth().height(SECTION_KEY_HEIGHT).clip(KEY_SHAPE).border(1.dp, if (look.members != null) p.line2 else p.line, KEY_SHAPE)
-            .clickable(onClickLabel = look.name, onClick = onClick).padding(horizontal = 6.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Box {
-            if (look.members != null) GroupPicture(look.members, 40) else BotFigure(look.color, look.state, 40, look.outfit)
-            if (look.asks) AsksMark(look.color, Modifier.align(Alignment.TopEnd))
+    val shape = RoundedCornerShape(16.dp)
+    val box = Modifier.fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line2, shape).clickable(onClickLabel = look.name, onClick = onClick).padding(16.dp)
+    if (wide) Row(box) {
+        KeyHead(look, 44)
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            KeyName(look, 15.sp)
+            KeyLine(look, 13.sp, maxLines = 1)
+            Spacer(Modifier.height(8.dp))
+            StatusRow(look)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(look.name, color = p.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-            if (!look.asks) UnreadDots(look.unread, look.color, Modifier.padding(start = 4.dp))
-        }
-        KeyLine(look, 11.5.sp, maxLines = 1, textAlign = TextAlign.Center)
+    } else Column(box.height(SECTION_KEY_HEIGHT), verticalArrangement = Arrangement.spacedBy(4.dp)) { // two a row, of one height
+        KeyHead(look, 40)
+        Spacer(Modifier.height(4.dp))
+        KeyName(look, 15.sp)
+        KeyLine(look, 13.sp, maxLines = 1)
+        Spacer(Modifier.height(4.dp))
+        StatusRow(look)
     }
 }
 
