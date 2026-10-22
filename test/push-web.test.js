@@ -107,6 +107,7 @@ test('a tap opens what the notification is about', () => {
   assert.deepEqual(Push.viewOf('bot:b1'), { view: 'bot', id: 'b1' });
   assert.deepEqual(Push.viewOf('chief:c-1'), { view: 'chief', id: 'c-1' });
   assert.deepEqual(Push.viewOf('group:g1'), { view: 'group', id: 'g1' });
+  assert.deepEqual(Push.viewOf('room:0123abcd'), { view: 'rooms', id: '0123abcd' }, 'a shared room opens the Rooms view');
   assert.deepEqual(Push.viewOf('needs'), { view: 'needs', id: null });
   assert.deepEqual(Push.viewOf('app'), { view: 'chief', id: null });
   assert.equal(Push.viewOf('bot:<x>'), null);
@@ -150,7 +151,8 @@ test('the service worker shows what botdot sent, and a tap brings the page to th
   assert.deepEqual(w.opened, ['/#chief/c1']);
   await w.fire('notificationclick', { notification: { data: { target: 'needs' }, close() {} } });
   await w.fire('notificationclick', { notification: { data: { target: 'bot:../x' }, close() {} } });
-  assert.deepEqual(w.opened.slice(1), ['/#needs', '/#chief']);
+  await w.fire('notificationclick', { notification: { data: { target: 'room:0123abcd' }, close() {} } });
+  assert.deepEqual(w.opened.slice(1), ['/#needs', '/#chief', '/#rooms/0123abcd']);
   const told = [];
   let focused = false;
   const page = { url: 'https://botdot.example/#chief', postMessage: (m) => told.push({ ...m }), focus: async () => { focused = true; } };

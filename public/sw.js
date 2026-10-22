@@ -13,7 +13,8 @@ function hashOf(target) {
   const t = String(target || '');
   const i = t.indexOf(':');
   const [kind, id] = i > 0 ? [t.slice(0, i), t.slice(i + 1)] : [t, ''];
-  if (['bot', 'chief', 'group', 'room'].includes(kind) && ID.test(id)) return `#${kind}/${id}`;
+  if (['bot', 'chief', 'group'].includes(kind) && ID.test(id)) return `#${kind}/${id}`;
+  if (kind === 'room' && ID.test(id)) return `#rooms/${id}`; // a shared room (ADR 060): the page's Rooms view
   if (t === 'needs') return '#needs';
   return '#chief';
 }
