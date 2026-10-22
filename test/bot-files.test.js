@@ -39,7 +39,7 @@ test('a later run is told the files it was given and may read them without the R
     'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
     'xl/worksheets/sheet1.xml': '<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>Milk</t></is></c></row></sheetData></worksheet>',
   }));
-  long = await upload('handbook.md', Buffer.from(`# Handbook\n${'rule. '.repeat(2000)}`));
+  long = await upload('handbook.md', Buffer.from(`# Handbook\n${'rule. '.repeat(3000)}`));
   const rec = await nextPrompt();
   assert.match(rec.system, /Your files: what the owner \(or a teammate\) gave you/);
   for (const f of [cv, sheet, long]) assert.ok(rec.system.includes(f.file), f.file);
@@ -82,13 +82,20 @@ test("a pinned file's text comes with every task; a long one asks for a summary,
   assert.equal((await files()).find((f) => f.file === long.file).pinned, false);
 });
 
-test('at most five files are kept in mind', async () => {
+test('at most ten files are kept in mind; a bot on a full set is told to use remember, not to ask', async () => {
   const more = [];
-  for (let i = 0; i < 5; i++) more.push(await upload(`note-${i}.txt`, Buffer.from(`note ${i}`)));
-  for (const f of more.slice(0, 4)) assert.equal((await srv.api(`/bots/${bot.id}/files/${one(f)}`, { method: 'PUT', body: { pinned: true } })).status, 200);
-  const r = await srv.api(`/bots/${bot.id}/files/${one(more[4])}`, { method: 'PUT', body: { pinned: true } });
+  for (let i = 0; i < 10; i++) more.push(await upload(`note-${i}.txt`, Buffer.from(`note ${i}`)));
+  for (const f of more.slice(0, 9)) assert.equal((await srv.api(`/bots/${bot.id}/files/${one(f)}`, { method: 'PUT', body: { pinned: true } })).status, 200);
+  const r = await srv.api(`/bots/${bot.id}/files/${one(more[9])}`, { method: 'PUT', body: { pinned: true } });
   assert.equal(r.status, 400);
-  assert.match(r.data.error, /At most 5 files/);
+  assert.match(r.data.error, /At most 10 files are kept in mind\. Unpin one first\./);
+  const { rec: held, token } = await heldRun(srv, bot);
+  const b = await self(srv, token, 'pin-file', { path: more[9].file });
+  assert.equal(b.data.ok, false);
+  assert.match(JSON.stringify(b.data), /only the owner changes which\. Save decisions and facts with remember, not as a file/);
+  assert.doesNotMatch(JSON.stringify(b.data), /Unpin one first/);
+  srv.release(held);
+  srv.unhold();
   for (const f of more) await srv.api(`/bots/${bot.id}/files/${one(f)}`, { method: 'DELETE' });
 });
 

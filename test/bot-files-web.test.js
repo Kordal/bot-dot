@@ -16,7 +16,7 @@ function page({ files = FILES, confirmed = true, features = [] } = {}) {
   const rows = files.map((f, i) => element({ '[data-file-pin]': pins[i], '[data-file-delete]': deletes[i] }, { dataset: { file: f.file } }));
   const box = element({ '.bs-file': rows });
   const ctx = vm.createContext({
-    api: async (url, opts = {}) => { calls.push([url, JSON.parse(JSON.stringify(opts))]); return { files, maxPinned: 5 }; },
+    api: async (url, opts = {}) => { calls.push([url, JSON.parse(JSON.stringify(opts))]); return { files, maxPinned: 10 }; },
     $: (sel) => (sel === '#file-list' ? box : null),
     esc: (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
     fmtSize: (n) => `${n} B`,
