@@ -52,6 +52,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -290,7 +291,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         onDragStarted = { dragging = key; haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate) },
         onDragStopped = { dropped() },
     )
-    // "Needs you" above the rows or the keys: what waits, with one small head per thing.
+    // "Needs you" above the rows: what waits, with one small head per thing.
     @Composable
     fun NeedsRow() {
         Row(
@@ -306,24 +307,37 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             NeedsFigures(needsWho)
         }
     }
-    // Above the keys, on the keypad and on a phone: what went wrong, a newer app, Needs you and the Board.
+    // Above the keys, on the keypad and on a phone: what went wrong, a newer app, the Board's strip of kpi cards,
+    // Needs you as one card (#397) and Rooms.
     @Composable
     fun AboveKeys() {
         error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp)) }
         if (dev.botdot.app.data.AppUpdate.newer(server) != null) Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
             AppUpdateBanner(api, server) { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
         }
-        if (needs > 0) NeedsRow()
-        DashboardStrip(dash, bots.orEmpty(), onClick = onDashboard)
+        BoardCards(dash, bots.orEmpty(), onClick = onDashboard)
+        if (needs > 0) NeedsCard(waiting, onReview = onNeedsYou)
         RoomsRow(app) { onOpen("rooms") }
     }
     // The keypad, and a phone's sections: the list's own order cut into pages, each bot and group a key that says what its row says.
     val pages = remember(bots, groupsNow, keypad, sections, shared) { if (keypad || sections) Keypad.pages(bots.orEmpty(), groups, shared) else emptyList() }
+    // A working key's time moves on once a minute.
+    val now by produceState(System.currentTimeMillis()) { while (true) { delay(60_000); value = System.currentTimeMillis() } }
+    // The bots a card in Needs you waits for: their keys say Needs you (#397).
+    val waitingBots = remember(waiting) { waiting.mapNotNull { it.bot?.takeIf(String::isNotEmpty) }.toSet() }
     fun look(k: Keypad.Key): KeyLook = when (k) {
-        is Keypad.Key.OfBot -> k.bot.let { b -> KeyLook(b.name, sub(b), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = asks(b)) }
+        is Keypad.Key.OfBot -> k.bot.let { b ->
+            val r = lastRun[b.id]
+            val running = b.running || r?.isRunning == true
+            val status = Keypad.status(running, needs = asks(b) || b.id in waitingBots, unread = b.unread, last = r?.status)
+            val time = if (running && r != null) runCatching { Keypad.since(now - java.time.Instant.parse(r.startedAt).toEpochMilli()) }.getOrDefault("") else listTime(r?.startedAt)
+            // A bot that asks shows its question alone: its pill says Needs you.
+            KeyLook(b.name, sub(b).removePrefix("Asks: "), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = asks(b), status = status, time = time)
+        }
         is Keypad.Key.OfGroup -> {
             val line = groupLine(k.group, bots.orEmpty(), turnLines)
-            KeyLook(k.group.name, line.text, line.color, if (line.working) "working" else "idle", who = line.who, unread = k.group.unread, asks = line.asks, members = Groups.members(k.group, bots.orEmpty()))
+            KeyLook(k.group.name, line.text, line.color, if (line.working) "working" else "idle", who = line.who, unread = k.group.unread, asks = line.asks, members = Groups.members(k.group, bots.orEmpty()),
+                status = Keypad.status(line.working, needs = line.asks, unread = k.group.unread, last = k.group.last?.status?.ifEmpty { null }), time = listTime(k.group.last?.at))
         }
     }
     val openKey = { k: Keypad.Key -> when (k) { is Keypad.Key.OfBot -> onBot(k.bot.id); is Keypad.Key.OfGroup -> onGroup(k.group.id) } }

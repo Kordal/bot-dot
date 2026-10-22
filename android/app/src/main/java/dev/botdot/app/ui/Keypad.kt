@@ -166,4 +166,31 @@ internal object Keypad {
             else -> Action.None
         }
     }
+
+    /**
+     * A key's status pill (#397), the web page's rule (keypad.js, status): [kind] is also its colour. Working while a run
+     * is going, Needs you while it asks or a card waits for it, its unread replies, else what its newest run did
+     * ([last], its status: Done, Couldn't finish; Idle for none, or one the owner stopped).
+     */
+    data class Status(val kind: StatusKind, val text: String)
+    enum class StatusKind { WORKING, NEEDS, UNREAD, DONE, FAILED, IDLE }
+
+    fun status(running: Boolean = false, needs: Boolean = false, unread: Int = 0, last: String? = null): Status = when {
+        running -> Status(StatusKind.WORKING, "Working")
+        needs -> Status(StatusKind.NEEDS, "Needs you")
+        unread > 0 -> Status(StatusKind.UNREAD, "$unread unread")
+        last == "success" -> Status(StatusKind.DONE, "Done")
+        last != null && last != "stopped" && last != "running" -> Status(StatusKind.FAILED, "Couldn't finish")
+        else -> Status(StatusKind.IDLE, "Idle")
+    }
+
+    /** How long a run has been going, beside a Working pill: "<1 min", "2 min", "1 h 5 min". [ms]: since its start. */
+    fun since(ms: Long): String {
+        val m = ms.coerceAtLeast(0) / 60_000
+        return when {
+            m < 1 -> "<1 min"
+            m < 60 -> "$m min"
+            else -> "${m / 60} h" + if (m % 60 > 0) " ${m % 60} min" else ""
+        }
+    }
 }

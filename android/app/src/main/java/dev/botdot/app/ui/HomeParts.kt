@@ -8,6 +8,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -186,6 +190,72 @@ internal fun DashboardStrip(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot
         Text("›", color = p.faint, style = MaterialTheme.typography.bodyMedium)
     }
 }
+
+/**
+ * The Board's strip over the keys, on the keypad and a phone (#397): one small kpi card per tile ([stripKpi]): its
+ * title over its first number with its sparkline or bar (not on a phone), or its dot (a switch On or Off). Those that
+ * don't fit scroll sideways. A tap opens the Board; with no tile it says so. Not there before the Board has loaded.
+ */
+@Composable
+internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, onClick: () -> Unit) {
+    val p = LocalPaper.current
+    val tiles = stripTiles(dash) ?: return
+    if (tiles.isEmpty()) {
+        Text(buildAnnotatedString {
+            withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(BoardWords.NAME) }
+            append(" · ${BoardWords.NOTHING}")
+        }, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 10.dp))
+        return
+    }
+    val phone = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < Keypad.LIST
+    val shape = RoundedCornerShape(16.dp)
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp).testTag(BOARD_CARDS), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (t in tiles) {
+            val c = parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint)
+            Box(Modifier.widthIn(min = 132.dp, max = 220.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape).clickable(onClickLabel = BoardWords.NAME, onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp)) {
+                val kpi = stripKpi(t)
+                if (kpi != null) KitKpi(if (phone) kpi.copy(points = emptyList(), ratio = null) else kpi, tint(kpi.color, c), compact = true, small = true)
+                else Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(t.title, color = p.muted, fontSize = 12.5.sp, maxLines = 1)
+                    val look = t.look?.dot
+                    val dot = tint(look?.color, c)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(10.dp).clip(CircleShape).then(if (look != null && look.filled != true) Modifier.border(1.5.dp, dot, CircleShape) else Modifier.background(dot)))
+                        if (look?.big == true) Text(if (look.filled == true) "On" else if (look.filled == false) "Off" else "·", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** The tag of the Board's strip of cards (KeypadUiTest). */
+internal const val BOARD_CARDS = "board-cards"
+
+/**
+ * Needs you over the keys (#397): one warm card, "N need you", what waits in one line, and Review, which opens
+ * Needs you.
+ */
+@Composable
+internal fun NeedsCard(waiting: List<dev.botdot.app.data.Waiting>, onReview: () -> Unit) {
+    val p = LocalPaper.current
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(shape).background(p.warnSoft).border(1.dp, p.warn.copy(alpha = 0.3f), shape)
+            .clickable(onClickLabel = "Needs you", onClick = onReview).padding(horizontal = 18.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(needsCount(waiting.size), color = p.warnText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(waiting.map { it.text }.distinct().joinToString(" · "), color = p.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.size(12.dp))
+        Text("Review", color = p.text, fontSize = 14.sp, modifier = Modifier.clip(RoundedCornerShape(99.dp)).border(1.dp, p.warn.copy(alpha = 0.4f), RoundedCornerShape(99.dp)).padding(horizontal = 16.dp, vertical = 7.dp))
+    }
+}
+
+/** "1 needs you", "3 need you": the Needs you card's first line, the web page's words. */
+internal fun needsCount(n: Int) = if (n == 1) "1 needs you" else "$n need you"
 
 /** Its children in a row, as many as fit whole: the rest are left out, not cut off. */
 @Composable

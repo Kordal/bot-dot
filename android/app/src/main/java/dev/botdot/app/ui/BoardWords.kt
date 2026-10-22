@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.Block
 import dev.botdot.app.data.Dashboard
 import dev.botdot.app.data.Tile
 
@@ -24,6 +25,26 @@ object BoardWords {
  * show (the strip says so), else the tiles: those not inside a group and not waiting for your OK.
  */
 fun stripTiles(dash: Dashboard?): List<Tile>? = dash?.tiles?.filter { it.parent == null && it.approved }
+
+/**
+ * A tile as a card of the strip over the keys (#397), the web page's rule (list.js, stripKpi): a kpi of its title over
+ * its first number (a value, a kpi, a bar or a gauge on its face, also inside a row or a column) with that block's
+ * recent values and bar; with none, its one-line value; null for a tile with neither, which shows its dot (a switch
+ * On or Off).
+ */
+fun stripKpi(t: Tile): Block? {
+    fun find(list: List<Block>): Block? {
+        for (b in list) {
+            if (b.type in setOf("kpi", "value", "progress", "gauge")) return b
+            find(b.blocks)?.let { return it }
+        }
+        return null
+    }
+    val b = find(t.look?.face.orEmpty())
+    if (b != null) return Block(type = "kpi", label = t.title, text = b.text.orEmpty(), unit = b.unit.takeIf { b.type == "kpi" || b.type == "value" }, of = b.of, points = b.points, ratio = b.ratio, color = b.color)
+    val short = t.look?.short.orEmpty()
+    return if (short.isNotEmpty()) Block(type = "kpi", label = t.title, text = short) else null
+}
 
 /**
  * What a tile says for a moment after a tap that asks its bot: "Asked <Bot>", or, when the bot was busy and the

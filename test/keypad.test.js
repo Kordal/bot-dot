@@ -223,3 +223,27 @@ test('moves: a key that is on no page, or a page that is not there, moves nothin
   assert.equal(Keypad.move(pages, bot('Ghost', { group: 'Home' }), 1), null);
   assert.equal(Keypad.move(pages, pages[1].keys[0], 7), null);
 });
+
+// ---------- a key's status (#397) ----------
+
+test('status: Working, then Needs you, then unread, then the last run: Done, Couldn\'t finish, else Idle', () => {
+  const S = (o) => Keypad.status(o);
+  assert.deepEqual(S({ running: true, needs: true, unread: 3, last: 'error' }), { kind: 'working', text: 'Working' });
+  assert.deepEqual(S({ needs: true, unread: 3 }), { kind: 'needs', text: 'Needs you' });
+  assert.deepEqual(S({ unread: 2, last: 'success' }), { kind: 'unread', text: '2 unread' });
+  assert.deepEqual(S({ last: 'success' }), { kind: 'done', text: 'Done' });
+  assert.deepEqual(S({ last: 'error' }), { kind: 'failed', text: "Couldn't finish" });
+  assert.deepEqual(S({ last: 'interrupted' }), { kind: 'failed', text: "Couldn't finish" });
+  assert.deepEqual(S({ last: 'stopped' }), { kind: 'idle', text: 'Idle' }, 'the owner stopped it: nothing went wrong');
+  assert.deepEqual(S({}), { kind: 'idle', text: 'Idle' });
+  assert.deepEqual(S(), { kind: 'idle', text: 'Idle' });
+});
+
+test('since: how long a run has been going, in minutes and hours', () => {
+  assert.equal(Keypad.since(0), '<1 min');
+  assert.equal(Keypad.since(-5000), '<1 min', 'a clock a little ahead');
+  assert.equal(Keypad.since(59_999), '<1 min');
+  assert.equal(Keypad.since(2 * 60_000 + 5000), '2 min');
+  assert.equal(Keypad.since(60 * 60_000), '1 h');
+  assert.equal(Keypad.since(65 * 60_000), '1 h 5 min');
+});

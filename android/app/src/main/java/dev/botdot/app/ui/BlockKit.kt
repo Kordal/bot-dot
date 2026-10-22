@@ -177,9 +177,10 @@ fun KitSpark(points: List<Double>, color: Color, modifier: Modifier) {
 /**
  * A kpi: the number big with its unit and "of N", the line under it (its change, or what `sub` says), a sparkline
  * beside it (not when [compact]: half a phone's width) and a bar under it. A value with its recent values is drawn the same.
+ * [small]: a card of the strip over the keys (#397): a smaller number, its sparkline under it.
  */
 @Composable
-fun KitKpi(b: Block, color: Color, compact: Boolean) {
+fun KitKpi(b: Block, color: Color, compact: Boolean, small: Boolean = false) {
     val p = LocalPaper.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
@@ -189,7 +190,7 @@ fun KitKpi(b: Block, color: Color, compact: Boolean) {
                     append(b.text?.ifEmpty { "·" } ?: "·")
                     b.unit?.let { withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.faint)) { append(" $it") } }
                     b.of?.let { withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.faint)) { append("  of $it") } }
-                }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, lineHeight = 34.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = if (small) 22.sp else 30.sp, fontWeight = FontWeight.SemiBold, lineHeight = if (small) 26.sp else 34.sp, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis)
                 b.delta?.let { d ->
                     Text(BoardKit.deltaLine(b), fontSize = 12.5.sp, color = when (d.good) { true -> p.okText; false -> p.err; null -> p.faint })
                 }
@@ -200,6 +201,7 @@ fun KitKpi(b: Block, color: Color, compact: Boolean) {
                 KitSpark(b.points, color, Modifier.weight(1f).height(44.dp))
             }
         }
+        if (small && b.points.size >= 2) KitSpark(b.points, color, Modifier.fillMaxWidth().height(22.dp))
         b.ratio?.let { r ->
             Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(99.dp)).background(p.sunk)) {
                 Box(Modifier.fillMaxWidth(r.toFloat().coerceIn(0f, 1f)).height(6.dp).clip(RoundedCornerShape(99.dp)).background(color))
