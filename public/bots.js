@@ -70,6 +70,11 @@ const PERMS = [
   { key: 'helpers', label: 'Can use helpers', hint: 'start helpers that work in parallel within one run', tools: ['Agent', 'Task'] },
 ];
 
+// A bot's Shared rooms row (#316, ADR 060): on a botdot with `room-settings` that sends the bot's `rooms`, while the
+// front door has shared rooms on (rooms.js). Who may mention it: only its owner, or anyone in the room.
+const ROOM_WHO = [['owner', 'Only you'], ['anyone', 'Anyone in the room']];
+const showsRoomSettings = (b) => state.features.includes('room-settings') && !!b.rooms && typeof b.rooms === 'object' && typeof rooms !== 'undefined' && rooms.on;
+
 // The page's form, in the shape the API takes. sel: the picked skills, apps and teammates.
 function readBotForm(form, sel) {
   return {
@@ -86,6 +91,7 @@ function readBotForm(form, sel) {
     mayMessageAll: sel.others.every((id) => sel.mayMessage.has(id)),
     mayMessage: [...sel.mayMessage],
     othersMayAsk: form.othersMayAsk.checked,
+    ...(form.allowRooms ? { rooms: { allowRooms: form.allowRooms.checked, whoMayMention: form.roomsWho.value } } : {}),
     allowedTools: form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean),
     permissionMode: form.permissionMode.value,
     ...readLlmFields(form, 'bot'),
@@ -203,6 +209,12 @@ function renderBotSettings(force = false) {
           <div class="grow"><b>Other bots may ask it</b><div class="faint">Off keeps it to you: other bots don't see it among their teammates and can't message it.</div></div>
           <label class="switch"><input type="checkbox" name="othersMayAsk" ${b.othersMayAsk !== false ? 'checked' : ''} aria-label="Other bots may ask it"><span></span></label>
         </div>
+        ${showsRoomSettings(b) ? `<div class="bs-row" id="bs-rooms">
+          <span class="bs-icon">🚪</span>
+          <div class="grow"><b>Shared rooms</b><div class="faint">It may join rooms with other accounts on this machine. There it only talks: no tools, no notes, nothing of yours.</div>
+            <label class="field bs-rooms-who ${b.rooms.allowRooms ? '' : 'hidden'}">Who may mention it<select name="roomsWho">${ROOM_WHO.map(([v, label]) => `<option value="${v}" ${b.rooms.whoMayMention === v ? 'selected' : ''}>${label}</option>`).join('')}</select></label></div>
+          <label class="switch"><input type="checkbox" name="allowRooms" ${b.rooms.allowRooms ? 'checked' : ''} aria-label="Shared rooms"><span></span></label>
+        </div>` : ''}
         <button type="button" class="bs-row bs-link" data-bs-jobs>
           <span class="bs-icon">⏰</span>
           <div class="grow"><b>Scheduled jobs</b><div class="faint" id="bs-jobs"></div></div>
@@ -278,6 +290,7 @@ function renderBotSettings(force = false) {
   };
   const saveSoon = () => { clearTimeout(timer); timer = setTimeout(save, 300); };
   form.addEventListener('change', (e) => { if (!e.target.matches('[data-perm]')) saveSoon(); });
+  if (form.allowRooms) form.allowRooms.addEventListener('change', () => $('.bs-rooms-who', root).classList.toggle('hidden', !form.allowRooms.checked));
   // "Everything allowed" asks first. Until the answer the select is back at its earlier mode, so that no
   // save, this one or another field's, carries the new one; Cancel leaves it there and saves nothing.
   let mode = form.permissionMode.value;

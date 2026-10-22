@@ -98,6 +98,7 @@ function viewOf(target) {
   const i = t.indexOf(':');
   const [kind, id] = i > 0 ? [t.slice(0, i), t.slice(i + 1)] : [t, ''];
   if (['bot', 'chief', 'group'].includes(kind) && /^[\w.-]{1,80}$/.test(id)) return { view: kind, id };
+  if (kind === 'room' && /^[\w.-]{1,80}$/.test(id)) return { view: 'rooms', id }; // a shared room (ADR 060)
   if (t === 'needs') return { view: 'needs', id: null };
   if (t === 'app') return { view: 'chief', id: null };
   return null;

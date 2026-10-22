@@ -188,12 +188,17 @@ data class Bot(
     @SerialName("queued") val queuedValue: JsonElement? = null,
     // Its open question to the owner (`asks-you`), kept as it came. Read it through [asks].
     @SerialName("asks") val asksValue: JsonElement? = null,
+    // Its shared-room settings (`room-settings`, ADR 060), kept as they came. Read them through [rooms].
+    @SerialName("rooms") val roomsValue: JsonElement? = null,
 ) {
     /** The owner's messages that wait until it is free, oldest first; none from a server that keeps none. */
     val queued: List<Queued> get() = Queued.list(queuedValue)
 
     /** What it asks the owner, until the owner writes to it; null when it asks nothing, or the server does not say. */
     val asks: Asks? get() = Asks.of(asksValue)
+
+    /** Whether it may take part in shared rooms and who may mention it there; null from a server that does not say. */
+    val rooms: BotRooms? get() = BotRooms.of(roomsValue)
 }
 
 /** A bot's open question to the owner (`asks` on a bot, docs/api.md): [text] in one line, and the run that asked. */

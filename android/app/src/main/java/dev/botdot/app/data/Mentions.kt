@@ -55,10 +55,11 @@ object Mentions {
      * offered first while typed at the start of a message, and is no member's mention (a member named All is neither
      * matched nor suggested). [about]: the library's descriptions by name, shown beside a skill to run. [runsSkills]:
      * the server runs a skill sent as "/" and its name (feature `skill-commands`, #237); without it "/" lists nothing.
-     * [account]: the names of the Claude account's skills, for "/" only.
+     * [account]: the names of the Claude account's skills, for "/" only. [labels]: a bot's words in the suggestions by its
+     * id, in place of its name (a shared room's "name · account", ADR 060).
      */
     class World(val chat: String, val bots: List<Bot>, val library: List<String>, val all: Boolean = false, val about: Map<String, String> = emptyMap(),
-                val runsSkills: Boolean = true, val account: List<String> = emptyList()) {
+                val runsSkills: Boolean = true, val account: List<String> = emptyList(), val labels: Map<String, String> = emptyMap()) {
         val skills: List<String> = if (chat == CHIEF) library else bots.firstOrNull { it.id == chat }
             ?.takeIf { it.useSkills }?.let { b -> library.filter { it in b.skills } }.orEmpty()
         /** The skills "/" runs here: a bot's own chat only. The account's after the library's (#236). */
@@ -119,7 +120,7 @@ object Mentions {
         } else {
             val botNames = bots.map { shortName(it.name).lowercase() }.toSet()
             val all = if (w.all && typed.substring(0, m.range.first).isBlank() && has(ALL, q)) listOf(Row(Kind.ALL, "@$ALL", "all: every member at once")) else emptyList()
-            all + bots.filter { has(shortName(it.name), q) }.map { Row(Kind.BOT, "@${shortName(it.name)}", it.name, bot = it.id) } +
+            all + bots.filter { has(shortName(it.name), q) }.map { Row(Kind.BOT, "@${shortName(it.name)}", w.labels[it.id] ?: it.name, bot = it.id) } +
                 bots.flatMap { b -> b.jobs.filter { has(shortName(it.name), q) }.map { jobRow(b, it) } } +
                 w.skills.filter { has(it, q) && it.lowercase() !in botNames }.map { Row(Kind.SKILL, "@$it", it, skill = it) }
         }
