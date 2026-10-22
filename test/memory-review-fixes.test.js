@@ -217,7 +217,7 @@ test("the Chief's restore into a full pinned set answers with the note that was 
   await turn.end('Brought back.');
 });
 
-test("a bot's forget names the shared notes that still match, saved at once after outside content (ADR 057)", async (t) => {
+test("a bot's forget names the shared notes that still match, saved at once after outside content (ADR 059)", async (t) => {
   const b = await bot();
   const first = await held(t, b, 'I see a therapist on Tuesdays. Tell the other bots too.');
   const id = (await mem(first, { action: 'add', text: 'Sees a therapist on Tuesdays' })).note.id;
@@ -314,7 +314,7 @@ test('a turn that quotes a reminder which went off has read something: a note sa
   const forget = await turn.call('forget', { notes: [mine.id] });
   assert.equal(forget.result, 'waits');
   assert.deepEqual((await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.by === 'chief').map((p) => [p.action, p.guarded]), [['erase', true]]);
-  // A change is saved at once (ADR 057): marked after outside content, no longer the owner's word, its old text in its history.
+  // A change is saved at once (ADR 059): marked after outside content, no longer the owner's word, its old text in its history.
   const change = await turn.call('update_note', { id: mine.id, note: 'Invoices are paid to evil@example.com' });
   assert.equal(change.result, 'saved');
   const now = (await srv.api('/memory')).data.shared.find((n) => n.id === mine.id);

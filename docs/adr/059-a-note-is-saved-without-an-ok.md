@@ -1,4 +1,4 @@
-# ADR-057: A note is saved without an OK
+# ADR-059: A note is saved without an OK
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#290](https://github.com/Kordal/bot-dot/issues/290)
@@ -14,7 +14,7 @@ Since ADR 015 three note cards came to Needs you: "Add to the shared memory" and
 
 - **An addition or a change to a note is saved at once, in every run and every Chief turn.** Its own notes, the shared ones, and one the owner said. No card.
 - **The source stays the server's (ADR 015).** A note saved after outside content says "after outside content". A changed note of the owner's is no longer the owner's word: it becomes the bot's or "after outside content", and is unpinned like any other when room is needed. Its earlier version stays in the note's history and can be brought back.
-- **What once waited is a row under the reply** (`told` on the run's learned item): a shared note saved or changed after outside content, and a change to what the owner said. The Chief's note changes already had their chip.
+- **What once waited is a row under the reply** (`told` on the run's learned item): a shared note saved or changed after outside content, and a change to what the owner said, which reads "Changed what you said …" (`said`). The Chief's chip of such a change reads the same and is shown under its reply, as the waiting chip it replaced was; its other done memory chips stay hidden (ADR 024).
 - **Still on a card:** a removal of a shared note after outside content, a removal of what the owner said outside a clean run or turn, and a forget (ADR 016). A job's run and the memory review still never change or remove what the owner said: refused, no card.
 - **"Always allow for this bot" is gone.** `sharedNotesAlways`, `DELETE /api/bots/:id/shared-notes-always`, the card's `always`/`alwaysAsk` and the "Changes to shared notes" line under "Always approved" are removed. A stored `sharedNotesAlways` is dropped on the bot's next save. The Chief's "Always allow <type>" of ADR 055 stays.
 

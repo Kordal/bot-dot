@@ -236,7 +236,7 @@ test('memory review uses its chosen model, sees notes/runs, saves shared additio
   assert.match(rec.stdin, /don't contact anyone/);
   assert.equal(rec.self.env.SELF_CAN_EDIT, '0');
   assert.match(await tools.text('remember', { note: 'PANGOLIN review lesson' }), /Saved/);
-  // Shared additions and changes are saved at once (ADR 057); a removal waits.
+  // Shared additions and changes are saved at once (ADR 059); a removal waits.
   assert.match(await tools.text('remember', { note: 'PANGOLIN proposed fact', scope: 'shared' }), /^Saved to the shared memory/);
   assert.match(await tools.text('update_memory', { id: shared.id, note: 'PANGOLIN changed shared fact', reason: 'Review correction' }), /^Updated note/);
   assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id), []);

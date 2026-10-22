@@ -188,9 +188,9 @@ test('after the turn read a bot\'s reply, a note is not the owner\'s, and a chan
   assert.deepEqual([forget.result, forget.chip], ['waits', 'Asked to forget for good: 1 note (waiting for your OK)']);
   assert.match(forget.say, /^Not done: a forget erases for good/);
   assert.equal((await notesOf(coder.id)).find((n) => n.id === first.notes[0]).text, 'Deploys go out on Fridays');
-  // A change to what the owner said is saved at once, no longer as the owner's word (ADR 057).
+  // A change to what the owner said is saved at once, no longer as the owner's word (ADR 059).
   const changed = await turn.call('update_note', { id: first.notes[0], note: 'Deploys go out on Mondays' });
-  assert.deepEqual([changed.result, changed.chip], ['saved', 'Updated for Coder, after outside content: Deploys go out on Mondays']);
+  assert.deepEqual([changed.result, changed.chip], ['saved', 'Changed what you said for Coder, after outside content: Deploys go out on Mondays']);
   assert.equal((await notesOf(coder.id)).find((n) => n.id === first.notes[0]).source, 'outside');
   const cards = (await pending()).filter((p) => p.by === 'chief');
   assert.deepEqual(cards.map((p) => [p.action, p.guarded, p.source, p.title, p.meta, p.bot?.id]).sort(), [
@@ -504,10 +504,13 @@ test('a done memory change is no row under a Chief reply, live or after a reload
   await turn.uses('mcp__botdot__list_runs', { botId: coder.id });
   const waits = await turn.call('remove_note', { id: done.notes[0] });
   assert.equal(waits.chip, 'Asked to remove what you said: The owner likes tea (waiting for your OK)');
+  // A change to it is saved at once (ADR 059), and its chip is shown as the card it replaced was.
+  const said = await turn.call('update_note', { id: done.notes[0], note: 'The owner likes green tea' });
+  assert.equal(said.chip, 'Changed what you said for all bots, after outside content: The owner likes green tea');
   const chat = await turn.end();
   await reading;
 
-  const shown = [['created', 'Created Gardener'], ['memory', 'Asked to remove what you said: The owner likes tea (waiting for your OK)']];
+  const shown = [['created', 'Created Gardener'], ['memory', 'Asked to remove what you said: The owner likes tea (waiting for your OK)'], ['memory', said.chip]];
   assert.deepEqual(live.filter((e) => e.type === 'action').map((e) => [e.action.kind, e.action.text]), shown, 'the live actions');
   assert.deepEqual(live.find((e) => e.type === 'done').message.actions.map((a) => [a.kind, a.text]), shown, 'the reply the stream ends with');
   assert.deepEqual(chat.messages.at(-1).actions.map((a) => [a.kind, a.text]), shown, 'after a reload');

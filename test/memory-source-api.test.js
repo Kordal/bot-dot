@@ -198,13 +198,13 @@ test('a follow-up after teammates answered answers as the run it follows', async
   const h = { run, rec, token: rec.self.env.RUN_TOKEN };
   assert.equal((await remember(h, 'Three PRs are open')).note.source, 'outside', 'it read a teammate\'s answer');
   // The owner started it, so a change to what the owner said is no refusal; it has read outside content, so the
-  // note is saved as such and is no longer the owner's word (ADR 057). Its removal would wait.
+  // note is saved as such and is no longer the owner's word (ADR 059). Its removal would wait.
   const r = await mem(h, { action: 'edit', id: said.id, text: 'The owner prefers long reports' });
   assert.deepEqual([r.result, r.note.source], ['saved', 'outside']);
   assert.deepEqual((await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.noteId === said.id), [], 'no card');
 });
 
-test('D15: a note of the owner\'s is changed at once in the owner\'s clean run and any other (ADR 057), refused in a job\'s run and the review; its removal waits as a guarded change', async (t) => {
+test('D15: a note of the owner\'s is changed at once in the owner\'s clean run and any other (ADR 059), refused in a job\'s run and the review; its removal waits as a guarded change', async (t) => {
   const b = await bot();
   const said = await typed(b.id, 'Use pnpm');
   const own = await typed(b.id, 'Reports go out on Mondays');
@@ -322,13 +322,13 @@ test('D15: a note of the owner\'s is changed at once in the owner\'s clean run a
   assert.equal((await noteNow(own.id)).text, 'Reports go out on Tuesdays');
   const yes = (await srv.api(`/memory/pending/${cards[0].id}`, { method: 'POST', body: { approve: true } })).data;
   assert.equal(yes.text, 'Removed');
-  // A change in such a run is saved at once (ADR 057), and the note is the bot's from then on, told under the reply.
+  // A change in such a run is saved at once (ADR 059), and the note is the bot's from then on, told under the reply.
   const changed2 = await mem(chiefs, { action: 'edit', id: own.id, text: 'Reports go out on Fridays' });
   assert.deepEqual([changed2.result, changed2.note.source], ['saved', 'bot']);
-  assert.deepEqual((await learnedOf(chiefs)).at(-1).chip, 'Updated, its own conclusion: Reports go out on Fridays');
+  assert.deepEqual((await learnedOf(chiefs)).at(-1).chip, 'Changed what you said, its own conclusion: Reports go out on Fridays');
 });
 
-test('a shared addition or change after outside content is saved at once and told under the reply; a removal waits (ADR 057)', async (t) => {
+test('a shared addition or change after outside content is saved at once and told under the reply; a removal waits (ADR 059)', async (t) => {
   const b = await bot();
   const h = await held(t, b);
   const direct = await remember(h, 'The owner lives in Łódź', { scope: 'shared' });
@@ -347,7 +347,7 @@ test('a shared addition or change after outside content is saved at once and tol
   assert.deepEqual([page.result, page.note.source], ['saved', 'outside']);
   const edit = await mem(h, { action: 'edit', id: theirs.note.id, text: 'A shared note of a bot, changed' });
   assert.equal(edit.result, 'saved');
-  // In the words of a done change (ADR 057).
+  // In the words of a done change (ADR 059).
   const rows = (await learnedOf(h)).map((x) => x.chip);
   assert.deepEqual(rows.slice(-2), ['Remembered for all bots, after outside content: Read on a page, for all', 'Updated for all bots, after outside content: A shared note of a bot, changed']);
   // A removal still waits, with the card's words from the server.

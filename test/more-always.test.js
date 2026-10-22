@@ -128,7 +128,7 @@ const pending = async () => (await srv.api('/memory/pending')).data;
 // The rows under its reply so far, as the apps get them while the run goes.
 const rowsOf = async (h) => ((await srv.api(`/runs/${h.run.id}`)).data.events || []).filter((e) => e.type === 'learned').map((e) => e.item);
 
-test('after the web a shared note is added and changed at once, told under the reply; a removal still waits (ADR 057)', async (t) => {
+test('after the web a shared note is added and changed at once, told under the reply; a removal still waits (ADR 059)', async (t) => {
   const b = await makeBot(srv, { name: `Notes bot ${++serial}`, emoji: '🗒️', mayMessage: [] });
   const h = await held(t, b);
   const added = await mem(h, { action: 'add', scope: 'shared', text: 'Parking is on level 2' });
@@ -151,7 +151,7 @@ test('after the web a shared note is added and changed at once, told under the r
   assert.equal((await srv.api(`/bots/${b.id}/shared-notes-always`, { method: 'DELETE' })).status, 404);
 });
 
-test('a change to what the owner said is saved at once and is no longer the owner\'s; its removal still waits (ADR 057)', async (t) => {
+test('a change to what the owner said is saved at once and is no longer the owner\'s; its removal still waits (ADR 059)', async (t) => {
   const b = await makeBot(srv, { name: `Notes bot ${++serial}`, emoji: '🗒️', mayMessage: [] });
   const h = await held(t, b);
   const own = (await srv.api('/memory/notes', { method: 'POST', body: { owner: '_shared', text: 'My bank is ING' } })).data.note;
@@ -161,7 +161,7 @@ test('a change to what the owner said is saved at once and is no longer the owne
   assert.equal(changed.note.source, 'outside');
   assert.equal((await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.botId === b.id).length, 0, 'no card');
   const rows = await rowsOf(h);
-  assert.ok(rows.some((x) => x.kind === 'memory-shared' && /Revolut/.test(x.chip)), JSON.stringify(rows));
+  assert.ok(rows.some((x) => x.kind === 'memory-shared' && x.chip === 'Changed what you said for all bots, after outside content: My bank is Revolut'), JSON.stringify(rows));
   const mine = (await srv.api('/memory/notes', { method: 'POST', body: { owner: '_shared', text: 'My car is blue' } })).data.note;
   const removal = await mem(h, { action: 'remove', id: mine.id });
   assert.equal(removal.result, 'waits');
