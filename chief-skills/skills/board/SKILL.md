@@ -13,14 +13,16 @@ A tile can be one of six ready-made kinds (below), or built from blocks (further
 
 | kind | Shows | A tap |
 |---|---|---|
-| `switch` | on or off (a filled or hollow dot) | switches it (`turnOn` / `turnOff`, or `do` to toggle) |
-| `button` | its title | does `do` once |
-| `value` | a number or a few words, with `unit`, and a coloured dot with `levels` | refreshes it |
+| `switch` | on or off: a row with a switch in its heading's Controls box | switches it (`turnOn` / `turnOff`, or `do` to toggle) |
+| `button` | its title: a row in its heading's Controls box | does `do` once |
+| `value` | a number or a few words, with `unit`, and a coloured dot with `levels`; a number also how it changed and a sparkline of its recent values (up is good news, unless its `levels` go up) | refreshes it |
 | `list` | up to 8 lines (3 until tapped) | shows all of it in a pop-up, with a link to its bot's chat |
 | `note` | 1 to 3 short lines, the key facts first (3 lines show until tapped) | shows all of it in a pop-up, with a link to its bot's chat |
 | `group` | its title and one dot per tile inside (filled when a switch is on) | opens its tiles below it |
 
 **Groups:** a `group` tile holds related tiles, like four lights under "Lights". It has no sources and needs no bot. Put a tile in it with `parent` (the group's id); the tile then sits under the group's heading. Only one level: no groups inside groups. When the user wants related tiles together ("put my light tiles into one Lights card"), add the group in their heading, then `update_tile` each tile with `parent`. Take one out with `parent: ""`. `remove_tile` on a group leaves its tiles loose, unless `withTiles` is true; ask the user which they want if they didn't say.
+
+**How the Board looks:** each heading names the bots its tiles come from, and where their values come from ("script · 30 s"); the switches and buttons that follow each other under a heading are rows of one Controls box; a note a bot or you wrote says "written by AI". The user can show one heading at a time. Put related tiles under one heading, the switches and buttons next to each other.
 
 Every tile with a source belongs to a bot (`bot`). That bot's saved logins and workspace are used, and its colour is the tile's dot. Pick the bot that already does that area (Home Assistant: the bot that looks after the home or homelab). Give it the login first if it can't use it yet.
 
@@ -47,11 +49,14 @@ Any tile (usually `kind: "custom"`) can have:
 |---|---|---|
 | `text` | `text`, `size` (small/normal/large), `muted`, `markdown`, `lines` (cut after) | a line or a few |
 | `value` | `bind` (a path) or `text`, `unit`, `color` | a big number or a few words |
+| `kpi` | `bind` (a path) or `text`, `unit`, `of` ("of 4"), `sub` (a line under it), `subColor`, `good` (`up`, the default, `down` or `none`: which way is good news), `max` (and `min`: a bar under it), `spark: false`, `change: false`, `points` (4–96, default 24), `label` | a big number with how it changed ("▲ 0.8 since 08:00", green when good news) and a sparkline of its recent values (botdot keeps them, with their times) |
 | `dot` | `on` (path), `onValue`, `color`, `label`, `big` | a dot, filled when on |
 | `list` | `bind`, `item` (a path inside each item), `max` | lines |
 | `progress` | `bind`, `min`, `max` (default 0–100), `unit`, `color`, `label` | a bar |
 | `gauge` | the same | a half-circle gauge with the value in it |
-| `chart` | `bind`, `points` (4–96, default 24), `color`, `label` | a line chart: of a list of numbers, or of one number's recent values (botdot keeps them, reading a chart tile at most once a minute even while nobody looks) |
+| `chart` | `bind`, or `series` (1–4 of `{ "bind", "label", "color" }`), `style` (`line`, the default, `area`, `bar`, `stacked`, `hbar`), `unit`, `points` (4–96, default 24), `item` and `labelItem` (in a list of objects: the number of each and its name), `max` (`hbar`: a full bar), `color`, `label` | a chart with gridlines, its axes, a legend and a tooltip: of a list of numbers, or of one number's recent values (botdot keeps them, reading a chart tile at most once a minute even while nobody looks). `hbar`: one horizontal bar per item of a list or field of an object of numbers |
+| `status` | `text`, `level` (`ok`, `warn`, `err`, `info`, `plan`, or `"{{path}}"` to one, e.g. `{{value.state|map:passed=ok,failed=err}}`) | a pill |
+| `callout` | `text` (Markdown), `title`, `level` (as status) | a box that stands out: "waiting for you", a warning |
 | `image` | `read` (a named read with `image: true`), `height` (small/normal/large), `fit` (cover/contain) | a picture, fetched again every `every` seconds |
 | `chat` | `label` | a link to its bot's chat |
 | `switch` | `on` (path), `onValue`, `action` (gets `{{value}}` true/false and `{{onoff}}`) or `onAction` + `offAction`, `label` | an on/off switch |
@@ -63,7 +68,7 @@ Any tile (usually `kind: "custom"`) can have:
 
 **Actions** get what the control picked: in an http address or body, `"{{value}}"` (a body field that is only `"{{value}}"` keeps its type: a number stays a number), `"{{rgb}}"` and `{{onoff}}`; a script gets `$VALUE` (and `$VALUE_RGB` as `r,g,b`); a `bot` message gets it written in. Placeholders never go in headers.
 
-**Rules** change a block (or the dot) by the data: `"rules": [{ "when": "value.state", "above": 90, "set": { "color": "bad" } }, { "when": "value.items", "empty": true, "set": { "hidden": true } }]`. Conditions: `above`, `below`, `is` (a value or a list), `not`, `empty`. `set`: `color`, `hidden`, `text`, `filled`.
+**Rules** change a block (or the dot) by the data: `"rules": [{ "when": "value.state", "above": 90, "set": { "color": "bad" } }, { "when": "value.items", "empty": true, "set": { "hidden": true } }]`. Conditions: `above`, `below`, `is` (a value or a list), `not`, `empty`. `set`: `color`, `hidden`, `text`, `filled`, `level`.
 
 A tile holds at most 40 blocks. Keep faces small: the title, one or two blocks. Details and controls go in the panel. Controls on a face work too (a switch on a wide tile), but a small tile is best tapped.
 
@@ -90,6 +95,10 @@ The dot shows the light's colour, hollow when it's off; a tap opens on/off, brig
 **Speaker:** face `[{ "type": "text", "text": "{{value.attributes.media_title|default:Nothing playing}}", "lines": 2 }]`; panel: `row` of buttons (`media_player/media_previous_track`, `media_play_pause`, `media_next_track`) and a volume `slider` on `value.attributes.volume_level` (0–1, step 0.05) sending `volume_level`.
 
 **Server:** `size: "wide"`, a `script` read printing JSON (`{"disk": 71, "cpu": 12, "load": [0.4, 0.5]}`), face: `row` of a `gauge` on `value.disk` (with a rule `above: 90 → color bad`) and a `chart` on `value.cpu`; panel: a `button` "Restart" whose action is a `bot` message.
+
+**Disk, as a number with a bar:** a `script` read printing `{"used": 62, "free": "380 GB"}`, face `[{ "type": "kpi", "bind": "value.used", "unit": "%", "max": 100, "good": "down", "sub": "{{value.free}} free" }]`. A tile whose face is one number (a `value` or a `kpi`) is drawn as a kpi: its title small over the number, and two across on a phone.
+
+**CPU and RAM:** `size: "wide"`, a `script` read printing `{"cpu": 12, "ram": 61}`, face `[{ "type": "chart", "style": "area", "unit": "%", "label": "last hour", "series": [{ "bind": "value.cpu", "label": "CPU" }, { "bind": "value.ram", "label": "RAM", "color": "ok" }] }]`.
 
 **Camera:** `size: "big"`, `reads: { "cam": { "type": "http", "login": "Home Assistant", "url": "<ha>/api/camera_proxy/camera.door", "headers": {…}, "image": true } }`, `every: 30`, face `[{ "type": "image", "read": "cam" }]`.
 

@@ -1290,6 +1290,9 @@ data class Tile(
     val asks: Boolean = false, // a tap starts a run of its bot
     val value: kotlinx.serialization.json.JsonElement? = null,
     val error: String? = null,
+    val at: String? = null, // when its value came
+    val source: String? = null, // where its value comes from, quietly: "script · 30 s"
+    val ai: Boolean = false, // a bot or the Chief wrote its value
     val read: TileSource? = null,
     @kotlinx.serialization.SerialName("do") val doIt: TileSource? = null,
     val turnOn: TileSource? = null,
@@ -1375,7 +1378,34 @@ data class Block(
     val percent: Boolean = false,
     val options: List<BlockOption> = emptyList(),
     val blocks: List<Block> = emptyList(),
+    // A kpi (and a value with its recent values): "of N", the line under it, how it changed and since when (ISO 8601).
+    val of: String? = null,
+    val sub: String? = null,
+    val subColor: String? = null,
+    val delta: BlockDelta? = null,
+    val since: String? = null,
+    // A chart: line (null), area, bar, stacked or hbar; its series, the times or names of its points, its bars.
+    val times: List<Long> = emptyList(),
+    val style: String? = null,
+    val series: List<ChartSeries> = emptyList(),
+    val labels: List<String> = emptyList(),
+    val bars: List<ChartBar> = emptyList(),
+    // A status pill or a callout: ok, warn, err, info or plan; a callout's title.
+    val level: String? = null,
+    val title: String? = null,
 )
+
+/** How a kpi's number changed over its recent values: [dir] up, down or flat; [good] whether that is good news (null: neither). */
+@Serializable
+data class BlockDelta(val text: String = "", val dir: String = "flat", val good: Boolean? = null)
+
+/** One line (or set of bars) of a chart; a point that is null is a gap. */
+@Serializable
+data class ChartSeries(val points: List<Double?> = emptyList(), val label: String? = null, val color: String? = null)
+
+/** One horizontal bar: its name, its value as text, and how full it is (0 to 1). */
+@Serializable
+data class ChartBar(val label: String = "", val text: String = "", val ratio: Double = 0.0)
 
 @Serializable
 data class BlockOption(val label: String, val value: kotlinx.serialization.json.JsonElement)

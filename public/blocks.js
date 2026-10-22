@@ -41,7 +41,7 @@ function kitKpi(b, c, tint = (x) => x) {
   return `<div class="kit-kpi ${b.points?.length >= 2 ? 'has-spark' : ''}">
     <div class="kit-kpi-main">
       ${b.label ? `<div class="kit-label">${esc(b.label)}</div>` : ''}
-      <div class="kit-num">${b.text ? esc(b.text) : '<span class="faint">·</span>'}${b.unit ? `<small>${esc(b.unit)}</small>` : ''}${b.of ? `<small class="of">of ${esc(b.of)}</small>` : ''}</div>
+      <div class="kit-num"${b.type === 'value' && b.color ? ` style="color:${tint(b.color)}"` : ''}>${b.text ? esc(b.text) : '<span class="faint">·</span>'}${b.unit ? `<small>${esc(b.unit)}</small>` : ''}${b.of ? `<small class="of">of ${esc(b.of)}</small>` : ''}</div>
       ${kitDelta(b)}${sub}
     </div>
     ${kitSpark(b.points, c)}

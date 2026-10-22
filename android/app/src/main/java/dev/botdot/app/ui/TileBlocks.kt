@@ -50,9 +50,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -82,7 +80,8 @@ import kotlin.math.sin
 
 /*
  * A tile's blocks (lib/tile-blocks.js on the server, like the web page's): what shows on a tile (its face)
- * and in the pop-up a tap opens (its panel). botdot fills them in; this only draws them.
+ * and in the pop-up a tap opens (its panel). botdot fills them in; this only draws them. where: "panel", or a face:
+ * "face" (a small tile), "wide" (a bigger one: a chart with its axes) or "compact" (half a phone's width: no sparkline).
  */
 
 /** What the blocks can do. act: a control was used (done: false while the colour wheel is still being dragged). */
@@ -156,7 +155,8 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
                     fontWeight = if (b.size == "large") FontWeight.SemiBold else null, maxLines = b.lines ?: Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
             }
         }
-        "value" -> {
+        // With its recent values (a value tile's own number): drawn as a kpi, its change and a sparkline beside it.
+        "value" -> if (b.points.size >= 2 || b.delta != null) KitKpi(b, tint(b.color, color), compact = where == "compact") else {
             val t = b.text.orEmpty()
             if (t.isEmpty()) Faint()
             else Text(buildAnnotatedString {
@@ -171,7 +171,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
         "list" -> Column {
             val max = b.max.toInt()
             if (b.items.isEmpty()) Faint()
-            b.items.take(max).forEach { Text(it, color = p.text, fontSize = 13.5.sp, maxLines = if (where == "face") 1 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(vertical = 2.dp)) }
+            b.items.take(max).forEach { Text(it, color = p.text, fontSize = 13.5.sp, maxLines = if (where != "panel") 1 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(vertical = 2.dp)) }
             if (b.items.size > max) Text("…", color = p.faint, fontSize = 13.5.sp)
         }
         "progress" -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -193,24 +193,11 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
             }
             Text(b.text?.ifEmpty { "·" } ?: "·", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         }
-        "chart" -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            b.text?.let { Text(it, color = p.muted, fontSize = 12.5.sp) }
-            val pts = b.points
-            if (pts.size < 2) Faint()
-            else {
-                val c = tint(b.color, color)
-                Canvas(Modifier.fillMaxWidth().height(40.dp)) {
-                    val lo = pts.min(); val span = (pts.max() - lo).takeIf { it > 0 } ?: 1.0
-                    val path = Path()
-                    pts.forEachIndexed { i, v ->
-                        val x = size.width * i / (pts.size - 1)
-                        val y = size.height - 2.dp.toPx() - ((v - lo) / span).toFloat() * (size.height - 4.dp.toPx())
-                        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                    }
-                    drawPath(path, c, style = Stroke(2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-                }
-            }
-        }
+        // A small tile's face has no room for the axes' numbers; the tooltip says them.
+        "chart" -> KitChart(b, tint(b.color, color), axes = where == "panel" || where == "wide")
+        "kpi" -> KitKpi(b, tint(b.color, color), compact = where == "compact")
+        "status" -> KitStatus(b)
+        "callout" -> KitCallout(b)
         "image" -> TileImage(b, ctl)
         "chat" -> if (ctl.openChat != null && ctl.chatName != null) TextButton(onClick = ctl.openChat) {
             SmallFigure(ctl.chatColor, ctl.chatOutfit, 17.dp)
@@ -239,7 +226,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
                 modifier = Modifier.alpha(if (touched) 1f else 0.5f),
             )
         }
-        "color" -> if (where == "face") {
+        "color" -> if (where != "panel") {
             Box(Modifier.size(30.dp).clip(CircleShape).background(b.value.str()?.let { parseColor(it, p.line2) } ?: p.line2).clickable { ctl.openColor(b.key!!) })
         } else ColorWheel(b, ctl)
         "choice" -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
