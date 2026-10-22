@@ -541,7 +541,7 @@ When `features` has `memory`. Memory is two things: **notes** (short facts, each
 
 - `owner` is a bot's id, `"_shared"` for the shared memory every bot reads, or `"chief"` for the Chief's own notes, which no bot is given.
 - `text` has at most 400 characters, with runs of spaces and line breaks made one space. `topic` is a short label, at most 40 characters, `""` without one.
-- `pinned`: the note is in every prompt of its owner (of every bot, for a shared one). At most 30 notes and 5,000 characters are pinned per owner. A note that is not pinned is found by recall and by the lookup before a run. `pinLocked`: the owner pinned it by hand, and botdot never unpins it to make room.
+- `pinned`: the note is in every prompt of its owner (of every bot, for a shared one). At most 30 notes and 10,000 characters are pinned per owner. A note that is not pinned is found by recall and by the lookup before a run. `pinLocked`: the owner pinned it by hand, and botdot never unpins it to make room.
 - `source` is who said it: `"owner"`, `"bot"` or `"outside"` (see The contract). The server sets it. No request sets it: a `source` in a body is ignored.
 - `until` is there for a passing state only: the last calendar day the note holds, as `"2026-10-11"` (see The contract). A note without it lasts.
 - `by` is who wrote it last: `"you"` (the owner), `"chief"`, `"bot"` (a bot, in its own memory) or `"bot:<id>"` (that bot, in the shared memory). `runId` is the run that wrote it, or `null`.

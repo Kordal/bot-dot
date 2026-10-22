@@ -142,18 +142,20 @@ test('REGRESSION: editing pinned notes must keep the prompt within its character
 
 test('REGRESSION: a refused pin must not silently unpin unrelated notes', (t) => {
   const { memory: m } = scratchMemory(t);
-  for (let i = 0; i < 12; i++) m.addNote('alpha', `${i}:`.padEnd(400, 'x'), { locked: true });
+  for (let i = 0; i < 24; i++) m.addNote('alpha', `${i}:`.padEnd(400, 'x'), { locked: true });
+  m.addNote('alpha', 'y'.repeat(250), { locked: true }); // 9,850 of the 10,000 characters
   const keeper = m.addNote('alpha', 'k'.repeat(100)).note;
-  const tooLarge = m.addNote('alpha', 'z'.repeat(300), { pinned: false }).note;
+  const tooLarge = m.addNote('alpha', 'z'.repeat(200), { pinned: false }).note;
   assert.throws(() => m.setPinned(tooLarge.id, true), /full/);
   assert.equal(m.getNote(keeper.id).pinned, true, 'the failed operation must leave existing pins alone');
 });
 
 test('REGRESSION: a new note that cannot be pinned must not unpin unrelated notes either', (t) => {
   const { memory: m } = scratchMemory(t);
-  for (let i = 0; i < 12; i++) m.addNote('alpha', `${i}:`.padEnd(400, 'x'), { locked: true });
+  for (let i = 0; i < 24; i++) m.addNote('alpha', `${i}:`.padEnd(400, 'x'), { locked: true });
+  m.addNote('alpha', 'y'.repeat(250), { locked: true }); // 9,850 of the 10,000 characters
   const keeper = m.addNote('alpha', 'k'.repeat(100)).note;
-  const r = m.addNote('alpha', 'z'.repeat(300));
+  const r = m.addNote('alpha', 'z'.repeat(200));
   assert.equal(r.note.pinned, false, 'the new note stays searchable');
   assert.deepEqual(r.unpinned, []);
   assert.equal(m.getNote(keeper.id).pinned, true);
@@ -161,19 +163,19 @@ test('REGRESSION: a new note that cannot be pinned must not unpin unrelated note
 
 test('a pinned note that grows past the budget: others make room, else it stays searchable, owner pins refuse', (t) => {
   const { memory: m } = scratchMemory(t);
-  for (let i = 0; i < 11; i++) m.addNote('alpha', `${i}:`.padEnd(400, 'x'), { locked: true });
-  const old = m.addNote('alpha', 'old '.padEnd(300, 'o'), { createdAt: daysAgo(30) }).note; // 4,700 pinned
+  for (let i = 0; i < 24; i++) m.addNote('alpha', `${i}:`.padEnd(400, 'x'), { locked: true });
+  const old = m.addNote('alpha', 'old '.padEnd(300, 'o'), { createdAt: daysAgo(30) }).note; // 9,900 pinned
   const edited = m.addNote('alpha', 'Grows later').note;
-  m.editNote('alpha', edited.id, 'g'.repeat(350)); // 5,050 with the old note
+  m.editNote('alpha', edited.id, 'g'.repeat(350)); // 10,250 with the old note
   assert.equal(m.getNote(old.id).pinned, false, 'the least used ordinary note made room');
   assert.equal(m.getNote(edited.id).pinned, true);
-  m.addNote('alpha', 'f'.repeat(240), { locked: true }); // 4,990: only owner pins besides the edited note
+  m.addNote('alpha', 'f'.repeat(40), { locked: true }); // 9,990: only owner pins besides the edited note
   m.editNote('alpha', edited.id, 'h'.repeat(399));
   assert.equal(m.getNote(edited.id).pinned, false, 'no room left: the edit is saved, searchable');
   assert.equal(m.getNote(edited.id).text, 'h'.repeat(399));
   const locked = m.addNote('alpha', 'Owner pinned', { pinned: false }).note;
   m.setPinned(locked.id, true);
-  assert.throws(() => m.editNote('alpha', locked.id, 'l'.repeat(399)), /owner pinned/);
+  assert.throws(() => m.editNote('alpha', locked.id, 'l'.repeat(399)), /no longer fits with the pinned notes/);
   assert.equal(m.getNote(locked.id).text, 'Owner pinned');
   assert.equal(m.history(locked.id).length, 0, 'a refused edit leaves no version behind');
   const chars = m.notesOf('alpha').filter((n) => n.pinned).reduce((s, n) => s + n.text.length, 0);
