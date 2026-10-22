@@ -477,3 +477,29 @@ test('a follow-up that could not start on a free bot keeps the answers for when 
     assert.equal((await own.api(`/runs?botId=${asker.id}`)).data.filter((x) => x.trigger === 'replies').length, 1, 'one follow-up');
   } finally { fs.chmodSync(runs, 0o755); await own.stop(); }
 });
+
+test("the follow-up is handed what the owner wrote meanwhile in the asker's groups, so it doesn't ask again what they decided there (#297)", async () => {
+  const outsider = await makeBot(srv, { name: 'Ops Helper', emoji: '🧰' });
+  const made = await srv.api('/group-chats', { method: 'POST', body: { name: 'Ops Team', members: [doctor.id, outsider.id] } });
+  assert.equal(made.status, 201, JSON.stringify(made.data));
+  const other = await srv.api('/group-chats', { method: 'POST', body: { name: 'Elsewhere', members: [coder.id, outsider.id] } });
+  const before = (await runsOf(doctor)).length;
+  const asker = await heldRun(srv, doctor, 'Find why the certificate is missing.');
+  assert.equal((await self(srv, asker.token, 'message', { to: coder.id, message: 'Check the certificate, please.', priority: true })).data.delivered, 'started');
+  const c = await srv.nextRun(isRunOf(coder), 'Coder to start');
+  srv.release(asker.rec);
+  await srv.finished(asker.run.id);
+  // Meanwhile the owner decides in the group, and writes in a group the asker is not in.
+  const yes = await srv.api(`/group-chats/${made.data.id}/messages`, { method: 'POST', body: { text: '@OpsHelper yes, restart Traefik.' } });
+  assert.equal(yes.status, 201, JSON.stringify(yes.data));
+  await srv.api(`/group-chats/${other.data.id}/messages`, { method: 'POST', body: { text: '@OpsHelper unrelated note.' } });
+  await self(srv, c.self.env.RUN_TOKEN, 'message', { to: doctor.id, message: 'Coder: Traefik needs one restart.', priority: false });
+  const follow = await srv.nextRun((x) => isRunOf(doctor)(x) && x.stdin.includes('Traefik needs one restart'), 'the follow-up');
+  assert.match(follow.stdin, /Since you asked them, the owner wrote in your groups[^\n]*\n<owner-in-groups>\n\[Ops Team\] @OpsHelper yes, restart Traefik\.\n<\/owner-in-groups>/);
+  assert.doesNotMatch(follow.stdin, /unrelated note/, "a group it isn't in is not handed");
+  srv.release(c);
+  srv.release(follow);
+  await allDone();
+  await waitFor(async () => (await runsOf(outsider)).every((x) => x.status !== 'running'), { what: 'the helper to finish' });
+  assert.equal((await runsOf(doctor)).length, before + 2);
+});
