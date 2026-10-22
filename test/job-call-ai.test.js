@@ -42,13 +42,12 @@ test('the job\'s task comes first and the body after it, as data a call sent', a
   assert.equal(run.status, 'running');
   assert.deepEqual(run.outside, ['call'], 'outside content from its start');
 
-  // Saved before it used any tool: after outside content. A shared note waits for the owner.
+  // Saved before it used any tool: after outside content. A shared note is saved at once, marked so (ADR 059).
   const token = rec.self.env.RUN_TOKEN;
   const own = (await self(srv, token, 'memory', { action: 'add', text: 'The garage door opened at night' })).data;
   assert.equal(own.note.source, 'outside');
   const shared = (await self(srv, token, 'memory', { action: 'add', text: 'The garage is watched', scope: 'shared' })).data;
-  assert.equal(shared.result, 'waits');
-  assert.ok((await srv.api('/memory/pending')).data.some((p) => p.runId === r.data.runId && p.meta === 'after reading outside content'));
+  assert.deepEqual([shared.result, shared.note.source], ['saved', 'outside']);
 });
 
 test('a call that sent nothing says so after the task', async () => {

@@ -258,8 +258,6 @@ class Api(val baseUrl: String, val session: Session? = null) {
         Answered.of(send("POST", "/bots/${enc(botId)}/jobs/${enc(jobId)}/approve", buildJsonObject { put("approve", approve); put("always", always) }))
     /** Takes back a rule the owner lifted for a bot (`override`, #253): it asks again on a card. */
     suspend fun revokeOverride(botId: String, id: String): Bot = json.decodeFromString(send("DELETE", "/bots/${enc(botId)}/overrides/${enc(id)}"))
-    /** Takes back "Always allow for this bot" on its shared notes (#280). */
-    suspend fun revokeSharedNotesAlways(botId: String): Bot = json.decodeFromString(send("DELETE", "/bots/${enc(botId)}/shared-notes-always"))
     suspend fun setJobAlwaysApprove(botId: String, jobId: String, on: Boolean): Job = json.decodeFromString(
         send("PUT", "/bots/${enc(botId)}/jobs/${enc(jobId)}", buildJsonObject { put("alwaysApprove", on) }))
 
@@ -364,8 +362,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
      */
     suspend fun memoryChanges(): List<MemoryChange> = json.decodeFromString(get("/memory/pending?guarded=1"))
     /** Answers a waiting memory change. What it returns has the server's words for the answered card (`text`), where it sends them. */
-    suspend fun settleMemoryChange(id: String, approve: Boolean, always: Boolean = false): Answered =
-        Answered.of(send("POST", "/memory/pending/${enc(id)}", buildJsonObject { put("approve", approve); if (always) put("always", true) }))
+    suspend fun settleMemoryChange(id: String, approve: Boolean): Answered =
+        Answered.of(send("POST", "/memory/pending/${enc(id)}", buildJsonObject { put("approve", approve) }))
 
     // ---------- a bot's settings and computer ----------
 

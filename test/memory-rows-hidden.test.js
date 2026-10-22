@@ -56,36 +56,39 @@ test('a run that saved, shared, removed, restored and forgot notes and wrote a s
   const gone = await mem({ action: 'add', text: 'The old phone number' });
   assert.equal((await mem({ action: 'forget', notes: [gone.note.id] })).result, 'forgotten');
   assert.equal((await self(srv, rec.self.env.RUN_TOKEN, 'skill', { action: 'create', name: 'wash-the-car', description: 'When the car is dirty', instructions: '# Wash\nStep by step.', reason: 'It worked' })).data.result, 'saved');
-  // After outside content a change to the shared memory waits for the owner.
+  // After outside content a shared note is saved at once and told under the reply (ADR 059); a removal waits.
   fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify([{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'WebFetch', input: {} }] } }]));
   await waitFor(async () => ((await srv.api(`/runs/${run.id}`)).data.events || []).some((e) => e.type === 'assistant'), { what: 'the run to have read a page' });
-  assert.equal((await mem({ action: 'add', text: 'A page says the shop opens at nine', scope: 'shared' })).result, 'waits');
+  const page = await mem({ action: 'add', text: 'A page says the shop opens at nine', scope: 'shared' });
+  assert.equal(page.result, 'saved');
+  assert.equal((await mem({ action: 'remove', id: page.note.id })).result, 'waits');
 
   // The note is still there, and still found by the bot's memory search.
   assert.match(await rpcClient(t, 'self-mcp.js', rec.self.env).text('recall', { query: 'car', in: 'notes' }), /The car is blue/);
   const going = await sent(b, run.id);
-  assert.deepEqual(going.events, ['skill', 'memory-pending'], 'while it goes');
+  assert.deepEqual(going.events, ['skill', 'memory-shared', 'memory-pending'], 'while it goes');
   srv.release(rec);
   await srv.finished(run.id);
 
   const done = await sent(b, run.id);
-  assert.deepEqual(done.run, ['skill', 'memory-pending']);
-  assert.deepEqual(done.listed, ['skill', 'memory-pending']);
-  assert.deepEqual(done.events.slice(0, 2), ['skill', 'memory-pending'], 'the learned events');
-  assert.deepEqual(done.events.slice(2), ['skill', 'memory-pending'], 'the end event\'s record');
+  assert.deepEqual(done.run, ['skill', 'memory-shared', 'memory-pending']);
+  assert.deepEqual(done.listed, ['skill', 'memory-shared', 'memory-pending']);
+  assert.deepEqual(done.events.slice(0, 3), ['skill', 'memory-shared', 'memory-pending'], 'the learned events');
+  assert.deepEqual(done.events.slice(3), ['skill', 'memory-shared', 'memory-pending'], 'the end event\'s record');
   assert.deepEqual(done.stream, done.events, 'the stream sends what the events do');
   const again = (await srv.api(`/bots/${b.id}/run`, { method: 'POST', body: ask })).data;
-  assert.deepEqual([again.again, kindsOf(again.learned)], [true, ['skill', 'memory-pending']], 'the same request sent again');
+  assert.deepEqual([again.again, kindsOf(again.learned)], [true, ['skill', 'memory-shared', 'memory-pending']], 'the same request sent again');
   assert.equal(done.items[0].chip, 'Saved the skill wash-the-car');
-  assert.equal(done.items[1].chip, 'Asked to add to the shared memory: A page says the shop opens at nine (waiting for your OK)');
+  assert.equal(done.items[1].chip, 'Remembered for all bots, after outside content: A page says the shop opens at nine');
+  assert.equal(done.items[2].chip, 'Asked to remove from the shared memory: A page says the shop opens at nine (waiting for your OK)');
 
   // Stored: every item, in the run's record and in the memory index.
   const meta = JSON.parse(fs.readFileSync(path.join(srv.data, 'runs', `${run.id}.json`), 'utf8'));
-  assert.deepEqual(kindsOf(meta.learned), ['memory', 'memory-shared', 'memory-removed', 'memory-restored', 'memory', 'forgot', 'skill', 'memory-pending']);
+  assert.deepEqual(kindsOf(meta.learned), ['memory', 'memory-shared', 'memory-removed', 'memory-restored', 'memory', 'forgot', 'skill', 'memory-shared', 'memory-pending']);
   const db = new DatabaseSync(path.join(srv.data, 'memory.db'));
   const row = db.prepare('SELECT learned FROM runs WHERE run_id = ?').get(run.id);
   db.close();
-  assert.deepEqual(row.learned.split('\n').map((l) => l.split(':')[0]), ['memory', 'memory-shared', 'memory-removed', 'memory-restored', 'memory', 'forgot', 'Saved the skill wash-the-car', 'memory-pending']);
+  assert.deepEqual(row.learned.split('\n').map((l) => l.split(':')[0]), ['memory', 'memory-shared', 'memory-removed', 'memory-restored', 'memory', 'forgot', 'Saved the skill wash-the-car', 'memory-shared', 'memory-pending']);
 });
 
 test('an old run in history sends no done memory change, and no row of it at all when that is all it learned', async () => {

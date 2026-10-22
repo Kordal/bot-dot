@@ -182,7 +182,6 @@ data class Bot(
     val mayMessage: List<String> = emptyList(),
     val othersMayAsk: Boolean? = null, // "Other bots may ask it" (#136); null from a server without it, which shows no switch
     val overrides: List<BotOverride> = emptyList(), // the rules the owner lifted for it with "Allow always for this bot" (#253)
-    val sharedNotesAlways: Boolean = false, // it adds and changes shared notes without a card: "Always allow for this bot" (#280)
     val unread: Int = 0, // its new replies, as the botdot server counts them; 0 from a server without the feature
     val firstUnread: String? = null, // the run that is the first of them in its chat: the "New" line goes there
     // The owner's messages that wait for it (`message-waits`), kept as they came. Read them through [queued].
@@ -993,9 +992,6 @@ data class MemoryChange(
     @SerialName("yes") val yesValue: JsonElement? = null,
     @SerialName("no") val noValue: JsonElement? = null,
     @SerialName("guarded") val guardedValue: JsonElement? = null,
-    // Its second yes, "Always allow for this bot" (#280), and the question before it: the server's words, where it sends them.
-    @SerialName("always") val alwaysValue: JsonElement? = null,
-    @SerialName("alwaysAsk") val alwaysAskValue: JsonElement? = null,
     // The group it was asked in (docs/api.md, "A card and a question in a group"), kept as it came. Read it through [group].
     @SerialName("groupId") val groupIdValue: JsonElement? = null,
     @SerialName("groupName") val groupNameValue: JsonElement? = null,
@@ -1012,7 +1008,7 @@ data class MemoryChange(
  * would erase. [was]: what a change takes away; with [oneBlock] it stands struck above [now] in one block, so that a
  * closed card shows the start of both, as the web page draws it. Without, each is a block of its own, as before.
  */
-data class MemoryCard(val title: String, val meta: String, val was: String?, val now: String, val yes: String, val no: String, val oneBlock: Boolean = false, val always: String? = null, val alwaysAsk: String? = null)
+data class MemoryCard(val title: String, val meta: String, val was: String?, val now: String, val yes: String, val no: String, val oneBlock: Boolean = false)
 
 /**
  * The card of [m]. Against a server that announces `memory-cards` and sends them, its title, why it waits and
@@ -1027,13 +1023,10 @@ fun memoryCard(m: MemoryChange, features: Collection<String>?): MemoryCard {
     val words = cardWords(features, m.titleValue, m.yesValue, m.noValue) ?: guardedWords(m.action).takeIf { m.guarded }
     if (words != null) {
         val meta = listOfNotNull(m.metaValue.textOrNull(), m.reason.trim().ifEmpty { null }).joinToString(" · ")
-        // Its second yes only where the server offers it (#280), never on a guarded change.
-        val always = m.alwaysValue.textOrNull().takeIf { !m.guarded }
-        val ask = m.alwaysAskValue.textOrNull()
         return when (m.action) {
-            "edit" -> MemoryCard(words.title, meta, current.takeIf { it.isNotEmpty() && it != text }, text, words.yes, words.no, oneBlock = true, always = always, alwaysAsk = ask)
+            "edit" -> MemoryCard(words.title, meta, current.takeIf { it.isNotEmpty() && it != text }, text, words.yes, words.no, oneBlock = true)
             "remove" -> MemoryCard(words.title, meta, null, current, words.yes, words.no)
-            else -> MemoryCard(words.title, meta, null, text, words.yes, words.no, always = always, alwaysAsk = ask)
+            else -> MemoryCard(words.title, meta, null, text, words.yes, words.no)
         }
     }
     val own = when (m.action) { "edit" -> "Change in the shared memory"; "remove" -> "Remove from the shared memory"; else -> "Add to the shared memory" }
