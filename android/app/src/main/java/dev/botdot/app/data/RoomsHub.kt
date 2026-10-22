@@ -27,7 +27,7 @@ class RoomsHub(private val scope: CoroutineScope, private val api: StateFlow<Api
     /** The account this app is signed in as, as the front door says; null until it does. */
     val account: StateFlow<String?> = _account.asStateFlow()
     private val _links = MutableStateFlow(false)
-    /** The front door makes invite links for rooms (ADR 063). */
+    /** The front door makes invite links for rooms (ADR 064). */
     val links: StateFlow<Boolean> = _links.asStateFlow()
     private val _list = MutableStateFlow<RoomsAnswer?>(null)
     /** The rooms and the invitations; null until read. */

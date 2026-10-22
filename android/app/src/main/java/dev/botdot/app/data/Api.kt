@@ -160,7 +160,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** Invites another account on this machine by its name. */
     suspend fun inviteToRoom(id: String, account: String): Room = roomOf(door("${roomPath(id)}/invite", buildJsonObject { put("account", account) }))
     suspend fun acceptRoom(id: String): Room = roomOf(door("${roomPath(id)}/accept"))
-    /** The room's invite link (ADR 063), for its maker only (others: 403); null for none. */
+    /** The room's invite link (ADR 064), for its maker only (others: 403); null for none. */
     suspend fun roomLink(id: String): RoomLink? = json.decodeFromString<RoomLinkAnswer>(doorGet("${roomPath(id)}/link")).link
     /** A new invite link for the room; the one before stops working. */
     suspend fun makeRoomLink(id: String): RoomLink = json.decodeFromString<RoomLinkAnswer>(door("${roomPath(id)}/link")).link ?: throw ApiException("The front door sent no link.")

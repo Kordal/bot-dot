@@ -11,7 +11,7 @@
 // on: the session says rooms are on for this account. me: this account's name, as the front door labels it.
 // list: the rooms this account is in. invites: the invitations waiting for it. chats: room id → its messages read
 // so far, { items, more, loaded }. seen: room id → the id of its last message read here (this browser).
-// links: the front door makes invite links (ADR 063). joining: the token of an invite link opened, until it is answered.
+// links: the front door makes invite links (ADR 064). joining: the token of an invite link opened, until it is answered.
 const rooms = { on: false, me: '', links: false, list: [], invites: [], known: false, chats: new Map(), stream: null, seen: {}, joining: null };
 try { rooms.seen = JSON.parse(localStorage.getItem('botdot.rooms.seen') || '{}') || {}; } catch { /* private mode */ }
 
@@ -239,7 +239,7 @@ async function answerInvite(id, yes, button) {
   drawRooms();
 }
 
-// ---------- joining with an invite link (ADR 063) ----------
+// ---------- joining with an invite link (ADR 064) ----------
 
 // "#rooms/join=<token>": the link a room's maker shares. True when `sub` is one, kept to open "Join" once rooms are on.
 const JOIN = /^join=([A-Za-z0-9_-]{1,100})$/;
