@@ -13,6 +13,10 @@ object BoardWords {
     /** The empty page, its second line, up to the example. */
     const val TELL = "Nothing is on it yet. Tell the Chief or any bot, for example: "
     const val EXAMPLE = "“Put a shopping list on my board.”"
+    /** Over the switches and buttons of a heading, drawn as rows of one box (#394). */
+    const val CONTROLS = "Controls"
+    /** On a tile whose value a bot or the Chief wrote (#394). */
+    const val WRITTEN_BY_AI = "written by AI"
 }
 
 /**

@@ -80,7 +80,15 @@ function blockHTML(b, t, where) {
       if (b.markdown) return `<div class="tile-note md ${b.lines ? 'folded' : ''} ${b.size || ''} ${b.muted ? 'muted' : ''}" ${b.lines ? `style="--lines:${b.lines}"` : ''}>${md(b.text)}</div>`;
       return `<div class="b-text ${b.size || ''} ${b.muted ? 'muted' : ''} ${b.lines ? 'clamp' : ''}" ${b.lines ? `style="--lines:${b.lines}"` : ''}>${esc(b.text)}</div>`;
     case 'value':
+      // With its recent values (a value tile's own number): drawn as a kpi, its change and a sparkline beside it.
+      if (b.points?.length >= 2 || b.delta) return kitKpi(b, tintOf(b.color, t), (c) => tintOf(c, t, true));
       return b.text ? `<div class="tile-val" ${b.color ? `style="color:${tintOf(b.color, t, true)}"` : ''}>${esc(b.text)}${b.unit ? `<span class="unit">${esc(b.unit)}</span>` : ''}</div>` : `<div class="tile-val">${faint}</div>`;
+    case 'kpi':
+      return kitKpi(b, tintOf(b.color, t), (c) => tintOf(c, t, true));
+    case 'status':
+      return kitStatus(b);
+    case 'callout':
+      return kitCallout(b);
     case 'dot':
       return `<span class="b-dot">${dotHTML(b, t)}${b.label ? `<span>${esc(b.label)}</span>` : ''}</span>`;
     case 'list':
@@ -91,13 +99,9 @@ function blockHTML(b, t, where) {
       const arc = 'M 8 48 A 40 40 0 0 1 88 48';
       return `<div class="b-gauge"><svg viewBox="0 0 96 54" aria-hidden="true"><path d="${arc}" class="track" pathLength="100"/><path d="${arc}" class="fill" pathLength="100" stroke-dasharray="${Math.round((b.ratio ?? 0) * 100)} 100" style="--c:${tintOf(b.color, t)}"/></svg><span>${esc(b.text || '·')}</span></div>`;
     }
-    case 'chart': {
-      const pts = b.points || [];
-      if (pts.length < 2) return `<div class="b-chart">${b.text ? `<span>${esc(b.text)}</span>` : ''}${faint}</div>`;
-      const lo = Math.min(...pts), hi = Math.max(...pts), span = hi - lo || 1;
-      const line = pts.map((v, i) => `${((i / (pts.length - 1)) * 100).toFixed(2)},${(28 - ((v - lo) / span) * 26).toFixed(2)}`).join(' ');
-      return `<div class="b-chart">${b.text ? `<span>${esc(b.text)}</span>` : ''}<svg viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"><polyline points="${line}" style="--c:${tintOf(b.color, t)}" vector-effect="non-scaling-stroke"/></svg></div>`;
-    }
+    case 'chart':
+      // A small tile's face has no room for the axes' numbers; the tooltip says them.
+      return kitChart(b, tintOf(b.color, t), (c) => tintOf(c, t), { axes: where === 'panel' || (t.size && t.size !== 'small') });
     case 'image':
       return `<img class="b-img ${b.height || 'normal'} ${b.fit || 'cover'}" src="/api${esc(b.src)}" alt="" loading="lazy" draggable="false">`;
     case 'chat': {
@@ -146,7 +150,15 @@ function wheelSpot(hex) {
   return `left:${(50 + Math.cos(a) * s * 50).toFixed(1)}%;top:${(50 + Math.sin(a) * s * 50).toFixed(1)}%`;
 }
 
-function tileHTML(t, waiting) {
+// A tile whose face is one number (a value or a kpi) has a kpi's head: its dot a small square beside its title,
+// muted. A small one takes half a phone's width.
+const isKpiTile = (t) => t.kind !== 'group' && (t.look?.face || []).length === 1 && ['value', 'kpi'].includes(t.look.face[0].type);
+// Switches and buttons as they come (no blocks of their own) are rows of one Controls box.
+const isControlRow = (t) => ['switch', 'button'].includes(t.kind) && !(t.look?.face || []).length && (t.size || (t.wide ? 'wide' : 'small')) === 'small';
+const hasMarkdown = (list) => (list || []).some((b) => (b.type === 'text' && b.markdown) || hasMarkdown(b.blocks));
+
+// sourced: its heading already says where its values come from.
+function tileHTML(t, waiting, sourced = false) {
   const look = t.look || { dot: { filled: true }, face: [], tap: 'none' };
   let dot = dotHTML(look.dot, t);
   let body = blocksHTML(look.face, t, 'face');
@@ -163,12 +175,58 @@ function tileHTML(t, waiting) {
   const pressed = look.tap === 'toggle' ? ` aria-pressed="${look.dot?.filled === true}"` : '';
   const open = t.kind === 'group' && openGroups.has(t.id);
   const size = t.size || (t.wide ? 'wide' : 'small');
-  return `<div role="button" tabindex="0" class="tile kind-${t.kind} size-${size} ${look.dot?.big ? 'big-dot' : ''} ${waiting ? 'waiting' : ''} ${open ? 'open' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${pressed}${t.kind === 'group' ? ` aria-expanded="${open}"` : ''} title="${esc(t.error || '')}">
-    <div class="tile-head">${dot}<span class="tile-title">${esc(t.title)}</span></div>
+  const kpi = isKpiTile(t);
+  // Quietly at the end of its head: that a bot or the Chief wrote it, or where its value comes from ("script · 30 s").
+  // A note says when it was written.
+  const aside = t.ai && hasMarkdown(look.face) ? '<span class="tile-ai">written by AI</span>' : t.source && !kpi && !sourced ? `<span class="tile-src">${esc(t.source)}</span>` : '';
+  const when = t.kind === 'note' && t.at ? `<span class="tile-when">${esc(kitClock(Date.parse(t.at)))}</span>` : '';
+  return `<div role="button" tabindex="0" class="tile kind-${t.kind} size-${size} ${kpi ? 'kpi-tile' : ''} ${kpi && size === 'small' ? 'compact' : ''} ${look.dot?.big ? 'big-dot' : ''} ${waiting ? 'waiting' : ''} ${open ? 'open' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${pressed}${t.kind === 'group' ? ` aria-expanded="${open}"` : ''} title="${esc(t.error || '')}">
+    <div class="tile-head">${dot}<span class="tile-title">${esc(t.title)}</span>${when}${aside}</div>
     ${body}
     ${note ? `<div class="tile-sub">${esc(note)}</div>` : ''}
   </div>`;
 }
+
+// A switch or a button as a row of the Controls box: its title and line, and a switch (on, off, not known) or a go mark.
+const GO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+function controlRowHTML(t, waiting) {
+  const look = t.look || {};
+  const note = waiting ? 'Waiting for your OK' : tapped.get(t.id) || (t.error ? "Couldn't update" : '');
+  const on = look.dot?.filled;
+  const end = t.kind === 'switch' ? `<span class="sw ${on === true ? 'on' : on === false ? '' : 'unknown'}" aria-hidden="true"></span>` : `<span class="go">${GO}</span>`;
+  return `<div role="button" tabindex="0" class="tile ctl-row kind-${t.kind} ${waiting ? 'waiting' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${look.tap === 'toggle' ? ` aria-pressed="${on === true}"` : ''} title="${esc(t.error || '')}">
+    <span class="n"><span class="tile-title">${esc(t.title)}</span>${note ? `<span class="tile-sub">${esc(note)}</span>` : ''}</span>${end}
+  </div>`;
+}
+
+// The tiles under one heading as they are drawn: one by one, and the switches and buttons that follow each other
+// as the rows of one Controls box.
+function boardRuns(ts) {
+  const out = [];
+  for (const t of ts) {
+    const last = out[out.length - 1];
+    if (!isControlRow(t)) out.push({ tile: t });
+    else if (last?.rows) last.rows.push(t);
+    else out.push({ rows: [t] });
+  }
+  return out;
+}
+// Beside a heading: the bots its tiles come from; at its end, where their values come from when that is one
+// for all of them ("script · 30 s"), said there once and not on each tile.
+const sectionBots = (ts) => [...new Set(ts.map((t) => botById(t.bot)?.name).filter(Boolean))].join(', ');
+const sectionSource = (ts) => { const all = [...new Set(ts.map((t) => t.source).filter(Boolean))]; return all.length === 1 ? all[0] : ''; };
+// "Live · updated 3s ago": the age of the newest value on the Board, in seconds; nothing while none has come.
+function liveWords(secs) {
+  const s = Math.max(0, Math.floor(secs));
+  return `Live · updated ${s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h`} ago`;
+}
+const newestAt = (tiles) => Math.max(0, ...(tiles || []).map((t) => Date.parse(t.at || '') || 0));
+setInterval(() => {
+  const el = state.view === 'dashboard' && $('#view-dashboard [data-live]');
+  if (el) el.textContent = liveWords((Date.now() - newestAt(state.dash?.tiles)) / 1000);
+}, 1000);
+// The heading shown (its name), or all of them (''); kept in this browser.
+let boardFilter = (() => { try { return localStorage.getItem('board-filter') || ''; } catch { return ''; } })();
 
 function renderDashboard() {
   const root = $('#view-dashboard');
@@ -178,28 +236,47 @@ function renderDashboard() {
   if (ctlHeld) { ctlHeld.later = true; return; } // nor while a slider or the colour wheel is in your hand
   renderPanel();
   const waiting = new Set((d.pending || []).map((t) => t.id));
-  const sig = JSON.stringify([d, [...tapped], [...popped], [...openGroups], state.bots.map((b) => b.color)]);
+  const sig = JSON.stringify([d, [...tapped], [...popped], [...openGroups], boardFilter, state.bots.map((b) => [b.color, b.name])]);
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   const loose = d.tiles.filter((t) => !t.parent);
   const groups = [['', loose.filter((t) => !t.section)], ...d.sections.map((s) => [s, loose.filter((t) => t.section === s)])].filter(([, ts]) => ts.length);
+  const named = groups.map(([name]) => name).filter(Boolean);
+  if (!named.includes(boardFilter)) boardFilter = '';
+  const shown = groups.filter(([name]) => !boardFilter || name === boardFilter);
   // A group tile, and when it's open, its tiles right below it across the whole width.
-  const withInside = (t) => tileHTML(t, waiting.has(t.id)) + (t.kind === 'group' && openGroups.has(t.id)
+  const withInside = (t, sourced) => tileHTML(t, waiting.has(t.id), sourced) + (t.kind === 'group' && openGroups.has(t.id)
     ? `<div class="dash-inside"><div class="dash-grid" data-section="${esc(t.section)}" data-parent="${esc(t.id)}">${d.tiles.filter((x) => x.parent === t.id).map((x) => tileHTML(x, waiting.has(x.id))).join('') || '<div class="faint">Nothing in it yet.</div>'}</div></div>` : '');
+  const runHTML = (r, sourced) => (r.tile ? withInside(r.tile, sourced) : `<div class="ctl-box"><div class="tile-head"><span class="tile-title">Controls</span></div>${r.rows.map((t) => controlRowHTML(t, waiting.has(t.id))).join('')}</div>`);
+  const sources = d.tiles.filter((t) => t.source).length;
+  const newest = newestAt(d.tiles);
   root.innerHTML = `
-    <div class="section-head"><div>${BACK_BTN}<h1>Board</h1></div></div>
+    <div class="section-head board-head"><div>${BACK_BTN}<h1>Board</h1>${sources ? `<p>${sources === 1 ? '1 source' : `${sources} sources`}</p>` : ''}</div>
+      <div class="board-tools">${newest ? `<span class="board-live" data-live>${esc(liveWords((Date.now() - newest) / 1000))}</span>` : ''}${named.length > 1 ? `<div class="seg board-filter">${['', ...named].map((n) => `<button class="${n === boardFilter ? 'on' : ''}" data-filter="${esc(n)}">${esc(n || 'All')}</button>`).join('')}</div>` : ''}</div></div>
     ${d.tiles.length ? '' : `<div class="dash-empty">
       <p>Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.</p>
       <p>Nothing is on it yet. Tell the Chief or any bot, for example: <i>“Put a shopping list on my board.”</i></p>
     </div>`}
-    ${groups.map(([name, ts]) => `${name ? `<h3 class="dash-sec">${esc(name)}</h3>` : ''}<div class="dash-grid" data-section="${esc(name)}">${ts.map(withInside).join('')}</div>`).join('')}
+    ${shown.map(([name, ts]) => {
+    const by = sectionBots(ts);
+    const from = name ? sectionSource(ts) : '';
+    return `${name ? `<h3 class="dash-sec">${esc(name)}${by ? ` <span class="by">${esc(by)}</span>` : ''}${from ? `<span class="tile-src">${esc(from)}</span>` : ''}</h3>` : ''}<div class="dash-grid" data-section="${esc(name)}">${boardRuns(ts).map((r) => runHTML(r, !!from)).join('')}</div>`;
+  }).join('')}
     ${(d.suggestions || []).length ? `<h3 class="dash-sec">Suggested</h3><div class="dash-grid">${d.suggestions.map(suggestedHTML).join('')}</div>` : ''}`;
   $$('[data-tile]', root).forEach((el) => {
     const t = d.tiles.find((x) => x.id === el.dataset.tile);
     wireTile(el, t, waiting.has(el.dataset.tile));
     if (t && !waiting.has(t.id)) wireControls(el, t);
   });
+  $$('[data-filter]', root).forEach((el) => {
+    el.onclick = () => {
+      boardFilter = el.dataset.filter;
+      try { localStorage.setItem('board-filter', boardFilter); } catch { /* private window */ }
+      renderDashboard();
+    };
+  });
   wireTileDrags(root);
+  wireCharts(root);
   // A folded note that has more to it fades out at the bottom.
   $$('.tile-note.folded', root).forEach((el) => el.classList.toggle('more', el.scrollHeight > el.clientHeight + 2));
   $$('[data-sug]', root).forEach((el) => {
@@ -273,10 +350,14 @@ function wireTileDrags(root) {
       if (isGroup && !tileDrag.isGroup && middle && !openGroups.has(el.dataset.tile)) { el.classList.add('drop-into'); tileDrag.into = el.dataset.tile; return; }
       el.classList.remove('drop-into');
       tileDrag.into = null;
-      const grid = el.parentElement;
+      // A row of a Controls box moves among its rows; over a box it is not in, a tile goes around the whole box.
+      const box = el.closest('.ctl-box');
+      const node = box && !box.contains(tileDrag.el) ? box : el;
+      const grid = node.parentElement;
       if (tileDrag.isGroup && grid.dataset.parent) return; // a group stays out of groups
-      const after = e.clientX > r.left + r.width / 2;
-      let spot = after ? el.nextElementSibling : el;
+      const at = node.getBoundingClientRect();
+      const after = node.classList.contains('ctl-row') ? e.clientY > at.top + at.height / 2 : e.clientX > at.left + at.width / 2;
+      let spot = after ? node.nextElementSibling : node;
       if (after && spot?.classList.contains('dash-inside')) spot = spot.nextElementSibling; // an open group keeps its tiles right below it
       if (spot === tileDrag.el) return;
       grid.insertBefore(tileDrag.el, spot);
@@ -311,9 +392,10 @@ async function dropTile(e) {
   let body;
   if (drag.into) body = { parent: drag.into };
   else {
-    const grid = drag.el.parentElement;
-    let next = drag.el.nextElementSibling;
-    while (next && !next.dataset?.tile) next = next.nextElementSibling;
+    // Its heading's grid, and the tile after it there (in a Controls box too; not inside an open group).
+    const grid = drag.el.closest('.dash-grid');
+    const all = grid ? $$('[data-tile]', grid).filter((x) => x.closest('.dash-grid') === grid) : [];
+    const next = all[all.indexOf(drag.el) + 1];
     body = { section: grid?.dataset.section || '', parent: grid?.dataset.parent || null, before: next?.dataset.tile || null };
   }
   try { await api(`/dashboard/tiles/${drag.id}/move`, { method: 'POST', body }); } catch (err) { toast(err.message, true); }
@@ -364,6 +446,7 @@ function renderPanel() {
   const every = panelOpen.only ? '' : refreshLine(t);
   body.innerHTML = (blocksHTML(list, t, 'panel') || '<div class="faint">·</div>') + (every ? `<div class="faint tile-every">${esc(every)}</div>` : '');
   wireControls(body, t);
+  wireCharts(body);
   const link = $('[data-tile-chat]', body);
   if (link) link.onclick = () => { panelOpen?.m.close(); setView('bot', t.bot); };
 }

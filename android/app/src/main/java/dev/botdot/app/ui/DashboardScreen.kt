@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -44,6 +45,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -102,6 +105,9 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     val popped = remember { mutableStateMapOf<String, Boolean>() } // a tap that just worked: the card pops once, no words
     var panel by remember { mutableStateOf<Pair<String, String?>?>(null) } // a tile's pop-up: its id, and the one block it shows (a colour swatch's wheel) or null for its whole panel
     val haptic = LocalHapticFeedback.current
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(1000); now = System.currentTimeMillis() } }
+    var filter by rememberSaveable { mutableStateOf("") } // the heading shown, or "" for all of them
 
     // quiet: just look. Otherwise (while it's on screen, every 15 s) botdot also reads its out-of-date tiles again.
     suspend fun load(quiet: Boolean = false) {
@@ -204,7 +210,19 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
-        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(BoardWords.NAME, style = MaterialTheme.typography.titleMedium) }) },
+        topBar = {
+            TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = {
+                Column {
+                    Text(BoardWords.NAME, style = MaterialTheme.typography.titleMedium)
+                    // "Live · updated 3s ago": the age of the newest value, counting every second.
+                    val newest = BoardKit.newestAt(dash?.tiles.orEmpty())
+                    if (newest > 0) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(6.dp).clip(CircleShape).background(p.ok))
+                        Text("  " + BoardKit.liveWords((now - newest) / 1000), color = p.okText, fontSize = 12.sp)
+                    }
+                }
+            })
+        },
     ) { pad ->
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } }, modifier = Modifier.padding(pad).fillMaxSize()) {
             val d = dash
@@ -217,7 +235,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                 val loose = all.filter { it.parent == null }
                 val out = mutableListOf<String>()
                 for ((name, ts) in listOf("" to loose.filter { it.section.isEmpty() }) + d?.sections.orEmpty().map { s -> s to loose.filter { it.section == s } }) {
-                    if (ts.isEmpty()) continue
+                    if (ts.isEmpty() || (filter.isNotEmpty() && name != filter)) continue
                     if (name.isNotEmpty()) out += "h:$name"
                     for (t in ts) {
                         out += t.id
@@ -272,13 +290,38 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                     load(quiet = true)
                 }
             }
-            LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(), state = gridState, contentPadding = PaddingValues(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (d != null && d.tiles.isEmpty()) item(span = { GridItemSpan(2) }) { Empty() }
+            // The headings there are, for the filter; a heading's tiles, for its bots and where their values come from.
+            val named = d?.sections.orEmpty().filter { s -> d?.tiles.orEmpty().any { it.parent == null && it.section == s } }
+            if (filter.isNotEmpty() && filter !in named) filter = ""
+            fun under(name: String) = d?.tiles.orEmpty().filter { it.parent == null && it.section == name }
+            // A switch or button row of a Controls box: whether the rows before and after it are of the same box.
+            fun ctl(k: String) = tilesById[k]?.let { it.parent == null && BoardKit.isControlRow(it) } == true
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+            val cols = BoardKit.columns(maxWidth.value)
+            val gap = 10.dp
+            LazyVerticalGrid(GridCells.Fixed(cols), Modifier.fillMaxSize(), state = gridState, contentPadding = PaddingValues(14.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                if (d != null && d.tiles.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Empty() }
+                // One heading at a time, or all of them.
+                if (named.size > 1) item(key = "f:filter", span = { GridItemSpan(maxLineSpan) }) {
+                    androidx.compose.foundation.layout.FlowRow(Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        (listOf("") + named).forEach { n ->
+                            val on = n == filter
+                            Text(n.ifEmpty { "All" }, color = if (on) p.inkText else p.text, fontSize = 13.sp,
+                                modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (on) p.ink else Color.Transparent)
+                                    .border(1.dp, if (on) p.ink else p.line2, RoundedCornerShape(99.dp)).clickable { filter = n }.padding(horizontal = 14.dp, vertical = 6.dp))
+                        }
+                    }
+                }
                 val colorOf = { t: Tile -> tileColor(t, d?.tiles.orEmpty(), bots) }
-                items(rows.toList(), key = { it }, span = { k -> GridItemSpan(if (k.contains(':') || tilesById[k]?.let { it.wide || it.size != "small" } == true) 2 else 1) }) { k ->
+                items(rows.toList(), key = { it }, span = { k -> GridItemSpan(if (k.contains(':') || ctl(k)) maxLineSpan else tilesById[k]?.let { BoardKit.span(it, maxLineSpan) } ?: maxLineSpan) }) { k ->
+                    val i = rows.indexOf(k)
+                    val firstRow = ctl(k) && !ctl(rows.getOrNull(i - 1) ?: "")
+                    val lastRow = ctl(k) && !ctl(rows.getOrNull(i + 1) ?: "")
                     ReorderableItem(reorder, key = k) { lifted ->
+                        // The gap under it: none between the rows of one Controls box, so they read as one.
+                        Box(Modifier.padding(bottom = if (ctl(k) && !lastRow) 0.dp else gap)) {
                         when {
-                            k.startsWith("h:") -> Text(k.removePrefix("h:"), color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp, top = 10.dp))
+                            k.startsWith("h:") -> SectionHead(k.removePrefix("h:"), under(k.removePrefix("h:")), bots)
                             k.startsWith("in:") -> {
                                 // The top of an open group's tiles; "Nothing in it yet" while it's empty.
                                 val empty = d?.tiles.orEmpty().none { it.parent == k.removePrefix("in:") }
@@ -289,28 +332,35 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                             else -> tilesById[k]?.let { t ->
                                 val inGroup = t.parent != null
                                 val bump by animateFloatAsState(if (popped[t.id] == true) 1.05f else 1f, tween(180), label = "pop")
+                                val handle = Modifier.longPressDraggableHandle(
+                                    onDragStarted = { dragged = t.id; held = t.id; moved = false; haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+                                    onDragStopped = { dropped(t) },
+                                ).clickable { if (held == t.id) held = null else tap(t, t.id in waiting) }
                                 Box(Modifier.graphicsLayer { val s = if (lifted) 1.04f else bump; scaleX = s; scaleY = s }) {
-                                    TileCard(t, colorOf(t), t.id in waiting, flash[t.id], controlsFor(t),
-                                        Modifier.longPressDraggableHandle(
-                                            onDragStarted = { dragged = t.id; held = t.id; moved = false; haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
-                                            onDragStopped = { dropped(t) },
-                                        ).clickable { if (held == t.id) held = null else tap(t, t.id in waiting) },
+                                    if (ctl(k)) ControlRow(t, t.id in waiting, flash[t.id], handle, firstRow, lastRow)
+                                    else TileCard(t, colorOf(t), t.id in waiting, flash[t.id], controlsFor(t), handle,
                                         inside = d?.tiles.orEmpty().filter { it.parent == t.id }.map { it to colorOf(it) },
-                                        open = inGroup || open[t.id] == true)
+                                        open = inGroup || open[t.id] == true,
+                                        where = when { t.size != "small" || t.wide -> "wide"; cols <= 2 && BoardKit.isKpiTile(t) -> "compact"; else -> "face" },
+                                        sourced = !inGroup && BoardKit.sectionSource(under(t.section)).isNotEmpty() && t.section.isNotEmpty())
                                 }
                             }
+                        }
                         }
                     }
                 }
                 // What bots suggested: faded, who and why, Add or ✕.
                 val suggested = d?.suggestions.orEmpty()
-                if (suggested.isNotEmpty()) item(key = "s:suggested", span = { GridItemSpan(2) }) {
+                if (suggested.isNotEmpty()) item(key = "s:suggested", span = { GridItemSpan(maxLineSpan) }) {
                     Text("Suggested", color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp, top = 10.dp))
                 }
-                items(suggested, key = { "sug:${it.id}" }, span = { GridItemSpan(2) }) { x ->
+                items(suggested, key = { "sug:${it.id}" }, span = { GridItemSpan(maxLineSpan) }) { x ->
                     val b = bots.firstOrNull { it.id == x.bot }
-                    SuggestedCard(x, b) { add -> scope.launch { runCatching { api!!.answerSuggestion(x.id, add) }.onError { tell(it.message ?: "That didn't work") }; load(quiet = true) } }
+                    Box(Modifier.padding(bottom = gap)) {
+                        SuggestedCard(x, b) { add -> scope.launch { runCatching { api!!.answerSuggestion(x.id, add) }.onError { tell(it.message ?: "That didn't work") }; load(quiet = true) } }
+                    }
                 }
+            }
             }
         }
     }
@@ -329,12 +379,18 @@ private fun Empty() {
     }
 }
 
+/**
+ * A tile as a card. A tile of one number has a kpi's head (a small square, its title muted); at the end of the head,
+ * quietly, that a bot or the Chief wrote it, or where its value comes from ("script · 30 s") unless its heading
+ * says it ([sourced]); a note says when it was written. [where]: how its face is drawn (see [BlockView]).
+ */
 @Composable
-private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, ctl: TileControls, click: Modifier, inside: List<Pair<Tile, String>> = emptyList(), open: Boolean = false) {
+private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, ctl: TileControls, click: Modifier, inside: List<Pair<Tile, String>> = emptyList(), open: Boolean = false, where: String = "face", sourced: Boolean = false) {
     val p = LocalPaper.current
     val c = parseColor(color, p.faint)
     val shape = RoundedCornerShape(18.dp)
     val look = t.look
+    val kpi = BoardKit.isKpiTile(t)
     Column(
         Modifier.fillMaxWidth().heightIn(min = if (t.size == "big") 220.dp else 104.dp).alpha(if (waiting) 0.55f else 1f).clip(shape).background(if (open) p.sunk else p.panel).border(1.dp, if (open) p.line2 else p.line, shape)
             .then(click).padding(horizontal = 16.dp, vertical = 14.dp),
@@ -361,13 +417,72 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
                 Title(t.title, lines = 2)
             }
             else -> Row(verticalAlignment = Alignment.CenterVertically) {
-                if (dot != null) { TileDotView(dot.filled, tint(dot.color, c), false); Spacer(Modifier.size(8.dp)) }
-                Title(t.title)
+                if (dot != null && kpi) {
+                    val off = dot.filled == false
+                    Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(if (off) Color.Transparent else tint(dot.color, c)).then(if (off) Modifier.border(1.5.dp, tint(dot.color, c), RoundedCornerShape(2.dp)) else Modifier))
+                    Spacer(Modifier.size(8.dp))
+                } else if (dot != null) { TileDotView(dot.filled, tint(dot.color, c), false); Spacer(Modifier.size(8.dp)) }
+                Box(Modifier.weight(1f, fill = false)) {
+                    if (kpi) Text(t.title, color = p.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) else Title(t.title)
+                }
+                if (t.kind == "note" && t.at != null) Text("  " + shortTime(t.at), color = p.faint, fontSize = 12.5.sp, maxLines = 1)
+                Spacer(Modifier.weight(1f).size(1.dp))
+                if (t.ai && BoardKit.hasMarkdown(look?.face.orEmpty())) {
+                    Text(BoardWords.WRITTEN_BY_AI, color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1,
+                        modifier = Modifier.padding(start = 8.dp).border(1.dp, p.line2, RoundedCornerShape(99.dp)).padding(horizontal = 8.dp, vertical = 1.dp))
+                } else if (t.source != null && !kpi && !sourced) Text(t.source, color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
             }
         }
-        if (t.kind != "group" && look != null) Blocks(look.face, c, "face", ctl)
+        if (t.kind != "group" && look != null) Blocks(look.face, c, where, ctl)
         val note = if (waiting) "Waiting for your OK" else flash ?: if (t.error != null) "Couldn't update" else null
         if (note != null) Text(note, color = p.muted, fontSize = 12.sp)
+    }
+}
+
+/** A heading: its name, the bots its tiles come from, and where their values come from when that is one for all of them. */
+@Composable
+private fun SectionHead(name: String, tiles: List<Tile>, bots: List<Bot>) {
+    val p = LocalPaper.current
+    Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(name, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        BoardKit.sectionBots(tiles, bots).takeIf { it.isNotEmpty() }?.let {
+            Text("  $it", color = p.faint, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        }
+        Spacer(Modifier.weight(1f).size(1.dp))
+        BoardKit.sectionSource(tiles).takeIf { it.isNotEmpty() }?.let { Text(it, color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp)) }
+    }
+}
+
+/**
+ * A switch or a button as a row of a Controls box: the rows that follow each other under a heading read as one box,
+ * "Controls" over the first. Its title and line, and a switch (on, off, not known) or a go mark. A tap does what a
+ * tap on the tile did; a press and hold moves or removes it.
+ */
+@Composable
+private fun ControlRow(t: Tile, waiting: Boolean, flash: String?, click: Modifier, first: Boolean, last: Boolean) {
+    val p = LocalPaper.current
+    val r = 18.dp
+    val shape = RoundedCornerShape(topStart = if (first) r else 0.dp, topEnd = if (first) r else 0.dp, bottomStart = if (last) r else 0.dp, bottomEnd = if (last) r else 0.dp)
+    val note = if (waiting) "Waiting for your OK" else flash ?: if (t.error != null) "Couldn't update" else null
+    Column(Modifier.fillMaxWidth().alpha(if (waiting) 0.55f else 1f).clip(shape).background(p.panel).padding(horizontal = 16.dp)) {
+        if (first) Text(BoardWords.CONTROLS, color = p.text, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 14.dp, bottom = 2.dp))
+        else Box(Modifier.fillMaxWidth().size(1.dp).background(p.line))
+        Row(Modifier.fillMaxWidth().then(click).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(t.title, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                note?.let { Text(it, color = p.muted, fontSize = 12.sp) }
+            }
+            if (t.kind == "switch") {
+                val on = t.look?.dot?.filled
+                Box(Modifier.size(width = 40.dp, height = 24.dp).alpha(if (on == null) 0.5f else 1f).clip(RoundedCornerShape(99.dp)).background(if (on == true) p.ok else p.line2).padding(3.dp),
+                    contentAlignment = if (on == true) Alignment.CenterEnd else Alignment.CenterStart) {
+                    Box(Modifier.size(18.dp).clip(CircleShape).background(Color.White))
+                }
+            } else Box(Modifier.size(30.dp).clip(CircleShape).border(1.dp, p.line2, CircleShape), contentAlignment = Alignment.Center) {
+                Text("›", color = p.muted, fontSize = 16.sp)
+            }
+        }
+        if (last) Spacer(Modifier.size(4.dp))
     }
 }
 
