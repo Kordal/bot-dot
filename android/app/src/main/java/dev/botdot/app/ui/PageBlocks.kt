@@ -27,7 +27,7 @@ import dev.botdot.app.data.Pages
 /*
  * A bot's page with blocks (#395; the web page's pageHTML in public/blocks.js): its Markdown with the chat's own
  * renderer, and its blocks with the Board's block kit (BlockKit.kt): a hero at its top, kpis and charts on cards,
- * status pills and callouts, grids of them side by side, and a quiet line for a block that cannot be drawn.
+ * status pills and callouts, a table (#396), grids of them side by side, and a quiet line for a block that cannot be drawn.
  * lib/page-blocks.js fills them in; this only draws them.
  */
 @Composable
@@ -59,6 +59,7 @@ fun PageBlock(b: Block) {
         "chart" -> PageCard { KitChart(b, tint(b.color, p.mention), axes = true) }
         "status" -> KitStatus(b)
         "callout" -> KitCallout(b)
+        "table" -> PageCard { KitTableView(b) }
         "grid" -> if (b.blocks.all { it.type == "status" }) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { b.blocks.forEach { KitStatus(it) } }
         } else BoxWithConstraints {

@@ -102,6 +102,8 @@ function blockHTML(b, t, where) {
     case 'chart':
       // A small tile's face has no room for the axes' numbers; the tooltip says them.
       return kitChart(b, tintOf(b.color, t), (c) => tintOf(c, t), { axes: where === 'panel' || (t.size && t.size !== 'small') });
+    case 'table':
+      return kitTable(b, `${t.id}:${where}:${b.key}`);
     case 'image':
       return `<img class="b-img ${b.height || 'normal'} ${b.fit || 'cover'}" src="/api${esc(b.src)}" alt="" loading="lazy" draggable="false">`;
     case 'chat': {
@@ -277,6 +279,7 @@ function renderDashboard() {
   });
   wireTileDrags(root);
   wireCharts(root);
+  wireTables(root);
   // A folded note that has more to it fades out at the bottom.
   $$('.tile-note.folded', root).forEach((el) => el.classList.toggle('more', el.scrollHeight > el.clientHeight + 2));
   $$('[data-sug]', root).forEach((el) => {
@@ -447,6 +450,7 @@ function renderPanel() {
   body.innerHTML = (blocksHTML(list, t, 'panel') || '<div class="faint">·</div>') + (every ? `<div class="faint tile-every">${esc(every)}</div>` : '');
   wireControls(body, t);
   wireCharts(body);
+  wireTables(body);
   const link = $('[data-tile-chat]', body);
   if (link) link.onclick = () => { panelOpen?.m.close(); setView('bot', t.bot); };
 }

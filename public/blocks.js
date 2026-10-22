@@ -148,6 +148,119 @@ function wireCharts(root) {
   });
 }
 
+// ---------- a table (#396) ----------
+
+// A table (lib/tile-blocks.js tableOf fills it in): the owner sorts it by a column's header, searches it and filters
+// it on one column, all here, and it pages its rows ("10 of 58"). In a narrow box it is a list: the first column as
+// the title, a reference under it, a status pill on the right. What the owner chose is kept by the table's key, so a
+// table drawn again with new rows (a live value, the Board's refresh) keeps its sort, search, filter and page.
+const kitTableStates = new Map();
+const kitTableData = new Map();
+const kitTableState = (key) => { if (!kitTableStates.has(key)) kitTableStates.set(key, { sort: null, q: '', filter: '', page: 0 }); return kitTableStates.get(key); };
+
+// The rows the owner sees: filtered, searched, sorted, and the page of them. { rows, matching, total, page, pages, sort }
+function kitTableView(b, st) {
+  const rows0 = b.rows || [];
+  const head = b.head || [];
+  let rows = rows0.map((r, i) => ({ r, i }));
+  const f = b.filter && st.filter && b.filter.options.some((o) => o.toLowerCase() === st.filter.toLowerCase()) ? st.filter.toLowerCase() : '';
+  if (f) rows = rows.filter(({ r }) => String(r[b.filter.column]?.text || '').toLowerCase() === f);
+  const q = String(st.q || '').trim().toLowerCase();
+  if (q) rows = rows.filter(({ r }) => r.some((c) => String(c?.text || '').toLowerCase().includes(q)));
+  const sort = st.sort && head[st.sort.column] ? st.sort : b.sort && head[b.sort.column] ? b.sort : null;
+  if (sort) {
+    const k = sort.column;
+    const dir = sort.dir === 'desc' ? -1 : 1;
+    rows.sort((x, y) => {
+      const a = x.r[k] || { text: '' }, c = y.r[k] || { text: '' };
+      const an = Number.isFinite(a.n), cn = Number.isFinite(c.n);
+      // An empty cell goes last either way.
+      if (!a.text !== !c.text) return a.text ? -1 : 1;
+      const d = an && cn ? a.n - c.n : an !== cn ? (an ? -1 : 1) : String(a.text).localeCompare(String(c.text), undefined, { numeric: true, sensitivity: 'base' });
+      return d * dir || x.i - y.i;
+    });
+  }
+  const size = Math.max(Number(b.pageSize) || 10, 1);
+  const pages = Math.max(Math.ceil(rows.length / size), 1);
+  const page = Math.min(Math.max(st.page || 0, 0), pages - 1);
+  return { rows: rows.slice(page * size, page * size + size).map((x) => x.r), matching: rows.length, total: rows0.length, page, pages, sort };
+}
+
+const KIT_RIGHT = ['number', 'date'];
+function kitCell(c, type) {
+  if (!c?.text) return '';
+  if (type === 'status') return kitStatus({ text: c.text, level: c.level });
+  if (type === 'ref') return `<span class="kit-ref">${(c.refs?.length ? c.refs : [{ text: c.text }]).map((r) => (r.url && /^https?:\/\//.test(r.url) ? `<a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">${esc(r.text)}</a>` : esc(r.text))).join(' · ')}</span>`;
+  return esc(c.text);
+}
+
+function kitTableBody(b, st) {
+  const v = kitTableView(b, st);
+  const head = b.head || [];
+  if (!v.total) return '<div class="faint kit-table-empty">No rows</div>';
+  const th = head.map((h, i) => {
+    const on = v.sort?.column === i;
+    return `<th class="${KIT_RIGHT.includes(h.type) ? 'r' : ''} ${on ? 'on' : ''}"><button type="button" data-tsort="${i}">${esc(h.label)}${on ? `<span class="ar">${v.sort.dir === 'desc' ? '▼' : '▲'}</span>` : ''}</button></th>`;
+  }).join('');
+  const tr = v.rows.map((r) => `<tr>${head.map((h, i) => `<td class="${KIT_RIGHT.includes(h.type) ? 'r' : ''} ${i > 0 && h.type === 'text' ? 'soft' : ''}">${kitCell(r[i], h.type)}</td>`).join('')}</tr>`).join('');
+  // The list: the first column, a reference under it, a status on the right.
+  const ref = head.findIndex((h) => h.type === 'ref');
+  const stat = head.findIndex((h) => h.type === 'status');
+  const li = v.rows.map((r) => `<div class="kit-trow"><div class="n">${esc(r[0]?.text || '')}${ref > 0 && r[ref]?.text ? `<span>${kitCell(r[ref], 'ref')}</span>` : ''}</div>${stat > 0 && r[stat]?.text ? kitCell(r[stat], 'status') : ''}</div>`).join('');
+  const pager = v.pages > 1 ? `<span class="kit-pager"><button type="button" data-tpage="${v.page - 1}" ${v.page ? '' : 'disabled'} aria-label="Previous">‹</button>${v.page + 1} / ${v.pages}<button type="button" data-tpage="${v.page + 1}" ${v.page < v.pages - 1 ? '' : 'disabled'} aria-label="Next">›</button></span>` : '';
+  return `${v.matching ? `<table class="kit-tbl"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table><div class="kit-tlist">${li}</div>` : '<div class="faint kit-table-empty">Nothing matches</div>'}
+    <div class="kit-tfoot"><span>${v.rows.length} of ${v.matching}${v.matching !== v.total ? ` · ${v.total} in all` : ''}</span>${pager}</div>`;
+}
+
+// A table. key: where it is drawn, the same each time it is drawn again (a tile and its block, a page and its part).
+function kitTable(b, key) {
+  kitTableData.set(key, b);
+  const st = kitTableState(key);
+  const f = b.filter;
+  const seg = f ? `<div class="kit-seg" role="group">${['', ...f.options].map((o) => `<button type="button" data-tfilter="${esc(o)}" class="${(st.filter || '').toLowerCase() === o.toLowerCase() || (!o && !f.options.some((x) => x.toLowerCase() === (st.filter || '').toLowerCase())) ? 'on' : ''}">${o ? esc(o) : 'All'}</button>`).join('')}</div>` : '';
+  const find = b.search === false ? '' : `<input class="kit-find" type="search" placeholder="Search" value="${esc(st.q)}" aria-label="Search the table">`;
+  return `<div class="kit-table" data-tkey="${esc(key)}">
+    <div class="kit-table-bar">${b.text ? `<b>${esc(b.text)}</b>` : ''}<span class="kit-count">${(b.rows || []).length}</span><span class="sp"></span>${find}${seg}</div>
+    <div class="kit-table-body">${kitTableBody(b, st)}</div></div>`;
+}
+
+// What the owner does with a table: its header sorts, the search and the filter narrow it, the pager pages. Only its
+// rows are drawn again, so the search box keeps its place. A tap in it opens nothing under it (a tile's pop-up).
+function wireTables(root) {
+  $$('.kit-table[data-tkey]', root).forEach((el) => {
+    if (el.dataset.wired) return;
+    el.dataset.wired = '1';
+    const key = el.dataset.tkey;
+    const st = kitTableState(key);
+    const redraw = () => { const b = kitTableData.get(key); if (b) $('.kit-table-body', el).innerHTML = kitTableBody(b, st); };
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('a')) { e.stopPropagation(); return; }
+      e.stopPropagation();
+      const s = e.target.closest('[data-tsort]');
+      if (s) {
+        const i = Number(s.dataset.tsort);
+        const now = st.sort || kitTableData.get(key)?.sort;
+        st.sort = { column: i, dir: now?.column === i && now.dir !== 'desc' ? 'desc' : 'asc' };
+        st.page = 0;
+        return redraw();
+      }
+      const f = e.target.closest('[data-tfilter]');
+      if (f) {
+        st.filter = f.dataset.tfilter;
+        st.page = 0;
+        $$('[data-tfilter]', el).forEach((x) => x.classList.toggle('on', x === f));
+        return redraw();
+      }
+      const p = e.target.closest('[data-tpage]');
+      if (p && !p.disabled) { st.page = Number(p.dataset.tpage); redraw(); }
+    });
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const find = $('.kit-find', el);
+    find?.addEventListener('input', () => { st.q = find.value; st.page = 0; redraw(); });
+    find?.addEventListener('keydown', (e) => { if (e.key !== 'Escape') e.stopPropagation(); });
+  });
+}
+
 // ---------- a page's blocks (#395) ----------
 
 // A bot's page draws the kit between its Markdown (lib/page-blocks.js fills its blocks in): a hero at its top, kpis
@@ -157,7 +270,7 @@ const PAGE_TINT = { ok: 'var(--ok)', warn: 'var(--warn)', bad: 'var(--err)', fai
 const PAGE_TEXT_TINT = { ...PAGE_TINT, ok: 'var(--ok-text)', warn: 'var(--warn-text)' };
 const pageTint = (c, words = false) => (c && /^#[0-9a-f]{6}$/i.test(c) ? c : (words ? PAGE_TEXT_TINT : PAGE_TINT)[c] || 'var(--mention)');
 
-function pageBlockHTML(b) {
+function pageBlockHTML(b, key = '') {
   switch (b?.type) {
     case 'hero':
       return `<header class="pb-hero">${b.eyebrow ? `<div class="pb-eyebrow">${esc(b.eyebrow)}</div>` : ''}<div class="pb-title">${esc(b.title)}</div>${b.lead ? `<p class="pb-lead">${esc(b.lead)}</p>` : ''}${b.tags?.length ? `<div class="pb-tags">${b.tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>` : ''}</header>`;
@@ -169,6 +282,8 @@ function pageBlockHTML(b) {
       return kitStatus(b);
     case 'callout':
       return kitCallout(b);
+    case 'table':
+      return `<div class="pb-card">${kitTable(b, key)}</div>`;
     case 'grid':
       if (b.blocks.every((x) => x.type === 'status')) return `<div class="pb-pills">${b.blocks.map(kitStatus).join('')}</div>`;
       return `<div class="pb-grid" style="--cols:${Math.min(Math.max(Number(b.columns) || 1, 1), 4)}">${b.blocks.map(pageBlockHTML).join('')}</div>`;
@@ -179,4 +294,5 @@ function pageBlockHTML(b) {
 
 // The page: its Markdown with the chat's own md(), its blocks with the kit, each in a box of its own so that a live
 // value redraws only it.
-const pageHTML = (parts) => parts.map((p, i) => (p.md != null ? md(p.md) : `<div class="pb" data-pb="${i}">${pageBlockHTML(p.block)}</div>`)).join('');
+// scope: the page's own (its address), so that each table keeps what the owner chose in it.
+const pageHTML = (parts, scope = '') => parts.map((p, i) => (p.md != null ? md(p.md) : `<div class="pb" data-pb="${i}">${pageBlockHTML(p.block, `${scope}#${i}`)}</div>`)).join('');

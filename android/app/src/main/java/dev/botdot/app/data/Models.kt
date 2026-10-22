@@ -1398,7 +1398,32 @@ data class Block(
     val lead: String? = null,
     val tags: List<String> = emptyList(),
     val columns: Int? = null,
+    // A table (#396): its header, its rows of cells, the column its filter switches on, how it starts sorted, and how
+    // many rows a page shows; search false: no search box.
+    val head: List<TableHead> = emptyList(),
+    val rows: List<List<TableCell>> = emptyList(),
+    val filter: TableFilter? = null,
+    val sort: TableSort? = null,
+    val pageSize: Int? = null,
+    val search: Boolean = true,
 )
+
+/** A table's column: its label, and text, number, date, status or ref. */
+@Serializable
+data class TableHead(val label: String = "", val type: String = "text")
+
+/** A table's cell: its words, what it sorts by ([n]: a number, a date's time, a reference's number), a status's level, a reference's links. */
+@Serializable
+data class TableCell(val text: String = "", val n: Double? = null, val level: String? = null, val refs: List<TableRef> = emptyList())
+
+@Serializable
+data class TableRef(val text: String = "", val url: String? = null)
+
+@Serializable
+data class TableFilter(val column: Int = 0, val options: List<String> = emptyList())
+
+@Serializable
+data class TableSort(val column: Int = 0, val dir: String = "asc")
 
 /** How a kpi's number changed over its recent values: [dir] up, down or flat; [good] whether that is good news (null: neither). */
 @Serializable
