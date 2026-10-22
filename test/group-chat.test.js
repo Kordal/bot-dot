@@ -131,6 +131,11 @@ test('a message without a mention is kept once and gives every member one turn, 
   // Nothing of it in a member's own chat.
   const own = (await srv.api(`/bots/${coder.id}`)).data;
   assert.deepEqual([own.unread, own.queued, (await srv.api(`/runs?botId=${coder.id}`)).data.map((r) => r.prompt)], [0, [], ['Which branch?']]);
+  // Activity (#294): every run, the turns in groups too, never a pass; and the list of all bots' chats without them.
+  const activity = (await srv.api('/runs?groups')).data.map((r) => r.id);
+  assert.ok(activity.includes(turns[0].id) && activity.includes(turns[2].id) && !activity.includes(passed.id));
+  assert.ok((await srv.api(`/runs?groups&botId=${coder.id}`)).data.some((r) => r.prompt === 'Which branch?'), "a bot's own chat is in it as well");
+  assert.ok(!(await srv.api('/runs')).data.some((r) => r.groupId));
   const hits = (await srv.api('/search?q=dark&groups=1')).data.map((h) => h.runId);
   assert.ok(hits.includes(turns[0].id) && !hits.includes(passed.id), 'a pass is no search hit');
 

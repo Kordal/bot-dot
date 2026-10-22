@@ -231,7 +231,7 @@ function showRun(id) {
   if (!view) return;
   view.dataset.id = id;
   $$('.run-item').forEach((el) => el.classList.toggle('active', el.dataset.id === id));
-  const meta = state.runs.find((r) => r.id === id);
+  const meta = activityRuns().find((r) => r.id === id); // a turn in a group too (#294)
   const showDetails = detailsOpen();
   view.innerHTML = `
     <div id="run-head">${meta ? runHeader(meta) : ''}</div>
