@@ -23,6 +23,7 @@ import androidx.core.graphics.drawable.IconCompat
 import dev.botdot.app.MainActivity
 import dev.botdot.app.R
 import dev.botdot.app.data.Api
+import dev.botdot.app.data.AskBatch
 import dev.botdot.app.data.BotFiles
 import dev.botdot.app.data.FeedEvent
 import dev.botdot.app.data.ChiefName
@@ -212,7 +213,7 @@ class Notifier(
                 cancelWhere { it == "approvals" } // the one-for-all-jobs notification of earlier versions
                 d.arr("loginRequests")?.let { l -> sync("login:", l.map { loginNeed(it.jsonObject) }) }
                 (d["approvals"] as? JsonObject)?.let { approvals(it) }
-                d.arr("asks")?.let { l -> sync("ask:", l.map { askNeed(it.jsonObject) }) }
+                d.arr("asks")?.let { l -> sync("ask:", askNeeds(l.map { it.jsonObject })) }
                 (d["bitwarden"] as? JsonObject)?.let { bitwarden(it) }
                 claude(d["claude"])
                 d.arr("plans")?.let { l ->
@@ -266,7 +267,7 @@ class Notifier(
             "login_request" -> if (!replay) once(loginNeed(d))
             "login_request_closed" -> forget { it == "login:${d.str("id")}" }
             "approvals" -> if (!replay) approvals(d)
-            "asks" -> if (!replay) d.arr("list")?.let { l -> sync("ask:", l.map { askNeed(it.jsonObject) }) }
+            "asks" -> if (!replay) d.arr("list")?.let { l -> sync("ask:", askNeeds(l.map { it.jsonObject })) }
             "bitwarden" -> if (!replay) bitwarden(d)
             "claude" -> if (!replay) claude(d)
             // The chat was read, in any app: its notification here goes away.
@@ -292,6 +293,8 @@ class Notifier(
         val noLabel: String = DECLINE, // what its no reads: the server's words for a job and a tile that send them
         // What a locked screen shows in its place, and whether it is said also while the web page is in use.
         val hidden: String = "Waiting for your OK", val evenOnWeb: Boolean = false,
+        // The other asks of its card of several (#277): one that joins later, or the first answered on its own, rings nothing new.
+        val also: List<String> = emptyList(),
     )
 
     /** Claude is signed out: one notification per sign-out; a tap opens the app. Signed in again: it goes, and may ring the next time. */
@@ -335,6 +338,12 @@ class Notifier(
         return Need("ask:${o.str("id")}", place.title, o.str("botColor"), words.text, at = time(o.str("at")), yes = words.yes, bot = o.str("botId"), no = words.decline, open = place.open)
     }
 
+    /** The feed's asks, one notification per card: what one run waits on rings once, with its card's title and no buttons. */
+    private fun askNeeds(list: List<JsonObject>): List<Need> = askNotices(list).map { c ->
+        val n = askNeed(c.first)
+        if (c.batch == null) n else n.copy(key = "ask:batch:${c.batch.id}", text = c.batch.title.ifBlank { n.text.ifBlank { "Needs your OK" } }, yes = null, no = false, also = c.asks)
+    }
+
     private fun approvals(a: JsonObject) {
         a.arr("jobs")?.let { l -> sync("job:", l.map { jobNeed(it.jsonObject) }) }
         a.arr("memoryChanges")?.let { l ->
@@ -362,16 +371,27 @@ class Notifier(
     }
 
     /** Brings one kind of need up to date with what's open now: new ones ring once, answered ones go away. */
+    // The asks of each card of several that shows (#277), by its key: when the card goes while one of them still
+    // waits (the others answered), that one shows on its own again, without a sound.
+    private val members = mutableMapOf<String, List<String>>()
+
     private fun sync(prefix: String, open: List<Need>) {
-        val keys = open.map { it.key }.toSet()
+        val keys = open.flatMap { listOf(it.key) + it.also }.toSet()
+        val again = members.filterKeys { it.startsWith(prefix) && it !in keys }.values.flatten().filter { it in keys }.toSet()
+        members.keys.removeAll { it.startsWith(prefix) && it !in keys }
         forget { it.startsWith(prefix) && it !in keys }
-        open.forEach { once(it) }
+        if (rung.removeAll(again)) saveRung()
+        open.forEach { once(it, quiet = it.key in again) }
     }
 
-    private fun once(n: Need) {
-        if (n.key.endsWith(":") || n.key in rung) return
-        rung += n.key; saveRung()
-        need(n, quiet = n.key in restore)
+    /** Rings once. A card of several rings when none of its asks rang before; one that grew is drawn again quietly, with its new title. */
+    private fun once(n: Need, quiet: Boolean = false) {
+        val all = listOf(n.key) + n.also
+        if (n.key.endsWith(":") || all.all { it in rung }) return
+        val rang = all.any { it in rung }
+        rung += all; saveRung()
+        if (n.also.isNotEmpty()) members[n.key] = n.also
+        need(n, quiet = quiet || rang || n.key in restore)
     }
 
     /** It's answered: its notification goes away, and it may ring again if it ever comes back. */
@@ -602,6 +622,23 @@ internal fun signedOutStep(signedOut: Boolean?, rung: Boolean): SignedOutStep = 
  * Not what is said [evenOnWeb]: that Claude is signed out.
  */
 internal fun staysSilent(webActive: Boolean, evenOnWeb: Boolean): Boolean = webActive && !evenOnWeb
+
+/**
+ * One notification per card (#277): an ask of its own, or the first ask of a card of several ([batch]) with the keys
+ * of all its [asks]. The web push does the same (lib/push.js).
+ */
+internal data class AskNotice(val first: JsonObject, val batch: AskBatch?, val asks: List<String>)
+
+internal fun askNotices(list: List<JsonObject>): List<AskNotice> {
+    val batchOf = { o: JsonObject -> AskBatch.of(o["batch"]) }
+    val byBatch = list.filter { batchOf(it) != null }.groupBy { batchOf(it)!!.id }
+    val drawn = mutableSetOf<String>()
+    return list.mapNotNull { o ->
+        val batch = batchOf(o) ?: return@mapNotNull AskNotice(o, null, emptyList())
+        if (!drawn.add(batch.id)) return@mapNotNull null
+        AskNotice(o, batch, byBatch.getValue(batch.id).map { "ask:${it.str("id")}" })
+    }
+}
 
 /** `yesOn` of an entry whose yes is given on the ask's card and nowhere else (docs/api.md). */
 internal const val YES_ON_CARD = "card"

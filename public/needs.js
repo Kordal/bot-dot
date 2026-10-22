@@ -43,6 +43,30 @@ function groupOfNeed(x) {
   return { id: from.groupId, name: name || 'a group' };
 }
 
+// One card per run (docs/api.md, "One card per run"): the asks that share a `batch` are one card, where the first of
+// them stood, with "Allow all" and "Decline all" above each ask's own card. A batch with one ask left on the page is
+// that ask's card again. items: what stands on the page or in the chat, open ones only.
+const batchIdOf = (x) => (x.kind === 'ask' && typeof x.a.batch?.id === 'string' && x.a.batch.id ? x.a.batch.id : null);
+function batched(items) {
+  const count = new Map();
+  for (const x of items) { const id = batchIdOf(x); if (id) count.set(id, (count.get(id) || 0) + 1); }
+  const out = [];
+  const cards = new Map();
+  for (const x of items) {
+    const id = batchIdOf(x);
+    if (!id || count.get(id) < 2) { out.push(x); continue; }
+    if (!cards.has(id)) {
+      const card = { key: `batch:${id}`, kind: 'batch', id, title: said(x.a.batch.title), items: [], bot: x.bot, color: x.color, ...(x.group ? { group: x.group } : {}) };
+      cards.set(id, card);
+      out.push(card);
+    }
+    cards.get(id).items.push(x);
+  }
+  return out;
+}
+// What "Allow all" leaves to an ask's own buttons (`own` on its batch): a Vault secret, an action too long to show.
+const ownYes = (x) => x.a?.batch?.own === true;
+
 // A change has a card of its own: a second change to the same job or tile, proposed after the first was answered
 // on this page, is a new card and not the answered one.
 const changeKey = (x) => (changeOf(x) ? `:change:${said(changeOf(x).at)}` : '');
@@ -57,7 +81,7 @@ function showNeeds() {
   tellTab();
   const banner = $('#needs-banner');
   if (!banner) return;
-  const items = needsItems();
+  const items = batched(needsItems());
   const review = () => (items.length === 1 ? openNeed(items[0]) : setView('needs'));
   banner.classList.toggle('hidden', !items.length || state.view === 'needs');
   if (items.length) {
@@ -85,6 +109,7 @@ const needsOpen = new Set(); // cards clicked open (the rest show a few lines ea
 
 // here: the Chief chat the card stands in (its id), null on the Needs you page and in a bot's chat.
 function needCardHTML(x, here = null) {
+  if (x.kind === 'batch') return batchCardHTML(x, here);
   // Whose it is, and for a card asked in a group, in which: the group's own chat says only the bot.
   const who = x.bot ? `${botLabel(x.bot)}${x.group && here !== `group:${x.group.id}` ? ` <span class="need-in">in ${esc(x.group.name)}</span>` : ''}` : '';
   // Under the body, one line that says who carries on after a yes, when the server says something does.
@@ -200,6 +225,23 @@ function needCardHTML(x, here = null) {
   if (x.kind === 'bitwarden') return card('Bitwarden is locked', "Bots can't use your saved logins until you unlock it.", '', `<button class="btn sm primary" data-need-open>Unlock</button>`);
   if (x.kind === 'pay') return card(`Pay on ${esc(x.r.site)}`, x.r.amount ? esc(x.r.amount) : '', '', `<button class="btn sm primary" data-need-open>Review</button>`);
   return card(`A login for ${esc(x.r.site)}`, x.r.reason ? esc(x.r.reason) : '', '', `<button class="btn sm primary" data-need-open>Add it</button>`);
+}
+
+// The card of what one run waits on: whose, the server's title, "Decline all" and "Allow all", and each ask's own
+// card under them, with its own buttons. An ask whose yes is its own (ownYes) says so above the buttons.
+function batchCardHTML(x, here = null) {
+  const who = x.bot ? `${botLabel(x.bot)}${x.group && here !== `group:${x.group.id}` ? ` <span class="need-in">in ${esc(x.group.name)}</span>` : ''}` : '';
+  const own = x.items.filter(ownYes).map((s) => `“${said(s.a.title) || said(s.a.text)}”`);
+  const line = !own.length ? '' : own.length === 1 ? `Allow all leaves ${own[0]} to its own Allow.` : `Allow all leaves ${own.slice(0, -1).join(', ')} and ${own.at(-1)} to their own Allow.`;
+  const yes = x.items.some((s) => !ownYes(s) && !rowsCut(s.a));
+  return `
+    <div class="card need-batch" data-batch="${esc(x.key)}">
+      ${who ? `<div class="need-who">${who}</div>` : ''}
+      <div class="need-title">${esc(x.title || `${x.items.length} things wait for your OK`)}</div>
+      ${line ? `<div class="need-meta need-own">${esc(line)}</div>` : ''}
+      <div class="need-actions"><button class="btn sm" data-batch-no>Decline all</button>${yes ? '<button class="btn sm primary" data-batch-yes>Allow all</button>' : ''}</div>
+      <div class="need-batch-items">${x.items.map((s) => needCardHTML(s, here)).join('')}</div>
+    </div>`;
 }
 
 // Words of the server's that a card draws: a string, trimmed. '' for anything else.
@@ -353,7 +395,7 @@ const rowsCut = (a) => Array.isArray(a?.rows) && a.rows.some((r) => r?.more === 
 const tooLong = (a) => a?.more === true;
 
 // What a card draws beyond its key that can change while it waits: the page draws it again when this does.
-const needLive = (x, here = null) => [thenLine(x.then, here), x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
+const needLive = (x, here = null) => [x.a?.batch?.id, x.a?.batch?.title, x.a?.batch?.own, thenLine(x.then, here), x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
 
 // Back to where Needs you was opened from (state.cameFrom, needs-return.js): false when there is nowhere.
 function leaveNeeds() {
@@ -385,11 +427,13 @@ function renderNeeds() {
   const sig = JSON.stringify([open.map((x) => [x.key, x.job?.cron, x.job?.prompt, x.job?.script, x.chat?.waiting?.text, needLive(x)]), [...needsDone.keys()], all.label, all.line]);
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
+  const drawn = batched(open);
   root.innerHTML = `
     <div class="section-head"><div>${needsBack()}<h1>Needs you</h1>${open.length ? '' : '<p>All done.</p>'}${all.line ? `<p class="needs-left">${esc(all.line)}</p>` : ''}</div>
       ${all.label ? `<button class="btn primary" id="needs-all">${esc(all.label)}</button>` : ''}</div>
-    <div class="need-grid">${open.map((x) => needCardHTML(x)).join('')}${[...needsDone.values()].join('')}</div>`;
+    <div class="need-grid">${drawn.map((x) => needCardHTML(x)).join('')}${[...needsDone.values()].join('')}</div>`;
   wireNeedCards(root, items);
+  wireBatchCards(root, drawn);
   const back = $('[data-needs-back]', root);
   if (back) back.onclick = () => { if (!leaveNeeds()) showList(); };
   const button = $('#needs-all', root);
@@ -410,6 +454,18 @@ function wireNeedCards(root, items) {
     if (no) no.onclick = () => { if (!asksBeforeNo(x) || confirm('Remove this job?')) whileBusy(no, 'Declining…', () => decide(x, false)); };
     if (op) op.onclick = () => openNeed(x);
     el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
+  });
+}
+
+// Allow all and Decline all on the cards of several (batchCardHTML). drawn: the cards as they were drawn.
+function wireBatchCards(root, drawn) {
+  const batches = new Map(drawn.filter((x) => x.kind === 'batch').map((x) => [x.key, x]));
+  $$('.need-batch[data-batch]', root).forEach((el) => {
+    const b = batches.get(el.dataset.batch);
+    if (!b) return;
+    const yes = $('[data-batch-yes]', el), no = $('[data-batch-no]', el);
+    if (yes) yes.onclick = () => whileBusy(yes, 'Allowing…', () => decideBatch(b, true));
+    if (no) no.onclick = () => whileBusy(no, 'Declining…', () => decideBatch(b, false));
   });
 }
 
@@ -485,8 +541,10 @@ function updateChatNeeds(thread, scope) {
   const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160;
   box.dataset.sig = sig;
   box.dataset.scope = scope;
-  box.innerHTML = done.map((d) => `<div class="chat-decided">${esc(d.title)} · ${esc(d.label)}</div>`).join('') + items.map((x) => needCardHTML(x, here)).join('');
+  const drawn = batched(items);
+  box.innerHTML = done.map((d) => `<div class="chat-decided">${esc(d.title)} · ${esc(d.label)}</div>`).join('') + drawn.map((x) => needCardHTML(x, here)).join('');
   wireNeedCards(box, items);
+  wireBatchCards(box, drawn);
   if (atBottom) thread.scrollTop = thread.scrollHeight;
 }
 
@@ -511,6 +569,31 @@ async function decide(x, yes, redraw = true, always = false) {
     else if (x.kind === 'suggestion') await (yes ? api(`/chief/chats/${x.chat.id}/messages`, { method: 'POST', body: { text: PLAN_APPROVAL } }) : api(`/chief/chats/${x.chat.id}/dismiss`, { method: 'POST' }));
     else answer = await api(`/memory/pending/${x.p.id}`, { method: 'POST', body: { approve: yes, ...(always ? { always } : {}) } });
   } catch (e) { toast(e.message, true); return; }
+  markAnswered(x, yes, always, answer, chats);
+  if (redraw) refreshNeeds();
+}
+
+// "Allow all" or "Decline all" on the card of what one run waits on: the server answers each of its asks as its own
+// card would (`POST /api/asks/batch/:id`, with the asks this card shows), and each card reads its answer. An ask that could not be answered keeps
+// its card and says why; one whose yes is its own (`left`) waits for it.
+async function decideBatch(b, yes) {
+  const chats = new Map(b.items.map((x) => [x.a.id, chatsOfAsk(x)]));
+  let answer;
+  try { answer = await api(`/asks/batch/${encodeURIComponent(b.id)}`, { method: 'POST', body: { yes, ids: b.items.map((x) => x.a.id) } }); } catch (e) { toast(e.message, true); return; }
+  const failed = [];
+  for (const one of Array.isArray(answer?.answers) ? answer.answers : []) {
+    const x = b.items.find((s) => s.a.id === one?.id);
+    if (!x) continue;
+    if (one.ok === false) { failed.push(said(one.error) || 'It could not be answered.'); continue; }
+    markAnswered(x, yes, false, one, chats.get(x.a.id) || []);
+  }
+  if (failed.length) toast(failed.join(' '), true);
+  refreshNeeds();
+}
+
+// A card answered: it fades and says so, here and in every chat it stood in. After a yes the server may say who
+// carries on (`carriesOn`): its words follow the page's own, "Allowed · it carries on".
+function markAnswered(x, yes, always, answer, chats) {
   const word = answeredWord(x, yes, always, answer);
   const carries = yes && typeof answer?.carriesOn?.text === 'string' ? answer.carriesOn.text.trim() : '';
   const label = carries ? `${word} · ${carries}` : word;
@@ -527,7 +610,6 @@ async function decide(x, yes, redraw = true, always = false) {
   });
   // Answered on the Needs you page: the chats the card stood in say so too, unless it was answered there.
   if (away !== null) for (const scope of chats) if (!chatDecided.has(`${scope} ${x.key}`)) answeredAway.set(`${scope} ${x.key}`, { scope, title: away, label });
-  if (redraw) refreshNeeds();
 }
 
 // The word a card reads after its answer, before who carries on. The page's own where it has one; for a job and a

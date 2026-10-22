@@ -672,7 +672,12 @@ data class Ask(
     // The group it was asked in (docs/api.md, "A card and a question in a group"), kept as it came. Read it through [group].
     @SerialName("groupId") val groupIdValue: JsonElement? = null,
     @SerialName("groupName") val groupNameValue: JsonElement? = null,
+    // The card it shares with everything else its run waits on (docs/api.md, "One card per run"), kept as it came.
+    @SerialName("batch") val batchValue: JsonElement? = null,
 ) {
+    /** The card of several it is on, or null: a card of its own. */
+    val batch: AskBatch? get() = AskBatch.of(batchValue)
+
     /** The group it was asked in, or null: a card of its bot's own chat. */
     val group: GroupRef? get() = GroupRef.of(groupIdValue, groupNameValue)
 
@@ -829,6 +834,61 @@ data class Answered(val text: String? = null, val kept: Boolean = false, val car
         fun of(answer: String): Answered {
             val o = runCatching { Api.JSON.parseToJsonElement(answer) as? JsonObject }.getOrNull()
             return Answered(o?.get("text").textOrNull(), isTrue(o?.get("kept")), CarriesOn.of(answer))
+        }
+    }
+}
+
+/**
+ * The card of everything one bot run, or the Chief in one chat, waits on (`batch`, docs/api.md "One card per run"):
+ * its [id], the server's [title], and whether "Allow all" leaves this ask's yes to its own buttons ([own]: a Vault
+ * secret, an action too long to show in full).
+ */
+data class AskBatch(val id: String, val title: String, val own: Boolean = false) {
+    companion object {
+        fun of(v: JsonElement?): AskBatch? {
+            val o = v as? JsonObject ?: return null
+            val id = o["id"].textOrNull()?.takeIf { it.isNotBlank() } ?: return null
+            return AskBatch(id, o["title"].textOrNull().orEmpty(), isTrue(o["own"]))
+        }
+    }
+}
+
+/** What Needs you draws of the asks: an ask on its own card, or the asks of one card of several ([Several]). */
+sealed interface AskCard {
+    val key: String
+    data class One(val ask: Ask) : AskCard { override val key get() = "a:${ask.id}" }
+    data class Several(val id: String, val title: String, val asks: List<Ask>) : AskCard { override val key get() = "b:$id" }
+}
+
+/**
+ * The asks as cards, in their order: those that share a `batch` are one card where the first of them stood. A batch
+ * with one ask left (the others answered) is that ask's own card again. The web page does the same (needs.js batched).
+ */
+fun askCards(asks: List<Ask>): List<AskCard> {
+    val byBatch = asks.filter { it.batch != null }.groupBy { it.batch!!.id }.filterValues { it.size > 1 }
+    val drawn = mutableSetOf<String>()
+    return asks.mapNotNull { a ->
+        val id = a.batch?.id
+        val several = id?.let { byBatch[it] } ?: return@mapNotNull AskCard.One(a)
+        if (drawn.add(id)) AskCard.Several(id, several.first().batch!!.title, several) else null
+    }
+}
+
+/**
+ * The server's answer to "Allow all" or "Decline all" (`POST /api/asks/batch/:id`): each ask it answered, by id, with
+ * what its own card's answer says, or [Done.error] where it could not be answered and keeps its card.
+ */
+data class BatchAnswered(val done: List<Done>) {
+    data class Done(val id: String, val answered: Answered?, val error: String?)
+    companion object {
+        fun of(answer: String): BatchAnswered {
+            val list = runCatching { (Api.JSON.parseToJsonElement(answer) as? JsonObject)?.get("answers") as? JsonArray }.getOrNull().orEmpty()
+            return BatchAnswered(list.mapNotNull { e ->
+                val o = e as? JsonObject ?: return@mapNotNull null
+                val id = o["id"].textOrNull() ?: return@mapNotNull null
+                if ((o["ok"] as? JsonPrimitive)?.booleanOrNull == false) Done(id, null, o["error"].textOrNull() ?: "It could not be answered.")
+                else Done(id, Answered.of(o.toString()), null)
+            })
         }
     }
 }

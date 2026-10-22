@@ -28,7 +28,8 @@ function registryStub() {
 }
 const ask = (body) => srv.asChief('/asks', { method: 'POST', body: { kind: 'tool', bot: coder.id, reason: 'It needs it for the work.', chatId: chat.id, ...body } });
 // An entry of the feed without its time.
-const entry = (e) => ({ ...e, at: null });
+// What each entry says of itself; the card it shares with the Chief's other asks in that chat (#277) aside.
+const entry = ({ batch, ...e }) => ({ ...e, at: null }); // eslint-disable-line no-unused-vars
 
 before(async () => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-tool-notification-'));
@@ -58,6 +59,7 @@ test('a tool from a link says so in its notification and is answered on its card
   const both = await live.wait('asks', (d) => d.waiting === 2);
   live.close();
   assert.deepEqual(both.data.list.map(entry), [registryEntry, linkEntry]);
+  assert.ok(both.data.list.every((a) => a.batch?.id === both.data.list[0].batch?.id && a.batch.count === 2), 'asked in one Chief chat: one card');
   assert.ok(!('yesOn' in both.data.list[0]), 'a registry tool is answered from its notification, as before');
 
   // `hello`, for an app that connects while they wait.

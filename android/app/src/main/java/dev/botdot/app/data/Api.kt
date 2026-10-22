@@ -19,6 +19,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.add
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -169,6 +171,9 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
     suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false): Answered =
         Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); put("always", always) }))
+    /** "Allow all" or "Decline all" on the card of everything one run waits on (`ask-batches`): each ask answered as its own card would. */
+    suspend fun answerAskBatch(id: String, yes: Boolean, ids: List<String>): BatchAnswered =
+        BatchAnswered.of(send("POST", "/asks/batch/${enc(id)}", buildJsonObject { put("yes", yes); putJsonArray("ids") { ids.forEach { add(it) } } }))
     /** Every bot's latest runs, newest first. */
     suspend fun search(q: String): List<ChatHit> = json.decodeFromString(get("/search?q=${enc(q)}"))
     suspend fun recentRuns(limit: Int = 200): List<Run> = json.decodeFromString(get("/runs?limit=$limit"))
