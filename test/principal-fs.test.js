@@ -97,3 +97,26 @@ test('workspace initialization creates and preserves a Git repository as its pri
     assert.equal(api.readFileSync(path.join(dir, '.git', 'review-marker'), 'utf8'), 'preserved');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('the workspace file manager lists a folder and counts what it holds in one call each, never following a link (#296)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'principal-list-'));
+  const api = createPrincipalFs({ dataDir: root, client: transport(root), enabled: true });
+  try {
+    const dir = path.join(root, 'workspaces', 'alice');
+    api.mkdirSync(path.join(dir, 'b-folder', 'inner'), { recursive: true });
+    api.writeFileSync(path.join(dir, 'b-folder', 'inner', 'x.txt'), 'x');
+    api.writeFileSync(path.join(dir, 'a.txt'), 'hello');
+    api.writeFileSync(path.join(dir, 'file10.txt'), '');
+    api.writeFileSync(path.join(dir, 'file9.txt'), '');
+    fs.symlinkSync(os.tmpdir(), path.join(dir, 'z-link'));
+    const listed = api.listDirSync(dir, 3);
+    assert.equal(listed.total, 5);
+    assert.deepEqual(listed.entries.map((e) => [e.name, e.type]), [['b-folder', 'folder'], ['a.txt', 'file'], ['file9.txt', 'file']]);
+    assert.equal(listed.entries[1].size, 5);
+    assert.ok(listed.entries[1].mtimeMs > 0);
+    assert.equal(api.listDirSync(dir, 10).entries.at(-1).type, 'link');
+    assert.deepEqual(api.countTreeSync(dir, 100), { files: 5, folders: 2, capped: false });
+    assert.equal(api.countTreeSync(dir, 3).capped, true);
+    assert.throws(() => api.listDirSync(path.join(dir, 'z-link'), 10), { code: 'EACCES' });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
