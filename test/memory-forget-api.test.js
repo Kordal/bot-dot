@@ -267,18 +267,22 @@ test('an approved and a declined memory change each write one line of the audit 
   const b = await bot();
   const h = await held(t, b, ownerAsks(srv, b, 'Read the page and remember what it says about me.'));
   await uses(h, 'WebFetch');
-  const one = await mem(h, { action: 'add', text: 'The owner plays the cello', scope: 'shared' });
-  const two = await mem(h, { action: 'add', text: 'The owner plays the oboe', scope: 'shared' });
+  // Saved at once (ADR 059); their removals wait.
+  const notes = [];
+  for (const text of ['The owner plays the cello', 'The owner plays the oboe']) notes.push((await mem(h, { action: 'add', text, scope: 'shared' })).note);
+  const one = await mem(h, { action: 'remove', id: notes[0].id });
+  const two = await mem(h, { action: 'remove', id: notes[1].id });
   assert.deepEqual([one.result, two.result], ['waits', 'waits']);
-  const saved = (await srv.api(`/memory/pending/${one.id}`, { method: 'POST', body: { approve: true } })).data;
+  await srv.api(`/memory/pending/${one.id}`, { method: 'POST', body: { approve: true } });
   await srv.api(`/memory/pending/${two.id}`, { method: 'POST', body: { approve: false } });
   assert.deepEqual(auditLog(srv).filter((l) => l.bot === b.id).map(({ time, ...l }) => l), [
-    { actor: 'owner', action: 'memory.approved', change: 'add', bot: b.id, notes: [saved.note.id] },
-    { actor: 'owner', action: 'memory.declined', change: 'add', bot: b.id, notes: [] },
+    { actor: 'owner', action: 'memory.approved', change: 'remove', bot: b.id, notes: [notes[0].id] },
+    { actor: 'owner', action: 'memory.declined', change: 'remove', bot: b.id, notes: [notes[1].id] },
   ]);
   assert.ok(!/cello|oboe/.test(fs.readFileSync(path.join(srv.data, 'audit.log'), 'utf8')));
   // The chip of the run that asked no longer holds the text once the change is answered.
-  assert.deepEqual((await learnedOf(h.run)).map((x) => x.chip), ['Asked to add to the shared memory (since answered)', 'Asked to add to the shared memory (since answered)']);
+  assert.deepEqual((await learnedOf(h.run)).filter((x) => x.kind === 'memory-pending').map((x) => x.chip), ['Asked to remove from the shared memory (since answered)', 'Asked to remove from the shared memory (since answered)']);
+  await srv.api(`/memory/notes/${notes[1].id}`, { method: 'DELETE' });
 });
 
 test('a removed note is listed and restored by a bot only in a run the owner started', async (t) => {
@@ -349,13 +353,11 @@ test('remember with an end date saves a passing state for all bots: the chip nam
   const other = await bot();
   const next = await held(t, other, ownerAsks(srv, other, 'Where am I this week?'));
   assert.match(next.rec.system, new RegExp(`<shared-memory>[\\s\\S]*- \\[${id}\\] \\(the owner said, \\d{4}-\\d\\d-\\d\\d, until ${inDays(6)}\\) In Berlin[\\s\\S]*</shared-memory>`));
-  // A shared change that waits keeps its end until the owner's yes.
+  // After outside content a shared one is saved at once with its end (ADR 059).
   await uses(next, 'WebFetch');
-  const waits = await mem(next, { action: 'add', text: 'In Hamburg', scope: 'shared', until: inDays(2) });
-  assert.equal(waits.result, 'waits');
-  assert.equal((await srv.api('/memory/pending')).data.find((p) => p.id === waits.id).until, inDays(2));
-  assert.equal((await srv.api(`/memory/pending/${waits.id}`, { method: 'POST', body: { approve: true } })).data.note.until, inDays(2));
-  await srv.api(`/memory/notes/${id}`, { method: 'DELETE' });
+  const later = await mem(next, { action: 'add', text: 'In Hamburg', scope: 'shared', until: inDays(2) });
+  assert.deepEqual([later.result, later.note.until], ['saved', inDays(2)]);
+  for (const n of [id, later.note.id]) await srv.api(`/memory/notes/${n}`, { method: 'DELETE' });
 });
 
 test('what to save is stated once, where the instructions are built, and the tools\' descriptions repeat none of it', async (t) => {
@@ -404,7 +406,8 @@ test('after a bot is deleted, no note, version, waiting change or indexed run of
   const id = noteId(await h.tools.text('remember', { note: 'The OKAPI lives in the Ituri forest' }));
   await h.tools.text('update_memory', { id, note: 'The OKAPI lives in the Ituri rainforest' });
   await uses(h, 'WebFetch', own);
-  assert.equal((await mem(h, { action: 'add', text: 'The owner likes the OKAPI', scope: 'shared' }, own)).result, 'waits');
+  const shared = (await mem(h, { action: 'add', text: 'The owner likes the zoo', scope: 'shared' }, own)).note; // shared: it outlives the bot
+  assert.equal((await mem(h, { action: 'remove', id: shared.id }, own)).result, 'waits'); // a removal after the web waits (ADR 059)
   await h.end('The OKAPI is noted.');
   const kept = await ended(t, stays, 'A question about the TAPIR', 'The TAPIR is fine.', own);
   assert.equal((await own.api('/search?q=okapi')).data.length, 1);

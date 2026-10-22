@@ -34,7 +34,7 @@ test('web: still asked, unchanged', () => {
     ['removing a job in the jobs panel', /if \(!confirm\('Remove this job\?'\)\) return;/],
     ['Decline on a job\'s card in Needs you, of a server whose button does not say that it removes', /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) whileBusy\(no, 'Declining…', \(\) => decide\(x, false\)\);/],
     ['Always allow', /confirm\(x\.a\.chief \? `Allow this exact connector action for \$\{CHIEF_BOT\.name\} from now on, with any arguments\?` : 'Allow this exact connector action for this bot in future runs, with any arguments\?'\)/],
-    ['Always allow on a shared-note card and on a Chief\'s change after the web, in the server\'s words (#280)', /if \(confirm\(said\(x\.p\.alwaysAsk\) \|\| `\$\{said\(x\.p\.always\)\}\?`\)\)[^]*if \(confirm\(said\(x\.a\.warning\) \|\| `\$\{said\(x\.a\.always\)\}\?`\)\)/],
+    ['Always allow on a Chief\'s change after the web, in the server\'s words (#280)', /if \(confirm\(said\(x\.a\.warning\) \|\| `\$\{said\(x\.a\.always\)\}\?`\)\)/],
     ['Always approve', /confirm\(scriptWarning\(x\.bot\.name, x\.job\.name\)\)/],
     ['disconnecting an app', /confirm\(`Disconnect \$\{c\?\.app\?\.name \|\| c\?\.toolkit\}\?/],
     ['signing out of Claude', /confirm\(`Sign out of Claude\? Bots can't run until you sign in again\./],
@@ -46,7 +46,7 @@ test('web: still asked, unchanged', () => {
     ['switching the account to a new version now (#259)', /if \(!confirm\('Update now\? Your account moves to the new version: your bots restart, and work still running stops\.'\)\) return;/],
     ['removing the Anthropic API key (#35)', /confirm\(c\.subscription === true \? 'Remove the API key\? Bots will run on your Claude subscription\.'/],
   ]) assert.match(app, re, what);
-  assert.equal((app.match(/\bconfirm\(/g) || []).length, 23, 'six questions fewer, none about a note, and no undo (#305); one more to sign out everywhere (#468); none to update botdot, which the admin does (#473); one more to remove the API key (#35); two more to update the account\'s computer and erase a bot\'s old one (#107); one more to delete a bot\'s file (#235); one more to remove a secret kept in a file (#253); one more to switch the account to a new version now, before its bots restart (#259); two more before "Always allow" on a shared-note card and on a Chief\'s change after the web (#280)');
+  assert.equal((app.match(/\bconfirm\(/g) || []).length, 22, 'six questions fewer, none about a note, and no undo (#305); one more to sign out everywhere (#468); none to update botdot, which the admin does (#473); one more to remove the API key (#35); two more to update the account\'s computer and erase a bot\'s old one (#107); one more to delete a bot\'s file (#235); one more to remove a secret kept in a file (#253); one more to switch the account to a new version now, before its bots restart (#259); one more before "Always allow" on a Chief\'s change after the web (#280; the shared-note one went with ADR 059)');
 });
 
 // A bot's settings form, as far as the permission mode goes, wired by the page's own lines.
