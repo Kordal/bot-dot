@@ -147,7 +147,7 @@ internal fun AsksMark(color: String?, modifier: Modifier = Modifier) {
 
 /**
  * The Board's strip at the top of the list: each tile's dot and name, and a value's value (a switch's dot is
- * filled when it's on). As many as fit whole; a tap opens the Board. With no tile to show it says so
+ * filled when it's on). As many as fit whole, or the first cut short; a tap opens the Board. With no tile to show it says so
  * ("Board · Nothing on it yet"); not there before the Board has loaded.
  */
 @Composable
@@ -183,7 +183,7 @@ internal fun DashboardStrip(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot
                     Text(buildAnnotatedString {
                         append(t.title)
                         if (text.isNotEmpty()) withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(" $text") }
-                    }, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, softWrap = false)
+                    }, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
         }
@@ -262,7 +262,7 @@ internal fun NeedsCard(waiting: List<dev.botdot.app.data.Waiting>, onReview: () 
 /** "1 needs you", "3 need you": the Needs you card's first line, the web page's words. */
 internal fun needsCount(n: Int) = if (n == 1) "1 needs you" else "$n need you"
 
-/** Its children in a row, as many as fit whole: the rest are left out, not cut off. */
+/** Its children in a row, as many as fit whole: the rest are left out, not cut off. When none fits, the first is cut short. */
 @Composable
 internal fun FitRow(modifier: Modifier, gap: androidx.compose.ui.unit.Dp, content: @Composable () -> Unit) {
     androidx.compose.ui.layout.Layout(content, modifier) { children, constraints ->
@@ -277,6 +277,8 @@ internal fun FitRow(modifier: Modifier, gap: androidx.compose.ui.unit.Dp, conten
             shown += it to at
             x = at + it.width
         }
+        // Not even the first fits whole (a narrow list, #493): it is cut short rather than the row left blank.
+        if (shown.isEmpty()) children.firstOrNull()?.let { shown += it.measure(constraints.copy(minWidth = 0)) to 0 }
         val h = shown.maxOfOrNull { it.first.height } ?: 0
         layout(constraints.maxWidth, h) { for ((it, at) in shown) it.placeRelative(at, (h - it.height) / 2) }
     }

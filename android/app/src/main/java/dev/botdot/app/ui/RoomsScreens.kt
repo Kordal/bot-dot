@@ -49,8 +49,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
@@ -73,7 +77,7 @@ import kotlinx.coroutines.launch
 
 private const val NOT_CONNECTED = "Not connected to botdot"
 
-/** "Shared rooms" in the list, under Needs you and the Board: how many rooms, and the invitations that wait. */
+/** "Shared rooms" in the list, under Needs you and the Board, with the invitations that wait. */
 @Composable
 internal fun RoomsRow(app: BotDotApp, onClick: () -> Unit) {
     val p = LocalPaper.current
@@ -81,22 +85,23 @@ internal fun RoomsRow(app: BotDotApp, onClick: () -> Unit) {
     val list by app.rooms.list.collectAsState()
     if (!on) return
     val invites = list?.invites?.size ?: 0
-    val rooms = list?.rooms?.size ?: 0
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp).clickable(onClickLabel = ROOMS, onClick = onClick).padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically) {
-        Text(ROOMS, color = p.text, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
-        Text(" · " + RoomWords.rowLine(rooms, invites), color = if (invites > 0) p.warnText else p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        // One line however narrow the list (#493): the name and what waits in one text that ends in "…".
+        val line = RoomWords.rowLine(invites)
+        Text(buildAnnotatedString {
+            withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(ROOMS) }
+            if (line != null) withStyle(SpanStyle(color = p.warnText)) { append(" · $line") }
+        }, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Spacer(Modifier.size(8.dp))
         Text("›", color = p.faint)
     }
 }
 
 /** What the list's row and the Rooms screen say, in one place for their tests. */
 internal object RoomWords {
-    fun rowLine(rooms: Int, invites: Int): String = when {
-        invites > 0 -> "$invites invitation${if (invites == 1) "" else "s"}"
-        rooms == 0 -> "none yet"
-        else -> "$rooms room${if (rooms == 1) "" else "s"}"
-    }
+    /** What the row says after its name: only the invitations that wait (#493), nothing otherwise. */
+    fun rowLine(invites: Int): String? = if (invites > 0) "$invites invitation${if (invites == 1) "" else "s"}" else null
 
     const val NOT_A_LINK = "That isn't a room's invite link."
 
