@@ -27,7 +27,7 @@ The account's computer as one bot works on it: its own screen (a desktop with it
 _Avoid_: VM, sandbox, desktop
 
 **Group**:
-One chat with two to six bots, its members. The user writes once and every member reads it; each answers under its own name or passes. A bot can be in several groups, and its own chat with the user stays apart from all of them. In the API a group is a "group chat" (`/api/group-chats`), because the name `group` was taken by the category.
+One chat with two to six bots, its members. The user writes once and every member reads it; each answers under its own name or passes. A bot can be in several groups, and its own chat with the user stays apart from all of them. A member can also write there on its own (a post, `post_to_group`): only the members it names answer it. In the API a group is a "group chat" (`/api/group-chats`), because the name `group` was taken by the category.
 _Avoid_: team, room, channel, group chat (in text for the user)
 
 **Shared room**:

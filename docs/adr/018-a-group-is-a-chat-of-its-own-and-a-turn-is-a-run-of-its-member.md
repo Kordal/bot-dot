@@ -43,6 +43,8 @@ Resolved by GRP-001 (2026-10-08):
 - **A group's routes are the owner's.** The Chief's tools had none until GRP-007. Since then they list the groups, make one, rename one and change its members through these routes, in a turn the owner started and in no other, as [ADR 017](017-the-chief-files-a-note-with-a-bot-in-the-owners-turns.md) holds it for notes; deleting a group and every route of its chat stay the owner's (`docs/api.md`, "The Chief and groups"). A turn is a run, and the Chief's tools read it as they read any run, by its id or with `?group=`, without the text of one that is left out ([ADR 016](016-a-forgotten-note-is-erased-and-a-removed-one-ends.md)).
 - **`chat_seen` is never sent for a group,** and `POST /api/presence` takes no group's chat: both serve apps from before read positions, which know no group.
 
+Amended by [ADR 077](077-a-member-posts-in-its-group-on-its-own.md) (2026-10-23): a member may also write in its group on its own (`post_to_group`). Its post is a run of that member with `posted: true`, and the message kept for its line is marked `from` and holds no word of the owner's.
+
 ## Alternatives
 
 - **A group as a file of messages, like a Chief chat.** One place for the chat, and no reader to change. Rejected for now: a reply would lose Stop, files, cards, the carry-on and memory, or each would be built a second time.
