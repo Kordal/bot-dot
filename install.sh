@@ -1308,14 +1308,19 @@ share() {
   mv "$ACCOUNTS/$1/share/share.json.new" "$ACCOUNTS/$1/share/share.json"
 }
 
-# answers FOLDER: the botdot server whose socket is in FOLDER (an account's, named as it) answers, as the front door
-# asks it, within about 2 minutes (90 tries, each a second apart and at most a second long). A socket alone isn't enough: a botdot server that stopped leaves its socket behind,
-# and the next one removes it only once it starts.
+# answers FOLDER HOME: the botdot server whose socket is in FOLDER (an account's, named as it, its compose file in HOME)
+# answers, as the front door asks it, within about 2 minutes (90 tries, each a second apart and at most a second long).
+# A socket alone isn't enough: a botdot server that stopped leaves its socket behind, and the next one removes it only
+# once it starts. One whose container still runs after that is still starting, and gets up to 10 minutes: an account
+# held at its memory limit started in 6, and was rolled back and said not to run (#519).
 answers() {
   i=0
   until [ -S "$1/botdot.sock" ] && curl -fsS -o /dev/null --max-time 1 -H "X-Botdot-Account: $(basename "$1")" --unix-socket "$1/botdot.sock" http://botdot/api/version </dev/null 2>/dev/null; do
     i=$((i + 1))
-    [ "$i" -lt 90 ] || return 1
+    if [ "$i" -ge 90 ]; then
+      [ "$i" -lt 600 ] && [ -n "$($A compose --project-directory "$2" ps -q --status running bot-dot </dev/null 2>/dev/null)" ] || return 1
+      [ "$i" -gt 90 ] || say "  The account $(basename "$1")'s botdot server is still starting. Waiting up to 10 minutes."
+    fi
     sleep 1
   done
 }
@@ -1425,7 +1430,7 @@ JSON
   # (a resume, a rerun), so changing the owner now would leave the server unable to write its data.
   [ -d "$home/data" ] || { mkdir -p "$home/data"; chown "$uid:$gid" "$home/data"; }
   # From here on what fails puts back what it ran (in an if, so that set -e doesn't end the account first).
-  if ! { chown "$uid:$gid" "$home/compose.yaml" "$aenv" && compose_up "$home" && answers "$folder"; }; then
+  if ! { chown "$uid:$gid" "$home/compose.yaml" "$aenv" && compose_up "$home" && answers "$folder" "$home"; }; then
     [ -f "$home/compose.yaml.before" ] || die "The account $name's botdot server didn't start. See what went wrong with: sudo DOCKER_HOST=unix://$run/docker.sock docker compose --project-directory $home logs"
     # The new version's logs, before its container is replaced by the old one's.
     $A compose --project-directory "$home" logs --no-color --tail 40 </dev/null 2>&1 | sed 's/^/    /' || true
@@ -1433,7 +1438,7 @@ JSON
     mv "$home/compose.yaml.before" "$home/compose.yaml"
     mv "$home/.env.before" "$aenv"
     compose_up "$home" || true
-    answers "$folder" || { ACCOUNT_RESULT=failed; die "Its botdot server didn't start, neither the new version nor the one it ran. See what went wrong with: sudo DOCKER_HOST=unix://$run/docker.sock docker compose --project-directory $home logs"; }
+    answers "$folder" "$home" || { ACCOUNT_RESULT=failed; die "Its botdot server didn't start, neither the new version nor the one it ran. See what went wrong with: sudo DOCKER_HOST=unix://$run/docker.sock docker compose --project-directory $home logs"; }
     die "Its new botdot server didn't start, so it runs the version it ran before."
   fi
   rm -f "$home/compose.yaml.before" "$home/.env.before"
