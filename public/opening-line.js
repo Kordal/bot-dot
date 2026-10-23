@@ -109,6 +109,8 @@ function keeper() {
     // Forget everything: the feed could not say what was missed, and the lists are read again.
     clear() { const had = said.size > 0; said.clear(); return had; },
     of: (chat) => [...(said.get(chat)?.values() || [])].pop() || '',
+    // The line of one run of the chat: '' when it said none.
+    ofRun: (chat, runId) => said.get(chat)?.get(key(runId)) || '',
   };
 }
 

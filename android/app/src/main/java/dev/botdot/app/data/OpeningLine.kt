@@ -156,10 +156,18 @@ class OpeningLines {
     val lines: StateFlow<Map<String, String>> = _lines
     private val _waits = MutableStateFlow<Set<String>>(emptySet())
     val waits: StateFlow<Set<String>> = _waits
+    /** The line of each run that said one, by its id: the rows of a bot's live runs ([LiveRuns]). */
+    private val _runLines = MutableStateFlow<Map<String, String>>(emptyMap())
+    val runLines: StateFlow<Map<String, String>> = _runLines
+    /** The runs that wait for the owner's OK, by their ids. */
+    private val _heldRuns = MutableStateFlow<Set<String>>(emptySet())
+    val heldRuns: StateFlow<Set<String>> = _heldRuns
 
     private fun publish() {
         _lines.value = said.mapValues { it.value.values.last() }
         _waits.value = held.keys.toSet()
+        _runLines.value = said.values.flatMap { it.entries }.filter { it.key.isNotEmpty() }.associate { it.key to it.value }
+        _heldRuns.value = held.values.flatten().toSet()
     }
 
     /** A run waits for the owner's OK ([on]), or no longer does. True when that changed something. */

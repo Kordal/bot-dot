@@ -378,6 +378,7 @@ data class Run(
     val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
     val questions: List<String>? = null, // several questions at once: a card with a box under each
     val quiet: Boolean = false, // a scheduled run with nothing for the owner: no bubble, no notification
+    val btw: Boolean = false, // a quick side question beside the runs going (ADR 063): not one of them
     val learned: List<Learned>? = null, // what it remembered or changed about itself on this run
     val screenshots: Int = 0, // how many screenshots its tools took
     val openingLine: String? = null, // while it runs: what it said it is about to do (OpeningLine)
