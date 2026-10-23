@@ -93,6 +93,7 @@ import dev.botdot.app.ui.RoomChatScreen
 import dev.botdot.app.ui.RoomSettingsScreen
 import dev.botdot.app.ui.RoomsScreen
 import dev.botdot.app.ui.ShareScreen
+import dev.botdot.app.ui.PausedScreen
 import dev.botdot.app.ui.SignInScreen
 import dev.botdot.app.ui.VaultScreen
 import kotlinx.coroutines.launch
@@ -177,7 +178,7 @@ class MainActivity : ComponentActivity() {
                 val toggleList = remember { { listShown = !listShown } }
                 val entry by nav.currentBackStackEntryAsState()
                 val route = entry?.destination?.route
-                val panes = wide && route != null && route != "connect" && route != "sign-in" && route != "share"
+                val panes = wide && route != null && route != "connect" && route != "sign-in" && route != "share" && route != "paused"
                 // What stands left of the chat: from 840 dp the keypad in place of the list (Keypad.home).
                 val home = if (panes) Keypad.home(width.value.toInt()) else Keypad.Home.PHONE
                 val keypad = home == Keypad.Home.KEYPAD
@@ -188,6 +189,16 @@ class MainActivity : ComponentActivity() {
                     if (signInFor == null || signInFor != server || route == null || route == "sign-in" || route == "connect") return@LaunchedEffect
                     panelOff.value()
                     nav.navigate("sign-in") { popUpTo(nav.graph.id) { inclusive = true } }
+                }
+                // The admin paused the account (#466): its screen in place of all, with the way to another account, until
+                // botdot answers again; signed out from there, the sign-in above takes over.
+                val pausedFor by app.session.paused.collectAsState()
+                LaunchedEffect(pausedFor, signInFor, server, route) {
+                    if (route == null || route == "sign-in" || route == "connect") return@LaunchedEffect
+                    if (pausedFor != null && pausedFor == server && route != "paused") {
+                        panelOff.value()
+                        nav.navigate("paused") { popUpTo(nav.graph.id) { inclusive = true } }
+                    } else if (route == "paused" && pausedFor != server && signInFor != server) nav.navigate("home") { popUpTo(nav.graph.id) { inclusive = true } }
                 }
                 // Back from the sign-in in the browser: signed in, the home screen; not, the sign-in screen says why.
                 val browser by app.browserSignIn.state.collectAsState()
@@ -276,7 +287,7 @@ class MainActivity : ComponentActivity() {
                 // Beside the keypad there is no list to hide.
                 CompositionLocalProvider(LocalListToggle provides toggleList.takeIf { panes && !keypad }, LocalChiefName provides chiefName) {
                 // The first-run question for that name, once the phone is in (not while it connects or signs in).
-                if (route != null && route != "connect" && route != "sign-in") ChiefNameQuestion(app)
+                if (route != null && route != "connect" && route != "sign-in" && route != "paused") ChiefNameQuestion(app)
                 Row(Modifier.fillMaxSize().background(p.bg).then(if (wide) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
                 HomePanes(home, width.value.toInt(), listShown,
                     keypad = { m -> Home(m) },
@@ -297,6 +308,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("sign-in") {
                         SignInScreen(app, onChangeServer = { nav.navigate("connect") })
+                    }
+                    composable("paused") {
+                        PausedScreen(app)
                     }
                     composable("home") {
                         if (wide) ChiefScreen(app, "latest", emptyList(), "", onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },

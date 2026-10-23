@@ -139,6 +139,55 @@ class SessionTest {
         assertEquals(url, session.signInNeeded.value)
     }
 
+    @Test fun aPausedAccountShowsItsScreenAndSigningOutLeavesItForTheSignIn() = runBlocking {
+        val session = Session(keep)
+        val api = Api(url, session)
+        signIn(api)
+        val paused = """{"error":"Your account is paused by the admin.","paused":true}"""
+        door.enqueue(json(paused, 503))
+        try { api.bots(); fail("paused") } catch (e: ApiException) { assertEquals(503, e.status) }
+        door.takeRequest()
+        assertEquals(url, session.paused.value)
+        // The front door's own routes answer a paused account too: still paused.
+        door.enqueue(json("""{"account":"ann","admin":false}"""))
+        api.frontDoorSession()
+        door.takeRequest()
+        assertEquals(url, session.paused.value)
+        // A 503 that is not the paused answer (a gateway) says nothing of it.
+        door.enqueue(json("""{"error":"Your account is starting.","starting":true}""", 503))
+        try { api.bots(); fail("starting") } catch (e: ApiException) { assertEquals(503, e.status) }
+        door.takeRequest()
+        assertNull(session.paused.value)
+        door.enqueue(json(paused, 503))
+        runCatching { api.bots() }
+        door.takeRequest()
+        assertEquals(url, session.paused.value)
+        // "Use another account": this phone signs out, and the sign-in takes the paused screen's place.
+        door.enqueue(json("""{"ok":true}""", 200, "Set-Cookie" to "botdot_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"))
+        api.signOut()
+        val r = door.takeRequest()
+        assertEquals("POST" to "/sign-out", r.method to r.target)
+        assertEquals("1", r.headers["X-Bot-Dot"])
+        assertEquals("botdot_session=s3cret", r.headers["Cookie"])
+        assertTrue(kept.isEmpty())
+        assertNull(session.paused.value)
+        assertEquals(url, session.signInNeeded.value)
+    }
+
+    @Test fun aResumedAccountLeavesThePausedScreen() = runBlocking {
+        val session = Session(keep)
+        val api = Api(url, session)
+        signIn(api)
+        door.enqueue(json("""{"error":"Your account is paused by the admin.","paused":true}""", 503))
+        runCatching { api.bots() }
+        door.takeRequest()
+        assertEquals(url, session.paused.value)
+        door.enqueue(json("[]"))
+        api.bots()
+        door.takeRequest()
+        assertNull(session.paused.value)
+    }
+
     @Test fun aCodeTheFrontDoorDidNotTakeSaysWhy() = runBlocking {
         val api = Api(url, Session(keep))
         door.enqueue(json("""{"error":"That sign-in didn't come from this app. Sign in again."}""", 401))
