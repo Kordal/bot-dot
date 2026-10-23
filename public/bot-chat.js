@@ -62,7 +62,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
         <div class="bubble-row from-bot"><div class="stack">
           ${shown}
           <div class="bubble-meta">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` · <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
-          ${(i === runs.length - 1 || r.id === bot.asks?.runId) && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}
+          ${(i === runs.length - 1 || r.id === bot.asks?.runId) && !failed ? choicesHTML(r.choices, r.yes, bot.color) + questionsHTML(r.questions) : ''}
         </div></div>`;
     }
     return sep + Unread.exchange({ asked: asked + steered, reply, mine }, line);

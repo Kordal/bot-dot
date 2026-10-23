@@ -491,7 +491,7 @@ function chiefBubble(m, last = false, index = null) {
         ${mail}
         <div class="actions">${(m.actions || []).filter((a) => !mailChip(m, a)).map(actionChip).join('')}</div>
         ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
-        ${last && !m.pending && !m.draft ? choicesHTML(m.choices) + questionsHTML(m.questions) : ''}
+        ${last && !m.pending && !m.draft ? choicesHTML(m.choices, m.yes, CHIEF_COLOR) + questionsHTML(m.questions) : ''}
       </div>
     </div>`;
 }

@@ -49,6 +49,7 @@ test("a bot's reply keeps the question; the choices go to the run, not the notif
   const done = await srv.finished(r.data.id);
   assert.equal(done.result, 'Should I send the digest now?');
   assert.deepEqual(done.choices, ['Yes', 'No']);
+  assert.equal(done.yes, 0, 'the yes is drawn in the bot\'s colour');
   const ev = await f.wait('run_finished', (d) => d.id === r.data.id);
   assert.equal(ev.data.result, 'Should I send the digest now?');
   f.close();
@@ -66,4 +67,30 @@ test("a bot's questions go to the run as a card", async () => {
   assert.deepEqual(done.questions, ['Which account?', 'Who is in copy?']);
   assert.equal(done.choices, undefined);
   srv.reply('Done.');
+});
+
+test('yesOf finds the choice that says yes, in any of the usual languages', () => {
+  const { yesOf } = require('../lib/choices');
+  assert.equal(yesOf(['Yes please', 'No thanks']), 0);
+  assert.equal(yesOf(['No', 'Yes, at 13:20']), 1);
+  assert.equal(yesOf(['Tak', 'Nie']), 0);
+  assert.equal(yesOf(['Oui', 'Non']), 0);
+  assert.equal(yesOf(['Do it', 'Not now']), 0);
+  assert.equal(yesOf(['Send it', 'Cancel']), 0); // of two, the one beside the only no
+  assert.equal(yesOf(['Yes', 'Later', 'No']), 0);
+  assert.equal(yesOf(['Send it', 'Change it first', 'Cancel']), -1); // three, none says yes
+  assert.equal(yesOf(['Do 1', 'Do all', 'Not now']), -1); // two say yes: none is the yes
+  assert.equal(yesOf(['Pasta', 'Curry']), -1);
+  assert.equal(yesOf(['Yes']), -1);
+  assert.equal(yesOf(null), -1);
+});
+
+test('put sets the choices and their yes, and takes off a yes that no longer holds', () => {
+  const { put } = require('../lib/choices');
+  assert.deepEqual(put({}, ['Yes', 'No']), { choices: ['Yes', 'No'], yes: 0 });
+  assert.deepEqual(put({ yes: 1 }, ['Pasta', 'Curry']), { choices: ['Pasta', 'Curry'] });
+});
+
+test('NOTE tells the bot its yes is drawn in its colour', () => {
+  assert.match(NOTE, /starts with the word for yes/);
 });

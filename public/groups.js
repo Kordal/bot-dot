@@ -380,7 +380,7 @@ function groupReplyHTML(r, asks = null) {
       <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}</div>
       ${learnedChips(r)}
       <div class="bubble-meta">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
-      ${asks === r.id && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}
+      ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color) + questionsHTML(r.questions) : ''}
     </div></div>`;
 }
 // A group with no message yet: its members, and that all of them read what is written there.

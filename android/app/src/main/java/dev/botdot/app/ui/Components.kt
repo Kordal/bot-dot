@@ -71,6 +71,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -871,11 +872,12 @@ inline fun <T> Result<T>.onError(block: (Throwable) -> Unit): Result<T> =
 /**
  * Quick answers under the newest reply ("Yes" / "No"…): tap one to send it. [onPick] sends the answer with its key
  * and says whether it went: the answers go only then, and stay to be tapped again when it did not. An answer keeps
- * its key for as long as it is shown, so tapped again after a failed send it is the same message.
+ * its key for as long as it is shown, so tapped again after a failed send it is the same message. The one at [yes]
+ * is filled with [color], the colour of the bot that asks.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun Choices(choices: List<String>?, onPick: suspend (String, String) -> Boolean) {
+fun Choices(choices: List<String>?, yes: Int? = null, color: String? = null, onPick: suspend (String, String) -> Boolean) {
     if (choices.isNullOrEmpty()) return
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
@@ -883,8 +885,19 @@ fun Choices(choices: List<String>?, onPick: suspend (String, String) -> Boolean)
     if (used) return
     val keys = remember(choices) { choices.map { messageKey() } }
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(start = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        choices.forEachIndexed { i, c -> androidx.compose.material3.OutlinedButton(onClick = { scope.launch { if (onPick(c, keys[i])) used = true } }) { Text(c, color = p.text) } }
+        choices.forEachIndexed { i, c ->
+            val pick: () -> Unit = { scope.launch { if (onPick(c, keys[i])) used = true } }
+            val fill = if (i == yes) color?.let { parseColor(it, Color.Unspecified) }?.takeIf { it != Color.Unspecified } else null
+            if (fill != null) androidx.compose.material3.Button(onClick = pick, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = fill, contentColor = inkOn(fill))) { Text(c) }
+            else androidx.compose.material3.OutlinedButton(onClick = pick) { Text(c, color = p.text) }
+        }
     }
+}
+
+/** The text colour that reads best on [fill]: near-black or white, whichever contrasts more (WCAG). */
+fun inkOn(fill: Color): Color {
+    val l = fill.luminance()
+    return if (1.05f / (l + 0.05f) >= (l + 0.05f) / 0.0556f) Color.White else Color(0xFF111111)
 }
 
 /**

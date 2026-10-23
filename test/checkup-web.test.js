@@ -157,7 +157,7 @@ test('web: the settings not on screen: a change on the feed is kept for when the
 const page = vm.createContext({ esc, state: { features: ['chief', 'unread', 'ratings', 'checkup'], bots: [], runs: [] }, CHIEF_COLOR: '#d85a30', msgTime: () => '08:00', copyBtn: () => '<copy>', questionsHTML: () => '' });
 vm.runInContext(read('unread.js'), page);
 vm.runInContext(read('ratings.js'), page);
-vm.runInContext(`${cut('const choicesHTML = ', '\n')}
+vm.runInContext(`${cut('// The text colour that reads best on a filled colour', '// Several questions at once ([[ask: …]])')}
   ${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
   ${cut('function actionBot(a)', '// What Approve sends to answer')}
   this.chiefBubble = chiefBubble;`, page);

@@ -277,8 +277,20 @@ const dur = (ms) => (ms == null ? '—' : ms < 60000 ? `${Math.round(ms / 1000)}
 const messageKey = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 
 // Copy a whole message (its Markdown, as written) with the small copy icon under it.
-// Quick answers under the newest reply ([[choices: …]], see lib/choices.js): tap one to send it.
-const choicesHTML = (choices) => (choices?.length ? `<div class="choices">${choices.map((c) => `<button class="btn" data-choice="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : '');
+// The text colour that reads best on a filled colour: near-black or white, whichever contrasts more (WCAG).
+function inkOn(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || '').trim());
+  if (!m) return '#fff';
+  const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  const n = parseInt(m[1], 16);
+  const l = 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+  return 1.05 / (l + 0.05) >= (l + 0.05) / 0.0556 ? '#fff' : '#111'; // #111's luminance is about 0.0056
+}
+// Quick answers under the newest reply ([[choices: …]], see lib/choices.js): tap one to send it. The one at
+// `yes` is filled with the colour of the bot that asks.
+const choicesHTML = (choices, yes = -1, color = '') => (choices?.length
+  ? `<div class="choices">${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}</div>`
+  : '');
 // Several questions at once ([[ask: …]]): a card under the newest reply, a box under each question.
 const questionsHTML = (questions) => (questions?.length
   ? `<div class="ask-card card">${questions.map((q) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea></label>`).join('')}<button class="btn primary sm" disabled>Send</button></div>`
