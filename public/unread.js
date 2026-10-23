@@ -59,6 +59,23 @@ function exchange({ asked = '', reply = '', mine = false }, lineHTML = '') {
   return mine ? asked + lineHTML + reply : lineHTML + asked + reply;
 }
 
+// The order of a bot's chat (#460, test/fixtures/chat-order.json): what started a run stands when it started, a
+// message steered into it when it was sent, its reply when it ended; the reply of a run at work stays at the bottom,
+// in the order the runs started. runs: in any order. Returns the pieces, oldest first: { run, part: 'asked' |
+// 'steered' | 'reply', i } (i: the steered message's place).
+function order(runs) {
+  const when = (t, or) => { const n = Date.parse(t); return Number.isFinite(n) ? n : or; };
+  const pieces = [];
+  const started = [...(Array.isArray(runs) ? runs : [])].sort((a, b) => when(a.startedAt, 0) - when(b.startedAt, 0) || String(a.id).localeCompare(String(b.id)));
+  for (const run of started) {
+    const at = when(run.startedAt, 0);
+    pieces.push({ run, part: 'asked', at });
+    (Array.isArray(run.steered) ? run.steered : []).forEach((x, i) => pieces.push({ run, part: 'steered', i, at: when(x?.at, at) }));
+    pieces.push({ run, part: 'reply', at: run.status === 'running' ? Infinity : when(run.endedAt, at) });
+  }
+  return pieces.sort((a, b) => (a.at === b.at ? 0 : a.at < b.at ? -1 : 1)).map(({ at, ...p }) => p); // stable: ties keep the runs' order
+}
+
 // In a Chief chat the line goes above the message at place `first`, or above the next one that is drawn.
 // places: the place of each drawn row, in order. Returns the row's index, or -1 when none is drawn.
 const rowFrom = (places, first) => (Number.isInteger(first) ? places.findIndex((p) => p >= first) : -1);
@@ -154,7 +171,7 @@ function reporter({ app, post, onRead = () => {}, every = setInterval, stop = cl
 // An id this page makes up for itself, so the server can tell two apps on one chat apart.
 const appId = (random = Math.random) => `web-${Array.from({ length: 12 }, () => Math.floor(random() * 36).toString(36)).join('')}`;
 
-const api = { MAX_DOTS, REPEAT_MS, CHAT_RUNS, count, tint, dots, asks, mark, asked, line, exchange, rowFrom, shown, reach, lineKeeper, reporter, appId };
+const api = { MAX_DOTS, REPEAT_MS, CHAT_RUNS, count, tint, dots, asks, mark, asked, line, exchange, order, rowFrom, shown, reach, lineKeeper, reporter, appId };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Unread = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
+import dev.botdot.app.data.ChatOrder
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.GROUP_MAX
 import dev.botdot.app.data.RunEvent
@@ -222,27 +223,36 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         Text("No messages yet. Give ${bot?.name ?: "it"} a task, or attach a file.", color = p.muted, textAlign = TextAlign.Center)
                     }
                 }
-                items(runs, key = { it.id }) { r ->
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // The "New" line: below your own message when that started the run, above what else did.
-                        val new = r.id == vm.newFirst
-                        val mine = Unread.mine(r)
-                        if (new && !mine) NewLine(bot?.color)
-                        YourSide(r, open = r.id in opened)
-                        if (new && mine) NewLine(bot?.color)
-                        val theirs = @Composable {
-                            TheirSide(r, open = r.id in opened, features = features, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
-                                learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> onLearned; null -> null } })
-                            // Under the newest run, and under the run its open question is from when newer runs another
-                            // bot or the Chief started came after it: what asks the owner can be answered where it stands.
-                            if ((r.id == runs.firstOrNull()?.id || r.id == askedIn) && r.status == "success") {
-                                Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key) }
-                                Questions(r.questions) { text, key -> sendFrom(text, key) }
-                            }
+                // A reply stands where it ended, below what came while its run worked (a "/btw", another run): ChatOrder (#460).
+                val pieces = ChatOrder.pieces(runs).asReversed()
+                val lastReply = ChatOrder.lastReply(pieces.asReversed())?.id
+                items(pieces.filter { it !is ChatOrder.Piece.Asked || drawsAsked(it.run) }, key = { it.key }) { piece ->
+                    val r = piece.run
+                    // The "New" line: above what started the run, or, below your own message, above its reply.
+                    val new = r.id == vm.newFirst
+                    val mine = Unread.mine(r)
+                    when (piece) {
+                        is ChatOrder.Piece.Asked -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (new && !mine) NewLine(bot?.color)
+                            YourSide(r, open = r.id in opened)
                         }
-                        // Its reply, once the run ended: it arrives when it is new in this open chat, and what
-                        // started the run stands still above it. A run at work has no reply to arrive.
-                        if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(8.dp)) { theirs() }
+                        is ChatOrder.Piece.Steered -> r.steered.getOrNull(piece.i)?.let { SteeredMessage(it) }
+                        is ChatOrder.Piece.Reply -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            if (new && (mine || !drawsAsked(r))) NewLine(bot?.color)
+                            val theirs = @Composable {
+                                TheirSide(r, open = r.id in opened, features = features, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
+                                    learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> onLearned; null -> null } })
+                                // Under the reply that is last in the chat, and under the run its open question is from when newer
+                                // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
+                                if ((r.id == lastReply || r.id == askedIn) && r.status == "success") {
+                                    Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key) }
+                                    Questions(r.questions) { text, key -> sendFrom(text, key) }
+                                }
+                            }
+                            // Its reply, once the run ended: it arrives when it is new in this open chat, and what
+                            // started the run stands still above it. A run at work has no reply to arrive.
+                            if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(8.dp)) { theirs() }
+                        }
                     }
                 }
             }
@@ -277,8 +287,12 @@ private fun YourSide(r: Run, open: Boolean = false) {
         Unread.Asked.USUAL -> Chip("▶ Ran its main assignment")
         Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments)
     }
-    // What the owner steered into it while it worked (ADR 040), after its request, in the order read.
-    r.steered.forEach { SteeredMessage(it) }
+}
+
+/** Whether a run's chat draws anything for what started it ([YourSide]): notes it read, or what the owner sees as asked. */
+private fun drawsAsked(r: Run): Boolean = !r.inbox.isNullOrEmpty() || when (Unread.asked(r)) {
+    Unread.Asked.REPLIES, Unread.Asked.HELLO, Unread.Asked.REMINDER, Unread.Asked.CARRIED_ON -> false
+    else -> true
 }
 
 @Composable

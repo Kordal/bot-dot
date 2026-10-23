@@ -1,8 +1,8 @@
 // ---------- a bot's conversation ----------
-// Each run is one exchange: the task you gave it, then its reply.
+// Each run is what started it, then its reply: in the order they happened (Unread.order).
 
 // newFirst: the run the "New" line goes above (the server's firstUnread when the chat was opened), or null.
-// The answers of a reply stand under the newest run, and under the run its open question is from (bot.asks) when
+// The answers of a reply stand under the reply that is last in the chat, and under the run its open question is from (bot.asks) when
 // newer runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
 function botThreadHTML(bot, runs, newFirst = null) {
   if (!runs.length) {
@@ -13,61 +13,87 @@ function botThreadHTML(bot, runs, newFirst = null) {
         <p class="muted">${esc(bot.description || '')}</p>
       </div>`;
   }
+  // A reply stands where it ended, below what came while its run worked (a "/btw", another run): Unread.order (#460).
+  const pieces = Unread.order(runs);
+  const lastReply = pieces.filter((p) => p.part === 'reply').pop()?.run.id;
+  const newest = runs[runs.length - 1]?.id;
+  const parts = new Map();
+  const partsOf = (r) => {
+    if (!parts.has(r.id)) parts.set(r.id, runParts(bot, r, r.id === lastReply, r.id === newest));
+    return parts.get(r.id);
+  };
   let lastDay = '';
-  return runs.map((r, i) => {
-    const day = new Date(r.startedAt).toDateString();
-    const sep = day !== lastDay ? `<div class="day">${esc(new Date(r.startedAt).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
-    lastDay = day;
+  return pieces.map(({ run: r, part, i }) => {
     const line = newFirst !== null && r.id === newFirst ? Unread.line(bot.color) : '';
-    if (r.kind === 'script') return sep + line + scriptRunHTML(r);
-    // Messages other bots left for it, read at the start of this run.
-    const notes = notesFoldHTML(r.inbox, r.inbox?.length === 1 ? 'Read a note from' : 'Read notes from');
-    let mine = false; // your own message started it: that isn't new, so the "New" line goes below it
-    const asked = notes + (r.trigger === 'replies' || (r.trigger === 'bot' && !r.fromBot) ? '' // the answers it waited for, or notes that woke it (#225): the notes above are what started it
-      : sender(r) // a message from another bot or the Chief: one folded line that opens to what it said
-      ? `<div class="bubble-row from-me"><details class="notes-fold" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(`Message from ${botLabel(sender(r))}`, r.prompt)}<div class="note"><div class="bubble from-other-bot">${esc(r.prompt)}${filesHTML(r.attachments)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></details></div>`
-      : r.jobName
-      ? `<div class="bubble-row from-me"><span class="chip">${r.jobId === 'memory-review' ? '🧹' : '⏰'} ${esc(r.jobName)}${r.trigger === 'call' ? ', called' : ''}${r.parentRunId ? ' · its script found something' : ''} · ${esc(msgTime(r.startedAt))}</span></div>`
-      : r.trigger === 'schedule'
-      ? `<div class="bubble-row from-me"><span class="chip">⏰ Scheduled run · ${esc(msgTime(r.startedAt))}</span></div>`
-      : r.trigger === 'hello' ? '' // a new bot's first message (#511): you asked nothing
-      : r.kind === 'reminder' ? '' // a reminder it set went off (#343): botdot posted it, nobody asked
-      : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
-      : r.customPrompt === false
-        ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} Ran its main assignment</span></div>`
-        : (mine = true, `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments, `bot:${r.botId}`)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></div>`));
-    // What the owner steered into it while it worked (ADR 040): their messages, after its request, without buttons.
-    const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(String(x.text || ''), r.botId)}</div>${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `bot:${r.botId}`)}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
-    let reply;
-    if (r.status === 'running') {
-      // No bubble while it works: the status line under the chat says it (placeStatusLines). Only what it attached so far.
-      // From a server with drafts, the reply as it is written so far stands here, and grows in place (replyDrafts).
-      reply = `<div class="bubble-row from-bot" data-live="${esc(r.id)}">${draftHTML(replyDrafts.of(r.id), true)}${botFilesHTML(r.files)}</div>`;
-    } else {
-      const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
-      const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || 'Done. (No written reply.)';
-      const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
-      // Between bots (a run another bot or the Chief started) the reply folds as the message above it does: one line,
-      // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open,
-      // and so does a reply that addresses the owner: a teammate's request whose reply only the owner reads (#465).
-      const outgoing = sentTo(r).filter((t) => t.text);
-      const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
-          ${learnedChips(r)}`;
-      const shown = sender(r) && !failed && r.notificationAudience !== 'owner'
-        ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(exchangeLabel(r), body)}
-            ${outgoing.map((t) => `<div class="note"><div class="bot-msg-label">To ${botLabel(t)}</div><div class="bubble from-bot"><div class="md">${md(t.text)}</div></div></div>`).join('')}
-            <div class="note">${bubble}</div>
-          </details>`
-        : messagedLabel(r) + bubble;
-      reply = `
-        <div class="bubble-row from-bot"><div class="stack">
-          ${shown}
-          <div class="bubble-meta">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` · <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
-          ${(i === runs.length - 1 || r.id === bot.asks?.runId) && !failed ? choicesHTML(r.choices, r.yes, bot.color) + questionsHTML(r.questions) : ''}
-        </div></div>`;
+    let html;
+    if (r.kind === 'script') html = part === 'reply' ? line + scriptRunHTML(r) : '';
+    else {
+      const { asked, steered, reply, mine } = partsOf(r);
+      // The "New" line: above what started the run, or, below the owner's own message (Unread.exchange), above its
+      // reply. With nothing drawn for what started it, above the reply.
+      html = part === 'asked' ? (asked ? Unread.exchange({ asked, mine }, mine ? '' : line) : '')
+        : part === 'steered' ? steered[i] || ''
+        : (mine || !asked ? line : '') + reply;
     }
-    return sep + Unread.exchange({ asked: asked + steered, reply, mine }, line);
+    const when = !html ? null : part === 'asked' ? r.startedAt : part === 'steered' ? r.steered[i]?.at || r.startedAt : r.status === 'running' ? null : r.endedAt || r.startedAt;
+    if (!when) return html;
+    const day = new Date(when).toDateString();
+    const sep = day !== lastDay ? `<div class="day">${esc(new Date(when).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
+    lastDay = day;
+    return sep + html;
   }).join('');
+}
+
+// What a bot's chat draws of one run: what started it, each message steered into it, its reply. last: its reply is
+// the last in the chat (its quick answers stand under it). newest: it is the run that started last.
+function runParts(bot, r, last, newest) {
+  // Messages other bots left for it, read at the start of this run.
+  const notes = notesFoldHTML(r.inbox, r.inbox?.length === 1 ? 'Read a note from' : 'Read notes from');
+  let mine = false; // your own message started it: that isn't new, so the "New" line goes below it
+  const asked = notes + (r.trigger === 'replies' || (r.trigger === 'bot' && !r.fromBot) ? '' // the answers it waited for, or notes that woke it (#225): the notes above are what started it
+    : sender(r) // a message from another bot or the Chief: one folded line that opens to what it said
+    ? `<div class="bubble-row from-me"><details class="notes-fold" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(`Message from ${botLabel(sender(r))}`, r.prompt)}<div class="note"><div class="bubble from-other-bot">${esc(r.prompt)}${filesHTML(r.attachments)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></details></div>`
+    : r.jobName
+    ? `<div class="bubble-row from-me"><span class="chip">${r.jobId === 'memory-review' ? '🧹' : '⏰'} ${esc(r.jobName)}${r.trigger === 'call' ? ', called' : ''}${r.parentRunId ? ' · its script found something' : ''} · ${esc(msgTime(r.startedAt))}</span></div>`
+    : r.trigger === 'schedule'
+    ? `<div class="bubble-row from-me"><span class="chip">⏰ Scheduled run · ${esc(msgTime(r.startedAt))}</span></div>`
+    : r.trigger === 'hello' ? '' // a new bot's first message (#511): you asked nothing
+    : r.kind === 'reminder' ? '' // a reminder it set went off (#343): botdot posted it, nobody asked
+    : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
+    : r.customPrompt === false
+      ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} Ran its main assignment</span></div>`
+      : (mine = true, `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments, `bot:${r.botId}`)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></div>`));
+  // What the owner steered into it while it worked (ADR 040): their messages, after its request, without buttons.
+  const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(String(x.text || ''), r.botId)}</div>${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `bot:${r.botId}`)}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`);
+  let reply;
+  if (r.status === 'running') {
+    // No bubble while it works: the status line under the chat says it (placeStatusLines). Only what it attached so far.
+    // From a server with drafts, the reply as it is written so far stands here, and grows in place (replyDrafts).
+    reply = `<div class="bubble-row from-bot" data-live="${esc(r.id)}">${draftHTML(replyDrafts.of(r.id), true)}${botFilesHTML(r.files)}</div>`;
+  } else {
+    const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
+    const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || 'Done. (No written reply.)';
+    const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
+    // Between bots (a run another bot or the Chief started) the reply folds as the message above it does: one line,
+    // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open,
+    // and so does a reply that addresses the owner: a teammate's request whose reply only the owner reads (#465).
+    const outgoing = sentTo(r).filter((t) => t.text);
+    const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, newest) || ''}</div>
+        ${learnedChips(r)}`;
+    const shown = sender(r) && !failed && r.notificationAudience !== 'owner'
+      ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(exchangeLabel(r), body)}
+          ${outgoing.map((t) => `<div class="note"><div class="bot-msg-label">To ${botLabel(t)}</div><div class="bubble from-bot"><div class="md">${md(t.text)}</div></div></div>`).join('')}
+          <div class="note">${bubble}</div>
+        </details>`
+      : messagedLabel(r) + bubble;
+    reply = `
+      <div class="bubble-row from-bot"><div class="stack">
+        ${shown}
+        <div class="bubble-meta">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` · <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
+        ${(last || r.id === bot.asks?.runId) && !failed ? choicesHTML(r.choices, r.yes, bot.color) + questionsHTML(r.questions) : ''}
+      </div></div>`;
+  }
+  return { asked, steered, reply, mine };
 }
 
 // "Run now" under the notes that wait (#225): the bot starts with them, or once it is free.

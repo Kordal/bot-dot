@@ -122,7 +122,7 @@ test('a message without a mention is kept once and gives every member one turn, 
   // The chat: the owner's message and the two replies, each with its bot, its time and how it ended. No pass.
   const [passed] = turns.filter((r) => r.botId === coder.id);
   assert.deepEqual(c.items.map((x) => [x.type, x.id]), [['message', m.id], ['reply', turns[0].id], ['reply', turns[2].id]]);
-  assert.deepEqual(repliesIn(c).map((x) => [x.run.botId, x.run.botName, x.run.status, x.run.result, !!x.run.endedAt, x.at === x.run.startedAt]), [
+  assert.deepEqual(repliesIn(c).map((x) => [x.run.botId, x.run.botName, x.run.status, x.run.result, !!x.run.endedAt, x.at === x.run.endedAt]), [
     [writer.id, 'Issue Writer', 'success', 'I will write the issue.', true, true], [reviewer.id, 'Reviewer', 'success', 'I will review it when it is written.', true, true]]);
   assert.deepEqual([passed.passed, passed.quiet, passed.result], [true, true, 'PASS'], 'the pass has a run record, marked');
   assert.deepEqual((await srv.api(`/runs?group=${group.id}`)).data.map((r) => r.id).sort(), [turns[0].id, turns[2].id].sort());
@@ -404,7 +404,8 @@ test('"Stop all" ends every run of the group at work, each ended by the owner, a
   assert.deepEqual([stopped.status, stopped.data], [200, { ok: true, stopped: 2, dropped: 1 }]);
   // Both runs are ended by the owner, and Cleo's turn never starts.
   const c = await waitFor(async () => { const x = await chatOf(srv, group); return repliesIn(x).length === 2 ? x : null; }, { what: 'both runs to end' });
-  assert.deepEqual(repliesIn(c).map((x) => [x.run.botName, x.run.status, x.run.endedBy, x.run.problem]), [
+  // Each stands where it ended (#460): both at once, so by name here.
+  assert.deepEqual(repliesIn(c).map((x) => [x.run.botName, x.run.status, x.run.endedBy, x.run.problem]).sort((a, b) => a[0].localeCompare(b[0])), [
     ['Anna', 'stopped', 'owner', 'You stopped this run before it finished.'], ['Ben', 'stopped', 'owner', 'You stopped this run before it finished.']]);
   assert.deepEqual([messageIn(c, one.data.id).stopped, messageIn(c, one.data.id).next, messageIn(c, two.data.id).stopped], [true, [], true]);
   // The message that waited is the owner's: it starts now that Anna is free.
@@ -413,7 +414,8 @@ test('"Stop all" ends every run of the group at work, each ended by the owner, a
   assert.deepEqual([waited.stopped, waited.waitsFor, waited.canTakeBack], [undefined, [], false]);
   letGo(srv, anna);
   const done = await settled(srv, group, three.data.id);
-  assert.deepEqual(repliesIn(done).map((x) => [x.run.botName, x.run.status, x.run.groupMessageId]), [['Anna', 'stopped', one.data.id], ['Ben', 'stopped', two.data.id], ['Anna', 'success', three.data.id]]);
+  const replied = repliesIn(done).map((x) => [x.run.botName, x.run.status, x.run.groupMessageId]);
+  assert.deepEqual([...replied.slice(0, 2).sort((a, b) => a[0].localeCompare(b[0])), replied[2]], [['Anna', 'stopped', one.data.id], ['Ben', 'stopped', two.data.id], ['Anna', 'success', three.data.id]]);
   assert.equal(ranOf(srv, cleo).length, 0, 'the turn to follow never started');
   assert.deepEqual(kept(srv, group).map((x) => [x.done, !!x.stopped]), [[true, true], [true, true], [true, false]]);
   // With nothing at work it stops nothing.
@@ -566,4 +568,25 @@ test('the chat is read in pages, and its new replies are counted whichever membe
     assert.match(g.last.text, /Something went wrong/);
     assert.equal((await own.api(`/bots/${q.id}`)).data.unread, 0);
   } finally { await own.stop(); }
+});
+
+test('a reply stands where its run ended: below what the owner wrote while it worked, also when read again (#460)', async (t) => {
+  const { group, bots: [pat, quinn] } = await team(srv, 'In order', ['Pat', 'Quinn']);
+  t.after(() => letGo(srv, pat));
+  hold(srv, pat);
+  const first = await send(srv, group, { text: '@Pat deploy it' });
+  await atWork(srv, group, [pat]);
+  const second = await send(srv, group, { text: '@Quinn status?' });
+  await waitFor(async () => repliesIn(await chatOf(srv, group)).some((x) => x.run.botId === quinn.id), { what: "Quinn's reply" });
+  letGo(srv, pat);
+  const c = await settled(srv, group, first.data.id);
+  const patReply = repliesIn(c).find((x) => x.run.botId === pat.id);
+  const quinnReply = repliesIn(c).find((x) => x.run.botId === quinn.id);
+  assert.ok(patReply.run.startedAt < second.data.at, "Pat's run started before the second message");
+  const order = [first.data.id, second.data.id, quinnReply.id, patReply.id];
+  assert.deepEqual(c.items.map((x) => x.id).filter((id) => order.includes(id)), order);
+  assert.equal(patReply.at, patReply.run.endedAt);
+  // Read again, a page at a time: the same order.
+  const older = await chatOf(srv, group, `?limit=2&before=${patReply.id}`);
+  assert.deepEqual(older.items.map((x) => x.id), [second.data.id, quinnReply.id]);
 });

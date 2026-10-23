@@ -1,0 +1,94 @@
+{
+  "about": "The order of a bot's chat (#460), as public/unread.js (Unread.order) and the Android app (ChatOrder) draw it. What started a run stands at its startedAt, a steered message at its at, a reply at its run's endedAt; the reply of a run at work is at the bottom, in the order the runs started. Pieces: \"a:<run>\" what started it, \"s:<run>:<i>\" its steered message i, \"r:<run>\" its reply. last: the run whose reply is drawn last (its quick answers stand under it).",
+  "cases": [
+    {
+      "name": "one run",
+      "runs": [{ "id": "r1", "status": "success", "startedAt": "2026-10-23T11:39:00.000Z", "endedAt": "2026-10-23T11:45:00.000Z" }],
+      "pieces": ["a:r1", "r:r1"],
+      "last": "r1"
+    },
+    {
+      "name": "runs one after another keep their exchanges",
+      "runs": [
+        { "id": "r2", "status": "success", "startedAt": "2026-10-23T11:00:00.000Z", "endedAt": "2026-10-23T11:01:00.000Z" },
+        { "id": "r1", "status": "success", "startedAt": "2026-10-23T10:00:00.000Z", "endedAt": "2026-10-23T10:05:00.000Z" }
+      ],
+      "pieces": ["a:r1", "r:r1", "a:r2", "r:r2"],
+      "last": "r2"
+    },
+    {
+      "name": "a long run with /btw in the middle: its reply comes after the side exchange",
+      "runs": [
+        { "id": "btw", "status": "success", "startedAt": "2026-10-23T11:42:00.000Z", "endedAt": "2026-10-23T11:42:08.000Z" },
+        { "id": "long", "status": "success", "startedAt": "2026-10-23T11:39:00.000Z", "endedAt": "2026-10-23T11:45:15.000Z" }
+      ],
+      "pieces": ["a:long", "a:btw", "r:btw", "r:long"],
+      "last": "long"
+    },
+    {
+      "name": "a long run at work with /btw answered: its place stays at the bottom",
+      "runs": [
+        { "id": "btw", "status": "success", "startedAt": "2026-10-23T11:42:00.000Z", "endedAt": "2026-10-23T11:42:08.000Z" },
+        { "id": "long", "status": "running", "startedAt": "2026-10-23T11:39:00.000Z", "endedAt": null }
+      ],
+      "pieces": ["a:long", "a:btw", "r:btw", "r:long"],
+      "last": "long"
+    },
+    {
+      "name": "/btw still being answered while the long run works",
+      "runs": [
+        { "id": "btw", "status": "running", "startedAt": "2026-10-23T11:42:00.000Z" },
+        { "id": "long", "status": "running", "startedAt": "2026-10-23T11:39:00.000Z" }
+      ],
+      "pieces": ["a:long", "a:btw", "r:long", "r:btw"],
+      "last": "btw"
+    },
+    {
+      "name": "two runs at once: each reply where it ended",
+      "runs": [
+        { "id": "b", "status": "success", "startedAt": "2026-10-23T10:01:00.000Z", "endedAt": "2026-10-23T10:03:00.000Z" },
+        { "id": "a", "status": "error", "startedAt": "2026-10-23T10:00:00.000Z", "endedAt": "2026-10-23T10:09:00.000Z" }
+      ],
+      "pieces": ["a:a", "a:b", "r:b", "r:a"],
+      "last": "a"
+    },
+    {
+      "name": "three at once, one still at work",
+      "runs": [
+        { "id": "c", "status": "success", "startedAt": "2026-10-23T10:02:00.000Z", "endedAt": "2026-10-23T10:04:00.000Z" },
+        { "id": "b", "status": "running", "startedAt": "2026-10-23T10:01:00.000Z" },
+        { "id": "a", "status": "success", "startedAt": "2026-10-23T10:00:00.000Z", "endedAt": "2026-10-23T10:06:00.000Z" }
+      ],
+      "pieces": ["a:a", "a:b", "a:c", "r:c", "r:a", "r:b"],
+      "last": "b"
+    },
+    {
+      "name": "a steered message stands when it was sent",
+      "runs": [
+        { "id": "btw", "status": "success", "startedAt": "2026-10-23T11:41:00.000Z", "endedAt": "2026-10-23T11:41:05.000Z" },
+        { "id": "long", "status": "success", "startedAt": "2026-10-23T11:39:00.000Z", "endedAt": "2026-10-23T11:45:00.000Z",
+          "steered": [{ "id": "q1", "at": "2026-10-23T11:40:00.000Z" }, { "id": "q2", "at": "2026-10-23T11:43:00.000Z" }] }
+      ],
+      "pieces": ["a:long", "s:long:0", "a:btw", "r:btw", "s:long:1", "r:long"],
+      "last": "long"
+    },
+    {
+      "name": "a run that ended without endedAt keeps its reply under what started it",
+      "runs": [
+        { "id": "r2", "status": "success", "startedAt": "2026-10-23T11:00:00.000Z", "endedAt": "2026-10-23T11:01:00.000Z" },
+        { "id": "r1", "status": "interrupted", "startedAt": "2026-10-23T10:00:00.000Z" }
+      ],
+      "pieces": ["a:r1", "r:r1", "a:r2", "r:r2"],
+      "last": "r2"
+    },
+    {
+      "name": "a reply that ends as the next run starts stands above it",
+      "runs": [
+        { "id": "r2", "status": "success", "startedAt": "2026-10-23T11:00:00.000Z", "endedAt": "2026-10-23T11:01:00.000Z" },
+        { "id": "r1", "status": "success", "startedAt": "2026-10-23T10:00:00.000Z", "endedAt": "2026-10-23T11:00:00.000Z" }
+      ],
+      "pieces": ["a:r1", "r:r1", "a:r2", "r:r2"],
+      "last": "r2"
+    }
+  ]
+}
