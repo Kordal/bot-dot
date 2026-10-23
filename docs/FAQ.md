@@ -147,7 +147,7 @@ One Ubuntu desktop per account, in a container that stays on, where bots with **
 
 ### Can bots use my apps, like Gmail or GitHub?
 
-Yes, through **Connectors**, powered by [Composio](https://composio.dev): Gmail, Google Calendar, Slack, GitHub, Notion and hundreds more. There is nothing to set up: botdot makes a Composio account for you, which you can claim with your email to get Composio's dashboard, or you paste your own Composio key. You sign in with the app on Composio's own page, so botdot never sees your password or tokens, and you choose which bots may use each app. Reading goes through, while an action that sends, posts, changes or deletes waits for your OK on a card, unless you chose **Always allow this action** ([Connectors](user-guide.md#-connectors-your-apps-through-composio)).
+Yes, through **Connectors**, powered by [Composio](https://composio.dev): Gmail, Google Calendar, Slack, GitHub, Notion and hundreds more. You paste an API key from your own Composio project once, on the Connectors page. You sign in with the app on Composio's own page, so botdot never sees your password or tokens, and you choose which bots may use each app. Reading goes through, while an action that sends, posts, changes or deletes waits for your OK on a card, unless you chose **Always allow this action** ([Connectors](user-guide.md#-connectors-your-apps-through-composio)).
 
 ### How do bots log in to websites?
 

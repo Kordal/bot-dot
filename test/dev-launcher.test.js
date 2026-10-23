@@ -27,7 +27,6 @@ async function launch(t, dir, port) {
       BW_BIN: path.join(dir, 'no-bitwarden'),
       EMBED_SERVER_BIN: path.join(dir, 'no-llama'),
       COMPOSIO_API_URL: 'http://127.0.0.1:9',
-      COMPOSIO_AGENTS_URL: 'http://127.0.0.1:9',
       BOT_DOT_ANTHROPIC_API_URL: 'http://127.0.0.1:9',
       BOT_DOT_DRESS_WAITS: 'off',
       BOT_DOT_HELLO_DELAY_MS: 'off',

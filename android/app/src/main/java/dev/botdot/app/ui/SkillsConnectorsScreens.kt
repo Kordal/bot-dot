@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -47,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -59,7 +61,6 @@ import dev.botdot.app.data.ChiefSkills
 import dev.botdot.app.data.ConnectorsInfo
 import dev.botdot.app.data.Skill
 import kotlinx.coroutines.launch
-import java.time.Instant
 
 // ---------- skills ----------
 
@@ -120,6 +121,9 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
 
 // ---------- connectors ----------
 
+/** Where the owner makes a Composio API key: botdot makes no Composio account of its own. */
+private const val COMPOSIO_KEYS = "https://platform.composio.dev"
+
 /** Connectors: your apps through Composio. Connecting opens the app's sign-in in the phone's browser. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -159,33 +163,35 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     ) { pad ->
         val i = info ?: return@Scaffold
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!i.configured) {
-                // botdot sets up Composio by itself; this shows only when that failed.
-                item { Section("Connectors aren't working yet", listOfNotNull(i.error, "Come back to try again, or use your own Composio key on botdot's web page (Connectors).").joinToString("\n\n")) {} }
-                return@LazyColumn
-            }
-            if (i.keyRejected) {
-                // Composio refuses the key; it is replaced on the web page (#409).
-                item { Section("Composio no longer accepts the key", i.error ?: "Fix it on the Connectors page of botdot's web page.") {} }
+            if (!i.configured || i.keyRejected) {
+                // No key yet, or Composio refuses it (#409): botdot makes no Composio account, so the owner pastes one.
+                val title = when {
+                    !i.configured -> "Add your Composio key"
+                    i.account == "own" -> "Composio no longer accepts your key ${i.keyHint.orEmpty()}".trim()
+                    else -> "Composio no longer accepts botdot's Composio account"
+                }
+                item {
+                    Section(title) {
+                        var key by remember { mutableStateOf("") }
+                        var saving by remember { mutableStateOf(false) }
+                        OutlinedTextField(key, { key = it }, placeholder = { Text("Composio API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) }) { Text("Get a key at composio.dev", color = p.muted) }
+                            Spacer(Modifier.weight(1f))
+                            TextButton(enabled = key.isNotBlank() && !saving, onClick = {
+                                saving = true
+                                scope.launch {
+                                    runCatching { api!!.setComposioKey(key.trim()) }.onSuccess { key = ""; tell("Saved"); load() }.onError { tell(it.message ?: "Couldn't save") }
+                                    saving = false
+                                }
+                            }) { Text("Save", color = p.okText) }
+                        }
+                    }
+                }
                 return@LazyColumn
             }
             if (!i.error.isNullOrBlank()) item { Text(i.error, color = p.err) }
-            // botdot's own Composio account, still to be claimed (#414). Composio's invite is good for 24 hours.
-            if (i.account == "botdot" && i.claimed == false) item {
-                val left = i.claimInviteAt?.let { runCatching { 24 - (System.currentTimeMillis() - Instant.parse(it).toEpochMilli()) / 3_600_000.0 }.getOrNull() } ?: 0.0
-                fun claim(email: String) = scope.launch { runCatching { api!!.claimComposio(email) }.onSuccess { tell("Invite sent. Check your email") }.onError { tell(it.message ?: "Couldn't send the invite") }; load() }
-                if (left > 0 && i.claimInvite != null) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Invite sent to ${i.claimInvite} · expires in ${maxOf(1L, Math.round(left))} h", color = p.muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { claim(i.claimInvite) }) { Text("Send again", color = p.text) }
-                } else {
-                    var email by remember { mutableStateOf("") }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(email, { email = it }, label = { Text("Claim your Composio account") }, placeholder = { Text("Your email") }, singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), modifier = Modifier.weight(1f))
-                        TextButton(onClick = { claim(email.trim()) }, enabled = email.isNotBlank()) { Text("Claim", color = p.okText) }
-                    }
-                }
-            }
             item { Text("Connected", color = p.text, style = MaterialTheme.typography.titleMedium) }
             if (i.connections.isEmpty() && i.reconnect.isEmpty()) item { Hint("No apps yet. Search for one below.") }
             items(i.reconnect, key = { "r:${it.slug}" }) { a ->
