@@ -22,9 +22,9 @@ object BoardWords {
 
 /**
  * What the list's strip shows: null before the Board has loaded (no strip), no tiles when none is there to
- * show (the strip says so), else the tiles: those not inside a group and not waiting for your OK.
+ * show (the strip says so), else the tiles on home ([dev.botdot.app.data.HomeTiles.on]).
  */
-fun stripTiles(dash: Dashboard?): List<Tile>? = dash?.tiles?.filter { it.parent == null && it.approved }
+fun stripTiles(dash: Dashboard?): List<Tile>? = dash?.let { dev.botdot.app.data.HomeTiles.on(it) }
 
 /**
  * A tile as a card of the strip over the keys (#397), the web page's rule (list.js, stripKpi): a kpi of its title over

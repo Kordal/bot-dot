@@ -332,6 +332,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun moveTile(id: String, section: String?, parent: String?, before: String?) {
         send("POST", "/dashboard/tiles/${enc(id)}/move", buildJsonObject { if (section != null) put("section", section); put("parent", parent); put("before", before) })
     }
+    /** The tiles on home, in order (#447, with `home-tiles`): the whole list. */
+    suspend fun setHomeTiles(ids: List<String>) {
+        send("PUT", "/dashboard/layout", buildJsonObject { put("home", JsonArray(ids.map { JsonPrimitive(it) })) })
+    }
     /** A bot's suggestion: Add (true) or ✕ (false; that bot won't suggest it again). */
     suspend fun answerSuggestion(id: String, add: Boolean): Answered =
         Answered.of(send("POST", "/dashboard/suggestions/${enc(id)}", buildJsonObject { put("add", add) }))

@@ -1265,9 +1265,12 @@ data class ComputerChanged(val state: String = "none", val erased: Boolean = fal
 @Serializable
 data class OldCopied(val copied: String = "")
 
-/** The Board (GET /api/dashboard): headings in order, the tiles, and those whose script waits for your OK. */
+/**
+ * The Board (GET /api/dashboard): headings in order, the tiles, and those whose script waits for your OK. [home]: the
+ * ids of the tiles on home, in order (#447); null from a botdot from before it.
+ */
 @Serializable
-data class Dashboard(val sections: List<String> = emptyList(), val tiles: List<Tile> = emptyList(), val pending: List<Tile> = emptyList(), val suggestions: List<TileSuggestion> = emptyList()) {
+data class Dashboard(val sections: List<String> = emptyList(), val tiles: List<Tile> = emptyList(), val pending: List<Tile> = emptyList(), val suggestions: List<TileSuggestion> = emptyList(), val home: List<String>? = null) {
     /**
      * The tiles that wait for the owner, each once: those never approved ([pending]) and the approved ones with a
      * change beside them (`staged-changes`), wherever the server lists those.

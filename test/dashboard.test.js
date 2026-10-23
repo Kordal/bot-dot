@@ -539,3 +539,36 @@ test('a tile with ago moves on by itself between two looks, face and panel', (t)
   assert.equal(later.face[0].text, '10 hours ago');
   assert.equal(later.panel[0].text, 'Opened 10 hours ago');
 });
+
+test('the owner chooses the tiles on home, in order; the Chief can too (#447)', async () => {
+  const add = async (body) => (await srv.asChief('/dashboard/tiles', { method: 'POST', body })).data;
+  const a = await add({ kind: 'value', title: 'Home A', value: '1' });
+  const g = await add({ kind: 'group', title: 'Home G' });
+  const b = await add({ kind: 'value', title: 'Home B', parent: g.id, value: '2' });
+  let d = (await srv.api('/dashboard')).data;
+  assert.equal(d.homeAuto, true);
+  assert.ok(d.home.includes(a.id) && d.home.includes(g.id) && !d.home.includes(b.id), 'automatic: every tile without a group');
+  assert.deepEqual(d.home, d.tiles.filter((t) => !t.parent && t.approved !== false).map((t) => t.id), "in the Board's order");
+
+  await srv.api('/dashboard/layout', { method: 'PUT', body: { home: [b.id, a.id, a.id] } });
+  d = (await srv.api('/dashboard')).data;
+  assert.deepEqual([d.home, d.homeAuto], [[b.id, a.id], false], 'chosen: a tile inside a group too, in order, once each');
+  const c = await add({ kind: 'value', title: 'Home C' });
+  assert.ok(!(await srv.api('/dashboard')).data.home.includes(c.id), 'a new tile stays off a chosen home');
+
+  const bad = await srv.asChief('/dashboard/layout', { method: 'PUT', body: { home: [a.id, 'nope'], sections: ['X'] } });
+  assert.equal(bad.status, 400);
+  assert.match(bad.data.error, /nope/);
+  assert.ok(!(await srv.api('/dashboard')).data.sections.includes('X'), 'a wrong id changes nothing');
+
+  const chief = await srv.asChief('/dashboard/layout', { method: 'PUT', body: { home: [c.id, b.id] } });
+  assert.deepEqual(chief.data.home, [c.id, b.id], 'the Chief sets it and sees it in the answer');
+  await srv.api(`/dashboard/tiles/${c.id}`, { method: 'DELETE' });
+  assert.deepEqual((await srv.api('/dashboard')).data.home, [b.id], 'a removed tile leaves home');
+
+  await srv.api('/dashboard/layout', { method: 'PUT', body: { home: null } });
+  d = (await srv.api('/dashboard')).data;
+  assert.equal(d.homeAuto, true);
+  assert.ok(d.home.includes(a.id) && !d.home.includes(b.id), 'null: automatic again');
+  for (const t of [b, g, a]) await srv.api(`/dashboard/tiles/${t.id}`, { method: 'DELETE' });
+});
