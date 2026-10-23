@@ -368,7 +368,7 @@ The owner writes once and the botdot server gives the turns ([ADR 019](adr/019-t
 **A message** is `{ id, text, at, attachments?, to, waitsFor, next, canTakeBack, atLimit?, stopped?, together? }`:
 
 - `attachments`: the files the owner attached, `{ name, file, size }` each.
-- `to`: the members it was for, in the group's order.
+- `to`: the members it was for, in the group's order. Without a mention, it can narrow a moment after the message is sent to the members botdot picked to answer it (ADR 081): the message is sent again on the feed (`group_message`) then. Until that, no turn of it starts.
 - `waitsFor`: the members whose turn waits for them, because they are working, in a group or in their own chat. Say that the message waits for them. Such a turn is the kind `turn` in that bot's queue: it starts as early as the owner's own message to that bot, is no entry of the bot's `queued`, and the members after it are not held up. It starts when its member is free and no other turn of the message is at work. A message whose turns have not begun also names here the members still on the line of an earlier message (at work, or still to come): it waits for that line to end, so that its turns read those replies (ADR 079).
 - `next`: the members whose turn has not come yet, in the order they will have it: the group's, with the member whose question was open first (see A card and a question in a group), then the members a reply handed the work on to. A member can be in `next` that is not in `to`, and one that already replied. While Claude is signed out no turn is given: every member is in `next` until the sign-in.
 - `canTakeBack`: none of its turns has started.

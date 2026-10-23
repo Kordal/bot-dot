@@ -57,6 +57,24 @@ const n = `${Date.now()}-${process.pid}`;
 // What every result line reports as used (Token usage, #301).
 const USAGE = { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 300, cache_creation_input_tokens: 40 };
 const val = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : null; };
+// The group router's question (lib/group-router.js, ADR 081), told by its own system prompt: no run. It writes what
+// it was asked to $FAKE_OUT/route-<n>.txt, then answers $FAKE_OUT/route.txt (or '{"members":[]}'), after
+// $FAKE_OUT/route-ms.txt ms when that exists, or fails when $FAKE_OUT/route-fails exists.
+if (String(val('--system-prompt') || '').startsWith('You route messages')) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `route-${at}.txt`), asked);
+    const read = (f, d) => { try { return fs.readFileSync(path.join(OUT, f), 'utf8'); } catch { return d; } };
+    setTimeout(() => {
+      if (has('route-fails')) { console.error('overloaded'); process.exit(1); }
+      console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: read('route.txt', '{"members":[]}'), session_id: `route-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+      process.exit(0);
+    }, Number(read('route-ms.txt', '0')) || 0);
+  });
+  return;
+}
 let mcp = { mcpServers: {} };
 try { const mc = val('--mcp-config'); mcp = JSON.parse(mc.trim().startsWith('{') ? mc : fs.readFileSync(mc, 'utf8')); } catch { /* none */ }
 // system: the appended prompt, read now from its file: botdot removes the file when the run has ended.

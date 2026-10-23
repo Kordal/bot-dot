@@ -84,6 +84,8 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
       BOT_DOT_ANTHROPIC_API_URL: 'http://127.0.0.1:9',
       // The background dresser (lib/dresser.js) would start the stand-in Claude in every test; its own tests switch it on.
       BOT_DOT_DRESS_WAITS: 'off',
+      // The group router (lib/group-router.js) would ask the stand-in before every turn of a group; its own tests switch it on.
+      BOT_DOT_GROUP_ROUTER: 'off',
       // A new bot's first message (lib/hello.js) would be a run in every test that makes a bot; its own tests switch it on.
       BOT_DOT_HELLO_DELAY_MS: 'off',
       // The tests don't wait for the clock: srv.tick() runs the scheduler's next minute now (server.js test-tick),
