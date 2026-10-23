@@ -74,7 +74,25 @@ async function load(src, g) {
   const v = await g.api(`${src.file}${src.file.includes('?') ? '&' : '?'}view=1`);
   if (v.kind !== 'markdown' && v.kind !== 'text') throw new Error('Only a text document opens here.');
   // A page with blocks (#395): written out as text and tables, with the values they show now.
-  return { text: v.plain || v.text || '', who: v.name, at: v.at, back: '', name: v.name, truncated: v.truncated };
+  return { text: v.plain || v.text || '', who: v.name, at: v.at, back: ownerOf(src.file), name: v.name, truncated: v.truncated };
+}
+
+// Where a file's document goes back to: the chat of the bot whose file or page it is (the Chief's own: #chief), or ''
+// for a file no bot owns.
+function ownerOf(file) {
+  const m = String(file).match(/^\/bots\/([^/?#]+)\//);
+  if (!m) return '';
+  let id;
+  try { id = decodeURIComponent(m[1]); } catch { return ''; }
+  return id === 'chief' ? '#chief' : `#bot/${encodeURIComponent(id)}`;
+}
+
+// Whether a new address leaves this document: anything but one of its own sections (has: whether the page holds that
+// id). The page is drawn instead of the app, at load only, so a chat's address (Back to chat, the browser's back, a
+// typed one) or another document's loads the page again; a bare hash change used to leave the document standing.
+function leaves(hash, has) {
+  const h = String(hash || '');
+  return !(h.length > 1 && !h.startsWith('#doc/') && has(h.slice(1)));
 }
 
 // The title: the first heading, else the file's name, else the start of the first line.
@@ -95,6 +113,7 @@ async function show(hash, g) {
   page.id = 'doc-page';
   page.className = 'doc-page';
   document.body.append(page);
+  addEventListener('hashchange', () => { if (leaves(location.hash, (id) => !!page.querySelector(`[id="${CSS.escape(id)}"]`))) location.reload(); });
   if (!src) { page.innerHTML = stateHTML(g, 'No such document', 'This address names no reply or file.'); return; }
   let doc;
   try { doc = await load(src, g); } catch (e) { page.innerHTML = stateHTML(g, "Couldn't open it", e.message || 'Try again.'); return; }
@@ -287,6 +306,6 @@ const stateHTML = (g, title, text) => `<div class="doc-state"><h3>${g.esc(title)
 // state and mdBlocks (app.js) when called.
 root.docButton = (src, text) => button(src, text, { features: state.features, blocks: mdBlocks });
 
-root.DocPage = { LONG_WORDS, SECTIONED_WORDS, words, isLong, address, parse, button, outline, titleOf, load, show, exportFile, gdLabel, googleDocs };
+root.DocPage = { LONG_WORDS, SECTIONED_WORDS, words, isLong, address, parse, button, outline, titleOf, load, ownerOf, leaves, show, exportFile, gdLabel, googleDocs };
 
 })(typeof window !== 'undefined' ? window : globalThis);
