@@ -52,6 +52,13 @@ test('web: kept keeps Send now, an earlier version and a sent mail fold', () => 
   assert.deepEqual(buttons(sent), []);
 });
 
+test('web: a look\'s draft is in no mailbox yet', () => {
+  const html = chiefBubble(reply({ ...draft, unsaved: true, botId: undefined, bot: undefined }, { unasked: true }), true);
+  assert.match(html, /<i><\/i>Not sent<\/div>/);
+  assert.deepEqual(buttons(html), ['Send now', 'Not now']);
+  assert.match(chiefBubble(reply({ ...draft, unsaved: true, state: 'kept' }), true), /<i><\/i>Not sent<\/div>/);
+});
+
 test('web: a reply without a draft is as before', () => {
   const html = chiefBubble({ role: 'chief', text: 'Hi', at: '2026-10-23T07:00:00Z', choices: ['Yes', 'No'], actions: [{ kind: 'run', text: 'Started E-mail Assistant', botId: 'mail' }] }, true);
   assert.doesNotMatch(html, /mail-card/);

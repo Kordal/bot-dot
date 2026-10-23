@@ -506,6 +506,7 @@ data class MailDraft(
     val to: String = "", val subject: String = "", val text: String = "", val state: String = "draft",
     val sentAt: String? = null, val earlier: Boolean = false,
     val botId: String? = null, val runId: String? = null, val bot: String? = null,
+    val unsaved: Boolean = false, // a look's draft (#422): in no mailbox until Send now
 )
 
 @Serializable

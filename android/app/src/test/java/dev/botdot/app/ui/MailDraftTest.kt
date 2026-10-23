@@ -36,4 +36,14 @@ class MailDraftTest {
         assertFalse(MailCard.takesChip(kept.draft, waits.actions!![0]))
         assertNull(plain.draft)
     }
+
+    @Test fun aLooksDraftIsInNoMailbox() {
+        val (waits, kept) = messages("""
+            {"role":"chief","text":"Anna waits 3 days.","unasked":true,"choices":["Send now","Not now"],"draft":{"to":"Anna <anna@example.com>","subject":"Re: Plans","text":"Hi Anna","state":"draft","unsaved":true}},
+            {"role":"chief","text":"","unasked":true,"draft":{"to":"Anna <anna@example.com>","subject":"Re: Plans","text":"Hi Anna","state":"kept","unsaved":true}}""")
+        assertEquals("Not sent", MailCard.state(waits.draft!!))
+        assertEquals(listOf("Send now", "Not now"), MailCard.actions(waits.draft!!))
+        assertEquals("Not sent", MailCard.state(kept.draft!!))
+        assertEquals(listOf("Send now"), MailCard.actions(kept.draft!!))
+    }
 }

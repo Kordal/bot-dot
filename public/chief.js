@@ -417,7 +417,8 @@ function actionChip(a) {
 // A mail draft (docs/api.md, "A mail draft", #415): one card with its header, its state, its text, Send now and
 // Not now, and the bot whose run wrote it in its footer. A version the Chief wrote again later folds to one line, a
 // sent one to its header; a tap opens them.
-const MAIL_STATE = { draft: 'In Drafts · not sent', kept: 'Kept in Drafts · not sent' };
+// A look's draft (#422, `unsaved`) is in no mailbox yet: "Not sent" alone.
+const MAIL_STATE = { draft: 'In Drafts · not sent', kept: 'Kept in Drafts · not sent', unsaved: 'Not sent' };
 // The run chips the card's footer takes the place of.
 const mailChip = (m, a) => !!m.draft?.botId && (a.kind === 'run' || a.kind === 'from') && a.botId === m.draft.botId;
 function mailCardHTML(d) {
@@ -428,7 +429,7 @@ function mailCardHTML(d) {
   const card = `
     <section class="mail-card" aria-label="Mail draft"${d.earlier ? ' hidden' : ''}>
       <dl class="mail-head"><dt>To</dt><dd>${esc(d.to)}</dd><dt>Subject</dt><dd class="mail-subject">${esc(d.subject)}</dd></dl>
-      <div class="mail-state${sent ? ' sent' : ''}"><i></i>${sent ? `Sent ${esc(msgTime(d.sentAt))}` : MAIL_STATE[d.state] || MAIL_STATE.draft}</div>
+      <div class="mail-state${sent ? ' sent' : ''}"><i></i>${sent ? `Sent ${esc(msgTime(d.sentAt))}` : d.unsaved ? MAIL_STATE.unsaved : MAIL_STATE[d.state] || MAIL_STATE.draft}</div>
       ${d.text ? `<div class="mail-text"${sent ? ' hidden' : ''}>${esc(d.text)}</div>` : ''}
       ${actions.length ? `<div class="choices mail-actions">${actions.map((c, i) => `<button type="button" class="btn${i ? '' : ' primary'}" data-choice="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
       ${name ? `<div class="mail-foot"><button type="button" class="mail-link" data-mail-bot="${esc(d.botId)}">${esc(name)}</button>${bot?.computer === 'linux' ? ` · <button type="button" class="mail-link" data-mail-screen="${esc(d.botId)}">Screen</button>` : ''}</div>` : ''}

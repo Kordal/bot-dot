@@ -27,3 +27,12 @@ A look reads the owner's mail, read-only ([ADR 070](070-a-look-reads-the-owners-
 - A draft in the owner's mailbox can be made from a turn the owner started without their OK on it; it stays a draft until they send it.
 - The style note may be unpinned first when the shared memory is full (ADR 015); it stays searchable, and "learn how I write" makes it again.
 - `SECURITY.md` says that a Gmail draft needs no card.
+
+## Amendment: the look's draft is the mail draft's card (2026-10-23, [#422](https://github.com/Kordal/bot-dot/issues/422))
+
+A look's draft of a reply owed was text in quotes with `[[choices]]` Send / Change, while a Chief reply's draft was the card of #415: one draft, two looks and two answer paths. Now:
+
+- **The look writes the oldest reply owed as a `[[draft]]` block**, with To and Subject, and no `[[choices]]`; a second one owed is named in the text, with no draft. botdot keeps the block on the unasked message as `draft` with `unsaved: true` (`lib/look.js`, `lib/mail-draft.js`), drawn as the card with Send now and Not now and the state "Not sent".
+- **Send now** is the owner's turn, as Send was: the Chief makes a Gmail draft in that thread and sends it, the send waiting for its card. **Not now** leaves it unsent. A change is asked in words, and the Chief writes the block again: the card before it folds. The Chief prompt's own Send / Change line goes; the mail draft's note says it.
+- The look still only reads (ADR 070): the draft is in no mailbox until Send now.
+
