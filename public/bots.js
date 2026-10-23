@@ -470,10 +470,12 @@ async function drawBotFiles(b, data = null, box = $('#file-list')) {
   const one = (f) => `${base}/files/${encodeURIComponent(f.file.split('/').pop())}`; // its API path; its link is /api + that
   box.innerHTML = data.files.map((f) => `
     <div class="bs-file" data-file="${esc(f.file)}">
-      <a class="grow" href="/api${one(f)}" target="_blank" rel="noopener"${state.features.includes('document-viewer') ? ` data-view="${esc(one(f))}" data-view-name="${esc(f.name)}" data-view-from="${esc(b.name)}"` : ''}>${esc(f.name)}</a>
-      <span class="faint">${fmtSize(f.size)} · ${new Date(f.at).toLocaleDateString()}</span>
-      <button type="button" class="link-btn${f.pinned ? ' on' : ''}" data-file-pin aria-pressed="${f.pinned}">${f.pinned ? '📌 Kept in mind' : 'Keep in mind'}</button>
-      <button type="button" class="link-btn danger-text" data-file-delete>Delete</button>
+      <a class="grow" href="/api${one(f)}" target="_blank" rel="noopener"${state.features.includes('document-viewer') ? ` data-view="${esc(one(f))}" data-view-name="${esc(f.name)}" data-view-from="${esc(b.name)}"` : ''} title="${esc(f.name)}">${esc(f.name)}</a>
+      <span class="bs-file-acts">
+        <span class="faint">${fmtSize(f.size)} · ${new Date(f.at).toLocaleDateString()}</span>
+        <button type="button" class="link-btn${f.pinned ? ' on' : ''}" data-file-pin aria-pressed="${f.pinned}">${f.pinned ? '📌 Kept in mind' : 'Keep in mind'}</button>
+        <button type="button" class="link-btn danger-text" data-file-delete>Delete</button>
+      </span>
     </div>`).join('');
   box.querySelectorAll('.bs-file').forEach((row) => {
     const f = data.files.find((x) => x.file === row.dataset.file);
