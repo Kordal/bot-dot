@@ -48,7 +48,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
       // Between bots (a run another bot or the Chief started) the reply folds as the message above it does: one line,
       // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open.
       const outgoing = sentTo(r).filter((t) => t.text);
-      const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
+      const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
           ${learnedChips(r)}`;
       const shown = sender(r) && !failed
         ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(exchangeLabel(r), body)}

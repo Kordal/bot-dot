@@ -193,12 +193,32 @@ function drawConnectors() {
   };
 }
 
+// A Reconnect card under the reply of a job's run (#431, docs/api.md "A Reconnect card"): an app it found signed out, and
+// the button that connects it again as this page does. Once connected here, its cards say so.
+const reconnected = new Set();
+function reconnectCardsHTML(run) {
+  const list = (Array.isArray(run?.reconnect) ? run.reconnect : []).filter((x) => x && typeof x.app === 'string');
+  return list.map((x) => {
+    const name = esc(String(x.name || x.app));
+    return reconnected.has(x.app)
+      ? `<div class="reconnect-card"><span><b>${name}</b> is connected</span></div>`
+      : `<div class="reconnect-card"><span><b>${name}</b> is signed out</span><button class="btn sm primary" data-reconnect="${esc(x.app)}">Reconnect</button></div>`;
+  }).join('');
+}
+document.addEventListener('click', (e) => {
+  const b = e.target.closest?.('[data-reconnect]');
+  if (!b) return;
+  b.disabled = true;
+  connectApp(b.dataset.reconnect, () => { reconnected.add(b.dataset.reconnect); if (state.view === 'bot') { delete $('#view-bot').dataset.sig; renderBotChat(); } }).finally(() => { b.disabled = false; });
+});
+
 // Composio's sign-in page opens in a new tab; this waits for the connection to become active.
-async function connectApp(slug) {
+// connected: what happens then, instead of this page's own list and its question of which bots may use it.
+async function connectApp(slug, connected = null) {
   const win = window.open('about:blank', '_blank'); // opened now, so pop-up blockers allow it
   let r;
   try { r = await api('/connectors/connect', { method: 'POST', body: { app: slug } }); } catch (e) { win?.close(); return toast(e.message, true); }
-  if (r.noAuth) { win?.close(); return chooseAppBots(slug); }
+  if (r.noAuth) { win?.close(); return connected ? connected() : chooseAppBots(slug); }
   if (win) win.location = r.redirectUrl; else location.assign(r.redirectUrl);
   toast('Sign in on the page that opened. botdot notices when you\'re done.');
   const until = Date.now() + 10 * 60_000;
@@ -207,10 +227,11 @@ async function connectApp(slug) {
     const c = await api(`/connectors/connections/${encodeURIComponent(r.connectionId)}`).catch(() => null);
     if (c?.status === 'ACTIVE') {
       toast('Connected');
+      if (connected) return connected();
       await renderConnectors(true);
       return chooseAppBots(slug, true);
     }
-    if (c && ['FAILED', 'EXPIRED'].includes(c.status)) { toast(`Connecting didn't work${c.statusReason ? `: ${c.statusReason}` : ''}`, true); return renderConnectors(true); }
+    if (c && ['FAILED', 'EXPIRED'].includes(c.status)) { toast(`Connecting didn't work${c.statusReason ? `: ${c.statusReason}` : ''}`, true); return connected ? null : renderConnectors(true); }
   }
 }
 

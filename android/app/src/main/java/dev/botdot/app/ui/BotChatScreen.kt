@@ -284,7 +284,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
     val to = r.sentToAll?.takeIf { it.isNotEmpty() } ?: listOfNotNull(r.sentTo)
     val reply: @Composable () -> Unit = {
         TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
-            Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty()) "Done." else "" }); OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); PlanFold(plan) }
+            Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) "Done." else "" }); OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect); PlanFold(plan) }
         }
     }
     // Between bots (a run another bot or the Chief started) the reply folds as the message above it does (#413).
@@ -312,7 +312,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
             // A stopped run the server says nothing of, and every stopped run of a botdot from before `ended-by`.
             is Ended.Stopped -> TheirBubble(footer, chips = learned, wholeChips = whole) { Column { Text(ended.text, color = p.muted); PlanFold(plan) } }
             is Ended.Problem -> TheirBubble(footer, error = true, copyText = r.error?.ifBlank { null } ?: ended.text, chips = learned, wholeChips = whole) {
-                Column { Text(ended.text, color = p.text, style = MaterialTheme.typography.bodyLarge); PlanFold(plan) }
+                Column { Text(ended.text, color = p.text, style = MaterialTheme.typography.bodyLarge); ReconnectCards(r.reconnect); PlanFold(plan) }
             }
         }
     }
