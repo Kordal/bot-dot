@@ -137,3 +137,24 @@ test('the Chief also runs separately and a timed-out script loses its child proc
   await waitFor(()=>{try{return /^State:\s+Z/m.test(fs.readFileSync(`/proc/${pid}/status`,'utf8'))}catch(e){return e.code==='ENOENT'}},{what:'child termination'});
  }finally{await srv.stop()}
 });
+
+// #468: under separate users a page's tile on the Board read its page through the broker, about ten processes the
+// server waited for, on every GET /api/dashboard (each refresh of each app): seconds in which nothing else was answered.
+test("the Board with a page's tile answers at once and holds up nothing", { skip: !CAN && 'needs isolated Linux root', timeout: 60000 }, async () => {
+  const srv = await startServer({ broker: true, env: { BOT_DOT_SEPARATE_USERS: '1' } });
+  try {
+    assert.equal((await srv.asChief('/chief/pages', { method: 'POST', body: { title: 'Team overview', markdown: '# Team overview\n\nTwo bots.' } })).status, 200);
+    assert.equal((await srv.api('/bots/chief/pages/team-overview/board', { method: 'PUT', body: { on: true } })).status, 200);
+    const timed = async (p) => { const at = Date.now(); const r = await srv.api(p); return { r, ms: Date.now() - at }; };
+    await timed('/dashboard?quiet'); // read once
+    for (let i = 0; i < 3; i++) {
+      const [board, version] = await Promise.all([timed('/dashboard?quiet'), timed('/version')]);
+      assert.deepEqual(board.r.data.tiles.find((t) => t.kind === 'page').look.face, [{ type: 'text', text: 'Two bots.', lines: 3 }]);
+      assert.ok(board.ms < 300, `the Board answered in ${board.ms} ms`);
+      assert.ok(version.ms < 300, `GET /api/version beside it waited ${version.ms} ms`);
+    }
+    // A page saved again: its tile reads it again.
+    await srv.asChief('/chief/pages', { method: 'POST', body: { title: 'Team overview', markdown: '# Team overview\n\nThree bots.' } });
+    assert.deepEqual((await srv.api('/dashboard?quiet')).data.tiles.find((t) => t.kind === 'page').look.face, [{ type: 'text', text: 'Three bots.', lines: 3 }]);
+  } finally { await srv.stop(); }
+});
