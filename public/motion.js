@@ -5,8 +5,8 @@
 (function (root) {
 'use strict';
 
-// A browser driven by tests (navigator.webdriver) sees each exit end at once, so that what a test checks right after
-// a close is already gone; the entrances still play. (A test of the exits says it is no such browser.)
+// A browser driven by tests (navigator.webdriver) sees each exit end at once (a fold too), so that what a test checks
+// right after a close is already gone; the entrances still play. (A test of the exits says it is no such browser.)
 const exits = () => !(typeof navigator === 'object' && navigator.webdriver);
 const still = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 // A token of style.css in ms: '--t2' → 200.
@@ -80,8 +80,77 @@ function justDone(id, kind, now = Date.now()) {
   return k.kind === 'done' && k.from === 'working' && now - k.at < ms('--t3', 260) + 40;
 }
 
-// Without exits, dialogs close at once too (style.css, .m-exits-off).
-if (typeof document === 'object' && !exits()) document.documentElement.classList.add('m-exits-off');
+// A modal dialog that closes leaves a picture of itself, and of its backdrop, that shrinks and fades away over the
+// page, which takes clicks at once: the dialog itself is closed as it always was, so code that opens it again or
+// reads it right after finds it closed. Every browser alike: no @starting-style, overlay or allow-discrete. The
+// picture has no names on its fields, so it never takes the checked radio of a group.
+function closing(d) {
+  if (!exits() || !d.isConnected || !d.open || !d.matches(':modal')) return null;
+  const box = d.getBoundingClientRect();
+  if (!box.width || !box.height) return null;
+  const g = d.cloneNode(true);
+  g.querySelectorAll('iframe, video, audio').forEach((x) => x.remove());
+  g.querySelectorAll('[name]').forEach((x) => x.removeAttribute('name'));
+  g.inert = true;
+  g.setAttribute('aria-hidden', 'true');
+  g.classList.add('m-dialog-out');
+  Object.assign(g.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+  const shade = document.createElement('div');
+  shade.className = 'm-backdrop-out';
+  return () => {
+    document.body.append(shade, g);
+    g.scrollTop = d.scrollTop;
+    setTimeout(() => { g.remove(); shade.remove(); }, ms('--t1', 120) + 60);
+  };
+}
+if (typeof HTMLDialogElement === 'function') {
+  const close = HTMLDialogElement.prototype.close;
+  HTMLDialogElement.prototype.close = function (...args) {
+    const leave = closing(this);
+    close.apply(this, args);
+    if (leave && !this.open) leave();
+  };
+  // Esc closes it without close() (and, without a click since it opened, without a cancel event): pictured as the key
+  // goes down, shown when it closes soon after; a dialog that stays open shows nothing.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const d = document.querySelector('dialog:modal'), leave = d && closing(d), at = Date.now();
+    if (leave) d.addEventListener('close', () => { if (Date.now() - at < 300) leave(); }, { once: true });
+  }, true);
+}
+
+// A fold (`details`, not a card) opens and closes in height, in every browser: the click on its summary is taken
+// here, the fold opened at once (its content takes clicks from the first frame) or closed at the end. A second
+// click turns it round from where it is. Under reduced motion, in a test browser, or with a click on a link or button
+// in the summary, the browser's own toggle.
+function fold(d) {
+  const summary = d.querySelector(':scope > summary');
+  const cs = getComputedStyle(d);
+  const px = (p) => parseFloat(cs[p]) || 0;
+  const shut = summary.getBoundingClientRect().height + px('paddingTop') + px('paddingBottom') + px('borderTopWidth') + px('borderBottomWidth');
+  const opening = d._fold ? !d._fold.opening : !d.open;
+  const from = d.getBoundingClientRect().height;
+  d._fold?.cancel();
+  if (opening) d.open = true;
+  const to = opening ? d.getBoundingClientRect().height : shut;
+  d.style.overflow = 'hidden';
+  const a = d.animate({ height: [`${from}px`, `${to}px`] }, { duration: ms('--t2'), easing: curve('--out') });
+  a.opening = opening;
+  d._fold = a;
+  const end = () => { if (d._fold === a) { d._fold = null; d.style.removeProperty('overflow'); } };
+  a.oncancel = end;
+  a.onfinish = () => { if (!opening && d._fold === a) d.open = false; end(); };
+}
+if (typeof document === 'object') {
+  document.addEventListener('click', (e) => {
+    const summary = e.target instanceof Element ? e.target.closest('summary') : null;
+    const d = summary?.parentElement;
+    if (e.defaultPrevented || !d || d.tagName !== 'DETAILS' || d.querySelector(':scope > summary') !== summary) return;
+    if (d.matches('.card') || still() || !exits() || !d.animate || e.target.closest('a, button, input, select, textarea, label') !== null) return;
+    e.preventDefault();
+    fold(d);
+  });
+}
 
 const api = { play, leave, settle, flip, justDone, exits, still, ms };
 if (typeof module === 'object' && module.exports) module.exports = api;

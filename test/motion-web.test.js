@@ -36,12 +36,14 @@ test('web: the enters take --out and the exits --in, one step shorter', () => {
 
 test('web: what leaves takes no clicks, and with reduced motion only fades are left', () => {
   assert.match(motion, /\.m-leaving \{[^}]*pointer-events: none;/);
-  assert.match(motion, /dialog:not\(\[open\]\) \{[^}]*pointer-events: none;/);
+  assert.match(motion, /dialog\.m-dialog-out \{[^}]*pointer-events: none;/, 'the picture of a closed dialog');
+  assert.match(motion, /\.m-backdrop-out \{[^}]*pointer-events: none;/);
+  assert.doesNotMatch(css, /@starting-style|allow-discrete|interpolate-size|::details-content/, 'nothing that only the newest browsers move');
   const reduced = motion.slice(motion.indexOf('@media (prefers-reduced-motion: reduce)'));
   assert.match(reduced, /animation: m-fade-in var\(--t1\) linear;/);
   assert.match(reduced, /animation: m-fade-out var\(--t1\) linear forwards;/);
   assert.match(reduced, /\.m-board-in \.tile \{ animation: none; \}/);
-  assert.match(reduced, /scale: none; translate: none;/);
+  assert.match(reduced, /dialog\[open\], dialog\[open\]::backdrop \{ animation: m-fade-in var\(--t1\) linear; \}/);
 });
 
 test('web: the Board leaves towards its key and grows out of it; a phone pushes the chat in and Back pulls it out', () => {

@@ -1,7 +1,7 @@
 // Optional browser check of the motion system (#497): NODE_PATH=<directory containing playwright> node test/browser/motion.cjs
 // A bot and a Board of two tiles. At 1440px the Board grows out of its key with its tiles one after another and,
 // left, stays drawn over the chat untouchable until it has shrunk away; the settings panel slides in; a dialog grows
-// in and fades out; the toast rises. On a phone (390px) a key pushes its chat in over the list and Back pulls it out.
+// in and fades out; a fold grows and shrinks (both without the newest CSS, so as in Firefox); the toast rises. On a phone (390px) a key pushes its chat in over the list and Back pulls it out.
 // With reduced motion only fades are left. The page is told it is no test browser (navigator.webdriver), which
 // would skip the exits. SHOTS=<folder> keeps a picture mid-movement. Scratch data and the stand-in Claude only.
 const assert = require('node:assert/strict');
@@ -67,13 +67,45 @@ const { startServer, makeBot } = require('../helpers');
     await page.evaluate((id) => setView('botsettings', id), bot.id);
     assert.equal(await anim('#panel'), 'm-slide-in');
 
-    // 4. A dialog grows in, and fades out a step faster, untouchable.
-    await page.evaluate(() => { const m = document.querySelector('#modal'); m.innerHTML = '<p style="padding:40px">Hi</p>'; m.showModal(); });
-    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#modal')).transitionDuration.split(',')[0].trim()), '0.2s');
+    // 4. A dialog grows in; closed, it is closed at once and a picture of it fades away over a page that takes clicks.
+    const modal = () => page.evaluate(() => { const m = document.querySelector('#modal'); m.innerHTML = '<p style="padding:40px">Hi</p>'; m.showModal(); });
+    await modal();
+    assert.equal(await anim('#modal'), 'm-dialog-in');
     await page.waitForTimeout(300);
     await page.evaluate(() => document.querySelector('#modal').close());
-    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#modal')).pointerEvents), 'none');
-    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#modal')).transitionDuration.split(',')[0].trim()), '0.12s');
+    assert.equal(await page.evaluate(() => document.querySelector('#modal').open), false, 'closed at once');
+    assert.equal(await page.locator('dialog.m-dialog-out').count(), 1, 'its picture fades away');
+    assert.equal(await anim('dialog.m-dialog-out'), 'm-dialog-out');
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('dialog.m-dialog-out')).pointerEvents), 'none');
+    assert.equal(await page.evaluate(() => document.querySelector('dialog.m-dialog-out [name]')), null);
+    assert.equal(await page.evaluate(() => !!document.elementFromPoint(innerWidth / 2, innerHeight / 2).closest('.m-dialog-out, .m-backdrop-out')), false, 'a click goes to the page under it');
+    await page.waitForTimeout(300);
+    assert.equal(await page.locator('dialog.m-dialog-out, .m-backdrop-out').count(), 0, 'then gone');
+    await modal();
+    await page.waitForTimeout(300);
+    await page.keyboard.press('Escape');
+    await page.locator('dialog.m-dialog-out').waitFor({ state: 'attached', timeout: 150 }); // Esc too
+    await page.waitForTimeout(300);
+
+    // 6. A fold opens at once and grows; closed, it shrinks and only then is closed; a second click turns it round.
+    await page.evaluate(() => document.querySelector('#view-botsettings').insertAdjacentHTML('beforeend', '<details class="tool" id="m-fold"><summary>Ran 3 commands</summary><pre>a\nb\nc\nd\ne\nf</pre></details>'));
+    const fold = () => page.evaluate(() => { const d = document.querySelector('#m-fold'); return { open: d.open, h: d.getBoundingClientRect().height, moving: d.getAnimations().length }; });
+    const shut = (await fold()).h;
+    await page.locator('#m-fold summary').click();
+    let f = await fold();
+    assert.ok(f.open && f.moving === 1, 'open at once, growing');
+    await page.waitForTimeout(300);
+    f = await fold();
+    assert.ok(f.open && !f.moving && f.h > shut + 40, 'grown to its content');
+    await page.locator('#m-fold summary').click();
+    assert.equal((await fold()).open, true, 'still open while it shrinks');
+    await page.waitForTimeout(300);
+    f = await fold();
+    assert.ok(!f.open && Math.abs(f.h - shut) < 1, 'then closed');
+    await page.locator('#m-fold summary').click();
+    await page.locator('#m-fold summary').click();
+    await page.waitForTimeout(300);
+    assert.equal((await fold()).open, false, 'opened and closed again: closed');
 
     // 7. The toast rises, and sinks away.
     await page.evaluate(() => toast('Copied'));
@@ -114,7 +146,7 @@ const { startServer, makeBot } = require('../helpers');
     assert.equal(await anim('#view-dashboard'), 'm-fade-out');
 
     assert.deepEqual(errors, []);
-    console.log('PASS: the Board grows out of its key, its tiles after it, and shrinks away untouchable over the chat; shown again at once it stands in place; the panel slides in; a dialog grows in and fades out a step faster; the toast rises and sinks; a phone pushes the chat in over the list and Back pulls it out; reduced motion fades only; no browser errors.');
+    console.log('PASS: the Board grows out of its key, its tiles after it, and shrinks away untouchable over the chat; shown again at once it stands in place; the panel slides in; a dialog grows in, closes at once and its picture fades out, also on Esc; a fold grows and shrinks and turns round; the toast rises and sinks; a phone pushes the chat in over the list and Back pulls it out; reduced motion fades only; no browser errors.');
   } finally {
     await browser?.close();
     await srv.stop();
