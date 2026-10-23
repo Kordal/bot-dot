@@ -1,0 +1,47 @@
+{
+  "teams": {
+    "Quotz Team": [
+      { "name": "Quotz Manager", "description": "Runs the Quotz product: customers, quotes, pricing and the roadmap.", "prompt": "You manage Quotz, a quoting app. Keep the roadmap, answer customer questions, plan releases and write the weekly status.", "skills": ["roadmap", "customer-mail"] },
+      { "name": "Infra Admin", "description": "Keeps the Quotz servers up: deploys, backups, monitoring, certificates.", "prompt": "You run the Quotz infrastructure on the VPS: Docker, deploys, backups, disk and memory, TLS certificates, Beszel monitoring.", "skills": ["ssh", "docker"] },
+      { "name": "QA Tester", "description": "Tests Quotz releases and reports bugs.", "prompt": "You test every Quotz build before release: run the test plan, try the main flows in the browser, file bugs with steps to reproduce.", "skills": ["playwright", "bug-report"] }
+    ],
+    "Bot-dot Dev Team": [
+      { "name": "Coder", "description": "Writes the code and opens pull requests.", "prompt": "You implement GitHub issues of the bot-dot repo test-first, one branch and one pull request per issue.", "skills": ["implement", "tdd"] },
+      { "name": "Reviewer", "description": "Reviews pull requests for bugs and risks.", "prompt": "You review pull requests of bot-dot: correctness, tests, security, and say what must change before merge.", "skills": ["code-review"] },
+      { "name": "Designer", "description": "Draws UI mockups for the web page and the Android app.", "prompt": "You design screens for bot-dot: dark mode only, no helper text, mockups as HTML before anything is built.", "skills": ["mockup"] },
+      { "name": "Release Manager", "description": "Builds images and the APK, writes release notes, ships updates.", "prompt": "You ship bot-dot: run the image and APK builds, check CI, write what's new, and update the servers.", "skills": ["release"] }
+    ]
+  },
+  "cases": [
+    { "team": "Quotz Team", "text": "The site is down, 502 on every page", "expect": ["Infra Admin"], "ok": [] },
+    { "team": "Quotz Team", "text": "Is last night's backup ok?", "expect": ["Infra Admin"], "ok": [] },
+    { "team": "Quotz Team", "text": "The disk on the VPS is at 91%, can you clean up?", "expect": ["Infra Admin"], "ok": [] },
+    { "team": "Quotz Team", "text": "The TLS certificate expires in 5 days", "expect": ["Infra Admin"], "ok": [] },
+    { "team": "Quotz Team", "text": "Test the new PDF export before we ship it", "expect": ["QA Tester"], "ok": [] },
+    { "team": "Quotz Team", "text": "A customer says the discount field rounds 19.99 to 20, can you reproduce?", "expect": ["QA Tester"], "ok": ["Quotz Manager"] },
+    { "team": "Quotz Team", "text": "Run the regression suite on the staging build", "expect": ["QA Tester"], "ok": [] },
+    { "team": "Quotz Team", "text": "What should go into the next release?", "expect": ["Quotz Manager"], "ok": [] },
+    { "team": "Quotz Team", "text": "Write the weekly status for the customers", "expect": ["Quotz Manager"], "ok": [] },
+    { "team": "Quotz Team", "text": "Should we raise the Pro price to 29?", "expect": ["Quotz Manager"], "ok": [] },
+    { "team": "Quotz Team", "text": "Reply to Acme, they ask when multi-currency quotes come", "expect": ["Quotz Manager"], "ok": [] },
+    { "team": "Quotz Team", "text": "Deploy 2.4 to production and check it works", "expect": ["Infra Admin"], "ok": ["QA Tester"] },
+    { "team": "Quotz Team", "text": "Good morning team, what's everyone doing today?", "expect": ["Quotz Manager", "Infra Admin", "QA Tester"], "ok": [], "everyone": true },
+    { "team": "Quotz Team", "text": "Everyone: give me one risk for the 2.4 release", "expect": ["Quotz Manager", "Infra Admin", "QA Tester"], "ok": [], "everyone": true },
+    { "team": "Quotz Team", "text": "Memory on the server keeps climbing since yesterday", "expect": ["Infra Admin"], "ok": [] },
+    { "team": "Quotz Team", "recent": [{ "who": "QA Tester", "text": "Found a bug: the quote total ignores tax when the customer is in the EU." }], "text": "How bad is it, do we hold the release?", "expect": ["Quotz Manager"], "ok": ["QA Tester"] },
+    { "team": "Bot-dot Dev Team", "text": "Implement issue #512, the group limit counter", "expect": ["Coder"], "ok": [] },
+    { "team": "Bot-dot Dev Team", "text": "Review PR #509 please", "expect": ["Reviewer"], "ok": [] },
+    { "team": "Bot-dot Dev Team", "text": "Draw a mockup of the new settings screen", "expect": ["Designer"], "ok": [] },
+    { "team": "Bot-dot Dev Team", "text": "Build the APK and ship the update to hq", "expect": ["Release Manager"], "ok": [] },
+    { "team": "Bot-dot Dev Team", "text": "CI is red on main, the server job fails in group-chat.test.js", "expect": ["Coder"], "ok": ["Release Manager"] },
+    { "team": "Bot-dot Dev Team", "text": "Write the what's new note for this week's release", "expect": ["Release Manager"], "ok": [] },
+    { "team": "Bot-dot Dev Team", "text": "The send button is too small on the phone, make it bigger", "expect": ["Designer"], "ok": ["Coder"] },
+    { "team": "Bot-dot Dev Team", "text": "Is there a security problem in how pages load scripts?", "expect": ["Reviewer"], "ok": ["Coder"] },
+    { "team": "Bot-dot Dev Team", "text": "Fix the crash when a group has no members left", "expect": ["Coder"], "ok": [] },
+    { "team": "Bot-dot Dev Team", "text": "What's the status of everything?", "expect": ["Coder", "Reviewer", "Designer", "Release Manager"], "ok": [], "everyone": true },
+    { "team": "Bot-dot Dev Team", "recent": [{ "who": "Coder", "text": "Opened PR #515 for the hotkeys issue, tests pass." }], "text": "Great, have a look at it", "expect": ["Reviewer"], "ok": [] },
+    { "team": "Bot-dot Dev Team", "recent": [{ "who": "Designer", "text": "The mockup for the keypad is ready: three columns, chips under it." }], "text": "Looks good, build it", "expect": ["Coder"], "ok": [] },
+    { "team": "Bot-dot Dev Team", "text": "Which version is running on hq now?", "expect": ["Release Manager"], "ok": [] },
+    { "team": "Bot-dot Dev Team", "text": "Ideas for the empty state of the Board?", "expect": ["Designer"], "ok": [] }
+  ]
+}

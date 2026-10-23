@@ -15,7 +15,7 @@ const out = path.join(dir, 'fake');
 fs.mkdirSync(out);
 Object.assign(process.env, {
   BOT_DOT_DATA: path.join(dir, 'data'), BOT_DOT_VAULT_KEY_FILE: path.join(dir, 'vault.key'), BOT_DOT_SEPARATE_USERS: '0',
-  CLAUDE_BIN: path.join(__dirname, 'fixtures', 'fake-claude.js'), FAKE_OUT: out, HOME: path.join(dir, 'home'),
+  CLAUDE_BIN: path.join(__dirname, 'fixtures', 'fake-claude.js'), FAKE_OUT: out, HOME: path.join(dir, 'home'), BOT_DOT_GROUP_ROUTER: 'off',
 });
 fs.mkdirSync(process.env.HOME);
 
