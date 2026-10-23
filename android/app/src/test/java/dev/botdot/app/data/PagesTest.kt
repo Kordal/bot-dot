@@ -131,4 +131,11 @@ class PagesTest {
         assertEquals(listOf(PageRef("team", "Team")), m.pages)
         assertEquals(emptyList<PageRef>(), Api.JSON.decodeFromString(ChiefMessage.serializer(), """{"role":"chief","text":"Hi."}""").pages)
     }
+
+    @Test fun aChiefReplyCarriesThePagesItsBotsSavedByBot() {
+        val m = Api.JSON.decodeFromString(ChiefMessage.serializer(), """{"role":"chief","text":"Done.","botPages":[{"botId":"lp","bot":"Launch Planner","slug":"plan","title":"Plan"},{"botId":"ops","bot":"Ops","slug":"hq","title":"hq"},{"slug":"orphan","title":"No bot"}]}""")
+        assertEquals(listOf("lp", "ops"), m.botPages.keys.toList())
+        assertEquals(listOf(PageRef("plan", "Plan", "lp", "Launch Planner")), m.botPages["lp"])
+        assertEquals(emptyMap<String, List<PageRef>>(), Api.JSON.decodeFromString(ChiefMessage.serializer(), """{"role":"chief","text":"Hi."}""").botPages)
+    }
 }

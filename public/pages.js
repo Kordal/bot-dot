@@ -25,13 +25,15 @@ const Pages = (() => {
   const updated = (p) => `updated ${ago(p.updatedAt)}`;
 
   // What opens a page in the viewer: a link with data-view, as every file the viewer opens.
-  const attrs = (botId, p) => `href="/api${esc(src(botId, p.slug))}" data-view="${esc(src(botId, p.slug))}" data-view-name="${esc(p.title)}" data-view-from="${esc(botName(botId))}" data-view-page="${esc(`${botId}/${p.slug}`)}"`;
+  const attrs = (botId, p) => `href="/api${esc(src(botId, p.slug))}" data-view="${esc(src(botId, p.slug))}" data-view-name="${esc(p.title)}" data-view-from="${esc(botName(botId) || p.bot || '')}" data-view-page="${esc(`${botId}/${p.slug}`)}"`;
 
-  // The chips under a reply: the pages its run saved.
+  // The chips under a reply: the pages its run saved. An entry with its own botId is a page another bot saved (a
+  // Chief reply's `botPages`): it opens at that bot's routes.
   function chipsHTML(run) {
-    const list = Array.isArray(run?.pages) ? run.pages.filter((p) => p && typeof p.slug === 'string') : [];
-    if (!list.length || !shows() || !state.features.includes('document-viewer') || (run.botId === CHIEF && !showsChief())) return '';
-    return `<div class="bubble-files">${list.map((p) => `<a class="page-chip" ${attrs(run.botId, p)} title="Open ${esc(p.title)}"><span class="pg-icon">${ICON.page}</span><span class="pg-text"><b>${esc(p.title)}</b><span>Page</span></span></a>`).join('')}</div>`;
+    const list = Array.isArray(run?.pages) ? run.pages.filter((p) => p && typeof p.slug === 'string').map((p) => ({ ...p, botId: typeof p.botId === 'string' && p.botId ? p.botId : run.botId }))
+      .filter((p) => p.botId !== CHIEF || showsChief()) : [];
+    if (!list.length || !shows() || !state.features.includes('document-viewer')) return '';
+    return `<div class="bubble-files">${list.map((p) => `<a class="page-chip" ${attrs(p.botId, p)} title="Open ${esc(p.title)}"><span class="pg-icon">${ICON.page}</span><span class="pg-text"><b>${esc(p.title)}</b><span>Page</span></span></a>`).join('')}</div>`;
   }
 
   // The header's second line: "Page by Ops · updated 5m ago".

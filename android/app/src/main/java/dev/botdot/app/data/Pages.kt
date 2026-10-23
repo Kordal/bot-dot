@@ -106,8 +106,9 @@ class TileTicks {
     fun tick(tileId: String?) { _value.value = tileId to _value.value.second + 1 }
 }
 
+/** A page under a reply: [botId] and [bot] name the bot that saved it, on a Chief reply's `botPages`. */
 @Serializable
-data class PageRef(val slug: String = "", val title: String = "")
+data class PageRef(val slug: String = "", val title: String = "", val botId: String = "", val bot: String = "")
 
 /**
  * A bot's interactive page as the viewer gets it (#399, ADR 072): [frame] its address on the sandbox's own origin,
