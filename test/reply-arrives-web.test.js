@@ -381,7 +381,7 @@ test('web: the stylesheet has the arrival: one movement, a fade and a short rise
   const rules = rulesOf(css.replace(/@media \(prefers-reduced-motion: reduce\) \{[^{}]*\{[^{}]*\}[^{}]*\}/g, '')); // as with motion allowed
   for (const classes of [['bubble-row', 'from-bot', 'arrives'], ['bubble-row', 'from-bot', 'g-row', 'arrives'], ['bubble-row', 'from-me', 'arrives']]) {
     const won = winner(rules, [{ tag: 'div', classes: ['chat-thread'] }, { tag: 'div', classes }], 'animation');
-    assert.equal(won?.value, 'arrive 260ms ease-out', classes.join('.'));
+    assert.equal(won?.value, 'arrive var(--t3) var(--out)', classes.join('.'));
   }
   // A row that is not new has no movement at all.
   assert.equal(winner(rules, [{ tag: 'div', classes: ['chat-thread'] }, { tag: 'div', classes: ['bubble-row', 'from-bot'] }], 'animation'), null);

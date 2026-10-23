@@ -419,9 +419,15 @@ function cornerPill(kind, text, retry = null) {
   if (!el) { el = document.createElement('div'); el.id = 'corner-pill'; document.body.append(el); }
   clearTimeout(cornerPill.timer);
   el.className = `corner-pill ${kind}`;
-  el.innerHTML = `<span class="dot"></span><span>${esc(text)}</span>${kind === 'err' ? '<button type="button" class="x" aria-label="Close">✕</button>' : ''}`;
+  // The dot and the words stay from one call to the next: the dot changes colour, the words cross-fade.
+  if (!el.firstChild) el.innerHTML = '<span class="dot"></span><span class="say"></span>';
+  const say = $('.say', el);
+  if (say.textContent && say.textContent !== text) Motion.play(say, 'm-swap', Motion.ms('--t1') + 60);
+  say.textContent = text;
+  $('.x', el)?.remove();
+  if (kind === 'err') el.insertAdjacentHTML('beforeend', '<button type="button" class="x" aria-label="Close">✕</button>');
   el.onclick = kind === 'err' ? (e) => { el.remove(); if (retry && !e.target.closest('.x')) retry(); } : null;
-  if (kind === 'ok') cornerPill.timer = setTimeout(() => { el.classList.add('gone'); setTimeout(() => el.remove(), 400); }, 2500);
+  if (kind === 'ok') cornerPill.timer = setTimeout(() => { el.classList.add('gone'); setTimeout(() => el.remove(), Motion.ms('--t1')); }, 2500);
 }
 
 // The owner's tap is done at once (#475): `work` runs on with the corner pill saying `words`, then `ok` or the error,
@@ -471,7 +477,9 @@ function toast(msg, isErr = false) {
   // Shown again each time: the newest in the top layer, so over a dialog that opened since the last toast.
   if (t.showPopover) { t.hidePopover(); t.showPopover(); }
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => t.classList.add('hidden'), 3200);
+  // It sinks away a step faster than it rose (style.css, motion).
+  const gone = () => t.classList.add('hidden');
+  toast.timer = setTimeout(() => { if (!Motion.exits()) return gone(); t.classList.add('leaving'); toast.timer = setTimeout(gone, Motion.ms('--t1')); }, 3200);
 }
 
 const statusPill = (s) => {
@@ -920,6 +928,8 @@ function show({ view: v, panel, via }, fresh = false) {
   if (v !== 'bot') for (const es of state.botStreams.splice(0)) es.close();
   if (v !== 'group') followGroupDrafts(null); // a group that is left follows no turn's draft (groups.js)
   const changed = state.view !== v;
+  const from = state.view;
+  const phone = matchMedia(PHONE).matches, inMain = $('#app').classList.contains('in-main');
   // Needs you goes back, after its last card, to where it was opened from (needs-return.js).
   if (changed && v === 'needs') state.cameFrom = NeedsReturn.from(state, matchMedia(PHONE).matches && !$('#app').classList.contains('in-main'));
   const was = panelPage();
@@ -933,7 +943,9 @@ function show({ view: v, panel, via }, fresh = false) {
   if (changed && v === 'setup') { delete $('#view-setup').dataset.ready; state.setup = null; }
   if (changed) { needsDone.clear(); needsOpen.clear(); delete $('#view-needs').dataset.sig; stayOnNeeds(); }
   if (changed && v === 'group') loadGroupChat(state.groupId); // what was said there while another view was open
+  if (changed && from === 'dashboard') Motion.leave($('#view-dashboard'), 'm-board-out'); // towards its key
   $$('.view').forEach((el) => el.classList.toggle('hidden', el.id !== `view-${v}`));
+  if (changed && v === 'dashboard') boardIn();
   if (changed) { const page = $(`#view-${v}.page`); if (page) page.scrollTop = 0; } // open pages at the top
   // The panel: beside the chat, or over it where the column is too narrow for both (the style decides).
   $('#chat-row').classList.toggle('hidden', !CHAT_VIEWS.includes(v));
@@ -947,7 +959,9 @@ function show({ view: v, panel, via }, fresh = false) {
     page.scrollTop = 0;
   }
   $$('.nav-btn[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
-  $('#app').classList.add('in-main'); // phones: show the conversation instead of the list
+  // Phones: show the conversation instead of the list, coming in over it from the right.
+  if (phone && !inMain) { Motion.leave($('.sidebar'), 'm-recede'); Motion.play($('.main'), 'm-push'); }
+  $('#app').classList.add('in-main');
   writeHash();
   render();
   const hid = covered;
@@ -979,8 +993,21 @@ function drawPanelHead() {
   $('#panel-close').onclick = () => setPanel('close');
 }
 
-// Phones: back to the contact list.
-function showList() { $('#app').classList.remove('in-main'); syncRead(); }
+// The Board grows out of its key, the keypad's line or a phone's, wherever it can be seen beside it.
+function boardIn() {
+  const view = $('#view-dashboard');
+  const key = $$('[data-board]').find((b) => b.offsetParent)?.getBoundingClientRect();
+  const r = view.getBoundingClientRect();
+  if (key?.width && r.width) view.style.setProperty('--m-origin', `${key.left + key.width / 2 - r.left}px ${key.top + key.height / 2 - r.top}px`);
+  Motion.play(view, 'm-board-in');
+}
+
+// Phones: back to the contact list, the conversation going off to the right.
+function showList() {
+  if (matchMedia(PHONE).matches && $('#app').classList.contains('in-main')) { Motion.leave($('.main'), 'm-push-out'); Motion.play($('.sidebar'), 'm-return'); }
+  $('#app').classList.remove('in-main');
+  syncRead();
+}
 
 const ICON = {
   back: '<svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>',

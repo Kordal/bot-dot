@@ -34,6 +34,12 @@
   --radius: 16px;
   --font: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Motion (#497, motion.js): three times and two curves for every movement. An exit takes the step below its enter. */
+  --t1: 120ms;             /* fast: menus, words, every exit */
+  --t2: 200ms;             /* base: the Board, panels, dialogs, cards, toasts */
+  --t3: 260ms;             /* slow: a phone's change of screen, new messages, a key's pop */
+  --out: cubic-bezier(.2, .8, .2, 1); /* what enters */
+  --in: cubic-bezier(.4, 0, 1, 1);    /* what leaves */
   color-scheme: dark;
 }
 
@@ -214,7 +220,7 @@ a.more-btn { text-decoration: none; }
 .chief-empty:has(~ .chat-sent), .chat-empty:has(~ .chat-sent) { display: none; }
 /* A reply that is new in the open chat, and the owner's message on Send, arrive: the row fades in and rises into
    its place, once (replies.js, "a reply arrives"). A row that was there has no mark, and stands. */
-.arrives { animation: arrive 260ms ease-out; }
+.arrives { animation: arrive var(--t3) var(--out); }
 @keyframes arrive { from { opacity: 0; transform: translateY(10px); } }
 @media (prefers-reduced-motion: reduce) { .arrives { animation: none; } }
 @keyframes status-pulse { 50% { opacity: .25; } }
@@ -659,7 +665,7 @@ legend { font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 0 6p
 @keyframes needs-hop { 0%, 40%, 100% { transform: translateY(0); } 18% { transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .needs-figs i { animation: none; } }
 .need-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; align-items: stretch; }
-.need-card { padding: 16px; display: flex; flex-direction: column; gap: 8px; transition: opacity .3s; cursor: pointer; }
+.need-card { padding: 16px; display: flex; flex-direction: column; gap: 8px; transition: opacity var(--t2) var(--out); cursor: pointer; }
 /* Closed, every card shows the same few lines (so they're about the same size); a click opens it in full. The limit
    is counted in lines, never set as a height: a height can end inside a line, a count of lines cannot. */
 .need-card:not(.open) .need-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -779,8 +785,8 @@ legend { font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 0 6p
 .tile.size-row { grid-column: 1 / -1; }
 .tile:focus-visible { outline: 2px solid color-mix(in srgb, var(--text) 30%, transparent); outline-offset: 2px; }
 .tile.waiting { opacity: .55; border-style: dashed; }
-.tile.pop { animation: tile-pop .45s ease-out; }
-@keyframes tile-pop { 40% { transform: scale(1.05); border-color: var(--line-2); } }
+.tile.pop { animation: tile-pop var(--t3) var(--out); }
+@keyframes tile-pop { 40% { transform: scale(1.03); border-color: var(--line-2); } }
 @media (prefers-reduced-motion: reduce) { .tile.pop { animation: none; } }
 .tile-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .tile-title { font-weight: 600; font-size: 13.5px; letter-spacing: -.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -996,8 +1002,8 @@ legend { font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 0 6p
 @media (prefers-reduced-motion: reduce) { .tile, .tile-dot { transition: none; } }
 
 /* ---------- unlock pill: Bitwarden unlocking in the background ---------- */
-.corner-pill { position: fixed; right: 16px; bottom: calc(110px + env(safe-area-inset-bottom)); z-index: 50; display: flex; align-items: center; gap: 8px; background: var(--panel); color: var(--text); border: 1px solid var(--line-2); padding: 8px 14px; border-radius: 99px; box-shadow: var(--shadow-lg); font-size: 13.5px; font-weight: 500; transition: opacity .4s; }
-.corner-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex: none; }
+.corner-pill { position: fixed; right: 16px; bottom: calc(110px + env(safe-area-inset-bottom)); z-index: 50; display: flex; align-items: center; gap: 8px; background: var(--panel); color: var(--text); border: 1px solid var(--line-2); padding: 8px 14px; border-radius: 99px; box-shadow: var(--shadow-lg); font-size: 13.5px; font-weight: 500; transition: opacity var(--t1) var(--in); animation: m-rise var(--t2) var(--out); }
+.corner-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--dot); flex: none; transition: background-color var(--t2) var(--out); }
 .corner-pill.busy .dot { animation: pulse 1.4s ease-in-out infinite; }
 .corner-pill.ok .dot { background: var(--ok); }
 .corner-pill.err { background: var(--err-soft); color: var(--err); border-color: transparent; cursor: pointer; }
@@ -1918,3 +1924,85 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .ask-sheet h2 { margin: 0 0 2px 6px; font-size: 16px; font-weight: 600; }
 .ask-dim { position: fixed; inset: 0; z-index: 59; background: rgba(0, 0, 0, .55); }
 .nowrap { white-space: nowrap; }
+
+/* ---------- motion (#497, motion.js) ----------
+   Every movement takes its time and curve from the tokens on :root, and moves only transform and opacity. What enters
+   takes clicks from its first frame; what leaves (.m-leaving) stays where it was, out of the layout, and takes none. */
+.m-leaving { position: fixed !important; display: var(--m-display, block) !important; margin: 0 !important; z-index: 40; pointer-events: none; }
+@keyframes m-fade-in { from { opacity: 0; } }
+@keyframes m-fade-out { to { opacity: 0; } }
+@keyframes m-rise { from { opacity: 0; translate: 0 12px; } }
+@keyframes m-sink { to { opacity: 0; translate: 0 12px; } }
+@keyframes m-grow { from { opacity: 0; scale: .98; } }
+@keyframes m-shrink { to { opacity: 0; scale: .98; } }
+@keyframes m-slide-in { from { opacity: 0; translate: 24px 0; } }
+@keyframes m-menu { from { opacity: 0; scale: .96; } }
+@keyframes m-push { from { translate: 100% 0; } }
+@keyframes m-push-out { to { translate: 100% 0; } }
+@keyframes m-recede { to { translate: -24% 0; opacity: .5; } }
+@keyframes m-return { from { translate: -24% 0; opacity: .5; } }
+@keyframes m-key-pop { 50% { scale: 1.03; } }
+
+/* 1. The Board grows from its key (--m-origin, app.js) and its tiles follow 20 ms apart, at most 120 ms; it closes
+   towards the key. */
+#view-dashboard { transform-origin: var(--m-origin, 50% 0); }
+.m-board-in { animation: m-grow var(--t2) var(--out); }
+.m-board-in .tile { --m-i: 6; animation: m-rise var(--t2) var(--out) backwards; animation-delay: calc(var(--m-i) * 20ms); }
+.m-board-in .tile:nth-child(1) { --m-i: 0; }
+.m-board-in .tile:nth-child(2) { --m-i: 1; }
+.m-board-in .tile:nth-child(3) { --m-i: 2; }
+.m-board-in .tile:nth-child(4) { --m-i: 3; }
+.m-board-in .tile:nth-child(5) { --m-i: 4; }
+.m-board-in .tile:nth-child(6) { --m-i: 5; }
+.m-board-out { animation: m-shrink var(--t1) var(--in) forwards; }
+
+/* 2. A phone: the chat comes in from the right over the list, which recedes and darkens; Back is the other way. */
+@media (max-width: 479px) {
+  .app.in-main .main { z-index: 1; background: var(--bg); }
+  .sidebar.m-leaving { z-index: 0; }
+}
+.m-push { animation: m-push var(--t3) var(--out); }
+.m-recede { animation: m-recede var(--t3) var(--out) forwards; }
+.m-push-out { animation: m-push-out var(--t2) var(--in) forwards; }
+.m-return { animation: m-return var(--t2) var(--out); }
+
+/* 3. The settings panel and a file beside the chat slide in from the right; the chat narrows at once. */
+.panel, .doc-viewer { animation: m-slide-in var(--t2) var(--out); }
+
+/* 4. Dialogs grow in over a fading backdrop and close a step faster; a menu grows from its corner. */
+dialog, dialog::backdrop { transition: opacity var(--t1) var(--in), scale var(--t1) var(--in), translate var(--t1) var(--in), overlay var(--t1) var(--in) allow-discrete, display var(--t1) var(--in) allow-discrete; }
+dialog[open], dialog[open]::backdrop { transition-duration: var(--t2); transition-timing-function: var(--out); }
+dialog:not([open]) { opacity: 0; scale: .96; translate: 0 8px; pointer-events: none; }
+dialog:not([open])::backdrop { opacity: 0; }
+@starting-style {
+  dialog[open] { opacity: 0; scale: .96; translate: 0 8px; }
+  dialog[open]::backdrop { opacity: 0; }
+}
+.m-exits-off dialog, .m-exits-off dialog::backdrop { transition-property: opacity, scale, translate; }
+.doc-menu { transform-origin: top right; animation: m-menu var(--t1) var(--out); }
+
+/* 5. Needs you: an answered card moves to its place and the rest close up (motion.js, flip). */
+
+/* 6. A fold opens and closes in height where the browser can (::details-content); elsewhere it snaps, as before. */
+details:not(.card) { interpolate-size: allow-keywords; }
+details:not(.card)::details-content { block-size: 0; overflow-y: clip; transition: block-size var(--t2) var(--out), content-visibility var(--t2) var(--out) allow-discrete; }
+details:not(.card)[open]::details-content { block-size: auto; }
+
+/* 7. The toast rises in and sinks away; the corner pill's words cross-fade and its dot turns green. */
+.toast:popover-open { animation: m-rise var(--t2) var(--out); }
+.toast.leaving { animation: m-sink var(--t1) var(--in) forwards; }
+.m-swap { animation: m-fade-in var(--t1) var(--out); }
+
+/* 8. Working → Done: the key pops once and its words cross-fade. */
+.key.just-done { animation: m-key-pop var(--t3) var(--out); }
+.key.just-done .kit-pill { animation: m-fade-in var(--t1) var(--out); }
+
+/* Reduced motion: a fade of --t1, or nothing. */
+@media (prefers-reduced-motion: reduce) {
+  .m-board-in, .m-push, .m-return, .panel, .doc-viewer, .doc-menu, .toast:popover-open, .corner-pill, .key.just-done { animation: m-fade-in var(--t1) linear; }
+  .m-board-out, .m-recede, .m-push-out, .toast.leaving { animation: m-fade-out var(--t1) linear forwards; }
+  .m-board-in .tile { animation: none; }
+  dialog:not([open]), dialog[open] { scale: none; translate: none; }
+  @starting-style { dialog[open] { scale: none; translate: none; } }
+  details:not(.card)::details-content { transition: none; }
+}
