@@ -414,6 +414,35 @@ function actionChip(a) {
   return `<button class="action-chip" data-kind="${esc(a.kind)}" ${a.botId ? `data-bot="${esc(a.botId)}"` : ''} ${a.runId ? `data-run-id="${esc(a.runId)}"` : ''}>${icon} ${esc(a.text)}${waits}${screen ? ' · View live screen' : ''}</button>`;
 }
 
+// A mail draft (docs/api.md, "A mail draft", #415): one card with its header, its state, its text, Send now and
+// Not now, and the bot whose run wrote it in its footer. A version the Chief wrote again later folds to one line, a
+// sent one to its header; a tap opens them.
+const MAIL_STATE = { draft: 'In Drafts · not sent', kept: 'Kept in Drafts · not sent' };
+// The run chips the card's footer takes the place of.
+const mailChip = (m, a) => !!m.draft?.botId && (a.kind === 'run' || a.kind === 'from') && a.botId === m.draft.botId;
+function mailCardHTML(d) {
+  const sent = d.state === 'sent';
+  const bot = d.botId ? state.bots.find((b) => b.id === d.botId) : null;
+  const name = d.bot || bot?.name || '';
+  const actions = sent || d.earlier ? [] : d.state === 'kept' ? ['Send now'] : ['Send now', 'Not now'];
+  const card = `
+    <section class="mail-card" aria-label="Mail draft"${d.earlier ? ' hidden' : ''}>
+      <dl class="mail-head"><dt>To</dt><dd>${esc(d.to)}</dd><dt>Subject</dt><dd class="mail-subject">${esc(d.subject)}</dd></dl>
+      <div class="mail-state${sent ? ' sent' : ''}"><i></i>${sent ? `Sent ${esc(msgTime(d.sentAt))}` : MAIL_STATE[d.state] || MAIL_STATE.draft}</div>
+      ${d.text ? `<div class="mail-text"${sent ? ' hidden' : ''}>${esc(d.text)}</div>` : ''}
+      ${actions.length ? `<div class="choices mail-actions">${actions.map((c, i) => `<button type="button" class="btn${i ? '' : ' primary'}" data-choice="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
+      ${name ? `<div class="mail-foot"><button type="button" class="mail-link" data-mail-bot="${esc(d.botId)}">${esc(name)}</button>${bot?.computer === 'linux' ? ` · <button type="button" class="mail-link" data-mail-screen="${esc(d.botId)}">Screen</button>` : ''}</div>` : ''}
+    </section>`;
+  if (d.earlier) return `<button type="button" class="mail-old" data-mail-open>Earlier version · show</button>${card}`;
+  return sent && d.text ? `${card}<button type="button" class="mail-link mail-show" data-mail-text>Show the text</button>` : card;
+}
+function wireMail(root) {
+  $$('[data-mail-open]', root).forEach((b) => (b.onclick = () => { b.nextElementSibling.hidden = false; b.remove(); }));
+  $$('[data-mail-text]', root).forEach((b) => (b.onclick = () => { const t = $('.mail-text', b.previousElementSibling); if (t) t.hidden = false; b.remove(); }));
+  $$('[data-mail-bot]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.mailBot)));
+  $$('[data-mail-screen]', root).forEach((b) => (b.onclick = () => { setView('bot', b.dataset.mailScreen); openScreen(b.dataset.mailScreen); }));
+}
+
 // What the Chief is doing in a reply it is still writing, in words: its activity as the server says it
 // (`{ tool, text }`, in the chat's pending reply and on its stream), '' when it said none. The words are the
 // server's, the same as a bot's line for the same step (docs/api.md, "The working line"): the page has none of
@@ -445,13 +474,15 @@ function chiefBubble(m, last = false, index = null) {
         : files + pages;
   // Its plan, folded under the reply (plan.js); a stopped or failed reply's stands above the message box instead.
   const plan = !m.pending && globalThis.Plan && m.plan && !(last && chiefStopped(m)) ? Plan.replyHTML(m.plan) : '';
+  const mail = !m.pending && m.draft ? mailCardHTML(m.draft) : '';
   return `
     <div class="bubble-row from-bot"${m.pending ? ' data-pending' : ''}>
       <div class="stack">
         ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}">${body}${plan}</div>` : m.pending ? draftHTML(replyDrafts.of(`chief:${state.chatId}`)) : ''}
-        <div class="actions">${(m.actions || []).map(actionChip).join('')}</div>
+        ${mail}
+        <div class="actions">${(m.actions || []).filter((a) => !mailChip(m, a)).map(actionChip).join('')}</div>
         ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
-        ${last && !m.pending ? choicesHTML(m.choices) + questionsHTML(m.questions) : ''}
+        ${last && !m.pending && !m.draft ? choicesHTML(m.choices) + questionsHTML(m.questions) : ''}
       </div>
     </div>`;
 }
@@ -498,6 +529,7 @@ const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<
 const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta">${copyBtn(m.text)}</div>` : ''}</div></div>`;
 
 function wireActions(root) {
+  wireMail(root);
   $$('.action-chip', root).forEach((b) => {
     b.onclick = async () => {
       if (b.dataset.kind === 'skill') return setView('skills');
@@ -708,6 +740,8 @@ function followChief(id) {
       placeStatusLines(); // the reply is here, or it couldn't finish: the line goes
       replyDrafts.end(`chief:${id}`); // and its draft: the reply takes its place
       // A bot's reply that came in meanwhile, or the next turn that began (see followFeed): show the whole chat again.
+      // A reply about a mail draft changes the cards before it too (one folds, one is kept): the chat as botdot has it.
+      if ($('.mail-card', thread) || ev.message?.draft) state.chatReload = true;
       if (state.chatReload) { state.chatReload = false; return showChat(id); }
       thread._last = ev.message || null;
       globalThis.drawChiefPlan?.(id, thread._last); // its plan goes under the reply, or stands as stopped

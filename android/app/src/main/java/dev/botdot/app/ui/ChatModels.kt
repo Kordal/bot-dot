@@ -582,7 +582,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
                 }
             }
             following = null
-            refresh() // it's done: its reply
+            refresh(whole = chat?.messages?.any { it.draft != null } == true) // it's done: its reply, and a mail draft's card before it may have folded or been kept
         }
     }
 
