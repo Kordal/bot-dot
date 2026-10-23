@@ -5,7 +5,7 @@ package dev.botdot.app.data
  * its title, a field for what should change, Send and a trash that removes it. Sent, it starts a Chief chat that names
  * the tile. A botdot from before it has no `tile-change`: a long press only offers to remove the tile, as before.
  */
-object TileChange {
+object TileAsk {
     const val FEATURE = "tile-change"
     const val PLACEHOLDER = "What should change?"
 

@@ -82,7 +82,7 @@ import sh.calvin.reorderable.ReorderableItem
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Dashboard
 import dev.botdot.app.data.Tile
-import dev.botdot.app.data.TileChange
+import dev.botdot.app.data.TileAsk
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
@@ -233,7 +233,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                     textStyle = TextStyle(color = p.text, fontSize = 16.sp, lineHeight = 22.sp),
                     cursorBrush = SolidColor(p.text),
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp).heightIn(min = 88.dp),
-                    decorationBox = { inner -> Box { if (text.isEmpty()) Text(TileChange.PLACEHOLDER, color = p.faint, fontSize = 16.sp); inner() } },
+                    decorationBox = { inner -> Box { if (text.isEmpty()) Text(TileAsk.PLACEHOLDER, color = p.faint, fontSize = 16.sp); inner() } },
                 )
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { asking = null; removing = t }) { Icon(Icons.Outlined.Delete, contentDescription = "Remove from Board", tint = p.faint) }
@@ -244,7 +244,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                             sending = true
                             scope.launch {
                                 runCatching { api!!.askTileChange(t.id, text.trim()) }
-                                    .onSuccess { asking = null; blink(t, TileChange.sent(chiefName)) }
+                                    .onSuccess { asking = null; blink(t, TileAsk.sent(chiefName)) }
                                     .onError { sending = false; tell(it.message ?: "Couldn't send") }
                             }
                         },
@@ -318,7 +318,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             fun dropped(t: Tile) {
                 dragged = null
                 scope.launch { delay(400); if (held == t.id) held = null } // no tap came after it
-                if (!moved) { if (TileChange.shows(server?.features)) asking = t else removing = t; return }
+                if (!moved) { if (TileAsk.shows(server?.features)) asking = t else removing = t; return }
                 moved = false
                 val i = rows.indexOf(t.id)
                 val parent = groupAt(i)
