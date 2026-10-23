@@ -22,28 +22,29 @@
 
 A messenger-style app for a team of **bots**. Each bot is a Claude Code agent with its own job, and a **Chief of Staff** creates and runs them when you ask it in a chat. botdot runs on your own server, and you use it on the web and on Android.
 
-![botdot on the web in a wide window: the Board's values and the team as keys (the Chief of Staff and pinned bots, then the Daily, Home and Tech categories, each bot a coloured head with a hat and dots for new replies) on the left, and News Monitor's chat with its morning headlines on the right, in dark mode](docs/screenshots/web-home.png)
+![botdot on the web in a wide window: on the left the keypad, with the Board's values as live cards, one card for what needs you, and the team as keys (the Chief of Staff and pinned bots, then the Daily and Home categories), each bot a coloured head with a hat and its status: Working, Done, unread or Idle; on the right News Monitor's chat with its morning headlines](docs/screenshots/web-home.png)
 
 ## Features
 
 | | |
 | --- | --- |
-| 🎩 **Chief of Staff** | Tell it what you need. It makes the bots, changes them, runs them and reports back. It can write to you first when it finds something worth saying. |
-| 🤖 **Bots with one job each** | Every bot has its own instructions, tools, permissions, workspace and scheduled jobs. Its face shows what it is doing. |
+| 🎩 **Chief of Staff** | Tell it what you need. It makes the bots, changes them, runs them and reports back. It writes to you first when it finds something worth saying, briefs you at the times you name, and drafts the replies you owe from your mail. |
+| 🤖 **Bots with one job each** | Every bot has its own instructions, tools, permissions, workspace and scheduled jobs. Its face shows what it is doing. A busy bot answers a new message at once, and `/btw` asks it a quick side question without stopping its work. |
 | 📋 **The Board** | One page of live tiles for the things you use most: switches, values, lists and notes. [More below](#the-board). |
+| 📄 **Pages** | Reports and overviews a bot keeps for you, up to date on a schedule, with the Board's live numbers and charts. A bot with a computer can publish a small interactive site, sandboxed on an address of its own. Any long reply exports to Word, PDF, Markdown or Google Docs. [More below](#pages). |
 | ⏰ **Scheduled jobs** | A job runs on a schedule. When no AI is needed, a small script runs instead. |
-| 👥 **Groups** | Put two to six bots in one chat, and they hand the work on to each other. |
+| 👥 **Groups and shared rooms** | Put two to six bots in one chat, and they hand the work on to each other. On a machine of several accounts, shared rooms bring other people and their bots into one chat. |
 | 🧠 **Memory** | Bots remember what you tell them, and you correct or erase it by chat. |
 | 🖥 **The bots' computer** | One always-on computer for the account, where bots work, each on a screen of its own with its own browser, which you can watch live. They share it as one user with sudo, so every bot there sees what the others do. |
-| 🔐 **Vault and connectors** | Bots use your logins without seeing them, and your apps (Gmail, Slack, GitHub and more) through Composio. |
+| 🔐 **Vault and connectors** | Bots use your logins without seeing them, and your apps (Gmail, Slack, GitHub and more) through Composio, with an account botdot makes for you. |
 | ✋ **Your OK first** | Anything risky waits for you in **Needs you**. |
 | 📱 **Web and Android** | The web page works everywhere, and Android has its own app with notifications and no push service. |
 
 ## The Board
 
-The Board is your page of tiles: the temperature, a light switch, a shopping list, your next meeting, a server's disk, a morning summary. Its values sit at the top of the keypad, so the numbers you check every day are the first thing you see.
+The Board is your page of tiles: the temperature, a light switch, a shopping list, your next meeting, a server's disk, a morning summary. It reads like a status page: numbers with how they changed and a line of recent values, charts, statuses and tables. Its values sit on top of the keypad and the list as small live cards, so the numbers you check every day are the first thing you see.
 
-![The Board on the web: tiles under the headings Home, Today and Server, with the living room temperature, the heating, a shopping list, a wide morning summary, unread mail, the next meeting, backups, disk use and updates, in dark mode](docs/screenshots/web-board.png)
+![The Board on the web, beside the keypad: headings Today and Home with the bots they come from, unread mail with its change since the morning, the next meeting, the living room temperature, and the heating, hall light and all-lights-off button in one Controls box](docs/screenshots/web-board.png)
 
 **You build it by chat.** There are no edit buttons: ask the Chief to "add a switch for the living room light", "move Server to the top" or "make the summary wide", and it does. You drag tiles to rearrange them.
 
@@ -55,6 +56,7 @@ The Board is your page of tiles: the temperature, a light switch, a shopping lis
 | **List** | Up to 8 lines | opens all of it |
 | **Note** | A few short lines, in Markdown | opens all of it |
 | **Group** | Related tiles, one dot each | folds them open |
+| **Blocks** | A number with its change, a chart, a status, a callout or a table you sort and filter | says the values |
 
 **Where the values come from:**
 
@@ -65,6 +67,14 @@ The Board is your page of tiles: the temperature, a light switch, a shopping lis
 Every tile belongs to a bot, uses that bot's saved logins and wears its colour. Bots also **suggest** tiles when they notice you keep asking for the same thing: one tap adds it. Values refresh only while the Board is open.
 
 The [user guide](docs/user-guide.md#board) has the details.
+
+## Pages
+
+Ask a bot for a report or an overview and it saves it as a page: a title, the numbers that matter with how they changed, charts, statuses and what waits for you. Tap **Keep up to date** and it rewrites the page every hour, morning or Monday, while numbers tied to the Board stay live.
+
+![A page by Server Watch, Home server: a weekly report with uptime, disk, backups and updates as numbers, a chart of CPU over the last seven days, disk use by folder, status pills and a callout that a kernel update waits for a restart](docs/screenshots/web-page.png)
+
+A bot that uses the computer can also publish an interactive page, a small site with views, filters or a kanban, sandboxed on an address of its own. The [user guide](docs/user-guide.md#pages-reports-and-overviews-your-bots-keep) has the details.
 
 ## Your team, run by chat
 
@@ -79,13 +89,13 @@ The [user guide](docs/user-guide.md#board) has the details.
 </tr>
 </table>
 
-botdot has one look, dark, on the web and on Android. A bot's head shows its state: it blinks when idle, looks around while it works, bobs when it needs you and closes its eyes when paused. Dots after its name count new replies. A wide window shows the keypad: <kbd>1</kbd>–<kbd>9</kbd> open a bot, <kbd>Esc</kbd> brings back the Chief, <kbd>Ctrl</kbd>+<kbd>K</kbd> searches every chat.
+botdot has one look, dark, on the web and on Android. A bot's head shows its state: it blinks when idle, looks around while it works, bobs when it needs you and closes its eyes when paused. Dots after its name count new replies. A wide window shows the keypad, with each bot's status and when it last did something: <kbd>1</kbd>–<kbd>9</kbd> open a bot (give one its own digit in its settings), <kbd>Esc</kbd> brings back the Chief, <kbd>Ctrl</kbd>+<kbd>K</kbd> searches every chat.
 
 ## On your phone
 
 <table>
 <tr>
-<td width="25%"><img src="docs/screenshots/phone-list.png" alt="The list on a phone: the Board's values on top, then pinned bots and the Daily, Home and Tech categories"></td>
+<td width="25%"><img src="docs/screenshots/phone-list.png" alt="The list on a phone: the Board's values on top as cards that scroll sideways, one card for what needs you, then the pinned bots with their status and the Daily category"></td>
 <td width="25%"><img src="docs/screenshots/phone-chat.png" alt="News Monitor's chat on a phone, with a 'Waiting for your OK' banner on top"></td>
 <td width="25%"><img src="docs/screenshots/phone-board.png" alt="The Board on a phone"></td>
 <td width="25%"><img src="docs/screenshots/phone-needs-you.png" alt="Needs you on a phone: Server Watch asks to put 'Router uptime' on the Board, with its script and the buttons Decline and remove, and Approve"></td>
@@ -114,7 +124,9 @@ The web page works on any phone. The [Android app](android/README.md) adds notif
 - **Each account is walled off under gVisor:** its own Linux user and rootless Docker, whose every container runs under gVisor.
 - **The installer runs as root, and root sees everything:** whoever is root on the machine can reach every account, its data and the logins its bots hold. Keep root to yourself.
 - **The bots share one computer, without walls between them:** every bot works on the account's computer as the same user, with sudo. Each can see, change and end what the others do there, and read any password, card or SSH key botdot types or hands to a command there. Other accounts, the botdot server and the machine stay out of its reach.
-- **Anything risky waits in Needs you:** a script, a login, a connected app's write (unless you always allow it), or a change the Chief makes after reading the web, until you say OK.
+- **Anything risky waits in Needs you:** a script, a login, a connected app's write (unless you always allow it), or a change the Chief makes on its own after reading the web, until you say OK.
+- **What a bot builds can't reach your account:** a page is drawn by the apps' own code, and an interactive page runs on an address of its own, sandboxed, with no way to the internet.
+- **Shared rooms are off until the admin turns them on:** a bot mentioned in one by someone else only talks, with no tools and nothing of yours.
 
 [What bots can reach](docs/what-bots-can-reach.md) and [Security](SECURITY.md) have the full picture.
 
@@ -125,10 +137,10 @@ The web page works on any phone. The [Android app](android/README.md) adds notif
 | **A server** | A Linux server or VM of its own (Ubuntu 24.04, Intel/AMD or ARM) where you can use `sudo` |
 | **Docker** | The installer offers to install it when it's missing |
 | **Claude** | A Claude subscription (Pro or Max), or an Anthropic API key, for each account. Bots' runs count against that subscription's usage limits, or are paid as you go on the key |
-| **Room** | Per account, its share of the machine (by default 2 CPUs and 5 GB of RAM), and 15 GB of disk: its server holds about 2 GB (mostly the memory search model), and the account's computer, an Ubuntu desktop in a container that stays on, 0.5–1 GB idle plus what each bot's screen and programs use. The share's RAM and CPUs are the computer's limits. Measured on an 8-CPU, 16 GB server, where the front door and Caddy take 65 MB |
-| **A way in** | [Tailscale](https://tailscale.com) (a private tailnet) or a public domain that points at the server |
+| **Room** | Per account, its share of the machine (by default 2 CPUs and half the machine's RAM, at least 5 GB), and 15 GB of disk: its server holds about 2 GB (mostly the memory search model), and the account's computer, an Ubuntu desktop in a container that stays on, 0.5–1 GB idle plus what each bot's screen and programs use. The share's RAM and CPUs are the computer's limits. Measured on an 8-CPU, 16 GB server, where the front door and Caddy take 65 MB |
+| **A way in** | [Tailscale](https://tailscale.com) (a private tailnet) or a public domain that points at the server, with ports 80, 443 and 8443 open (8443 carries interactive pages) |
 
-botdot runs the official Claude Code CLI, signed in by you on your account's setup page. Bots run unattended, so read what Anthropic's terms say about that first: [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms). An account's [default share](docs/install-linux.md#shares-of-the-machine) of the machine is 2 CPUs and 5 GB of RAM. The full list, and whom botdot trusts, is in [Install on Linux](docs/install-linux.md#what-botdot-needs-and-whom-it-trusts).
+botdot runs the official Claude Code CLI, signed in by you on your account's setup page. Bots run unattended, so read what Anthropic's terms say about that first: [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms). The full list, and whom botdot trusts, is in [Install on Linux](docs/install-linux.md#what-botdot-needs-and-whom-it-trusts).
 
 ## Status
 

@@ -56,7 +56,18 @@ fixes. botdot updates itself from Settings → Updates.
   makes in a chat you started needs no card; sending it does
   ([ADR 074](docs/adr/074-the-chief-drafts-replies-the-owner-owes-and-a-gmail-draft-needs-no-card.md)). Composio's key and the
   apps' tokens never reach the Chief.
-- Script jobs, and jobs the Chief or a bot set up, wait for your approval before they run.
+- Script jobs, and jobs the Chief or a bot set up, wait for your approval before they run, except a one-time check a bot offered and you said yes to ([ADR 064](docs/adr/064-a-check-a-bot-offers-runs-on-the-owners-yes.md)),
+  an AI job the Chief sets up for a bot (after it read the web in that chat, only one you asked for, [ADR 075](docs/adr/075-a-job-the-owner-asks-the-chief-for-after-the-web-needs-no-card.md)),
+  and the Chief's own jobs, which only read ([ADR 073](docs/adr/073-the-chiefs-own-jobs-only-read.md)).
+- An interactive page, a static site a bot built, is served by the front door on a second address (port 8443)
+  and sandboxed twice (the frame's `sandbox` and a `Content-Security-Policy: sandbox`): it has no cookies,
+  storage or access to the app, loads only its own files and reaches nothing on the internet
+  ([ADR 072](docs/adr/072-an-interactive-page-is-a-bots-static-site-sandboxed-on-an-address-of-its-own.md)).
+- Shared rooms are off until the admin turns them on. A bot mentioned in one by anyone but its owner gets a
+  talk-only turn, with no tools, notes, files or private chats; mentioned by its owner, every tool call and
+  every post waits on the owner's card
+  ([ADR 060](docs/adr/060-a-shared-room-lets-bots-of-several-accounts-talk-through-the-front-door.md),
+  [ADR 067](docs/adr/067-the-owners-mention-in-a-room-runs-the-bot-with-every-step-on-a-card.md)).
 
 ## The docker-helper
 
