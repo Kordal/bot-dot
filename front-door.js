@@ -467,9 +467,14 @@ function handoffOf(body, res) {
   return { challenge: body.handoff };
 }
 // `account` is signed in, in `app`: its session's cookie, or for a native app's browser, the code that hands it on.
-function signedIn(res, status, account, app, handoff) {
+// A cookie replaces the one this browser had, whose session ends with it (#466: another account, signed in on top).
+function signedIn(req, res, status, account, app, handoff) {
   doors.seen(account);
-  if (!handoff.challenge) return send(res, status, { ok: true, account }, { 'Set-Cookie': sessionCookie(doors.newSession(account, app)) });
+  if (!handoff.challenge) {
+    const before = sessionOf(req);
+    if (before) doors.endSession(before);
+    return send(res, status, { ok: true, account }, { 'Set-Cookie': sessionCookie(doors.newSession(account, app)) });
+  }
   if (handoffs.size >= HANDOFFS_MAX) handoffs.delete(handoffs.keys().next().value);
   const code = crypto.randomBytes(32).toString('base64url');
   handoffs.set(code, { account, app, challenge: handoff.challenge, until: Date.now() + HANDOFF_MS });
@@ -518,7 +523,7 @@ async function signInRoutes(req, res, p) {
     }
     tries.succeeded(clientOf(req));
     doors.counted(credential.id, count);
-    return signedIn(res, 200, key.account, app, handoff);
+    return signedIn(req, res, 200, key.account, app, handoff);
   }
   // A native app, back from the browser with the code and the secret it kept: its own session.
   if (p === '/sign-in/handoff' && req.method === 'POST') {
@@ -641,11 +646,11 @@ async function signInRoutes(req, res, p) {
   tries.succeeded(clientOf(req));
   if (signIn) {
     console.log(`[front door] the account ${name} has a new passkey, from the admin's sign-in link; its other sessions ended`);
-    return signedIn(res, 201, name, body.app, handoff);
+    return signedIn(req, res, 201, name, body.app, handoff);
   }
   console.log(`[front door] account ${name} was made ${ONE_ACCOUNT ? 'with the setup key' : 'from a sign-up link'}`);
   askForAccount(name);
-  return signedIn(res, 201, name, body.app, handoff);
+  return signedIn(req, res, 201, name, body.app, handoff);
 }
 
 // ---------- shared rooms ----------

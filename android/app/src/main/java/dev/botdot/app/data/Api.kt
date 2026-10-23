@@ -118,6 +118,9 @@ class Api(val baseUrl: String, val session: Session? = null) {
         return json.parseToJsonElement(answer).jsonObject.str("account")
     }
 
+    /** Signs this phone out (#466: a paused account's "Use another account"): the front door clears the session's cookie. */
+    suspend fun signOut() { door("/sign-out") }
+
     /** "Sign out everywhere": the front door ends every session of the account, in every app, this one too. */
     suspend fun signOutEverywhere() { door("/sign-out-everywhere") }
 

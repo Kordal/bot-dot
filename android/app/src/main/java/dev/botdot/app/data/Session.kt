@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.core.content.edit
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.HttpUrl
 import okhttp3.Interceptor
 
@@ -25,6 +27,13 @@ class Session(private val keep: Keep) {
     private val _signInNeeded = MutableStateFlow<String?>(null)
     /** The botdot address whose front door asks for a sign-in, or null while none does. */
     val signInNeeded: StateFlow<String?> = _signInNeeded
+
+    private val _paused = MutableStateFlow<String?>(null)
+    /**
+     * The botdot address whose account the admin paused (`503` with `paused`), or null: its paused screen, with the
+     * way to sign in as another account (#466). It goes by itself once that address answers anything else.
+     */
+    val paused: StateFlow<String?> = _paused
 
     /** The session's secret for this botdot address, for a page the app opens itself (a bot's screen), or null. */
     fun token(server: String): String? = keep.read(server)
@@ -47,6 +56,10 @@ class Session(private val keep: Keep) {
             keep.write(server, null)
             _signInNeeded.value = server
         }
+        // Paused until botdot itself answers otherwise (the front door's own routes answer a paused account too), or
+        // until this phone has no session there any more.
+        if (res.code == 503 && saysPaused(res.peekBody(4096).string())) _paused.value = server
+        else if (_paused.value == server && (req.url.encodedPath.startsWith("/api/") || keep.read(server) == null)) _paused.value = null
         res
     }
 
@@ -60,6 +73,10 @@ class Session(private val keep: Keep) {
         /** The front door's answer to a request without a session: `{ "error": …, "signIn": "/sign-in" }`. */
         private fun asksForSignIn(body: String) =
             runCatching { Api.JSON.parseToJsonElement(body).jsonObject["signIn"] }.getOrNull() != null
+
+        /** The front door's answer for a paused account: `{ "error": …, "paused": true }`. */
+        private fun saysPaused(body: String) =
+            runCatching { Api.JSON.parseToJsonElement(body).jsonObject["paused"]?.jsonPrimitive?.booleanOrNull }.getOrNull() == true
 
         /** The phone's own keeping: private to the app, which Android never backs up (allowBackup is off). */
         fun onPhone(context: Context) = Session(object : Keep {
