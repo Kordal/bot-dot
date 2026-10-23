@@ -70,6 +70,8 @@ class OpeningLineTest {
         assertEquals("Checking your bots' schedules", l.of("chief:c1"))
         l.handle(event("chief_reply", """{"chatId":"c1","from":{"id":"b1","name":"Coder"}}""")) // a bot's report in the chat
         assertEquals("Checking your bots' schedules", l.of("chief:c1"))
+        l.handle(event("chief_reply", """{"chatId":"c1","btw":true,"text":"Halfway"}""")) // a "/btw" answer beside the reply (#386)
+        assertEquals("Checking your bots' schedules", l.of("chief:c1"))
         l.handle(event("chief_reply", """{"chatId":"c2"}""")) // another chat
         assertEquals("Checking your bots' schedules", l.of("chief:c1"))
         l.handle(event("chief_reply", """{"chatId":"c1","from":null}"""))

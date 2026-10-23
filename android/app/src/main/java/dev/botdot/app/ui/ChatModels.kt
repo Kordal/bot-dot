@@ -577,6 +577,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
                         "done" -> { activity.clear(); app.store.lines.end("chief:$id") } // the reply is here, or it couldn't finish; its draft stands until it is read
                         "action" -> kick(whole = false) // persisted actions are clickable even while the Chief waits
                         "steered" -> kick(whole = false) // the reply read a message the owner steered into it (ADR 040)
+                        "btw" -> kick(whole = false) // a "/btw" answer above the reply (#386)
                     }
                 }
             }

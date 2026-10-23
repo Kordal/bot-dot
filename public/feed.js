@@ -102,14 +102,17 @@ function followFeed() {
   es.addEventListener('chief_reply', (e) => {
     let d = {};
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
-    // The Chief's own reply ended; a bot's file doesn't end it. A reply this page follows ends with its stream (followChief).
-    if (!d.from) {
+    // The Chief's own reply ended; a bot's file doesn't end it, nor a "/btw" answer beside it (#386). A reply this page
+    // follows ends with its stream (followChief).
+    if (!d.from && !d.btw) {
       const followed = state.chatStream && d.chatId === state.chatId;
       if ([openingLines.end(`chief:${d.chatId}`), !followed && chiefTurns.delete(d.chatId)].some(Boolean)) placeStatusLines();
     }
     if (state.view !== 'chief' || d.chatId !== state.chatId) return;
     // The Chief's own reply arrives through its stream; a bot's reply or an unasked message that waited for it doesn't.
-    if (state.chatStream) { if (d.from || d.unasked) state.chatReload = true; }
+    // A "/btw" answer shows at once, above the reply that is still coming.
+    if (d.btw) showChat(d.chatId);
+    else if (state.chatStream) { if (d.from || d.unasked) state.chatReload = true; }
     else showChat(d.chatId);
   });
   // An unasked message was rated, here or in another app: its thumbs follow, when its chat is on screen.
