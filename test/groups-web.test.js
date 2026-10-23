@@ -69,7 +69,7 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     ${cut('const plain = (t) =>', '// ---------- contacts (sidebar) ----------')}
     ${cut('const fmtSize = ', '// Files a bot attached to its reply')}
     const botFilesHTML = (list) => (list?.length ? '<div class="bubble-files">' + list.map((f) => esc(f.name)).join(',') + '</div>' : '');
-    ${cut('const choicesHTML = ', '// send(text, key) resolves to whether it went')}
+    ${cut('const answered = ', '// send(text, key) resolves to whether it went')}
     ${cut('function contactLine(b, r, working)', '// ---------- search in every chat ----------')}
     ${cut('function openHit(h) {', '// After a chat is drawn')}
     ${cut('const groupNames = ', '// Drag a bot or a group anywhere in the list')}

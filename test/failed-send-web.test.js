@@ -8,7 +8,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, element, finders, answer } = require('./web-page');
+const { app, read, cut, element, finders, answer, esc } = require('./web-page');
 
 const unreached = () => Object.assign(new Error("Can't reach botdot."), { unreached: true });
 const refused = (said) => Object.assign(new Error(said), { status: 429, refused: true });
@@ -255,6 +255,46 @@ test('web: a quick answer tapped twice sends once', async () => {
   done(true);
   await tap;
   assert.deepEqual(sent, ['Yes']);
+});
+
+// The answers of one reply (choicesHTML's `of`, #495), drawn and wired again as the chat is drawn again.
+function replyAnswers() {
+  const ctx = vm.createContext({ esc, $: () => null, $$: () => [], CSS: { escape: (s) => s }, crypto: globalThis.crypto, Map });
+  vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('// The text colour that reads best on a filled colour', '// Several questions at once ([[ask: …]])')}\n${cut('function wireChoices(root, send)', 'const copyBtn = ')}\nObject.assign(this, { wireChoices, choicesHTML });`, ctx);
+  const draw = (send) => {
+    const row = element({}, { hidden: false });
+    row.dataset.of = 'run-1';
+    const buttons = ['Yes', 'No'].map((c) => element({}, { dataset: { choice: c }, closest: () => row }));
+    ctx.$$ = (sel, root) => (root === row ? buttons : root ? root.querySelectorAll(sel) : []);
+    ctx.wireChoices(element({ '[data-choice]': buttons, '.ask-card': [] }), send);
+    return { row, buttons };
+  };
+  return { ctx, draw };
+}
+
+test('web: a tapped answer goes at once, keeps its key when the chat is drawn again, and is not drawn again once it went', async () => {
+  const { ctx, draw } = replyAnswers();
+  const keys = [];
+  let done;
+  const send = (t, key) => { keys.push(key); return new Promise((resolve) => { done = resolve; }); };
+  const html = () => ctx.choicesHTML(['Yes', 'No'], 0, '#7f77dd', 'run-1');
+  assert.match(html(), /<div class="choices" data-of="run-1">/);
+  const a = draw(send);
+  const tap = a.buttons[0].onclick();
+  assert.equal(a.row.hidden, true, 'gone at the tap');
+  assert.match(html(), /<div class="choices" data-of="run-1" hidden>/, 'drawn again while it goes: hidden');
+  done(false); // it failed
+  await tap;
+  assert.equal(a.row.hidden, false, 'back after a failed send');
+  assert.deepEqual(a.buttons.map((b) => b.disabled), [false, false]);
+  const b = draw(send); // the chat is drawn again
+  const again = b.buttons[0].onclick();
+  done(true);
+  await again;
+  assert.equal(keys.length, 2);
+  assert.equal(keys[0], keys[1], 'the same message: the same key');
+  assert.equal(html(), '', 'answered: no buttons when it is drawn again');
+  assert.match(ctx.choicesHTML(['Yes', 'No'], 0, '#7f77dd', 'run-2'), /data-of="run-2"/, 'another reply has its own');
 });
 
 test('web: a question card keeps its answers until its send went', async () => {

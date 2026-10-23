@@ -303,26 +303,48 @@ function inkOn(hex) {
   const l = 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
   return 1.05 / (l + 0.05) >= (l + 0.05) / 0.0556 ? '#fff' : '#111'; // #111's luminance is about 0.0056
 }
+// The answers tapped, by the reply they answer (choicesHTML's `of`): 'sending' while the send is under way, 'sent' once
+// it went. A chat is drawn again from lists the server may not have changed yet, as the bot's open question (#495):
+// an answered reply gets no buttons back, and each answer keeps one key, so a redraw never makes a second message.
+const answered = new Map(); // of → 'sending' | 'sent'
+const answerKeys = new Map(); // `${of}\n${answer}` → its key
+const answerKey = (of, c) => {
+  if (answerKeys.size > 500) answerKeys.clear(); // answers of long ago
+  const k = `${of}\n${c}`;
+  if (!answerKeys.has(k)) answerKeys.set(k, messageKey());
+  return answerKeys.get(k);
+};
 // Quick answers under the newest reply ([[choices: …]], see lib/choices.js): tap one to send it. The one at
-// `yes` is filled with the colour of the bot that asks.
-const choicesHTML = (choices, yes = -1, color = '') => (choices?.length
-  ? `<div class="choices">${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}</div>`
+// `yes` is filled with the colour of the bot that asks. of: the reply's id, so that a tap answers it once (answered).
+const choicesHTML = (choices, yes = -1, color = '', of = '') => (choices?.length && !(of && answered.get(of) === 'sent')
+  ? `<div class="choices"${of ? ` data-of="${esc(of)}"` : ''}${of && answered.get(of) === 'sending' ? ' hidden' : ''}>${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}</div>`
   : '');
 // Several questions at once ([[ask: …]]): a card under the newest reply, a box under each question.
 const questionsHTML = (questions) => (questions?.length
   ? `<div class="ask-card card">${questions.map((q) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea></label>`).join('')}<button class="btn primary sm" disabled>Send</button></div>`
   : '');
-// send(text, key) resolves to whether it went (sendFrom). The buttons and the card go only then: after a send
-// that failed they are still there to use, and send the same message again: an answer keeps its key for as
-// long as it is drawn, a card for as long as its answers are the same.
+// send(text, key) resolves to whether it went (sendFrom). The buttons go at the tap, as the owner's bubble shows
+// (sentAtOnce), and come back only when the send failed, to send the same message again: an answer keeps its key for
+// as long as the page is open (answerKey), or without `of` for as long as it is drawn; a card for as long as its
+// answers are the same.
 function wireChoices(root, send) {
   $$('[data-choice]', root).forEach((b) => {
-    const key = messageKey();
+    const of = b.closest('.choices')?.dataset.of || '';
+    const key = of ? answerKey(of, b.dataset.choice) : messageKey();
     b.onclick = async () => {
-      const all = $$('[data-choice]', b.closest('.choices'));
+      const row = b.closest('.choices');
+      // The rows of this reply as drawn now: the chat may have been drawn again while the send was under way.
+      const rows = () => [row, ...(of ? $$(`.choices[data-of="${CSS.escape(of)}"]`) : [])].filter(Boolean);
+      const all = $$('[data-choice]', row);
       all.forEach((x) => { x.disabled = true; }); // one tap, one message
-      if (await send(b.dataset.choice, key)) b.closest('.choices')?.remove();
-      else all.forEach((x) => { x.disabled = false; });
+      if (of) { answered.set(of, 'sending'); if (row) row.hidden = true; }
+      if (await send(b.dataset.choice, key)) {
+        if (of) { if (answered.size > 500) answered.clear(); answered.set(of, 'sent'); }
+        rows().forEach((r) => r.remove());
+      } else {
+        if (of) answered.delete(of);
+        rows().forEach((r) => { r.hidden = false; $$('[data-choice]', r).forEach((x) => { x.disabled = false; }); });
+      }
     };
   });
   $$('.ask-card', root).forEach((card) => {
