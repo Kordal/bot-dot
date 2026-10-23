@@ -5,6 +5,10 @@
 //   node scripts/group-router-bench.js            the stand-in for the model (a few keywords): checks the script
 //   node scripts/group-router-bench.js --live     the real model, through the Claude Code CLI ($CLAUDE_BIN or
 //                                                 `claude`), signed in as this machine is
+//   node scripts/group-router-bench.js --jev      Jev (TypeSafe) on OpenRouter instead, for comparison only:
+//                                                 $OPENROUTER_API_KEY, or the key in the file $OPENROUTER_KEY_FILE.
+//                                                 One yes/no question per member and one "for everyone", in one
+//                                                 request; a member is picked at 0.5 or more, the two likeliest.
 //   --pass=<s> --answer=<s>                       what a turn takes that passes, and one that answers (8 and 25)
 //   --json                                        the numbers as JSON
 //
@@ -20,7 +24,8 @@ const router = require('../lib/group-router');
 
 const args = process.argv.slice(2);
 const flag = (name, d) => { const a = args.find((x) => x.startsWith(`--${name}=`)); return a ? Number(a.split('=')[1]) : d; };
-const LIVE = args.includes('--live');
+const JEV = args.includes('--jev');
+const LIVE = args.includes('--live') || JEV;
 const T_PASS = flag('pass', 8);
 const T_ANSWER = flag('answer', 25);
 const { teams, cases } = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'test', 'fixtures', 'group-router-cases.json'), 'utf8'));
@@ -45,6 +50,29 @@ function live(prompt, { llm, ms, system }) {
     child.stdin.end(prompt);
   });
 }
+// Jev on OpenRouter (https://openrouter.ai/docs/guides/community/jev). It answers no free text, so the bench asks it
+// directly and hands route() an answer in the router's own JSON.
+const JEV_MODEL = process.env.JEV_MODEL || 'typesafe/jev-1.14';
+const openRouterKey = () => (process.env.OPENROUTER_API_KEY || (process.env.OPENROUTER_KEY_FILE ? fs.readFileSync(process.env.OPENROUTER_KEY_FILE, 'utf8') : '')).trim();
+let jevCase = null; // the message route() is asked about now: Jev reads it as data, not as the router's prompt
+async function jev(_prompt, { ms }) {
+  const { c, members } = jevCase;
+  const about = (b) => [b.description, b.prompt && `Job: ${b.prompt}`, b.skills?.length && `Skills: ${b.skills.join(', ')}`].filter(Boolean).join(' ');
+  const questions = { everyone: { type: 'noul', instructions: 'Is this message for every member of the group at once (a greeting, "everyone", a question each must answer for their own part)?', criteria: { true: 'Every member should answer.', false: 'It is the part of one or two members.' } } };
+  members.forEach((b, i) => { questions[`m${i + 1}`] = { type: 'noul', instructions: `Is it the part of ${b.name} to answer this message? ${b.name}: ${about(b)}`, criteria: { true: `${b.name} should answer it.`, false: `It is another member's part, or ${b.name} would have nothing to add.` } }; });
+  const state = { members: members.map((b) => ({ name: b.name, about: about(b) })), recent: c.recent || [], message: c.text };
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  try {
+    const res = await fetch('https://openrouter.ai/api/alpha/decisions', { method: 'POST', signal: ctl.signal, headers: { Authorization: `Bearer ${openRouterKey()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: JEV_MODEL, state, questions, provider: { data_collection: 'deny' } }) });
+    const body = await res.json();
+    if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(body).slice(0, 200)}`);
+    const a = body.answers || {};
+    if ((a.everyone?.noul ?? 0) >= 0.5) return '{"members":[]}';
+    const picked = members.map((_, i) => [i + 1, a[`m${i + 1}`]?.noul ?? 0]).filter(([, p]) => p >= 0.5).sort((x, y) => y[1] - x[1]).slice(0, 2).map(([n]) => n);
+    return JSON.stringify({ members: picked });
+  } catch (e) { throw new Error(e.name === 'AbortError' ? 'no answer in time' : e.message); } finally { clearTimeout(t); }
+}
 // The stand-in: a few words per member, and none for everyone.
 const WORDS = { 'Infra Admin': /server|backup|disk|certificate|tls|deploy|memory|down|502/i, 'QA Tester': /test|reproduce|regression/i, 'Quotz Manager': /release|status|price|customer|acme|reply|hold/i, Coder: /implement|fix|crash|ci |build it/i, Reviewer: /review|security|have a look/i, Designer: /mockup|draw|button|empty state/i, 'Release Manager': /apk|ship|what's new|version/i };
 async function fake(prompt) {
@@ -67,12 +95,14 @@ function measure(c, line, members, routerMs) {
 }
 
 (async () => {
-  const r = router.create({ ask: LIVE ? live : fake, ms: Number(process.env.BOT_DOT_GROUP_ROUTER_MS) || (LIVE ? router.MS : 1000) });
+  if (JEV && !openRouterKey()) { console.error('--jev needs OPENROUTER_API_KEY or OPENROUTER_KEY_FILE.'); process.exit(1); }
+  const r = router.create({ ask: JEV ? jev : LIVE ? live : fake, ms: Number(process.env.BOT_DOT_GROUP_ROUTER_MS) || (LIVE ? router.MS : 1000) });
   const rows = [];
   for (const c of cases) {
     const members = membersOf(c.team);
     const all = members.map((b) => b.id);
     const before = measure(c, all, members, 0);
+    jevCase = { c, members };
     const d = await r.route({ text: c.text, members, recent: c.recent || [] });
     const after = measure(c, d.picked || all, members, d.ms);
     rows.push({ text: c.text, team: c.team, picked: d.picked ? d.picked.map((id) => members.find((b) => b.id === id).name) : `all (${d.fell})`, ms: d.ms, before, after });
@@ -83,7 +113,7 @@ function measure(c, line, members, routerMs) {
   const lat = rows.map((x) => x.ms).sort((a, b) => a - b);
   const pct = (p) => lat[Math.min(lat.length - 1, Math.floor(p * lat.length))];
   const total = {
-    messages: rows.length, mode: LIVE ? 'live' : 'stand-in', tPass: T_PASS, tAnswer: T_ANSWER,
+    messages: rows.length, mode: JEV ? `jev (${JEV_MODEL})` : LIVE ? 'live' : 'stand-in', tPass: T_PASS, tAnswer: T_ANSWER,
     runsPerMessage: [avg('runs', 'before'), avg('runs', 'after')],
     passRuns: [sum('passes', 'before'), sum('passes', 'after')],
     firstUsefulS: [avg('first', 'before'), avg('first', 'after')],
