@@ -293,8 +293,9 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
             Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) "Done." else "" }); OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect); PlanFold(plan) }
         }
     }
-    // Between bots (a run another bot or the Chief started) the reply folds as the message above it does (#413).
-    if ((r.fromBot != null && r.trigger == "bot" || r.startedBy == "chief") && r.status == "success") {
+    // Between bots (a run another bot or the Chief started) the reply folds as the message above it does (#413),
+    // unless it addresses the owner: a teammate's request whose reply only the owner reads (#465).
+    if ((r.fromBot != null && r.trigger == "bot" || r.startedBy == "chief") && r.status == "success" && r.notificationAudience != "owner") {
         ExchangeFold(r, to, footer, open, reply)
         RunScreenshots(r)
         return
