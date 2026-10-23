@@ -178,3 +178,25 @@ test('the web page lists each skill with a box, flags the ones the library has a
   assert.match(html, /name="overwrite"/);
   assert.match(html, /run\.sh/, 'scripts are named');
 });
+
+// The bots under "Give them to" (#488): Select all / Deselect all in their header row, leaving a bot with skills
+// turned off as it is and the skills list's own pair alone.
+test('the web page selects and deselects every bot that can take skills', () => {
+  const ctx = vm.createContext({ esc, state: { bots: [{ id: 'b1', name: 'Clerk' }, { id: 'b2', name: 'Off', useSkills: false }] }, CHIEF_BOT: { id: 'chief', name: 'Chief' }, botLabel: (b) => esc(b.name) });
+  vm.runInContext(`${cut('function botCheckboxes(', 'function openSkillEditor(')}; this.botPickHTML = botPickHTML; this.wireBotPick = wireBotPick;`, ctx);
+  const html = ctx.botPickHTML('Give them to', ['b1']);
+  assert.match(html, /Give them to/);
+  assert.match(html, /data-bots="all">Select all</);
+  assert.match(html, /data-bots="none">Deselect all</);
+  assert.doesNotMatch(html, /data-pick=/, 'the skills list keeps its own pair');
+  const boxes = [...html.matchAll(/<input type="checkbox" name="bot" value="([^"]*)"([^>]*)>/g)].map(([, value, rest]) => ({ value, checked: /\bchecked\b/.test(rest), disabled: /\bdisabled\b/.test(rest) }));
+  assert.deepEqual(boxes.map((b) => b.checked), [false, true, false]);
+  assert.deepEqual(boxes.map((b) => b.value), ['chief', 'b1', 'b2']);
+  const buttons = [{ dataset: { bots: 'all' } }, { dataset: { bots: 'none' } }];
+  ctx.$$ = (sel) => (sel === '[data-bots]' ? buttons : sel === 'input[name=bot]:not(:disabled)' ? boxes.filter((b) => !b.disabled) : []);
+  ctx.wireBotPick({});
+  buttons[0].onclick();
+  assert.deepEqual(boxes.map((b) => b.checked), [true, true, false]);
+  buttons[1].onclick();
+  assert.deepEqual(boxes.map((b) => b.checked), [false, false, false]);
+});

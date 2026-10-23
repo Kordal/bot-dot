@@ -56,6 +56,21 @@ function botCheckboxes(selected = []) {
   return `<div class="tool-toggles">${[CHIEF_BOT, ...state.bots].map((b) => `<label><input type="checkbox" name="bot" value="${esc(b.id)}" ${selected.includes(b.id) ? 'checked' : ''}${b.useSkills === false ? ' disabled title="Skills are turned off for this bot"' : ''}>${botLabel(b)}</label>`).join('')}</div>`;
 }
 
+// The bot boxes under a heading with Select all / Deselect all, as the list of the skills a link holds has (#488).
+function botPickHTML(label, selected = []) {
+  return `
+    <div class="skill-pick-head">
+      <span class="muted">${esc(label)}</span>
+      <span><button type="button" class="btn ghost" data-bots="all">Select all</button><button type="button" class="btn ghost" data-bots="none">Deselect all</button></span>
+    </div>
+    <div class="bot-pick">${botCheckboxes(selected)}</div>`;
+}
+
+// A bot with skills turned off keeps its box as it is.
+function wireBotPick(root) {
+  for (const b of $$('[data-bots]', root)) b.onclick = () => { for (const c of $$('input[name=bot]:not(:disabled)', root)) c.checked = b.dataset.bots === 'all'; };
+}
+
 // opts.forBot: pre-tick this bot. opts.onDone(name|null): called when the dialog closes (used by a bot's settings).
 function openSkillEditor(skill, opts = {}) {
   const isNew = !skill;
@@ -169,7 +184,8 @@ function openSkillImport(opts = {}) {
       form.url.readOnly = true;
       if (preview.many) {
         $('#import-preview', m).innerHTML = `${skillPickHTML(preview)}
-          <fieldset><legend>Give them to</legend>${botCheckboxes(opts.forBot ? [opts.forBot] : [])}</fieldset>`;
+          ${botPickHTML('Give them to', opts.forBot ? [opts.forBot] : [])}`;
+        wireBotPick(form);
         const picks = () => $$('input[name=pick]:not(:disabled)', form);
         // The count is what goes in: a ticked one the library has goes in only when it is replaced.
         const count = () => {
@@ -192,7 +208,8 @@ function openSkillImport(opts = {}) {
         ${preview.scripts.length ? `<div class="skill-warn">⚠︎ Includes scripts a bot may run: ${esc(preview.scripts.join(', '))}. Only import skills from people you trust.</div>` : ''}
         ${preview.allowedTools.length ? `<div class="skill-warn">⚠︎ Lets a bot use these without asking while the skill is active: ${esc(preview.allowedTools.join(', '))}</div>` : ''}
         <details class="tool" open><summary><span class="tname">SKILL.md</span><span class="targ">what the bot will read</span></summary><div class="md skill-preview">${md(preview.instructions)}</div></details>
-        <fieldset><legend>Give it to</legend>${botCheckboxes(opts.forBot ? [opts.forBot] : [])}</fieldset>`;
+        ${botPickHTML('Give it to', opts.forBot ? [opts.forBot] : [])}`;
+      wireBotPick(form);
       go.disabled = false;
       go.textContent = 'Import skill';
       return;
