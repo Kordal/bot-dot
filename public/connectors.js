@@ -15,13 +15,17 @@ async function renderConnectors(force = false) {
   const root = $('#view-connectors');
   if (root.dataset.ready && !force) return; // the web page's regular refresh would wipe the search box
   root.dataset.ready = '1';
+  if (!conn.data && state.view === 'connectors') root.innerHTML = connHead(); // its title at once, not a blank page while Composio answers
   try { conn.data = await api('/connectors'); } catch (e) { conn.data = { configured: false, error: e.message, connections: [] }; }
   const works = conn.data.configured && !conn.data.keyRejected;
   if (!works) { conn.catalog = []; conn.categories = []; conn.replacing = false; }
   if (works && !conn.catalog.length) await loadCatalog(true);
   if (works && !conn.categories.length) conn.categories = await api('/connectors/categories').catch(() => []);
-  drawConnectors();
+  // A page that can't be drawn says why, never stays blank (#464).
+  try { drawConnectors(); } catch (e) { root.innerHTML = `${connHead()}<div class="req-note">Couldn't show your apps: ${esc(e.message)}</div>`; }
 }
+const connHead = () => `${SUB_BACK}
+    <div class="section-head"><div><h1>Connectors</h1></div></div>`;
 
 async function loadCatalog(reset) {
   if (conn.loading) return;
@@ -39,8 +43,7 @@ function drawConnectors() {
   const root = $('#view-connectors');
   if (state.view !== 'connectors' || !conn.data) return;
   const d = conn.data;
-  const head = `${SUB_BACK}
-    <div class="section-head"><div><h1>Connectors</h1></div></div>`;
+  const head = connHead();
   if (!d.configured || d.keyRejected) {
     // No key yet, or Composio refuses it (#409): nothing on the page works until one is pasted.
     const title = !d.configured ? 'Add your Composio key'
@@ -76,7 +79,7 @@ function drawConnectors() {
           <button class="btn sm" data-forget-app="${esc(a.slug)}">Remove</button>
         </div>
       </article>`).join('')}${d.connections.map((c) => {
-      const [tone, label] = CONN_STATUS[c.status] || ['', c.status.toLowerCase()];
+      const [tone, label] = CONN_STATUS[c.status] || ['', String(c.status || 'unknown').toLowerCase()];
       return `<article class="card app-card" data-conn="${esc(c.id)}">
         <div class="app-top">${appLogo(c.app)}<div class="grow"><b>${esc(c.app?.name || c.toolkit)}</b><div><span class="pill ${tone}">${esc(label)}</span></div></div></div>
         <div class="chips">${c.usedBy.map(botName).join('') || '<span class="faint" style="font-size:12.5px">No bot uses it yet</span>'}</div>
@@ -153,45 +156,68 @@ function drawConnectors() {
 }
 
 // A Reconnect card under the reply of a job's run (#431, docs/api.md "A Reconnect card"): an app it found signed out, and
-// the button that connects it again as this page does. Once connected here, its cards say so.
-const reconnected = new Set();
+// the button that connects it again as this page does. The card says where that is (#464): opening, waiting for the
+// sign-in, connected, or what went wrong; the button is never stuck. Kept per app, so a chat drawn again keeps it.
+const reconnecting = new Map(); // slug -> { state: 'opening' | 'waiting' | 'connected' | 'failed', error?, turn }
+function reconnectCardHTML(x) {
+  const name = esc(String(x.name || x.app));
+  const s = reconnecting.get(x.app) || {};
+  const card = (inner) => `<div class="reconnect-card" data-reconnect-card="${esc(x.app)}" data-name="${name}">${inner}</div>`;
+  if (s.state === 'connected') return card(`<span><b>${name}</b> is connected</span>`);
+  const button = s.state === 'opening' ? '<button class="btn sm primary" disabled>Opening…</button>'
+    : `<button class="btn sm primary" data-reconnect="${esc(x.app)}">${s.state === 'failed' ? 'Try again' : 'Reconnect'}</button>`;
+  return card(`<span><b>${name}</b> ${s.state === 'waiting' ? 'waits for sign-in' : 'is signed out'}</span>${button}${s.error ? `<div class="reconnect-error" role="alert">${esc(s.error)}</div>` : ''}`);
+}
 function reconnectCardsHTML(run) {
-  const list = (Array.isArray(run?.reconnect) ? run.reconnect : []).filter((x) => x && typeof x.app === 'string');
-  return list.map((x) => {
-    const name = esc(String(x.name || x.app));
-    return reconnected.has(x.app)
-      ? `<div class="reconnect-card"><span><b>${name}</b> is connected</span></div>`
-      : `<div class="reconnect-card"><span><b>${name}</b> is signed out</span><button class="btn sm primary" data-reconnect="${esc(x.app)}">Reconnect</button></div>`;
-  }).join('');
+  return (Array.isArray(run?.reconnect) ? run.reconnect : []).filter((x) => x && typeof x.app === 'string').map(reconnectCardHTML).join('');
+}
+// Every card of the app on the page, drawn again where it stands: in a chat, a group or the Chief's.
+function redrawReconnect(slug) {
+  for (const el of document.querySelectorAll('[data-reconnect-card]')) if (el.dataset.reconnectCard === slug) el.outerHTML = reconnectCardHTML({ app: slug, name: el.dataset.name });
 }
 document.addEventListener('click', (e) => {
   const b = e.target.closest?.('[data-reconnect]');
   if (!b) return;
-  b.disabled = true;
-  connectApp(b.dataset.reconnect, () => { reconnected.add(b.dataset.reconnect); if (state.view === 'bot') { delete $('#view-bot').dataset.sig; renderBotChat(); } }).finally(() => { b.disabled = false; });
+  const slug = b.dataset.reconnect;
+  // A second press starts a new sign-in: the first one's wait ends and says nothing more.
+  const turn = (reconnecting.get(slug)?.turn || 0) + 1;
+  const live = () => reconnecting.get(slug)?.turn === turn;
+  const set = (state, error) => { if (!live()) return; reconnecting.set(slug, { state, turn, ...(error ? { error } : {}) }); redrawReconnect(slug); };
+  reconnecting.set(slug, { state: 'opening', turn });
+  redrawReconnect(slug);
+  connectApp(slug, () => set('connected'), { live, opened: () => set('waiting'), failed: (msg) => set('failed', msg), ended: () => set('idle') });
 });
 
 // Composio's sign-in page opens in a new tab; this waits for the connection to become active.
 // connected: what happens then, instead of this page's own list and its question of which bots may use it.
-async function connectApp(slug, connected = null) {
+// on (a Reconnect card): opened() once the sign-in page is open, failed(message) instead of a toast, ended() when the
+// sign-in tab was closed without connecting or the wait ran out, and live() false to stop waiting.
+async function connectApp(slug, connected = null, on = {}) {
+  const live = on.live || (() => true);
   const win = window.open('about:blank', '_blank'); // opened now, so pop-up blockers allow it
+  const fail = (msg) => (on.failed ? on.failed(msg) : toast(msg, true));
   let r;
-  try { r = await api('/connectors/connect', { method: 'POST', body: { app: slug } }); } catch (e) { win?.close(); return toast(e.message, true); }
+  try { r = await api('/connectors/connect', { method: 'POST', body: { app: slug } }); } catch (e) { win?.close(); return fail(e.message); }
   if (r.noAuth) { win?.close(); return connected ? connected() : chooseAppBots(slug); }
   if (win) win.location = r.redirectUrl; else location.assign(r.redirectUrl);
-  toast('Sign in on the page that opened. botdot notices when you\'re done.');
+  if (on.opened) on.opened(); else toast('Sign in on the page that opened. botdot notices when you\'re done.');
   const until = Date.now() + 10 * 60_000;
-  while (Date.now() < until) {
+  let closed = 0;
+  while (Date.now() < until && live()) {
     await new Promise((res) => setTimeout(res, 3000));
+    if (!live()) return;
     const c = await api(`/connectors/connections/${encodeURIComponent(r.connectionId)}`).catch(() => null);
     if (c?.status === 'ACTIVE') {
-      toast('Connected');
+      if (!on.opened) toast('Connected');
       if (connected) return connected();
       await renderConnectors(true);
       return chooseAppBots(slug, true);
     }
-    if (c && ['FAILED', 'EXPIRED'].includes(c.status)) { toast(`Connecting didn't work${c.statusReason ? `: ${c.statusReason}` : ''}`, true); return connected ? null : renderConnectors(true); }
+    if (c && ['FAILED', 'EXPIRED'].includes(c.status)) { fail(`Connecting didn't work${c.statusReason ? `: ${c.statusReason}` : ''}`); return connected ? null : renderConnectors(true); }
+    // The sign-in tab was closed without connecting: one more look (it may have just finished), then no more waiting.
+    if (win?.closed && ++closed > 1) break;
   }
+  on.ended?.();
 }
 
 function chooseAppBots(slug, justConnected = false) {

@@ -22,6 +22,12 @@ const fake = http.createServer((req, res) => {
   if (![OWN_KEY, OWN_KEY_2, OLD_KEY].includes(key) || seen.dead.has(key)) return json(401, { message: 'Bad key' });
   seen.keys.add(key);
   if (url.pathname === '/toolkits') return json(200, { items: [{ slug: 'gmail', name: 'Gmail', meta: { categories: [{ name: 'email' }] }, composio_managed_auth_schemes: ['OAUTH2'] }], next_cursor: null });
+  // Connecting GitHub (#464): an auth config is there, and Composio refuses the sign-in link in its own words.
+  if (url.pathname === '/toolkits/github') return json(200, { slug: 'github', name: 'GitHub MCP', composio_managed_auth_schemes: ['OAUTH2'] });
+  if (url.pathname === '/auth_configs') return json(200, { items: url.searchParams.get('toolkit_slug') === 'github' ? [{ id: 'ac_github', status: 'ENABLED' }] : [] });
+  if (url.pathname === '/connected_accounts/link') return json(400, { error: { message: '{"code":1803,"detail":"ConnectedAccount_MultipleAccountsNotAllowed for ac_github"}' } });
+  if (url.pathname === '/toolkits/devapp') return json(200, { slug: 'devapp', name: 'Dev App', auth_schemes: ['OAUTH2'] });
+  if (url.pathname === '/connected_accounts' && seen.odd) return json(200, { items: [{ id: 'ca_notion', toolkit: { slug: 'notion' } }, { id: 'ca_none' }, { id: 'ca_gmail', toolkit: { slug: 'gmail' }, status: 'ACTIVE' }] });
   if (url.pathname === '/connected_accounts') return json(200, { items: (seen.accounts[key] || []).map((slug) => ({ id: `ca_${slug}`, toolkit: { slug }, status: 'ACTIVE' })) });
   return json(404, { message: 'Not here' });
 });
@@ -130,4 +136,25 @@ test('your own key refused shows its end, and a new key fixes it', async () => {
   assert.equal(good.data.keyRejected, false);
   assert.equal((await srv.api('/connectors')).data.keyRejected, false);
   assert.equal((await srv.api('/connectors/catalog')).status, 200);
+});
+
+test('a sign-in Composio refuses is answered in one plain sentence, for the Reconnect card and the Connectors page (#464)', async () => {
+  await srv.api('/connectors/key', { method: 'PUT', body: { key: OWN_KEY } });
+  srv.reply('GitHub is already connected once; remove the old connection in Connectors and try again.');
+  const r = await srv.api('/connectors/connect', { method: 'POST', body: { app: 'github' } });
+  assert.equal(r.status, 502);
+  assert.equal(r.data.error, 'GitHub is already connected once; remove the old connection in Connectors and try again.');
+  assert.equal(r.data.code, 'app-failed');
+  // botdot's own sentence is said as it is.
+  const own = await srv.api('/connectors/connect', { method: 'POST', body: { app: 'devapp' } });
+  assert.equal(own.status, 400);
+  assert.match(own.data.error, /^Dev App only signs in through your own developer app/);
+});
+
+test('a connection Composio lists without a status reads "UNKNOWN", and one without an app is left out (#464)', async () => {
+  seen.odd = true;
+  try {
+    const r = await srv.api('/connectors');
+    assert.deepEqual(r.data.connections.map((c) => [c.id, c.toolkit, c.status]), [['ca_notion', 'notion', 'UNKNOWN'], ['ca_gmail', 'gmail', 'ACTIVE']]);
+  } finally { seen.odd = false; }
 });
