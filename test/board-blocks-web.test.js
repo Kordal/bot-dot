@@ -55,7 +55,7 @@ test('web: one chart code: lines with gridlines, axes and a legend, bars, stacke
 
 const boardKit = () => {
   const ctx = vm.createContext({ botById: (id) => ({ b1: { name: 'Home Helper' }, b2: { name: 'Server Watch' } }[id]), setInterval() {}, state: {}, localStorage: { getItem: () => null } });
-  vm.runInContext(`${cut('// A tile whose face is one number', 'function tileHTML(')}\n${cut('// The tiles under one heading as they are drawn', 'function renderDashboard() {')}\nthis.out = { isKpiTile, isControlRow, boardRuns, sectionBots, sectionSource, ageWords, liveWords, newestAt };`, ctx);
+  vm.runInContext(`${cut('// A tile whose face is one number', 'function tileHTML(')}\n${cut('// The tiles under one heading as they are drawn', 'function renderDashboard() {')}\nthis.out = { isKpiTile, isControlRow, boardRuns, sectionBots, sectionSource, ageWords, newestAt };`, ctx);
   return ctx.out;
 };
 
@@ -77,13 +77,13 @@ test('web: a heading names its bots, and where its values come from when that is
   assert.equal(sectionSource([{ source: 'script · 30 s' }, { source: 'http · 1 min' }]), '');
 });
 
-test('web: the Live marker says the age of the newest value', () => {
-  const { ageWords, liveWords, newestAt } = boardKit();
+test('web: the refresh button says the age of the newest value', () => {
+  const { ageWords, newestAt } = boardKit();
   assert.equal(ageWords(65), '1 min ago', 'a tile and a heading say only how long ago it read');
-  assert.equal(liveWords(3.7), 'Live · updated 3s ago');
-  assert.equal(liveWords(-2), 'Live · updated 0s ago', 'a clock a little ahead');
-  assert.equal(liveWords(125), 'Live · updated 2 min ago');
-  assert.equal(liveWords(7300), 'Live · updated 2 h ago');
+  assert.equal(ageWords(3.7), '3s ago');
+  assert.equal(ageWords(-2), '0s ago', 'a clock a little ahead');
+  assert.equal(ageWords(125), '2 min ago');
+  assert.equal(ageWords(7300), '2 h ago');
   assert.equal(newestAt([{ at: '2026-10-22T08:00:00Z' }, { at: null }, { at: '2026-10-22T09:00:00Z' }]), Date.parse('2026-10-22T09:00:00Z'));
   assert.equal(newestAt([]), 0);
 });
@@ -93,4 +93,11 @@ test('web: the kit is loaded before the Board, and the Board draws its blocks wi
   assert.ok(html.indexOf('<script src="/blocks.js"></script>') < html.indexOf('<script src="/board.js"></script>'));
   const blocks = cut('function blockHTML(b, t, where) {', 'const fmtNum = ');
   for (const call of ['kitKpi(b', 'kitStatus(b)', 'kitCallout(b)', 'kitChart(b']) assert.ok(blocks.includes(call), call);
+});
+
+test('web: the refresh button beside the Board title reads every tile now (#452)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'board.js'), 'utf8');
+  assert.match(src, /data-board-refresh aria-label="Refresh"/);
+  assert.match(src, /api\('\/dashboard\/refresh', \{ method: 'POST', body: \{ all: true \} \}\)/);
+  assert.doesNotMatch(src, /Live · updated/, 'no label beside it, the arrows say it');
 });

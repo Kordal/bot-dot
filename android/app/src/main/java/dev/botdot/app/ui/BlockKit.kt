@@ -76,9 +76,6 @@ object BoardKit {
         return when { s < 60 -> "${s}s"; s < 3600 -> "${s / 60} min"; else -> "${s / 3600} h" } + " ago"
     }
 
-    /** "Live · updated 3s ago": the age of the newest value on the Board, as the web page says it. */
-    fun liveWords(secs: Long): String = "Live · updated ${ageWords(secs)}"
-
     /** When the newest value came, in epoch ms; 0 while none has. */
     fun newestAt(tiles: List<Tile>): Long = tiles.maxOfOrNull { t -> t.at?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L } ?: 0L
 

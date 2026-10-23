@@ -876,8 +876,11 @@ legend { font-size: 12.5px; font-weight: 500; color: var(--muted); padding: 0 6p
 #view-dashboard > * { max-width: 1320px; }
 .board-head { align-items: center; flex-wrap: wrap; }
 .board-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.board-live { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ok-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.board-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 20%, transparent); }
+/* The refresh button (#452): turning arrows and the age of the newest value. */
+.board-live { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 12.5px; color: var(--ok-text); font-variant-numeric: tabular-nums; white-space: nowrap; background: none; border: 1px solid transparent; border-radius: 99px; padding: 5px 10px; cursor: pointer; }
+.board-live:hover, .board-live:focus-visible { border-color: var(--line-2); background: var(--sunk); }
+.board-live svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.board-live.spin svg { animation: btn-spin .8s linear infinite; }
 .board-filter { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: 99px; overflow-x: auto; max-width: 100%; }
 .board-filter button { border: 0; background: transparent; color: var(--muted); font-size: 13px; padding: 5px 13px; border-radius: 99px; cursor: pointer; white-space: nowrap; }
 .board-filter button.on { background: var(--sunk); color: var(--text); }

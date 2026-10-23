@@ -17,12 +17,12 @@ class BoardKitTest {
     private fun tile(id: String, kind: String, face: List<Block> = emptyList(), size: String = "small", bot: String? = null, source: String? = null) =
         Tile(id = id, kind = kind, size = size, bot = bot, source = source, look = TileLook(face = face))
 
-    @Test fun theLiveMarkerSaysTheAgeOfTheNewestValue() {
+    @Test fun theRefreshButtonSaysTheAgeOfTheNewestValue() {
         assertEquals("a tile and a heading say only how long ago it read", "1 min ago", BoardKit.ageWords(65))
-        assertEquals("Live · updated 3s ago", BoardKit.liveWords(3))
-        assertEquals("Live · updated 0s ago", BoardKit.liveWords(-2))
-        assertEquals("Live · updated 2 min ago", BoardKit.liveWords(125))
-        assertEquals("Live · updated 2 h ago", BoardKit.liveWords(7300))
+        assertEquals("3s ago", BoardKit.ageWords(3))
+        assertEquals("0s ago", BoardKit.ageWords(-2))
+        assertEquals("2 min ago", BoardKit.ageWords(125))
+        assertEquals("2 h ago", BoardKit.ageWords(7300))
         val tiles = listOf(Tile(id = "a", at = "2026-10-22T08:00:00Z"), Tile(id = "b"), Tile(id = "c", at = "2026-10-22T09:00:00Z"))
         assertEquals(java.time.Instant.parse("2026-10-22T09:00:00Z").toEpochMilli(), BoardKit.newestAt(tiles))
         assertEquals(0L, BoardKit.newestAt(emptyList()))

@@ -47,11 +47,28 @@ function fitStrip() {
 new ResizeObserver(() => fitStrip()).observe($('#contacts')); // a wider or narrower list, or the list shown again
 
 let dashLoading = null;
+const gotDash = (d) => { state.dash = d; renderContacts(); showNeeds(); drawHomePick(); if (state.view === 'dashboard') renderDashboard(); };
 function loadDash(quiet = false) {
   if (dashLoading) return dashLoading;
-  dashLoading = api(quiet ? '/dashboard?quiet' : '/dashboard/refresh', quiet ? {} : { method: 'POST' }).then((d) => { state.dash = d; renderContacts(); showNeeds(); drawHomePick(); if (state.view === 'dashboard') renderDashboard(); })
+  dashLoading = api(quiet ? '/dashboard?quiet' : '/dashboard/refresh', quiet ? {} : { method: 'POST' }).then(gotDash)
     .catch(() => {}).finally(() => { dashLoading = null; });
   return dashLoading;
+}
+// The refresh button beside the Board's title (#452): every tile is read now, not only the stale ones (botdot skips
+// one read seconds ago). Its arrows turn while it reads, and at least a moment, so a quick answer is seen too.
+let boardRefreshing = false;
+async function refreshBoard() {
+  if (boardRefreshing) return;
+  boardRefreshing = true;
+  renderDashboard();
+  const moment = new Promise((r) => setTimeout(r, 600));
+  try {
+    await dashLoading;
+    gotDash(await api('/dashboard/refresh', { method: 'POST', body: { all: true } }));
+  } catch (e) { toast(e.message, true); }
+  await moment;
+  boardRefreshing = false;
+  renderDashboard();
 }
 // While it's on screen, the stale tiles are read again every little while. Elsewhere the strip over the list is
 // looked at again once a minute, so a tile's "5 minutes ago" moves on, and on coming back to the page at once.
@@ -235,15 +252,15 @@ function ageWords(secs) {
   const s = Math.max(0, Math.floor(secs));
   return `${s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h`} ago`;
 }
-// "Live · updated 3s ago": the age of the newest value on the Board; nothing while none has come.
-const liveWords = (secs) => `Live · updated ${ageWords(secs)}`;
+const REFRESH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg>';
 const newestAt = (tiles) => Math.max(0, ...(tiles || []).map((t) => Date.parse(t.at || '') || 0));
 // The age of a value that was read at `at` (ms), counting every second; its source ("http · 1 min") on hover.
 const ageHTML = (at, source) => (at ? `<span class="tile-src" data-age="${at}" title="${esc(source)}">${esc(ageWords((Date.now() - at) / 1000))}</span>` : '');
 setInterval(() => {
   if (state.view !== 'dashboard') return;
   const el = $('#view-dashboard [data-live]');
-  if (el) el.textContent = liveWords((Date.now() - newestAt(state.dash?.tiles)) / 1000);
+  const newest = newestAt(state.dash?.tiles);
+  if (el && newest) el.textContent = ageWords((Date.now() - newest) / 1000);
   $$('#view-dashboard [data-age]').forEach((x) => { x.textContent = ageWords((Date.now() - Number(x.dataset.age)) / 1000); });
 }, 1000);
 // The heading shown (its name), or all of them (''); kept in this browser.
@@ -257,7 +274,7 @@ function renderDashboard() {
   if (ctlHeld) { ctlHeld.later = true; return; } // nor while a slider or the colour wheel is in your hand
   renderPanel();
   const waiting = new Set((d.pending || []).map((t) => t.id));
-  const sig = JSON.stringify([d, [...tapped], [...popped], [...openGroups], boardFilter, state.bots.map((b) => [b.color, b.name])]);
+  const sig = JSON.stringify([d, [...tapped], [...popped], [...openGroups], boardFilter, boardRefreshing, state.bots.map((b) => [b.color, b.name])]);
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   const loose = d.tiles.filter((t) => !t.parent);
@@ -272,7 +289,7 @@ function renderDashboard() {
   const newest = newestAt(d.tiles);
   root.innerHTML = `
     <div class="section-head board-head"><div>${BACK_BTN}<h1>Board</h1></div>
-      <div class="board-tools">${newest ? `<span class="board-live" data-live>${esc(liveWords((Date.now() - newest) / 1000))}</span>` : ''}${named.length > 1 ? `<div class="seg board-filter">${['', ...named].map((n) => `<button class="${n === boardFilter ? 'on' : ''}" data-filter="${esc(n)}">${esc(n || 'All')}</button>`).join('')}</div>` : ''}</div></div>
+      <div class="board-tools">${d.tiles.some((t) => t.source) ? `<button type="button" class="board-live ${boardRefreshing ? 'spin' : ''}" data-board-refresh aria-label="Refresh" title="Refresh">${REFRESH}${newest ? `<span data-live>${esc(ageWords((Date.now() - newest) / 1000))}</span>` : ''}</button>` : ''}${named.length > 1 ? `<div class="seg board-filter">${['', ...named].map((n) => `<button class="${n === boardFilter ? 'on' : ''}" data-filter="${esc(n)}">${esc(n || 'All')}</button>`).join('')}</div>` : ''}</div></div>
     ${d.tiles.length ? '' : `<div class="dash-empty">
       <p>Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.</p>
       <p>Nothing is on it yet. Tell the Chief or any bot, for example: <i>“Put a shopping list on my board.”</i></p>
@@ -288,6 +305,8 @@ function renderDashboard() {
     wireTile(el, t, waiting.has(el.dataset.tile));
     if (t && !waiting.has(t.id)) wireControls(el, t);
   });
+  const refreshBtn = $('[data-board-refresh]', root);
+  if (refreshBtn) refreshBtn.onclick = refreshBoard;
   $$('[data-filter]', root).forEach((el) => {
     el.onclick = () => {
       boardFilter = el.dataset.filter;

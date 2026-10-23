@@ -55,3 +55,24 @@ test('a tile read only by hand is read once, then only when tapped; the others w
   assert.deepEqual(reads, ['By hand'], 'a tap reads it');
   assert.equal(tapped.value.text, '7');
 });
+
+test('the refresh button reads every tile now, but not one read seconds ago (#452)', async (t) => {
+  const { d, reads } = board();
+  d.add(tile('Hourly', { every: 3600 }), { by: 'you' });
+  d.add(tile('By hand', { every: 0 }), { by: 'you' });
+  d.add({ kind: 'note', title: 'Filled by its bot', value: 'Hi' }, { by: 'you' });
+  await d.refresh();
+  assert.deepEqual(reads.sort(), ['By hand', 'Hourly']);
+
+  reads.length = 0;
+  await d.refresh(null, { all: true });
+  assert.deepEqual(reads, [], 'read seconds ago: taps in a row leave the sources alone');
+
+  const realNow = Date.now;
+  t.after(() => { Date.now = realNow; });
+  Date.now = () => realNow() + 6000;
+  await d.refresh();
+  assert.deepEqual(reads, [], 'a plain refresh waits for each tile\'s own time');
+  await d.refresh(null, { all: true });
+  assert.deepEqual(reads.sort(), ['By hand', 'Hourly'], 'the button reads them all, by-hand ones too');
+});
