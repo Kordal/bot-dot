@@ -523,7 +523,7 @@ data class MailDraft(
 data class SentTo(val id: String = "", val name: String = "", val emoji: String = "🤖", val color: String? = null, val delivered: String? = null, val text: String? = null) // text: the latest it sent that bot
 
 @Serializable
-data class InboxNote(val fromId: String? = null, val from: String = "", val emoji: String? = null, val color: String? = null, val text: String = "", val at: String? = null)
+data class InboxNote(val fromId: String? = null, val from: String = "", val emoji: String? = null, val color: String? = null, val text: String = "", val at: String? = null, val call: Boolean = false, val later: Boolean = false) // call: a job's call, `from` its job; later: the wake gate held it for the next run (ADR 083)
 
 /** What "Run now" under the notes did: "started", or "queued" for a bot at work. */
 @Serializable

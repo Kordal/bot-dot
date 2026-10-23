@@ -75,6 +75,21 @@ if (String(val('--system-prompt') || '').startsWith('You route messages')) {
   });
   return;
 }
+// The wake gate's question (lib/wake-gate.js, ADR 083), told by its own system prompt: no run. It writes what it was
+// asked to $FAKE_OUT/gate-<n>.txt and answers $FAKE_OUT/gate.txt (or '{"decision":"run"}').
+if (String(val('--system-prompt') || '').startsWith('You decide whether a message to an AI bot')) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `gate-${at}.txt`), asked);
+    let answer = '{"decision":"run"}';
+    try { answer = fs.readFileSync(path.join(OUT, 'gate.txt'), 'utf8'); } catch { /* run */ }
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: answer, session_id: `gate-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+    process.exit(0);
+  });
+  return;
+}
 let mcp = { mcpServers: {} };
 try { const mc = val('--mcp-config'); mcp = JSON.parse(mc.trim().startsWith('{') ? mc : fs.readFileSync(mc, 'utf8')); } catch { /* none */ }
 // system: the appended prompt, read now from its file: botdot removes the file when the run has ended.

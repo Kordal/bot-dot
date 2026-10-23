@@ -1,18 +1,17 @@
 #!/usr/bin/env node
 // Before and after the wake gate (lib/wake-gate.js), over the notes and calls of test/fixtures/wake-gate-cases.json:
-// a note from another bot (priority: false) or a call of a job, and whether it needs a run now ("run"), at the next
-// run ("wait") or never ("save").
+// a note from another bot (priority: false) or a call of a job, and whether it needs a run now ("run"), or its next
+// run is soon enough: the fixture says which of those it is, "wait" (it should know) or "save" (nothing to do).
 //
 //   node scripts/wake-gate-bench.js            the stand-in for the model (a few keywords): checks the script
 //   node scripts/wake-gate-bench.js --live     Claude Haiku through the Claude Code CLI ($CLAUDE_BIN or `claude`)
 //   node scripts/wake-gate-bench.js --jev      Jev (TypeSafe) on OpenRouter: $OPENROUTER_API_KEY, or the key in the
-//                                              file $OPENROUTER_KEY_FILE. Two yes/no questions in one request: must
-//                                              it act now, and should it know at all.
+//                                              file $OPENROUTER_KEY_FILE. One yes/no question: must it act now.
 //   --at=<p>                                   Jev: "run" from this likelihood of "act now" on (0.5)
 //   --json                                     the numbers as JSON
 //
 // Before: every one wakes a run (#225, ADR 026). After: rules first (lib/wake-gate.js rules()), then the model;
-// "wait" and "save" start no run. A missed run is one the case expects to run that starts none: it must stay 0.
+// "later" starts no run. A missed run is one the case expects to run that starts none: it must stay 0.
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -63,7 +62,6 @@ async function jev(_prompt, { ms }) {
   const job = what.kind === 'call' ? `Its job "${what.job.name}": ${what.job.prompt}` : '';
   const questions = {
     now: { type: 'noul', instructions: `Must ${bot.name} run now to act on this message? ${job}`, criteria: { true: 'Something broke, failed or is down, work was handed to it, a fix or review to make, a customer waiting, or its job says to act on it.', false: 'An acknowledgement, a thanks, a repeat of a note already waiting, a success or heartbeat, or an update that can wait for its next run.' } },
-    keep: { type: 'noul', instructions: `Should ${bot.name} know about this message at all at its next run? ${job}`, criteria: { true: 'An update its own work or reports depend on.', false: 'An acknowledgement, a thanks, a repeat of a note already waiting, or a success or heartbeat its job asks nothing for.' } },
   };
   const state = { bot: { name: bot.name, description: bot.description, job: bot.prompt }, came: what.kind === 'call' ? { call: what.job.name, instructions: what.job.prompt } : { noteFrom: what.from }, waiting, message: text };
   const ctl = new AbortController();
@@ -74,16 +72,15 @@ async function jev(_prompt, { ms }) {
     if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${JSON.stringify(body).slice(0, 200)}`);
     cost += Number(body.usage?.cost ?? body.cost) || 0;
     const a = body.answers || {};
-    lastP = { now: a.now?.noul, keep: a.keep?.noul };
+    lastP = { now: a.now?.noul };
     if (typeof a.now?.noul !== 'number') return '';
-    return JSON.stringify({ decision: a.now.noul >= AT ? 'run' : (a.keep?.noul ?? 1) >= 0.5 ? 'wait' : 'save' });
+    return JSON.stringify({ decision: a.now.noul >= AT ? 'run' : 'wait' });
   } catch (e) { throw new Error(e.name === 'AbortError' ? 'no answer in time' : e.message); } finally { clearTimeout(t); }
 }
 // The stand-in: a few words.
 async function fake(prompt) {
   const text = prompt.split('\n').filter((l) => /^(A note from|What the call carried)/.test(l)).join(' ');
   if (/down|fail|crash|error|blocking|ready|opened|start|customer/i.test(text)) return '{"decision":"run"}';
-  if (/thanks|ok 👍|success|"up"|"ok"|reminder/i.test(text)) return '{"decision":"save"}';
   return '{"decision":"wait"}';
 }
 
@@ -105,12 +102,12 @@ async function fake(prompt) {
   const pct = (p) => lat[Math.min(lat.length - 1, Math.floor(p * lat.length))] ?? 0;
   const total = {
     cases: n, mode: JEV ? `jev (${JEV_MODEL}, run at ${AT})` : LIVE ? `live (${gate.MODEL})` : 'stand-in',
-    expected: Object.fromEntries(gate.DECISIONS.map((k) => [k, rows.filter((x) => x.expect === k).length])),
+    expected: Object.fromEntries(['run', 'wait', 'save'].map((k) => [k, rows.filter((x) => x.expect === k).length])),
     runs: [n, runs],
     avoided: n - runs,
     missedRuns: rows.filter((x) => x.expect === 'run' && x.decision !== 'run').length,
     needlessRuns: rows.filter((x) => x.expect !== 'run' && x.decision === 'run').length,
-    exact: rows.filter((x) => x.expect === x.decision).length,
+    exact: rows.filter((x) => (x.expect === 'run') === (x.decision === 'run')).length,
     byRule: rows.filter((x) => x.by === 'rule').length,
     fellBack: rows.filter((x) => x.by === 'fell').length,
     ms: { median: pct(0.5), p90: pct(0.9), max: lat.at(-1) ?? 0 },
@@ -129,7 +126,7 @@ async function fake(prompt) {
   console.log(`| Cost of the gate | - | $${total.costUsd} |`);
   console.log('\nPer case:');
   for (const x of rows) {
-    const mark = x.expect === 'run' && x.decision !== 'run' ? 'MISS' : x.expect === x.decision ? 'ok  ' : x.decision === 'run' ? 'xtra' : 'diff';
-    console.log(`${mark} ${x.expect.padEnd(4)} -> ${x.decision.padEnd(4)} ${(x.by + (x.why ? `:${x.why}` : '')).padEnd(14)} ${String(x.ms).padStart(5)} ms ${x.p ? `now ${x.p.now?.toFixed(2)} keep ${x.p.keep?.toFixed(2)} ` : ''} ${x.to}: ${x.text.slice(0, 90)}`);
+    const mark = x.expect === 'run' && x.decision !== 'run' ? 'MISS' : x.expect !== 'run' && x.decision === 'run' ? 'xtra' : 'ok  ';
+    console.log(`${mark} ${x.expect.padEnd(4)} -> ${x.decision.padEnd(5)} ${(x.by + (x.why ? `:${x.why}` : '')).padEnd(14)} ${String(x.ms).padStart(5)} ms ${x.p ? `now ${x.p.now?.toFixed(2)} ` : ''} ${x.to}: ${x.text.slice(0, 90)}`);
   }
 })();
