@@ -633,3 +633,14 @@ test('web: heads on keys stand still under reduced motion, as in the list', () =
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*\.fig g \{ animation: none !important; \}/, 'every head stands still, on a key too');
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.key-run::after \{ animation: none;/, 'and a working key\'s line');
 });
+
+test('web: a narrow keypad (a page open beside the chat) has fewer keys a row, and one under 480', () => {
+  // An open page leaves the keypad about 320px at 1280 and 1440 (`.main.viewing`): three keys a row there had room
+  // for the head only, and the keys ran out sideways. The sidebar is the `side` container the keypad measures.
+  assert.match(css, /\.sidebar \{[^}]*container-type: inline-size; container-name: side;/);
+  assert.match(css, /@container side \(width < 700px\) \{\s*\.keypad \.kp-page-keys \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
+  const narrow = css.match(/@container side \(width < 480px\) \{([\s\S]*?)\n\}/)?.[1] || '';
+  assert.match(narrow, /\.keypad \.kp-page-keys, \.keypad \.kp-pinned \.kp-page-keys \{ grid-template-columns: minmax\(0, 1fr\);/, 'one key a row, pinned too');
+  assert.match(narrow, /\.keypad \.kp-head \{ flex-wrap: wrap; \}/, 'Needs you goes under the strip');
+  assert.match(narrow, /\.keypad \.kp-needs\.kp-needs-card \{ flex: 1 1 100%; min-width: 0; \}/);
+});
