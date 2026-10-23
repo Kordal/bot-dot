@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Owning task:** the owner's request of 18 October 2026 ("Chief of Staff powinien mieć dostęp do internetu i wyszukiwarki")
 - **Changed by:** [ADR 066](066-a-task-the-chief-gives-a-bot-after-the-web-needs-no-card.md): a task the Chief gives a bot is not held; the bot's run starts as one that read the web
+- **Changed by:** [ADR 075](075-a-job-the-owner-asks-the-chief-for-after-the-web-needs-no-card.md): a bot's job the owner asked for in their own turn is not held; the job's runs start as ones that read the web
 - **Changed by:** [ADR 047](047-the-chief-uses-connected-apps-in-the-owners-turns-and-every-write-waits-for-an-ok.md): a connected app's answer counts as the web, and the connector routes are guarded by their own grants
 
 ## Context

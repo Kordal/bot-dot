@@ -441,6 +441,11 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // lets it through also after the web. Removing a lasting grant of the Chief's only takes trust away.
 const FREE_AFTER_WEB = /^(asks|chief\/pages|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'));
+// A bot's job the owner asked for in a turn their own message started (ADR 075): adding one, or changing one, is
+// not held. Its words may be a page's, so the job keeps the web mark and each of its runs starts as one that read
+// the web (lib/routes/jobs.js). A turn botdot started (a checkup, a look, a carry-on) still holds it.
+const ownersJobAfterWeb = (method, parts, turn) => turn?.startedBy === 'owner' && parts[0] === 'bots' && parts[1] !== chief.PAGES_OF && parts[2] === 'jobs'
+  && ((method === 'POST' && parts.length === 3) || (method === 'PUT' && parts.length === 4));
 // What the held request does, as the title of its card: "Make the bot “Leaker”", "Give Scout a task".
 function heldTitle(method, parts, body) {
   const quoted = (s) => `“${String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, 60)}”`;
@@ -606,7 +611,7 @@ async function api(req, res, url, replay = null) {
   const chiefChat = replay ? replay.chatId : chiefChatOf(req, by); // where the Chief is told of the owner's answer on what this call asks for
   // Where the Chief's turn stands (chief.js standing): a replayed request stands where its turn stood when it asked.
   const standing = () => (replay ? replay.standing : chief.standing(chiefChat));
-  if (by === 'chief' && !replay && heldAfterWeb(m, parts) && standing()?.web) return holdAfterWeb(req, res, m, parts, chiefChat, standing());
+  if (by === 'chief' && !replay && heldAfterWeb(m, parts) && standing()?.web && !ownersJobAfterWeb(m, parts, standing())) return holdAfterWeb(req, res, m, parts, chiefChat, standing());
 
   const r = { parts, m, by, chiefChat, standing, replay };
   for (const routes of ROUTES) {
