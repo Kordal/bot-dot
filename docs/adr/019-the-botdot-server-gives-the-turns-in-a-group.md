@@ -81,6 +81,8 @@ Amended by [ADR 077](077-a-member-posts-in-its-group-on-its-own.md) (2026-10-23)
 
 Amended by [ADR 079](079-a-later-message-in-a-group-waits-for-the-line-before-it.md) (2026-10-23): a message whose line has not begun waits while an earlier line still goes on with one of its members; a later turn is told who answered before it and to repeat none of them.
 
+Amended by [ADR 080](080-a-long-turn-in-a-group-goes-on-in-the-background.md) (2026-10-23): a turn still at work after 90 seconds goes on in the background; its line, and a later message, go on without it, and its reply hands on when it lands.
+
 ## Alternatives
 
 - **The bots decide among themselves with `message_bot`.** Nothing to build on the server. Rejected: the limit is twenty hops per chain and not per message of the owner's, the messages are folded into each bot's own chat, and nothing but a model's judgement ends the exchange.
