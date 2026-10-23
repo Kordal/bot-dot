@@ -834,6 +834,14 @@ const ok = expected.length === sig.length && crypto.timingSafeEqual(Buffer.from(
 
 **Tries and failures.** Each try waits at most 5 seconds for an answer. A `2xx` answer is a success; what the receiver answers is not read. No answer, a connection that fails, `5xx`, `408` and `429` are tried again, twice, after 1 and then 4 seconds; any other `4xx`, and a redirect (`3xx`, which is never followed), are not. A notification never holds up the run, its report or the job's next run. A notification that failed in the end, or was not sent (a private address, no secret), is logged on the server and kept with the job, the last 20: `notifyFailed` above, and the Chief's checkup is told of those in its window. A test server takes `http://127.0.0.1` as a notify address with `BOT_DOT_NOTIFY_LOCAL=1`, for the tests' own receiver; nothing else sets it.
 
+### A Reconnect card
+
+[#431](https://github.com/Kordal/bot-dot/issues/431). A job's run that is scheduled or called (not "Run now") whose `connector_run` finds a connected app signed out (no working connection in Composio) gives the owner a Reconnect card under that run's reply: at most one per app a day for the account. Later such runs on the same app that day get the usual error; after 24 hours, a card again if it is still signed out. Once Composio lists the app as connected again, its next sign-out has its card at once. A run the owner started and a Chief turn get none.
+
+- **The run** has `reconnect: [{ app, name }]`: the app's slug and its name. The apps draw a card for each under the reply: the name and a Reconnect button, which connects it as the Connectors page does (`POST /api/connectors/connect` with `{ app }`, then the sign-in page). A server older than this sends none.
+- **It reaches the owner.** Such a run is never private or `quiet`: its reply is its report (when it sent one) or its final reply, held through quiet hours as a report is, and a new reply. A failure with a card is told also after the first of its row.
+- **The bot is told** in the action's answer: "<App> is signed out, so nothing was done. The owner now has a Reconnect card for it under your reply: say in one line that <App> needs reconnecting, and don't try it again in this run."
+
 ## The Chief of Staff
 
 - `GET /api/chief`: `{ chief, chats: [{ id, title, updatedAt, … }] }`.

@@ -397,11 +397,16 @@ data class Run(
     @SerialName("plan") val planValue: JsonElement? = null,
     // The pages it saved (`pages`, #346), kept as they came. Read them through [pages].
     @SerialName("pages") val pagesValue: JsonElement? = null,
+    // The connected apps it found signed out, a Reconnect card each (#431), kept as they came. Read them through [reconnect].
+    @SerialName("reconnect") val reconnectValue: JsonElement? = null,
 ) {
     val isRunning get() = status == "running"
 
     /** The pages it saved with save_page, once each; none from a server without `pages`. */
     val pages: List<PageRef> get() = Pages.refs(pagesValue)
+
+    /** The Reconnect cards under its reply; none from a server older than #431. */
+    val reconnect: List<ReconnectCard> get() = ReconnectCard.list(reconnectValue)
 
     /** The steps of its work, as the server read them from its TodoWrite calls, or null for none. */
     val plan: Plan? get() = Plan.of(planValue)

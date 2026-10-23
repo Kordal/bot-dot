@@ -371,7 +371,7 @@ async function sharedByBot(srv, bot, text) {
 
 // A stand-in for a connected app, as botdot reaches one through Composio: Gmail, with one action it may read
 // with (GMAIL_READ), actions that write (any name that starts with GMAIL_SEND) and, by any other name, an action
-// Composio describes with no hint at all. Start it before the server and hand `env` to startServer; then
+// Composio describes with no hint at all, and GMAIL_FETCH_EMAILS, a read that needs the owner's connection. Start it before the server and hand `env` to startServer; then
 // `await app.connect(srv)` gives the server its key. executed: what was run through it, oldest first, each
 // { action, args }. Every action answers { done: true }. connected: the apps Composio lists as connected, by slug
 // (none unless given; change the list to connect or disconnect one): what the Chief is given (ADR 047).
@@ -389,6 +389,8 @@ async function fakeConnectedApp({ connected = [] } = {}) {
       if (req.url.startsWith('/connected_accounts')) return res.end(JSON.stringify({ items: connected.map((slug) => ({ id: `ca_${slug}`, toolkit: { slug }, status: 'ACTIVE' })) }));
       if (req.url.startsWith('/tools/')) {
         const slug = req.url.split('/').at(-1);
+        // GMAIL_FETCH_EMAILS reads with the owner's connection: it runs only while `connected` has gmail.
+        if (slug === 'GMAIL_FETCH_EMAILS') return res.end(JSON.stringify({ slug, toolkit: { slug: 'gmail' }, no_auth: false, tags: ['readOnlyHint'] }));
         return res.end(JSON.stringify({ slug, toolkit: { slug: 'gmail' }, no_auth: true, tags: slug === 'GMAIL_READ' ? ['readOnlyHint'] : slug.startsWith('GMAIL_SEND') ? ['createHint'] : [] }));
       }
       res.end(JSON.stringify({ items: [] }));

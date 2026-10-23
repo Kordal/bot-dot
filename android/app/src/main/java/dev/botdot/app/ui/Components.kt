@@ -74,6 +74,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
@@ -327,6 +328,38 @@ fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>, name: Str
                     Text(page.title, color = p.text, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("Page", color = p.faint, fontSize = 12.sp)
                 }
+            }
+        }
+    }
+}
+
+/** The Reconnect cards under the reply of a job's run (#431): an app it found signed out, and a button that connects it as the Connectors screen does. */
+@Composable
+fun ReconnectCards(cards: List<dev.botdot.app.data.ReconnectCard>) {
+    if (cards.isEmpty()) return
+    val p = LocalPaper.current
+    val context = LocalContext.current
+    val app = BotDotApp.of(context)
+    val api by app.api.collectAsState()
+    val scope = rememberCoroutineScope()
+    val tell = { t: String -> android.widget.Toast.makeText(context, t, android.widget.Toast.LENGTH_LONG).show() }
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        cards.forEach { card ->
+            Row(Modifier.widthIn(max = 320.dp).clip(RoundedCornerShape(14.dp)).background(p.panel).border(1.dp, p.line2, RoundedCornerShape(14.dp))
+                .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(androidx.compose.ui.text.buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(card.label) }
+                    append(" is signed out")
+                }, color = p.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                androidx.compose.material3.TextButton(onClick = {
+                    scope.launch {
+                        runCatching { (api ?: error("Not connected to botdot")).connectApp(card.app) }.onSuccess { link ->
+                            if (link.noAuth) tell("Connected")
+                            else link.redirectUrl?.let { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(it))) }
+                        }.onFailure { tell(it.message ?: "Couldn't connect") }
+                    }
+                }) { Text("Reconnect", color = p.okText) }
             }
         }
     }

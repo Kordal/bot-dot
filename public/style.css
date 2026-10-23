@@ -1735,6 +1735,8 @@ body.doc-mode > .app { display: none; }
 .page-chip, .pg-row { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--text); text-decoration: none; }
 .page-chip { max-width: 340px; border: 1px solid var(--line-2); border-radius: 14px; padding: 8px 12px 8px 8px; background: var(--panel); }
 .page-chip:hover, .pg-row:hover { border-color: var(--muted); }
+/* A Reconnect card under the reply of a job's run (#431): the app it found signed out, and the button that connects it. */
+.reconnect-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 340px; margin-top: 8px; border: 1px solid var(--line-2); border-radius: 14px; padding: 8px 8px 8px 12px; background: var(--panel); color: var(--text); }
 .pg-icon { width: 30px; height: 36px; border-radius: 6px; background: var(--sunk); display: grid; place-items: center; color: var(--muted); flex: none; }
 .pg-icon svg, .pg-keep svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .pg-text { display: flex; flex-direction: column; min-width: 0; }
