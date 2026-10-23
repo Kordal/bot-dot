@@ -371,6 +371,29 @@ div.plan-head { cursor: default; }
 .plan-actions { display: flex; gap: 8px; padding: 0 14px 12px; }
 .plan-actions .btn { min-height: 44px; }
 @keyframes plan-spin { to { transform: rotate(360deg); } }
+/* A bot's live runs above its message box, with two or three going (live-runs.js, #501): the plan card's look. */
+.live-slot:empty { display: none; }
+.live-slot { margin-bottom: 8px; }
+.live-runs { background: var(--panel); border: 1px solid var(--line-2); border-radius: 18px; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.live-run { display: flex; align-items: flex-start; gap: 10px; padding: 7px 8px; border-radius: 10px; font-size: 13.5px; max-height: 64px; overflow: hidden; }
+.live-run.doing { background: var(--sunk); }
+.live-mark { width: 18px; height: 18px; flex: none; margin-top: 1px; display: grid; place-items: center; }
+.live-mark svg { width: 18px; height: 18px; color: var(--ok-text); }
+.live-run.held { cursor: pointer; }
+.live-run.held .live-mark i { display: block; width: 8px; height: 8px; border-radius: 50%; background: var(--c); opacity: .5; }
+.live-what { flex: 1; min-width: 0; }
+.live-ask, .live-run em { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.live-run em { font-style: normal; color: var(--muted); font-size: 12px; }
+.live-run time { flex: none; margin-top: 2px; font: 12px var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+.live-run button { flex: none; border: 0; background: none; padding: 0; margin-top: 2px; min-height: 20px; color: var(--faint); font: inherit; font-size: 12px; cursor: pointer; }
+.live-run button:hover { color: var(--text); text-decoration: underline; }
+.live-run.done { color: var(--faint); }
+.live-run.done .live-ask { text-decoration: line-through; text-decoration-color: #5f5f5f; }
+.live-run.done time, .live-run.done button { visibility: hidden; }
+.live-run.gone { animation: live-fold .9s ease forwards; }
+@keyframes live-fold { 40% { opacity: 0; max-height: 64px; padding-block: 7px; } 100% { opacity: 0; max-height: 0; padding-block: 0; } }
+@container main (max-width: 480px) { .live-run time { display: none; } }
+@media (prefers-reduced-motion: reduce) { .live-run.gone { animation: none; display: none; } }
 /* Under a reply that is done: "Plan · 5 of 5 done", its steps inside. */
 .plan-fold { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 4px; }
 .plan-fold summary { list-style: none; display: flex; align-items: center; gap: 6px; min-height: 32px; color: var(--muted); font-size: 12.5px; cursor: pointer; }

@@ -329,7 +329,9 @@ function placeStatusLines() {
   const taskWaits = !!task && (!!working || queuedIn(`bot:${botId}`).length > 0);
   const taskNew = sentArrives(arrivals.bot, $('#bot-thread'), `bot:${botId}`, task); // it arrives, once (a reply arrives)
   updateChatQueued($('#bot-thread'), botId ? `bot:${botId}` : null, taskWaits ? task : null, taskNew);
-  drawStatusLine($('#bot-thread'), botId ? `bot:${botId}` : null, botById(botId)?.color, working?.id, working?.waitingFor === 'ok');
+  // Two or three runs going: the card above the message box says them, one row each, and the line is not drawn.
+  const card = drawLiveRuns(botId);
+  drawStatusLine($('#bot-thread'), botId && !card ? `bot:${botId}` : null, botById(botId)?.color, card ? null : working?.id, !card && working?.waitingFor === 'ok');
   updateChatSent($('#bot-thread'), taskWaits ? null : task, `bot:${botId}`, taskNew);
   const chatId = $('#chat-thread')?.dataset.chat;
   chiefArrives($('#chat-thread')); // a reply that was just drawn there arrives
@@ -342,6 +344,34 @@ function placeStatusLines() {
   drawStatusLine($('#chat-thread'), chatId ? `chief:${chatId}` : null, CHIEF_COLOR, replying ? { chief: chatId } : null, false, replying ? chiefTurns.get(chatId) : message ? 'Working' : '');
   updateChatSent($('#chat-thread'), messageWaits ? null : message, `chief:${chatId || ''}`, messageNew);
   if (!onScreen($('#group-thread'))) arrivals.group.leave(); // a group's chat tells what it draws itself (groups.js): here, only that it was left
+}
+// The open bot's live runs above its message box (live-runs.js, #501): drawn with two or three runs going, and for
+// a moment after one of them ended. Answers whether the card is there. Each row has Stop for its run; a row that
+// waits for the owner's answer takes them to the card it waits for. The times go on by themselves, once a second.
+// A bot's chat keeps its own rows: another bot's chat starts with none.
+let liveRuns = null;
+let liveTick = null;
+function drawLiveRuns(botId) {
+  if (!globalThis.LiveRuns) return false;
+  const slot = $('#view-bot .live-slot');
+  const chat = `bot:${botId}`;
+  if (liveRuns?.chat !== chat) liveRuns = { chat, rows: LiveRuns.keeper(() => placeStatusLines()).rows };
+  const live = botId && slot ? LiveRuns.listed(state.runs, botId).map((r) => ({ id: r.id, ask: LiveRuns.ask(r), line: openingLines.ofRun(chat, r.id), held: r.waitingFor === 'ok', startedAt: r.startedAt })) : [];
+  const rows = liveRuns.rows(live);
+  const html = LiveRuns.html(rows, botById(botId)?.color);
+  const sig = html && JSON.stringify([rows, botById(botId)?.color]); // not the times: a row's fold plays once
+  if (slot && slot.dataset.sig !== sig) {
+    slot.dataset.sig = sig;
+    slot.innerHTML = html;
+    $$('[data-stop-live]', slot).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); b.disabled = true; stopRun(b.dataset.stopLive); }));
+    $$('.live-run.held', slot).forEach((row) => {
+      row.title = 'Show what it waits for';
+      row.onclick = () => { if (!toHeldCard($('#bot-thread'), botId)) setView('needs'); };
+    });
+  }
+  if (html && !liveTick) liveTick = setInterval(() => $$('.live-slot .live-run.doing time[data-since]').forEach((t) => { t.textContent = LiveRuns.elapsed(t.dataset.since); }), 1000);
+  if (!html && liveTick) { clearInterval(liveTick); liveTick = null; }
+  return !!html;
 }
 // stop: the bot's running run (its id), or the Chief's reply ({ chief: <chat id> }). held: the run waits for the
 // owner's answer (its `waitingFor`), and the line says that until the field goes. doing: what the Chief is doing,

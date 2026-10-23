@@ -149,7 +149,8 @@ test('web: the page draws it under the chat and takes it away when the run ends'
   assert.match(app, /\} else if \(ev\.type === 'opening_line'\) \{\s*if \(openingLines\.say\(`chief:\$\{id\}`, ev\.text\)\) placeStatusLines\(\);/);
   assert.match(app, /openingLines\.end\(`chief:\$\{id\}`\);\s*chiefTurns\.delete\(id\);\s*placeStatusLines\(\);/, 'the Chief\'s stream ending removes it');
   // Drawn by OpeningLine.status only, in the bot's colour and the Chief's, above the cards that wait.
-  assert.match(app, /drawStatusLine\(\$\('#bot-thread'\), botId \? `bot:\$\{botId\}` : null, botById\(botId\)\?\.color, working\?\.id, working\?\.waitingFor === 'ok'\);/);
+  // With two or three runs going the card above the message box says them, and the line is not drawn (live-runs-web.test.js).
+  assert.match(app, /drawStatusLine\(\$\('#bot-thread'\), botId && !card \? `bot:\$\{botId\}` : null, botById\(botId\)\?\.color, card \? null : working\?\.id, !card && working\?\.waitingFor === 'ok'\);/);
   assert.match(app, /const kept = chat \? openingLines\.of\(chat\) : '';\n\s*const html = OpeningLine\.status\(stop && typeof stop === 'object' \? OpeningLine\.chiefLine\(doing, kept\) : kept \|\| doing, color, stop, held\);/);
   assert.equal((app.match(/status-line/g) || []).length, 1, 'app.js only finds the line; its markup is OpeningLine\'s');
 });

@@ -146,6 +146,15 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     var planFolded by remember(botId) { mutableStateOf(app.plans.folded(chatKey)) }
     var planDismissed by remember(botId) { mutableStateOf(0) } // a dismissal draws the chat again
     val planView = remember(runs, planDismissed) { PlanView.ofBot(runs, app.plans::dismissed) }
+    // Two or three runs going: a row each above the message box (#501), and no status line under the chat.
+    val runLines by app.store.lines.runLines.collectAsState()
+    val heldRuns by app.store.lines.heldRuns.collectAsState()
+    val live = remember(runs, runLines, heldRuns, botId) {
+        dev.botdot.app.data.LiveRuns.listed(runs, botId).map { r ->
+            dev.botdot.app.data.LiveRuns.Row(r.id, dev.botdot.app.data.LiveRuns.ask(r), runLines[r.id].orEmpty(), r.waitsForOk || r.id in heldRuns, r.startedAt)
+        }
+    }
+    val liveRows = rememberLiveRows(chatKey, live)
 
     // From the message box: a message that did not go comes back into it, with the line that says why.
     fun sendText(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments) }
@@ -176,6 +185,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                 PlanDock(planView, bot?.color, bot?.name ?: "It", planFolded,
                     onFold = { planFolded = it; app.plans.setFolded(chatKey, it) },
                     onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
+                LiveRunsDock(liveRows, bot?.color, bot?.name ?: "It", onStop = { vm.stop(it) }, onHeld = { scope.launch { listState.animateScrollToItem(0) } })
                 Composer(
                     placeholder = "Give ${bot?.name ?: "it"} a task…",
                     files = files,
@@ -208,8 +218,11 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         // until the server answers; under what waits already for a bot at work.
                         val sent = vm.sent
                         if (sent != null && running == null) SentBubble(sent, above = true, sentArrives)
-                        if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.botLine(lines[chatKey], running, waiting), sent), bot?.color, still = waiting, onStop = if (running != null) ({ vm.stop() }) else null, room = true)
-                        else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines[chatKey], running != null, waiting), sent), bot?.color, still = waiting)
+                        // Two or three runs going: the dock above the message box says them (LiveRunsDock).
+                        if (liveRows.isEmpty()) {
+                            if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.botLine(lines[chatKey], running, waiting), sent), bot?.color, still = waiting, onStop = if (running != null) ({ vm.stop() }) else null, room = true)
+                            else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines[chatKey], running != null, waiting), sent), bot?.color, still = waiting)
+                        }
                         WaitingMessages(vm.queued, bot?.name ?: "it", onSteer = if (canSteer(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                         if (sent != null && running != null) SentBubble(sent, above = false, sentArrives)
                         ChatNeeds(app, botId, onNeeds)

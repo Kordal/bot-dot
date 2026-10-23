@@ -263,8 +263,11 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
 
     fun stop() {
         val r = all.firstOrNull { it.isRunning } ?: return
-        viewModelScope.launch { runCatching { app.api.value?.stopRun(r.id) }; refresh() }
+        stop(r.id)
     }
+
+    /** Stop one of its runs: a row of its live runs (LiveRunsDock). */
+    fun stop(runId: String) { viewModelScope.launch { runCatching { app.api.value?.stopRun(runId) }; refresh() } }
 
     /** The reply of each run at work as it is written so far, by its run (ReplyDraft): drawn in its place. */
     var drafts by mutableStateOf<Map<String, String>>(emptyMap())
