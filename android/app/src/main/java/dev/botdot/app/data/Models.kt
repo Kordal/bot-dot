@@ -497,6 +497,17 @@ data class ChiefAction(
     val label get() = (mapOf("created" to "✨", "updated" to "✏️", "run" to "→", "deleted" to "🗑", "stopped" to "■", "skill" to "✦", "job" to "⏰", "from" to "↩")[kind]?.let { "$it " } ?: "") + text
 }
 
+/**
+ * A mail draft on a Chief reply (docs/api.md, "A mail draft"): `state` "draft", "kept" (Not now) or "sent" (at
+ * [sentAt]); [earlier] when the Chief wrote it again later; the bot whose run wrote it, drawn in the card's footer.
+ */
+@Serializable
+data class MailDraft(
+    val to: String = "", val subject: String = "", val text: String = "", val state: String = "draft",
+    val sentAt: String? = null, val earlier: Boolean = false,
+    val botId: String? = null, val runId: String? = null, val bot: String? = null,
+)
+
 @Serializable
 data class SentTo(val id: String = "", val name: String = "", val emoji: String = "🤖", val color: String? = null, val delivered: String? = null, val text: String? = null) // text: the latest it sent that bot
 
@@ -549,6 +560,7 @@ data class ChiefMessage(
     val choices: List<String>? = null, // quick answers to its closing question
     val questions: List<String>? = null, // several questions at once: a card with a box under each
     val actions: List<ChiefAction>? = null, // what it did while replying
+    val draft: MailDraft? = null, // a mail draft waiting for the owner's word to send it (`mail-draft`, #415)
     val unasked: Boolean = false, // the Chief wrote it without being asked: it gets 👍 and 👎 (Ratings)
     val rating: String? = null, // an unasked message: "up" or "down" as the owner rated it, or none
     // A Chief reply: what the owner steered into it and it read (`chief-steer`, ADR 040), kept as it came. Read it through [steered].

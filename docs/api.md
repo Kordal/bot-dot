@@ -967,6 +967,15 @@ When `features` has `message-key`. An app cannot tell a request that never arriv
 - A key belongs to its chat or its bot: the same key somewhere else is another message. The keys survive a restart of botdot.
 - A request without `key` is handled as before: sent twice, it is taken twice. A server without `message-key` ignores `key`, so an app may always send it; only against a server with `message-key` is sending again after a lost answer safe.
 
+### A mail draft
+
+When `features` has `mail-draft` (#415). A Chief reply that holds an e-mail draft waiting for the owner's word to send it has `draft`, and its `text` is only what the Chief wrote around it (at most one short line, often nothing):
+
+- `draft` is `{ to, subject, text, state, sentAt?, earlier?, botId?, runId?, bot? }`. `state` is `"draft"` (in the mailbox's Drafts, not sent), `"kept"` (the owner answered Not now: still in Drafts, not sent) or `"sent"` (`sentAt` says when). `earlier: true` marks a version the Chief wrote again later, with the same `to` and `subject` (a later reply's `draft`). `botId`, `runId` and `bot` (its name) name the bot whose run wrote it, when one did; that run's chip (`actions` of kind `run` or `from` with that `botId`) is drawn in the card's footer instead of under the reply.
+- Draw it as a card, a labelled region: `to` and `subject` in a two-column header, a state line ("In Drafts · not sent", "Kept in Drafts · not sent", or "Sent HH:MM" in green), the text, the actions and a footer with the bot's name, and "Screen" when the bot uses the computer (a tap opens its screen; on the name, its chat). The actions are Send now and Not now while `state` is `"draft"`, Send now alone when `"kept"`, none when `"sent"`. A tap sends its words ("Send now", "Not now") as the owner's message, as an answer button does: such a reply has `choices` `["Send now", "Not now"]` too, which an app without the card shows as buttons. An app with the card draws no other buttons for it.
+- A draft with `earlier` folds to one line, "Earlier version · show". A sent draft folds to its header and "Sent HH:MM", with "Show the text".
+- The owner's message "Send now" or "Not now" (case and outer spaces aside) answers the newest draft of the chat while it has neither `earlier` nor `"sent"`: Not now sets its `state` to `"kept"`.
+
 ### The Chief writes first
 
 A few times a day the botdot server gives the Chief a moment to look around (a look, [ADR 006](adr/006-a-look-is-its-own-read-only-chief-session.md)), and the Chief may write the owner one message they did not ask for: at most three a day, none in quiet hours, often none at all.
