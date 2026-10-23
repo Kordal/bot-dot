@@ -36,7 +36,7 @@ A messenger-style app for a team of **bots**. Each bot is a Claude Code agent wi
 | 👥 **Groups and shared rooms** | Put two to six bots in one chat, and they hand the work on to each other. On a machine of several accounts, shared rooms bring other people and their bots into one chat. |
 | 🧠 **Memory** | Bots remember what you tell them, and you correct or erase it by chat. |
 | 🖥 **The bots' computer** | One always-on computer for the account, where bots work, each on a screen of its own with its own browser, which you can watch live. They share it as one user with sudo, so every bot there sees what the others do. |
-| 🔐 **Vault and connectors** | Bots use your logins without seeing them, and your apps (Gmail, Slack, GitHub and more) through Composio, with an account botdot makes for you. |
+| 🔐 **Vault and connectors** | Bots use your logins without seeing them, and your apps (Gmail, Slack, GitHub and more) through Composio, with your own Composio key. |
 | ✋ **Your OK first** | Anything risky waits for you in **Needs you**. |
 | 📱 **Web and Android** | The web page works everywhere, and Android has its own app with notifications and no push service. |
 

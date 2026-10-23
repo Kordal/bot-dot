@@ -5,20 +5,10 @@ const CONN_STATUS = { ACTIVE: ['ok', 'connected'], INITIATED: ['warn', 'waiting 
 
 const appLogo = (a) => (a?.logo ? `<img class="app-logo" src="${esc(a.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="app-logo ph">${esc((a?.name || '?')[0])}</span>`);
 
-// botdot's own Composio account still to be claimed (#414): null, or { invited, expires } while an invite is fresh.
-const CLAIM_HOURS = 24; // Composio's claim invite is good for a day
-function claimState(d) {
-  if (!d || d.account !== 'botdot' || d.claimed) return null;
-  const left = d.claimInviteAt ? CLAIM_HOURS - (Date.now() - Date.parse(d.claimInviteAt)) / 3_600_000 : 0;
-  return left > 0 ? { invited: d.claimInvite, hours: Math.max(1, Math.round(left)) } : {};
-}
-const claimLine = (cs) => (cs.invited
-  ? `<div class="claim-line"><span>Invite sent to ${esc(cs.invited)} · expires in ${cs.hours} h</span><button class="btn sm" id="conn-claim-again">Send again</button></div>`
-  : `<form id="conn-claim" class="claim-line memory-add" autocomplete="off"><b>Claim your Composio account</b><input type="email" name="email" placeholder="Your email" required><button class="btn primary">Claim</button></form>`);
-async function sendClaim(email) {
-  await api('/connectors/claim', { method: 'POST', body: { email } });
-  toast('Invite sent. Check your email');
-}
+// Where the owner makes a Composio API key: botdot makes no Composio account of its own.
+const COMPOSIO_KEYS = 'https://platform.composio.dev';
+const keyForm = (placeholder, label) => `<form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="${placeholder}" required><button class="btn primary">${label}</button></form>`;
+const getKey = `<a class="btn sm" href="${COMPOSIO_KEYS}" target="_blank" rel="noopener">Get a key at composio.dev</a>`;
 
 // Only fetch when the page is opened or something changed, not on every regular refresh of the web page.
 async function renderConnectors(force = false) {
@@ -26,8 +16,10 @@ async function renderConnectors(force = false) {
   if (root.dataset.ready && !force) return; // the web page's regular refresh would wipe the search box
   root.dataset.ready = '1';
   try { conn.data = await api('/connectors'); } catch (e) { conn.data = { configured: false, error: e.message, connections: [] }; }
-  if (conn.data.configured && !conn.catalog.length) await loadCatalog(true);
-  if (conn.data.configured && !conn.categories.length) conn.categories = await api('/connectors/categories').catch(() => []);
+  const works = conn.data.configured && !conn.data.keyRejected;
+  if (!works) { conn.catalog = []; conn.categories = []; conn.replacing = false; }
+  if (works && !conn.catalog.length) await loadCatalog(true);
+  if (works && !conn.categories.length) conn.categories = await api('/connectors/categories').catch(() => []);
   drawConnectors();
 }
 
@@ -49,59 +41,32 @@ function drawConnectors() {
   const d = conn.data;
   const head = `${SUB_BACK}
     <div class="section-head"><div><h1>Connectors</h1></div></div>`;
-  if (!d.configured) {
-    // botdot sets up its own Composio account by itself; this shows only when that failed.
+  if (!d.configured || d.keyRejected) {
+    // No key yet, or Composio refuses it (#409): nothing on the page works until one is pasted.
+    const title = !d.configured ? 'Add your Composio key'
+      : d.account === 'own' ? `Composio no longer accepts your key <span class="nowrap">${esc(d.keyHint || '')}</span>` : 'Composio no longer accepts botdot\'s Composio account';
     root.innerHTML = `${head}
       <div class="card setup-card">
-        <h3>Connectors aren't working yet</h3>
-        ${d.error ? `<div class="faint">${esc(d.error)}</div>` : ''}
-        <div style="margin:10px 0"><button class="btn" id="conn-retry">Try again</button></div>
-        <div class="faint" style="font-size:12.5px">Or use your own Composio account: paste its project API key (composio.dev → Settings → API keys).</div>
-        <form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="Composio API key" required><button class="btn primary">Save</button></form>
+        <h3>${title}</h3>
+        ${d.error && !d.keyRejected ? `<div class="faint">${esc(d.error)}</div>` : ''}
+        ${keyForm(d.configured ? 'New Composio API key' : 'Composio API key', 'Save')}
+        <div>${getKey}</div>
       </div>`;
-    $('#conn-retry').onclick = () => renderConnectors(true);
     $('#conn-key').onsubmit = async (e) => {
       e.preventDefault();
       const input = e.target.key;
-      try { await api('/connectors/key', { method: 'PUT', body: { key: input.value } }); input.value = ''; toast('Saved'); renderConnectors(true); } catch (err) { toast(err.message, true); }
+      try { await api('/connectors/key', { method: 'PUT', body: { key: input.value } }); input.value = ''; conn.catalog = []; toast('Saved'); renderConnectors(true); } catch (err) { toast(err.message, true); }
     };
-    return;
-  }
-  if (d.keyRejected) {
-    // Composio refuses the key: nothing on the page works until it is replaced (#409).
-    const own = d.account === 'own';
-    root.innerHTML = `${head}
-      <div class="card setup-card">
-        <h3>${own ? `Composio no longer accepts your key ${esc(d.keyHint || '')}` : 'Composio no longer accepts botdot\'s Composio account'}</h3>
-        ${own ? `
-          <form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="New Composio API key" required><button class="btn primary">Save</button></form>
-          <div style="margin-top:10px"><a class="btn sm" href="https://platform.composio.dev" target="_blank" rel="noopener">Open Composio</a> <button class="btn sm" id="conn-forget">Use botdot's account</button></div>`
-        : `
-          <div style="margin:10px 0"><button class="btn primary" id="conn-renew">New Composio account</button></div>
-          <form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="Or your own Composio key" required><button class="btn">Use</button></form>`}
-      </div>`;
-    const renew = $('#conn-renew');
-    if (renew) renew.onclick = async () => {
-      renew.disabled = true;
-      try { await api('/connectors/renew', { method: 'POST' }); conn.catalog = []; toast('Done. Connect your apps again'); } catch (err) { toast(err.message, true); }
-      renderConnectors(true);
-    };
-    $('#conn-key').onsubmit = async (e) => {
-      e.preventDefault();
-      try { await api('/connectors/key', { method: 'PUT', body: { key: e.target.key.value } }); conn.catalog = []; toast('Saved'); renderConnectors(true); } catch (err) { toast(err.message, true); }
-    };
-    const forget = $('#conn-forget');
-    if (forget) forget.onclick = async () => { await api('/connectors/key', { method: 'DELETE' }); conn.catalog = []; renderConnectors(true); };
     return;
   }
   const botName = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `<span class="chip">${botLabel(b)}</span>` : ''; };
   const connectedSlugs = new Set(d.connections.filter((c) => c.status === 'ACTIVE').map((c) => c.toolkit));
   const pending = new Set(d.connections.filter((c) => c.status !== 'ACTIVE').map((c) => c.toolkit));
-  const cs = claimState(d);
   root.innerHTML = `${head}
+    ${conn.replacing ? `<div class="key-line">${keyForm('New Composio API key', 'Save')}<button class="btn sm" id="conn-cancel">Cancel</button></div>`
+      : `<div class="key-line"><span>Composio key ${esc(d.keyHint || '')}</span><button class="btn sm" id="conn-replace">Replace</button><button class="btn sm danger" id="conn-forget">Remove</button></div>`}
     ${d.error ? `<div class="req-note">${esc(d.error)}</div>` : ''}
-    ${cs ? claimLine(cs) : ''}
-    <h3 class="page-sub">Your apps <span class="faint">· choose which bots may use each one</span></h3>
+    <h3 class="page-sub">Your apps</h3>
     ${d.connections.length || d.reconnect?.length ? `<div class="grid">${(d.reconnect || []).map((a) => `
       <article class="card app-card">
         <div class="app-top">${appLogo(a)}<div class="grow"><b>${esc(a.name)}</b></div></div>
@@ -137,12 +102,7 @@ function drawConnectors() {
             : `<button class="btn sm" data-connect="${esc(t.slug)}">Connect</button><span class="faint" style="font-size:12px">needs your own developer app in Composio</span>`}
         </div>
       </article>`).join('') || `<div class="faint">No apps match${conn.search ? ` "${esc(conn.search)}"` : ''}. Try another word.</div>`}</div>
-    ${conn.next ? '<div style="text-align:center;margin:16px 0"><button class="btn" id="conn-more">Show more</button></div>' : ''}
-    <details class="bs-history conn-account" style="margin:24px 0 8px" ${conn.accountOpen ? 'open' : ''}><summary class="faint">Composio account</summary>
-      ${d.account === 'botdot' ? `
-        <form id="conn-key" class="memory-add" autocomplete="off" style="margin-top:10px"><input type="password" name="key" placeholder="Or your own Composio key" required><button class="btn">Use</button></form>`
-      : `<div class="faint" style="font-size:12.5px">Your key ${esc(d.keyHint || '')} · <button class="link-btn" id="conn-forget">Remove</button></div>`}
-    </details>`;
+    ${conn.next ? '<div style="text-align:center;margin:16px 0"><button class="btn" id="conn-more">Show more</button></div>' : ''}`;
 
   let t;
   $('#conn-search').oninput = (e) => {
@@ -170,25 +130,22 @@ function drawConnectors() {
     if (!confirm(`Disconnect ${c?.app?.name || c?.toolkit}? Bots lose access, and Composio revokes its access to your account.`)) return;
     try { await api(`/connectors/connections/${encodeURIComponent(b.dataset.disconnect)}`, { method: 'DELETE' }); toast('Disconnected'); await refresh(); renderConnectors(true); } catch (e) { toast(e.message, true); }
   }));
-  $('.conn-account', root).ontoggle = (e) => { conn.accountOpen = e.target.open; };
-  const claimForm = $('#conn-claim');
-  if (claimForm) claimForm.onsubmit = async (e) => {
+  const replace = $('#conn-replace');
+  if (replace) replace.onclick = () => { conn.replacing = true; drawConnectors(); $('#conn-key input').focus(); };
+  const cancel = $('#conn-cancel');
+  if (cancel) cancel.onclick = () => { conn.replacing = false; drawConnectors(); };
+  const ownKey = $('#conn-key');
+  if (ownKey) ownKey.onsubmit = async (e) => {
     e.preventDefault();
-    try { await sendClaim(e.target.email.value); renderConnectors(true); } catch (err) { toast(err.message, true); }
-  };
-  const again = $('#conn-claim-again');
-  if (again) again.onclick = async () => { again.disabled = true; try { await sendClaim(d.claimInvite); renderConnectors(true); } catch (err) { again.disabled = false; toast(err.message, true); } };
-  const keyForm = $('#conn-key');
-  if (keyForm) keyForm.onsubmit = async (e) => {
-    e.preventDefault();
-    if (d.connections.length && !confirm('Use your own Composio account? Apps connected so far need connecting again there.')) return;
-    try { await api('/connectors/key', { method: 'PUT', body: { key: e.target.key.value } }); conn.catalog = []; toast('Saved'); renderConnectors(true); } catch (err) { toast(err.message, true); }
+    if (d.account === 'botdot' && d.connections.length && !confirm('Use your own Composio account? Apps connected so far need connecting again there.')) return;
+    try { await api('/connectors/key', { method: 'PUT', body: { key: e.target.key.value } }); conn.replacing = false; conn.catalog = []; toast('Saved'); renderConnectors(true); } catch (err) { toast(err.message, true); }
   };
   const forget = $('#conn-forget');
   if (forget) forget.onclick = async () => {
-    if (!confirm('Stop using your Composio key? botdot uses its own Composio account instead, and apps connected with your key need connecting again.')) return;
-    await api('/connectors/key', { method: 'DELETE' });
+    if (!confirm('Remove your Composio key? Connectors stop working until you add another.')) return;
+    try { await api('/connectors/key', { method: 'DELETE' }); } catch (err) { return toast(err.message, true); }
     conn.catalog = [];
+    conn.categories = [];
     renderConnectors(true);
   };
 }
@@ -244,19 +201,16 @@ function chooseAppBots(slug, justConnected = false) {
       <div class="modal-body">
         <p class="muted" style="margin:0">They act on your real account. They'll read freely, but only send, post, change or delete things when you (or their task) ask for it.</p>
         ${botCheckboxes(used).replaceAll(' disabled title="Skills are turned off for this bot"', '')}
-        ${justConnected && claimState(conn.data) && !claimState(conn.data).invited ? '<label class="field" style="margin-top:12px">Claim your Composio account<input type="email" name="email" placeholder="Your email" autocomplete="email"></label>' : ''}
       </div>
       <div class="modal-foot"><button type="button" class="btn" data-dismiss>Cancel</button><button class="btn primary">Save</button></div>
     </form>`);
   $('#app-bots', m).onsubmit = async (e) => {
     e.preventDefault();
     const bots = $$('input[name=bot]:checked', m).map((c) => c.value);
-    const email = e.target.email?.value.trim();
     try {
       await api(`/connectors/apps/${encodeURIComponent(slug)}/bots`, { method: 'PUT', body: { bots } });
-      if (email) await sendClaim(email);
       m.close();
-      if (!email) toast('Saved');
+      toast('Saved');
       await refresh();
       renderConnectors(true);
     } catch (err) { toast(err.message, true); }

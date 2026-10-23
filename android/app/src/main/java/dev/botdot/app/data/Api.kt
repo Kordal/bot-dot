@@ -630,7 +630,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun catalog(search: String): Catalog = json.decodeFromString(get("/connectors/catalog?search=${enc(search)}"))
     suspend fun connectApp(slug: String): ConnectLink = json.decodeFromString(send("POST", "/connectors/connect", buildJsonObject { put("app", slug) }))
     suspend fun disconnect(connectionId: String) { send("DELETE", "/connectors/connections/${enc(connectionId)}") }
-    suspend fun claimComposio(email: String) { send("POST", "/connectors/claim", buildJsonObject { put("email", email) }) }
+    suspend fun setComposioKey(key: String) { send("PUT", "/connectors/key", buildJsonObject { put("key", key) }) }
+    suspend fun removeComposioKey() { send("DELETE", "/connectors/key") }
     suspend fun forgetReconnect(slug: String) { send("DELETE", "/connectors/reconnect/${enc(slug)}") }
 
     // ---------- the Chief of Staff ----------

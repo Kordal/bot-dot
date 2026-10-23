@@ -41,7 +41,7 @@ async function setup() {
       save.on('error', reject); load.on('error', reject); save.stdout.pipe(load.stdin);
       Promise.all([new Promise(r => save.on('close', r)), new Promise(r => load.on('close', r))]).then(codes => codes.some(code => code !== 0) ? reject(new Error(err)) : resolve());
     });
-    const environment = { HOST: '0.0.0.0', PORT: '4747', BOT_DOT_DATA: '/data', BOT_DOT_VAULT_KEY_FILE: '/config/vault.key', BOT_DOT_HELPER_SOCKET: '/run/botdot/helper.sock', BOT_DOT_SEPARATE_USERS: '1', BOT_DOT_PRIVILEGE_SOCKET: '/run/botdot-privilege/broker.sock', EMBED_SERVER_BIN: '/nonexistent', CLAUDE_BIN: '/nonexistent', BW_BIN: '/nonexistent', COMPOSIO_API_URL: 'http://127.0.0.1:9', COMPOSIO_AGENTS_URL: 'http://127.0.0.1:9' };
+    const environment = { HOST: '0.0.0.0', PORT: '4747', BOT_DOT_DATA: '/data', BOT_DOT_VAULT_KEY_FILE: '/config/vault.key', BOT_DOT_HELPER_SOCKET: '/run/botdot/helper.sock', BOT_DOT_SEPARATE_USERS: '1', BOT_DOT_PRIVILEGE_SOCKET: '/run/botdot-privilege/broker.sock', EMBED_SERVER_BIN: '/nonexistent', CLAUDE_BIN: '/nonexistent', BW_BIN: '/nonexistent', COMPOSIO_API_URL: 'http://127.0.0.1:9' };
     const compose = JSON.stringify({ services: {
       'bot-dot': { image, command: ['node', 'lib/privilege-broker.js'], cap_drop: ['ALL'], cap_add: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID', 'KILL'], security_opt: ['no-new-privileges:true'], ports: ['4747:4747'], environment, volumes: ['data:/data', 'config:/config', 'home:/root', 'helper:/run/botdot:ro'] },
       'docker-helper': { image, command: ['node', 'lib/docker-helper.js'], environment: { BOT_DOT_COMPUTER_IMAGE: 'bot-dot/desktop:latest', BOT_DOT_PLATFORM: 'linux' }, volumes: ['helper:/run/botdot', '/var/run/docker.sock:/var/run/docker.sock'] },
