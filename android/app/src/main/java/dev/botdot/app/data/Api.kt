@@ -487,6 +487,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** The Chief's checkup; null from a server that answered without it. Only with `checkup` in its features. */
     suspend fun checkup(): Checkup? = Checkup.answer(get("/settings/checkup"))
     /** The Chief's lasting grants of one kind (ChiefGrant), and Revoke of one: a refusal throws the server's words. */
+    /** The Chief's own jobs (#408): only with `chief-jobs` in the server's features. */
+    suspend fun chiefJobs(): List<ChiefJob> = json.decodeFromString<ChiefJobList>(get("/chief/jobs")).jobs
+    suspend fun setChiefJobOn(id: String, on: Boolean): ChiefJob = json.decodeFromString(send("PUT", "/chief/jobs/${enc(id)}", buildJsonObject { put("on", on) }))
+    suspend fun removeChiefJob(id: String) { send("DELETE", "/chief/jobs/${enc(id)}") }
     suspend fun chiefGrants(kind: ChiefGrant.Kind): List<ChiefGrant> = ChiefGrant.of(kind, get(kind.path))
     suspend fun revokeChiefGrant(g: ChiefGrant): List<ChiefGrant> = ChiefGrant.of(g.kind, send("DELETE", g.kind.path, buildJsonObject { put(g.kind.key, g.id) }))
     /** Switches one of the checkup's two switches ([field]: "on" or "webSearch"); a refusal throws the server's words. */
