@@ -324,7 +324,9 @@ class MainActivity : ComponentActivity() {
                             onSignIn = { nav.navigate("settings") { launchSingleTop = true } }) { if (nav.currentBackStackEntry == e) nav.popBackStack() }
                     }
                     // Shared rooms (ADR 060): the list, a room's chat, its settings.
-                    composable("rooms") { RoomsScreen(app, onRoom = { nav.navigate("room/$it") { launchSingleTop = true } }) { nav.popBackStack() } }
+                    composable("rooms") {
+                        RoomsScreen(app, onRoom = { nav.navigate("room/$it") { launchSingleTop = true } }, onMade = { nav.navigate("room/$it"); nav.navigate("room/$it/settings") }) { nav.popBackStack() }
+                    }
                     composable("room/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""
                         RoomChatScreen(app, id, onSettings = { nav.navigate("room/$id/settings") { launchSingleTop = true } }) { if (nav.currentBackStackEntry == e) nav.popBackStack() }
