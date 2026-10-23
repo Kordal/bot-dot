@@ -2,6 +2,8 @@
 // Each run is one exchange: the task you gave it, then its reply.
 
 // newFirst: the run the "New" line goes above (the server's firstUnread when the chat was opened), or null.
+// The answers of a reply stand under the newest run, and under the run its open question is from (bot.asks) when
+// newer runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
 function botThreadHTML(bot, runs, newFirst = null) {
   if (!runs.length) {
     return `
@@ -60,7 +62,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
         <div class="bubble-row from-bot"><div class="stack">
           ${shown}
           <div class="bubble-meta">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` · <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
-          ${i === runs.length - 1 && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}
+          ${(i === runs.length - 1 || r.id === bot.asks?.runId) && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}
         </div></div>`;
     }
     return sep + Unread.exchange({ asked: asked + steered, reply, mine }, line);
@@ -87,8 +89,12 @@ function loadInbox(botId) {
   }).catch(() => {});
 }
 
+// The run a bot's chat reaches back to: its "New" line's, else the one its open question is from (docs/api.md, "A bot
+// that asks"), else none. The question is the newest reply that counts, so the "New" line is never below it.
+const chatBack = (bot, newFirst) => newFirst ?? bot?.asks?.runId ?? null;
+
 // The open chat's runs from further back than the page holds (state.runs is the newest 200 of all bots):
-// read when its "New" line is above them, and kept while that line stays.
+// read when its "New" line or its open question is above them, and kept while that stays.
 let reached = null; // { botId, first, runs }
 function chatRuns(botId, first) {
   const held = state.runs.filter((r) => r.botId === botId);
@@ -131,9 +137,11 @@ function renderBotChat() {
   const root = $('#view-bot');
   if (!bot) { if (state.bots.length) leaveBot(); return; }
   const newFirst = newLine.first(`bot:${bot.id}`); // the "New" line stays where it was put while the chat is open
-  // Its newest runs, and with a line every run back to it: one further back is read first, and drawn then.
-  const drawn = Unread.shown(chatRuns(bot.id, newFirst), newFirst);
-  if (drawn.missing) reachNew(bot.id, newFirst);
+  // Its newest runs, and with a line every run back to it: one further back is read first, and drawn then. So is the
+  // run its open question is from (bot.asks), however far back: "Needs you" on its key points at something to answer.
+  const back = chatBack(bot, newFirst);
+  const drawn = Unread.shown(chatRuns(bot.id, back), back);
+  if (drawn.missing) reachNew(bot.id, back);
   const runs = drawn.runs.reverse();
   if (root.dataset.bot !== bot.id) {
     root.dataset.bot = bot.id;
@@ -173,7 +181,7 @@ function renderBotChat() {
 
   // Re-render the thread only when something changed, so live bits and scroll survive refreshes.
   const waiting = state.inbox[bot.id] || [];
-  const sig = runs.map((r) => `${r.id}:${r.status}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}`;
+  const sig = runs.map((r) => `${r.id}:${r.status}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
   const thread = $('#bot-thread');
   if (root.dataset.sig !== sig) {
     const atBottom = !root.dataset.sig || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
