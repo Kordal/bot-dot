@@ -211,6 +211,8 @@ function exchangeLabel(r) {
   if (!to.length) return r.startedBy === 'chief' ? `Replied to ${botLabel(sender(r))}` : 'Replied'; // the Chief reads the reply itself
   return to.every((t) => t.id === sender(r)?.id) ? `Replied to ${botLabel(sender(r))}` : `Messaged ${to.map(botLabel).join(', ')}`;
 }
+// A folded line between bots: who, then the first words of what it opens to, cut to the line (gone once it is open).
+const foldSummary = (who, text) => { const peek = plain(text).slice(0, 160); return `<summary class="fold-line"><span class="fold-who">${who}</span>${peek ? `<span class="fold-peek">${esc(peek)}</span>` : ''}</summary>`; };
 // Who sent the task that started a run, when it wasn't the owner: another bot, or the Chief (it hands tasks to bots).
 const sender = (r) => (r.trigger === 'bot' && r.fromBot ? r.fromBot : r.startedBy === 'chief' ? CHIEF_BOT : null);
 // Notes other bots left: one folded line, "Read notes from Web Surfer, Coder" (each with its small head), that opens to what each said.
