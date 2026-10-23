@@ -91,6 +91,14 @@ test("web: the Chief's pages (#384) open at the bots' page routes with the id ch
   await Pages.act('refresh', 'chief', { slug: 'team', keep: { jobId: 'page-team' } }, 'Kai');
   assert.deepEqual(calls.at(-1).slice(0, 2), ['/bots/chief/jobs/page-team/run', 'POST']);
   // Under its reply, and as a list in its settings.
-  assert.match(read('chief.js'), /Pages\.chipsHTML\(\{ botId: 'chief', pages: m\.pages \}\)/);
+  assert.match(read('chief.js'), /Pages\.chipsHTML\(\{ botId: 'chief', pages: \[\.\.\.\(m\.pages \|\| \[\]\), \.\.\.\(m\.botPages \|\| \[\]\)\] \}\)/);
   assert.match(read('settings.js'), /id="chief-page-list"/);
+});
+
+test("web: a Chief reply's pages from its bots open at each bot's routes, by its name, also from a server without chief-pages", () => {
+  const { Pages } = page();
+  const html = Pages.chipsHTML({ botId: 'chief', pages: [{ slug: 'team', title: 'Team' }, { botId: 'ops', bot: 'Ops', slug: 'launch-plan', title: 'Launch plan' }] });
+  assert.match(html, /data-view="\/bots\/ops\/pages\/launch-plan"/);
+  assert.match(html, /data-view-from="Ops"/);
+  assert.doesNotMatch(html, /\/bots\/chief\//, "the Chief's own page waits for chief-pages");
 });

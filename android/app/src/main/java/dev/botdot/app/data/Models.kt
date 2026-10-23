@@ -577,12 +577,17 @@ data class ChiefMessage(
     @SerialName("plan") val planValue: JsonElement? = null,
     // A Chief reply: the pages it saved with save_page (#384), kept as they came. Read them through [pages].
     @SerialName("pages") val pagesValue: JsonElement? = null,
+    // A Chief reply: the pages its bots saved in the task it handed them, each with its `botId` and `bot`. Read them through [botPages].
+    @SerialName("botPages") val botPagesValue: JsonElement? = null,
 ) {
     /** The steps of its work, or null for none. */
     val plan: Plan? get() = Plan.of(planValue)
 
     /** The pages it saved, a chip each under it; none from a server without `chief-pages`. */
     val pages: List<PageRef> get() = Pages.refs(pagesValue)
+
+    /** The pages its bots saved, by bot, a chip each under it, opened at that bot's routes. */
+    val botPages: Map<String, List<PageRef>> get() = Pages.refs(botPagesValue).filter { it.botId.isNotBlank() }.groupBy { it.botId }
 
     /** The owner's messages this reply read while it worked, in the order read: drawn before it, without buttons. */
     val steered: List<Steered> get() = Steered.list(steeredValue)

@@ -472,8 +472,8 @@ const chiefQueued = new Map();
 // bubble as under a bot's own message, under the text and above the problem, and alone when the reply has no words.
 function chiefBubble(m, last = false, index = null) {
   const files = !m.pending && Array.isArray(m.files) && m.files.length ? botFilesHTML(m.files) : '';
-  // The pages it saved in this reply (#384, public/pages.js), as under a bot's reply.
-  const pages = !m.pending && typeof Pages !== 'undefined' ? Pages.chipsHTML({ botId: 'chief', pages: m.pages }) : '';
+  // The pages it saved in this reply (#384, public/pages.js), as under a bot's reply, then those its bots saved for it.
+  const pages = !m.pending && typeof Pages !== 'undefined' ? Pages.chipsHTML({ botId: 'chief', pages: [...(m.pages || []), ...(m.botPages || [])] }) : '';
   const body = m.pending
     ? '' // its draft, from a server that has drafts, is drawn in its place as it grows (followChief)
     : m.error && !m.text
