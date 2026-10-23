@@ -830,6 +830,7 @@ fun Composer(
                     textStyle = TextStyle(color = p.text, fontSize = 16.sp, lineHeight = 22.sp, fontFamily = Geist),
                     cursorBrush = SolidColor(p.text),
                     maxLines = 6,
+                    visualTransformation = remember(mentions, p.mention) { CommandChips(mentions, p.mention) },
                     modifier = Modifier.weight(1f).padding(vertical = 9.dp).heightIn(min = 22.dp).focusRequester(focus),
                     decorationBox = { inner ->
                         Box { if (text.text.isEmpty()) Text(placeholder, color = p.faint, fontSize = 16.sp); inner() }

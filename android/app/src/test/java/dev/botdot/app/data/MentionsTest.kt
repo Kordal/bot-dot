@@ -34,8 +34,14 @@ class MentionsTest {
     data class CommandCase(val name: String, val world: String, val chat: String, val text: String, val command: Command? = null)
 
     @Serializable
+    data class MarkWant(val kind: String, val skill: String? = null, val text: String, val start: Int, val end: Int)
+
+    @Serializable
+    data class MarkCase(val name: String, val world: String, val chat: String, val text: String, val mark: MarkWant? = null)
+
+    @Serializable
     data class Table(val maxRows: Int, val shortNames: List<List<String>>, val worlds: Map<String, World>, val cases: List<Case>,
-                     val picks: List<Pick>, val commands: List<CommandCase> = emptyList(), val about: JsonElement? = null)
+                     val picks: List<Pick>, val commands: List<CommandCase> = emptyList(), val marks: List<MarkCase> = emptyList(), val about: JsonElement? = null)
 
     private val table: Table = Json { ignoreUnknownKeys = true }.decodeFromString(
         Table.serializer(),
@@ -86,6 +92,14 @@ class MentionsTest {
         assert(table.commands.isNotEmpty())
         table.commands.forEach { c ->
             assertEquals(c.name, c.command, Mentions.command(c.text, world(c.world, c.chat))?.let { Command(it.skill, it.args) })
+        }
+    }
+
+    @Test fun marks() {
+        assert(table.marks.isNotEmpty())
+        table.marks.forEach { c ->
+            val got = Mentions.mark(c.text, world(c.world, c.chat))?.let { MarkWant(if (it.skill != null) "skill" else "btw", it.skill, it.text, it.start, it.end) }
+            assertEquals(c.name, c.mark, got)
         }
     }
 

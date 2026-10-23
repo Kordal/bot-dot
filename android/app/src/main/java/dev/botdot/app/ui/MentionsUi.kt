@@ -20,7 +20,11 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -60,10 +64,16 @@ fun rememberMentions(app: BotDotApp, chat: String): Mentions.World? {
  * nothing stays as typed. For your bubble, drawn in ink; [tint] is the theme's `mention`. Show it with [figureInlines].
  */
 fun withMentions(text: String, w: Mentions.World?, tint: Color): AnnotatedString {
-    val found = w?.let { Mentions.find(text, it) }.orEmpty()
-    if (found.isEmpty()) return AnnotatedString(text)
+    val mark = w?.let { Mentions.mark(text, it) }
+    val found = w?.let { Mentions.find(text, it) }.orEmpty().filter { it.start >= (mark?.end ?: 0) }
+    if (found.isEmpty() && mark == null) return AnnotatedString(text)
     return buildAnnotatedString {
         var at = 0
+        if (mark != null) {
+            append(text.substring(0, mark.start))
+            withStyle(commandChip(tint, 0.14f)) { append(mark.text) }
+            at = mark.end
+        }
         found.forEach { m ->
             append(text.substring(at, m.start))
             when (m.kind) {
@@ -74,6 +84,23 @@ fun withMentions(text: String, w: Mentions.World?, tint: Color): AnnotatedString
         }
         append(text.substring(at))
     }
+}
+
+/** What a message invokes (a skill it runs, "/btw"): a chip, in [tint] on a wash of it ([wash], its alpha). */
+fun commandChip(tint: Color, wash: Float) = SpanStyle(color = tint, background = tint.copy(alpha = wash), fontWeight = FontWeight.SemiBold)
+
+/** The message box with what its message invokes drawn as a chip ([Mentions.mark]); the text itself stays as typed. */
+class CommandChips(private val w: Mentions.World?, private val tint: Color) : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val m = w?.let { Mentions.mark(text.text, it) } ?: return TransformedText(text, OffsetMapping.Identity)
+        val shown = buildAnnotatedString {
+            append(text)
+            addStyle(SpanStyle(background = tint.copy(alpha = 0.26f)), m.start, m.end)
+        }
+        return TransformedText(shown, OffsetMapping.Identity)
+    }
+    override fun equals(other: Any?) = other is CommandChips && other.w === w && other.tint == tint
+    override fun hashCode() = System.identityHashCode(w) * 31 + tint.hashCode()
 }
 
 /** [v] with [row] picked (see Mentions.pick), and where the bot it put in (and its new space) ends, or -1. */

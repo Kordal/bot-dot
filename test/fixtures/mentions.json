@@ -11,7 +11,8 @@
     "renamed: the team with the Chief named by the owner (#41). '@ChiefOfStaff' still means the Chief beside its name, and is not suggested.",
     "group: a group's chat with all true (#124): '@all' is offered first while it is typed at the start of the message, and is no member's mention: a member named All is neither matched nor suggested there. Elsewhere '@all' is nothing of its own.",
     "Commands (#237): '/' at the very start of the message in a bot's own chat lists that bot's skills (its picked skills, as for mentions; none when useSkills is false), filtered by a case-insensitive 'contains' on the name, at most maxRows. A row's text is '/' and the skill's name; picking it replaces the '/…' word as a mention pick does. Never in the Chief chat or a group. Once a space follows the name, no list.",
-    "commands: { name, world, chat, text, command }. command is what sending text runs: { skill, args } (args: the rest of the message after the name, trimmed), or null when it is plain text (no '/' at the very start, a name the bot has no skill of, a name joined to more text, the Chief chat, a group)."
+    "commands: { name, world, chat, text, command }. command is what sending text runs: { skill, args } (args: the rest of the message after the name, trimmed), or null when it is plain text (no '/' at the very start, a name the bot has no skill of, a name joined to more text, the Chief chat, a group).",
+    "marks: { name, world, chat, text, mark }. mark is the chip the apps draw at the start of the owner's message, or null: { kind: 'skill', skill, text, start, end } when sending it runs a skill (as commands), { kind: 'btw', text, start, end } when it starts with '/btw' (any case, after spaces, then a space, a line break or the end) in a bot's own chat or the Chief chat, never in a group. text is the part of the message the chip covers, as typed, from start to end."
   ],
   "maxRows": 6,
   "shortNames": [
@@ -190,5 +191,18 @@
     { "name": "skills switched off", "world": "team", "chat": "social", "text": "/tone", "command": null },
     { "name": "the Chief chat", "world": "team", "chat": "chief", "text": "/digest", "command": null },
     { "name": "a group", "world": "group", "chat": "group:g1", "text": "/digest", "command": null }
+  ],
+  "marks": [
+    { "name": "a skill with arguments", "world": "team", "chat": "fleet", "text": "/weekly-report for May", "mark": { "kind": "skill", "skill": "weekly-report", "text": "/weekly-report", "start": 0, "end": 14 } },
+    { "name": "a skill typed in another case keeps what was typed", "world": "team", "chat": "fleet", "text": "/Digest", "mark": { "kind": "skill", "skill": "digest", "text": "/Digest", "start": 0, "end": 7 } },
+    { "name": "a name the bot has no skill of is plain text", "world": "team", "chat": "fleet", "text": "/tone please", "mark": null },
+    { "name": "btw in a bot's chat", "world": "team", "chat": "fleet", "text": "/btw check also the backups", "mark": { "kind": "btw", "text": "/btw", "start": 0, "end": 4 } },
+    { "name": "btw in any case, after spaces", "world": "team", "chat": "todo", "text": "  /BTW\nhow far?", "mark": { "kind": "btw", "text": "/BTW", "start": 2, "end": 6 } },
+    { "name": "btw alone", "world": "team", "chat": "fleet", "text": "/btw", "mark": { "kind": "btw", "text": "/btw", "start": 0, "end": 4 } },
+    { "name": "btw in the Chief chat", "world": "team", "chat": "chief", "text": "/btw what now?", "mark": { "kind": "btw", "text": "/btw", "start": 0, "end": 4 } },
+    { "name": "a skill in the Chief chat is plain text", "world": "team", "chat": "chief", "text": "/digest", "mark": null },
+    { "name": "btw joined to more text is plain text", "world": "team", "chat": "fleet", "text": "/btwx now", "mark": null },
+    { "name": "only the start is marked", "world": "team", "chat": "fleet", "text": "/weekly-report /btw", "mark": { "kind": "skill", "skill": "weekly-report", "text": "/weekly-report", "start": 0, "end": 14 } },
+    { "name": "btw in a group is plain text", "world": "group", "chat": "group:g1", "text": "/btw hi", "mark": null }
   ]
 }

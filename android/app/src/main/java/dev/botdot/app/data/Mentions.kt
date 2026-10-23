@@ -15,6 +15,9 @@ package dev.botdot.app.data
  * skills are the ones that reach the bot's runs: while its skills are on, its picked library skills, then the Claude
  * account's not switched off for it and not named like a library skill (#236).
  *
+ * Chips: a message that runs a skill, or a "/btw" in a bot's own chat or the Chief chat, is drawn with that start as a
+ * chip, in the message box and in the owner's bubble ([mark]). The text sent stays as typed.
+ *
  * The same rules as lib/mentions.js on the botdot server, both checked against test/fixtures/mentions.json.
  */
 object Mentions {
@@ -152,5 +155,21 @@ object Mentions {
         val m = COMMAND.find(text) ?: return null
         val skill = w.commands.firstOrNull { same(it, m.groupValues[1]) } ?: return null
         return Command(skill, m.groupValues[2].trim())
+    }
+
+    /** What the start of a message invokes: a skill it runs ([skill]) or "/btw" ([skill] null). [text], from [start] to
+     *  [end], is the part of the message the chip shows, as typed. */
+    data class Mark(val skill: String?, val text: String, val start: Int, val end: Int)
+
+    private val BTW = Regex("^\\s*(/btw)(?=\\s|\\z)", RegexOption.IGNORE_CASE) // the owner's quick side question (ADR 063)
+
+    /** The chip the apps draw at the start of the owner's message, or null: the skill sending [text] runs, or "/btw" in a
+     *  bot's own chat or the Chief chat (never a group). The message itself stays as typed. */
+    fun mark(text: String, w: World): Mark? {
+        command(text, w)?.let { c -> return Mark(c.skill, text.substring(0, c.skill.length + 1), 0, c.skill.length + 1) }
+        val own = w.chat == CHIEF || w.bots.any { it.id == w.chat && it.id != CHIEF }
+        val b = if (own && !w.all) BTW.find(text) else null
+        val g = b?.groups?.get(1) ?: return null
+        return Mark(null, g.value, g.range.first, g.range.last + 1)
     }
 }
