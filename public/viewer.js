@@ -272,6 +272,7 @@ const DocViewer = (() => {
       if (r?.current && cur === c) return show(r.current);
       return;
     }
+    if (cur.page && what === 'board') return Pages.toggleBoard(cur.page.botId, cur.view?.page, btn); // on the Board, or off it (#451)
     if (cur.page && ['keep', 'refresh', 'stop'].includes(what)) {
       const c = cur;
       if (await Pages.act(what, c.page.botId, c.view?.page, c.from) && cur === c) load(c, true);

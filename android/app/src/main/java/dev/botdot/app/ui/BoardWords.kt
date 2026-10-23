@@ -43,7 +43,9 @@ fun stripKpi(t: Tile): Block? {
     val b = find(t.look?.face.orEmpty())
     if (b != null) return Block(type = "kpi", label = t.title, text = b.text.orEmpty(), unit = b.unit.takeIf { b.type == "kpi" || b.type == "value" }, of = b.of, points = b.points, ratio = b.ratio, color = b.color)
     val short = t.look?.short.orEmpty()
-    return if (short.isNotEmpty()) Block(type = "kpi", label = t.title, text = short) else null
+    if (short.isNotEmpty()) return Block(type = "kpi", label = t.title, text = short)
+    // A page without a number (#451): its age, as the web page's strip.
+    return if (t.kind == "page" && t.at != null) Block(type = "kpi", label = t.title, text = dev.botdot.app.data.Pages.age(t.at)) else null
 }
 
 /**

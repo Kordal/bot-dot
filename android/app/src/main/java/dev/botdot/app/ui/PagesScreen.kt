@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -28,15 +30,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.PageInfo
 import dev.botdot.app.data.PageRef
 import dev.botdot.app.data.Pages
+import kotlinx.coroutines.launch
 
 /**
  * Every bot's pages in one list (#361; docs/api.md, "Pages"), opened from Settings: the pages kept up to date first,
@@ -51,6 +57,14 @@ fun PagesScreen(app: BotDotApp, onBack: () -> Unit) {
     val pageSaves by app.store.pageSaves.value.collectAsState()
     var pages by remember { mutableStateOf<List<PageInfo>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    val server by app.store.version.value.collectAsState()
+    val scope = rememberCoroutineScope()
+    // A row's switch (#451): the page on the Board or off it, shown at once and put back if the server says no.
+    val board: ((PageInfo, Boolean) -> Unit)? = if (Pages.showsBoard(server?.features)) { pg, on ->
+        fun set(v: Boolean?) { pages = pages?.map { if (it.botId == pg.botId && it.slug == pg.slug) it.copy(onBoard = v) else it } }
+        set(on)
+        scope.launch { runCatching { api!!.setPageOnBoard(pg.botId, pg.slug, on) }.onSuccess { set(it?.onBoard ?: on) }.onFailure { set(pg.onBoard); error = it.message } }
+    } else null
     LaunchedEffect(api, pageSaves, DocViewer.open == null) {
         val a = api ?: return@LaunchedEffect
         runCatching { a.allPages() }.onSuccess { pages = it; error = null }.onFailure { error = "Couldn't load the pages." }
@@ -68,11 +82,11 @@ fun PagesScreen(app: BotDotApp, onBack: () -> Unit) {
             if (list != null && list.isEmpty()) item { Hint("No pages yet. Ask a bot for a page, a report or an overview: it shows here, and under the bot's reply.") }
             if (kept.isNotEmpty()) {
                 item { SectionLabel("Kept up to date") }
-                items(kept, key = { "${it.botId}/${it.slug}" }) { PageRow(it) }
+                items(kept, key = { "${it.botId}/${it.slug}" }) { PageRow(it, board) }
             }
             if (other.isNotEmpty()) {
                 item { SectionLabel(if (kept.isEmpty()) "All pages" else "Other pages") }
-                items(other, key = { "${it.botId}/${it.slug}" }) { PageRow(it) }
+                items(other, key = { "${it.botId}/${it.slug}" }) { PageRow(it, board) }
             }
         }
     }
@@ -84,7 +98,7 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun PageRow(page: PageInfo) {
+private fun PageRow(page: PageInfo, board: ((PageInfo, Boolean) -> Unit)?) {
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp))
         .clickable { DocViewer.open = DocViewer.page(page.botId, PageRef(page.slug, page.title), page.bot) }.padding(12.dp),
@@ -95,5 +109,9 @@ private fun PageRow(page: PageInfo) {
             Text(Pages.allLine(page), color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (page.keep != null) Box(Modifier.size(7.dp).background(p.ok, CircleShape))
+        if (board != null && page.onBoard != null) {
+            Spacer(Modifier.size(10.dp))
+            Switch(checked = page.onBoard, onCheckedChange = { board(page, it) }, colors = switchColors(), modifier = Modifier.semantics { contentDescription = "On the Board" })
+        }
     }
 }

@@ -94,6 +94,10 @@ A number that changes during the day should not need a rewrite. Bind the block t
 - If the tile doesn't exist yet, the page needs a source: suggest one with `suggest_tile` (a bot) or add it with `add_tile` (the Chief), as any tile of the Board, then bind to it. A tile made for a page shows on the Board too; put it under a heading named after the page.
 - Bind what moves (disk, load, open issues, last backup). Write what was true at one moment (last week's totals, a finished release) as your own values.
 
+## On the Board
+
+The owner can put a page on their Board: a tile with its title, its age and its first kpis (up to three), else its first chart, else its first lines. So put the numbers that matter most in the first kpis. When the owner wants a page on the Board, suggest it with `suggest_tile`: `kind: "page"`, its `title`, `page: { "slug": "weekly-health" }` and a `reason`; it shows when they tap Add.
+
 ## Keep up to date
 
 "Keep up to date" gives the page a job that rewrites it on a schedule. On a page with bound blocks it is for the words only: the lead, the callouts, the "what changed" sections. Keep the bound blocks as they are when you rewrite the page; never copy a live number into prose, where it goes stale. Give `save_page` its `sources`: what the page is built from and what to check on a refresh.

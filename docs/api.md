@@ -1115,6 +1115,16 @@ When `features` has `chief-jobs` ([ADR 073](adr/073-the-chiefs-own-jobs-only-rea
 - **Its message** is a Chief message, `{ role: "chief", text, at, job: { id, name }, startedBy: "botdot" }`, in the chat the job was set up in (else the chat last used), announced as an unasked one (`chief_reply` with `unasked: true`). A run whose answer is "NOTHING" posts nothing; a run that failed posts one line saying so. The owner's next turn in that chat is told the message, as one the Chief wrote after reading the web.
 - **The Chief** sets jobs up by chat with `add_my_job`, `update_my_job`, `remove_my_job` and `run_my_job`, and lists them with `list_my_jobs`; it may change them only in a turn the owner started (`403` otherwise), and after the web the change waits for the owner's card. The apps list them in the Chief's settings, with a switch (`on`) and Remove; there is no form to make one (rule 5).
 
+### Pages on the Board
+
+When `features` also has `pages-board` ([#451](https://github.com/Kordal/bot-dot/issues/451)), a page (a bot's or the Chief's, interactive or not) can be on [the Board](#the-board) as a tile. No page is there until someone puts it there.
+
+- **A page** (in every list and in `page` of `?view=1`) has `onBoard: true | false`.
+- `PUT /api/bots/:id/pages/<slug>/board` with `{ on: true | false }` (`chief` for the Chief's): puts its tile on the Board, under the heading "Pages", or takes it off; the page stays. Twice is once. Answers `{ page }`; `400` without `on`, `404` for a page that is gone, `403` for the Chief.
+- **Its tile** has `kind: "page"` and `page: { bot, slug, updatedAt, kind: "markdown" | "interactive" }`. Its `title` is the page's, `at` when the page was saved, `bot` the page's bot (null for the Chief's). Its `look` is drawn as any tile's: `dot` null, `face` up to three of the page's first kpis (one `kpi`, or a `row` of them), else its first chart, else its first lines as one `text` with `lines: 3`, and nothing for an interactive page; `short` its first kpi; `tap` is `none`. An app that knows `pages-board` draws a page mark before the title and the page's age at its end, and a tap opens the page in the viewer; an app before it shows the tile and does nothing on a tap. A tile whose page is gone is left out of `tiles` and `home` until it is back. It is moved, put on home, and removed (`DELETE /api/dashboard/tiles/:id`, which takes the page off) as any tile; it takes no value and no sources, and goes with its bot.
+- **The Chief** adds one with `add_tile` (`kind: "page"`, `page: { bot, slug }`, the slug or the page's title), at once, as a tile with no script. **A bot** suggests its own page with `suggest_tile` (`kind: "page"`, `page: { slug }`); Add puts it there.
+- The apps show the switch as "On Board" in the page's bar (beside "Keep up to date") and as a switch on each row of the Pages view.
+
 ### The Chief's pages
 
 When `features` also has `chief-pages` ([#384](https://github.com/Kordal/bot-dot/issues/384), [ADR 069](adr/069-the-chief-keeps-pages-too-by-a-run-of-its-own.md)), the Chief of Staff saves pages too, and the owner keeps them up to date as a bot's.

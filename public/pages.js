@@ -14,6 +14,7 @@ const Pages = (() => {
     keep: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6 M20 4v5h-5"/></svg>',
     lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
     site: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18 M7 6.5h.01 M10 6.5h.01"/></svg>',
+    board: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>',
   };
   const iconOf = (p) => (p?.kind === 'interactive' ? ICON.site : ICON.page);
   const shows = () => (state.features || []).includes('pages');
@@ -39,13 +40,28 @@ const Pages = (() => {
     return [from ? `${what} by ${from}` : what, page ? updated(page) : ''].filter(Boolean).join(' · ');
   };
 
-  // The viewer's bar on a page: what keeps it up to date, or the button that does.
+  // A page on the Board (#451), from a server with `pages-board`: "Board" puts it there, "On Board" (filled) takes it off.
+  const showsBoard = () => (state.features || []).includes('pages-board');
+  const boardBtn = (page) => (showsBoard() && typeof page?.onBoard === 'boolean'
+    ? `<button type="button" class="btn sm pg-board${page.onBoard ? ' on' : ''}" data-dv="board" aria-pressed="${page.onBoard}">${ICON.board}${page.onBoard ? 'On Board' : 'Board'}</button>` : '');
+  async function setBoard(botId, page, on) {
+    try { Object.assign(page, (await api(`${src(botId, page.slug)}/board`, { method: 'PUT', body: { on } })).page); } catch (e) { toast(e.message, true); return false; }
+    if (typeof loadDash === 'function') loadDash(true);
+    return true;
+  }
+  // The viewer's "Board" button: the page goes on the Board or off it, and the button says so, with nothing reloaded.
+  async function toggleBoard(botId, page, btn) {
+    if (!page || !(await setBoard(botId, page, !page.onBoard))) return;
+    btn.outerHTML = boardBtn(page);
+  }
+
+  // The viewer's bar on a page: what keeps it up to date, or the button that does; and whether it is on the Board.
   function barHTML(page) {
-    if (!page.keep) return `<div class="pg-bar"><button type="button" class="btn sm" data-dv="keep">${ICON.keep}Keep up to date</button></div>`;
+    if (!page.keep) return `<div class="pg-bar"><button type="button" class="btn sm" data-dv="keep">${ICON.keep}Keep up to date</button>${boardBtn(page)}</div>`;
     return `<div class="pg-bar"><span class="pg-keep">${ICON.keep}Keeps up to date · ${esc(page.keep.when)}</span>
       <button type="button" class="btn sm" data-dv="refresh">Refresh now</button>
       <button type="button" class="btn sm ghost" data-dv="keep">Change</button>
-      <button type="button" class="btn sm ghost" data-dv="stop">Stop</button></div>`;
+      <button type="button" class="btn sm ghost" data-dv="stop">Stop</button>${boardBtn(page)}</div>`;
   }
 
   // A bot's pages in its settings.
@@ -112,7 +128,8 @@ const Pages = (() => {
   const showsAll = () => (state.features || []).includes('pages-all');
   function rowHTML(p) {
     const sub = [p.bot, updated(p), p.keep?.when].filter(Boolean).join(' · ');
-    return `<button type="button" class="pg-row" data-open-page="${esc(`${p.botId}/${p.slug}`)}"><span class="pg-icon">${iconOf(p)}</span><span class="pg-text"><b>${esc(p.title)}</b><span>${esc(sub)}</span></span>${p.keep ? '<span class="pg-live" aria-label="Keeps up to date"></span>' : ''}</button>`;
+    const sw = showsBoard() && typeof p.onBoard === 'boolean' ? `<label class="switch pg-board-sw"><input type="checkbox" data-page-board="${esc(`${p.botId}/${p.slug}`)}" aria-label="On the Board" ${p.onBoard ? 'checked' : ''}><span></span></label>` : '';
+    return `<div class="pg-row-wrap"><button type="button" class="pg-row" data-open-page="${esc(`${p.botId}/${p.slug}`)}"><span class="pg-icon">${iconOf(p)}</span><span class="pg-text"><b>${esc(p.title)}</b><span>${esc(sub)}</span></span>${p.keep ? '<span class="pg-live" aria-label="Keeps up to date"></span>' : ''}</button>${sw}</div>`;
   }
   function allHTML(pages) {
     const kept = pages.filter((p) => p.keep);
@@ -141,6 +158,11 @@ const Pages = (() => {
       const p = pages.find((x) => x.botId === botId && x.slug === slug);
       if (p) openPage(p);
     }));
+    $$('[data-page-board]', root).forEach((box) => (box.onchange = async () => {
+      const [botId, slug] = box.dataset.pageBoard.split('/');
+      const p = pages.find((x) => x.botId === botId && x.slug === slug);
+      if (!p || !(await setBoard(botId, p, box.checked))) box.checked = !!p?.onBoard;
+    }));
   }
 
   // The live feed's `page`: a bot saved one. The page on screen, the list in its settings and the Pages view follow.
@@ -164,6 +186,7 @@ const Pages = (() => {
     return `<div class="dv-bar pg-site-bar">
       <span class="pg-isolated" title="${esc(ISOLATED)}">${ICON.lock}${esc(ISOLATED)}</span>
       <span class="dv-sp"></span>
+      ${boardBtn(c.view.page)}
       <button type="button" class="btn sm" data-dv="full">${c.full ? 'Back beside the chat' : 'Full screen'}</button>
       <button type="button" class="btn sm" data-dv="versions">Versions</button>
       ${download}
@@ -216,5 +239,5 @@ const Pages = (() => {
     $('#pg-open', m).onclick = () => { window.open(u.href, '_blank', 'noopener,noreferrer'); m.close(); };
   }
 
-  return { siteBarHTML, siteBodyHTML, openVersions, rollBack, askOpen, ISOLATED, chipsHTML, subtitle, barHTML, drawList, openKeep, act, changed, shows, showsAll, showsChief, allHTML, renderAll, openPage, CHIEF };
+  return { toggleBoard, showsBoard, siteBarHTML, siteBodyHTML, openVersions, rollBack, askOpen, ISOLATED, chipsHTML, subtitle, barHTML, drawList, openKeep, act, changed, shows, showsAll, showsChief, allHTML, renderAll, openPage, CHIEF };
 })();

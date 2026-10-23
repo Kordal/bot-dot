@@ -1798,6 +1798,14 @@ body.doc-mode > .app { display: none; }
 /* The Pages view (#361): every bot's pages, rows as buttons that open the page beside its bot's chat. */
 .pg-all { display: grid; gap: 2px; padding: 6px; }
 button.pg-row { width: 100%; background: none; font: inherit; text-align: left; cursor: pointer; }
+/* A page on the Board (#451): its switch on a row of the Pages view, and "On Board" in the page's bar, filled while on. */
+.pg-row-wrap { display: flex; align-items: center; gap: 10px; padding-right: 8px; }
+.pg-row-wrap > .pg-row { flex: 1; min-width: 0; }
+.pg-board svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+.btn.pg-board.on { background: var(--ink); color: var(--ink-text); border-color: var(--ink); }
+.tile-page { display: inline-grid; place-items: center; color: var(--muted); flex: none; }
+.tile-page svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.tile.kind-page { cursor: pointer; }
 .pg-live { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
 .pg-keep { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 99px; background: var(--ok-soft); color: var(--ok-text); font-size: 12.5px; }
 .pg-sheet .field { margin-top: 14px; }

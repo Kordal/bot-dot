@@ -61,6 +61,12 @@ class BoardWordsTest {
         assertNull("nor that: its dot", stripKpi(Tile(id = "t5", title = "Heating", kind = "switch", look = dev.botdot.app.data.TileLook())))
     }
 
+    @Test fun aPageWithNoNumberShowsItsAgeOnTheStrip() {
+        val at = java.time.Instant.now().minusSeconds(7200).toString()
+        assertEquals("2 h", stripKpi(Tile(id = "t6", title = "Memo", kind = "page", at = at, look = dev.botdot.app.data.TileLook()))?.text)
+        assertEquals("its first kpi first", "3/3", stripKpi(Tile(id = "t7", title = "Health", kind = "page", at = at, look = dev.botdot.app.data.TileLook(short = "3/3")))?.text)
+    }
+
     @Test fun theNeedsYouCardCountsWhatWaits() {
         assertEquals("1 needs you", needsCount(1))
         assertEquals("3 need you", needsCount(3))

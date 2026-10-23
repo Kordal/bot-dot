@@ -1296,6 +1296,10 @@ data class SuggestedTile(val kind: String = "value", val title: String = "", val
  * already filled in by botdot (its dot, face, panel and what a tap does); [value] is the older way to read it.
  * The sources are only in [Dashboard.pending].
  */
+/** The page a page tile opens (#451): its bot ("chief" for the Chief's), slug, when it was saved and its kind. */
+@Serializable
+data class TilePage(val bot: String = "", val slug: String = "", val updatedAt: String? = null, val kind: String = "")
+
 @Serializable
 data class Tile(
     val id: String,
@@ -1328,6 +1332,8 @@ data class Tile(
     // runs (`scripts`), kept as they came: one of a kind this app does not expect leaves the Board readable.
     val reads: JsonElement? = null,
     val actions: JsonElement? = null,
+    /** A page's tile (#451, kind "page"): the page it opens. */
+    val page: TilePage? = null,
     @SerialName("scripts") val scriptList: JsonElement? = null,
     @SerialName("then") val thenValue: JsonElement? = null, // a waiting tile: what a yes would start, kept as it came
     // A change that waits beside the approved tile, and what its buttons read, kept as they came (as on a [Job]).
