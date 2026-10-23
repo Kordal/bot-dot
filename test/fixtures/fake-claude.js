@@ -5,7 +5,8 @@
 // answers with $FAKE_OUT/result.txt (or "Done."), with the refused tools in $FAKE_OUT/denials.json (for which it asks with ask_permission, unless $FAKE_OUT/no-ask exists), or fails with $FAKE_OUT/fail.txt on stderr, or ends with no result line at all while $FAKE_OUT/no-result exists. While $FAKE_OUT/hold exists, a run keeps going until
 // $FAKE_OUT/done-<n> appears, so a test can use its run token meanwhile. A run ends when the process that started it is gone.
 // While $FAKE_OUT/linger exists, a run that wrote its result line stays on until the file is gone, as Claude Code takes
-// a moment to exit (#207); $FAKE_OUT/error-result.txt makes the result line an error with that text (is_error).
+// a moment to exit (#207); $FAKE_OUT/error-result.txt makes the result line an error with that text (is_error), and
+// $FAKE_OUT/error-result-once.txt the next run's only.
 // One bot of several (a group's members): a file named for the bot goes before the one for all. The bot is named as a
 // mention names it, its name without spaces and signs ("Issue Writer" is IssueWriter): result-<Bot>.txt is its
 // reply, so "PASS" there makes it pass and "@Reviewer have a look" makes it name a member; fail-<Bot>.txt makes its
@@ -102,6 +103,8 @@ const finish = () => {
   try { denials = JSON.parse(fs.readFileSync(path.join(OUT, 'denials.json'), 'utf8')); } catch { /* none */ }
   let failed = null;
   try { failed = fs.readFileSync(path.join(OUT, 'error-result.txt'), 'utf8'); } catch { /* it succeeds */ }
+  // $FAKE_OUT/error-result-once.txt: the same, for this run only (the file goes with it).
+  try { failed = fs.readFileSync(path.join(OUT, 'error-result-once.txt'), 'utf8'); fs.rmSync(path.join(OUT, 'error-result-once.txt')); } catch { /* none */ }
   // A refused tool asks nobody by itself (#279): like a bot that follows its prompt, this one asks the owner for each
   // permission it was refused with ask_permission, once, before it ends; not while $FAKE_OUT/no-ask exists.
   // Its tool calls first, through the PreToolUse hooks its settings name, as Claude Code runs them (ADR 067).
