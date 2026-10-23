@@ -160,10 +160,10 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     var askRemove by remember { mutableStateOf<String?>(null) }
     var askRemoveKey by remember { mutableStateOf(false) }
     var replacing by remember { mutableStateOf(false) }
-    suspend fun saveKey(key: String): Boolean = runCatching { api!!.setComposioKey(key) }
-        .onSuccess { replacing = false; found = emptyList(); tell("Saved"); load() }.onError { tell(it.message ?: "Couldn't save") }.isSuccess
 
     suspend fun load() { runCatching { api?.connectors() }.onSuccess { info = it }.onError { tell(it.message ?: "Couldn't load") } }
+    suspend fun saveKey(key: String): Boolean = runCatching { api!!.setComposioKey(key) }
+        .onSuccess { replacing = false; found = emptyList(); tell("Saved"); load() }.onError { tell(it.message ?: "Couldn't save") }.isSuccess
     LaunchedEffect(api) { load() }
     // Back from signing in to an app in the browser: show the new connection.
     val owner = LocalLifecycleOwner.current
