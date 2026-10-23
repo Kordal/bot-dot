@@ -70,9 +70,10 @@ test('a turn is told once when to answer, pass, hand on and end; a handed-on tur
   const facts = { group: { name: 'Dev' }, members, mentioned: false };
   const note = turnNote(members[1], facts);
   // Each rule of the wording, each once; the rule of a message sent with "@all" (#124) not at all.
-  const { together, ...rules } = RULES;
+  const { together, after, ...rules } = RULES;
   for (const rule of Object.values(rules)) assert.equal(count(note, rule), 1, rule);
   assert.equal(count(note, together), 0);
+  assert.equal(count(note, after), 0, 'nobody answered before the first turn');
   assert.match(RULES.answer, /Answer what is yours to add/);
   assert.ok(RULES.answer.includes(`reply with the single word ${PASS} and nothing else`));
   assert.match(RULES.question, /A question is answered, not acted on/);
@@ -92,6 +93,16 @@ test('a turn is told once when to answer, pass, hand on and end; a handed-on tur
   assert.match(handed, /The work is for the message of the owner's below/);
   assert.doesNotMatch(handed, /named you in it|Every member reads it and has one turn/);
   for (const rule of Object.values(rules)) assert.equal(count(handed, rule), 1, rule);
+
+  // A later turn of the owner's message is told who answered it before, and to repeat none of them (#489): once,
+  // the pass word still once. A handed-on turn is not: it has work from the member that named it.
+  const later = turnNote(members[1], { ...facts, before: ['a', 'b'], mark: '0f1e2d3c4b5a6978' });
+  assert.ok(later.includes('\n[botdot 0f1e2d3c4b5a6978 · a member that answered this message before you] 📝 Issue Writer\nThe members on the line above'.replace('line above', 'lines above')), later);
+  assert.ok(!later.includes('before you] 🧑‍💻 Coder'), 'the reader itself is no member before it');
+  assert.deepEqual([count(later, after), count(later, PASS)], [1, 1]);
+  assert.match(after, /Never repeat or restate what one of them said: not in your own words, not as a summary, a list or your own split of the work/);
+  assert.equal(count(turnNote(members[1], { ...facts, before: ['a'], handedBy: { id: 'a', name: 'Issue Writer', emoji: '📝' } }), after), 0);
+  assert.equal(count(turnNote(members[1], { ...facts, before: ['a'], together: true }), after), 0);
 
   // The turn that carries on has a reply to give: it is told how to hand on and how to end, and not to pass.
   const carries = turnNote(members[1], { ...facts, carriesOn: true });
