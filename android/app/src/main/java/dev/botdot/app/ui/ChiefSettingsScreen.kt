@@ -2,6 +2,7 @@ package dev.botdot.app.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +17,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -38,6 +41,8 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.AppSettings
 import dev.botdot.app.data.Checkup
 import dev.botdot.app.data.ChiefGrant
+import dev.botdot.app.data.ChiefJob
+import dev.botdot.app.data.ChiefJobs
 import dev.botdot.app.data.ChiefName
 import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.UploadedFiles
@@ -81,6 +86,11 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
     var grants by remember { mutableStateOf<List<ChiefGrant>>(emptyList()) }
     LaunchedEffect(api, grantKinds) { grants = grantKinds.flatMap { k -> runCatching { api?.chiefGrants(k) }.getOrNull().orEmpty() } }
     // Its pages (#384): read again when one of them is saved (the feed's `page`) or the viewer closes (its keeping changed there).
+    // Its own jobs (#408): read when the settings open, and from the feed's `chief_jobs` when they change.
+    val hasJobs = ChiefJobs.shows(server?.features)
+    var jobs by remember { mutableStateOf<List<ChiefJob>?>(null) }
+    LaunchedEffect(api, hasJobs) { jobs = if (hasJobs) runCatching { api?.chiefJobs() }.getOrNull() else null }
+    LaunchedEffect(hasJobs) { if (hasJobs) app.feed.events.collect { ev -> ChiefJobs.event(ev)?.let { jobs = it } } }
     val hasPages = Pages.showsChief(server?.features)
     val pageSaves by app.store.pageSaves.value.collectAsState()
     var pages by remember { mutableStateOf<List<PageInfo>?>(null) }
@@ -153,6 +163,28 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
                                         .onError { tell(it.message ?: "Couldn't save") }
                                 }
                             }) { Text("Revoke", color = p.text) }
+                        }
+                    }
+                }
+            }
+            // Its own jobs: a switch pauses one, Remove takes it away; they are made by chat.
+            jobs?.let { list ->
+                FoldSection(ChiefJobs.TITLE, if (list.isEmpty()) ChiefJobs.EMPTY else "${list.size}") {
+                    Hint(ChiefJobs.HINT)
+                    list.forEach { j ->
+                        key(j.id) {
+                            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                    Text(ChiefJobs.line(j), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                    TextButton(onClick = {
+                                        scope.launch { runCatching { api!!.removeChiefJob(j.id) }.onSuccess { jobs = jobs.orEmpty().filter { it.id != j.id }; tell("Removed.") }.onError { tell(it.message ?: "Couldn't remove") } }
+                                    }, contentPadding = PaddingValues(0.dp)) { Text("Remove", color = p.err) }
+                                }
+                                Switch(checked = j.on, onCheckedChange = { on ->
+                                    scope.launch { runCatching { api!!.setChiefJobOn(j.id, on) }.onSuccess { now -> jobs = jobs.orEmpty().map { if (it.id == now.id) now else it } }.onError { tell(it.message ?: "Couldn't save") } }
+                                }, colors = switchColors())
+                            }
                         }
                     }
                 }

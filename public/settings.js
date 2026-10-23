@@ -167,6 +167,11 @@ function renderChiefSettings() {
         <span class="bs-icon">📄</span>
         <div class="grow"><b>Its pages</b><div class="faint">Reports, memos and overviews it made for you. Open one to keep it up to date.</div><div id="chief-page-list" class="pg-list"><span class="faint">Loading…</span></div></div>
       </div>
+    </div>` : ''}${state.features.includes('chief-jobs') ? `
+    <h3 class="page-sub">Scheduled jobs</h3>
+    <div class="card settings-card bs-rows" id="chief-jobs">
+      <div class="bs-row"><span class="bs-icon">⏰</span><div class="grow"><b>Its own jobs</b><div class="faint">It looks things up on a schedule and tells you here; it changes nothing. Easiest: ask it, e.g. "every weekday at 8 tell me what's new on Hacker News".</div></div></div>
+      <div id="chief-job-list"><span class="faint">Loading…</span></div>
     </div>` : ''}${state.features.includes('chief-files') ? `
     <h3 class="page-sub">Files</h3>
     <div class="card settings-card bs-rows">
@@ -186,6 +191,7 @@ function renderChiefSettings() {
   loadChiefAlways(root);
   if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefName() }, $('#chief-page-list', root)); // public/pages.js (#384)
   drawChiefFiles(root);
+  drawChiefJobs();
   $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
   loadCheckup();
   const rename = $('#chief-rename', root);
@@ -254,6 +260,27 @@ async function renameChief(field) {
     field.value = chiefName() === CHIEF_ROLE ? '' : chiefName();
     toast(err.message, true);
   }
+}
+
+// Its own jobs (#408): each with when it runs, a switch and Remove. Drawn again from the feed's chief_jobs, which
+// carries the whole list, or read from the server.
+async function drawChiefJobs(jobs = null) {
+  const box = $('#chief-job-list');
+  if (!box) return;
+  try { jobs ||= (await api('/chief/jobs')).jobs; } catch { box.innerHTML = '<span class="faint">Couldn\'t load its jobs.</span>'; return; }
+  box.innerHTML = jobs.length ? jobs.map((j) => `
+      <div class="bs-row" data-chief-job="${esc(j.id)}">
+        <div class="grow"><b>${esc(j.name)}</b><div class="faint">${esc(j.when)}${j.on ? '' : ' · paused'}</div><div class="faint">${esc(j.task.length > 160 ? `${j.task.slice(0, 160)}…` : j.task)}</div>
+          <button type="button" class="link-btn danger-text" data-chief-job-remove>Remove</button></div>
+        <label class="switch"><input type="checkbox" data-chief-job-on ${j.on ? 'checked' : ''} aria-label="${esc(j.name)} on"><span></span></label>
+      </div>`).join('') : '<div class="faint">None yet.</div>';
+  $$('[data-chief-job]', box).forEach((row) => {
+    const id = row.dataset.chiefJob;
+    $('[data-chief-job-on]', row).onchange = (e) => api(`/chief/jobs/${encodeURIComponent(id)}`, { method: 'PUT', body: { on: e.target.checked } })
+      .catch((err) => { toast(err.message, true); drawChiefJobs(); });
+    $('[data-chief-job-remove]', row).onclick = () => api(`/chief/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' })
+      .then(() => { toast('Removed.'); drawChiefJobs(); }).catch((err) => toast(err.message, true));
+  });
 }
 
 // The library skills you gave the Chief (settings.chiefSkills): ticked as a bot's are in its settings, saved at once.

@@ -20,6 +20,12 @@ function followFeed() {
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
     if (typeof Pages !== 'undefined') Pages.changed(d);
   });
+  // The Chief's own jobs changed (#408): their list in its settings follows.
+  es.addEventListener('chief_jobs', (e) => {
+    let d = {};
+    try { d = JSON.parse(e.data); } catch { /* not ours */ }
+    if (Array.isArray(d.jobs)) drawChiefJobs(d.jobs);
+  });
   // A chat's new replies changed: its dots follow, in every app.
   es.addEventListener('unread', (e) => {
     let d = {};
