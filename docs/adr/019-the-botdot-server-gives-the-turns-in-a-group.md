@@ -79,6 +79,8 @@ Amended by [#124](https://github.com/Kordal/bot-dot/issues/124) (2026-10-19), "@
 
 Amended by [ADR 077](077-a-member-posts-in-its-group-on-its-own.md) (2026-10-23): a member's post starts a line too, for the members it names alone, each handed on by the poster; a post that names nobody gives no turn, and the 12 replies count from it.
 
+Amended by [ADR 079](079-a-later-message-in-a-group-waits-for-the-line-before-it.md) (2026-10-23): a message whose line has not begun waits while an earlier line still goes on with one of its members; a later turn is told who answered before it and to repeat none of them.
+
 ## Alternatives
 
 - **The bots decide among themselves with `message_bot`.** Nothing to build on the server. Rejected: the limit is twenty hops per chain and not per message of the owner's, the messages are folded into each bot's own chat, and nothing but a model's judgement ends the exchange.
