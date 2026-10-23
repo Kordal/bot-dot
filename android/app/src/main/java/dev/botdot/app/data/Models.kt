@@ -1119,7 +1119,7 @@ data class AppInfo(val slug: String = "", val name: String = "", val description
 data class Connection(val id: String, val toolkit: String = "", val status: String = "", val app: AppInfo? = null, val usedBy: List<String> = emptyList())
 
 @Serializable
-data class ConnectorsInfo(val configured: Boolean = false, val keyHint: String? = null, val error: String? = null, val connections: List<Connection> = emptyList())
+data class ConnectorsInfo(val configured: Boolean = false, val keyHint: String? = null, val error: String? = null, val keyRejected: Boolean = false, val connections: List<Connection> = emptyList())
 
 @Serializable
 data class CatalogApp(val slug: String, val name: String = "", val description: String? = null)

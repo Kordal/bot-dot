@@ -162,6 +162,11 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                 item { Section("Connectors aren't working yet", listOfNotNull(i.error, "Come back to try again, or use your own Composio key on botdot's web page (Connectors).").joinToString("\n\n")) {} }
                 return@LazyColumn
             }
+            if (i.keyRejected) {
+                // Composio refuses the key; it is replaced on the web page (#409).
+                item { Section("Composio no longer accepts the key", i.error ?: "Fix it on the Connectors page of botdot's web page.") {} }
+                return@LazyColumn
+            }
             if (!i.error.isNullOrBlank()) item { Text(i.error, color = p.err) }
             item { Text("Connected", color = p.text, style = MaterialTheme.typography.titleMedium) }
             if (i.connections.isEmpty()) item { Hint("No apps yet. Search for one below.") }

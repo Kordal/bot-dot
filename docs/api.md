@@ -1327,6 +1327,7 @@ What the owner saved for the bots to use without ever seeing it: in botdot's own
 
 **Bitwarden:**
 - `GET /api/vault/bitwarden`: `{ installed, configured, unlocked, email, items, wantedBy, … }`.
+- `GET /api/connectors`: `{ configured, account, keyHint, claimInvite, since, keyRejected, error, connections }`. `account` is `botdot` (botdot's own Composio account) or `own` (the owner's key, `keyHint` its last characters). `keyRejected: true` while Composio refuses the key (#409): `error` then says whose key it is and `connections` is empty; draw the fix instead of the page: `POST /api/connectors/renew` for `botdot` (a new botdot Composio account; the apps are connected again from scratch, bots keep the apps they had; `400` for `own`), `PUT /api/connectors/key` `{ key }` with a new key for `own`. An older server sends no `keyRejected`. Before saying so, botdot asks Composio's agent sign-up (`/api/whoami`) for its own account's current key and tries once more with it. A bot's or the Chief's call to an app answers the same `error`.
 - `POST /api/vault/bitwarden/unlock` with `{ password }`: the master password. It's kept only in memory.
 - `POST /api/vault/bitwarden/lock`.
 

@@ -52,6 +52,33 @@ function drawConnectors() {
     };
     return;
   }
+  if (d.keyRejected) {
+    // Composio refuses the key: nothing on the page works until it is replaced (#409).
+    const own = d.account === 'own';
+    root.innerHTML = `${head}
+      <div class="card setup-card">
+        <h3>${own ? `Composio no longer accepts your key ${esc(d.keyHint || '')}` : 'Composio no longer accepts botdot\'s Composio account'}</h3>
+        ${own ? `
+          <form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="New Composio API key" required><button class="btn primary">Save</button></form>
+          <div style="margin-top:10px"><a class="btn sm" href="https://platform.composio.dev" target="_blank" rel="noopener">Open Composio</a> <button class="btn sm" id="conn-forget">Use botdot's account</button></div>`
+        : `
+          <div style="margin:10px 0"><button class="btn primary" id="conn-renew">Make a new account</button></div>
+          <form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="Or your own Composio key" required><button class="btn">Use</button></form>`}
+      </div>`;
+    const renew = $('#conn-renew');
+    if (renew) renew.onclick = async () => {
+      renew.disabled = true;
+      try { await api('/connectors/renew', { method: 'POST' }); conn.catalog = []; toast('Done. Connect your apps again'); } catch (err) { toast(err.message, true); }
+      renderConnectors(true);
+    };
+    $('#conn-key').onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api('/connectors/key', { method: 'PUT', body: { key: e.target.key.value } }); conn.catalog = []; toast('Saved'); renderConnectors(true); } catch (err) { toast(err.message, true); }
+    };
+    const forget = $('#conn-forget');
+    if (forget) forget.onclick = async () => { await api('/connectors/key', { method: 'DELETE' }); conn.catalog = []; renderConnectors(true); };
+    return;
+  }
   const botName = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `<span class="chip">${botLabel(b)}</span>` : ''; };
   const connectedSlugs = new Set(d.connections.filter((c) => c.status === 'ACTIVE').map((c) => c.toolkit));
   const pending = new Set(d.connections.filter((c) => c.status !== 'ACTIVE').map((c) => c.toolkit));
