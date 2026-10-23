@@ -275,6 +275,9 @@ class KeypadTest {
 
     @Test fun aKeysStatusIsWorkingThenNeedsYouThenUnreadThenWhatItsLastRunDid() {
         assertEquals(Keypad.Status(Keypad.StatusKind.WORKING, "Working"), Keypad.status(running = true, needs = true, unread = 3, last = "error"))
+        assertEquals(Keypad.Status(Keypad.StatusKind.WORKING, "Working"), Keypad.status(running = true, runs = 1))
+        assertEquals(Keypad.Status(Keypad.StatusKind.WORKING, "Working ×2"), Keypad.status(running = true, runs = 2))
+        assertEquals(Keypad.Status(Keypad.StatusKind.DONE, "Done"), Keypad.status(runs = 2, last = "success"))
         assertEquals(Keypad.Status(Keypad.StatusKind.NEEDS, "Needs you"), Keypad.status(needs = true, unread = 3))
         assertEquals(Keypad.Status(Keypad.StatusKind.UNREAD, "2 unread"), Keypad.status(unread = 2, last = "success"))
         assertEquals(Keypad.Status(Keypad.StatusKind.DONE, "Done"), Keypad.status(last = "success"))

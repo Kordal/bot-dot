@@ -88,7 +88,7 @@ function pin(bots, groups, item, at) {
 }
 
 // A key's status pill (#397): { kind, text }, the first that holds of
-//   working  a run is going ("Working")
+//   working  a run is going ("Working"; "Working ×2" while `runs`, the runs going, is 2 or more: ADR 062)
 //   needs    it asks the owner something, or a card of its waits in Needs you ("Needs you")
 //   unread   new replies the owner has not read ("2 unread")
 //   done     its last run finished ("Done")
@@ -96,8 +96,8 @@ function pin(bots, groups, item, at) {
 //   idle     anything else ("Idle"): no run yet, or the owner stopped the last one.
 // last: the status of its newest run ("success", "error", "stopped"…), null for none.
 // kind is also the pill's colour on every app: working info, needs warn, unread plan, done ok, failed err, idle none.
-function status({ running = false, needs = false, unread = 0, last = null } = {}) {
-  if (running) return { kind: 'working', text: 'Working' };
+function status({ running = false, runs = 0, needs = false, unread = 0, last = null } = {}) {
+  if (running) return { kind: 'working', text: runs > 1 ? `Working ×${runs}` : 'Working' };
   if (needs) return { kind: 'needs', text: 'Needs you' };
   if (unread > 0) return { kind: 'unread', text: `${unread} unread` };
   if (last === 'success') return { kind: 'done', text: 'Done' };

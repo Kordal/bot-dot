@@ -165,6 +165,7 @@ data class Bot(
     val pinned: Int = 0, // its place right below the Chief (1 = first); 0 = not pinned
     val order: Int = 0, // its place in its group (1 = first); 0 = pinned, or never placed (then A–Z)
     val running: Boolean = false,
+    val runningCount: Int = 0, // its runs going now, up to three (ADR 062); 0 from a server without it
     val state: String = "idle", // what its figure shows: idle, working, waiting, needs_you, failed, paused
     val outfit: JsonElement? = null, // what it wears: { hat }, a kit name, "" or a hat drawn inline; null: none
     val computer: String = "none",
