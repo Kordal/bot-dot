@@ -178,9 +178,9 @@ function tileHTML(t, waiting, sourced = false) {
   const open = t.kind === 'group' && openGroups.has(t.id);
   const size = t.size || (t.wide ? 'wide' : 'small');
   const kpi = isKpiTile(t);
-  // Quietly at the end of its head: that a bot or the Chief wrote it, or where its value comes from ("script · 30 s").
-  // A note says when it was written.
-  const aside = t.ai && hasMarkdown(look.face) ? '<span class="tile-ai">written by AI</span>' : t.source && !kpi && !sourced ? `<span class="tile-src">${esc(t.source)}</span>` : '';
+  // Quietly at the end of its head: that a bot or the Chief wrote it, or how long ago it last read its value
+  // ("1 min ago"; where it reads from stays in its title). A note says when it was written.
+  const aside = t.ai && hasMarkdown(look.face) ? '<span class="tile-ai">written by AI</span>' : t.source && !kpi && !sourced ? ageHTML(Date.parse(t.at || '') || 0, t.source) : '';
   const when = t.kind === 'note' && t.at ? `<span class="tile-when">${esc(kitClock(Date.parse(t.at)))}</span>` : '';
   return `<div role="button" tabindex="0" class="tile kind-${t.kind} size-${size} ${kpi ? 'kpi-tile' : ''} ${kpi && size === 'small' ? 'compact' : ''} ${look.dot?.big ? 'big-dot' : ''} ${waiting ? 'waiting' : ''} ${open ? 'open' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${pressed}${t.kind === 'group' ? ` aria-expanded="${open}"` : ''} title="${esc(t.error || '')}">
     <div class="tile-head">${dot}<span class="tile-title">${esc(t.title)}</span>${when}${aside}${PEN_BTN()}</div>
@@ -218,19 +218,25 @@ function boardRuns(ts) {
   }
   return out;
 }
-// Beside a heading: the bots its tiles come from; at its end, where their values come from when that is one
-// for all of them ("script · 30 s"), said there once and not on each tile.
+// Beside a heading: the bots its tiles come from; at its end, when their values come from one source for all of
+// them ("script · 30 s"), how long ago they last read, said there once and not on each tile.
 const sectionBots = (ts) => [...new Set(ts.map((t) => botById(t.bot)?.name).filter(Boolean))].join(', ');
 const sectionSource = (ts) => { const all = [...new Set(ts.map((t) => t.source).filter(Boolean))]; return all.length === 1 ? all[0] : ''; };
-// "Live · updated 3s ago": the age of the newest value on the Board, in seconds; nothing while none has come.
-function liveWords(secs) {
+// "3s ago", "2 min ago", "2 h ago": the age of a value, from its seconds.
+function ageWords(secs) {
   const s = Math.max(0, Math.floor(secs));
-  return `Live · updated ${s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h`} ago`;
+  return `${s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h`} ago`;
 }
+// "Live · updated 3s ago": the age of the newest value on the Board; nothing while none has come.
+const liveWords = (secs) => `Live · updated ${ageWords(secs)}`;
 const newestAt = (tiles) => Math.max(0, ...(tiles || []).map((t) => Date.parse(t.at || '') || 0));
+// The age of a value that was read at `at` (ms), counting every second; its source ("http · 1 min") on hover.
+const ageHTML = (at, source) => (at ? `<span class="tile-src" data-age="${at}" title="${esc(source)}">${esc(ageWords((Date.now() - at) / 1000))}</span>` : '');
 setInterval(() => {
-  const el = state.view === 'dashboard' && $('#view-dashboard [data-live]');
+  if (state.view !== 'dashboard') return;
+  const el = $('#view-dashboard [data-live]');
   if (el) el.textContent = liveWords((Date.now() - newestAt(state.dash?.tiles)) / 1000);
+  $$('#view-dashboard [data-age]').forEach((x) => { x.textContent = ageWords((Date.now() - Number(x.dataset.age)) / 1000); });
 }, 1000);
 // The heading shown (its name), or all of them (''); kept in this browser.
 let boardFilter = (() => { try { return localStorage.getItem('board-filter') || ''; } catch { return ''; } })();
@@ -255,10 +261,9 @@ function renderDashboard() {
   const withInside = (t, sourced) => tileHTML(t, waiting.has(t.id), sourced) + (t.kind === 'group' && openGroups.has(t.id)
     ? `<div class="dash-inside"><div class="dash-grid" data-section="${esc(t.section)}" data-parent="${esc(t.id)}">${d.tiles.filter((x) => x.parent === t.id).map((x) => tileHTML(x, waiting.has(x.id))).join('') || '<div class="faint">Nothing in it yet.</div>'}</div></div>` : '');
   const runHTML = (r, sourced) => (r.tile ? withInside(r.tile, sourced) : `<div class="ctl-box"><div class="tile-head"><span class="tile-title">Controls</span></div>${r.rows.map((t) => controlRowHTML(t, waiting.has(t.id))).join('')}</div>`);
-  const sources = d.tiles.filter((t) => t.source).length;
   const newest = newestAt(d.tiles);
   root.innerHTML = `
-    <div class="section-head board-head"><div>${BACK_BTN}<h1>Board</h1>${sources ? `<p>${sources === 1 ? '1 source' : `${sources} sources`}</p>` : ''}</div>
+    <div class="section-head board-head"><div>${BACK_BTN}<h1>Board</h1></div>
       <div class="board-tools">${newest ? `<span class="board-live" data-live>${esc(liveWords((Date.now() - newest) / 1000))}</span>` : ''}${named.length > 1 ? `<div class="seg board-filter">${['', ...named].map((n) => `<button class="${n === boardFilter ? 'on' : ''}" data-filter="${esc(n)}">${esc(n || 'All')}</button>`).join('')}</div>` : ''}</div></div>
     ${d.tiles.length ? '' : `<div class="dash-empty">
       <p>Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.</p>
@@ -267,7 +272,7 @@ function renderDashboard() {
     ${shown.map(([name, ts]) => {
     const by = sectionBots(ts);
     const from = name ? sectionSource(ts) : '';
-    return `${name ? `<h3 class="dash-sec">${esc(name)}${by ? ` <span class="by">${esc(by)}</span>` : ''}${from ? `<span class="tile-src">${esc(from)}</span>` : ''}</h3>` : ''}<div class="dash-grid" data-section="${esc(name)}">${boardRuns(ts).map((r) => runHTML(r, !!from)).join('')}</div>`;
+    return `${name ? `<h3 class="dash-sec">${esc(name)}${by ? ` <span class="by">${esc(by)}</span>` : ''}${from ? ageHTML(newestAt(ts.filter((t) => t.source)), from) : ''}</h3>` : ''}<div class="dash-grid" data-section="${esc(name)}">${boardRuns(ts).map((r) => runHTML(r, !!from)).join('')}</div>`;
   }).join('')}
     ${(d.suggestions || []).length ? `<h3 class="dash-sec">Suggested</h3><div class="dash-grid">${d.suggestions.map(suggestedHTML).join('')}</div>` : ''}`;
   $$('[data-tile]', root).forEach((el) => {

@@ -55,7 +55,7 @@ test('web: one chart code: lines with gridlines, axes and a legend, bars, stacke
 
 const boardKit = () => {
   const ctx = vm.createContext({ botById: (id) => ({ b1: { name: 'Home Helper' }, b2: { name: 'Server Watch' } }[id]), setInterval() {}, state: {}, localStorage: { getItem: () => null } });
-  vm.runInContext(`${cut('// A tile whose face is one number', 'function tileHTML(')}\n${cut('// The tiles under one heading as they are drawn', 'function renderDashboard() {')}\nthis.out = { isKpiTile, isControlRow, boardRuns, sectionBots, sectionSource, liveWords, newestAt };`, ctx);
+  vm.runInContext(`${cut('// A tile whose face is one number', 'function tileHTML(')}\n${cut('// The tiles under one heading as they are drawn', 'function renderDashboard() {')}\nthis.out = { isKpiTile, isControlRow, boardRuns, sectionBots, sectionSource, ageWords, liveWords, newestAt };`, ctx);
   return ctx.out;
 };
 
@@ -78,7 +78,8 @@ test('web: a heading names its bots, and where its values come from when that is
 });
 
 test('web: the Live marker says the age of the newest value', () => {
-  const { liveWords, newestAt } = boardKit();
+  const { ageWords, liveWords, newestAt } = boardKit();
+  assert.equal(ageWords(65), '1 min ago', 'a tile and a heading say only how long ago it read');
   assert.equal(liveWords(3.7), 'Live · updated 3s ago');
   assert.equal(liveWords(-2), 'Live · updated 0s ago', 'a clock a little ahead');
   assert.equal(liveWords(125), 'Live · updated 2 min ago');
