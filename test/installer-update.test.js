@@ -170,6 +170,24 @@ test("an account whose new server doesn't start runs its old version again, and 
   assert.ok(calls('ann').some((c) => /update-install\.js --clean/.test(c)), "the updated account's are");
 });
 
+test("an account whose new server starts slowly is waited for while its container runs, not rolled back (#519)", (t) => {
+  // bob's first `compose up` starts a server that makes no socket yet, as one held at its memory limit; its container
+  // runs, and its socket comes on the fifth look past the 90 seconds.
+  const ups = '"$BOT_DOT_DIR/bob-ups"', looks = '"$BOT_DOT_DIR/bob-looks"';
+  const folder = `"$(sed -n 's/^BOT_DOT_FRONT_DOOR_FOLDER=//p' "$3/.env")"`;
+  const { update, log, calls, home } = updateWithBob(t, [
+    `[ "$1" = compose ] && [ "$4" = up ] && [ ! -e ${ups} ] && { touch ${ups}; rm -f ${folder}/botdot.sock; exit 0; }`,
+    `[ "$1" = compose ] && [ "$4" = ps ] && { echo x >> ${looks}; [ "$(wc -l < ${looks})" -lt 5 ] || "${process.execPath}" -e "require('net').createServer().listen(process.argv[1], () => process.exit(0))" ${folder}/botdot.sock; echo c0ffee; exit 0; }`,
+  ].join('; '));
+  assert.equal(update.state, 'updated', log);
+  assert.match(log, /The account bob's botdot server is still starting\. Waiting up to 10 minutes\./);
+  assert.equal(log.match(/still starting/g).length, 1, 'said once');
+  assert.doesNotMatch(log, /goes back to the version it ran/);
+  assert.equal(calls('bob').filter((c) => /^compose .* up -d/.test(c)).length, 1, 'started once, on the new version');
+  assert.ok(calls('bob').some((c) => /^compose --project-directory \S+ ps -q --status running bot-dot$/.test(c)), 'it asked whether the container runs');
+  assert.doesNotMatch(fs.readFileSync(path.join(home, 'compose.yaml'), 'utf8'), /# the version before/);
+});
+
 test("an account whose download fails keeps its version, and the update goes on with the others (#194)", (t) => {
   const { update, log, home, calls } = updateWithBob(t, `[ "$1" = pull ] && case "$3" in *bot-dot@*) echo 'write /var/lib/docker/x: no space left on device' >&2; exit 1 ;; esac`);
   assert.equal(update.state, 'failed', log);
