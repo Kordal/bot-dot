@@ -52,7 +52,9 @@ fixes. botdot updates itself from Settings → Updates.
   checkup, a reminder, a bot's result) has no connected apps, except the one a late yes on its card
   starts. A look (the Chief writing first) reads your mail and calendar (Gmail, Google Calendar, Outlook)
   when connected, and only reads: botdot refuses anything else in it, without a card
-  ([ADR 070](docs/adr/070-a-look-reads-the-owners-mail-and-calendar-read-only.md)). Composio's key and the
+  ([ADR 070](docs/adr/070-a-look-reads-the-owners-mail-and-calendar-read-only.md)). A Gmail draft the Chief
+  makes in a chat you started needs no card; sending it does
+  ([ADR 074](docs/adr/074-the-chief-drafts-replies-the-owner-owes-and-a-gmail-draft-needs-no-card.md)). Composio's key and the
   apps' tokens never reach the Chief.
 - Script jobs, and jobs the Chief or a bot set up, wait for your approval before they run.
 
