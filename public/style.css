@@ -1256,6 +1256,11 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .notes-fold.theirs, .notes-fold.theirs .note { align-items: flex-start; } /* a bot's own side of an exchange with another bot */
 .notes-fold.theirs { max-width: 100%; }
 .notes-fold.theirs > summary { padding: 0 6px; }
+.notes-fold > summary.fold-line { display: flex; align-items: center; max-width: 100%; min-width: 0; }
+.fold-line::after { flex: none; }
+.fold-who { flex: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fold-peek { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); margin-left: 8px; }
+.notes-fold[open] > summary .fold-peek { display: none; }
 .bubble.from-other-bot { background: var(--sunk); color: var(--text); border: 1px dashed var(--line-2); border-radius: 22px 22px 6px 22px; white-space: pre-wrap; }
 
 /* a bot's settings and jobs, in the panel beside its chat */

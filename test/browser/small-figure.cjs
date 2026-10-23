@@ -127,7 +127,20 @@ const CHIEF = '#d85a30';
     const folds = page.locator('#view-bot details.notes-fold');
     assert.equal(await folds.evaluateAll((all) => all.filter((d) => d.open).length), 0, 'every fold is closed');
     const lines = (await page.locator('#view-bot details.notes-fold > summary, #view-bot .bot-msg-label').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim());
-    assert.deepEqual(lines, ['Message from Fleet Doctor', 'Replied to Fleet Doctor', '', 'Message from Chief of Staff', 'Replied to Chief of Staff'], 'the folded lines say what they said, and what is inside a fold is not shown');
+    assert.deepEqual(lines, ['Message from Fleet Doctor Your status, please?', 'Replied to Fleet Doctor Told Fleet Doctor.', '', 'Message from Chief of Staff Sort today’s mail.', 'Replied to Chief of Staff Sorted: two bills and a letter from school.'],
+      'the folded lines say who and the first words, and what is inside a fold is not shown');
+    // A reply to another bot or the Chief is folded too (#413): its bubble shows once its line is tapped, and the first words go.
+    const answer = page.locator('#view-bot .bubble.from-bot', { hasText: 'Sorted: two bills' });
+    assert.equal(await answer.isVisible(), false, 'the reply to the Chief is folded');
+    const replied = page.locator('#view-bot details.notes-fold.theirs > summary', { hasText: 'Replied to Chief of Staff' });
+    const peek = replied.locator('.fold-peek');
+    const height = (await replied.boundingBox()).height;
+    assert.ok(height < 30, `the folded line is one line (${height}px)`);
+    await replied.click();
+    assert.equal(await answer.isVisible(), true, 'a tap opens it');
+    assert.equal(await peek.isVisible(), false, 'open, the first words go');
+    await shot('web-chat-reply-open-phone');
+    await replied.click();
     const marks = page.locator('#view-bot details.notes-fold > summary svg.fig-small, #view-bot .bot-msg-label svg.fig-small');
     assert.equal(await marks.count(), 5, 'one head per bot named');
     small(await look(marks.nth(0)), bots.doctor.color, 'nurse', 'Message from Fleet Doctor');
