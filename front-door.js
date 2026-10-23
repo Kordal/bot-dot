@@ -54,6 +54,8 @@ const loadFiles = require('./lib/front-door/load');
 const whatsNew = require('./lib/whats-new');
 const roomStore = require('./lib/front-door/rooms');
 const roomTurns = require('./lib/front-door/room-turns');
+const groupRouterStore = require('./lib/front-door/group-router');
+const groupRouterLib = require('./lib/group-router');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -687,6 +689,19 @@ function askAccount(account, method, to, body, timeoutMs) {
   });
 }
 
+// The group router the admin chose (#513): handed to every account's botdot server on a change and every minute, so
+// that one that started again has it back (it keeps it in memory alone). Haiku meanwhile.
+const groupRouter = ONE_ACCOUNT ? null : groupRouterStore.open(DATA);
+function handRouter() {
+  if (!groupRouter) return;
+  const body = groupRouter.forAccounts();
+  for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/group-router', body, 5000);
+}
+if (groupRouter) {
+  setTimeout(handRouter, 3000).unref();
+  setInterval(handRouter, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
+}
+
 // The live events of rooms, per account: GET /front-door/rooms/events.
 const roomStreams = new Map(); // account → Set of responses
 function toAccount(account, event, data) {
@@ -907,6 +922,23 @@ async function adminRoutes(req, res, p, account) {
     console.log(`[front door] the admin turned shared rooms ${on ? 'on' : 'off'}`);
     if (!on) { for (const r of roomsAll()) turns.stop(r.id); closeRoomStreams(); }
     return send(res, 200, { on });
+  }
+  // The group router (#513): Haiku, or Jev with the admin's OpenRouter key, checked with one call before it is kept.
+  // The key is never answered.
+  if (p === '/admin/group-router' && req.method === 'GET') return send(res, 200, groupRouter.shown());
+  if (p === '/admin/group-router' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const key = typeof body.key === 'string' ? body.key.trim() : '';
+    if (body.router === 'jev' && key) {
+      const checked = await groupRouterLib.checkKey(key);
+      if (checked === 'refused') return send(res, 400, { error: 'OpenRouter refused this key.' });
+      if (checked === 'unreachable') return send(res, 502, { error: "OpenRouter can't be reached. Try again." });
+    }
+    let shown;
+    try { shown = groupRouter.set(body.router, key || undefined); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
+    console.log(`[front door] the admin chose ${shown.router === 'jev' ? 'Jev' : 'Haiku'} to pick who answers in a group`);
+    handRouter();
+    return send(res, 200, shown);
   }
   if (p === '/admin/accounts' && req.method === 'GET') {
     switchPastDeadline();
