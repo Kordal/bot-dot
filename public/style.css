@@ -1516,6 +1516,25 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .kp-fold .chev.closed { transform: rotate(-90deg); }
 .kp-busy { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-left: 6px; }
 .kp-page.folded .kp-page-keys:empty, .kp-section.folded .kp-sec-keys { display: none; }
+/* A narrow keypad (an open page beside the chat leaves it ~320px): fewer keys a row, never fewer than a head, a
+   name and a status each, and nothing that scrolls sideways. Below 480 one key a row, and Needs you under the strip. */
+@container side (width < 700px) {
+  .keypad .kp-page-keys { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container side (width < 480px) {
+  .keypad { gap: 16px; }
+  .keypad .kp-head { flex-wrap: wrap; }
+  .keypad .kp-needs.kp-needs-card { flex: 1 1 100%; min-width: 0; }
+  .keypad .kp-page-keys, .keypad .kp-pinned .kp-page-keys { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; gap: 10px; }
+  .keypad .key, .keypad .kp-pinned .key { gap: 12px; padding: 14px 16px; border-radius: 16px; }
+  .keypad .key .avatar, .keypad .key .group-pic, .keypad .kp-pinned .key .avatar, .keypad .kp-pinned .key .group-pic { width: 40px; height: 40px; }
+  .keypad .key .group-pic > i { width: 26px; height: 26px; }
+  .keypad .key .group-pic > i:nth-child(3) { left: 7px; }
+  .keypad .key .name { font-size: 15px; }
+  .keypad .key-status { margin-top: 6px; }
+  .keypad .key-n { top: 12px; right: 14px; }
+  .keypad .key-ask { min-height: 56px; }
+}
 
 /* ---------- the keypad on a phone: its home below the list's phone width (list.js, drawKeypadSections; #498) ----------
    The pages stand one under the other, each a section of keys in rows of three, under the Board's values and over
