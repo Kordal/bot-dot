@@ -29,7 +29,7 @@ const fake = http.createServer((req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/api/whoami') {
       if (req.headers.authorization !== `Bearer ${AGENT_KEY}`) return json(401, { message: 'Bad agent key' });
-      return json(200, { status: 'READY', composio: { api_key: seen.whoamiKey } });
+      return json(200, { status: 'READY', claimed_by: seen.claimedBy || null, claimed_at: seen.claimedBy ? '2026-10-23T05:00:00Z' : null, composio: { api_key: seen.whoamiKey } });
     }
     if (req.method === 'POST' && url.pathname === '/api/claim') {
       if (req.headers.authorization !== `Bearer ${AGENT_KEY}`) return json(401, { message: 'Bad agent key' });
@@ -84,13 +84,20 @@ test('the first visit makes botdot\'s own Composio account, once', async () => {
   assert.equal(seen.signups - before, 1, 'later visits reuse it');
 });
 
-test('claiming sends an invite with the account\'s own agent key', async () => {
+test('claiming sends an invite with the account\'s own agent key, and an accepted invite shows as claimed', async () => {
+  assert.equal((await srv.api('/connectors')).data.claimed, false, 'botdot\'s new account is not claimed');
   const bad = await srv.api('/connectors/claim', { method: 'POST', body: { email: 'nope' } });
   assert.notEqual(bad.status, 200);
-  const r = await srv.api('/connectors/claim', { method: 'POST', body: { email: 'me@example.com' } });
+  let r = await srv.api('/connectors/claim', { method: 'POST', body: { email: 'me@example.com' } });
   assert.equal(r.status, 200);
   assert.deepEqual(seen.claims, ['me@example.com']);
   assert.equal(r.data.claimInvite, 'me@example.com');
+  assert.ok(Date.now() - Date.parse(r.data.claimInviteAt) < 60_000, 'when it was sent, for the 24 hours it is good for');
+  assert.equal((await srv.api('/connectors')).data.claimed, false, 'not accepted yet');
+  seen.claimedBy = 'owner';
+  r = await srv.api('/connectors/claim', { method: 'POST', body: { email: 'me@example.com' } }); // sent again
+  assert.equal((await srv.api('/connectors')).data.claimed, true, 'accepted: whoami names who claimed it');
+  seen.claimedBy = null;
 });
 
 test('your own key replaces it, and removing yours goes back to botdot\'s account', async () => {

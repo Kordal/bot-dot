@@ -506,6 +506,9 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .icon-btn.sm { width: 26px; height: 26px; font-size: 12px; flex: none; }
 .memory-add { display: flex; gap: 6px; }
 .memory-add input { flex: 1; }
+.claim-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0 14px; }
+.claim-line > span, .claim-line > b { flex: 1 1 auto; }
+.claim-line input { flex: 1 1 200px; }
 
 /* settings */
 .settings-card { padding: 18px 20px; margin-bottom: 14px; display: grid; gap: 12px; }

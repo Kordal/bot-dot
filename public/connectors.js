@@ -5,6 +5,21 @@ const CONN_STATUS = { ACTIVE: ['ok', 'connected'], INITIATED: ['warn', 'waiting 
 
 const appLogo = (a) => (a?.logo ? `<img class="app-logo" src="${esc(a.logo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<span class="app-logo ph">${esc((a?.name || '?')[0])}</span>`);
 
+// botdot's own Composio account still to be claimed (#414): null, or { invited, expires } while an invite is fresh.
+const CLAIM_HOURS = 24; // Composio's claim invite is good for a day
+function claimState(d) {
+  if (!d || d.account !== 'botdot' || d.claimed) return null;
+  const left = d.claimInviteAt ? CLAIM_HOURS - (Date.now() - Date.parse(d.claimInviteAt)) / 3_600_000 : 0;
+  return left > 0 ? { invited: d.claimInvite, hours: Math.max(1, Math.round(left)) } : {};
+}
+const claimLine = (cs) => (cs.invited
+  ? `<div class="claim-line"><span>Invite sent to ${esc(cs.invited)} · expires in ${cs.hours} h</span><button class="btn sm" id="conn-claim-again">Send again</button></div>`
+  : `<form id="conn-claim" class="claim-line memory-add" autocomplete="off"><b>Claim your Composio account</b><input type="email" name="email" placeholder="Your email" required><button class="btn primary">Claim</button></form>`);
+async function sendClaim(email) {
+  await api('/connectors/claim', { method: 'POST', body: { email } });
+  toast('Invite sent. Check your email');
+}
+
 // Only fetch when the page is opened or something changed, not on every regular refresh of the web page.
 async function renderConnectors(force = false) {
   const root = $('#view-connectors');
@@ -82,8 +97,10 @@ function drawConnectors() {
   const botName = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `<span class="chip">${botLabel(b)}</span>` : ''; };
   const connectedSlugs = new Set(d.connections.filter((c) => c.status === 'ACTIVE').map((c) => c.toolkit));
   const pending = new Set(d.connections.filter((c) => c.status !== 'ACTIVE').map((c) => c.toolkit));
+  const cs = claimState(d);
   root.innerHTML = `${head}
     ${d.error ? `<div class="req-note">${esc(d.error)}</div>` : ''}
+    ${cs ? claimLine(cs) : ''}
     <h3 class="page-sub">Your apps <span class="faint">· choose which bots may use each one</span></h3>
     ${d.connections.length || d.reconnect?.length ? `<div class="grid">${(d.reconnect || []).map((a) => `
       <article class="card app-card">
@@ -123,8 +140,6 @@ function drawConnectors() {
     ${conn.next ? '<div style="text-align:center;margin:16px 0"><button class="btn" id="conn-more">Show more</button></div>' : ''}
     <details class="bs-history conn-account" style="margin:24px 0 8px" ${conn.accountOpen ? 'open' : ''}><summary class="faint">Composio account</summary>
       ${d.account === 'botdot' ? `
-        <form id="conn-claim" class="memory-add" autocomplete="off"><input type="email" name="email" placeholder="Your email" required><button class="btn">Claim it</button></form>
-        <div class="faint" style="font-size:12px">${d.claimInvite ? `Invite sent to ${esc(d.claimInvite)}.` : 'For Composio\'s dashboard. Your apps stay connected.'}</div>
         <form id="conn-key" class="memory-add" autocomplete="off" style="margin-top:10px"><input type="password" name="key" placeholder="Or your own Composio key" required><button class="btn">Use</button></form>`
       : `<div class="faint" style="font-size:12.5px">Your key ${esc(d.keyHint || '')} · <button class="link-btn" id="conn-forget">Remove</button></div>`}
     </details>`;
@@ -159,8 +174,10 @@ function drawConnectors() {
   const claimForm = $('#conn-claim');
   if (claimForm) claimForm.onsubmit = async (e) => {
     e.preventDefault();
-    try { await api('/connectors/claim', { method: 'POST', body: { email: e.target.email.value } }); toast('Invite sent. Check your email'); renderConnectors(true); } catch (err) { toast(err.message, true); }
+    try { await sendClaim(e.target.email.value); renderConnectors(true); } catch (err) { toast(err.message, true); }
   };
+  const again = $('#conn-claim-again');
+  if (again) again.onclick = async () => { again.disabled = true; try { await sendClaim(d.claimInvite); renderConnectors(true); } catch (err) { again.disabled = false; toast(err.message, true); } };
   const keyForm = $('#conn-key');
   if (keyForm) keyForm.onsubmit = async (e) => {
     e.preventDefault();
@@ -206,12 +223,21 @@ function chooseAppBots(slug, justConnected = false) {
       <div class="modal-body">
         <p class="muted" style="margin:0">They act on your real account. They'll read freely, but only send, post, change or delete things when you (or their task) ask for it.</p>
         ${botCheckboxes(used).replaceAll(' disabled title="Skills are turned off for this bot"', '')}
+        ${justConnected && claimState(conn.data) && !claimState(conn.data).invited ? '<label class="field" style="margin-top:12px">Claim your Composio account<input type="email" name="email" placeholder="Your email" autocomplete="email"></label>' : ''}
       </div>
       <div class="modal-foot"><button type="button" class="btn" data-dismiss>Cancel</button><button class="btn primary">Save</button></div>
     </form>`);
   $('#app-bots', m).onsubmit = async (e) => {
     e.preventDefault();
     const bots = $$('input[name=bot]:checked', m).map((c) => c.value);
-    try { await api(`/connectors/apps/${encodeURIComponent(slug)}/bots`, { method: 'PUT', body: { bots } }); m.close(); toast('Saved'); await refresh(); renderConnectors(true); } catch (err) { toast(err.message, true); }
+    const email = e.target.email?.value.trim();
+    try {
+      await api(`/connectors/apps/${encodeURIComponent(slug)}/bots`, { method: 'PUT', body: { bots } });
+      if (email) await sendClaim(email);
+      m.close();
+      if (!email) toast('Saved');
+      await refresh();
+      renderConnectors(true);
+    } catch (err) { toast(err.message, true); }
   };
 }
