@@ -70,10 +70,14 @@ test('a turn is told once when to answer, pass, hand on and end; a handed-on tur
   const facts = { group: { name: 'Dev' }, members, mentioned: false };
   const note = turnNote(members[1], facts);
   // Each rule of the wording, each once; the rule of a message sent with "@all" (#124) not at all.
-  const { together, after, ...rules } = RULES;
+  const { together, after, working, ...rules } = RULES;
   for (const rule of Object.values(rules)) assert.equal(count(note, rule), 1, rule);
   assert.equal(count(note, together), 0);
   assert.equal(count(note, after), 0, 'nobody answered before the first turn');
+  assert.equal(count(note, working), 0, 'nobody works in the background (#509)');
+  assert.equal(count(turnNote(members[1], { ...facts, working: ['a', 'b'] }), working), 1, 'told once, of the others only');
+  assert.ok(turnNote(members[1], { ...facts, working: ['a', 'b'] }).includes('a member still working on its part of this message] 📝 Issue Writer'));
+  assert.equal(count(turnNote(members[1], { ...facts, working: ['b'] }), working), 0, 'never of itself');
   assert.match(RULES.answer, /Answer what is yours to add/);
   assert.ok(RULES.answer.includes(`reply with the single word ${PASS} and nothing else`));
   assert.match(RULES.question, /A question is answered, not acted on/);

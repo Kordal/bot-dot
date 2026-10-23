@@ -4,6 +4,8 @@
 - **Owning task:** [#489](https://github.com/Kordal/bot-dot/issues/489)
 - **Changes:** [ADR 019](019-the-botdot-server-gives-the-turns-in-a-group.md) ("The botdot server keeps the line of turns for each message of the owner's"), [ADR 020](020-a-member-reads-the-groups-chat-and-keeps-its-own-memory.md) (what a turn reads)
 
+Amended by [ADR 080](080-a-long-turn-in-a-group-goes-on-in-the-background.md) (2026-10-23): a turn still at work after 90 seconds goes on in the background; its line, and a later message, go on without it, and its reply hands on when it lands.
+
 ## Context
 
 The turns of one message come one after another (ADR 019), and each turn reads the group's chat with the replies before it (ADR 020). Each message has a line of its own, though, and two lines went side by side. Since a bot may run three runs at once (ADR 062), a member no longer waits for itself either. On a live account the owner wrote "Pick the issues you can work on" and, 43 seconds later, "Only the ones assigned to me": the second line started at once, beside the first, with the same members. Two members then answered both messages at the same time, neither reading the other's answer still being written, and the owner got four near-identical lists of issues.
