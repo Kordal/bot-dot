@@ -22,7 +22,7 @@
 
 A messenger-style app for a team of **bots**. Each bot is a Claude Code agent with its own job, and a **Chief of Staff** creates and runs them when you ask it in a chat. botdot runs on your own server, and you use it on the web and on Android.
 
-![botdot on the web in a wide window: the Board's values and the team as keys (the Chief of Staff and pinned bots, then the Daily, Home and Tech categories, each bot a coloured head with a hat and dots for new replies) on the left, and News Monitor's chat with its morning headlines on the right, in dark mode](docs/screenshots/web-home.png)
+![botdot on the web in a wide window: on the left the keypad, with the Board's values as live cards, one card for what needs you, and the team as keys (the Chief of Staff and pinned bots, then the Daily and Home categories), each bot a coloured head with a hat and its status: Working, Done, unread or Idle; on the right News Monitor's chat with its morning headlines](docs/screenshots/web-home.png)
 
 ## Features
 
@@ -31,7 +31,7 @@ A messenger-style app for a team of **bots**. Each bot is a Claude Code agent wi
 | 🎩 **Chief of Staff** | Tell it what you need. It makes the bots, changes them, runs them and reports back. It writes to you first when it finds something worth saying, briefs you at the times you name, and drafts the replies you owe from your mail. |
 | 🤖 **Bots with one job each** | Every bot has its own instructions, tools, permissions, workspace and scheduled jobs. Its face shows what it is doing. A busy bot answers a new message at once, and `/btw` asks it a quick side question without stopping its work. |
 | 📋 **The Board** | One page of live tiles for the things you use most: switches, values, lists and notes. [More below](#the-board). |
-| 📄 **Pages** | Reports and overviews a bot keeps for you, up to date on a schedule, with the Board's live numbers and charts. A bot with a computer can publish a small interactive site, sandboxed on an address of its own. Any long reply exports to Word, PDF, Markdown or Google Docs. |
+| 📄 **Pages** | Reports and overviews a bot keeps for you, up to date on a schedule, with the Board's live numbers and charts. A bot with a computer can publish a small interactive site, sandboxed on an address of its own. Any long reply exports to Word, PDF, Markdown or Google Docs. [More below](#pages). |
 | ⏰ **Scheduled jobs** | A job runs on a schedule. When no AI is needed, a small script runs instead. |
 | 👥 **Groups and shared rooms** | Put two to six bots in one chat, and they hand the work on to each other. On a machine of several accounts, shared rooms bring other people and their bots into one chat. |
 | 🧠 **Memory** | Bots remember what you tell them, and you correct or erase it by chat. |
@@ -44,7 +44,7 @@ A messenger-style app for a team of **bots**. Each bot is a Claude Code agent wi
 
 The Board is your page of tiles: the temperature, a light switch, a shopping list, your next meeting, a server's disk, a morning summary. It reads like a status page: numbers with how they changed and a line of recent values, charts, statuses and tables. Its values sit on top of the keypad and the list as small live cards, so the numbers you check every day are the first thing you see.
 
-![The Board on the web: tiles under the headings Home, Today and Server, with the living room temperature, the heating, a shopping list, a wide morning summary, unread mail, the next meeting, backups, disk use and updates, in dark mode](docs/screenshots/web-board.png)
+![The Board on the web, beside the keypad: headings Today and Home with the bots they come from, unread mail with its change since the morning, the next meeting, the living room temperature, and the heating, hall light and all-lights-off button in one Controls box](docs/screenshots/web-board.png)
 
 **You build it by chat.** There are no edit buttons: ask the Chief to "add a switch for the living room light", "move Server to the top" or "make the summary wide", and it does. You drag tiles to rearrange them.
 
@@ -68,6 +68,14 @@ Every tile belongs to a bot, uses that bot's saved logins and wears its colour. 
 
 The [user guide](docs/user-guide.md#board) has the details.
 
+## Pages
+
+Ask a bot for a report or an overview and it saves it as a page: a title, the numbers that matter with how they changed, charts, statuses and what waits for you. Tap **Keep up to date** and it rewrites the page every hour, morning or Monday, while numbers tied to the Board stay live.
+
+![A page by Server Watch, Home server: a weekly report with uptime, disk, backups and updates as numbers, a chart of CPU over the last seven days, disk use by folder, status pills and a callout that a kernel update waits for a restart](docs/screenshots/web-page.png)
+
+A bot that uses the computer can also publish an interactive page, a small site with views, filters or a kanban, sandboxed on an address of its own. The [user guide](docs/user-guide.md#pages-reports-and-overviews-your-bots-keep) has the details.
+
 ## Your team, run by chat
 
 <table>
@@ -87,7 +95,7 @@ botdot has one look, dark, on the web and on Android. A bot's head shows its sta
 
 <table>
 <tr>
-<td width="25%"><img src="docs/screenshots/phone-list.png" alt="The list on a phone: the Board's values on top, then pinned bots and the Daily, Home and Tech categories"></td>
+<td width="25%"><img src="docs/screenshots/phone-list.png" alt="The list on a phone: the Board's values on top as cards that scroll sideways, one card for what needs you, then the pinned bots with their status and the Daily category"></td>
 <td width="25%"><img src="docs/screenshots/phone-chat.png" alt="News Monitor's chat on a phone, with a 'Waiting for your OK' banner on top"></td>
 <td width="25%"><img src="docs/screenshots/phone-board.png" alt="The Board on a phone"></td>
 <td width="25%"><img src="docs/screenshots/phone-needs-you.png" alt="Needs you on a phone: Server Watch asks to put 'Router uptime' on the Board, with its script and the buttons Decline and remove, and Approve"></td>
