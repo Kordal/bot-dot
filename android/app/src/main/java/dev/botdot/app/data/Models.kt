@@ -372,6 +372,7 @@ data class Run(
     val sentTo: SentTo? = null, // the latest teammate this run messaged
     val sentToAll: List<SentTo>? = null, // every teammate it messaged, once each
     val choices: List<String>? = null, // quick answers to its closing question
+    val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
     val questions: List<String>? = null, // several questions at once: a card with a box under each
     val quiet: Boolean = false, // a scheduled run with nothing for the owner: no bubble, no notification
     val learned: List<Learned>? = null, // what it remembered or changed about itself on this run
@@ -564,6 +565,7 @@ data class ChiefMessage(
     val files: List<Attachment>? = null, // report, and a Chief reply about a bot's result: files the bot attached to its reply
     val status: String? = null, // suggestion: pending | answered | dismissed
     val choices: List<String>? = null, // quick answers to its closing question
+    val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
     val questions: List<String>? = null, // several questions at once: a card with a box under each
     val actions: List<ChiefAction>? = null, // what it did while replying
     val draft: MailDraft? = null, // a mail draft waiting for the owner's word to send it (`mail-draft`, #415)

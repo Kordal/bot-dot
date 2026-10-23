@@ -237,6 +237,8 @@ a.more-btn { text-decoration: none; }
 .bubble-meta button:hover { color: var(--text); text-decoration: underline; }
 .bubble-row.from-me .bubble-meta { justify-content: flex-end; }
 .choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 2px 0; }
+.choices .btn.yes { background: var(--yes); border-color: var(--yes); color: var(--yes-ink); }
+.choices .btn.yes:hover { opacity: .88; }
 .ask-card { display: flex; flex-direction: column; gap: 10px; width: min(100%, 440px); margin: 10px 0 0; padding: 14px; box-sizing: border-box; }
 .ask-card label { display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; }
 .ask-card textarea { resize: none; min-height: 0; max-height: 200px; line-height: 1.45; }

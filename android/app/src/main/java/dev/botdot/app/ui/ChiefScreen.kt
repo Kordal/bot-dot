@@ -281,7 +281,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                                 onBot = { bot?.let { onBot(it.id) } }, onScreen = { bot?.let { onScreen(it.id) } }) { text, key -> sendFrom(text, key) }
                         }
                         if (i == 0 && m.role == "chief" && !m.pending && !busy && mail == null) {
-                            Choices(m.choices) { text, key -> sendFrom(text, key) }
+                            Choices(m.choices, m.yes, CHIEF_COLOR) { text, key -> sendFrom(text, key) }
                             Questions(m.questions) { text, key -> sendFrom(text, key) }
                         }
                     }

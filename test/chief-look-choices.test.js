@@ -24,7 +24,7 @@ test('an unasked message that offers something carries answer buttons, and a tap
   assert.deepEqual([r.looked, r.posted], [true, true]);
   const chat = await chatOf(r.chatId);
   const { at, lookId, ...m } = chat.messages[0];
-  assert.deepEqual(m, { role: 'chief', text: OFFER, unasked: true, startedBy: 'botdot', choices: ['Yes', 'Not now'] });
+  assert.deepEqual(m, { role: 'chief', text: OFFER, unasked: true, startedBy: 'botdot', choices: ['Yes', 'Not now'], yes: 0 });
   const ev = await f.wait('chief_reply', (d) => d.chatId === r.chatId);
   assert.doesNotMatch(ev.data.text, /choices/, 'announced without the line');
   const raised = JSON.parse(fs.readFileSync(path.join(srv.data, 'looks.json'), 'utf8')).raised;

@@ -236,7 +236,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                             // Under the newest run, and under the run its open question is from when newer runs another
                             // bot or the Chief started came after it: what asks the owner can be answered where it stands.
                             if ((r.id == runs.firstOrNull()?.id || r.id == askedIn) && r.status == "success") {
-                                Choices(r.choices) { text, key -> sendFrom(text, key) }
+                                Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key) }
                                 Questions(r.questions) { text, key -> sendFrom(text, key) }
                             }
                         }
