@@ -166,7 +166,11 @@ function openSkillImport(opts = {}) {
   const form = $('#import-form', m);
   let preview = null;
   let doneName = null;
-  if (opts.onDone) m.addEventListener('close', () => opts.onDone(doneName), { once: true });
+  // Closed, or once its import ends when the dialog went away at once (#478).
+  let importing = false;
+  const finish = () => { if (importing) return; m.removeEventListener('close', finish); opts.onDone?.(doneName); };
+  m.addEventListener('close', finish);
+  const imported = async () => { await refresh(); if (state.view === 'skills') renderSkills(); };
   form.onsubmit = async (e) => {
     e.preventDefault();
     const go = $('#import-go', m);
@@ -215,30 +219,27 @@ function openSkillImport(opts = {}) {
       return;
     }
     const bots = $$('input[name=bot]:checked', form).map((c) => c.value);
+    // The dialog goes away at once and the import runs on with the corner pill (#478).
+    importing = true;
     if (preview.many) {
-      go.disabled = true;
-      go.textContent = 'Importing…';
-      try {
-        const done = await api('/skills/import/confirm', { method: 'POST', body: { id: preview.id, skills: $$('input[name=pick]:checked', form).map((c) => c.value), overwrite: !!form.overwrite?.checked, bots } });
-        doneName = done.imported[0] || null;
-        m.close();
-        toast(done.text, done.failed.length > 0);
-        await refresh();
-        if (state.view === 'skills') renderSkills();
-      } catch (err) {
-        // A used or expired preview can't be sent again: paste the link again.
-        toast(err.message, true);
-        m.close();
-      }
+      const body = { id: preview.id, skills: $$('input[name=pick]:checked', form).map((c) => c.value), overwrite: !!form.overwrite?.checked, bots };
+      m.close();
+      // A used or expired preview can't be sent again: its error offers nothing to try again (paste the link again).
+      let done = null;
+      await inBackground('Importing skills…', async () => { done = await api('/skills/import/confirm', { method: 'POST', body }); }, { ok: () => done.text });
+      if (done?.failed.length) cornerPill('err', done.text);
+      doneName = done?.imported[0] || null;
+      importing = false;
+      finish();
+      if (done) await imported();
       return;
     }
-    try {
-      const saved = await api('/skills/import/confirm', { method: 'POST', body: { id: preview.id, name: form.name.value.trim().toLowerCase(), bots } });
-      doneName = saved.name;
-      m.close();
-      toast('Skill imported');
-      await refresh();
-      if (state.view === 'skills') renderSkills();
-    } catch (err) { toast(err.message, true); }
+    const body = { id: preview.id, name: form.name.value.trim().toLowerCase(), bots };
+    // Refused (a name in use, say): the dialog comes back as it was, with the server's sentence.
+    if (await setAside(m, 'Importing the skill…', async () => { doneName = (await api('/skills/import/confirm', { method: 'POST', body })).name; }, { ok: 'Skill imported' })) {
+      importing = false;
+      finish();
+      await imported();
+    } else importing = false;
   };
 }

@@ -161,8 +161,9 @@ async function renderVault() {
   }));
   wireBitwardenSetup(root);
   const u = $('#bw-unlock-btn'); if (u) u.onclick = () => { if (!bwUi.unlocking) openUnlock(); };
-  const lk = $('#bw-lock'); if (lk) lk.onclick = () => whileBusy(lk, 'Locking…', async () => { try { await api('/vault/bitwarden/lock', { method: 'POST' }); toast('Locked'); } catch (e) { toast(e.message, true); } bwUi.prompted = true; renderVault(); showBitwardenBanner(); });
-  const sy = $('#bw-sync'); if (sy) sy.onclick = () => whileBusy(sy, 'Syncing…', async () => { try { await api('/vault/bitwarden/sync', { method: 'POST' }); toast('Synced'); } catch (e) { toast(e.message, true); } renderVault(); });
+  // Lock and Sync run on with the corner pill (#478), and the Vault is drawn again when they end.
+  const lk = $('#bw-lock'); if (lk) lk.onclick = async () => { await inBackground('Locking…', () => api('/vault/bitwarden/lock', { method: 'POST' }), { ok: 'Locked' }); bwUi.prompted = true; renderVault(); showBitwardenBanner(); };
+  const sy = $('#bw-sync'); if (sy) sy.onclick = async () => { await inBackground('Syncing…', () => api('/vault/bitwarden/sync', { method: 'POST' }), { ok: 'Synced', retry: () => sy.click() }); renderVault(); };
 }
 
 function openLoginEditor(login) {
@@ -223,16 +224,10 @@ function openLoginEditor(login) {
     };
     if (form.password.value) body.password = form.password.value;
     form.password.value = '';
-    await whileBusy($('button[type=submit]', form), 'Saving…', async () => { try {
-      await api(isNew ? '/vault' : `/vault/${l.id}`, { method: isNew ? 'POST' : 'PUT', body });
-      m.close();
-      toast(state.bw?.configured ? (isNew ? 'Saved to Bitwarden (bot-dot folder)' : 'Saved in Bitwarden') : 'Saved');
-      renderVault();
-    } catch (err) {
-      // Refused: the server's sentence, in the form, which stays open with what was typed, except the secret.
-      refused.textContent = err.message;
-      refused.hidden = false;
-    } });
+    // The editor goes away at once (#478). Refused: it comes back with the server's sentence and what was typed,
+    // except the secret.
+    if (await setAside(m, 'Saving…', () => api(isNew ? '/vault' : `/vault/${l.id}`, { method: isNew ? 'POST' : 'PUT', body }),
+      { ok: state.bw?.configured ? (isNew ? 'Saved to Bitwarden (bot-dot folder)' : 'Saved in Bitwarden') : 'Saved' })) renderVault();
   };
 }
 
@@ -397,7 +392,8 @@ function openItemBots(item) {
     </form>`);
   $('#item-bots', m).onsubmit = async (e) => {
     e.preventDefault();
-    await whileBusy($('.modal-foot .primary', m), 'Saving…', async () => { try { await api(`/vault/${item.id}`, { method: 'PUT', body: { allowedBots: $$('input[name=bot]:checked', m).map((c) => c.value) } }); m.close(); toast('Saved'); renderVault(); } catch (err) { toast(err.message, true); } });
+    const allowedBots = $$('input[name=bot]:checked', m).map((c) => c.value);
+    if (await setAside(m, 'Saving…', () => api(`/vault/${item.id}`, { method: 'PUT', body: { allowedBots } }))) renderVault();
   };
 }
 
@@ -437,24 +433,31 @@ function openSshKeyEditor() {
     if (!form.name.value.trim()) form.name.value = file.name;
     label();
   };
-  m.addEventListener('close', () => { form.privateKey.value = ''; }, { once: true });
+  // Closed, the key is forgotten; set aside while it saves (#478), it stays until the server answers.
+  let aside = false;
+  const forget = () => { if (aside) return; form.privateKey.value = ''; m.removeEventListener('close', forget); };
+  m.addEventListener('close', forget);
   form.onsubmit = async (e) => {
     e.preventDefault();
     const refused = $('.req-error', form);
     refused.hidden = true;
     const privateKey = form.privateKey.value.trim();
     const body = { name: form.name.value.trim(), allowedBots: $$('input[name=bot]:checked', form).map((c) => c.value), ...(privateKey ? { privateKey } : { generate: true }) };
-    await whileBusy(submit, privateKey ? 'Adding…' : 'Generating…', async () => { try {
-      const key = await api('/vault/ssh-keys', { method: 'POST', body });
-      form.privateKey.value = '';
-      m.close();
-      renderVault();
-      openSshPublicKey(key, !privateKey);
-    } catch (err) {
-      // Refused: the server's sentence, in the form, which stays open with what was given.
-      refused.textContent = err.message;
-      refused.hidden = false;
-    } });
+    // The editor goes away at once (#478); its public key opens once it is saved. Refused: it comes back with
+    // the server's sentence and what was given.
+    aside = true;
+    let key = null;
+    const saved = await setAside(m, privateKey ? 'Adding the key…' : 'Generating a key…', async () => { key = await api('/vault/ssh-keys', { method: 'POST', body }); },
+      { ok: privateKey ? 'Key added' : 'Key made' });
+    aside = false;
+    body.privateKey = null;
+    if (!saved) return;
+    form.privateKey.value = '';
+    renderVault();
+    // Its public key opens now, or once the dialog opened meanwhile closes.
+    const modal = $('#modal');
+    if (!modal.open) openSshPublicKey(key, !privateKey);
+    else modal.addEventListener('close', () => openSshPublicKey(key, !privateKey), { once: true });
   };
 }
 
@@ -507,16 +510,11 @@ function openFileEditor() {
     let binary = '';
     for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
     const body = { name: form.name.value.trim(), fileName: file.name, content: btoa(binary), allowedBots: $$('input[name=bot]:checked', form).map((c) => c.value) };
-    await whileBusy($('button[type=submit]', form), 'Adding…', async () => { try {
-      await api('/vault/files', { method: 'POST', body });
-      form.file.value = '';
-      m.close();
-      toast('Saved');
-      renderVault();
-    } catch (err) {
-      // Refused: the server's sentence, in the form, which stays open.
-      refuse(err.message);
-    } });
+    // The editor goes away at once (#478). Refused: it comes back with the server's sentence and the file picked.
+    const saved = await setAside(m, 'Adding the file…', () => api('/vault/files', { method: 'POST', body }));
     body.content = null;
+    if (!saved) return;
+    form.file.value = '';
+    renderVault();
   };
 }

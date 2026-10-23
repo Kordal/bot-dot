@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
@@ -72,6 +74,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     fun tell(msg: String) { scope.launch { snack.showSnackbar(msg) } }
+    // Duplicate runs on after the tap, with a line that says how it goes (#478).
+    val work = rememberWork()
 
     var bot by remember { mutableStateOf<Bot?>(null) }
     var choices by remember { mutableStateOf(SettingsInfo()) }
@@ -167,6 +171,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
+        bottomBar = { work.now?.let { w -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), contentAlignment = Alignment.Center) { WorkLine(w) { work.now = null } } } },
         topBar = {
             // Beside the chat the panel has its close button; covering the chat, Back.
             TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
@@ -357,10 +362,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
         }
     }
 
-    // "Duplicate" (#227): the server's list of what the copy gets, a name to change, then the copy's chat.
+    // "Duplicate" (#227): the server's list of what the copy gets, a name to change, then the copy's chat. It goes away
+    // at once while the copy is made (#478), and comes back with the server's sentence when refused.
     copyPlan?.let { plan ->
-        var making by remember { mutableStateOf(false) }
-        AlertDialog(
+        var aside by remember { mutableStateOf(false) }
+        if (!aside) AlertDialog(
             onDismissRequest = { copyPlan = null },
             title = { Text("Duplicate ${bot?.name}?") },
             text = {
@@ -370,12 +376,12 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 }
             },
             confirmButton = {
-                TextButton(enabled = !making && !plan.vaultLocked, onClick = {
-                    making = true
-                    scope.launch {
-                        runCatching { (api ?: error("Not connected to botdot")).duplicateBot(botId, copyName) }
-                            .onSuccess { copyPlan = null; onCopied(it.id) }
-                            .onError { making = false; tell(it.message ?: "Couldn't duplicate") }
+                TextButton(enabled = !work.busy && !plan.vaultLocked, onClick = {
+                    aside = true
+                    var made = ""
+                    work.run("Duplicating ${bot?.name}…", { "$made made" }, refused = { aside = false; tell(it) }) {
+                        val copy = (api ?: error("Not connected to botdot")).duplicateBot(botId, copyName)
+                        made = copy.name; copyPlan = null; onCopied(copy.id)
                     }
                 }) { Text("Duplicate", color = p.text) }
             },

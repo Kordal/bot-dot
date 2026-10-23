@@ -252,19 +252,17 @@ test('web: the editor sends the chosen type, and for Other no username', () => {
 
 test('web: the words of the editor fit every type', () => {
   assert.match(editor, /<button class="btn primary" type="submit">Save<\/button>/);
-  assert.match(editor, /: 'Saved'\);/);
+  assert.match(editor, /: 'Saved' \}\)\)/);
   assert.match(editor, /toast\('Deleted'\);/);
   assert.match(editor, /`Delete "\$\{l\.name\}" from the Vault\?`/);
   assert.doesNotMatch(editor, /Save login|Login saved|Login deleted|the saved login/);
 });
 
-test("web: a refused save shows the server's sentence in the form, which stays open without the secret", () => {
+test("web: a save sets the editor aside; refused, it comes back with the server's sentence and without the secret (#478)", () => {
   assert.match(editor, /<div class="req-error" role="alert" hidden><\/div>\s*<\/div>\s*<div class="modal-foot">/, 'room for the sentence, in the form');
   const submit = editor.slice(at(editor, 'form.onsubmit = async (e) => {'));
-  assert.ok(at(submit, "form.password.value = '';") < at(submit, 'await api('), 'the secret is gone before the answer');
-  const refused = submit.slice(at(submit, 'catch (err) {'));
-  assert.match(refused, /refused\.textContent = err\.message;\s*refused\.hidden = false;/);
-  assert.doesNotMatch(refused, /m\.close\(\)|renderVault\(\)|innerHTML/, 'the form stays open as it is');
+  assert.ok(at(submit, "form.password.value = '';") < at(submit, 'setAside(m,'), 'the secret is gone before the answer');
+  assert.match(submit, /if \(await setAside\(m, 'Saving…', \(\) => api\(/, 'set aside (app.js), which brings it back with the sentence in its .req-error');
   assert.match(submit, /const refused = \$\('\.req-error', form\);\s*refused\.hidden = true;/, 'an earlier sentence goes with the next try');
   assert.match(css, /\.req-error \{[^}]*color: var\(--err\);/);
 });

@@ -31,5 +31,5 @@ test('web: the dialog takes any file up to 64 KB, sends it as base64, says who c
   assert.match(editor, /api\('\/vault\/files', \{ method: 'POST', body \}\)/);
   assert.match(editor, /\$\{esc\(FILE_SHARE_NOTE\)\}/);
   assert.match(app, /every bot on that computer could read it meanwhile/);
-  assert.match(editor, /refuse\(err\.message\)/, "a refusal is the server's sentence, in the form");
+  assert.match(editor, /setAside\(m, 'Adding the file…', \(\) => api\('\/vault\/files'/, "set aside while it saves; refused, it comes back with the server's sentence in the form (#478)");
 });

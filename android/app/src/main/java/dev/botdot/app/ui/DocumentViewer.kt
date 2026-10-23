@@ -1,10 +1,5 @@
 package dev.botdot.app.ui
 
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,7 +18,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -52,7 +46,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
@@ -211,7 +204,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     // What was entered in "Keep up to date", opened again after a save that failed (#475).
     var keepDraft by remember(req) { mutableStateOf<KeepDraft?>(null) }
     // A page's action that runs on after the tap (#475): the small line under its bar.
-    var work by remember(req) { mutableStateOf<PageWork?>(null) }
+    var work by remember(req) { mutableStateOf<Work?>(null) }
     // The ⋯ menu's actions, with the file fetched as it is (not only its start).
     fun withApi(what: String, act: suspend (dev.botdot.app.data.Api) -> Unit) {
         menu = false
@@ -223,11 +216,11 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     fun inBackground(words: String, ok: String, retry: () -> Unit, act: suspend (dev.botdot.app.data.Api) -> Unit) {
         if (work?.kind == "busy") return
         val a = api ?: return tell("Not connected to botdot")
-        work = PageWork("busy", words)
+        work = Work("busy", words)
         scope.launch {
             runCatching { act(a) }
-                .onSuccess { val w = PageWork("ok", ok); work = w; kotlinx.coroutines.delay(2500); if (work === w) work = null }
-                .onError { work = PageWork("err", it.message ?: "Couldn't do it", retry) }
+                .onSuccess { val w = Work("ok", ok); work = w; kotlinx.coroutines.delay(2500); if (work === w) work = null }
+                .onError { work = Work("err", it.message ?: "Couldn't do it", retry) }
         }
     }
     Column(Modifier.fillMaxSize().background(p.bg).systemBarsPadding()) {
@@ -280,7 +273,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                     scope.launch {
                         runCatching { a.setPageOnBoard(req.page.botId, req.page.slug, was != true) }
                             .onSuccess { r -> onBoard = r?.onBoard ?: onBoard }
-                            .onError { onBoard = was; work = PageWork("err", it.message ?: "Couldn't change it") }
+                            .onError { onBoard = was; work = Work("err", it.message ?: "Couldn't change it") }
                         boarding = false
                     }
                 }
@@ -300,7 +293,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             fun stop() { inBackground("Stopping…", "It no longer keeps up to date", ::stop) { it.stopKeepingPage(req.page.botId, page.slug); changed++ } }
             PageBar(page, onBoard == true, board, onKeep = { if (work?.kind != "busy") { keepDraft = null; keeping = true } }, onRefresh = ::refresh, onStop = ::stop)
         }
-        if (req.page != null) work?.let { w -> WorkLine(w) { work = null } }
+        if (req.page != null) work?.let { w -> WorkLine(w, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { work = null } }
         // The sheet closes at once and the save runs on (#475); its error opens the sheet again with what was entered.
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, keepDraft, onDismiss = { keeping = false }) { draft ->
             keeping = false
@@ -546,26 +539,8 @@ private fun BoardButton(on: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** A page's action that runs on after the tap (#475): [kind] is busy, ok or err; [retry]: what a tap on an error does. */
-private data class PageWork(val kind: String, val text: String, val retry: (() -> Unit)? = null)
-
 /** What was entered in "Keep up to date". */
 private data class KeepDraft(val every: String, val time: String, val notify: String, val check: String)
-
-/** The line under a page's bar while its action runs on (#475), as Bitwarden's unlock: a pulsing dot, then done, or the error to tap. */
-@Composable
-private fun WorkLine(w: PageWork, onClose: () -> Unit) {
-    val p = LocalPaper.current
-    val a by rememberInfiniteTransition(label = "work").animateFloat(1f, if (w.kind == "busy") 0.35f else 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "a")
-    val err = w.kind == "err"
-    Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).clip(RoundedCornerShape(99.dp)).background(if (err) p.errSoft else p.sunk)
-        .then(if (err) Modifier.clickable { onClose(); w.retry?.invoke() } else Modifier).padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.size(8.dp).alpha(a).clip(CircleShape).background(when (w.kind) { "ok" -> p.ok; "err" -> p.err; else -> p.dot }))
-        Text(w.text, color = if (err) p.err else p.text, fontSize = 13.sp)
-        if (err) Text("✕", color = p.err, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onClose))
-    }
-}
 
 /** "Keep up to date" (#346): how often, at what time, whether to hear of every update, and what to check. The tap is the consent: no card follows. [draft]: what was entered before a save that failed. */
 @OptIn(ExperimentalMaterial3Api::class)

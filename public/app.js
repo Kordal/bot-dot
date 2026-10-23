@@ -438,6 +438,32 @@ async function inBackground(words, work, { ok = 'Done', retry = null } = {}) {
   }
 }
 
+// A dialog whose save runs on (#478): it goes away at once and the corner pill says `words`, then `ok`. When the
+// server refuses, the dialog comes back as it was, nothing typed lost, with the server's sentence in its
+// `.req-error` (or a toast); with another dialog open meanwhile, the error pill's tap brings it back. `work` gets
+// the dialog's own nodes, to read what they hold. Resolves true when it was saved.
+async function setAside(m, words, work, { ok = 'Saved' } = {}) {
+  const kept = document.createDocumentFragment();
+  kept.append(...m.childNodes);
+  m.close();
+  cornerPill('busy', words);
+  try {
+    const r = await work(kept);
+    cornerPill('ok', typeof ok === 'function' ? ok(r) : ok);
+    return true;
+  } catch (err) {
+    const back = () => {
+      if (m.open) return;
+      m.replaceChildren(kept);
+      m.showModal();
+      const say = $('.req-error', m);
+      if (say) { say.textContent = err.message; say.hidden = false; } else toast(err.message, true);
+    };
+    if (m.open) cornerPill('err', err.message, back); else { $('#corner-pill')?.remove(); back(); }
+    return false;
+  }
+}
+
 function toast(msg, isErr = false) {
   const t = $('#toast');
   t.textContent = msg;
