@@ -117,6 +117,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
                     ev.type == "reset" -> load()
                     ev.type.startsWith("run_") && ev.data.str("botId") == botId -> kicks.tryEmit(Unit)
                     ev.type == "bot_message" && (ev.data["to"] as? JsonObject)?.str("id") == botId -> kicks.tryEmit(Unit)
+                    ev.type == "notes_held" && ev.data.str("botId") == botId -> kicks.tryEmit(Unit) // the wake gate held a note (ADR 083)
                     // While it works, a card came, went or changed: an action in a connected app may have begun or
                     // ended its wait for the owner's OK, which the run says in this list (`waitingFor`).
                     ev.type == "asks" && all.any { it.isRunning } -> kicks.tryEmit(Unit)

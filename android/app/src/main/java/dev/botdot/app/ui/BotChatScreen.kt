@@ -424,12 +424,17 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
     var open by remember(notes) { mutableStateOf(false) }
     val w = LocalMentions.current
     val whoOf = { n: InboxNote -> named(w?.bot(n.fromId), n.from, n.color) } // as it looks now, not when the note was left
-    val who = notes.distinctBy { it.from }.map(whoOf)
+    // A job's call the wake gate held (ADR 083) is named by its job, without a head.
+    val label: androidx.compose.ui.text.AnnotatedString.Builder.(InboxNote) -> Unit = { n -> if (n.call) append("⏰ ${n.from}") else bot(whoOf(n)) }
+    val who = notes.distinctBy { it.from }
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FigureText(buildAnnotatedString { append("$heading "); bots(who); append(if (open) " ⌄" else " ›") }, color = p.muted, fontSize = 13.5.sp,
+        FigureText(buildAnnotatedString { append("$heading "); who.forEachIndexed { i, n -> if (i > 0) append(", "); label(n) }; append(if (open) " ⌄" else " ›") }, color = p.muted, fontSize = 13.5.sp,
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
         Unfold(open) { Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) { notes.forEach { n ->
-            FigureText(buildAnnotatedString { bot(whoOf(n)); n.at?.let { append(" · ${shortTime(it)}") } }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FigureText(buildAnnotatedString { label(n); n.at?.let { append(" · ${shortTime(it)}") } }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                if (n.later) LaterPill()
+            }
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(n.text), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(start = 48.dp).clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).holdToCopy(n.text).background(p.sunk)
                     .border(1.dp, p.line2, RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).padding(horizontal = 14.dp, vertical = 10.dp))
@@ -437,10 +442,18 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
         // Under the notes that wait (#225): how long the oldest has waited, and "Run now", which starts the bot with them.
         if (foot.isNotEmpty() || onRunNow != null) Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (foot.isNotEmpty()) Text(foot, color = p.faint, fontSize = 12.sp)
+            if (notes.any { it.later }) LaterPill()
             if (onRunNow != null) Text("Run now", color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onRunNow).padding(horizontal = 4.dp, vertical = 2.dp))
         }
     }
+}
+
+/** A note the wake gate held for the bot's next run (ADR 083): it woke nothing. */
+@Composable
+private fun LaterPill() {
+    val p = LocalPaper.current
+    Text("Later", color = p.muted, fontSize = 11.5.sp, modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(p.sunk).padding(horizontal = 8.dp, vertical = 1.dp))
 }
 
 /** A run started by another bot's message or a Chief task: one folded line, "Message from Fleet Doctor" (with its small head), that opens to what it said. */

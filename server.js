@@ -824,6 +824,8 @@ async function takeCall(req, res, { botId, jobId }) {
   // gives its signature back, so that the sender may try it again.
   if (signature && !callsSeen.take(botId, jobId, signature)) return refuse(409, 'This signed call was taken already: each one runs once.', 'repeated');
   const giveBack = () => { if (signature) callsSeen.giveBack(botId, jobId, signature); };
+  // An AI job's call that can wait for its bot's next run is held there, as a note (ADR 083): it starts nothing.
+  if (job.kind !== 'script' && await B.gateCall(bot, job, body.toString('utf8'))) return send(res, 202, { later: true });
   let r;
   try { r = B.runJob(bot, job, 'call', { input: job.kind === 'script' ? body : body.toString('utf8') }); } catch (e) { giveBack(); return e.status === 429 ? refuse(429, e.message, 'too many waiting') : send(res, e.status || 409, { error: e.message }); }
   if (r.skipped) { giveBack(); return refuse(409, r.skipped, 'still running'); }

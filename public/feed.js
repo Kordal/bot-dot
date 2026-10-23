@@ -14,6 +14,7 @@ function followFeed() {
   // A bot may have made or picked a skill: the refresh fetches the library again, so "/" and mentions know it at once (#486).
   ['bots', 'reset'].forEach((t) => es.addEventListener(t, () => { state.skillLibAt = 0; }));
   ['login_request', 'login_request_closed'].forEach((t) => es.addEventListener(t, () => { pollLoginRequests(); soon(); })); // soon: the bot's face shows it needs you
+  es.addEventListener('notes_held', soon); // the wake gate held a note for a bot's next run (ADR 083): its inbox is read again
   es.addEventListener('run_steered', soon); // a run read a message the owner steered into it (ADR 040): the refresh draws it there
   es.addEventListener('bitwarden', () => pollBitwarden());
   // A bot saved a page (#346): an open page and the bot's list of pages follow (public/pages.js).

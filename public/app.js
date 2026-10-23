@@ -246,19 +246,25 @@ const sender = (r) => (r.trigger === 'bot' && r.fromBot ? r.fromBot : r.startedB
 // foot: a line under it (the notes that wait: how long, and "Run now").
 function notesFoldHTML(notes, heading, foot = '') {
   if (!notes?.length) return '';
-  const who = [...new Map(notes.map((n) => [n.fromId || n.from, { id: n.fromId, name: n.from, color: n.color }])).values()];
-  const fold = `<details class="notes-fold"><summary>${heading} ${who.map(botLabel).join(', ')}</summary>
-    ${notes.map((n) => `<div class="note"><div class="bot-msg-label">${botLabel({ id: n.fromId, name: n.from, color: n.color })}${n.at ? ` · ${esc(msgTime(n.at))}` : ''}</div><div class="bubble from-other-bot">${esc(n.text)}</div></div>`).join('')}
+  // A job's call the wake gate held (ADR 083) is named by its job, without a head.
+  const label = (n) => (n.call ? `⏰ ${esc(n.from)}` : botLabel({ id: n.fromId, name: n.from, color: n.color }));
+  const who = [...new Map(notes.map((n) => [n.fromId || n.from, n])).values()];
+  const fold = `<details class="notes-fold"><summary>${heading} ${who.map(label).join(', ')}</summary>
+    ${notes.map((n) => `<div class="note"><div class="bot-msg-label">${label(n)}${n.at ? ` · ${esc(msgTime(n.at))}` : ''}${n.later ? ` ${LATER_CHIP}` : ''}</div><div class="bubble from-other-bot">${esc(n.text)}</div></div>`).join('')}
   </details>`;
   return `<div class="bubble-row from-me">${foot ? `<div class="notes-wait">${fold}${foot}</div>` : fold}</div>`;
 }
-// The notes that wait for a bot, at the bottom of its chat (#225): how long the oldest has waited, and, from a botdot
-// that wakes bots for their notes, "Run now", which starts it with them (or once it is free).
+// A note the wake gate held for the bot's next run (ADR 083): it woke nothing.
+const LATER_CHIP = '<span class="chip later">Later</span>';
+// The notes that wait for a bot, at the bottom of its chat (#225): how long the oldest has waited, whether the wake
+// gate held one, and, from a botdot that wakes bots for their notes, "Run now", which starts it with them (or once
+// it is free).
 function waitingNotesHTML(botId, notes) {
   if (!notes?.length) return '';
   const oldest = notes.map((n) => n.at).filter(Boolean).sort()[0];
   const runNow = state.features.includes('notes-wake') ? `<button data-run-notes="${esc(botId)}">Run now</button>` : '';
-  return notesFoldHTML(notes, 'Notes waiting:', oldest || runNow ? `<div class="bubble-meta">${oldest ? `<span>Oldest ${esc(ago(oldest))}</span>` : ''}${oldest && runNow ? ' · ' : ''}${runNow}</div>` : '');
+  const parts = [oldest && `<span>Oldest ${esc(ago(oldest))}</span>`, notes.some((n) => n.later) && LATER_CHIP, runNow].filter(Boolean);
+  return notesFoldHTML(notes, 'Notes waiting:', parts.length ? `<div class="bubble-meta">${parts.join(' · ')}</div>` : '');
 }
 // A run's bot: at work while the run goes on, with the failed face if it failed.
 const runFigure = (r, size) => botFigure(botById(r.botId)?.color || r.botColor, r.status === 'running' ? 'working' : r.status === 'error' ? 'failed' : 'idle', size, botById(r.botId)?.outfit, botById(r.botId)?.id);

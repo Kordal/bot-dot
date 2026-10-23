@@ -1,0 +1,48 @@
+{
+  "jobs": {
+    "Uptime alert": { "bot": "Infra Admin", "prompt": "When Uptime Kuma calls, check what changed; if a site is down, find out why and bring it back." },
+    "GitHub CI": { "bot": "Coder", "prompt": "When CI fails on main, find the cause and open a pull request that fixes it." },
+    "New pull request": { "bot": "Reviewer", "prompt": "When a pull request is opened or gets new commits, review it." },
+    "Stripe events": { "bot": "Quotz Manager", "prompt": "When a payment fails, write the customer a friendly note and tell the owner." },
+    "Backup report": { "bot": "Infra Admin", "prompt": "When the backup script reports, check that it worked; if it failed, find out why and fix it." },
+    "App reviews": { "bot": "Release Manager", "prompt": "When a new app review comes in, add it to the weekly summary; answer 1 and 2 star reviews the same day." }
+  },
+  "cases": [
+    { "to": "Quotz Manager", "from": "Infra Admin", "text": "FYI: nightly backup finished OK, 2.1 GB, took 4 min.", "expect": "save" },
+    { "to": "Quotz Manager", "from": "Infra Admin", "text": "Production is down: quotz.app returns 502 since 14:02, I'm restarting the containers. Customers will see errors.", "expect": "run" },
+    { "to": "Coder", "from": "QA Tester", "text": "Done: tested the build of PR #233, all 14 flows pass, no bugs found.", "expect": "wait" },
+    { "to": "Coder", "from": "Reviewer", "text": "Review of PR #240: two blocking issues. The SQL is built by string concatenation in quotes.js:88, and there is no test for the empty cart. Please fix both before merge.", "expect": "run" },
+    { "to": "Reviewer", "from": "Coder", "text": "Pushed the fixes for PR #240: parameterized query and a test for the empty cart. Ready for another look.", "expect": "run" },
+    { "to": "Quotz Manager", "from": "Infra Admin", "text": "FYI: the certificate for quotz.app is renewed, valid until 2027-01-21.", "waiting": ["FYI: the certificate for quotz.app is renewed, valid until 2027-01-21."], "expect": "save" },
+    { "to": "Quotz Manager", "from": "QA Tester", "text": "Thanks, got it.", "expect": "save" },
+    { "to": "Coder", "from": "Designer", "text": "The mockups for the empty state are in uploads/empty-state.png. Use them when you pick up #251.", "expect": "wait" },
+    { "to": "Coder", "from": "Release Manager", "text": "Version 0.9.4 is out: APK uploaded, what's new published.", "expect": "save" },
+    { "to": "QA Tester", "from": "Infra Admin", "text": "Staging is redeployed with build 412. You can start the regression run.", "expect": "run" },
+    { "to": "Infra Admin", "from": "Quotz Manager", "text": "Customer Acme says the PDF export has been failing with a timeout for the last hour.", "expect": "run" },
+    { "to": "Release Manager", "from": "Coder", "text": "Merged #251 (empty state). Nothing else from me for this release.", "expect": "wait" },
+    { "to": "Coder", "from": "QA Tester", "text": "Found a crash: the app closes when a quote has 0 items. Steps: new quote, remove the only item, save. Log in uploads/crash-0-items.txt.", "expect": "run" },
+    { "to": "Quotz Manager", "from": "Infra Admin", "text": "Disk on the VPS is at 81%, up from 78% last week. No action needed yet, I keep watching it.", "expect": "wait" },
+    { "to": "Coder", "from": "Reviewer", "text": "LGTM on #244, approved. You can merge it.", "expect": "run" },
+    { "to": "QA Tester", "from": "Quotz Manager", "text": "For the record: the owner moved the 1.3 release to next month.", "expect": "wait" },
+    { "to": "Release Manager", "from": "Designer", "text": "ok 👍", "expect": "save" },
+    { "to": "Reviewer", "from": "Coder", "text": "Reminder: PR #246 is ready for review.", "waiting": ["PR #246 is ready for review: adds retry to the backup upload."], "expect": "save" },
+    { "to": "Infra Admin", "from": "QA Tester", "text": "Beszel shows CPU at 97% for 10 minutes on quotz-db, the test runs are crawling.", "expect": "run" },
+    { "to": "Quotz Manager", "from": "QA Tester", "text": "Weekly test summary: 3 bugs filed, 11 closed, the flaky checkout test is fixed.", "expect": "wait" },
+    { "to": "Infra Admin", "from": "Coder", "text": "Could you add a swap file on staging some time? Not urgent.", "expect": "wait" },
+    { "to": "Designer", "from": "Coder", "text": "Built the empty state from your mockup, screenshots in uploads/. Looks like the mockup.", "expect": "save" },
+
+    { "job": "Uptime alert", "text": "{\"monitor\":\"quotz.app\",\"status\":\"up\",\"previous\":\"up\",\"msg\":\"200 OK\",\"ping\":84}", "expect": "save" },
+    { "job": "Uptime alert", "text": "{\"monitor\":\"quotz.app\",\"status\":\"down\",\"previous\":\"up\",\"msg\":\"connect ECONNREFUSED\",\"ping\":null}", "expect": "run" },
+    { "job": "GitHub CI", "text": "{\"action\":\"completed\",\"workflow_run\":{\"name\":\"CI\",\"head_branch\":\"main\",\"conclusion\":\"success\",\"run_number\":1882}}", "expect": "save" },
+    { "job": "GitHub CI", "text": "{\"action\":\"completed\",\"workflow_run\":{\"name\":\"CI\",\"head_branch\":\"main\",\"conclusion\":\"failure\",\"run_number\":1883}}", "expect": "run" },
+    { "job": "GitHub CI", "text": "{\"action\":\"completed\",\"workflow_run\":{\"name\":\"CI\",\"head_branch\":\"dependabot/npm_and_yarn/undici-6.21.1\",\"conclusion\":\"failure\",\"run_number\":1884}}", "expect": "save" },
+    { "job": "New pull request", "text": "{\"action\":\"opened\",\"pull_request\":{\"number\":252,\"title\":\"Retry the backup upload\",\"draft\":false}}", "expect": "run" },
+    { "job": "New pull request", "text": "{\"action\":\"labeled\",\"label\":{\"name\":\"docs\"},\"pull_request\":{\"number\":249,\"title\":\"Typo in the README\"}}", "expect": "save" },
+    { "job": "Stripe events", "text": "{\"type\":\"invoice.paid\",\"data\":{\"object\":{\"customer_email\":\"billing@example.com\",\"amount_paid\":4900}}}", "expect": "save" },
+    { "job": "Stripe events", "text": "{\"type\":\"invoice.payment_failed\",\"data\":{\"object\":{\"customer_email\":\"billing@example.com\",\"amount_due\":4900,\"attempt_count\":1}}}", "expect": "run" },
+    { "job": "Backup report", "text": "{\"status\":\"ok\",\"size\":\"2.1G\",\"seconds\":241}", "expect": "save" },
+    { "job": "Backup report", "text": "{\"status\":\"failed\",\"error\":\"No space left on device\",\"seconds\":12}", "expect": "run" },
+    { "job": "App reviews", "text": "{\"rating\":5,\"text\":\"Great app, my bots run all day.\",\"version\":\"0.9.4\"}", "expect": "wait" },
+    { "job": "App reviews", "text": "{\"rating\":1,\"text\":\"Crashes every time I open a chat.\",\"version\":\"0.9.4\"}", "expect": "run" }
+  ]
+}
