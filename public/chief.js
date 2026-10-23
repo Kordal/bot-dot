@@ -123,6 +123,10 @@ function wireMentions(form, chat, grow) {
     const bot = r.bot && mentionCtx(chat).bots.find((b) => b.id === r.bot);
     if (r.kind === 'bot') return botLabel(bot);
     if (r.kind === 'job') return `${botLabel(bot)} · ${esc(bot.jobs.find((j) => j.id === r.job)?.name || '')}`;
+    if (r.kind === 'page') { // #473: its bot's head and the page's title
+      const title = (mentionCtx(chat).pages || []).find((p) => p.bot === r.bot && p.slug === r.page)?.title || r.label;
+      return bot ? `${botLabel(bot)} · ${esc(title)}` : esc(title);
+    }
     if (r.kind === 'command') return `/${esc(r.label)}${r.about ? ` <span class="about">${esc(r.about)}</span>` : ''}`; // a skill to run (#237)
     return esc(r.label);
   };

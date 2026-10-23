@@ -163,9 +163,23 @@ const botLabel = (b) => (b ? `${botMark(b)}${esc(b.name)}` : '');
 // chat is the Chief's id or the bot whose chat it is; it says which skills count. In a group's chat ("group:<id>")
 // a mention names a member and gives it the turn: only its members, and their jobs, are matched and suggested, and
 // "@all" is offered first at the start of a message on a botdot that knows it (feature `group-all`, #124).
-const mentionCtx = (chat) => (String(chat).startsWith('group:') ? { chat, bots: groupMembers(groupById(String(chat).slice(6))), library: [], all: state.features.includes('group-all') }
+// Every page and the Board's tiles can be named too, in the owner's own chats, on a botdot that hands them to the run
+// (feature `page-mentions`, #473); never in a shared room, whose people are of other accounts.
+const mentionCtx = (chat) => (String(chat).startsWith('group:') ? { chat, bots: groupMembers(groupById(String(chat).slice(6))), library: [], all: state.features.includes('group-all'), ...mentionables() }
   : String(chat).startsWith('room:') ? { chat, bots: roomMentionBots(String(chat).slice(5)), library: [] } // a shared room's bots (rooms.js)
-  : { chat, bots: [CHIEF_BOT, ...state.bots], library: state.skillLib || [], account: state.skillAccount || [] });
+  : { chat, bots: [CHIEF_BOT, ...state.bots], library: state.skillLib || [], account: state.skillAccount || [], ...mentionables() });
+function mentionables() {
+  if (!state.features.includes('page-mentions')) return {};
+  return { pages: state.mentionPages || [], tiles: (state.dash?.tiles || []).filter((t) => t.approved !== false).map(({ id, title, kind }) => ({ id, title, kind })) };
+}
+// Every page of the account, for mentions (#473): fetched with the page's data, at most once a minute, and again after a
+// page is saved (feed.js).
+function loadMentionPages() {
+  if (!state.features.includes('page-mentions') || Date.now() - (state.mentionPagesAt || 0) < 60000) return null;
+  state.mentionPagesAt = Date.now();
+  return api('/pages').then(({ pages }) => { state.mentionPages = pages.map((p) => ({ bot: p.botId, slug: p.slug, title: p.title })); })
+    .catch(() => { state.mentionPagesAt = 0; });
+}
 // The owner's own message with its mentions drawn: a bot as its small head and name, a job or a skill tinted; anything
 // else plain (escaped). Bot and Chief replies stay as they are.
 // A skill it runs or a "/btw" at its start is a chip (markOf).
@@ -194,7 +208,8 @@ const markHTML = (m) => `<span class="cmd">${esc(m.text)}</span>`;
 // What mentions match against, so a chat redraws when a name changes (a renamed bot's old mentions go plain).
 function mentionSig() {
   const bots = state.bots.map((b) => [b.name, ...(b.jobs || []).map((j) => j.name), b.useSkills === false ? '' : (b.skills || []).join(',')].join('/'));
-  return [...bots, ...(state.skillLib || []).map((k) => k.name)].join('|');
+  const more = mentionables();
+  return [...bots, ...(state.skillLib || []).map((k) => k.name), ...(more.pages || []).map((p) => `${p.bot}/${p.title}`), ...(more.tiles || []).map((t) => t.title)].join('|');
 }
 // The skill library, for mentions: fetched with the page's data, at most once a minute.
 function loadSkillLib() {
@@ -749,6 +764,7 @@ async function refresh() {
   fresh.check();
   try {
     const skillLib = loadSkillLib(); // for mentions
+    loadMentionPages(); // for mentions of pages (#473)
     const groupsRead = loadGroups(); // the groups, beside the bots (groups.js): never rejects
     const [bots, runs, activity, chief, computers, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/runs?groups&limit=200').catch(() => null), api('/chief'), api('/computers').catch(() => ({})), api('/settings').catch(() => null)]);
     if (!state.skillLib) await skillLib; // the first time, the chats wait for it

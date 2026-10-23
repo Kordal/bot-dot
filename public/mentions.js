@@ -3,7 +3,10 @@
 //   - bot: its name without spaces, each word capitalised: @FleetDoctor (the Chief is @ChiefOfStaff)
 //   - job: bot then job: @FleetDoctor/MorningCheck
 //   - skill: its name as is: @weekly-report
-// Matching ignores case; a bot wins over a skill of the same name; "@" inside a word (an email) isn't one;
+//   - page (#473): a bot's page (or the Chief's), its title squashed as a bot's name: @IssueList, or @FleetDoctor/IssueList
+//   - tile (#473): a tile of the Board, its title squashed the same way: @LivingRoom
+// A page or a tile mention hands its content to the run that answers (lib/mentions.js mentionsNote).
+// Matching ignores case; for one name a bot wins, then a page (the chat's own bot's first), then a tile, then a skill; "@" inside a word (an email) isn't one;
 // anything that matches nothing stays plain text.
 //
 // Commands (#237): "/" and one of a bot's skills at the very start of a message in that bot's own chat runs the
@@ -19,6 +22,8 @@
 //   chat: 'chief' or the id of the bot whose chat it is
 //   bots: [{ id, name, description?, prompt?, skills?, useSkills?, jobs?: [{ id, name, cron?, at?, kind?, prompt? }] }], the Chief included
 //   library: [{ name, description }], the whole skill library
+//   pages: [{ bot, slug, title }], every page of the account, the Chief's with bot 'chief' (#473, feature `page-mentions`)
+//   tiles: [{ id, title, kind }], the Board's tiles; a page's tile and a group of tiles are no tile mention (#473)
 //   account: [{ name, description }], the Claude account's skills (for "/" only); bots[].disabledSkills switches them off
 //   all: a group's chat, on a botdot that knows "@all" (#124, feature `group-all`): "@all" at the start of a message
 //     sends it to every member at once. It is offered first while it is typed there, and it is no member's mention:
@@ -53,6 +58,14 @@ function shortName(name) {
 
 const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 
+// The pages a mention can name, the chat's own bot's first (#473); and the Board's tiles, without a page's tile (the
+// page itself is named) and without a group of tiles.
+function pagesInScope({ chat, pages = [] }) {
+  const ok = (p) => p && p.title && shortName(p.title);
+  return [...pages.filter((p) => ok(p) && p.bot === chat), ...pages.filter((p) => ok(p) && p.bot !== chat)];
+}
+const tilesInScope = ({ tiles = [] }) => tiles.filter((t) => t && t.title && shortName(t.title) && t.kind !== 'page' && t.kind !== 'group');
+
 function skillsInScope({ chat, bots = [], library = [] }) {
   if (chat === CHIEF) return library;
   const bot = bots.find((b) => b.id === chat);
@@ -67,13 +80,20 @@ function resolve(a, b, ctx, skills) {
   const bot = bots.find((x) => same(shortName(x.name), a)) || (same(CHIEF_ALIAS, a) ? bots.find((x) => x.id === CHIEF) : null);
   if (bot) {
     const job = b ? (bot.jobs || []).find((j) => same(shortName(j.name), b)) : null;
-    return job ? { kind: 'job', bot: bot.id, job: job.id, whole: true } : { kind: 'bot', bot: bot.id, whole: !b };
+    if (job) return { kind: 'job', bot: bot.id, job: job.id, whole: true };
+    const page = b ? (ctx.pages || []).find((p) => p.bot === bot.id && p.title && same(shortName(p.title), b)) : null;
+    return page ? { kind: 'page', bot: bot.id, page: page.slug, whole: true } : { kind: 'bot', bot: bot.id, whole: !b };
   }
+  const page = pagesInScope(ctx).find((p) => same(shortName(p.title), a));
+  if (page) return { kind: 'page', bot: page.bot, page: page.slug, whole: !b };
+  const tile = tilesInScope(ctx).find((t) => same(shortName(t.title), a));
+  if (tile) return { kind: 'tile', tile: tile.id, whole: !b };
   const skill = skills.find((k) => same(k.name, a));
   return skill ? { kind: 'skill', skill: skill.name, whole: !b } : null;
 }
 
-// The mentions in a text, in order: [{ kind: 'bot'|'job'|'skill', text, start, end, bot?, job?, skill? }].
+// The mentions in a text, in order: [{ kind: 'bot'|'job'|'page'|'tile'|'skill', text, start, end, bot?, job?, page?, tile?, skill? }].
+// page is the page's slug, tile the tile's id.
 function findMentions(text, ctx) {
   const skills = skillsInScope(ctx);
   const out = [];
@@ -88,8 +108,9 @@ function findMentions(text, ctx) {
 }
 
 // The suggestion rows for text typed up to the cursor, when it ends in a word starting with "@".
-// "@all" first in a group (ctx.all), then bots, then jobs, then skills, at most MAX_ROWS. After "@Bot/" only that bot's jobs.
-// Each row: { kind, text, label, bot?, job?, skill? }; picking it puts text plus a space in place of the "@…".
+// "@all" first in a group (ctx.all), then bots, then jobs, then pages, then tiles, then skills, at most MAX_ROWS; a name
+// an earlier row took is not offered again, except a page's, offered as "@Bot/Title". After "@Bot/" only that bot's jobs,
+// then its pages. Each row: { kind, text, label, bot?, job?, page?, tile?, skill? }; picking it puts text plus a space in place of the "@…".
 // "/" at the very start of a bot's own chat lists its skills instead: rows { kind: 'command', text: '/name', label,
 // about (the skill's description), skill }.
 function suggest(typed, ctx) {
@@ -101,19 +122,39 @@ function suggest(typed, ctx) {
   if (!m) return [];
   const bots = (ctx.bots || []).filter((b) => shortName(b.name) && !(ctx.all && same(shortName(b.name), ALL))); // a name of only emoji can't be mentioned
   const jobRow = (bot, j) => ({ kind: 'job', text: `@${shortName(bot.name)}/${shortName(j.name)}`, label: `${bot.name} · ${j.name}`, bot: bot.id, job: j.id });
+  const owner = (id) => (ctx.bots || []).find((b) => b.id === id);
+  const pageRow = (p, text) => ({ kind: 'page', text, label: owner(p.bot)?.name ? `${owner(p.bot).name} · ${p.title}` : p.title, bot: p.bot, page: p.slug });
   let rows;
   if (m[2] !== undefined) {
     const bot = bots.find((b) => same(shortName(b.name), m[1]));
-    rows = bot ? (bot.jobs || []).filter((j) => has(shortName(j.name), m[2])).map((j) => jobRow(bot, j)) : [];
+    rows = bot ? [
+      ...(bot.jobs || []).filter((j) => has(shortName(j.name), m[2])).map((j) => jobRow(bot, j)),
+      ...(ctx.pages || []).filter((p) => p.bot === bot.id && p.title && shortName(p.title) && has(shortName(p.title), m[2])).map((p) => pageRow(p, `@${shortName(bot.name)}/${shortName(p.title)}`)),
+    ] : [];
   } else {
     const q = m[1];
-    const botNames = new Set(bots.map((b) => shortName(b.name).toLowerCase()));
+    const taken = new Set(bots.map((b) => shortName(b.name).toLowerCase()));
     const all = ctx.all && !String(typed).slice(0, m.index).trim() && has(ALL, q) ? [{ kind: 'all', text: `@${ALL}`, label: 'all: every member at once' }] : [];
+    // A page's flat name, or "@Bot/Title" when a bot or an earlier page has it (and its bot can be mentioned).
+    const pageRows = pagesInScope(ctx).filter((p) => has(shortName(p.title), q)).flatMap((p) => {
+      const short = shortName(p.title);
+      if (!taken.has(short.toLowerCase())) { taken.add(short.toLowerCase()); return [pageRow(p, `@${short}`)]; }
+      const by = shortName(owner(p.bot)?.name || '');
+      return by ? [pageRow(p, `@${by}/${short}`)] : [];
+    });
+    const tileRows = tilesInScope(ctx).filter((t) => {
+      const short = shortName(t.title).toLowerCase();
+      if (!has(short, q) || taken.has(short)) return false;
+      taken.add(short);
+      return true;
+    }).map((t) => ({ kind: 'tile', text: `@${shortName(t.title)}`, label: t.title, tile: t.id }));
     rows = [
       ...all,
       ...bots.filter((b) => has(shortName(b.name), q)).map((b) => ({ kind: 'bot', text: `@${shortName(b.name)}`, label: b.name, bot: b.id })),
       ...bots.flatMap((b) => (b.jobs || []).filter((j) => has(shortName(j.name), q)).map((j) => jobRow(b, j))),
-      ...skillsInScope(ctx).filter((k) => has(k.name, q) && !botNames.has(k.name.toLowerCase())).map((k) => ({ kind: 'skill', text: `@${k.name}`, label: k.name, skill: k.name })),
+      ...pageRows,
+      ...tileRows,
+      ...skillsInScope(ctx).filter((k) => has(k.name, q) && !taken.has(k.name.toLowerCase())).map((k) => ({ kind: 'skill', text: `@${k.name}`, label: k.name, skill: k.name })),
     ];
   }
   return rows.slice(0, MAX_ROWS);
@@ -172,7 +213,7 @@ function commandMark(text, ctx) {
   return { kind: 'btw', text: b[1], start, end: start + b[1].length };
 }
 
-const api = { shortName, findMentions, suggest, pick, command, commandMark, skillsInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
+const api = { shortName, findMentions, suggest, pick, command, commandMark, skillsInScope, pagesInScope, tilesInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Mentions = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
