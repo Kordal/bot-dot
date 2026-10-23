@@ -48,11 +48,12 @@ function botThreadHTML(bot, runs, newFirst = null) {
       const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || 'Done. (No written reply.)';
       const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
       // Between bots (a run another bot or the Chief started) the reply folds as the message above it does: one line,
-      // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open.
+      // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open,
+      // and so does a reply that addresses the owner: a teammate's request whose reply only the owner reads (#465).
       const outgoing = sentTo(r).filter((t) => t.text);
       const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
           ${learnedChips(r)}`;
-      const shown = sender(r) && !failed
+      const shown = sender(r) && !failed && r.notificationAudience !== 'owner'
         ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(exchangeLabel(r), body)}
             ${outgoing.map((t) => `<div class="note"><div class="bot-msg-label">To ${botLabel(t)}</div><div class="bubble from-bot"><div class="md">${md(t.text)}</div></div></div>`).join('')}
             <div class="note">${bubble}</div>

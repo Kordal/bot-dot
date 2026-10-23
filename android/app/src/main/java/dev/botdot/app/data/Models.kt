@@ -368,6 +368,7 @@ data class Run(
     val files: List<Attachment>? = null, // files it attached to its reply
     val fromBot: BotRef? = null, // a run started by another bot's message
     val startedBy: String? = null, // "chief" when the Chief handed the bot this task
+    val notificationAudience: String? = null, // "owner" when its reply addresses the owner, a teammate's request too
     val inbox: List<InboxNote>? = null, // notes other bots left, read at its start
     val sentTo: SentTo? = null, // the latest teammate this run messaged
     val sentToAll: List<SentTo>? = null, // every teammate it messaged, once each
