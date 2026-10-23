@@ -387,7 +387,7 @@ class MainActivity : ComponentActivity() {
                 }
                 // The panel slides in from the right and fades out (#496). It shows the last panel while it leaves;
                 // one that moves beside the chat leaves nothing behind, so its content lives in one place only.
-                AnimatedVisibility(shown != null && !room, enter = Motion.panelIn, exit = Motion.panelOut) {
+                androidx.compose.animation.AnimatedVisibility(shown != null && !room, enter = Motion.panelIn, exit = Motion.panelOut) {
                     Box(Modifier.fillMaxSize().background(p.bg)) { if (shown == null) lastPanel.value?.let { panelContent(it) } else if (!room) panelContent(shown) }
                 }
                 }
