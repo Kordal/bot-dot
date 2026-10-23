@@ -101,6 +101,10 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
         opened = opened + runId
         listState.scrollToItem(1 + (if (vm.waiting.isNotEmpty()) 1 else 0) + i) // below it: what waits for your OK, notes waiting
     }
+    // The run its open question is from (docs/api.md, "A bot that asks"), however far back: older pages until it is
+    // in the chat, so "Needs you" on its key points at something to answer.
+    val askedIn = bot?.asks?.runId
+    LaunchedEffect(loaded, askedIn) { if (loaded && askedIn != null) vm.reach(askedIn) }
     LaunchedEffect(botId) { vm.addShared(shared) }
     // Near the top (the list is upside down: near its end): the page before.
     LaunchedEffect(listState) {
@@ -229,7 +233,9 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         val theirs = @Composable {
                             TheirSide(r, open = r.id in opened, features = features, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
                                 learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> onLearned; null -> null } })
-                            if (r.id == runs.firstOrNull()?.id && r.status == "success") {
+                            // Under the newest run, and under the run its open question is from when newer runs another
+                            // bot or the Chief started came after it: what asks the owner can be answered where it stands.
+                            if ((r.id == runs.firstOrNull()?.id || r.id == askedIn) && r.status == "success") {
                                 Choices(r.choices) { text, key -> sendFrom(text, key) }
                                 Questions(r.questions) { text, key -> sendFrom(text, key) }
                             }
