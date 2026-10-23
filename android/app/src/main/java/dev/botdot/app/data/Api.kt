@@ -314,6 +314,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
         Answered.of(send("POST", "/bots/${enc(botId)}/jobs/${enc(jobId)}/approve", buildJsonObject { put("approve", approve); put("always", always) }))
     /** Takes back a rule the owner lifted for a bot (`override`, #253): it asks again on a card. */
     suspend fun revokeOverride(botId: String, id: String): Bot = json.decodeFromString(send("DELETE", "/bots/${enc(botId)}/overrides/${enc(id)}"))
+    /** Revokes a bot's lasting grant in a connected app (#474): its next call of that action waits for the owner again. */
+    suspend fun revokeAlwaysAllowed(botId: String, action: String) { send("DELETE", "/bots/${enc(botId)}/connector-actions", buildJsonObject { put("action", action) }) }
     suspend fun setJobAlwaysApprove(botId: String, jobId: String, on: Boolean): Job = json.decodeFromString(
         send("PUT", "/bots/${enc(botId)}/jobs/${enc(jobId)}", buildJsonObject { put("alwaysApprove", on) }))
 

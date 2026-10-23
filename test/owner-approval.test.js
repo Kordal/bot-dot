@@ -125,6 +125,10 @@ test('connector reads execute, but writes and unknown actions wait for exact own
   assert.deepEqual([brief.text, brief.yesOn], ['Wants to send with Gmail', 'card'], 'one line without an argument; the arguments show on the card');
   assert.equal(brief.then, undefined, 'its run waits: a yes starts no run');
   assert.match(brief.details, /friend@example\.com/);
+  // The second yes says what it lets through: this bot, this kind of action, whatever the details (#474).
+  assert.equal(brief.always, 'Always allow');
+  assert.equal(brief.warning, `“Always allow” lets ${bot.name} send with Gmail from now on, whatever the details, until you revoke it in its settings.`);
+  assert.equal((await srv.api(`/bots/${bot.id}`)).data.alwaysAllowed, undefined, 'no lasting grant yet');
   assert.equal((await run('GMAIL_UNKNOWN')).data.needsApproval, true);
   assert.equal(executed.length, 1);
   assert.deepEqual((await answer(write.data.requestId, { yes: true })).data, { ok: true }, 'nothing carries on: the run that waits goes on');
@@ -139,9 +143,13 @@ test('connector reads execute, but writes and unknown actions wait for exact own
   assert.equal(always.status, 200, JSON.stringify(always.data));
   assert.deepEqual(always.data.carriesOn, { who: 'bot', text: 'it carries on' });
   assert.deepEqual((await srv.api(`/bots/${bot.id}/connector-actions`)).data, ['gmail:GMAIL_SEND']);
+  // Its settings list it, in the owner's words, for Revoke.
+  assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.alwaysAllowed, [{ action: 'gmail:GMAIL_SEND', label: 'Send with Gmail' }]);
+  assert.deepEqual((await srv.api('/bots')).data.find((b) => b.id === bot.id).alwaysAllowed, [{ action: 'gmail:GMAIL_SEND', label: 'Send with Gmail' }]);
   currentToken = (await srv.nextRun((x) => x.connectors && /^botdot writes this, not the owner/.test(x.stdin), 'the run that carries on')).connectors.env.RUN_TOKEN;
   assert.equal((await run('GMAIL_SEND', { to: 'new-recipient@example.com' })).data.ok, true);
   assert.equal((await run('GMAIL_UNKNOWN')).data.needsApproval, true);
   await srv.api(`/bots/${bot.id}/connector-actions`, { method: 'DELETE', body: { action: 'gmail:GMAIL_SEND' } });
   assert.equal((await run('GMAIL_SEND')).data.needsApproval, true);
+  assert.equal((await srv.api(`/bots/${bot.id}`)).data.alwaysAllowed, undefined, 'revoked: gone from its settings');
 });

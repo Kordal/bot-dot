@@ -31,7 +31,7 @@ test('web: the asks read after the chat was drawn put the card at the end of the
   const html = chat.box.innerHTML;
   assert.equal(titleOf(html), 'Create issue with GitHub?');
   assert.deepEqual(rowsOf(html), ROWS.map((r) => [r.label, r.value]));
-  assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow this action', 'Allow once']);
+  assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow', 'Allow once']);
   // The very card Needs you shows: nothing approved here that is not seen there, and the other way round.
   assert.equal(html, p.needCardHTML(p.item('ask:k1')));
   assert.match(html, /Mail Writer waits for your answer/);

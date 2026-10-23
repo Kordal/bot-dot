@@ -265,7 +265,7 @@ test('web: the buttons keep their words, with and without the line', () => {
   const tool = { id: 'a1', kind: 'tool', botId: 'coder', bot: CODER, title: 'Install gh for Coder?', meta: 'asked by the Chief', body: 'GitHub CLI.', facts: [{ label: 'Version', value: '2.101.0' }] };
   const change = { id: 'b1', kind: 'bot-change', botId: 'coder', bot: CODER, title: 'Approve changes to this bot?', details: 'Tools\nNow: Read\nProposed: Read, Bash' };
   const action = { id: 'k1', kind: 'connector-action', botId: 'coder', bot: CODER, title: 'Allow gmail: gmail send email?', details: '{}' };
-  const words = { 'ask:p1': ['Decline', 'Allow'], 'ask:s1': ['Decline', 'Install'], 'ask:a1': ['Decline', 'Install'], 'ask:b1': ['Decline', 'Approve'], 'ask:k1': ['Decline', 'Always allow this action', 'Allow once'] };
+  const words = { 'ask:p1': ['Decline', 'Allow'], 'ask:s1': ['Decline', 'Install'], 'ask:a1': ['Decline', 'Install'], 'ask:b1': ['Decline', 'Approve'], 'ask:k1': ['Decline', 'Always allow', 'Allow once'] };
   for (const then of [undefined, REQUEST, CHIEFS]) {
     const p = page({ state: { asks: [PERMISSION, SKILL, tool, change, action].map((a) => ({ ...a, then })) } });
     for (const [key, buttons] of Object.entries(words)) {

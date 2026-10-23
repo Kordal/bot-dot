@@ -183,6 +183,7 @@ data class Bot(
     val othersMayAsk: Boolean? = null, // "Other bots may ask it" (#136); null from a server without it, which shows no switch
     val hotkey: Int? = null, // its own digit on the keypad, 1 to 9, 0 for none (#366); null from a server without it, which shows no setting
     val overrides: List<BotOverride> = emptyList(), // the rules the owner lifted for it with "Allow always for this bot" (#253)
+    val alwaysAllowed: List<AlwaysAllowed> = emptyList(), // its lasting grants in connected apps, "Always allow" on their cards (#474)
     val unread: Int = 0, // its new replies, as the botdot server counts them; 0 from a server without the feature
     val firstUnread: String? = null, // the run that is the first of them in its chat: the "New" line goes there
     // The owner's messages that wait for it (`message-waits`), kept as they came. Read them through [queued].
@@ -1485,6 +1486,10 @@ data class BlockOption(val label: String, val value: kotlinx.serialization.json.
 /** A rule of a bot's the owner lifted for one action, for good (`override`, #253): taken back with "Revoke". */
 @Serializable
 data class BotOverride(val id: String, val rule: String, val action: String, val at: String = "")
+
+/** A lasting grant of a bot in a connected app (#474): `action` "<app>:<ACTION>", `label` in the owner's words ("Send email with Gmail"). */
+@Serializable
+data class AlwaysAllowed(val action: String, val label: String = "")
 
 /** Something in the vault a bot may use: a login, or from Bitwarden also a card or an identity. Secrets never come back. */
 @Serializable

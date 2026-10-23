@@ -200,7 +200,7 @@ function needCardHTML(x, here = null) {
     const details = () => (said(x.a.details) || !rows ? `<div class="need-body"><pre class="nb">${esc(x.a.details)}</pre></div>` : '');
     const body = long ? `${rows}<div class="need-meta">Too long to show in full.</div>` : rows ? `${rows}${cut ? details() : ''}` : details();
     return card(esc(x.a.title), esc(heldLine(x.a) || x.a.reason || ''), body,
-      `<button class="btn sm" data-need-no>Decline</button>${cut ? '' : `<button class="btn sm" data-need-always>Always allow this action</button>${long ? '' : '<button class="btn sm primary" data-need-yes>Allow once</button>'}`}`, rows ? 'need-rows' : '');
+      `<button class="btn sm" data-need-no>Decline</button>${cut ? '' : `<button class="btn sm" data-need-always>${esc(said(x.a.always) || 'Always allow')}</button>${long ? '' : '<button class="btn sm primary" data-need-yes>Allow once</button>'}`}`, rows ? 'need-rows' : '');
   }
   // A shared room's cards (docs/api.md, "Shared rooms: the owner's mention"): a tool a run from a room wants to use,
   // and what would go to a room. The server's title, why it waits (`meta`), the rows and the yes word. Rows cut short
@@ -483,7 +483,7 @@ function wireNeedCards(root, items) {
     // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a yes that turns on a call or
     // a notify address says "Creating connection…" with a spinner.
     if (yes) yes.onclick = () => whileApproving(yes, x.job, () => decide(x, true));
-    if (always) always.onclick = () => { if (x.a?.kind === 'chief-action') { if (confirm(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(x.a.chief ? `Allow this exact connector action for ${CHIEF_BOT.name} from now on, with any arguments?` : 'Allow this exact connector action for this bot in future runs, with any arguments?')) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
+    if (always) always.onclick = () => { if (x.a?.kind === 'chief-action') { if (confirm(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(said(x.a.warning) || (x.a.chief ? `Let ${CHIEF_BOT.name} do this from now on, whatever the details?` : 'Let this bot do this from now on, whatever the details?'))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => { if (!asksBeforeNo(x) || confirm('Remove this job?')) whileBusy(no, 'Declining…', () => decide(x, false)); };
     if (op) op.onclick = () => openNeed(x);
     el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
