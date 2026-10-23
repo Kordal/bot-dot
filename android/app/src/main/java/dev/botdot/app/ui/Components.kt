@@ -884,7 +884,7 @@ inline fun <T> Result<T>.onError(block: (Throwable) -> Unit): Result<T> =
 
 /**
  * Quick answers under the newest reply ("Yes" / "No"…): tap one to send it. [onPick] sends the answer with its key
- * and says whether it went: the answers go only then, and stay to be tapped again when it did not. An answer keeps
+ * and says whether it went: the answers go at the tap, and come back to be tapped again when it did not. An answer keeps
  * its key for as long as it is shown, so tapped again after a failed send it is the same message. The one at [yes]
  * is filled with [color], the colour of the bot that asks.
  */
@@ -895,11 +895,13 @@ fun Choices(choices: List<String>?, yes: Int? = null, color: String? = null, onP
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     var used by remember(choices) { mutableStateOf(false) }
-    if (used) return
-    val keys = remember(choices) { choices.map { messageKey() } }
+    // Gone at the tap, as the owner's message shows; back only when the send did not go (#495).
+    var sending by remember(choices) { mutableStateOf(false) }
+    val keys = remember(choices) { choices.map { messageKey() } } // before the return: they outlast a send that failed
+    if (used || sending) return
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(start = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         choices.forEachIndexed { i, c ->
-            val pick: () -> Unit = { scope.launch { if (onPick(c, keys[i])) used = true } }
+            val pick: () -> Unit = { sending = true; scope.launch { try { if (onPick(c, keys[i])) used = true } finally { sending = false } } }
             val fill = if (i == yes) color?.let { parseColor(it, Color.Unspecified) }?.takeIf { it != Color.Unspecified } else null
             if (fill != null) androidx.compose.material3.Button(onClick = pick, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = fill, contentColor = inkOn(fill))) { Text(c) }
             else androidx.compose.material3.OutlinedButton(onClick = pick) { Text(c, color = p.text) }
