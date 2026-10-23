@@ -7,6 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const gate = require('../lib/wake-gate');
+const router = require('../lib/group-router');
 const { startServer, makeBot, heldRun, self, waitFor, sleep } = require('./helpers');
 const { turnOn, call } = require('./call-helpers');
 
@@ -38,7 +39,7 @@ test('decide never throws, and runs on a rule, an unsure, failed or late answer'
   const decide = (ask, m = NOTE, ms = 200) => gate.create({ ask, ms }).decide(m);
   assert.equal((await decide(async () => '{"decision":"save"}')).decision, 'later');
   const ran = await decide(async () => '{"decision":"run"}');
-  assert.deepEqual([ran.decision, ran.by], ['run', 'model']);
+  assert.deepEqual([ran.decision, ran.by], ['run', 'haiku']);
   assert.equal((await decide(async () => 'no idea')).why, 'unsure');
   assert.equal((await decide(async () => { throw new Error('overloaded'); })).why, 'failed');
   const late = await decide(() => new Promise(() => {}), NOTE, 50);
@@ -51,6 +52,32 @@ test('decide never throws, and runs on a rule, an unsure, failed or late answer'
   assert.deepEqual([opts.llm.model, opts.system], [gate.MODEL, gate.SYSTEM]);
   assert.equal(gate.on({}), false, 'off until switched on');
   assert.equal(gate.on({ BOT_DOT_WAKE_GATE: 'on' }), true);
+  router.setConfig({ router: 'haiku', wakeGate: true });
+  assert.equal(gate.on({}), true, 'the admin switched it on');
+  router.setConfig({ router: 'haiku' });
+  assert.equal(gate.on({}), false);
+});
+
+test('with Jev chosen, Jev decides from its likelihood of "act now"; when it fails Haiku does', async () => {
+  const jev = { router: 'jev', key: 'sk-or-v1-testtesttest' };
+  const body = gate.jevRequest(NOTE);
+  assert.deepEqual(Object.keys(body.questions), ['now']);
+  assert.equal(body.state.message, 'Thanks, got it.');
+  assert.deepEqual(body.provider, { data_collection: 'deny' });
+  let haiku = 0;
+  const ask = async () => { haiku++; return '{"decision":"run"}'; };
+  const answering = (p) => async () => ({ ok: true, status: 200, json: async () => ({ answers: { now: { type: 'noul', noul: p } } }) });
+  const decide = (fetch, m = NOTE) => gate.create({ ask, config: () => jev, fetch }).decide(m);
+  const later = await decide(answering(0.1));
+  assert.deepEqual([later.decision, later.by, haiku], ['later', 'jev', 0]);
+  const now = await decide(answering(0.5));
+  assert.deepEqual([now.decision, now.by], ['run', 'jev']);
+  const odd = await decide(answering('x'));
+  assert.deepEqual([odd.decision, odd.by, odd.why], ['run', 'fell', 'unsure']);
+  const down = await decide(async () => ({ ok: false, status: 500, json: async () => ({}) }));
+  assert.deepEqual([down.decision, down.by, haiku], ['run', 'haiku', 1], 'Haiku when Jev fails');
+  const ruled = await decide(answering(0.1), { ...NOTE, text: 'Done by Friday?' });
+  assert.equal(ruled.by, 'rule', 'the rules come first, Jev too');
 });
 
 let srv, sender, target;
