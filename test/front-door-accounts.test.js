@@ -102,7 +102,9 @@ test('a suspended account: its owner sees only "Your account is paused by the ad
   assert.equal(home.status, 503);
   assert.match(home.headers['content-type'], /^text\/html/);
   assert.match(home.text, /Your account is paused by the admin\./);
-  assert.ok(!home.text.includes('<script'), 'nothing else on it');
+  // One message and one way out (#466): this browser signs out, and the sign-in page takes another passkey.
+  assert.match(home.text, /<button id="other" type="button">Use another account<\/button>/);
+  assert.match(home.text, /<script src="\/front-door\/passkey\.js"><\/script>/);
   const api = await bob.get('/api/bots');
   assert.equal(api.status, 503);
   assert.deepEqual(api.data, { error: 'Your account is paused by the admin.', paused: true });
@@ -119,6 +121,14 @@ test('a suspended account: its owner sees only "Your account is paused by the ad
   assert.equal(seen(), was, "no request reached any botdot server while bob's account is suspended");
   // The admin and the other accounts carry on.
   assert.equal((await browsers.cat.get('/api/bots')).data.account, 'cat');
+  // "Use another account" (#466): the paused session ends, and this browser signs in as another account.
+  const out = await again.b.post('/sign-out', {});
+  assert.equal(out.status, 200);
+  assert.match([].concat(out.headers['set-cookie']).join(), /Max-Age=0/);
+  const front = await again.b.get('/');
+  assert.equal(front.status, 302);
+  assert.equal(front.headers.location, '/sign-in');
+  assert.equal((await again.b.get('/sign-in')).status, 200, 'the sign-in page, for any account');
 
   fs.rmSync(path.join(requests, 'bob')); // the machine stopped it
   const resumed = await browsers.ann.post('/admin/accounts/bob/resume', {});
@@ -139,6 +149,21 @@ test('a suspended account: its owner sees only "Your account is paused by the ad
   assert.equal(back.status, 200);
   assert.equal(back.data.account, 'bob');
   assert.equal((await listed('bob')).state, 'running');
+});
+
+test('signing in with another account in the same browser ends the session it had (#466)', async () => {
+  const { b } = await signIn(keys.dan);
+  const was = b.cookie();
+  assert.equal((await b.get('/api/bots')).data.account, 'dan');
+  const options = await b.post('/sign-in/options', {});
+  const r = await b.post('/sign-in', { credential: keys.cat.signIn(options.data.publicKey) });
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.data.account, 'cat');
+  assert.equal((await b.get('/api/bots')).data.account, 'cat');
+  assert.notEqual(b.cookie(), was);
+  const old = await door.request('GET', '/api/bots', { headers: { Cookie: was } });
+  assert.equal(old.status, 401, "dan's earlier session ended with it");
+  assert.equal((await browsers.dan.get('/api/bots')).data.account, 'dan', "dan's other browsers keep theirs");
 });
 
 test("the admin's own account is neither suspended nor deleted from the admin page", async () => {
