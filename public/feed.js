@@ -8,9 +8,11 @@ function followFeed() {
   const soon = () => { clearTimeout(timer); timer = setTimeout(() => { if (!$('#modal').open) refresh(); }, 300); };
   const es = new EventSource('/api/events?guarded=1'); // with the guarded memory changes: each has a card here
   state.feed = es;
-  es.onopen = () => { setAway(false); soon(); }; // back after a break: the line goes, and catch up
+  es.onopen = () => { setAway(false); state.skillLibAt = 0; soon(); }; // back after a break: the line goes, and catch up (the skills too)
   // run_waits: a run began to wait for the owner's OK on an action in a connected app, or stopped waiting (its `waitingFor`).
   ['run_started', 'run_finished', 'run_waits', 'bot_message', 'waiting', 'chief_reply', 'chief_suggestion', 'approvals', 'asks', 'bots', 'reset'].forEach((t) => es.addEventListener(t, soon));
+  // A bot may have made or picked a skill: the refresh fetches the library again, so "/" and mentions know it at once (#486).
+  ['bots', 'reset'].forEach((t) => es.addEventListener(t, () => { state.skillLibAt = 0; }));
   ['login_request', 'login_request_closed'].forEach((t) => es.addEventListener(t, () => { pollLoginRequests(); soon(); })); // soon: the bot's face shows it needs you
   es.addEventListener('run_steered', soon); // a run read a message the owner steered into it (ADR 040): the refresh draws it there
   es.addEventListener('bitwarden', () => pollBitwarden());
