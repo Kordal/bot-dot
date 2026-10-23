@@ -85,7 +85,15 @@ function drawConnectors() {
   root.innerHTML = `${head}
     ${d.error ? `<div class="req-note">${esc(d.error)}</div>` : ''}
     <h3 class="page-sub">Your apps <span class="faint">· choose which bots may use each one</span></h3>
-    ${d.connections.length ? `<div class="grid">${d.connections.map((c) => {
+    ${d.connections.length || d.reconnect?.length ? `<div class="grid">${(d.reconnect || []).map((a) => `
+      <article class="card app-card">
+        <div class="app-top">${appLogo(a)}<div class="grow"><b>${esc(a.name)}</b></div></div>
+        <div class="chips">${a.usedBy.map(botName).join('')}</div>
+        <div class="app-actions">
+          <button class="btn sm primary" data-connect="${esc(a.slug)}">Connect again</button>
+          <button class="btn sm" data-forget-app="${esc(a.slug)}">Remove</button>
+        </div>
+      </article>`).join('')}${d.connections.map((c) => {
       const [tone, label] = CONN_STATUS[c.status] || ['', c.status.toLowerCase()];
       return `<article class="card app-card" data-conn="${esc(c.id)}">
         <div class="app-top">${appLogo(c.app)}<div class="grow"><b>${esc(c.app?.name || c.toolkit)}</b><div><span class="pill ${tone}">${esc(label)}</span></div></div></div>
@@ -138,6 +146,9 @@ function drawConnectors() {
   const more = $('#conn-more');
   if (more) more.onclick = async () => { more.disabled = true; await loadCatalog(false); drawConnectors(); };
   $$('[data-connect]', root).forEach((b) => (b.onclick = () => connectApp(b.dataset.connect)));
+  $$('[data-forget-app]', root).forEach((b) => (b.onclick = async () => {
+    try { await api(`/connectors/reconnect/${encodeURIComponent(b.dataset.forgetApp)}`, { method: 'DELETE' }); await refresh(); renderConnectors(true); } catch (e) { toast(e.message, true); }
+  }));
   $$('[data-app-bots]', root).forEach((b) => (b.onclick = () => chooseAppBots(b.dataset.appBots)));
   $$('[data-disconnect]', root).forEach((b) => (b.onclick = async () => {
     const c = d.connections.find((x) => x.id === b.dataset.disconnect);

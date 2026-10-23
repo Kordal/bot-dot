@@ -12,7 +12,7 @@ const PROJECT_KEY = 'pk_test_project_key_456';
 const OWN_KEY = 'pk_my_own_key_789';
 
 // One stand-in for both agents.composio.dev and Composio's API.
-const seen = { signups: 0, claims: [], keys: new Set(), dead: new Set(), signupKey: PROJECT_KEY, whoamiKey: PROJECT_KEY };
+const seen = { signups: 0, claims: [], keys: new Set(), dead: new Set(), signupKey: PROJECT_KEY, whoamiKey: PROJECT_KEY, accounts: {} };
 const NEW_KEY = 'pk_new_new_new_new';
 const RENEWED_KEY = 'pk_renew_renew_renew';
 const OWN_KEY_2 = 'pk_mine_mine_mine_2';
@@ -41,7 +41,7 @@ const fake = http.createServer((req, res) => {
     if (![PROJECT_KEY, OWN_KEY, NEW_KEY, RENEWED_KEY, OWN_KEY_2].includes(key) || seen.dead.has(key)) return json(401, { message: 'Bad key' });
     seen.keys.add(key);
     if (url.pathname === '/toolkits') return json(200, { items: [{ slug: 'gmail', name: 'Gmail', meta: { categories: [{ name: 'email' }] }, composio_managed_auth_schemes: ['OAUTH2'] }], next_cursor: null });
-    if (url.pathname === '/connected_accounts') return json(200, { items: [] });
+    if (url.pathname === '/connected_accounts') return json(200, { items: (seen.accounts[key] || []).map((slug) => ({ id: `ca_${slug}`, toolkit: { slug }, status: 'ACTIVE' })) });
     return json(404, { message: 'Not here' });
   });
 });
@@ -118,6 +118,8 @@ test('a key Composio rotated is fetched again with the agent key, with nothing t
 });
 
 test('a key Composio refuses says whose it is, and a new account fixes it', async () => {
+  seen.accounts[NEW_KEY] = ['github', 'gmail'];
+  assert.equal((await srv.api('/connectors')).data.connections.length, 2);
   seen.dead.add(NEW_KEY); // and whoami has nothing newer
   const r = await srv.api('/connectors');
   assert.equal(r.data.keyRejected, true);
@@ -137,6 +139,13 @@ test('a key Composio refuses says whose it is, and a new account fixes it', asyn
   assert.ok(seen.keys.has(RENEWED_KEY));
   const connect = await srv.api('/connectors/catalog');
   assert.equal(connect.status, 200, 'the marketplace works again');
+  assert.deepEqual(after.data.reconnect.map((a) => a.slug), ['github', 'gmail'], 'the apps of the old account are offered again');
+
+  seen.accounts[RENEWED_KEY] = ['github'];
+  const one = await srv.api('/connectors');
+  assert.deepEqual(one.data.reconnect.map((a) => a.slug), ['gmail'], 'connected again, it leaves the list');
+  await srv.api('/connectors/reconnect/gmail', { method: 'DELETE' });
+  assert.deepEqual((await srv.api('/connectors')).data.reconnect, []);
 });
 
 test('your own key refused shows its end, and a new key fixes it', async () => {
