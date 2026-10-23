@@ -41,3 +41,25 @@ test('dashboard GETs only read cached values and pictures; refresh requires an o
   await srv.api('/dashboard');
   assert.equal(calls, 2);
 });
+
+test('the refresh button (all) reads every tile now over HTTP; a body without it is the plain refresh (#452)', async (t) => {
+  let calls = 0;
+  const remote = http.createServer((req, res) => { calls++; res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(String(calls)); });
+  await new Promise((r) => remote.listen(0, '127.0.0.1', r));
+  t.after(() => remote.close());
+  const srv = await startServer();
+  t.after(() => srv.stop());
+  const bot = await makeBot(srv);
+  await srv.api('/vault', { method: 'POST', body: { name: 'Local', site: '127.0.0.1', password: 'fixture', allowedBots: [bot.id] } });
+  const read = { type: 'http', login: 'Local', url: `http://127.0.0.1:${remote.address().port}/value` };
+  await srv.api('/dashboard/tiles', { method: 'POST', body: { bot: bot.id, kind: 'value', title: 'Hourly', every: 3600, read } });
+  await srv.api('/dashboard/refresh', { method: 'POST' });
+  const first = calls;
+  assert.equal(first, 1);
+  await srv.api('/dashboard/refresh', { method: 'POST', body: { all: false } });
+  assert.equal(calls, first, 'not stale: a plain refresh leaves it');
+  const r = await srv.api('/dashboard/refresh', { method: 'POST', body: { all: true } });
+  assert.equal(r.status, 200);
+  assert.equal(calls, first, 'read seconds ago: the button leaves it too');
+  assert.equal((await srv.asChief('/dashboard/refresh', { method: 'POST', body: { all: true } })).status, 403, 'only the owner reads the tiles');
+});

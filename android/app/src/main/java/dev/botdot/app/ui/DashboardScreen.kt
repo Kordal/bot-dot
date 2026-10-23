@@ -2,6 +2,11 @@ package dev.botdot.app.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -34,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.imePadding
@@ -123,12 +129,14 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     LaunchedEffect(Unit) { while (true) { delay(1000); now = System.currentTimeMillis() } }
     var filter by rememberSaveable { mutableStateOf("") } // the heading shown, or "" for all of them
 
-    // quiet: just look. Otherwise (while it's on screen, every 15 s) botdot also reads its out-of-date tiles again.
-    suspend fun load(quiet: Boolean = false) {
+    // quiet: just look. Otherwise (while it's on screen, every 15 s) botdot also reads its out-of-date tiles again;
+    // all (the refresh button and pulling down, #452): every tile, but one read seconds ago.
+    suspend fun load(quiet: Boolean = false, all: Boolean = false) {
         if (quiet) return store.dashboard.refresh()
         val a = api ?: return
-        runCatching { a.dashboard(quiet = false) }.onSuccess { store.dashboard.set(it) }.onError { tell(it.message ?: "Couldn't load") }
+        runCatching { a.dashboard(quiet = false, all = all) }.onSuccess { store.dashboard.set(it) }.onError { tell(it.message ?: "Couldn't load") }
     }
+    fun refreshAll() { if (!refreshing) scope.launch { refreshing = true; load(all = true); delay(300); refreshing = false } }
     val owner = LocalLifecycleOwner.current
     LaunchedEffect(api) { owner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) { while (true) { load(); delay(15_000) } } }
     fun replace(t: Tile) { store.dashboard.update { d -> d.copy(tiles = d.tiles.map { if (it.id == t.id) t else it }) } }
@@ -262,17 +270,23 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = {
                 Column {
                     Text(BoardWords.NAME, style = MaterialTheme.typography.titleMedium)
-                    // "Live · updated 3s ago": the age of the newest value, counting every second.
+                    // The refresh button (#452): its arrows, turning while every tile is read, and the age of the newest value.
                     val newest = BoardKit.newestAt(dash?.tiles.orEmpty())
-                    if (newest > 0) Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(6.dp).clip(CircleShape).background(p.ok))
-                        Text("  " + BoardKit.liveWords((now - newest) / 1000), color = p.okText, fontSize = 12.sp)
+                    if (dash?.tiles.orEmpty().any { it.source != null }) {
+                        val turn by rememberInfiniteTransition(label = "refresh").animateFloat(0f, 360f, infiniteRepeatable(tween(800, easing = LinearEasing), RepeatMode.Restart), label = "turn")
+                        Row(
+                            Modifier.clip(CircleShape).clickable(onClickLabel = "Refresh") { refreshAll() }.padding(end = 6.dp, top = 2.dp, bottom = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = p.okText, modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = if (refreshing) turn else 0f })
+                            if (newest > 0) Text(" " + BoardKit.ageWords((now - newest) / 1000), color = p.okText, fontSize = 12.sp)
+                        }
                     }
                 }
             })
         },
     ) { pad ->
-        PullToRefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } }, modifier = Modifier.padding(pad).fillMaxSize()) {
+        PullToRefreshBox(isRefreshing = refreshing, onRefresh = { refreshAll() }, modifier = Modifier.padding(pad).fillMaxSize()) {
             val d = dash
             val waiting = d?.pending.orEmpty().map { it.id }.toSet()
             val tilesById = d?.tiles.orEmpty().associateBy { it.id }

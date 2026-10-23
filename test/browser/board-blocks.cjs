@@ -51,7 +51,13 @@ const { startServer, makeBot } = require('../helpers');
     assert.match(heads[2], /^Server\nServer Watch\n\d+s ago$/);
     assert.equal(await page.locator('h3.dash-sec .tile-src').first().getAttribute('title'), 'script · 1 min', 'where they come from, on hover');
     assert.equal(await page.locator('.board-head p').count(), 0, 'no count of sources');
-    assert.match(await page.locator('[data-live]').innerText(), /^Live · updated \d+s ago$/);
+    assert.match(await page.locator('[data-board-refresh]').innerText(), /^\d+s ago$/, 'the refresh button: its arrows and the age, no label');
+    // A tap reads every tile now (#452); its arrows turn until the answer is in.
+    const sent = page.waitForRequest((r) => r.url().endsWith('/api/dashboard/refresh') && /"all":true/.test(r.postData() || ''));
+    await page.locator('[data-board-refresh]').click();
+    await sent;
+    await page.waitForSelector('[data-board-refresh].spin');
+    await page.waitForSelector('[data-board-refresh]:not(.spin)');
     assert.equal(await page.locator('.ctl-box .ctl-row').count(), 3, 'two switches and a button, one box');
     assert.equal(await page.locator('.ctl-box .sw.on').count(), 1, 'Heating is on');
     assert.match(await page.locator(`[data-tile="${temp.id}"] .kit-delta`).innerText(), /^▲ 0\.8 since \d\d:\d\d$/);

@@ -316,8 +316,9 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     // ---------- the Board ----------
 
-    /** quiet reads cached tiles; an owner POST refreshes stale values and pictures. */
-    suspend fun dashboard(quiet: Boolean = false): Dashboard = json.decodeFromString(if (quiet) get("/dashboard?quiet") else send("POST", "/dashboard/refresh", buildJsonObject {}))
+    /** quiet reads cached tiles; an owner POST refreshes stale values and pictures, with all every tile (the refresh button, #452). */
+    suspend fun dashboard(quiet: Boolean = false, all: Boolean = false): Dashboard =
+        json.decodeFromString(if (quiet) get("/dashboard?quiet") else send("POST", "/dashboard/refresh", buildJsonObject { if (all) put("all", true) }))
     /** on: what a switch should become. */
     suspend fun tapTile(id: String, on: Boolean? = null): TileTap = TileTap.of(
         send("POST", "/dashboard/tiles/${enc(id)}/tap", buildJsonObject { if (on != null) put("on", on) }))
