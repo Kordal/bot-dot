@@ -62,7 +62,7 @@ function drawConnectors() {
           <form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="New Composio API key" required><button class="btn primary">Save</button></form>
           <div style="margin-top:10px"><a class="btn sm" href="https://platform.composio.dev" target="_blank" rel="noopener">Open Composio</a> <button class="btn sm" id="conn-forget">Use botdot's account</button></div>`
         : `
-          <div style="margin:10px 0"><button class="btn primary" id="conn-renew">Make a new account</button></div>
+          <div style="margin:10px 0"><button class="btn primary" id="conn-renew">New Composio account</button></div>
           <form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="Or your own Composio key" required><button class="btn">Use</button></form>`}
       </div>`;
     const renew = $('#conn-renew');
