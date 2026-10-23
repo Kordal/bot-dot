@@ -1969,24 +1969,19 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 /* 3. The settings panel and a file beside the chat slide in from the right; the chat narrows at once. */
 .panel, .doc-viewer { animation: m-slide-in var(--t2) var(--out); }
 
-/* 4. Dialogs grow in over a fading backdrop and close a step faster; a menu grows from its corner. */
-dialog, dialog::backdrop { transition: opacity var(--t1) var(--in), scale var(--t1) var(--in), translate var(--t1) var(--in), overlay var(--t1) var(--in) allow-discrete, display var(--t1) var(--in) allow-discrete; }
-dialog[open], dialog[open]::backdrop { transition-duration: var(--t2); transition-timing-function: var(--out); }
-dialog:not([open]) { opacity: 0; scale: .96; translate: 0 8px; pointer-events: none; }
-dialog:not([open])::backdrop { opacity: 0; }
-@starting-style {
-  dialog[open] { opacity: 0; scale: .96; translate: 0 8px; }
-  dialog[open]::backdrop { opacity: 0; }
-}
-.m-exits-off dialog, .m-exits-off dialog::backdrop { transition-property: opacity, scale, translate; }
+/* 4. Dialogs grow in over a fading backdrop; one that closes leaves a picture of itself that shrinks and fades a step
+   faster, over a page that takes clicks at once (motion.js, closing). A menu grows from its corner. */
+@keyframes m-dialog-in { from { opacity: 0; scale: .96; translate: 0 8px; } }
+@keyframes m-dialog-out { to { opacity: 0; scale: .96; translate: 0 8px; } }
+dialog[open] { animation: m-dialog-in var(--t2) var(--out); }
+dialog[open]::backdrop { animation: m-fade-in var(--t2) var(--out); }
+dialog.m-dialog-out { position: fixed; inset: auto; margin: 0; max-height: none; z-index: 60; pointer-events: none; animation: m-dialog-out var(--t1) var(--in) forwards; }
+.m-backdrop-out { position: fixed; inset: 0; z-index: 59; pointer-events: none; background: rgba(10, 10, 9, .35); animation: m-fade-out var(--t1) var(--in) forwards; }
 .doc-menu { transform-origin: top right; animation: m-menu var(--t1) var(--out); }
 
 /* 5. Needs you: an answered card moves to its place and the rest close up (motion.js, flip). */
 
-/* 6. A fold opens and closes in height where the browser can (::details-content); elsewhere it snaps, as before. */
-details:not(.card) { interpolate-size: allow-keywords; }
-details:not(.card)::details-content { block-size: 0; overflow-y: clip; transition: block-size var(--t2) var(--out), content-visibility var(--t2) var(--out) allow-discrete; }
-details:not(.card)[open]::details-content { block-size: auto; }
+/* 6. A fold (details, not a card) opens and closes in height (motion.js, fold), in every browser. */
 
 /* 7. The toast rises in and sinks away; the corner pill's words cross-fade and its dot turns green. */
 .toast:popover-open { animation: m-rise var(--t2) var(--out); }
@@ -2002,7 +1997,6 @@ details:not(.card)[open]::details-content { block-size: auto; }
   .m-board-in, .m-push, .m-return, .panel, .doc-viewer, .doc-menu, .toast:popover-open, .corner-pill, .key.just-done { animation: m-fade-in var(--t1) linear; }
   .m-board-out, .m-recede, .m-push-out, .toast.leaving { animation: m-fade-out var(--t1) linear forwards; }
   .m-board-in .tile { animation: none; }
-  dialog:not([open]), dialog[open] { scale: none; translate: none; }
-  @starting-style { dialog[open] { scale: none; translate: none; } }
-  details:not(.card)::details-content { transition: none; }
+  dialog[open], dialog[open]::backdrop { animation: m-fade-in var(--t1) linear; }
+  dialog.m-dialog-out { animation: m-fade-out var(--t1) linear forwards; }
 }
