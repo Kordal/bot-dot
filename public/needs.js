@@ -461,10 +461,11 @@ function renderNeeds() {
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   const drawn = batched(open);
-  root.innerHTML = `
+  // An answered card moves to its place among the answered ones and the rest close up; a new one arrives (motion.js).
+  Motion.flip(root, '.need-grid > .need-card', 'data-need', () => (root.innerHTML = `
     <div class="section-head"><div>${needsBack()}<h1>Needs you</h1>${open.length ? '' : '<p>All done.</p>'}${all.line ? `<p class="needs-left">${esc(all.line)}</p>` : ''}</div>
       ${all.label ? `<button class="btn primary" id="needs-all">${esc(all.label)}</button>` : ''}</div>
-    <div class="need-grid">${drawn.map((x) => needCardHTML(x)).join('')}${[...needsDone.values()].join('')}</div>`;
+    <div class="need-grid">${drawn.map((x) => needCardHTML(x)).join('')}${[...needsDone.values()].join('')}</div>`));
   wireNeedCards(root, items);
   wireBatchCards(root, drawn);
   const back = $('[data-needs-back]', root);

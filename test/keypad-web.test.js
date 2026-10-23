@@ -4,6 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
+const Motion = require('../public/motion.js');
 const { read, cut, esc, element } = require('./web-page');
 const { rulesAt, winner } = require('./css-rules');
 
@@ -52,7 +53,7 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
     '#kp-phone-board': holder(), '#kp-sections': holder(), '#kp-chief': holder(),
     '#contact-search': element({}, { focus: () => said.focused++, select() {} }) };
   const ctx = vm.createContext({
-    state, esc, JSON, Unread: lib.Unread, OpeningLine: lib.OpeningLine, Keypad: lib.Keypad, openingLines: lib.OpeningLine.keeper(),
+    Motion, state, esc, JSON, Unread: lib.Unread, OpeningLine: lib.OpeningLine, Keypad: lib.Keypad, openingLines: lib.OpeningLine.keeper(),
     Figure: { svg: (st, color) => `<svg class="fig" data-st="${st}" data-c="${color}"></svg>` },
     botFigure: (color, st = 'idle') => `<div class="avatar head" data-st="${st}" data-c="${color}"></div>`,
     tintOf: (c) => c || '#888', CHIEF_COLOR: '#d85a30', chiefFigure: () => '<div class="avatar head chief"></div>',

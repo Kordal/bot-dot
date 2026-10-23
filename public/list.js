@@ -238,7 +238,8 @@ function keyHTML(x, i, section = null, digit = 0) {
   const line = keyLine(x);
   const on = group ? state.view === 'group' && state.groupId === x.id : state.view === 'bot' && state.botId === x.id;
   const where = section === null ? `data-key="${i}"` : `data-section-key="${section}.${i}"`;
-  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(x.name)}">${section === null && digit ? `<span class="key-n">${digit}</span>` : ''}${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit)}<div class="grow"><div class="top"><span class="name">${esc(x.name)}</span>${line.cls === 'asks' ? line.after : ''}</div><div class="prev ${line.cls}">${line.who ? `${esc(line.who)}: ` : ''}${esc(line.prev)}</div>${statusHTML(keyStatus(x))}</div></button>`;
+  const s = keyStatus(x);
+  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}${Motion.justDone(x.id, s.kind) ? ' just-done' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(x.name)}">${section === null && digit ? `<span class="key-n">${digit}</span>` : ''}${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit)}<div class="grow"><div class="top"><span class="name">${esc(x.name)}</span>${line.cls === 'asks' ? line.after : ''}</div><div class="prev ${line.cls}">${line.who ? `${esc(line.who)}: ` : ''}${esc(line.prev)}</div>${statusHTML(s)}</div></button>`;
 }
 // A tile as a card of the strip over the keys (#397): the block kit's kpi with the tile's title over its first number
 // (a value, a kpi, a bar or a gauge on its face) and that block's sparkline and bar; a switch says On or Off, any other
@@ -283,7 +284,7 @@ function drawBoardLine(el) {
 function chiefKeyHTML() {
   const chat = state.chats[0];
   const s = { ...Keypad.status({ running: !!state.chiefBusy, unread: state.chiefUnread || 0 }), time: shortTime(chat?.updatedAt) };
-  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}" data-key-chief title="${esc(chiefName())}"><span class="key-n">Esc</span>${chiefFigure()}<div class="grow"><div class="top"><span class="name">${esc(chiefName())}</span></div><div class="prev">${esc(plain(chat?.preview) || 'Your team of bots. Ask for anything.')}</div>${statusHTML(s)}</div></button>`;
+  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}${Motion.justDone('chief', s.kind) ? ' just-done' : ''}" data-key-chief title="${esc(chiefName())}"><span class="key-n">Esc</span>${chiefFigure()}<div class="grow"><div class="top"><span class="name">${esc(chiefName())}</span></div><div class="prev">${esc(plain(chat?.preview) || 'Your team of bots. Ask for anything.')}</div>${statusHTML(s)}</div></button>`;
 }
 // Every page as a section: its heading (name, count, dot) over its keys in rows of three. Pinned is always first, right
 // under the Board, set apart from the categories on a panel of its own, with the Chief's key before the pinned bots,
