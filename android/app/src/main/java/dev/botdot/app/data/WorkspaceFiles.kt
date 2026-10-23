@@ -18,7 +18,8 @@ object WorkspaceFiles {
 
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
 
-    private fun base(botId: String) = "/bots/${Api.enc(botId)}/workspace"
+    /** A bot's, or the Chief's own folder ([UploadedFiles.CHIEF], #383), which has none on the computer. */
+    private fun base(botId: String) = UploadedFiles.owner(botId) + "/workspace"
     private fun query(root: String, path: String) = "?root=${Api.enc(root)}&path=${Api.enc(path)}"
 
     /** A folder's listing, a count before a delete, and the delete itself. */

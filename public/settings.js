@@ -164,6 +164,17 @@ function renderChiefSettings() {
         <span class="bs-icon">📄</span>
         <div class="grow"><b>Its pages</b><div class="faint">Reports, memos and overviews it made for you. Open one to keep it up to date.</div><div id="chief-page-list" class="pg-list"><span class="faint">Loading…</span></div></div>
       </div>
+    </div>` : ''}${state.features.includes('chief-files') ? `
+    <h3 class="page-sub">Files</h3>
+    <div class="card settings-card bs-rows">
+      <div class="bs-row" id="chief-files">
+        <span class="bs-icon">📎</span>
+        <div class="grow"><b>Files</b><div class="faint">What you attached in its chats. It sees this list in every reply; a file kept in mind comes with every reply.</div><div id="chief-file-list" class="bs-files"><span class="faint">Loading…</span></div></div>
+      </div>
+      <div class="bs-row" id="chief-workspace">
+        <span class="bs-icon">🗂</span>
+        <div class="grow"><b>Workspace</b><div class="faint">Every file in its folder.</div><div id="chief-ws-box" class="ws"></div></div>
+      </div>
     </div>` : ''}${CHECKUP_HTML}
     <h3 class="page-sub">Previous chats</h3>
     <div class="card settings-card settings-links" id="chief-chats"></div>`;
@@ -171,6 +182,7 @@ function renderChiefSettings() {
   drawChiefSkills(root);
   loadChiefAlways(root);
   if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefName() }, $('#chief-page-list', root)); // public/pages.js (#384)
+  drawChiefFiles(root);
   $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
   loadCheckup();
   const form = $('#chief-form', root);
@@ -214,6 +226,15 @@ async function loadChiefAlways(root) {
       return true;
     } },
   });
+}
+
+// Its files and workspace (#383), drawn by the code of a bot's (bots.js drawBotFiles, workspace.js).
+function drawChiefFiles(root) {
+  const chief = { id: '_chief', name: chiefName(), base: '/chief', computer: 'none' };
+  const list = $('#chief-file-list', root);
+  if (list) drawBotFiles(chief, null, list);
+  const box = $('#chief-ws-box', root);
+  if (box && typeof Workspace !== 'undefined') Workspace.open(chief, box);
 }
 
 // The library skills you gave the Chief (settings.chiefSkills): ticked as a bot's are in its settings, saved at once.

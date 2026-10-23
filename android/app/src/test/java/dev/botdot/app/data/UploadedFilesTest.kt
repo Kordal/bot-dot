@@ -61,6 +61,16 @@ class UploadedFilesTest {
         assertEquals("DELETE" to "/api/bots/b1/files/20261021070000-ab12-CV.pdf", server.takeRequest().let { it.method to it.target })
     }
 
+    @Test fun theChiefsOwnFilesAndWorkspaceAreUnderApiChief() {
+        assertEquals("/chief", UploadedFiles.owner(UploadedFiles.CHIEF))
+        assertEquals("/bots/b1", UploadedFiles.owner("b1"))
+        assertEquals("/chief/files/20261021070000-ab12-CV.pdf", DocumentView.botFile(UploadedFiles.CHIEF, "uploads/20261021070000-ab12-CV.pdf"))
+        assertEquals("/chief/workspace?root=server&path=notes", WorkspaceFiles.list(UploadedFiles.CHIEF, WorkspaceFiles.SERVER, "notes"))
+        assertTrue(UploadedFiles.chiefShows(listOf("bot-files", "chief-files")))
+        assertFalse(UploadedFiles.chiefShows(listOf("bot-files")))
+        assertFalse(UploadedFiles.chiefShows(null))
+    }
+
     @Test fun sizesReadPlainly() {
         assertEquals("12 B", UploadedFiles.size(12))
         assertEquals("1.5 MB", UploadedFiles.size(1_572_864))

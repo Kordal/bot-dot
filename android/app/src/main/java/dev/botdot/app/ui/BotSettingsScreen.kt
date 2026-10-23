@@ -53,7 +53,6 @@ import dev.botdot.app.data.Connection
 import dev.botdot.app.data.Job
 import dev.botdot.app.data.SettingsInfo
 import dev.botdot.app.data.Skill
-import dev.botdot.app.data.UploadedFile
 import dev.botdot.app.data.UploadedFiles
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -83,9 +82,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     val server by app.store.version.value.collectAsState() // its features: whether it can duplicate a bot
     var copyPlan by remember { mutableStateOf<dev.botdot.app.data.CopyPlan?>(null) } // the Duplicate confirmation, while it is open
     var copyName by remember { mutableStateOf("") }
-    var files by remember { mutableStateOf<List<UploadedFile>?>(null) } // its files (#235), once loaded
     var pages by remember { mutableStateOf<List<dev.botdot.app.data.PageInfo>?>(null) } // its pages (#346), once loaded
-    var fileToDelete by remember { mutableStateOf<UploadedFile?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     // What you're editing (starts as the bot's current settings).
@@ -130,10 +127,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     }
 
     val keepsFiles = UploadedFiles.shows(server?.features)
-    LaunchedEffect(api, keepsFiles) {
-        val a = api ?: return@LaunchedEffect
-        if (keepsFiles) runCatching { a.botFiles(botId) }.onSuccess { files = it.files }
-    }
     // Its pages (#346): read again when one of them is saved (the feed's `page`) or the viewer closes (a job changed there).
     val hasPages = dev.botdot.app.data.Pages.shows(server?.features)
     val pageSaves by app.store.pageSaves.value.collectAsState()
@@ -315,29 +308,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 }
             }
             // Its files (#235): what you gave it. Tap one to open it; keep one in mind so it comes with every task.
-            files?.let { list ->
-                FoldSection("Files", UploadedFiles.summary(list)) {
-                    Hint(if (list.isEmpty()) "None yet. Attach a file in its chat." else "It sees this list in every task. A file kept in mind comes with every task.")
-                    list.forEach { f ->
-                        key(f.file) {
-                            Column(Modifier.fillMaxWidth()) {
-                                Text(f.name, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.clickable {
-                                    // In the viewer (#251) where the server has it; else in the phone's own app, as before.
-                                    if (dev.botdot.app.data.DocumentView.shows(server?.features)) DocViewer.open = DocViewer.Request(dev.botdot.app.data.DocumentView.botFile(botId, f.file), f.name, name)
-                                    else scope.launch { runCatching { dev.botdot.app.data.BotFiles.openUpload(context, api ?: error("Not connected to botdot"), botId, f) }.onError { tell(it.message ?: "Couldn't open ${f.name}") } }
-                                })
-                                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(UploadedFiles.detail(f), color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                                    TextButton(onClick = {
-                                        scope.launch { runCatching { api!!.pinBotFile(botId, f.file, !f.pinned) }.onSuccess { files = it.files }.onError { tell(it.message ?: "Couldn't save") } }
-                                    }) { Text(if (f.pinned) "📌 Kept in mind" else "Keep in mind", color = if (f.pinned) p.text else p.muted) }
-                                    TextButton(onClick = { fileToDelete = f }) { Text("Delete", color = p.err) }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            if (keepsFiles) FilesSection(api, botId, name, viewer = dev.botdot.app.data.DocumentView.shows(server?.features),
+                hint = "It sees this list in every task. A file kept in mind comes with every task.", empty = "None yet. Attach a file in its chat.", tell = ::tell)
             // Its pages (#346): what it made for you. Tap one to open it, and keep it up to date from there.
             pages?.let { list ->
                 FoldSection("Pages", if (list.isEmpty()) "None yet" else "${list.size}") {
@@ -394,21 +366,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 }) { Text("Duplicate", color = p.text) }
             },
             dismissButton = { TextButton(onClick = { copyPlan = null }) { Text("Cancel", color = p.text) } },
-        )
-    }
-
-    fileToDelete?.let { f ->
-        AlertDialog(
-            onDismissRequest = { fileToDelete = null },
-            title = { Text("Delete ${f.name}?") },
-            text = { Text("${bot?.name} won't have it any more.", color = p.text) },
-            confirmButton = {
-                TextButton(onClick = {
-                    fileToDelete = null
-                    scope.launch { runCatching { api!!.deleteBotFile(botId, f.file) }.onSuccess { files = it.files }.onError { tell(it.message ?: "Couldn't delete") } }
-                }) { Text("Delete", color = p.err) }
-            },
-            dismissButton = { TextButton(onClick = { fileToDelete = null }) { Text("Cancel", color = p.text) } },
         )
     }
 

@@ -194,3 +194,19 @@ test('web: only the answer for the folder last asked for is drawn', async () => 
   assert.doesNotMatch(box.innerHTML, /late\.txt/);
   assert.match(box.innerHTML, /data-path="a\.txt"/);
 });
+
+test("web: the Chief's workspace (#383) is asked of /chief/workspace, and two boxes each keep their own folder", async () => {
+  const p = page();
+  const mine = element(); const its = element();
+  await p.W.open(bot, its);
+  await p.W.open({ id: '_chief', name: 'Chief of Staff', base: '/chief', computer: 'none' }, mine);
+  assert.equal(p.calls.at(-1)[0], '/chief/workspace?root=server&path=');
+  assert.doesNotMatch(mine.innerHTML, /On the computer/);
+  // A tap in the bot's box, still drawn, goes to the bot's folder.
+  its.onclick({ target: { closest: () => button({ ws: 'go', path: 'notes' }) }, preventDefault() {} });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.equal(p.calls.at(-1)[0], '/bots/b1/workspace?root=server&path=notes');
+  const settings = read('settings.js');
+  assert.match(settings, /state\.features\.includes\('chief-files'\)/);
+  assert.match(settings, /drawBotFiles\(chief, null, list\)/);
+});

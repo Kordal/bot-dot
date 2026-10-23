@@ -430,14 +430,14 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun duplicateBot(botId: String, name: String): Bot =
         json.decodeFromString(send("POST", "/bots/${enc(botId)}/duplicate", buildJsonObject { if (name.isNotBlank()) put("name", name.trim()) }))
     /** A bot's files (#235), newest first. Only with `bot-files` in its features. */
-    suspend fun botFiles(botId: String): UploadedFileList = json.decodeFromString(get("/bots/${enc(botId)}/files"))
+    suspend fun botFiles(botId: String): UploadedFileList = json.decodeFromString(get(UploadedFiles.owner(botId) + "/files"))
     /** Keeps one of its files in mind, or stops; answers the list as it is now. */
     suspend fun pinBotFile(botId: String, file: String, pinned: Boolean): UploadedFileList =
-        json.decodeFromString(send("PUT", "/bots/${enc(botId)}/files/${enc(file.substringAfterLast('/'))}", buildJsonObject { put("pinned", pinned) }))
+        json.decodeFromString(send("PUT", UploadedFiles.owner(botId) + "/files/${enc(file.substringAfterLast('/'))}", buildJsonObject { put("pinned", pinned) }))
     /** Deletes one of its files and its readable copy; answers the list as it is now. */
     suspend fun deleteBotFile(botId: String, file: String): UploadedFileList =
-        json.decodeFromString(send("DELETE", "/bots/${enc(botId)}/files/${enc(file.substringAfterLast('/'))}"))
-    suspend fun downloadBotFile(botId: String, file: String, dest: java.io.File) = download("/bots/${enc(botId)}/files/${enc(file.substringAfterLast('/'))}", dest)
+        json.decodeFromString(send("DELETE", UploadedFiles.owner(botId) + "/files/${enc(file.substringAfterLast('/'))}"))
+    suspend fun downloadBotFile(botId: String, file: String, dest: java.io.File) = download(UploadedFiles.owner(botId) + "/files/${enc(file.substringAfterLast('/'))}", dest)
     /** A folder of a bot's workspace (#296): [root] is "server" or "computer", [path] relative to it. Only with `workspace-files`. */
     suspend fun workspace(botId: String, root: String, path: String): WorkspaceListing = json.decodeFromString(get(WorkspaceFiles.list(botId, root, path)))
     /** What deleting [path] takes, for its confirmation. */

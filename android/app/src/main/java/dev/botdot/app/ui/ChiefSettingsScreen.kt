@@ -38,6 +38,9 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.AppSettings
 import dev.botdot.app.data.Checkup
 import dev.botdot.app.data.ChiefGrant
+import dev.botdot.app.data.DocumentView
+import dev.botdot.app.data.UploadedFiles
+import dev.botdot.app.data.WorkspaceFiles
 import dev.botdot.app.data.ChiefSkills
 import dev.botdot.app.data.PageInfo
 import dev.botdot.app.data.PageRef
@@ -46,7 +49,7 @@ import dev.botdot.app.data.Skill
 import dev.botdot.app.data.SettingsInfo
 import kotlinx.coroutines.launch
 
-/** The Chief's settings (its figure and name in its chat): its model and reasoning, your rules for it, your skills for it, what you always approved, its pages and its earlier chats. */
+/** The Chief's settings (its figure and name in its chat): its model and reasoning, your rules for it, your skills for it, what you always approved, its pages, its files and workspace (#383) and its earlier chats. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> Unit) {
@@ -153,6 +156,13 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
                         }
                     }
                 }
+            }
+            // Its files and workspace (#383), as a bot's: what you attached in its chats, and every file in its folder.
+            if (UploadedFiles.chiefShows(server?.features)) {
+                val viewer = DocumentView.shows(server?.features)
+                FilesSection(api, UploadedFiles.CHIEF, LocalChiefName.current, viewer,
+                    hint = "It sees this list in every reply. A file kept in mind comes with every reply.", empty = "None yet. Attach a file in its chat.", tell = ::tell)
+                if (WorkspaceFiles.shows(server?.features)) WorkspaceSection(api, UploadedFiles.CHIEF, LocalChiefName.current, usesComputer = false, viewer = viewer, tell = ::tell)
             }
             checkup?.takeIf { hasCheckup }?.let { c ->
                 Section(null) {

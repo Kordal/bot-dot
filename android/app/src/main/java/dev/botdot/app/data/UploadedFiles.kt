@@ -9,6 +9,15 @@ import kotlinx.serialization.Serializable
  */
 object UploadedFiles {
     const val FEATURE = "bot-files"
+    /** The Chief's own files (#383), under /api/chief/files: what the owner attached in its chats. No bot's id starts with _. */
+    const val CHIEF = "_chief"
+    const val CHIEF_FEATURE = "chief-files"
+
+    /** The API path of whose files they are: a bot's, or the Chief's. */
+    fun owner(id: String): String = if (id == CHIEF) "/chief" else "/bots/${Api.enc(id)}"
+
+    /** Whether the Chief's settings show its Files and Workspace. */
+    fun chiefShows(features: Collection<String>?): Boolean = features != null && CHIEF_FEATURE in features
 
     /** Whether the botdot this app talks to keeps a bot's files. While its features are not known yet: no. */
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
