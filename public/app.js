@@ -412,6 +412,32 @@ async function whileBusy(button, words, work, spin = false) {
   }
 }
 
+// A small pill in the corner for work that runs on after its dialog or button is done (Bitwarden's unlock, a page's
+// schedule): `busy` while it runs, `ok` (gone by itself), or `err`, which a tap tries again with `retry`.
+function cornerPill(kind, text, retry = null) {
+  let el = $('#corner-pill');
+  if (!el) { el = document.createElement('div'); el.id = 'corner-pill'; document.body.append(el); }
+  clearTimeout(cornerPill.timer);
+  el.className = `corner-pill ${kind}`;
+  el.innerHTML = `<span class="dot"></span><span>${esc(text)}</span>${kind === 'err' ? '<button type="button" class="x" aria-label="Close">✕</button>' : ''}`;
+  el.onclick = kind === 'err' ? (e) => { el.remove(); if (retry && !e.target.closest('.x')) retry(); } : null;
+  if (kind === 'ok') cornerPill.timer = setTimeout(() => { el.classList.add('gone'); setTimeout(() => el.remove(), 400); }, 2500);
+}
+
+// The owner's tap is done at once (#475): `work` runs on with the corner pill saying `words`, then `ok` or the error,
+// which a tap tries again with `retry`. Resolves true when it was done, false when it failed.
+async function inBackground(words, work, { ok = 'Done', retry = null } = {}) {
+  cornerPill('busy', words);
+  try {
+    const r = await work();
+    cornerPill('ok', typeof ok === 'function' ? ok(r) : ok);
+    return true;
+  } catch (e) {
+    cornerPill('err', e.message || "Couldn't do it", retry);
+    return false;
+  }
+}
+
 function toast(msg, isErr = false) {
   const t = $('#toast');
   t.textContent = msg;

@@ -5,15 +5,19 @@ const assert = require('node:assert/strict');
 const vm = require('vm');
 const { read, esc } = require('./web-page');
 
-function page({ features = ['document-viewer', 'pages'], answers = {} } = {}) {
+function page({ features = ['document-viewer', 'pages'], answers = {}, fails = {} } = {}) {
   const calls = [];
+  const pills = [];
   const ctx = vm.createContext({
     state: { features, bots: [{ id: 'ops', name: 'Ops' }], view: 'bot', botId: 'ops' },
     esc, encodeURIComponent, ago: () => '5m ago', chiefName: () => 'Kai', toast() {}, DocViewer: { pageChanged() {} }, SUB_BACK: '',
-    api: async (p, opts = {}) => { calls.push([p, opts.method || 'GET', opts.body]); return answers[p] ?? {}; },
+    api: async (p, opts = {}) => { calls.push([p, opts.method || 'GET', opts.body]); if (fails[p]) throw new Error(fails[p]); return answers[p] ?? {}; },
+    // The corner pill (app.js): what it said, and the retry its error offers.
+    cornerPill: (kind, text, retry) => pills.push({ kind, text, retry }),
+    document: { querySelector: () => null },
   });
-  vm.runInContext(`${read('pages.js')}\nthis.Pages = Pages;`, ctx);
-  return { Pages: ctx.Pages, calls };
+  vm.runInContext(`${read('app.js').match(/async function inBackground[\s\S]*?\n}\n/)[0]}\n${read('pages.js')}\nthis.Pages = Pages;`, ctx);
+  return { Pages: ctx.Pages, calls, pills, ctx };
 }
 
 test('web: a page chip opens the page in the viewer, and its title stays text', () => {
@@ -44,6 +48,58 @@ test('web: Refresh now runs its job, Stop takes the job away', async () => {
   assert.equal(await Pages.act('refresh', 'ops', p, 'Ops'), false);
   assert.equal(await Pages.act('stop', 'ops', p, 'Ops'), true);
   assert.deepEqual(calls.map((c) => c.slice(0, 2)), [['/bots/ops/jobs/j1/run', 'POST'], ['/bots/ops/pages/hq-health/keep', 'DELETE']]);
+});
+
+test('web: Refresh now and Stop say at once that they work, then how it went, and a failure offers trying again (#475)', async () => {
+  const { Pages, calls, pills } = page({ fails: { '/bots/ops/pages/hq-health/keep': 'botdot is busy' } });
+  const p = { slug: 'hq-health', keep: { jobId: 'j1' } };
+  await Pages.act('refresh', 'ops', p, 'Ops');
+  assert.deepEqual(pills.map((x) => [x.kind, x.text]), [['busy', 'Starting the refresh…'], ['ok', 'Ops is refreshing it']]);
+  assert.equal(await Pages.act('stop', 'ops', p, 'Ops'), false, 'a failed Stop reads nothing again');
+  assert.deepEqual(pills.slice(2).map((x) => [x.kind, x.text]), [['busy', 'Stopping…'], ['err', 'botdot is busy']]);
+  await pills[3].retry();
+  assert.equal(calls.filter((c) => c[1] === 'DELETE').length, 2, 'a tap on the error tries again');
+});
+
+test('web: "Keep it up to date" closes the dialog at once and saves with the pill; its error opens the dialog again with what was entered (#475)', async () => {
+  const { Pages, calls, pills, ctx } = page({ fails: { '/bots/ops/pages/hq-health/keep': 'Not saved' } });
+  const opened = [];
+  const field = (value) => ({ value, onchange: null, classList: { toggle() {} } });
+  ctx.openModal = (html) => {
+    const on = {};
+    const m = { html, closed: false, addEventListener: (ev, fn) => { on[ev] = fn; }, close() { m.closed = true; on.close?.(); } };
+    const els = { '#pg-go': { onclick: null }, '[name="pg-every"]:checked': field('hour'), '#pg-time': field('07:00'), '[name="pg-notify"]:checked': field('always'), '#pg-check': field('the CI runs'), '.pg-time': field('') };
+    m.$ = (sel) => els[sel];
+    opened.push(m);
+    return m;
+  };
+  ctx.$ = (sel, m) => m.$(sel);
+  ctx.$$ = () => [];
+  const p = { slug: 'hq-health', title: 'HQ health', keep: null };
+  const done = Pages.act('keep', 'ops', p, 'Ops');
+  opened[0].$('#pg-go').onclick();
+  assert.equal(opened[0].closed, true, 'closed at once, before the server answers');
+  assert.equal(pills[0].kind, 'busy');
+  assert.equal(await Pages.act('stop', 'ops', p, 'Ops'), false, 'its other buttons wait while it saves');
+  assert.equal(await done, false);
+  assert.deepEqual(calls.map((c) => c.slice(0, 2)), [['/bots/ops/pages/hq-health/keep', 'POST']]);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls[0][2])), { every: 'hour', time: '07:00', notify: 'always', check: 'the CI runs' });
+  assert.deepEqual(pills.map((x) => [x.kind, x.text]), [['busy', 'Saving schedule…'], ['err', 'Not saved']]);
+  pills[1].retry();
+  assert.match(opened[1].html, /value="hour" checked/, 'the dialog opens again with what was entered');
+  assert.match(opened[1].html, /the CI runs/);
+});
+
+test('web: Board flips at once, and back when the server says no (#475)', async () => {
+  const { Pages, ctx } = page({ features: ['document-viewer', 'pages', 'pages-board'], fails: { '/bots/ops/pages/a/board': 'No' } });
+  const shown = [];
+  const btn = { set outerHTML(h) { shown.push(h); } };
+  ctx.document.querySelector = () => btn;
+  const p = { slug: 'a', onBoard: false };
+  await Pages.toggleBoard('ops', p, btn);
+  assert.match(shown[0], /On Board/, 'flipped before the answer');
+  assert.doesNotMatch(shown[1], /On Board/, 'flipped back');
+  assert.equal(p.onBoard, false);
 });
 
 test('web: the viewer draws a page with pages.js, and the feed passes `page` on', () => {

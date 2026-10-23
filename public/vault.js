@@ -334,16 +334,8 @@ async function unlockInBackground(password) {
   } finally { bwUi.unlocking = false; }
 }
 
-// retry: what tapping an error pill does (by default, open the unlock dialog again).
-function unlockPill(kind, text, retry = () => openUnlock()) {
-  let el = $('#unlock-pill');
-  if (!el) { el = document.createElement('div'); el.id = 'unlock-pill'; document.body.append(el); }
-  clearTimeout(unlockPill.timer);
-  el.className = `unlock-pill ${kind}`;
-  el.innerHTML = `<span class="dot"></span><span>${esc(text)}</span>${kind === 'err' ? '<button type="button" class="x" aria-label="Close">✕</button>' : ''}`;
-  el.onclick = kind === 'err' ? (e) => { el.remove(); if (!e.target.closest('.x')) retry(); } : null;
-  if (kind === 'ok') unlockPill.timer = setTimeout(() => { el.classList.add('gone'); setTimeout(() => el.remove(), 400); }, 2500);
-}
+// The corner pill (app.js); tapping an error opens the unlock dialog again unless `retry` says otherwise.
+const unlockPill = (kind, text, retry = () => openUnlock()) => cornerPill(kind, text, retry);
 
 async function pollBitwarden() {
   bwUi.polledAt = Date.now();
