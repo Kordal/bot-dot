@@ -77,7 +77,7 @@ function justDone(id, kind, now = Date.now()) {
   const was = kinds.get(id);
   if (!was || was.kind !== kind) kinds.set(id, { kind, at: now, from: was?.kind });
   const k = kinds.get(id);
-  return k.kind === 'done' && k.from === 'working' && now - k.at < 300;
+  return k.kind === 'done' && k.from === 'working' && now - k.at < ms('--t3', 260) + 40;
 }
 
 // Without exits, dialogs close at once too (style.css, .m-exits-off).
