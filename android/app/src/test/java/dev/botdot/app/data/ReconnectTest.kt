@@ -16,4 +16,8 @@ class ReconnectTest {
         assertTrue(Api.JSON.decodeFromString(Run.serializer(), """{"id":"r1"}""").reconnect.isEmpty())
         assertTrue(Api.JSON.decodeFromString(Run.serializer(), """{"id":"r1","reconnect":{"app":"gmail"}}""").reconnect.isEmpty())
     }
+
+    @Test fun theButtonSaysWhereItIs() {
+        assertEquals(listOf("Reconnect", "Opening…", "Try again"), ReconnectStep.entries.map { it.button })
+    }
 }

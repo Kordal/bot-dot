@@ -343,24 +343,32 @@ fun ReconnectCards(cards: List<dev.botdot.app.data.ReconnectCard>) {
     val app = BotDotApp.of(context)
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
-    val tell = { t: String -> android.widget.Toast.makeText(context, t, android.widget.Toast.LENGTH_LONG).show() }
     Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         cards.forEach { card ->
-            Row(Modifier.widthIn(max = 320.dp).clip(RoundedCornerShape(14.dp)).background(p.panel).border(1.dp, p.line2, RoundedCornerShape(14.dp))
-                .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                Text(androidx.compose.ui.text.buildAnnotatedString {
-                    withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(card.label) }
-                    append(" is signed out")
-                }, color = p.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                androidx.compose.material3.TextButton(onClick = {
-                    scope.launch {
-                        runCatching { (api ?: error("Not connected to botdot")).connectApp(card.app) }.onSuccess { link ->
-                            if (link.noAuth) tell("Connected")
-                            else link.redirectUrl?.let { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(it))) }
-                        }.onFailure { tell(it.message ?: "Couldn't connect") }
-                    }
-                }) { Text("Reconnect", color = p.okText) }
+            var step by remember(card.app) { mutableStateOf(dev.botdot.app.data.ReconnectStep.Ready) }
+            var problem by remember(card.app) { mutableStateOf<String?>(null) }
+            Column(Modifier.widthIn(max = 320.dp).clip(RoundedCornerShape(14.dp)).background(p.panel).border(1.dp, p.line2, RoundedCornerShape(14.dp))
+                .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(androidx.compose.ui.text.buildAnnotatedString {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(card.label) }
+                        append(" is signed out")
+                    }, color = p.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    androidx.compose.material3.TextButton(enabled = step != dev.botdot.app.data.ReconnectStep.Opening, onClick = {
+                        step = dev.botdot.app.data.ReconnectStep.Opening
+                        problem = null
+                        scope.launch {
+                            runCatching { (api ?: error("Not connected to botdot")).connectApp(card.app) }.onSuccess { link ->
+                                step = dev.botdot.app.data.ReconnectStep.Ready
+                                link.redirectUrl?.takeIf { !link.noAuth }?.let { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(it))) }
+                            }.onFailure {
+                                step = dev.botdot.app.data.ReconnectStep.Failed
+                                problem = it.message ?: "Couldn't connect ${card.label}."
+                            }
+                        }
+                    }) { Text(step.button, color = p.okText) }
+                }
+                problem?.let { Text(it, color = p.err, fontSize = 13.sp, modifier = Modifier.padding(end = 8.dp, bottom = 6.dp)) }
             }
         }
     }
