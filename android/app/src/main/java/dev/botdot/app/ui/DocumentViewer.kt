@@ -1,5 +1,10 @@
 package dev.botdot.app.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -551,8 +556,7 @@ private data class KeepDraft(val every: String, val time: String, val notify: St
 @Composable
 private fun WorkLine(w: PageWork, onClose: () -> Unit) {
     val p = LocalPaper.current
-    val a by androidx.compose.animation.core.rememberInfiniteTransition(label = "work").animateFloat(1f, if (w.kind == "busy") 0.35f else 1f,
-        androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(700), androidx.compose.animation.core.RepeatMode.Reverse), label = "a")
+    val a by rememberInfiniteTransition(label = "work").animateFloat(1f, if (w.kind == "busy") 0.35f else 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "a")
     val err = w.kind == "err"
     Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp).clip(RoundedCornerShape(99.dp)).background(if (err) p.errSoft else p.sunk)
         .then(if (err) Modifier.clickable { onClose(); w.retry?.invoke() } else Modifier).padding(horizontal = 12.dp, vertical = 6.dp),
