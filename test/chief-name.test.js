@@ -1,6 +1,6 @@
 // The Chief of Staff's name (#41): asked once in the first-run setup, kept by the server, shown by the apps from
 // `GET /api/chief`, announced with the feed's `chief_name`, told to the Chief itself, and changed later by asking
-// the Chief (AGENTS.md rule 5: no control in Settings). A real botdot server with the stand-in Claude.
+// the Chief or in its settings (#379). A real botdot server with the stand-in Claude.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, makeBot, feed, waitFor } = require('./helpers');
@@ -140,3 +140,15 @@ test('@ChiefOfStaff still means the Chief once it has a name, in the note its tu
   assert.doesNotMatch(told.system, /@Max is/);
 });
 
+test("the owner renames the Chief from its settings at any time, announced on the feed, and a bot's name is refused (#379)", async () => {
+  const r = await srv.api('/settings/chief-name', { method: 'PUT', body: { name: ' Friday ' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.name, 'Friday');
+  assert.equal(await chiefName(), 'Friday');
+  await f.wait('chief_name', (d) => d.name === 'Friday');
+  const refused = await srv.api('/settings/chief-name', { method: 'PUT', body: { name: 'news watcher' } });
+  assert.equal(refused.status, 400);
+  assert.match(refused.data.error, /News Watcher/);
+  assert.equal(await chiefName(), 'Friday', 'nothing changed');
+  assert.equal((await srv.api('/settings/chief-name', { method: 'PUT', body: { name: '' } })).data.name, 'Chief of Staff');
+});

@@ -127,7 +127,7 @@ async function setCheckup(key, value) {
   drawCheckup();
 }
 
-// The Chief's settings (its figure and name in its chat): its model and reasoning, your rules for it, the
+// The Chief's settings (its figure and name in its chat): its name, its model and reasoning, your rules for it, the
 // checkup's switches, its previous chats. Its instructions and tools are botdot's.
 function renderChiefSettings() {
   const root = $('#view-chiefsettings');
@@ -138,6 +138,9 @@ function renderChiefSettings() {
   const s = state.settings;
   root.innerHTML = `
     <div class="section-head"><div><h1>Settings</h1><p>Changes save by themselves.</p></div></div>
+    ${state.features.includes('chief-name') ? `<div class="card settings-card">
+      <label class="field">Name<input type="text" id="chief-rename" maxlength="40" placeholder="${esc(CHIEF_ROLE)}" autocomplete="off" value="${esc(chiefName() === CHIEF_ROLE ? '' : chiefName())}"></label>
+    </div>` : ''}
     <form class="card settings-card" id="chief-form" autocomplete="off">
       <h3 class="page-sub" style="margin-top:0">Model and reasoning</h3>
       <p class="muted settings-hint">What the Chief uses to plan, create and manage your bots.</p>
@@ -185,6 +188,8 @@ function renderChiefSettings() {
   drawChiefFiles(root);
   $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
   loadCheckup();
+  const rename = $('#chief-rename', root);
+  if (rename) rename.onchange = () => renameChief(rename);
   const form = $('#chief-form', root);
   wireLlmFields(form, 'chief');
   form.onsubmit = (e) => e.preventDefault();
@@ -235,6 +240,20 @@ function drawChiefFiles(root) {
   if (list) drawBotFiles(chief, null, list);
   const box = $('#chief-ws-box', root);
   if (box && typeof Workspace !== 'undefined') Workspace.open(chief, box);
+}
+
+// Renames the Chief from its settings, as a bot is renamed (#379): empty gives back the role's own name. The feed's
+// chief_name redraws the other places too; a refused name (a bot's, too long) puts the field back.
+async function renameChief(field) {
+  try {
+    const { name } = await api('/settings/chief-name', { method: 'PUT', body: { name: field.value.trim() } });
+    if (takeChiefName(name)) { renderContacts(); drawChiefName(); drawPanelHead(); }
+    field.value = chiefName() === CHIEF_ROLE ? '' : chiefName();
+    toast('Renamed.');
+  } catch (err) {
+    field.value = chiefName() === CHIEF_ROLE ? '' : chiefName();
+    toast(err.message, true);
+  }
 }
 
 // The library skills you gave the Chief (settings.chiefSkills): ticked as a bot's are in its settings, saved at once.
