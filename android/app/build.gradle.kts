@@ -110,6 +110,9 @@ android {
         // The words of the Vault's item types, as the web page shows them (VaultTypesTest).
         val vaultTypes = rootProject.file("../test/fixtures/vault-types.json")
         unitTests.all { it.systemProperty("vaultTypes", vaultTypes.path); it.inputs.file(vaultTypes) }
+        // The order of a bot's chat, as the web page draws it (ChatOrderTest, #460).
+        val chatOrder = rootProject.file("../test/fixtures/chat-order.json")
+        unitTests.all { it.systemProperty("chatOrder", chatOrder.path); it.inputs.file(chatOrder) }
         // The figure definition the app bundles (FigureTest).
         unitTests.all { it.systemProperty("figureDefinition", figureDefinition.path); it.inputs.file(figureDefinition) }
         // The definitions every renderer must take alike (FigureTest).

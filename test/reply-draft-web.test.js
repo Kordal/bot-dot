@@ -147,7 +147,7 @@ test('web: the bot chat follows every run that is going, each in its own row (AD
 
 test('web: the bot chat draws the draft in the running run\'s row and nowhere else; its end and a refresh draw the reply as before', () => {
   const render = cut('function botThreadHTML', '// The notes other bots left for a bot');
-  const [running, ended] = render.split("} else {\n      const failed = ['error', 'stopped', 'interrupted'].includes(r.status);");
+  const [running, ended] = render.split("} else {\n    const failed = ['error', 'stopped', 'interrupted'].includes(r.status);");
   assert.ok(ended, 'the row of a running run, then the reply');
   assert.match(running, /data-live="\$\{esc\(r\.id\)\}">\$\{draftHTML\(replyDrafts\.of\(r\.id\), true\)\}\$\{botFilesHTML\(r\.files\)\}<\/div>/, 'the draft stands in the reply\'s row, in a stack as a reply\'s bubble, also when the chat is drawn again');
   assert.equal(drafts().ctx.draftHTML('Text\nmore', true), '<div class="stack draft-stack"><div class="bubble from-bot draft"><div class="md"><p>Text<br>more</p></div></div></div>');
