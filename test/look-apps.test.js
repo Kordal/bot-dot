@@ -55,7 +55,7 @@ test('the prompt of a look with apps asks for the next 48 hours, keeps the web, 
 
 test('a look with Gmail connected reads it; a write and another app are refused with no card; the token goes with it', async (t) => {
   srv.hold();
-  const looking = srv.api('/chief/look', { method: 'POST' });
+  const looking = srv.api('/chief/look', { method: 'POST', body: { kind: 'look' } });
   const rec = await srv.nextRun(isLook, 'the look');
   assert.ok(rec.connectors, 'the look has the connectors server');
   const env = rec.connectors.env;
@@ -92,6 +92,19 @@ test('a look with Gmail connected reads it; a write and another app are refused 
   assert.deepEqual([r.looked, r.posted], [true, false]);
   const after = await srv.api('/connectors/session/run', { method: 'POST', headers: { 'X-Run-Token': env.RUN_TOKEN }, body: { app: 'gmail', action: 'GMAIL_READ', arguments: {} } });
   assert.equal(after.status, 403, 'the token is gone with the look');
+});
+
+test('the first look after mail is connected gets to know the owner from 30 days of it, once (#416)', async () => {
+  srv.reply('NOTHING');
+  assert.equal((await srv.api('/chief/look', { method: 'POST' })).data.kind, 'meet');
+  const meet = srv.runs().filter(isLook).at(-1);
+  assert.match(meet.system, /your one look to get to know them/);
+  assert.match(meet.system, /Three proposals, numbered/);
+  assert.match(meet.stdin, /Read their mail and calendar of the last 30 days/);
+  assert.equal(meet.connectors.env.CONNECTOR_APPS, 'gmail', 'read-only, as every look');
+  srv.reply('NOTHING');
+  assert.equal((await srv.api('/chief/look', { method: 'POST' })).data.kind, undefined, 'a plain look next, though the first said nothing');
+  assert.match(srv.runs().filter(isLook).at(-1).system, /mail or calendar over the next 48 hours/);
 });
 
 test('with no mail or calendar connected a look has no connected apps', async () => {

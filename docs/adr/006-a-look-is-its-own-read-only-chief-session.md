@@ -45,6 +45,7 @@ The stage 4 trial ([milestone3-research.md](../archive/product/milestone3-resear
 - The Chief gains a second way of running, with its own prompt and tool list to keep in step with the first.
 - A look cannot act; "want me to change its check?" needs the owner's answer, which starts an ordinary turn.
 - Note, 2026-10-22 (#341): a look may end its message with one `[[choices: …]]` line, as a reply can. botdot takes the line off and the message carries answer buttons; a tap is that ordinary turn.
+- Note, 2026-10-23 (#416): the owner may name up to four look times by chat (`writing_first` `times`), in place of the even spread; the first of their day is then a brief in four fixed parts. Once a week a look offers one bot or job for something the owner did 3+ times, and once, after mail or a calendar is first connected, a look reads 30 days of it. They are looks like the others: the same read-only session, the same daily cap, and the owner's yes starts an ordinary turn.
 - An app from before this change shows an unasked message as a plain reply.
 - A tool added to the Chief is not a look's unless it is added to the reading list, and the test then calls it.
 - Unasked messages outlive their chat in the look's record; the record grows by at most three a day, and a look reads sixty days of it.

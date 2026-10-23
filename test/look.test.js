@@ -15,12 +15,13 @@ const at = (iso) => new Date(iso);
 // The looks of a botdot server started at `started`, with a clock the test sets.
 function make({ started = '2026-10-05T06:00:00Z', dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-look-')), answer = 'Your backup check never finished. Want me to run it again?' } = {}) {
   const w = {
-    dir, clock: at(started), busy: false, answer, posted: [], ids: [], offered: [], inputs: [], runs: 0, log: [],
+    dir, clock: at(started), busy: false, answer, posted: [], ids: [], offered: [], inputs: [], kinds: [], apps: [], runs: 0, log: [],
     settings: { unaskedPerDay: 3, quietHours: { start: 22, end: 7, timeZone: 'UTC' } },
   };
   w.looks = look.create({
     dataDir: dir, settings: { get: () => w.settings }, busy: () => w.busy, now: () => w.clock, log: (l) => w.log.push(l),
-    input: ({ raised }) => { w.inputs.push(raised); return { system: 's', prompt: 'p' }; },
+    input: ({ raised, kind }) => { w.inputs.push(raised); w.kinds.push(kind); return { system: 's', prompt: 'p' }; },
+    reads: () => w.apps,
     run: async () => { w.runs++; if (w.answer instanceof Error) throw w.answer; return typeof w.answer === 'function' ? w.answer() : w.answer; },
     post: (text, id, asked) => { w.posted.push(text); w.ids.push(id); w.offered.push(asked); return 'chat-1'; },
   });
@@ -38,6 +39,65 @@ test('looks start at four spread-out times outside quiet hours, which follow the
   assert.equal(look.dueLook(at('2026-10-05T08:53:00Z'), { start: 22, end: 7, timeZone: 'Europe/Warsaw' }), null);
 });
 
+test("looks start at the owner's own times instead, in the order of their waking day (#416)", () => {
+  const q = { start: 22, end: 7, timeZone: 'UTC' };
+  assert.deepEqual(look.times(q, ['16:00', '09:00']), [540, 960]);
+  assert.deepEqual(look.times({ start: 2, end: 10, timeZone: 'UTC' }, ['00:30', '11:00']), [660, 30], 'after midnight is late in the day');
+  assert.notEqual(look.dueLook(at('2026-10-05T09:00:00Z'), q, ['09:00']), null);
+  assert.equal(look.dueLook(at('2026-10-05T08:53:00Z'), q, ['09:00']), null, 'the even spread is gone');
+  assert.deepEqual(look.namedTimes(['16:00', '9:00', '09:00'], q), ['09:00', '16:00'], 'checked, each once, in order');
+  assert.deepEqual(look.namedTimes([], q), [], 'the spread back');
+  for (const bad of [['25:00'], ['9'], '09:00', [9], ['07:00', '09:00', '11:00', '13:00', '15:00']]) assert.throws(() => look.namedTimes(bad, q), /times must be a list of up to 4/, JSON.stringify(bad));
+  assert.throws(() => look.namedTimes(['06:30'], q), /06:30 is inside the quiet hours \(22:00 to 07:00\), when no look starts\. The nearest times are 21:59 and 07:00\./);
+});
+
+test('with named times the first look of the day is a brief; a week after the first look one is a hand-off; mail or a calendar brings one get-to-know-me (#416)', async () => {
+  const w = make();
+  w.settings.lookTimes = ['09:00', '16:00'];
+  w.answer = 'NOTHING';
+  assert.equal((await w.tickAt('2026-10-05T08:53:00Z')).reason, 'not-time');
+  assert.deepEqual(await w.tickAt('2026-10-05T09:00:00Z'), { looked: true, posted: false, kind: 'brief' });
+  assert.deepEqual(await w.tickAt('2026-10-05T16:05:00Z'), { looked: true, posted: false });
+  assert.deepEqual(await w.tickAt('2026-10-06T09:00:00Z'), { looked: true, posted: false, kind: 'brief' });
+  await w.tickAt('2026-10-12T16:00:00Z');
+  assert.deepEqual(await w.tickAt('2026-10-13T09:00:00Z'), { looked: true, posted: false, kind: 'brief' }, 'the brief keeps its time');
+  w.answer = 'You asked me for the bin days 4 times this week. A job every Sunday? \n[[choices: Yes | No]]';
+  assert.deepEqual(await w.tickAt('2026-10-13T16:00:00Z'), { looked: true, posted: true, chatId: 'chat-1', kind: 'handoff' }, 'a week after the first plain look');
+  assert.deepEqual(w.offered.at(-1).choices, ['Yes', 'No']);
+  assert.equal(w.looks.raised().at(-1).kind, 'handoff');
+  w.answer = 'NOTHING';
+  assert.equal((await w.tickAt('2026-10-14T16:00:00Z')).kind, undefined, 'not again that week');
+  assert.deepEqual(w.kinds, ['brief', 'look', 'brief', 'look', 'brief', 'handoff', 'look']);
+
+  // Mail connected: the next look, whatever its time, gets to know the owner, once; a failed one is tried again.
+  w.apps = ['gmail'];
+  w.answer = new Error('no sign-in');
+  assert.equal((await w.tickAt('2026-10-15T09:00:00Z')).kind, 'meet');
+  w.answer = 'NOTHING';
+  assert.equal((await w.tickAt('2026-10-15T16:00:00Z')).kind, 'meet');
+  assert.equal((await w.tickAt('2026-10-16T09:00:00Z')).kind, 'brief');
+  const kept = JSON.parse(fs.readFileSync(path.join(w.dir, 'looks.json'), 'utf8'));
+  assert.equal(kept.metAt, '2026-10-15T16:00:00.000Z', 'kept across a restart');
+  // By hand, any kind can be asked for.
+  assert.equal((await w.looks.onDemand({ kind: 'handoff' })).kind, 'handoff');
+});
+
+test('each kind of look is told its own task; ping rules in the notes decide for every kind (#416)', () => {
+  const brief = look.systemPrompt({ kind: 'brief', apps: true });
+  for (const part of ['1. Needs your decision: at most 3', '2. Waiting on others', '3. Ready for you', '4. Changed since the last one', 'At most about 150 words', 'Each line ends with its link']) assert.ok(brief.includes(part), part);
+  assert.match(look.systemPrompt({ kind: 'handoff' }), /3 or more times[^]*Offer exactly that one/);
+  assert.match(look.systemPrompt({ kind: 'handoff' }), /ends with a \[\[choices: …\]\] line whose first answer is the yes/);
+  assert.match(look.systemPrompt({ kind: 'meet', apps: true }), /A map: at most 8 short lines[^]*Leaks[^]*Three proposals, numbered/);
+  assert.match(look.systemPrompt(), /at most 60 words/, 'a plain look is as it was');
+  for (const kind of look.KINDS) {
+    assert.match(look.systemPrompt({ kind }), /Your own notes may hold the owner's rules for when you write to them[^\n]*Those rules decide/, kind);
+    assert.match(look.systemPrompt({ kind }), /answer exactly NOTHING/, kind);
+  }
+  const now = new Date('2026-10-22T08:00:00Z');
+  assert.match(look.prompt({ now, timeZone: 'UTC', kind: 'brief' }), /The brief, or NOTHING:$/);
+  assert.match(look.prompt({ now, timeZone: 'UTC', apps: ['Gmail'], kind: 'meet' }), /Read their mail and calendar of the last 30 days, and their calendar of the next 14\./);
+});
+
 test('a look whose time has come posts its message, once', async () => {
   const w = make();
   assert.deepEqual(await w.tickAt('2026-10-05T08:52:00Z'), { looked: false, reason: 'not-time' });
@@ -45,7 +105,7 @@ test('a look whose time has come posts its message, once', async () => {
   assert.deepEqual(w.posted, ['Your backup check never finished. Want me to run it again?']);
   assert.deepEqual(await w.tickAt('2026-10-05T08:54:00Z'), { looked: false, reason: 'taken' }, 'the same time starts no second look');
   assert.equal(w.runs, 1);
-  assert.deepEqual(w.looks.status(), { perDay: 3, sentToday: 1 });
+  assert.deepEqual(w.looks.status(), { perDay: 3, sentToday: 1, times: [] });
 });
 
 test('a time missed while botdot was off is not caught up', async () => {
@@ -131,10 +191,10 @@ test('at most three a day by the owner\'s day, fewer when set so; the count surv
   assert.equal(w.runs, 3, 'no look starts once three were sent');
 
   const again = make({ dir: w.dir, started: '2026-10-05T20:20:00Z' }); // botdot restarted
-  assert.deepEqual(again.looks.status(), { perDay: 3, sentToday: 3 });
+  assert.deepEqual(again.looks.status(), { perDay: 3, sentToday: 3, times: [] });
   assert.deepEqual(await again.looks.onDemand(), { looked: false, reason: 'limit' });
   assert.equal((await again.tickAt('2026-10-06T08:53:00Z')).posted, true, 'the next day they start again');
-  assert.deepEqual(again.looks.status(), { perDay: 3, sentToday: 1 });
+  assert.deepEqual(again.looks.status(), { perDay: 3, sentToday: 1, times: [] });
 
   again.settings.unaskedPerDay = 1;
   assert.deepEqual(await again.tickAt('2026-10-06T12:38:00Z'), { looked: false, reason: 'limit' }, 'one a day, when the owner asked for that');
@@ -303,10 +363,11 @@ test('the Chief has one tool to read and change writing first', async (t) => {
   assert.match(tool.description, /0 = never/);
   await s.call('tools/call', { name: 'writing_first', arguments: {} });
   await s.call('tools/call', { name: 'writing_first', arguments: { perDay: 1 } });
-  assert.deepEqual(s.requests.map((q) => [q.method, q.url, q.body]), [['GET', '/api/settings/writing-first', ''], ['PUT', '/api/settings/writing-first', '{"perDay":1}']]);
+  await s.call('tools/call', { name: 'writing_first', arguments: { times: ['09:00', '16:00'] } });
+  assert.deepEqual(s.requests.map((q) => [q.method, q.url, q.body]), [['GET', '/api/settings/writing-first', ''], ['PUT', '/api/settings/writing-first', '{"perDay":1}'], ['PUT', '/api/settings/writing-first', '{"times":["09:00","16:00"]}']]);
   const refused = await s.call('tools/call', { name: 'writing_first', arguments: { perDay: 4 } });
   assert.ok(refused.result.isError);
-  assert.equal(s.requests.length, 2);
+  assert.equal(s.requests.length, 3);
   // In a chat's turn a run the Chief reads is marked as seen, as before.
   await s.call('tools/call', { name: 'get_run', arguments: { runId: 'r1' } });
   assert.match(s.requests.at(-1).url, /seen=chief/);

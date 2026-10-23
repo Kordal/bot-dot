@@ -90,7 +90,7 @@ test('a checkup opens a new chat named for the day, with numbered proposals and 
   assert.deepEqual([ev.data.checkup, ev.data.new, ev.data.status, ev.data.error, ev.data.unasked], [true, true, 'success', null, undefined], 'announced like a reply');
   await f.wait('unread', (d) => d.chat === `chief:${chatId}` && d.unread === 1);
   assert.deepEqual(record().proposals.map((p) => [p.n, p.kind, p.bot, p.status, p.chatId, p.shown]), [[1, 'rule', 'Web Surfer', 'open', chatId, 1], [2, 'job', 'Web Surfer', 'open', chatId, 1]]);
-  assert.deepEqual((await srv.api('/settings/writing-first')).data.writingFirst, { perDay: 3, sentToday: 0 }, 'it does not count toward the unasked messages of the day');
+  assert.deepEqual((await srv.api('/settings/writing-first')).data.writingFirst, { perDay: 3, sentToday: 0, times: [] }, 'it does not count toward the unasked messages of the day');
 });
 
 test('a checkup\'s message cannot be rated', async () => {
