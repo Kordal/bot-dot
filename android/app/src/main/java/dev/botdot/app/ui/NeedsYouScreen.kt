@@ -529,11 +529,11 @@ internal fun answeredWord(own: String?, said: Answered?, yes: Boolean): String =
 /** Under the body of a change to an approved job or tile: nothing stops while the card waits. */
 internal const val RUNS_AS_APPROVED = "Runs as you approved it until you answer."
 
-/** The question before "Always allow this action" answers, in the web page's words (public/app.js). */
-internal const val ALWAYS_ALLOW_QUESTION = "Allow this exact connector action for this bot in future runs, with any arguments?"
+/** The question before "Always allow" answers from a server that sends no `warning`, in the web page's words (public/needs.js). */
+internal const val ALWAYS_ALLOW_QUESTION = "Let this bot do this from now on, whatever the details?"
 
 /** The same question on the Chief's own card (ADR 047), with the Chief's name, as the web page asks it. */
-internal fun alwaysAllowChief(name: String) = "Allow this exact connector action for $name from now on, with any arguments?"
+internal fun alwaysAllowChief(name: String) = "Let $name do this from now on, whatever the details?"
 
 /**
  * What "Approve all" does with what waits: it approves [jobs] and [memory], which a card shows in words, and leaves
@@ -681,7 +681,7 @@ internal fun connectorTooLong(a: Ask): Boolean = a.tooLong && !connectorCut(a)
 internal const val TOO_LONG = "Too long to show in full."
 
 /**
- * Whether the card offers "Always allow this action": not while a row it draws was clipped. It grants the action
+ * Whether the card offers "Always allow": not while a row it draws was clipped. It grants the action
  * with any arguments, so it is offered for an action too long to show in full too.
  */
 internal fun connectorAlways(a: Ask): Boolean = !connectorCut(a)
@@ -1206,22 +1206,22 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         // the line and the text the card has today. Rows that were cut short (the feed's entry) are not all a yes
         // approves: the card then shows `details` under them and offers Decline alone, until the whole rows are there.
         // An action too long to show in full has the rows that fit and one line that says so: it cannot be allowed
-        // once, so Decline and "Always allow this action" are left.
+        // once, so Decline and "Always allow" are left.
         val rows = a.rows
-        // "Always allow this action" grants the action with any arguments: it asks first, as on the web page.
+        // "Always allow" (the server's `always`) grants the action with any arguments: it asks first with the server's
+        // `warning`, which names the bot and the action (#474), as on the web page.
+        val always = a.always?.takeIf { it.isNotBlank() } ?: "Always allow"
         var asking by remember(a.id) { mutableStateOf(false) }
-        if (asking) AlertDialog(
-            onDismissRequest = { asking = false },
-            text = { Text(if (a.chiefsAction) alwaysAllowChief(who?.name ?: "the Chief") else ALWAYS_ALLOW_QUESTION) },
-            confirmButton = { TextButton(onClick = { asking = false; answer(a.title, true, "Always allowed", true) }) { Text("Always allow", color = LocalPaper.current.text) } },
-            dismissButton = { TextButton(onClick = { asking = false }) { Text("Cancel", color = LocalPaper.current.text) } },
-        )
+        if (asking) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { if (a.chiefsAction) alwaysAllowChief(who?.name ?: "the Chief") else ALWAYS_ALLOW_QUESTION }, always) {
+            asking = false
+            if (it) answer(a.title, true, "Always allowed", true)
+        }
         Card(who, a.title, connectorState(who?.name ?: a.bot?.name?.ifBlank { null } ?: "The bot", a.held, a.stoppedAt) ?: a.reason, expandable = true) {
             if (rows.isNotEmpty()) Facts(rows, whole = LocalCardOpen.current)
             if (connectorDetails(a)) Body(a.details)
             if (connectorTooLong(a)) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
             ThenLine(then)
-            if (connectorAlways(a)) TextButton(onClick = { asking = true }) { Text("Always allow this action") }
+            if (connectorAlways(a)) TextButton(onClick = { asking = true }) { Text(always) }
             if (connectorOnce(a)) Buttons("Allow once", { decide(a.title, true, "Approved") }, "Decline", { decide(a.title, false, null) })
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 OutlinedButton(onClick = { decide(a.title, false, null) }) { Text("Decline", color = LocalPaper.current.text) }

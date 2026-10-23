@@ -21,7 +21,7 @@ const STOPPED_AT = new Date(new Date().setHours(13, 52, 0, 0)).toISOString(); //
 const LATE = { ...HELD, held: false, stoppedAt: STOPPED_AT, then: { who: 'bot', text: 'It carries on when you allow it.' } };
 // As the botdot server of Milestone 5 sends one.
 const OLD = { id: 'k1', kind: 'connector-action', botId: 'mail', bot: MAIL, title: 'Allow gmail: gmail send email?', details: DETAILS, at: '2026-10-05T11:42:00.000Z' };
-const BUTTONS = '<button class="btn sm" data-need-no>Decline</button><button class="btn sm" data-need-always>Always allow this action</button><button class="btn sm primary" data-need-yes>Allow once</button>';
+const BUTTONS = '<button class="btn sm" data-need-no>Decline</button><button class="btn sm" data-need-always>Always allow</button><button class="btn sm primary" data-need-yes>Allow once</button>';
 const cardOf5 = `
     <div class="card need-card" data-need="ask:k1" title="Click to see it all">
       <div class="need-who"><svg class="fig fig-small"></svg>Mail Writer</div>
@@ -49,8 +49,8 @@ test('web: the card\'s title is the server\'s and its body the rows, as a tool\'
   assert.deepEqual(rowsOf(odd), [['Cc', 'bart@example.com, ola@example.com'], ['Attachment count', '2'], ['Only a label', ''], ['', 'only a value'], ['Nested', '']]);
 });
 
-test('web: the buttons keep their words: Decline, Always allow this action, Allow once', () => {
-  for (const ask of [HELD, LATE, OLD]) assert.deepEqual(buttonsOf(draw(ask)), ['Decline', 'Always allow this action', 'Allow once']);
+test('web: the buttons keep their words: Decline, Always allow, Allow once', () => {
+  for (const ask of [HELD, LATE, OLD]) assert.deepEqual(buttonsOf(draw(ask)), ['Decline', 'Always allow', 'Allow once']);
   assert.ok(draw(HELD).includes(`<div class="need-actions">${BUTTONS}</div>`));
   assert.doesNotMatch(app, /Always allow sending/, 'the prototype\'s wording of the middle button was not taken');
 });
@@ -61,7 +61,7 @@ test('web: an opened card shows every row and every value in full; a closed one 
   const rows = [{ label: 'To', value: 'anna.kowalska@example.com' }, { label: 'Text', value: text }, ...Array.from({ length: 40 }, (_, i) => ({ label: `Extra ${i}`, value: `value ${i}` }))];
   const html = draw({ ...HELD, rows });
   assert.deepEqual(rowsOf(html), rows.map((r) => [r.label, r.value]), 'all 42 rows, the long text to its last word');
-  assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow this action', 'Allow once'], 'what the yes sends is all on the card');
+  assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow', 'Allow once'], 'what the yes sends is all on the card');
   assert.doesNotMatch(html, /<pre/, 'and no `details` beside them');
   assert.doesNotMatch(app, /\.slice\(0, ?(30|500)\)/, 'the page has no limit of its own');
   // Closed, a card of rows shows its first three, each value in at most three lines; opened, all of each, with its line breaks.
@@ -139,7 +139,7 @@ test('web: a card drawn from a clipped entry shows `details` under its rows and 
   const leftOutToo = { ...HELD, rows: [...clippedRow.rows, { label: 'More', value: '7 more that this card does not show' }], more: true };
   for (const [what, ask] of Object.entries({ 'a clipped value': clippedRow, 'a clipped value and rows left out': leftOutToo, 'after its run stopped waiting': { ...leftOutToo, ...LATE, rows: leftOutToo.rows, more: true } })) {
     const html = draw(ask);
-    assert.deepEqual(buttonsOf(html), ['Decline'], `${what}: no "Allow once" and no "Always allow this action"`);
+    assert.deepEqual(buttonsOf(html), ['Decline'], `${what}: no "Allow once" and no "Always allow"`);
     assert.doesNotMatch(html, /data-need-yes|data-need-always|Too long to show in full/, what);
     assert.deepEqual(rowsOf(html).length, ask.rows.length, `${what}: the rows it has`);
     assert.ok(html.indexOf('need-facts') < html.indexOf(`<div class="need-body"><pre class="nb">${esc(DETAILS)}</pre></div>`), `${what}: \`details\`, the arguments as they were sent, under the rows`);
@@ -150,8 +150,8 @@ test('web: a card drawn from a clipped entry shows `details` under its rows and 
   assert.deepEqual([buttonsOf(bare), /<pre/.test(bare), rowsOf(bare).length], [['Decline'], false, 3]);
   // Only `true` is a cut; a whole ask, and a `more` of another kind, keep their buttons.
   for (const more of [undefined, null, false, 'true', 1, 0, {}, []]) {
-    assert.deepEqual(buttonsOf(draw({ ...HELD, more })), ['Decline', 'Always allow this action', 'Allow once'], `more: ${JSON.stringify(more)}`);
-    assert.deepEqual(buttonsOf(draw({ ...HELD, rows: [{ ...ROWS[0], more }] })), ['Decline', 'Always allow this action', 'Allow once'], `a row's more: ${JSON.stringify(more)}`);
+    assert.deepEqual(buttonsOf(draw({ ...HELD, more })), ['Decline', 'Always allow', 'Allow once'], `more: ${JSON.stringify(more)}`);
+    assert.deepEqual(buttonsOf(draw({ ...HELD, rows: [{ ...ROWS[0], more }] })), ['Decline', 'Always allow', 'Allow once'], `a row's more: ${JSON.stringify(more)}`);
   }
   // The full rows arrive (the list is read): the page draws the card again, with its yes.
   const p = page({ state: { asks: [clippedRow] } });
@@ -159,7 +159,7 @@ test('web: a card drawn from a clipped entry shows `details` under its rows and 
   assert.deepEqual(buttonsOf(p.needsPage.innerHTML), ['Decline']);
   p.state.asks = [HELD];
   p.renderNeeds();
-  assert.deepEqual(buttonsOf(p.needsPage.innerHTML), ['Decline', 'Always allow this action', 'Allow once']);
+  assert.deepEqual(buttonsOf(p.needsPage.innerHTML), ['Decline', 'Always allow', 'Allow once']);
   assert.doesNotMatch(p.needsPage.innerHTML, /<pre/);
   const chat = p.thread();
   p.state.asks = [leftOutToo];
@@ -167,7 +167,7 @@ test('web: a card drawn from a clipped entry shows `details` under its rows and 
   assert.deepEqual(buttonsOf(chat.box.innerHTML), ['Decline']);
   p.state.asks = [HELD];
   p.updateChatNeeds(chat.thread, 'mail');
-  assert.deepEqual(buttonsOf(chat.box.innerHTML), ['Decline', 'Always allow this action', 'Allow once']);
+  assert.deepEqual(buttonsOf(chat.box.innerHTML), ['Decline', 'Always allow', 'Allow once']);
 });
 
 test('web: an action too long to show in full: its rows, one line that says so, Decline and "Always allow this action", and no "Allow once"', async () => {
@@ -178,7 +178,7 @@ test('web: an action too long to show in full: its rows, one line that says so, 
   const LINE = '<div class="need-meta">Too long to show in full.</div>';
   const html = draw(LONG);
   assert.deepEqual(rowsOf(html), rows.map((r) => [r.label, r.value]), 'every row it has, each whole');
-  assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow this action']);
+  assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow']);
   assert.doesNotMatch(html, /data-need-yes|Allow once/);
   assert.equal(html.split(LINE).length, 2, 'the line, once');
   assert.ok(html.indexOf('</dl></div>') < html.indexOf(LINE) && html.indexOf(LINE) < html.indexOf('need-actions'), 'under the rows, above the buttons');
@@ -190,13 +190,13 @@ test('web: an action too long to show in full: its rows, one line that says so, 
   assert.equal(metaOf(html), 'Mail Writer waits for your answer', 'the line under the title stays');
   // After its run stopped waiting: the same, and who carries on stands under the line.
   const late = draw({ ...LATE, rows, more: true });
-  assert.deepEqual(buttonsOf(late), ['Decline', 'Always allow this action']);
+  assert.deepEqual(buttonsOf(late), ['Decline', 'Always allow']);
   assert.ok(late.indexOf(LINE) < late.indexOf('need-then') && late.indexOf('need-then') < late.indexOf('need-actions'));
   assert.equal(thenOf(late), 'It carries on when you allow it.');
   // One value longer than a card: no row fits. The card says so, and still draws no `details`.
   for (const none of [[], undefined]) {
     const bare = draw({ ...HELD, rows: none, more: true });
-    assert.deepEqual([rowsOf(bare), buttonsOf(bare), bare.includes(LINE), /<pre|<dl/.test(bare)], [[], ['Decline', 'Always allow this action'], true, false]);
+    assert.deepEqual([rowsOf(bare), buttonsOf(bare), bare.includes(LINE), /<pre|<dl/.test(bare)], [[], ['Decline', 'Always allow'], true, false]);
   }
   // Only `true` says it; a row that was clipped as well takes every yes away, as before.
   for (const more of [undefined, null, false, 'true', 1, 0, {}, []]) assert.ok(!draw({ ...HELD, rows, more }).includes('Too long to show in full'), JSON.stringify(more));
@@ -210,13 +210,13 @@ test('web: an action too long to show in full: its rows, one line that says so, 
   // The page draws the card again when the ask is whole after all, and when it is too long after all.
   const again = page({ state: { asks: [LONG] } });
   again.renderNeeds();
-  assert.deepEqual(buttonsOf(again.needsPage.innerHTML), ['Decline', 'Always allow this action']);
+  assert.deepEqual(buttonsOf(again.needsPage.innerHTML), ['Decline', 'Always allow']);
   again.state.asks = [{ ...HELD, rows }];
   again.renderNeeds();
-  assert.deepEqual(buttonsOf(again.needsPage.innerHTML), ['Decline', 'Always allow this action', 'Allow once']);
+  assert.deepEqual(buttonsOf(again.needsPage.innerHTML), ['Decline', 'Always allow', 'Allow once']);
   again.state.asks = [LONG];
   again.renderNeeds();
-  assert.deepEqual(buttonsOf(again.needsPage.innerHTML), ['Decline', 'Always allow this action']);
+  assert.deepEqual(buttonsOf(again.needsPage.innerHTML), ['Decline', 'Always allow']);
   // A page of before this card sends "Allow once" all the same: the server refuses it, in a sentence the page shows.
   const refusal = "This is too long to show in full, so it can't be allowed once. Decline it, or always allow this action.";
   const old = page({ state: { asks: [LONG] }, answer: () => Object.assign(new Error(refusal), { status: 409, refused: true }) });
@@ -366,8 +366,8 @@ test("web: the Chief's own action in a connected app (ADR 047) is the Chief's ca
   assert.equal(titleOf(html), 'Send email with Gmail?');
   assert.match(html, /<div class="need-who">[\s\S]*Chief of Staff<\/div>/, 'it names the Chief');
   assert.equal(metaOf(html), 'Chief of Staff waits for your answer');
-  assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow this action', 'Allow once']);
+  assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow', 'Allow once']);
   assert.deepEqual(plain(p.chatNeeds('chief').map((x) => x.key)), ['ask:c1'], "in the Chief's chat");
   assert.deepEqual(plain(p.chatNeeds('mail')), [], "in no bot's chat");
-  assert.match(app, /Allow this exact connector action for \$\{CHIEF_BOT\.name\} from now on, with any arguments\?/);
+  assert.match(app, /Let \$\{CHIEF_BOT\.name\} do this from now on, whatever the details\?/);
 });

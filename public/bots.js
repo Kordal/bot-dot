@@ -126,6 +126,30 @@ function skillMoreHTML(k) {
   return `${lines.map(esc).join('<br>')}${k.instructions ? `<span class="pick-instructions">${esc(k.instructions.slice(0, 600))}${k.instructions.length > 600 ? '…' : ''}</span>` : ''}`;
 }
 
+// What you said to always approve for a bot, in its settings: the jobs, whose later changes need no OK, and the
+// actions in connected apps, with any details (`alwaysAllowed`, #474). Revoke one and it asks again.
+function drawAlwaysApproved(b, root) {
+  const trusted = [
+    ...(b.jobs || []).filter((j) => j.alwaysApprove).map((j) => ({ id: `job ${j.id}`, label: j.name, desc: jobLine(j) })),
+    ...(b.alwaysAllowed || []).map((g) => ({ id: `app ${g.action}`, label: g.label })),
+  ];
+  $('#bs-always', root).classList.toggle('hidden', !trusted.length);
+  const trustedOn = new Set(trusted.map((x) => x.id));
+  if (trusted.length) foldPicker($('#always-picks', root), trusted, trustedOn, () => {}, {
+    action: { label: 'Revoke', run: async (id) => {
+      const [kind, what] = [id.slice(0, id.indexOf(' ')), id.slice(id.indexOf(' ') + 1)];
+      try {
+        if (kind === 'job') await api(`/bots/${b.id}/jobs/${what}`, { method: 'PUT', body: { alwaysApprove: false } });
+        else await api(`/bots/${b.id}/connector-actions`, { method: 'DELETE', body: { action: what } });
+      } catch (e) { toast(e.message, true); return false; }
+      toast(kind === 'job' ? 'Revoked: its next change waits for your OK' : 'Revoked: it asks you again');
+      if (trustedOn.size <= 1) $('#bs-always', root).classList.add('hidden');
+      refresh();
+      return true;
+    } },
+  });
+}
+
 function foldPicker(box, items, selected, onChange, { none = 'None', empty = 'Nothing to choose yet.', action = null, sum = null } = {}) {
   const row = box.closest('.bs-row');
   const label = (id) => items.find((x) => x.id === id)?.label || id;
@@ -413,20 +437,7 @@ function renderBotSettings(force = false) {
 
   foldPicker($('#bot-picks', root), state.bots.filter((x) => x.id !== b.id).map((x) => ({ id: x.id, label: x.name, desc: x.description.slice(0, 120) })), sel.mayMessage, saveSoon,
     { none: 'Nobody', sum: () => (others.length > 1 && others.every((id) => sel.mayMessage.has(id)) ? 'Everyone' : [...sel.mayMessage].map((id) => botById(id)?.name || id).join(', ')) });
-  // The jobs you said to always approve: their later changes need no OK. Untick one and it asks again.
-  const trusted = (b.jobs || []).filter((j) => j.alwaysApprove);
-  const alwaysBox = $('#always-picks', root);
-  $('#bs-always', root).classList.toggle('hidden', !trusted.length);
-  const trustedOn = new Set(trusted.map((j) => j.id));
-  if (trusted.length) foldPicker(alwaysBox, trusted.map((j) => ({ id: j.id, label: j.name, desc: jobLine(j) })), trustedOn, () => {}, {
-    action: { label: 'Revoke', run: async (id) => {
-      try { await api(`/bots/${b.id}/jobs/${id}`, { method: 'PUT', body: { alwaysApprove: false } }); } catch (e) { toast(e.message, true); return false; }
-      toast('Revoked: its next change waits for your OK');
-      if (!trustedOn.size || (trustedOn.size === 1 && trustedOn.has(id))) $('#bs-always', root).classList.add('hidden');
-      refresh();
-      return true;
-    } },
-  });
+  drawAlwaysApproved(b, root);
 
   drawBotSettingsLive(b); // and the rules you lifted
 

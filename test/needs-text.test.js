@@ -157,7 +157,7 @@ test("a connected-app action's card: a title in words, and one row per argument,
   assert.deepEqual(whole.rows, [{ label: 'To', value: 'anna@example.com' }, { label: 'Text', value: long }]);
   assert.ok(!('more' in whole) && whole.rows.every((r) => !('more' in r)), 'nothing is marked as cut');
   assert.ok(whole.details.includes(JSON.stringify(long)), 'what an app from before `rows` shows has it whole as well');
-  assert.match(whole.details, /^Allow once applies to this action with exactly these arguments, once: in the run that waits for your answer or, when it has stopped waiting, in the run your answer starts\. Always allow grants this exact action for this bot in future runs, with any arguments\.\n\n\{/);
+  assert.match(whole.details, /^Allow once applies to this action with exactly these arguments, once: in the run that waits for your answer or, when it has stopped waiting, in the run your answer starts\. Always allow grants this action for this bot in future runs, with any arguments\.\n\n\{/);
   const many = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`field_${i}`, i]));
   assert.deepEqual(card('X', many).rows, Array.from({ length: 40 }, (_, i) => ({ label: `Field ${i}`, value: String(i) })));
   // A value nested however deep is there to its last word.

@@ -269,9 +269,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 CheckRow("By its place", "Without one it gets a free digit by its place.", hotkey == 0) { hotkey = 0 }
                 for (d in 1..9) CheckRow("$d", others.firstOrNull { it.hotkey == d }?.let { "Now ${it.name}'s" }, hotkey == d) { on -> hotkey = if (on) d else 0 }
             }
-            // The jobs you said to always approve: their later changes need no OK. Revoke takes one off (saved right away).
+            // The jobs you said to always approve, whose later changes need no OK, and its lasting grants in connected apps
+            // (#474). Revoke takes one off (saved right away).
             val trusted = b.jobs.filter { it.alwaysApprove }
-            if (trusted.isNotEmpty()) FoldSection("Always approved", trusted.joinToString(", ") { it.name }) {
+            val grants = b.alwaysAllowed
+            if (trusted.isNotEmpty() || grants.isNotEmpty()) FoldSection("Always approved", (trusted.map { it.name } + grants.map { it.label.ifBlank { it.action } }).joinToString(", ")) {
                 trusted.forEach { j ->
                     androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -282,6 +284,18 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                             scope.launch {
                                 runCatching { api!!.setJobAlwaysApprove(botId, j.id, false) }
                                     .onSuccess { saved -> bot = b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }); tell("Revoked: its next change waits for your OK") }
+                                    .onError { tell(it.message ?: "Couldn't save") }
+                            }
+                        }) { Text("Revoke", color = p.text) }
+                    }
+                }
+                grants.forEach { g ->
+                    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(g.label.ifBlank { g.action }, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        OutlinedButton(onClick = {
+                            scope.launch {
+                                runCatching { api!!.revokeAlwaysAllowed(botId, g.action) }
+                                    .onSuccess { bot = b.copy(alwaysAllowed = b.alwaysAllowed - g); tell("Revoked: it asks you again") }
                                     .onError { tell(it.message ?: "Couldn't save") }
                             }
                         }) { Text("Revoke", color = p.text) }
