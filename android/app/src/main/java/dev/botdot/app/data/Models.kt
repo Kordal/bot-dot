@@ -1159,6 +1159,9 @@ data class Catalog(val items: List<CatalogApp> = emptyList())
 @Serializable
 data class ConnectLink(val redirectUrl: String? = null, val noAuth: Boolean = false)
 
+@Serializable
+data class Disconnected(val note: String? = null)
+
 /**
  * Claude's sign-in (docs/api.md, `GET /api/setup`). With an Anthropic API key as well as the subscription (#35):
  * [using] says which one bots run on ("api-key" or "subscription"), [apiKey] the saved key's last four ("…wxyz"),

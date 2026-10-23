@@ -257,7 +257,7 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
             onDismissRequest = { askRemove = null },
             title = { Text("Remove this app?") },
             text = { Text("Bots lose access to it, unless you connect it again.") },
-            confirmButton = { TextButton(onClick = { askRemove = null; scope.launch { runCatching { api!!.disconnect(id) }.onSuccess { tell("Removed") }.onError { tell(it.message ?: "Couldn't remove") }; load() } }) { Text("Remove", color = p.err) } },
+            confirmButton = { TextButton(onClick = { askRemove = null; scope.launch { runCatching { api!!.disconnect(id) }.onSuccess { tell(it ?: "Removed") }.onError { tell(it.message ?: "Couldn't remove") }; load() } }) { Text("Remove", color = p.err) } },
             dismissButton = { TextButton(onClick = { askRemove = null }) { Text("Keep", color = p.text) } },
         )
     }

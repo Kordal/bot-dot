@@ -637,7 +637,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun connectors(): ConnectorsInfo = json.decodeFromString(get("/connectors"))
     suspend fun catalog(search: String): Catalog = json.decodeFromString(get("/connectors/catalog?search=${enc(search)}"))
     suspend fun connectApp(slug: String): ConnectLink = json.decodeFromString(send("POST", "/connectors/connect", buildJsonObject { put("app", slug) }))
-    suspend fun disconnect(connectionId: String) { send("DELETE", "/connectors/connections/${enc(connectionId)}") }
+    /** What was left behind, in a sentence, or null (docs/api.md). */
+    suspend fun disconnect(connectionId: String): String? = json.decodeFromString<Disconnected>(send("DELETE", "/connectors/connections/${enc(connectionId)}")).note
     suspend fun setComposioKey(key: String) { send("PUT", "/connectors/key", buildJsonObject { put("key", key) }) }
     suspend fun removeComposioKey() { send("DELETE", "/connectors/key") }
     suspend fun forgetReconnect(slug: String) { send("DELETE", "/connectors/reconnect/${enc(slug)}") }
