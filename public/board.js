@@ -13,7 +13,15 @@ function groupBot(t) {
 }
 // The tiles of the Board that the list's strip and the keypad's line show: those at its top, approved. A tile's mark
 // is its dot (filled when a switch is on).
-const boardTiles = () => (state.dash?.tiles || []).filter((t) => !t.parent && t.approved !== false);
+// Whether this server takes a choice of them (#447).
+const canHome = () => (state.features || []).includes('home-tiles');
+// With `home` from the server (#447): the tiles chosen for home, in their order; from an older one, every tile at the top.
+function boardTiles() {
+  const tiles = state.dash?.tiles || [];
+  if (!Array.isArray(state.dash?.home)) return tiles.filter((t) => !t.parent && t.approved !== false);
+  const byId = new Map(tiles.map((t) => [t.id, t]));
+  return state.dash.home.map((id) => byId.get(id)).filter(Boolean);
+}
 const tileMark = (t) => { const dot = t.look?.dot; return `<i${dot && dot.filled !== true ? ' class="off"' : ''} style="--c:${tintOf(dot?.color, t)}"></i>`; };
 const BOARD_EMPTY = '<span class="none"><b>Board</b> · Nothing on it yet</span>';
 // The strip at the top of the list: each tile's dot and name, and a value's value (a switch's dot is filled
@@ -41,7 +49,7 @@ new ResizeObserver(() => fitStrip()).observe($('#contacts')); // a wider or narr
 let dashLoading = null;
 function loadDash(quiet = false) {
   if (dashLoading) return dashLoading;
-  dashLoading = api(quiet ? '/dashboard?quiet' : '/dashboard/refresh', quiet ? {} : { method: 'POST' }).then((d) => { state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); })
+  dashLoading = api(quiet ? '/dashboard?quiet' : '/dashboard/refresh', quiet ? {} : { method: 'POST' }).then((d) => { state.dash = d; renderContacts(); showNeeds(); drawHomePick(); if (state.view === 'dashboard') renderDashboard(); })
     .catch(() => {}).finally(() => { dashLoading = null; });
   return dashLoading;
 }
@@ -651,6 +659,123 @@ document.addEventListener('pointerdown', (e) => {
 }, true);
 window.addEventListener('resize', () => placeAsk());
 document.addEventListener('scroll', () => placeAsk(), true);
+
+// ---------- the tiles on home (#447) ----------
+// Every approved tile of the Board, those on home first in their order, each with a check; a grip drags a checked one
+// to another place. Each change is saved at once (PUT /dashboard/layout { home }). Under the pencil on a wide screen;
+// a sheet from the bottom on a phone. Esc or a tap beside it closes it.
+let homePick = null; // { pop, dim, anchor }
+const homePickOpen = () => !!homePick;
+const GRIP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></svg>';
+function homeRows() {
+  const on = boardTiles().map((t) => t.id);
+  const rest = (state.dash?.tiles || []).filter((t) => t.approved !== false && !on.includes(t.id)).map((t) => t.id);
+  return { on, rest };
+}
+function openHomePick(anchor) {
+  closeHomePick();
+  closeAsk();
+  const sheet = askSheet();
+  const pop = document.createElement('div');
+  pop.className = `ask-pop home-pop${sheet ? ' ask-sheet' : ''}`;
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', 'Tiles on home');
+  const dim = sheet ? Object.assign(document.createElement('div'), { className: 'ask-dim' }) : null;
+  if (dim) { dim.onclick = closeHomePick; document.body.append(dim); }
+  document.body.append(pop);
+  homePick = { pop, dim, anchor };
+  anchor.classList.add('editing');
+  drawHomePick();
+  $('[data-home-row]', pop)?.focus();
+}
+function drawHomePick() {
+  if (!homePick || homePick.dragging) return;
+  const { pop } = homePick;
+  const byId = new Map((state.dash?.tiles || []).map((t) => [t.id, t]));
+  const { on, rest } = homeRows();
+  const row = (id, checked) => `<div class="home-row${checked ? ' on' : ''}" data-home-row="${esc(id)}" role="checkbox" aria-checked="${checked}" tabindex="0">
+    <span class="home-grip"${checked ? ' data-home-grip' : ''}>${checked ? GRIP : ''}</span><span class="home-chk"></span><span class="home-t">${esc(byId.get(id)?.title || '')}</span></div>`;
+  pop.innerHTML = `<div class="home-list">${on.map((id) => row(id, true)).join('')}</div>${on.length && rest.length ? '<div class="home-sep"></div>' : ''}<div class="home-list">${rest.map((id) => row(id, false)).join('')}</div>`;
+  $$('[data-home-row]', pop).forEach((el) => {
+    el.onclick = (e) => { if (!e.target.closest('[data-home-grip]')) toggleHome(el.dataset.homeRow); };
+    el.onkeydown = (e) => {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleHome(el.dataset.homeRow); }
+      if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); nudgeHome(el.dataset.homeRow, e.key === 'ArrowUp' ? -1 : 1); }
+    };
+  });
+  $$('[data-home-grip]', pop).forEach((g) => (g.onpointerdown = (e) => dragHome(e, g.closest('[data-home-row]'))));
+  placeHomePick();
+}
+function placeHomePick() {
+  if (!homePick || homePick.pop.classList.contains('ask-sheet')) return;
+  const at = $('[data-home-edit]', homePick.anchor) || homePick.anchor;
+  if (!at.isConnected) return closeHomePick();
+  const r = at.getBoundingClientRect();
+  const w = Math.min(320, innerWidth - 32);
+  homePick.pop.style.width = `${w}px`;
+  homePick.pop.style.left = `${Math.max(16, Math.min(r.right - w, innerWidth - w - 16))}px`;
+  homePick.pop.style.top = `${r.bottom + 8}px`;
+  homePick.pop.style.maxHeight = `${Math.max(160, innerHeight - r.bottom - 24)}px`;
+}
+function closeHomePick() {
+  if (!homePick) return;
+  homePick.pop.remove();
+  homePick.dim?.remove();
+  homePick.anchor.classList.remove('editing');
+  homePick = null;
+}
+// The new list saved, and drawn at once: the line, and the list here.
+async function saveHome(home) {
+  const before = state.dash.home;
+  state.dash.home = home;
+  renderContacts();
+  drawHomePick();
+  try { await api('/dashboard/layout', { method: 'PUT', body: { home } }); } catch (e) { state.dash.home = before; renderContacts(); drawHomePick(); toast(e.message, true); }
+}
+function toggleHome(id) {
+  const on = homeRows().on;
+  saveHome(on.includes(id) ? on.filter((x) => x !== id) : [...on, id]);
+  requestAnimationFrame(() => homePick && $(`[data-home-row="${CSS.escape(id)}"]`, homePick.pop)?.focus());
+}
+function nudgeHome(id, by) {
+  const on = homeRows().on;
+  const i = on.indexOf(id), j = i + by;
+  if (i < 0 || j < 0 || j >= on.length) return;
+  [on[i], on[j]] = [on[j], on[i]];
+  saveHome(on);
+  requestAnimationFrame(() => homePick && $(`[data-home-row="${CSS.escape(id)}"]`, homePick.pop)?.focus());
+}
+// A checked row follows the pointer among the checked ones, and the order is saved where it is let go.
+function dragHome(e, el) {
+  e.preventDefault();
+  const list = el.parentElement;
+  homePick.dragging = true;
+  el.classList.add('dragging');
+  // On the document: moving the row in the list would end a capture on it.
+  const move = (m) => {
+    const others = [...list.children].filter((x) => x !== el);
+    const next = others.find((x) => { const r = x.getBoundingClientRect(); return m.clientY < r.top + r.height / 2; });
+    if (next) { if (el.nextElementSibling !== next) list.insertBefore(el, next); } else if (list.lastElementChild !== el) list.append(el);
+  };
+  const end = () => {
+    removeEventListener('pointermove', move);
+    removeEventListener('pointerup', end);
+    removeEventListener('pointercancel', end);
+    el.classList.remove('dragging');
+    if (!homePick) return;
+    homePick.dragging = false;
+    const order = [...list.children].map((x) => x.dataset.homeRow);
+    if (order.join() !== homeRows().on.join()) saveHome(order); else drawHomePick();
+  };
+  addEventListener('pointermove', move);
+  addEventListener('pointerup', end);
+  addEventListener('pointercancel', end);
+}
+document.addEventListener('pointerdown', (e) => {
+  if (homePick && !homePick.dim && !homePick.pop.contains(e.target) && !e.target.closest('[data-home-edit]')) closeHomePick();
+}, true);
+document.addEventListener('keydown', (e) => { if (homePick && e.key === 'Escape') closeHomePick(); });
+window.addEventListener('resize', () => placeHomePick());
 
 function removeTile(t) {
   const inside = t.kind === 'group' ? (state.dash?.tiles || []).filter((x) => x.parent === t.id) : [];

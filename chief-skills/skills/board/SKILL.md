@@ -144,6 +144,7 @@ You need a saved login holding a long-lived access token (list_vault; if there i
 - Move a tile under another heading: `update_tile` with `section`.
 - Order headings or tiles: `arrange_board` with `sections` or `tiles` (ids in order).
 - Rename a heading: `arrange_board` with `rename`.
+- Choose the tiles on home (the row of cards over the bots): `arrange_board` with `home`, every tile id that should be there, in order (any tile, also one inside a group). `get_board` has them in `home`, and `homeAuto: true` while nobody chose; `home: null` makes it automatic again (every tile without a group, in the Board's order).
 - Bigger or smaller: `update_tile` with `size` (small, wide, big, row).
 - How often it refreshes: `update_tile` with `every`.
 - Change what it shows or what its pop-up holds: `update_tile` with `face`, `panel` or `dot` (the whole list; `null` goes back to its kind's own look).
