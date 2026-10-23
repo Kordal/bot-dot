@@ -16,8 +16,10 @@ async function renderConnectors(force = false) {
   if (root.dataset.ready && !force) return; // the web page's regular refresh would wipe the search box
   root.dataset.ready = '1';
   try { conn.data = await api('/connectors'); } catch (e) { conn.data = { configured: false, error: e.message, connections: [] }; }
-  if (conn.data.configured && !conn.catalog.length) await loadCatalog(true);
-  if (conn.data.configured && !conn.categories.length) conn.categories = await api('/connectors/categories').catch(() => []);
+  const works = conn.data.configured && !conn.data.keyRejected;
+  if (!works) { conn.catalog = []; conn.categories = []; conn.replacing = false; }
+  if (works && !conn.catalog.length) await loadCatalog(true);
+  if (works && !conn.categories.length) conn.categories = await api('/connectors/categories').catch(() => []);
   drawConnectors();
 }
 
@@ -42,7 +44,7 @@ function drawConnectors() {
   if (!d.configured || d.keyRejected) {
     // No key yet, or Composio refuses it (#409): nothing on the page works until one is pasted.
     const title = !d.configured ? 'Add your Composio key'
-      : d.account === 'own' ? `Composio no longer accepts your key ${esc(d.keyHint || '')}` : 'Composio no longer accepts botdot\'s Composio account';
+      : d.account === 'own' ? `Composio no longer accepts your key <span class="nowrap">${esc(d.keyHint || '')}</span>` : 'Composio no longer accepts botdot\'s Composio account';
     root.innerHTML = `${head}
       <div class="card setup-card">
         <h3>${title}</h3>
@@ -61,8 +63,10 @@ function drawConnectors() {
   const connectedSlugs = new Set(d.connections.filter((c) => c.status === 'ACTIVE').map((c) => c.toolkit));
   const pending = new Set(d.connections.filter((c) => c.status !== 'ACTIVE').map((c) => c.toolkit));
   root.innerHTML = `${head}
+    ${conn.replacing ? `<div class="key-line">${keyForm('New Composio API key', 'Save')}<button class="btn sm" id="conn-cancel">Cancel</button></div>`
+      : `<div class="key-line"><span>Composio key ${esc(d.keyHint || '')}</span><button class="btn sm" id="conn-replace">Replace</button><button class="btn sm danger" id="conn-forget">Remove</button></div>`}
     ${d.error ? `<div class="req-note">${esc(d.error)}</div>` : ''}
-    <h3 class="page-sub">Your apps <span class="faint">· choose which bots may use each one</span></h3>
+    <h3 class="page-sub">Your apps</h3>
     ${d.connections.length || d.reconnect?.length ? `<div class="grid">${(d.reconnect || []).map((a) => `
       <article class="card app-card">
         <div class="app-top">${appLogo(a)}<div class="grow"><b>${esc(a.name)}</b></div></div>
@@ -98,11 +102,7 @@ function drawConnectors() {
             : `<button class="btn sm" data-connect="${esc(t.slug)}">Connect</button><span class="faint" style="font-size:12px">needs your own developer app in Composio</span>`}
         </div>
       </article>`).join('') || `<div class="faint">No apps match${conn.search ? ` "${esc(conn.search)}"` : ''}. Try another word.</div>`}</div>
-    ${conn.next ? '<div style="text-align:center;margin:16px 0"><button class="btn" id="conn-more">Show more</button></div>' : ''}
-    <details class="bs-history conn-account" style="margin:24px 0 8px" ${conn.accountOpen ? 'open' : ''}><summary class="faint">Composio account</summary>
-      ${d.account === 'botdot' ? `<div style="margin-top:10px">${keyForm('Your Composio API key', 'Use')}</div>`
-      : `<div class="faint" style="font-size:12.5px">Your key ${esc(d.keyHint || '')} · <button class="link-btn" id="conn-forget">Remove</button></div>`}
-    </details>`;
+    ${conn.next ? '<div style="text-align:center;margin:16px 0"><button class="btn" id="conn-more">Show more</button></div>' : ''}`;
 
   let t;
   $('#conn-search').oninput = (e) => {
@@ -130,18 +130,22 @@ function drawConnectors() {
     if (!confirm(`Disconnect ${c?.app?.name || c?.toolkit}? Bots lose access, and Composio revokes its access to your account.`)) return;
     try { await api(`/connectors/connections/${encodeURIComponent(b.dataset.disconnect)}`, { method: 'DELETE' }); toast('Disconnected'); await refresh(); renderConnectors(true); } catch (e) { toast(e.message, true); }
   }));
-  $('.conn-account', root).ontoggle = (e) => { conn.accountOpen = e.target.open; };
+  const replace = $('#conn-replace');
+  if (replace) replace.onclick = () => { conn.replacing = true; drawConnectors(); $('#conn-key input').focus(); };
+  const cancel = $('#conn-cancel');
+  if (cancel) cancel.onclick = () => { conn.replacing = false; drawConnectors(); };
   const ownKey = $('#conn-key');
   if (ownKey) ownKey.onsubmit = async (e) => {
     e.preventDefault();
-    if (d.connections.length && !confirm('Use your own Composio account? Apps connected so far need connecting again there.')) return;
-    try { await api('/connectors/key', { method: 'PUT', body: { key: e.target.key.value } }); conn.catalog = []; toast('Saved'); renderConnectors(true); } catch (err) { toast(err.message, true); }
+    if (d.account === 'botdot' && d.connections.length && !confirm('Use your own Composio account? Apps connected so far need connecting again there.')) return;
+    try { await api('/connectors/key', { method: 'PUT', body: { key: e.target.key.value } }); conn.replacing = false; conn.catalog = []; toast('Saved'); renderConnectors(true); } catch (err) { toast(err.message, true); }
   };
   const forget = $('#conn-forget');
   if (forget) forget.onclick = async () => {
     if (!confirm('Remove your Composio key? Connectors stop working until you add another.')) return;
-    await api('/connectors/key', { method: 'DELETE' });
+    try { await api('/connectors/key', { method: 'DELETE' }); } catch (err) { return toast(err.message, true); }
     conn.catalog = [];
+    conn.categories = [];
     renderConnectors(true);
   };
 }

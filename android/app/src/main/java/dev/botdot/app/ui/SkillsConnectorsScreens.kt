@@ -121,6 +121,26 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
 
 // ---------- connectors ----------
 
+/** The Composio key field: Save checks it with Composio; Get a key opens composio.dev. */
+@Composable
+private fun ComposioKeyField(save: suspend (String) -> Boolean, onCancel: (() -> Unit)? = null, getKey: () -> Unit) {
+    val p = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    var key by remember { mutableStateOf("") }
+    var saving by remember { mutableStateOf(false) }
+    OutlinedTextField(key, { key = it }, placeholder = { Text("Composio API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = getKey) { Text("Get a key at composio.dev", color = p.muted) }
+        Spacer(Modifier.weight(1f))
+        if (onCancel != null) TextButton(onClick = onCancel) { Text("Cancel", color = p.text) }
+        TextButton(enabled = key.isNotBlank() && !saving, onClick = {
+            saving = true
+            scope.launch { if (save(key.trim())) key = ""; saving = false }
+        }) { Text("Save", color = p.okText) }
+    }
+}
+
 /** Where the owner makes a Composio API key: botdot makes no Composio account of its own. */
 private const val COMPOSIO_KEYS = "https://platform.composio.dev"
 
@@ -138,6 +158,10 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var found by remember { mutableStateOf<List<CatalogApp>>(emptyList()) }
     var askRemove by remember { mutableStateOf<String?>(null) }
+    var askRemoveKey by remember { mutableStateOf(false) }
+    var replacing by remember { mutableStateOf(false) }
+    suspend fun saveKey(key: String): Boolean = runCatching { api!!.setComposioKey(key) }
+        .onSuccess { replacing = false; found = emptyList(); tell("Saved"); load() }.onError { tell(it.message ?: "Couldn't save") }.isSuccess
 
     suspend fun load() { runCatching { api?.connectors() }.onSuccess { info = it }.onError { tell(it.message ?: "Couldn't load") } }
     LaunchedEffect(api) { load() }
@@ -170,26 +194,17 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                     i.account == "own" -> "Composio no longer accepts your key ${i.keyHint.orEmpty()}".trim()
                     else -> "Composio no longer accepts botdot's Composio account"
                 }
-                item {
-                    Section(title) {
-                        var key by remember { mutableStateOf("") }
-                        var saving by remember { mutableStateOf(false) }
-                        OutlinedTextField(key, { key = it }, placeholder = { Text("Composio API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) }) { Text("Get a key at composio.dev", color = p.muted) }
-                            Spacer(Modifier.weight(1f))
-                            TextButton(enabled = key.isNotBlank() && !saving, onClick = {
-                                saving = true
-                                scope.launch {
-                                    runCatching { api!!.setComposioKey(key.trim()) }.onSuccess { key = ""; tell("Saved"); load() }.onError { tell(it.message ?: "Couldn't save") }
-                                    saving = false
-                                }
-                            }) { Text("Save", color = p.okText) }
-                        }
-                    }
-                }
+                item { Section(title) { ComposioKeyField({ saveKey(it) }) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) } } }
                 return@LazyColumn
+            }
+            // The key, always at the top: replaced or removed here (#440).
+            item {
+                if (replacing) Section(null) { ComposioKeyField({ saveKey(it) }, onCancel = { replacing = false }) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) } }
+                else Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Composio key ${i.keyHint.orEmpty()}".trim(), color = p.text, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { replacing = true }) { Text("Replace", color = p.text) }
+                    TextButton(onClick = { askRemoveKey = true }) { Text("Remove", color = p.err) }
+                }
             }
             if (!i.error.isNullOrBlank()) item { Text(i.error, color = p.err) }
             item { Text("Connected", color = p.text, style = MaterialTheme.typography.titleMedium) }
@@ -227,10 +242,16 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                     Text("Connect", color = p.okText, style = MaterialTheme.typography.labelMedium)
                 }
             }
-            if (found.isEmpty()) item { Hint("Connecting opens the app's sign-in in your browser. Then choose which bots may use it, in each bot's settings.") }
         }
     }
 
+    if (askRemoveKey) AlertDialog(
+        onDismissRequest = { askRemoveKey = false },
+        title = { Text("Remove your Composio key?") },
+        text = { Text("Connectors stop working until you add another.") },
+        confirmButton = { TextButton(onClick = { askRemoveKey = false; scope.launch { runCatching { api!!.removeComposioKey() }.onSuccess { found = emptyList(); tell("Removed") }.onError { tell(it.message ?: "Couldn't remove") }; load() } }) { Text("Remove", color = p.err) } },
+        dismissButton = { TextButton(onClick = { askRemoveKey = false }) { Text("Keep", color = p.text) } },
+    )
     askRemove?.let { id ->
         AlertDialog(
             onDismissRequest = { askRemove = null },

@@ -17,6 +17,8 @@ const fake = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
   seen.requests.push(url.pathname);
   const key = req.headers['x-api-key'];
+  // Composio still lists its catalogue on a key it otherwise refuses.
+  if (url.pathname === '/toolkits' && seen.dead.has(key)) return json(200, { items: [{ slug: 'gmail', name: 'Gmail', meta: { categories: [] } }], next_cursor: null });
   if (![OWN_KEY, OWN_KEY_2, OLD_KEY].includes(key) || seen.dead.has(key)) return json(401, { message: 'Bad key' });
   seen.keys.add(key);
   if (url.pathname === '/toolkits') return json(200, { items: [{ slug: 'gmail', name: 'Gmail', meta: { categories: [{ name: 'email' }] }, composio_managed_auth_schemes: ['OAUTH2'] }], next_cursor: null });
@@ -43,6 +45,11 @@ test('without a key, Connectors ask for one and botdot makes no Composio account
   assert.deepEqual(r.data.connections, []);
   assert.deepEqual(seen.requests, [], 'nothing was asked of Composio');
   assert.ok(!('claimInvite' in r.data) && !('claimed' in r.data), 'no claim of an account botdot made');
+  for (const [p, method] of [['/connectors/catalog', 'GET'], ['/connectors/categories', 'GET'], ['/connectors/connect', 'POST']]) {
+    const x = await srv.api(p, { method, body: method === 'POST' ? { app: 'gmail' } : undefined });
+    assert.equal(x.status, 409, `${p} waits for a key`);
+    assert.match(x.data.error, /need a Composio key/);
+  }
 });
 
 test('an older app\'s "New Composio account" and Claim are refused, saying to paste a key', async () => {
@@ -115,7 +122,12 @@ test('your own key refused shows its end, and a new key fixes it', async () => {
   assert.equal(r.data.keyRejected, true);
   assert.equal(r.data.account, 'own');
   assert.match(r.data.error, /no longer accepts your Composio key …ne_2/);
+  const cat = await srv.api('/connectors/catalog');
+  assert.equal(cat.status, 409, 'no marketplace on a refused key, though Composio still lists it');
+  assert.match(cat.data.error, /no longer accepts your Composio key/);
+  assert.equal((await srv.api('/connectors')).data.keyRejected, true, 'a listed catalogue does not make the key work again');
   const good = await srv.api('/connectors/key', { method: 'PUT', body: { key: OWN_KEY } });
   assert.equal(good.data.keyRejected, false);
   assert.equal((await srv.api('/connectors')).data.keyRejected, false);
+  assert.equal((await srv.api('/connectors/catalog')).status, 200);
 });
