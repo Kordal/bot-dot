@@ -181,6 +181,33 @@ test('migration preserves a principal-owned FIFO and hardlinks without changing 
   assert.throws(migrate, /Unsafe special file/, 'a snapshot-like name outside backups must not bypass active data validation');
 });
 
+test("migration walks a principal's tree only while its own folder isn't the principal's (#521)", { skip: !ROOT_LINUX && 'needs isolated Linux root' }, (t) => {
+  const fs = require('node:fs'); const os = require('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'broker-walk-')); fs.chmodSync(dir, 0o711);
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const data = path.join(dir, 'data'), BOT = 61007;
+  fs.mkdirSync(data, { recursive: true });
+  fs.writeFileSync(path.join(data, 'identities.json'), JSON.stringify({ bots: { b1: BOT } }));
+  const migrate = () => require('../lib/privilege-broker').migrate(data, path.join(dir, 'home'), path.join(dir, 'config'));
+  const workspace = path.join(data, 'workspaces', 'b1'), deep = path.join(workspace, 'repo', 'a', 'b');
+  // Data from before: the server's, all of it.
+  fs.mkdirSync(deep, { recursive: true }); fs.writeFileSync(path.join(deep, 'file'), 'x');
+  for (const f of [workspace, path.join(workspace, 'repo'), path.join(workspace, 'repo', 'a'), deep, path.join(deep, 'file')]) fs.chownSync(f, 60000, 60000);
+  migrate();
+  assert.equal(fs.statSync(path.join(deep, 'file')).uid, BOT, 'a tree whose folder is not the bot\'s is walked to its end');
+  assert.equal(fs.statSync(workspace).gid, require('../lib/privilege-broker').CHIEF_UID);
+  // Owned already: what is inside isn't looked at again (a stand-in owner shows it wasn't changed).
+  fs.chownSync(path.join(deep, 'file'), 61008, 61008);
+  migrate();
+  assert.equal(fs.statSync(path.join(deep, 'file')).uid, 61008, 'a tree the bot owns already is not walked');
+  assert.equal(fs.statSync(workspace).mode & 0o777, 0o750, 'its folder is still set');
+  // A walk that stopped halfway leaves the folder unowned (it is owned last), so the next start finishes it.
+  fs.chownSync(workspace, 60000, 60000);
+  migrate();
+  assert.equal(fs.statSync(path.join(deep, 'file')).uid, BOT);
+  assert.equal(fs.statSync(path.join(data, 'homes', 'b1')).uid, BOT);
+});
+
 // ---------- a bot's installed tools (ADR 007) ----------
 
 const sha = (text) => require('node:crypto').createHash('sha256').update(text).digest('hex');
