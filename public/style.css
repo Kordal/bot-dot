@@ -1832,3 +1832,26 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
   .pb-grid:has(> .pb-card .kit-chart) { grid-template-columns: minmax(0, 1fr); }
   .pb-title { font-size: 26px; }
 }
+
+/* ---------- asking the Chief to change a tile (#430) ---------- */
+.tile-edit { flex: none; width: 26px; height: 26px; margin: -4px 0 -4px auto; padding: 0; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--line-2); background: var(--sunk); color: var(--muted); cursor: pointer; opacity: 0; transition: opacity .12s; }
+.tile-src + .tile-edit, .tile-ai + .tile-edit, .tile-when + .tile-edit { margin-left: 8px; }
+.ctl-row .tile-edit { margin: 0 10px 0 auto; }
+.tile-edit svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tile-edit:hover { color: var(--text); }
+.tile:hover > .tile-head .tile-edit, .tile.ctl-row:hover .tile-edit, .tile:focus-within .tile-edit, .tile.asking .tile-edit { opacity: 1; }
+@media (hover: none) { .tile-edit { display: none; } }
+.tile.asking { border-color: var(--text); }
+.ask-pop { position: fixed; z-index: 60; background: var(--panel); border: 1px solid var(--line-2); border-radius: 14px; box-shadow: var(--shadow-lg); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.ask-pop textarea { width: 100%; min-height: 76px; resize: none; border: 0; outline: none; background: transparent; color: var(--text); font: 14.5px/1.45 var(--font); padding: 4px 6px; }
+.ask-pop textarea::placeholder { color: var(--faint); }
+.ask-pop .row { display: flex; align-items: center; justify-content: space-between; }
+.ask-pop .row button { width: 32px; height: 32px; padding: 0; display: grid; place-items: center; border: 0; cursor: pointer; }
+.ask-pop .row svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ask-pop .rm { border-radius: 10px; background: transparent; color: var(--faint); }
+.ask-pop .rm:hover { color: var(--err); }
+.ask-pop .send { border-radius: 50%; background: var(--ink); color: var(--ink-text); }
+.ask-pop .send.off { background: var(--sunk); color: var(--faint); cursor: default; }
+.ask-sheet { left: 0; right: 0; bottom: 0; border-radius: 18px 18px 0 0; border-bottom: 0; padding: 14px 14px calc(18px + env(safe-area-inset-bottom)); }
+.ask-sheet h2 { margin: 0 0 2px 6px; font-size: 16px; font-weight: 600; }
+.ask-dim { position: fixed; inset: 0; z-index: 59; background: rgba(0, 0, 0, .55); }

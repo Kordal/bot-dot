@@ -327,6 +327,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun actTile(id: String, block: String, value: kotlinx.serialization.json.JsonElement?): TileTap = TileTap.of(
         send("POST", "/dashboard/tiles/${enc(id)}/act", buildJsonObject { put("block", block); if (value != null) put("value", value) }))
     /** withTiles: a group goes with the tiles in it (otherwise they stay, loose). */
+    /** Asks the Chief to change this tile (#430, with `tile-change`): a new Chief chat whose message names the tile. */
+    suspend fun askTileChange(id: String, text: String) { send("POST", "/dashboard/tiles/${enc(id)}/change", buildJsonObject { put("text", text) }) }
     suspend fun removeTile(id: String, withTiles: Boolean = false) { send("DELETE", "/dashboard/tiles/${enc(id)}${if (withTiles) "?all" else ""}") }
     /** Dragged: under this heading, or into this group (parent), before this tile (null: at the end there). */
     suspend fun moveTile(id: String, section: String?, parent: String?, before: String?) {
