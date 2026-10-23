@@ -123,7 +123,7 @@ function threadHTML(runs, newFirst = null) {
     esc, Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '<script-run>', msgTime: () => '11:40', dur: () => '2 s',
     notesFoldHTML: (notes) => (notes?.length ? '<notes>' : ''), filesHTML: (f) => (f?.length ? '<files>' : ''), botFilesHTML: () => '', copyBtn: () => '',
-    escMentions: (t) => esc(t), md: (t) => esc(t), friendlyProblem: () => 'It could not finish.', learnedChips: () => '', choicesHTML: () => '', questionsHTML: () => '',
+    plain: (t) => String(t || ''), escMentions: (t) => esc(t), md: (t) => esc(t), friendlyProblem: () => 'It could not finish.', learnedChips: () => '', choicesHTML: () => '', questionsHTML: () => '',
   });
   vm.runInContext(`${cut('function messagedLabel(r) {', '// Notes other bots left')}\n${cut('function botThreadHTML(bot, runs, newFirst = null) {', '// The notes other bots left for a bot')}\nthis.botThreadHTML = botThreadHTML;`, ctx);
   return ctx.botThreadHTML(MAIL, runs, newFirst);
@@ -176,8 +176,10 @@ test('web: a job\'s run and a teammate\'s request that carry on are drawn as the
   assert.deepEqual(mine(job), []);
   const mate = { trigger: 'bot', fromBot: { id: 'coder', name: 'Coder' } };
   const asked = threadHTML([{ ...STOPPED, ...mate }, { ...CARRIES, ...mate, status: 'success', result: 'Done.' }]);
-  assert.equal((asked.match(/<summary>Message from Coder<\/summary>/g) || []).length, 2, 'folded, as the run that stopped');
+  assert.equal((asked.match(/<span class="fold-who">Message from Coder<\/span>/g) || []).length, 2, 'folded, as the run that stopped');
   assert.deepEqual(mine(asked), [], 'never as the owner\'s own message');
+  // Its reply to the teammate is folded too, behind one line with its first words (#413).
+  assert.match(asked, /<details class="notes-fold theirs" ><summary class="fold-line"><span class="fold-who">Replied<\/span><span class="fold-peek">Done\.<\/span><\/summary>[\s\S]*?<div class="bubble from-bot "><div class="md">Done\.<\/div>[\s\S]*?<\/details>/);
   // The notes it read at its start still show above its reply.
   assert.match(threadHTML([STOPPED, { ...CARRIES, inbox: [{ from: 'Coder', text: 'A note.' }] }]), /<notes><div class="bubble-row from-bot" data-live="r2">/);
 });

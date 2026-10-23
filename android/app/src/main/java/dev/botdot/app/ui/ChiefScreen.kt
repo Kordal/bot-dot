@@ -244,7 +244,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                     // being written are no replies, and stand still.
                     Column(Modifier.arrives(arrivals, "${first + messages.size - 1 - i}".takeUnless { m.role == "user" || m.pending }), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (newAt >= 0 && messages.size - 1 - i == newAt) NewLine(CHIEF_COLOR)
-                        val chips = m.actions.orEmpty().map { a ->
+                        val chips = m.actions.orEmpty().filterNot { MailCard.takesChip(m.draft, it) }.map { a -> // a mail draft's card names its bot in its footer
                             val bot = botById[a.botId]
                             val screen = a.kind == "run" && bot?.computer == "linux"
                             chipText(chipWords(a, screen), p.warnText) to when {
@@ -273,7 +273,14 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
                             onDismiss = { vm.dismiss() },
                             thumbs = if (Ratings.shows(m, features, index)) ({ Thumbs(Ratings.value(m.rating)) { vm.rate(index, it) } }) else null)
-                        if (i == 0 && m.role == "chief" && !m.pending && !busy) {
+                        // A mail draft (#415): its card under the reply, with its own buttons in place of the answer buttons.
+                        val mail = m.draft?.takeIf { m.role == "chief" && !m.pending }
+                        if (mail != null) {
+                            val bot = mail.botId?.let { botById[it] }
+                            MailDraftCard(mail, mail.bot ?: bot?.name, screen = bot?.computer == "linux",
+                                onBot = { bot?.let { onBot(it.id) } }, onScreen = { bot?.let { onScreen(it.id) } }) { text, key -> sendFrom(text, key) }
+                        }
+                        if (i == 0 && m.role == "chief" && !m.pending && !busy && mail == null) {
                             Choices(m.choices) { text, key -> sendFrom(text, key) }
                             Questions(m.questions) { text, key -> sendFrom(text, key) }
                         }

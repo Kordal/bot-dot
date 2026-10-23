@@ -43,7 +43,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
@@ -280,10 +282,18 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
     // What it learned is the server's line where the server writes it (`memory-chips`): printed whole. Before, cut as it was.
     val whole = announces(features, MEMORY_CHIPS)
     val to = r.sentToAll?.takeIf { it.isNotEmpty() } ?: listOfNotNull(r.sentTo)
-    // Keep exchange details folded, but show the completed result as an ordinary reply.
+    val reply: @Composable () -> Unit = {
+        TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
+            Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty()) "Done." else "" }); OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); PlanFold(plan) }
+        }
+    }
+    // Between bots (a run another bot or the Chief started) the reply folds as the message above it does (#413).
     if ((r.fromBot != null && r.trigger == "bot" || r.startedBy == "chief") && r.status == "success") {
-        ExchangeFold(r, to, open)
-    } else if (to.isNotEmpty()) {
+        ExchangeFold(r, to, footer, open, reply)
+        RunScreenshots(r)
+        return
+    }
+    if (to.isNotEmpty()) {
         val one = to.size == 1
         val how = when {
             to.all { it.delivered == "queued" } -> if (one) " · it picks it up when free" else " · they pick it up when free"
@@ -297,9 +307,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
         // No bubble while it works: the status line says it; only what it attached so far. From a server with drafts,
         // the reply as it is written so far stands in the reply's place and grows there (ReplyDraft).
         "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble { Column { MarkdownText(draftSource(draft), copy = false); BotFilesRow(r.files) } }
-        "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
-            Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty()) "Done." else "" }); OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); PlanFold(plan) }
-        }
+        "success" -> reply()
         else -> when (val ended = endedWords(r, features)) {
             // A stopped run the server says nothing of, and every stopped run of a botdot from before `ended-by`.
             is Ended.Stopped -> TheirBubble(footer, chips = learned, wholeChips = whole) { Column { Text(ended.text, color = p.muted); PlanFold(plan) } }
@@ -333,9 +341,13 @@ internal fun endedWords(r: Run, features: Collection<String>?): Ended {
     return Ended.Problem(problem ?: r.error?.ifBlank { null } ?: "It didn't finish (${r.status}).")
 }
 
-/** Outgoing exchange detail stays folded; the final result belongs to the ordinary reply. */
+/**
+ * The reply of a run another bot or the Chief started: one folded line, "Replied to Fleet Doctor" (with its small
+ * head) and the first words of the reply, that opens to what it sent its teammates and the [reply]. Folded, the
+ * time stays under it.
+ */
 @Composable
-private fun ExchangeFold(r: Run, to: List<SentTo>, startOpen: Boolean = false) {
+private fun ExchangeFold(r: Run, to: List<SentTo>, footer: String, startOpen: Boolean = false, reply: @Composable () -> Unit) {
     val p = LocalPaper.current
     var open by remember(r.id, startOpen) { mutableStateOf(startOpen) }
     val w = LocalMentions.current
@@ -348,23 +360,25 @@ private fun ExchangeFold(r: Run, to: List<SentTo>, startOpen: Boolean = false) {
             to.all { it.id == r.fromBot?.id } -> { append("Replied to "); bot(named(w?.bot(r.fromBot?.id), r.fromBot?.name.orEmpty(), r.fromBot?.color)) }
             else -> { append("Messaged "); bots(to.map { named(w?.bot(it.id), it.name, it.color) }) }
         }
-        if (messages.isNotEmpty()) append(if (open) " ⌄" else " ›")
-    }
-    if (messages.isEmpty()) {
-        FigureText(label, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
-        return
+        append(if (open) " ⌄" else " ›") // before the first words, which the line's end may cut
+        val peek = foldPeek(r.result)
+        if (!open && peek.isNotEmpty()) withStyle(SpanStyle(color = p.faint)) { append("  $peek") }
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FigureText(label, color = p.muted, fontSize = 13.5.sp,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
+        FigureText(label, color = p.muted, fontSize = 13.5.sp, maxLines = 1,
+            modifier = Modifier.padding(end = 32.dp).clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
         if (open) {
             messages.forEach { t ->
                 FigureText(buildAnnotatedString { append("To "); bot(named(w?.bot(t.id), t.name, t.color)) }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
                 TheirBubble(null, copyText = t.text) { MarkdownText(t.text.orEmpty()) }
             }
-        }
+            reply()
+        } else if (footer.isNotBlank()) Text(footer, color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
     }
 }
+
+/** The first words of a folded message between bots: its text as one plain line. */
+internal fun foldPeek(text: String?): String = dev.botdot.app.feed.plainText(text.orEmpty()).replace(Regex("\\s+"), " ").trim().take(160)
 
 /** Notes other bots left: one folded line, "Read notes from Web Surfer, Coder" (each with its small head), that opens to what each said. */
 @Composable
@@ -407,10 +421,12 @@ private fun FromBotBubble(r: Run, startOpen: Boolean = false) {
                 r.startedBy == "chief" -> bot(chief)
                 else -> append("a bot")
             }
-            append(if (open) " ⌄" else " ›")
+            append(if (open) " ⌄" else " ›") // before the first words, which the line's end may cut
+            val peek = foldPeek(r.prompt)
+            if (!open && peek.isNotEmpty()) withStyle(SpanStyle(color = p.faint)) { append("  $peek") }
         }
-        FigureText(line, color = p.muted, fontSize = 13.5.sp,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
+        FigureText(line, color = p.muted, fontSize = 13.5.sp, maxLines = 1,
+            modifier = Modifier.padding(start = 48.dp).clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
         if (open) Column(Modifier.padding(start = 48.dp).clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).holdToCopy(r.prompt).background(p.sunk)
                 .border(1.dp, p.line2, RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(r.prompt), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge)

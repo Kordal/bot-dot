@@ -23,7 +23,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
     let mine = false; // your own message started it: that isn't new, so the "New" line goes below it
     const asked = notes + (r.trigger === 'replies' || (r.trigger === 'bot' && !r.fromBot) ? '' // the answers it waited for, or notes that woke it (#225): the notes above are what started it
       : sender(r) // a message from another bot or the Chief: one folded line that opens to what it said
-      ? `<div class="bubble-row from-me"><details class="notes-fold" ${state.keepOpen === r.id ? 'open' : ''}><summary>Message from ${botLabel(sender(r))}</summary><div class="note"><div class="bubble from-other-bot">${esc(r.prompt)}${filesHTML(r.attachments)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></details></div>`
+      ? `<div class="bubble-row from-me"><details class="notes-fold" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(`Message from ${botLabel(sender(r))}`, r.prompt)}<div class="note"><div class="bubble from-other-bot">${esc(r.prompt)}${filesHTML(r.attachments)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></details></div>`
       : r.jobName
       ? `<div class="bubble-row from-me"><span class="chip">${r.jobId === 'memory-review' ? '🧹' : '⏰'} ${esc(r.jobName)}${r.trigger === 'call' ? ', called' : ''}${r.parentRunId ? ' · its script found something' : ''} · ${esc(msgTime(r.startedAt))}</span></div>`
       : r.trigger === 'schedule'
@@ -45,20 +45,20 @@ function botThreadHTML(bot, runs, newFirst = null) {
       const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
       const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || 'Done. (No written reply.)';
       const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
-      // Keep the final answer visible. Only the raw messages sent to teammates fold away.
+      // Between bots (a run another bot or the Chief started) the reply folds as the message above it does: one line,
+      // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open.
       const outgoing = sentTo(r).filter((t) => t.text);
-      const exchange = sender(r) && !failed
-        ? outgoing.length
-          ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}><summary>${exchangeLabel(r)}</summary>
-              ${outgoing.map((t) => `<div class="note"><div class="bot-msg-label">To ${botLabel(t)}</div><div class="bubble from-bot"><div class="md">${md(t.text)}</div></div></div>`).join('')}
-            </details>`
-          : `<div class="bot-msg-label">${exchangeLabel(r)}</div>`
-        : messagedLabel(r);
+      const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
+          ${learnedChips(r)}`;
+      const shown = sender(r) && !failed
+        ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(exchangeLabel(r), body)}
+            ${outgoing.map((t) => `<div class="note"><div class="bot-msg-label">To ${botLabel(t)}</div><div class="bubble from-bot"><div class="md">${md(t.text)}</div></div></div>`).join('')}
+            <div class="note">${bubble}</div>
+          </details>`
+        : messagedLabel(r) + bubble;
       reply = `
         <div class="bubble-row from-bot"><div class="stack">
-          ${exchange}
-          <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.planInReply?.(r, i === runs.length - 1) || ''}</div>
-          ${learnedChips(r)}
+          ${shown}
           <div class="bubble-meta">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` · <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
           ${i === runs.length - 1 && !failed ? choicesHTML(r.choices) + questionsHTML(r.questions) : ''}
         </div></div>`;
