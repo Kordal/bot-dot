@@ -33,6 +33,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -109,7 +111,9 @@ fun DocumentViewerHost() {
     DocViewer.held?.let { PathSheet(it) }
     val req = DocViewer.open ?: return
     Dialog(onDismissRequest = { DocViewer.open = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        ViewerScreen(req, onBack = { DocViewer.open = null })
+        // It slides in from the right as the settings panel does (#496); closed, the dialog goes at once.
+        val shown = remember { MutableTransitionState(false).apply { targetState = true } }
+        AnimatedVisibility(shown, enter = Motion.panelIn, exit = Motion.panelOut) { ViewerScreen(req, onBack = { DocViewer.open = null }) }
     }
 }
 

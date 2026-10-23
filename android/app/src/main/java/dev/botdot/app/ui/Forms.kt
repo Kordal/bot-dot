@@ -63,7 +63,7 @@ fun FoldSection(title: String, hint: String? = null, content: @Composable () -> 
             }
             Text(if (open) "▾" else "▸", color = p.faint)
         }
-        if (open) content()
+        Unfold(open) { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } }
     }
 }
 

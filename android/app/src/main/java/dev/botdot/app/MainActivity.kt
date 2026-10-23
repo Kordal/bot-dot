@@ -27,7 +27,9 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalDensity
@@ -87,11 +89,13 @@ import dev.botdot.app.ui.NeedsYouScreen
 import dev.botdot.app.ui.LocalChatCovered
 import dev.botdot.app.ui.LocalPanelClose
 import dev.botdot.app.ui.LocalPaper
+import dev.botdot.app.ui.Motion
 import dev.botdot.app.ui.Panel
 import dev.botdot.app.ui.SettingsPanel
 import dev.botdot.app.ui.RoomChatScreen
 import dev.botdot.app.ui.RoomSettingsScreen
 import dev.botdot.app.ui.RoomsScreen
+import dev.botdot.app.ui.ScreenMotion
 import dev.botdot.app.ui.ShareScreen
 import dev.botdot.app.ui.PausedScreen
 import dev.botdot.app.ui.SignInScreen
@@ -228,6 +232,9 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(panel) { panelKept = panel }
                 panelOff.value = { panelKept = SettingsPanel.chosen(panelKept, room) }
                 val shown = panel.takeIf { chat != null } // a screen that is no chat (its computer, Needs you) keeps it for the way back
+                // The panel last shown, for the moment it takes to leave.
+                val lastPanel = remember { mutableStateOf<Panel?>(null) }
+                SideEffect { if (shown != null) lastPanel.value = shown }
                 // A group made from a bot's chat: its chat takes the place of the bot's, and the panel makes way.
                 val openGroup = remember { { id: String -> panelKept = null; nav.navigate("group/$id") { popUpTo("home"); launchSingleTop = true } } }
                 // One content for both places, so that room coming or going moves the panel with what is typed in it.
@@ -299,7 +306,10 @@ class MainActivity : ComponentActivity() {
                 ) { chatPane ->
                 Box(chatPane) {
                 CompositionLocalProvider(LocalChatCovered provides (shown != null && !room)) {
-                NavHost(nav, startDestination = "home", modifier = Modifier.fillMaxSize()) {
+                // Screens move as one system (#496), not with Navigation's 700 ms fade.
+                NavHost(nav, startDestination = "home", modifier = Modifier.fillMaxSize(),
+                    enterTransition = ScreenMotion.enter(wide), exitTransition = ScreenMotion.exit(wide),
+                    popEnterTransition = ScreenMotion.popEnter(wide), popExitTransition = ScreenMotion.popExit(wide)) {
                     composable("connect") {
                         ConnectScreen(current = server?.takeIf { it != "…" }) { url ->
                             scope.launch { app.settings.setServer(url) }
@@ -375,13 +385,22 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 }
-                if (shown != null && !room) Box(Modifier.fillMaxSize().background(p.bg)) { panelContent(shown) }
+                // The panel slides in from the right and fades out (#496). It shows the last panel while it leaves;
+                // one that moves beside the chat leaves nothing behind, so its content lives in one place only.
+                androidx.compose.animation.AnimatedVisibility(shown != null && !room, enter = Motion.panelIn, exit = Motion.panelOut) {
+                    Box(Modifier.fillMaxSize().background(p.bg)) { if (shown == null) lastPanel.value?.let { panelContent(it) } else if (!room) panelContent(shown) }
                 }
                 }
-                if (shown != null && room) {
-                    Box(Modifier.width(1.dp).fillMaxHeight().background(p.line))
-                    Box(Modifier.width(SettingsPanel.WIDTH.dp).fillMaxHeight()) {
-                        CompositionLocalProvider(LocalPanelClose provides { panelKept = null }) { panelContent(shown) }
+                }
+                // Beside the chat the chat narrows at once, and the panel slides into its place.
+                AnimatedVisibility(shown != null && room, enter = Motion.panelIn, exit = Motion.panelOut) {
+                    Row {
+                        Box(Modifier.width(1.dp).fillMaxHeight().background(p.line))
+                        Box(Modifier.width(SettingsPanel.WIDTH.dp).fillMaxHeight()) {
+                            CompositionLocalProvider(LocalPanelClose provides { panelKept = null }) {
+                                if (shown == null) lastPanel.value?.let { panelContent(it) } else if (room) panelContent(shown)
+                            }
+                        }
                     }
                 }
                 }

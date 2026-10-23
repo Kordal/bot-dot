@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
@@ -261,7 +262,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                     if (unlocking) Busy("Unlocking Password Manager…")
                     else BitwardenCard(bw, bw.wantedBy?.let { w -> whoOf(w.id, w.name) }, unlockError) { pw -> api?.let { app.unlockBitwarden(it, pw) } }
                 }
-                items(requests, key = { "r:${it.id}" }) { r ->
+                items(requests, key = { "r:${it.id}" }) { r -> Moves {
                     val who = inGroup(if (r.bot == null && r.from == "chief") chiefNamed() else whoOf(r.bot?.id, r.bot?.name ?: "A bot"), r.group)
                     if (r.kind == "card") CardRequest(r, who,
                         onAllow = { act("Allowed for this task") { api!!.answerRequest(r.id, buildJsonObject { put("action", "approve") }) } },
@@ -281,30 +282,30 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                             }
                         },
                         onDecline = { act("Declined") { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
-                }
-                items(jobsLeft(waitingJobs, decided.map { it.key }), key = { (b, j) -> jobKey(b, j) }) { (b, j) ->
+                } }
+                items(jobsLeft(waitingJobs, decided.map { it.key }), key = { (b, j) -> jobKey(b, j) }) { (b, j) -> Moves {
                     JobApproval(jobWho(b, j), j, (j.then ?: jobThens["${b.id}/${j.id}"])?.line(),
                         onAlways = { if (j.touchesScript) scriptWarning = b to j else alwaysJob(b, j) },
                         onApprove = { decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, true) { api!!.approveJob(b.id, j.id, true) } },
                         onDecline = { decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, false) { api!!.approveJob(b.id, j.id, false) } })
-                }
-                items(memory.filter { m -> decided.none { it.key == "m:${m.id}" } }, key = { "m:${it.id}" }) { m ->
+                } }
+                items(memory.filter { m -> decided.none { it.key == "m:${m.id}" } }, key = { "m:${it.id}" }) { m -> Moves {
                     val card = memoryCard(m, features)
                     MemoryApproval(card, memWho(m),
                         onApprove = { decide("m:${m.id}", memWho(m), card.title, true) { api!!.settleMemoryChange(m.id, true) } },
                         onDecline = { decide("m:${m.id}", memWho(m), card.title, false) { api!!.settleMemoryChange(m.id, false) } })
-                }
+                } }
                 // A tile of the Board with a script, or a change to one: it runs on your botdot, so it waits for you.
-                items(tilesLeft(tiles, decided.map { it.key }), key = { tileKey(it) }) { t ->
+                items(tilesLeft(tiles, decided.map { it.key }), key = { tileKey(it) }) { t -> Moves {
                     val b = bots.firstOrNull { it.id == t.bot }
                     val who = inGroup(b?.named() ?: chiefNamed(), cardGroups[CardGroups.tileKey(t.id)])
                     TileApproval(who, t, t.then?.line(),
                         onApprove = { decide(tileKey(t), who, tileCard(t).title, true) { api!!.approveTile(t.id, true) } },
                         onDecline = { decide(tileKey(t), who, tileCard(t).title, false) { api!!.approveTile(t.id, false) } })
-                }
+                } }
                 // A permission or a skill a bot (or the Chief) asked for, and a tool the Chief asks to install for a bot.
                 // What one run waits on is one card (#277): Allow all and Decline all above each ask's own card.
-                items(askCards(asks.filter { a -> decided.none { it.key == "a:${a.id}" } }), key = { it.key }) { card ->
+                items(askCards(asks.filter { a -> decided.none { it.key == "a:${a.id}" } }), key = { it.key }) { card -> Moves {
                     when (card) {
                         is AskCard.One -> {
                             val a = card.ask
@@ -323,9 +324,9 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                             AskApproval(a, who) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
                         }
                     }
-                }
+                } }
                 // A bot's plan for the Chief: nothing happens until you approve it, here or in its chat.
-                items(plans.filter { c -> decided.none { it.key == "p:${c.id}" } }, key = { "p:${it.id}" }) { c ->
+                items(plans.filter { c -> decided.none { it.key == "p:${c.id}" } }, key = { "p:${it.id}" }) { c -> Moves {
                     val from = c.waiting!!.from
                     val who = whoOf(from.id, from.name)
                     val title = "A plan for the Chief: ${c.title}"
@@ -335,10 +336,10 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                         Buttons("Approve", { decide("p:${c.id}", who, title, true, "Approved · the Chief is on it") { api!!.sendToChief(c.id, PLAN_APPROVAL, emptyList()); null } },
                             "Decline", { decide("p:${c.id}", who, title, false) { api!!.dismissSuggestion(c.id); null } })
                     }
-                }
-                items(decided, key = { "d:${it.key}" }) { d ->
+                } }
+                items(decided, key = { "d:${it.key}" }) { d -> Moves {
                     Card(d.who, d.title, done = true) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Muted(d.label) } }
-                }
+                } }
             }
         }
     }
@@ -1372,3 +1373,8 @@ fun describeCron(cron: String): String {
         else -> CUSTOM
     }
 }
+
+/** A card of the list that fades in, fades away once decided, and lets the cards below move up into its place (#496). */
+@Composable
+private fun LazyItemScope.Moves(content: @Composable () -> Unit) =
+    Box(Modifier.animateItem(fadeInSpec = Motion.enter(), placementSpec = Motion.enter(), fadeOutSpec = Motion.exit())) { content() }

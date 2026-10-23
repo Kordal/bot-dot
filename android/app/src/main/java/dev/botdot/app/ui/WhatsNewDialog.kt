@@ -50,7 +50,7 @@ fun WhatsNewEntries(entries: List<WhatsNew.Entry>, color: Color = Color.Unspecif
             val title = if (WhatsNew.openAtFirst(i)) Modifier else Modifier.clickable { open = !open }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(if (WhatsNew.openAtFirst(i)) e.title else (if (open) "▾  " else "▸  ") + e.title, color = color, fontWeight = FontWeight.SemiBold, modifier = title)
-                if (open) for (point in e.points) Text("•  $point", color = color)
+                Unfold(open) { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { for (point in e.points) Text("•  $point", color = color) } }
             }
         }
     }
