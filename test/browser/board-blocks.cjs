@@ -45,7 +45,12 @@ const { startServer, makeBot } = require('../helpers');
     await page.waitForSelector('#view-dashboard .dash-grid');
     await page.waitForFunction(() => document.querySelectorAll('#view-dashboard [data-tile]').length === 11);
     const heads = await page.locator('#view-dashboard h3.dash-sec').allInnerTexts();
-    assert.deepEqual(heads, ['Home\nHome Helper\nscript · 1 min', 'Today\nHome Helper', 'Server\nServer Watch\nscript · 30 s'], 'each heading with its bots, and where its values come from');
+    assert.equal(heads.length, 3);
+    assert.match(heads[0], /^Home\nHome Helper\n\d+s ago$/, 'each heading with its bots, and how long ago its values were read');
+    assert.equal(heads[1], 'Today\nHome Helper');
+    assert.match(heads[2], /^Server\nServer Watch\n\d+s ago$/);
+    assert.equal(await page.locator('h3.dash-sec .tile-src').first().getAttribute('title'), 'script · 1 min', 'where they come from, on hover');
+    assert.equal(await page.locator('.board-head p').count(), 0, 'no count of sources');
     assert.match(await page.locator('[data-live]').innerText(), /^Live · updated \d+s ago$/);
     assert.equal(await page.locator('.ctl-box .ctl-row').count(), 3, 'two switches and a button, one box');
     assert.equal(await page.locator('.ctl-box .sw.on').count(), 1, 'Heating is on');
@@ -63,7 +68,7 @@ const { startServer, makeBot } = require('../helpers');
     await shot('board-tooltip');
     // One heading at a time.
     await page.locator('[data-filter="Server"]').click();
-    assert.deepEqual(await page.locator('#view-dashboard h3.dash-sec').allInnerTexts(), ['Server\nServer Watch\nscript · 30 s']);
+    assert.deepEqual((await page.locator('#view-dashboard h3.dash-sec').allInnerTexts()).map((h) => h.replace(/\d+s ago$/, 'ago')), ['Server\nServer Watch\nago']);
     await page.locator('[data-filter=""]').click();
 
     // A window of 1000: the list and the Board beside it, three across.

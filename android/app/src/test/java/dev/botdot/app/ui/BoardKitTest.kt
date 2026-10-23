@@ -18,6 +18,7 @@ class BoardKitTest {
         Tile(id = id, kind = kind, size = size, bot = bot, source = source, look = TileLook(face = face))
 
     @Test fun theLiveMarkerSaysTheAgeOfTheNewestValue() {
+        assertEquals("a tile and a heading say only how long ago it read", "1 min ago", BoardKit.ageWords(65))
         assertEquals("Live · updated 3s ago", BoardKit.liveWords(3))
         assertEquals("Live · updated 0s ago", BoardKit.liveWords(-2))
         assertEquals("Live · updated 2 min ago", BoardKit.liveWords(125))

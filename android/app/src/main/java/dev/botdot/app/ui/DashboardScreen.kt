@@ -369,7 +369,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                         // The gap under it: none between the rows of one Controls box, so they read as one.
                         Box(Modifier.padding(bottom = if (ctl(k) && !lastRow) 0.dp else gap)) {
                         when {
-                            k.startsWith("h:") -> SectionHead(k.removePrefix("h:"), under(k.removePrefix("h:")), bots)
+                            k.startsWith("h:") -> SectionHead(k.removePrefix("h:"), under(k.removePrefix("h:")), bots, now)
                             k.startsWith("in:") -> {
                                 // The top of an open group's tiles; "Nothing in it yet" while it's empty.
                                 val empty = d?.tiles.orEmpty().none { it.parent == k.removePrefix("in:") }
@@ -386,7 +386,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                                 ).clickable { if (held == t.id) held = null else tap(t, t.id in waiting) }
                                 Box(Modifier.graphicsLayer { val s = if (lifted) 1.04f else bump; scaleX = s; scaleY = s }) {
                                     if (ctl(k)) ControlRow(t, t.id in waiting, flash[t.id], handle, firstRow, lastRow)
-                                    else TileCard(t, colorOf(t), t.id in waiting, flash[t.id], controlsFor(t), handle,
+                                    else TileCard(t, colorOf(t), t.id in waiting, flash[t.id], controlsFor(t), handle, now,
                                         inside = d?.tiles.orEmpty().filter { it.parent == t.id }.map { it to colorOf(it) },
                                         open = inGroup || open[t.id] == true,
                                         where = when { t.size != "small" || t.wide -> "wide"; cols <= 2 && BoardKit.isKpiTile(t) -> "compact"; else -> "face" },
@@ -429,11 +429,11 @@ private fun Empty() {
 
 /**
  * A tile as a card. A tile of one number has a kpi's head (a small square, its title muted); at the end of the head,
- * quietly, that a bot or the Chief wrote it, or where its value comes from ("script · 30 s") unless its heading
- * says it ([sourced]); a note says when it was written. [where]: how its face is drawn (see [BlockView]).
+ * quietly, that a bot or the Chief wrote it, or how long ago it read its value ("1 min ago", as of [now]) unless its
+ * heading says it ([sourced]); a note says when it was written. [where]: how its face is drawn (see [BlockView]).
  */
 @Composable
-private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, ctl: TileControls, click: Modifier, inside: List<Pair<Tile, String>> = emptyList(), open: Boolean = false, where: String = "face", sourced: Boolean = false) {
+private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, ctl: TileControls, click: Modifier, now: Long, inside: List<Pair<Tile, String>> = emptyList(), open: Boolean = false, where: String = "face", sourced: Boolean = false) {
     val p = LocalPaper.current
     val c = parseColor(color, p.faint)
     val shape = RoundedCornerShape(18.dp)
@@ -478,7 +478,7 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
                 if (t.ai && BoardKit.hasMarkdown(look?.face.orEmpty())) {
                     Text(BoardWords.WRITTEN_BY_AI, color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1,
                         modifier = Modifier.padding(start = 8.dp).border(1.dp, p.line2, RoundedCornerShape(99.dp)).padding(horizontal = 8.dp, vertical = 1.dp))
-                } else if (t.source != null && !kpi && !sourced) Text(t.source, color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
+                } else if (t.source != null && !kpi && !sourced) BoardKit.newestAt(listOf(t)).takeIf { it > 0 }?.let { Text(BoardKit.ageWords((now - it) / 1000), color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp)) }
             }
         }
         if (t.kind != "group" && look != null) Blocks(look.face, c, where, ctl)
@@ -487,9 +487,9 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
     }
 }
 
-/** A heading: its name, the bots its tiles come from, and where their values come from when that is one for all of them. */
+/** A heading: its name, the bots its tiles come from, and how long ago their values were read when they come from one source. */
 @Composable
-private fun SectionHead(name: String, tiles: List<Tile>, bots: List<Bot>) {
+private fun SectionHead(name: String, tiles: List<Tile>, bots: List<Bot>, now: Long) {
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(name, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
@@ -497,7 +497,7 @@ private fun SectionHead(name: String, tiles: List<Tile>, bots: List<Bot>) {
             Text("  $it", color = p.faint, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         }
         Spacer(Modifier.weight(1f).size(1.dp))
-        BoardKit.sectionSource(tiles).takeIf { it.isNotEmpty() }?.let { Text(it, color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp)) }
+        BoardKit.newestAt(tiles.filter { it.source != null }).takeIf { it > 0 && BoardKit.sectionSource(tiles).isNotEmpty() }?.let { Text(BoardKit.ageWords((now - it) / 1000), color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp)) }
     }
 }
 

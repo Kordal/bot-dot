@@ -70,12 +70,14 @@ object BoardKit {
 
     fun num(n: Double): String = ((n * 100).roundToInt() / 100.0).let { if (it == floor(it)) it.toLong().toString() else it.toString() }
 
-    /** "Live · updated 3s ago": the age of the newest value on the Board, as the web page says it. */
-    fun liveWords(secs: Long): String {
+    /** "3s ago", "2 min ago", "2 h ago": the age of a value, as the web page says it. */
+    fun ageWords(secs: Long): String {
         val s = maxOf(0L, secs)
-        val age = when { s < 60 -> "${s}s"; s < 3600 -> "${s / 60} min"; else -> "${s / 3600} h" }
-        return "Live · updated $age ago"
+        return when { s < 60 -> "${s}s"; s < 3600 -> "${s / 60} min"; else -> "${s / 3600} h" } + " ago"
     }
+
+    /** "Live · updated 3s ago": the age of the newest value on the Board, as the web page says it. */
+    fun liveWords(secs: Long): String = "Live · updated ${ageWords(secs)}"
 
     /** When the newest value came, in epoch ms; 0 while none has. */
     fun newestAt(tiles: List<Tile>): Long = tiles.maxOfOrNull { t -> t.at?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L } ?: 0L
@@ -89,7 +91,7 @@ object BoardKit {
     /** Beside a heading: the bots its tiles come from. */
     fun sectionBots(tiles: List<Tile>, bots: List<Bot>): String = tiles.mapNotNull { t -> bots.firstOrNull { it.id == t.bot }?.name }.distinct().joinToString(", ")
 
-    /** At a heading's end: where its tiles' values come from, when that is one for all of them; else "". */
+    /** Where a heading's tiles' values come from, when that is one for all of them (its end then says how long ago they read); else "". */
     fun sectionSource(tiles: List<Tile>): String = tiles.mapNotNull { it.source }.distinct().singleOrNull() ?: ""
 
     /** How a number changed: "▲ 0.8 since 08:00", or "" when it doesn't say. */
