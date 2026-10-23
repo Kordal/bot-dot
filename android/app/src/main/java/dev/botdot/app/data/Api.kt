@@ -158,8 +158,6 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** A new room, made by this account. A refusal throws the front door's sentence. */
     suspend fun makeRoom(name: String): Room = roomOf(door("/front-door/rooms", buildJsonObject { put("name", name) }))
     suspend fun renameRoom(id: String, name: String): Room = roomOf(door("${roomPath(id)}/name", buildJsonObject { put("name", name) }))
-    /** Invites another account on this machine by its name. */
-    suspend fun inviteToRoom(id: String, account: String): Room = roomOf(door("${roomPath(id)}/invite", buildJsonObject { put("account", account) }))
     suspend fun acceptRoom(id: String): Room = roomOf(door("${roomPath(id)}/accept"))
     /** The room's invite link (ADR 068), for its maker only (others: 403); null for none. */
     suspend fun roomLink(id: String): RoomLink? = json.decodeFromString<RoomLinkAnswer>(doorGet("${roomPath(id)}/link")).link

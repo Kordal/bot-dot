@@ -53,7 +53,7 @@ function page({ answer = () => [200, { rooms: [ROOM], invites: [INVITE] }], myBo
     Unread: { tint: (c) => c }, ICON: { back: '<back>' }, BACK_BTN: '<button data-back></button>',
     composerHTML: () => '<form class="composer"></form>', wireComposer() {},
   });
-  vm.runInContext(`${src}\nObject.assign(this, { rooms, door, setRoomsOn, loadRooms, loadRoomChat, roomsRowHTML, drawRoomsKeys, roomsListHTML, roomThreadHTML, roomMessageHTML, roomMentionBots, roomWorkingHTML, sendToRoom, answerInvite, openRoomSettings, roomById, roomNews, markRoomSeen, joinFromLink, joinHash, roomLinkHTML });`, ctx);
+  vm.runInContext(`${src}\nObject.assign(this, { rooms, door, setRoomsOn, loadRooms, loadRoomChat, roomsRowHTML, drawRoomsKeys, roomsListHTML, roomThreadHTML, roomMessageHTML, roomMentionBots, roomWorkingHTML, sendToRoom, answerInvite, openRoomSettings, roomById, roomNews, markRoomSeen, joinFromLink, joinHash, roomLinkHTML, openRoomMaker });`, ctx);
   const flush = () => new Promise((r) => setImmediate(r));
   return { ctx, state, said, els, flush };
 }
@@ -287,6 +287,40 @@ test("web: the room's settings close on their ✕, after every redraw", async ()
   assert.match(root.innerHTML, /<h2>Trip 2<\/h2>/);
   parts['[data-dismiss]'].onclick();
   assert.equal(closed, 2);
+});
+
+test('web: rooms invite by link only (ADR 076): New room asks for a name, makes the link and opens the settings on it', async () => {
+  const made = { ...ROOM, id: 'd'.repeat(32), name: 'Plans', members: [{ account: 'me' }], bots: [], invites: [] };
+  const link = { url: `https://botdot.example/#rooms/join=${TOKEN}`, expires: '2026-10-29T12:00:00Z' };
+  const p = page({ answer: (url, opts) => (url === '/front-door/rooms' && opts.method === 'POST' ? [201, { room: made }] : url.endsWith('/link') ? [200, { link }] : [200, { rooms: [], invites: [] }]) });
+  p.ctx.setRoomsOn(true, 'me', true);
+  await p.flush();
+  const panel = element();
+  const parts = {};
+  const maker = element({}, { querySelector: (sel) => (parts[sel] ||= element()), name: { value: ' Plans ' } });
+  p.ctx.openModal = (h) => { p.said.modals.push(h); return h.includes('room-maker') ? element({ '#room-maker': maker }, { close() {} }) : element({ '#room-panel': panel }); };
+  const form = element({}, { querySelector: () => element(), querySelectorAll: () => [] });
+  panel.querySelector = (sel) => (sel === '#room-form' ? form : null);
+  p.ctx.openRoomMaker();
+  const dialog = p.said.modals[0];
+  assert.match(dialog, /name="name"/);
+  assert.doesNotMatch(dialog, /name="account"|Invite/, 'no invite by name');
+  await maker.onsubmit({ preventDefault() {} });
+  for (let i = 0; i < 5; i++) await p.flush();
+  const posts = p.said.calls.filter((c) => c[0] === 'POST').map((c) => c.slice(1));
+  assert.deepEqual(posts, [['/front-door/rooms', { name: 'Plans' }], [`/front-door/rooms/${made.id}/link`]]);
+  assert.deepEqual(p.said.views.at(-1), ['rooms', made.id]);
+  assert.match(panel.innerHTML, /data-copy-link>Copy/, 'the settings open on the link');
+  assert.doesNotMatch(panel.innerHTML, /data-invite|Account name/);
+});
+
+test('web: the Rooms screens carry no helper lines', () => {
+  const p = page();
+  p.ctx.rooms.known = true;
+  const h = p.ctx.roomsListHTML();
+  assert.doesNotMatch(h, /class="sub"|class="muted"/);
+  assert.match(h, /No rooms yet/);
+  assert.doesNotMatch(p.ctx.roomLinkHTML(null) + p.ctx.roomLinkHTML({ url: 'u', expires: '2026-10-29T12:00:00Z' }), /faint|Works until|Anyone/);
 });
 
 // ---------- a bot's settings ----------

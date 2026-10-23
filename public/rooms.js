@@ -217,12 +217,11 @@ function roomsListHTML() {
       </button>`;
   }).join('');
   return `
-    <div class="chat-head">${BACK_BTN}<div class="grow"><h2>Rooms</h2><div class="sub">Chats with people of other accounts on this machine and their bots</div></div>
+    <div class="chat-head">${BACK_BTN}<div class="grow"><h2>Rooms</h2></div>
       <button type="button" class="btn sm primary" id="room-new">New room</button></div>
     <div class="rooms-page">
       ${invites ? `<h3 class="page-sub">Invites</h3><div class="card rooms-card">${invites}</div>` : ''}
-      ${list ? `<div class="card rooms-card">${list}</div>` : rooms.known ? `<div class="chat-empty"><div class="avatar rooms-pic lg">${ROOMS_ICON}</div><h3>No rooms yet</h3>
-        <p class="muted">Make one and invite another account by its name.<br>A bot there answers only when it is @mentioned, and only talks: no tools, no notes.</p></div>` : '<p class="faint">Loading…</p>'}
+      ${list ? `<div class="card rooms-card">${list}</div>` : rooms.known ? `<div class="chat-empty"><div class="avatar rooms-pic lg">${ROOMS_ICON}</div><h3>No rooms yet</h3></div>` : '<p class="faint">Loading…</p>'}
     </div>`;
 }
 
@@ -274,7 +273,6 @@ async function openJoin() {
       <div class="modal-head"><h2>Join ${esc(room.name)}?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         <p>${esc(room.by || 'Someone')} made this room and shared its invite link.</p>
-        <p class="muted">Everyone in it reads what is written there. Bots you add answer only when @mentioned, and only talk.</p>
         <div class="send-note hidden" role="alert"></div>
       </div>
       <div class="modal-foot">
@@ -421,7 +419,6 @@ function openRoomMaker() {
       <div class="modal-head"><h2>New room</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         <label class="field">Name<input type="text" name="name" maxlength="60" required placeholder="What the room is about"></label>
-        <label class="field">Invite <span class="hint">an account on this machine, by its name; you can invite more later</span><input type="text" name="account" maxlength="60" placeholder="Account name"></label>
         <div class="send-note hidden" role="alert"></div>
       </div>
       <div class="modal-foot">
@@ -439,14 +436,13 @@ function openRoomMaker() {
     try {
       const got = await door('/rooms', { method: 'POST', body: { name: form.name.value.trim() } });
       const room = got?.room;
-      if (room?.id) takeRoom(room);
-      const account = form.account.value.trim();
-      // The room is made: an invite it refuses is said there, and the room opens all the same.
-      if (room?.id && account) {
-        try { takeRoom((await door(`/rooms/${encodeURIComponent(room.id)}/invite`, { method: 'POST', body: { account } }))?.room); } catch (err) { toast(err.message, true); }
-      }
       m.close();
-      if (room?.id) setView('rooms', room.id);
+      if (!room?.id) return;
+      takeRoom(room);
+      setView('rooms', room.id);
+      // People join by the invite link alone (ADR 076): the room is made with one, shown in its settings to copy.
+      if (rooms.links) await door(`/rooms/${encodeURIComponent(room.id)}/link`, { method: 'POST' }).catch(() => {});
+      openRoomSettings(room.id);
     } catch (err) { showBoxNote(form, err.message); button.disabled = false; }
   };
   return m;
@@ -454,9 +450,9 @@ function openRoomMaker() {
 
 // ---------- a room's settings ----------
 
-// The room's people (with the invites waiting), its bots each as "name · account" with Remove on this account's
-// own, "Add a bot" of this account's bots that may take part, inviting another account, its name, "Leave", and
-// "Delete" for the one who made it. Every change is the front door's to refuse, in its words.
+// The room's people (with the invites by name still waiting), its maker's invite link, its bots each as
+// "name · account" with Remove on this account's own, "Add a bot" of this account's bots that may take part, its
+// name, "Leave", and "Delete" for the one who made it. Every change is the front door's to refuse, in its words.
 function openRoomSettings(id) {
   const r = roomById(id);
   if (!r) return;
@@ -479,10 +475,9 @@ function openRoomSettings(id) {
           <div class="field">People
             <div class="room-list">${roomPeople(room).map((a) => `<div class="room-item"><span class="grow">${esc(a)}${a === rooms.me ? ' <span class="faint">(you)</span>' : ''}${a === room.by ? ' <span class="faint">made the room</span>' : ''}</span></div>`).join('')}
             ${invited.map((i) => `<div class="room-item"><span class="grow faint">${esc(i.account)} · invited</span></div>`).join('')}</div>
-            <span class="room-inline"><input type="text" name="account" maxlength="60" placeholder="Account name to invite"><button type="button" class="btn sm" data-invite>Invite</button></span>
             ${maker ? roomLinkHTML(link) : ''}
           </div>
-          <div class="field">Bots <span class="hint">each answers only when @mentioned, and only talks</span>
+          <div class="field">Bots
             <div class="room-list">${roomBots(room).map((b) => `<div class="room-item">${botFigure(b.color || ROOM_GREY, 'idle', 'sm')}<span class="grow">${esc(roomBotLabel(b))}</span>${isMine(b) ? `<button type="button" class="link-btn" data-remove-bot="${esc(b.id)}">Remove</button>` : ''}</div>`).join('') || '<div class="faint">No bot yet.</div>'}</div>
             ${mayAdd.length ? `<span class="room-inline"><select name="bot">${mayAdd.map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select><button type="button" class="btn sm" data-add-bot>Add your bot</button></span>` : ''}
             ${keptOut ? `<div class="faint">${mayAdd.length ? 'More' : 'Your'} bots can join once "Shared rooms" is on in their settings.</div>` : ''}
@@ -504,7 +499,6 @@ function openRoomSettings(id) {
     };
     const post = (path, body) => door(`/rooms/${encodeURIComponent(id)}${path}`, { method: 'POST', body });
     $('[data-rename]', form).onclick = (e) => act(e.target, async () => takeRoom((await post('/name', { name: form.name.value.trim() }))?.room));
-    $('[data-invite]', form).onclick = (e) => act(e.target, async () => { takeRoom((await post('/invite', { account: form.account.value.trim() }))?.room); });
     const makeLink = $('[data-make-link]', form);
     if (makeLink) makeLink.onclick = () => act(makeLink, async () => { link = (await post('/link'))?.link || null; });
     const dropLink = $('[data-drop-link]', form);
@@ -533,10 +527,8 @@ function openRoomSettings(id) {
 // The maker's invite link: the link with Copy, a new one and Take back; or "Make an invite link". Nothing until read.
 function roomLinkHTML(link) {
   if (link === undefined) return '';
-  const hint = '<div class="faint">Anyone with an account on this machine who opens it can join. It works for 7 days.</div>';
-  if (!link) return `<span class="room-inline"><button type="button" class="btn sm" data-make-link>Make an invite link</button></span>${hint}`;
-  const until = new Date(link.expires).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  if (!link) return '<span class="room-inline"><button type="button" class="btn sm" data-make-link>Make an invite link</button></span>';
   return `<span class="room-inline"><input type="text" name="link" readonly value="${esc(link.url)}" aria-label="Invite link"><button type="button" class="btn sm" data-copy-link>Copy</button></span>
-            <span class="room-inline"><span class="faint grow">Works until ${esc(until)}.</span><button type="button" class="link-btn" data-make-link>New link</button><button type="button" class="link-btn danger-text" data-drop-link>Take back</button></span>`;
+            <span class="room-inline"><button type="button" class="link-btn" data-make-link>New link</button><button type="button" class="link-btn danger-text" data-drop-link>Take back</button></span>`;
 }
 

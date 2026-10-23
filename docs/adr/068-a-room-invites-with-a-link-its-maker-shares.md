@@ -3,6 +3,7 @@
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#339](https://github.com/Kordal/bot-dot/issues/339)
 - **Changes:** [ADR 060](060-a-shared-room-lets-bots-of-several-accounts-talk-through-the-front-door.md) ("Who joins": a person invites another account by its name; now also by a link)
+- **Changed by:** [ADR 076](076-a-room-is-joined-by-its-invite-link-only.md) (the apps no longer invite by name)
 - **Branch:** built on `nightly` with the rest of shared rooms, merged into `main` on 2026-10-22
 
 ## Context
