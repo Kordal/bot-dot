@@ -27,3 +27,8 @@ A page is Markdown, drawn by the apps' own code (ADR 065). The owner wants pages
 - A tile made only to feed a page shows on the Board too.
 - A tile renamed after a page bound to it by title shows that block as one that cannot be drawn until the page is rewritten; binding by id avoids it.
 - An older app shows the fences as code blocks; a newer app on an older server gets no `parts` and shows the Markdown as before.
+
+## Amendment: a page on the Board (#451, 2026-10-23)
+
+The other way round: a page can be a tile of the Board. A tile of kind `page` points to the page (`page: { bot, slug }`) and has no sources and no blocks of its own; botdot fills in its look from the page each time the Board is read: up to three of the page's first kpis, else its first chart, else its first lines, and nothing for an interactive page. The apps draw it with the block kit and open the page on a tap. The owner puts it there with "Board" on the page or the switch in the Pages list, the Chief with `add_tile`, a bot by suggesting its own page; no page is there by itself. A tile whose page is gone is not shown until the page is back, and goes with its bot.
+

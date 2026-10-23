@@ -41,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.ui.graphics.SolidColor
@@ -144,6 +145,8 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     fun pop(t: Tile) = scope.launch { popped[t.id] = true; delay(180); popped.remove(t.id) }
     // What a tap does comes with the tile (look.tap): its pop-up, switch it, run it, read it again, or its bot's chat.
     fun tap(t: Tile, waiting: Boolean) {
+        // A page on the Board (#451) opens in the viewer.
+        if (t.kind == "page") { t.page?.let { pg -> DocViewer.open = DocViewer.page(pg.bot, dev.botdot.app.data.PageRef(pg.slug, t.title), if (pg.bot == dev.botdot.app.data.Pages.CHIEF) chiefName else bots.firstOrNull { it.id == pg.bot }?.name.orEmpty()) }; return }
         val how = t.look?.tap ?: if (t.kind == "group") "group" else "none"
         if (how == "group") { if (open[t.id] == true) open.remove(t.id) else open[t.id] = true; return }
         if (waiting) return onNeeds()
@@ -484,11 +487,13 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
                     Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(if (off) Color.Transparent else tint(dot.color, c)).then(if (off) Modifier.border(1.5.dp, tint(dot.color, c), RoundedCornerShape(2.dp)) else Modifier))
                     Spacer(Modifier.size(8.dp))
                 } else if (dot != null) { TileDotView(dot.filled, tint(dot.color, c), false); Spacer(Modifier.size(8.dp)) }
+                if (t.kind == "page") { Icon(Icons.Outlined.Description, contentDescription = null, tint = p.muted, modifier = Modifier.size(15.dp)); Spacer(Modifier.size(8.dp)) }
                 Box(Modifier.weight(1f, fill = false)) {
                     if (kpi) Text(t.title, color = p.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) else Title(t.title)
                 }
                 if (t.kind == "note" && t.at != null) Text("  " + shortTime(t.at), color = p.faint, fontSize = 12.5.sp, maxLines = 1)
                 Spacer(Modifier.weight(1f).size(1.dp))
+                if (t.kind == "page" && t.at != null) Text(dev.botdot.app.data.Pages.age(t.at, java.time.Instant.ofEpochMilli(now)), color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
                 if (t.ai && BoardKit.hasMarkdown(look?.face.orEmpty())) {
                     Text(BoardWords.WRITTEN_BY_AI, color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1,
                         modifier = Modifier.padding(start = 8.dp).border(1.dp, p.line2, RoundedCornerShape(99.dp)).padding(horizontal = 8.dp, vertical = 1.dp))

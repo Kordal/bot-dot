@@ -280,7 +280,7 @@ test('the docs: the user guide section "Board", the API section "The Board", and
     '_Avoid_: dashboard, home, panel',
     '',
     '**Tile**:',
-    'One thing on the Board: a switch, a button, a value, a list, a note, a group of tiles, or one built from blocks. A tile with a source belongs to a bot, whose saved logins and workspace it uses.',
+    'One thing on the Board: a switch, a button, a value, a list, a note, a group of tiles, a bot\'s page, or one built from blocks. A tile with a source belongs to a bot, whose saved logins and workspace it uses.',
     '_Avoid_: card (a card waits in Needs you), widget',
     '',
   ].join('\n')), 'Board and Tile, after Needs you and its two terms');

@@ -149,6 +149,7 @@ You need a saved login holding a long-lived access token (list_vault; if there i
 - How often it refreshes: `update_tile` with `every`.
 - Change what it shows or what its pop-up holds: `update_tile` with `face`, `panel` or `dot` (the whole list; `null` goes back to its kind's own look).
 - Into or out of a group: `update_tile` with `parent` (a group's id, or "").
+- A page on the Board: `add_tile` with `kind: "page"`, a `title` and `page: { "bot": "<bot id, or chief>", "slug": "<its slug or title>" }`. It shows the page's title, its age and its first kpis, chart or lines, and opens the page. No sources, no blocks. The user switches pages on and off themselves too ("On Board" on the page, the switch in Settings > Pages); `remove_tile` takes one off and the page stays.
 - Remove: `remove_tile`. Only remove what the user asked to remove. They can also long-press a tile to remove it.
 
 Never put secrets in a tile. Tokens stay in the Vault and go in through the header placeholders.

@@ -198,6 +198,7 @@ function tileHTML(t, waiting, sourced = false) {
       return `<i class="${d && d.filled !== true ? 'off' : ''}" style="--c:${tintOf(d?.color, x)}"></i>`;
     }).join('') || '<span class="faint">·</span>'}</div>`;
   }
+  if (t.kind === 'page') dot = `<span class="tile-page">${PAGE_ICON}</span>`; // a page on the Board (#451)
   const note = waiting ? 'Waiting for your OK' : tapped.get(t.id) || (t.error ? "Couldn't update" : '');
   const pressed = look.tap === 'toggle' ? ` aria-pressed="${look.dot?.filled === true}"` : '';
   const open = t.kind === 'group' && openGroups.has(t.id);
@@ -206,13 +207,18 @@ function tileHTML(t, waiting, sourced = false) {
   // Quietly at the end of its head: that a bot or the Chief wrote it, or how long ago it last read its value
   // ("1 min ago"; where it reads from stays in its title). A note says when it was written.
   const aside = t.ai && hasMarkdown(look.face) ? '<span class="tile-ai">written by AI</span>' : t.source && !kpi && !sourced ? ageHTML(Date.parse(t.at || '') || 0, t.source) : '';
+  const age = t.kind === 'page' && t.at ? `<span class="tile-src" data-age="${Date.parse(t.at)}" data-short>${esc(pageAge(t.at))}</span>` : '';
   const when = t.kind === 'note' && t.at ? `<span class="tile-when">${esc(kitClock(Date.parse(t.at)))}</span>` : '';
   return `<div role="button" tabindex="0" class="tile kind-${t.kind} size-${size} ${kpi ? 'kpi-tile' : ''} ${kpi && size === 'small' ? 'compact' : ''} ${look.dot?.big ? 'big-dot' : ''} ${waiting ? 'waiting' : ''} ${open ? 'open' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${pressed}${t.kind === 'group' ? ` aria-expanded="${open}"` : ''} title="${esc(t.error || '')}">
-    <div class="tile-head">${dot}<span class="tile-title">${esc(t.title)}</span>${when}${aside}${PEN_BTN()}</div>
+    <div class="tile-head">${dot}<span class="tile-title">${esc(t.title)}</span>${when}${aside}${age}${PEN_BTN()}</div>
     ${body}
     ${note ? `<div class="tile-sub">${esc(note)}</div>` : ''}
   </div>`;
 }
+
+// A page's tile (#451): a page mark before its title, and the page's age ("2 h") at its end. A tap opens the page.
+const PAGE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6"/></svg>';
+const pageAge = (at) => ageWords((Date.now() - Date.parse(at)) / 1000).replace(/ ago$/, '');
 
 // The pencil on a tile (#430), shown on hover: it opens the ask for a change. Only when the server takes one.
 const PEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';
@@ -261,7 +267,7 @@ setInterval(() => {
   const el = $('#view-dashboard [data-live]');
   const newest = newestAt(state.dash?.tiles);
   if (el && newest) el.textContent = ageWords((Date.now() - newest) / 1000);
-  $$('#view-dashboard [data-age]').forEach((x) => { x.textContent = ageWords((Date.now() - Number(x.dataset.age)) / 1000); });
+  $$('#view-dashboard [data-age]').forEach((x) => { const w = ageWords((Date.now() - Number(x.dataset.age)) / 1000); x.textContent = 'short' in x.dataset ? w.replace(/ ago$/, '') : w; });
 }, 1000);
 // The heading shown (its name), or all of them (''); kept in this browser.
 let boardFilter = (() => { try { return localStorage.getItem('board-filter') || ''; } catch { return ''; } })();
@@ -821,6 +827,7 @@ function removeGroup(t, n) {
 // What a tile says when its bot was busy: the request waits among the owner's messages (docs/api.md, "A message that waits").
 const tileWaits = (t) => `${botById(t.bot)?.name || 'Its bot'} will do it when it is free`;
 async function tapTile(t) {
+  if (t.kind === 'page') { if (t.page) Pages.openPage({ botId: t.page.bot, slug: t.page.slug, title: t.title, bot: t.page.bot === Pages.CHIEF ? chiefName() : botById(t.page.bot)?.name || '' }); return; }
   const tap = t.look?.tap || 'none';
   if (tap === 'panel') return openTilePanel(t);
   if (tap === 'chat' || tap === 'none') { if (tap === 'chat' && botById(t.bot)) setView('bot', t.bot); return; }

@@ -31,6 +31,17 @@ object Pages {
     const val FEATURE_CHIEF = "chief-pages"
     fun showsChief(features: Collection<String>?): Boolean = shows(features) && FEATURE_CHIEF in features!!
 
+    /** Pages on the Board (#451): "On Board" on a page and a switch on each row of the Pages screen. */
+    const val FEATURE_BOARD = "pages-board"
+    fun showsBoard(features: Collection<String>?): Boolean = shows(features) && FEATURE_BOARD in features!!
+
+    /** A page tile's age at the end of its head: "3s", "5 min", "2 h", as the web page says it. */
+    fun age(at: String?, now: java.time.Instant = java.time.Instant.now()): String {
+        val t = at?.let { runCatching { java.time.Instant.parse(it) }.getOrNull() } ?: return ""
+        val s = maxOf(0L, java.time.Duration.between(t, now).seconds)
+        return if (s < 60) "${s}s" else if (s < 3600) "${s / 60} min" else "${s / 3600} h"
+    }
+
     /** The Pages screen's two sections: the pages kept up to date, then the others, each newest first as the server lists them. */
     fun split(pages: List<PageInfo>): Pair<List<PageInfo>, List<PageInfo>> = pages.partition { it.keep != null }
 
@@ -180,6 +191,8 @@ data class PageInfo(
     /** "interactive" for a bot's interactive page (#399); else a page of Markdown. */
     val kind: String = "",
     val version: Int? = null,
+    /** On the Board (#451), from a server with `pages-board`; null from one before. */
+    val onBoard: Boolean? = null,
 )
 
 @Serializable

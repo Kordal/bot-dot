@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -241,7 +243,13 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         val page = v?.page
         val site = v?.interactive
         val download = { withApi("save it") { BotFiles.saveToDownloads(context, it, src, fileName); tell("Saving $fileName to Downloads") } }
+        // On the Board or off it (#451): the button says so at once, with nothing read again.
+        var onBoard by remember(req, page) { mutableStateOf(page?.onBoard) }
+        val board: (() -> Unit)? = if (req.page != null && onBoard != null && dev.botdot.app.data.Pages.showsBoard(server?.features)) {
+            { withApi("change it") { onBoard = it.setPageOnBoard(req.page.botId, req.page.slug, onBoard != true)?.onBoard ?: onBoard } }
+        } else null
         if (req.page != null && site != null) {
+            if (board != null) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) { BoardButton(onBoard == true, board) }
             InteractiveBar(site, siteFull, onFull = { siteFull = true }, onVersions = { versions = true }, onDownload = download,
                 onRollBack = { withApi("go back to it") { it.setPageVersion(req.page.botId, req.page.slug, site.shown); tell("The page shows version ${site.shown} again"); version = null; tries++ } },
                 onCurrent = { version = null })
@@ -249,7 +257,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 onCurrent = { n -> versions = false; withApi("go back to it") { it.setPageVersion(req.page.botId, req.page.slug, n); tell("The page shows version $n again"); version = null; tries++ } },
                 onDismiss = { versions = false })
         }
-        if (req.page != null && page != null && site == null) PageBar(page, onKeep = { keeping = true }, onRefresh = {
+        if (req.page != null && page != null && site == null) PageBar(page, onBoard == true, board, onKeep = { keeping = true }, onRefresh = {
             page.keep?.let { k -> withApi("refresh it") { it.runJob(req.page.botId, k.jobId); tell("${req.from.ifBlank { "The bot" }} is refreshing it") } }
         }, onStop = { withApi("stop it") { it.stopKeepingPage(req.page.botId, page.slug); tell("It no longer keeps up to date"); changed++ } })
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, onDismiss = { keeping = false }) { every, time, notify, check ->
@@ -464,7 +472,7 @@ private fun CsvTable(text: String, sep: Char) {
 
 /** A page's bar (#346): what keeps it up to date, with Refresh now, Change and Stop, or the button that does. */
 @Composable
-private fun PageBar(page: PageInfo, onKeep: () -> Unit, onRefresh: () -> Unit, onStop: () -> Unit) {
+private fun PageBar(page: PageInfo, onBoard: Boolean, board: (() -> Unit)?, onKeep: () -> Unit, onRefresh: () -> Unit, onStop: () -> Unit) {
     val p = LocalPaper.current
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -477,6 +485,19 @@ private fun PageBar(page: PageInfo, onKeep: () -> Unit, onRefresh: () -> Unit, o
             androidx.compose.material3.TextButton(onClick = onKeep) { Text("Change", color = p.muted) }
             androidx.compose.material3.TextButton(onClick = onStop) { Text("Stop", color = p.muted) }
         }
+        if (board != null) BoardButton(onBoard, board)
+    }
+}
+
+/** "Board" puts the page on the Board; "On Board", filled, takes it off (#451). */
+@Composable
+private fun BoardButton(on: Boolean, onClick: () -> Unit) {
+    val p = LocalPaper.current
+    val label = if (on) "On Board" else "Board"
+    if (on) androidx.compose.material3.Button(onClick = onClick, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = p.text, contentColor = p.bg)) {
+        androidx.compose.material3.Icon(Icons.Outlined.GridView, contentDescription = null, modifier = Modifier.size(16.dp)); Spacer(Modifier.size(6.dp)); Text(label)
+    } else OutlinedButton(onClick = onClick) {
+        androidx.compose.material3.Icon(Icons.Outlined.GridView, contentDescription = null, tint = p.text, modifier = Modifier.size(16.dp)); Spacer(Modifier.size(6.dp)); Text(label, color = p.text)
     }
 }
 

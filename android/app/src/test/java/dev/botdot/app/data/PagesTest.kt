@@ -94,6 +94,26 @@ class PagesTest {
         assertEquals("Writer · updated 1h ago", Pages.allLine(other[1], now))
     }
 
+    @Test fun aPageGoesOnTheBoardAndItsTileOpensIt() = runBlocking {
+        assertTrue(Pages.showsBoard(listOf("document-viewer", "pages", "pages-board")))
+        assertFalse(Pages.showsBoard(listOf("document-viewer", "pages")))
+        server.enqueue(json("""{"page":{"slug":"hq-health","title":"hq health","onBoard":true}}"""))
+        assertEquals(true, api.setPageOnBoard("ops", "hq-health", true)?.onBoard)
+        val req = server.takeRequest()
+        assertEquals("PUT", req.method)
+        assertEquals("/api/bots/ops/pages/hq-health/board", req.target)
+        assertEquals(buildJsonObject { put("on", true) }, Api.JSON.parseToJsonElement(req.body!!.utf8()).jsonObject)
+        assertNull("a server before it", Api.JSON.decodeFromString(PageInfo.serializer(), """{"slug":"x"}""").onBoard)
+
+        val tile = Api.JSON.decodeFromString(Tile.serializer(), """{"id":"t1","kind":"page","title":"hq health","page":{"bot":"ops","slug":"hq-health","updatedAt":"2026-10-22T07:00:00Z","kind":"markdown"}}""")
+        assertEquals(TilePage("ops", "hq-health", "2026-10-22T07:00:00Z", "markdown"), tile.page)
+        val now = Instant.parse("2026-10-22T07:05:00Z")
+        assertEquals("5 min", Pages.age("2026-10-22T07:00:00Z", now))
+        assertEquals("40s", Pages.age("2026-10-22T07:04:20Z", now))
+        assertEquals("3 h", Pages.age("2026-10-22T04:00:00Z", now))
+        assertEquals("", Pages.age(null, now))
+    }
+
     @Test fun theFeedsPageEventIsKeptByBotAndSlug() {
         val saves = PageSaves()
         saves.handle(FeedEvent("b.1", "page", buildJsonObject { put("botId", "ops"); put("slug", "hq-health"); put("updatedAt", "2026-10-22T07:00:00Z") }))

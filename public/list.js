@@ -247,6 +247,7 @@ function stripKpi(t) {
   const b = find(t.look?.face);
   const c = tintOf(b?.color, t);
   const num = b ? { text: b.text || '', unit: b.type === 'kpi' || b.type === 'value' ? b.unit : '', of: b.of, points: b.points, ratio: b.ratio } : t.look?.short ? { text: t.look.short } : null;
+  if (!num && t.kind === 'page' && t.at) return `<span class="kp-card">${kitKpi({ label: t.title, text: pageAge(t.at) }, c)}</span>`; // a page without a number: its age (#451)
   const dot = t.look?.dot;
   const card = num ? kitKpi({ label: t.title, ...num }, c)
     : `<div class="kit-kpi"><div class="kit-kpi-main"><div class="kit-label">${esc(t.title)}</div><div class="kit-num kp-card-dot">${tileMark(t)}${dot && dot.big ? `<span>${dot.filled === true ? 'On' : dot.filled === false ? 'Off' : '·'}</span>` : ''}</div></div></div>`;
