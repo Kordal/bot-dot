@@ -99,6 +99,13 @@ test('the page and long answers are compressed, and the page is cached until it 
   assert.ok(etag);
   assert.equal((await page.text()).length, fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'), 'utf8').length);
   assert.equal((await fetch(`${srv.base}/app.js`, { headers: { 'If-None-Match': etag } })).status, 304);
+  // The tag follows the content, not the file's time: an image built with fixed times still sends a changed file.
+  const sum = require('crypto').createHash('sha1').update(fs.readFileSync(path.join(__dirname, '..', 'public', 'app.js'))).digest('base64url').slice(0, 16);
+  assert.equal(etag, `"${sum}"`);
+  // The page's files in a word, for an open page to see an update (public/fresh.js): the same on every ask.
+  const { web } = (await srv.api('/version')).data;
+  assert.match(web, /^[0-9a-f]{12}$/);
+  assert.equal((await srv.api('/version')).data.web, web);
   const html = await fetch(`${srv.base}/`);
   assert.match(html.headers.get('content-security-policy'), /default-src 'self'/);
   assert.equal((await fetch(`${srv.base}/nope.js`)).status, 404);

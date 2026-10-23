@@ -159,6 +159,7 @@ const MIME = {
 };
 
 const zlib = require('zlib');
+const crypto = require('crypto');
 // Sending JSON and reading a request's body, as every route does (lib/routes/http.js).
 const { NEXT, send, httpError, readBody, readRaw, drained, sendFile } = require('./lib/routes/http');
 
@@ -208,7 +209,8 @@ async function serveStatic(req, res) {
     const text = /^(text\/|application\/(json|manifest)|image\/svg)/.test(type);
     // A font halves with gzip; brotli would hold the server most of a second per font for a tenth more.
     const font = type === 'font/ttf';
-    c = { key, etag: `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`, raw, gz: text || font ? zlib.gzipSync(raw) : null, br: text ? zlib.brotliCompressSync(raw, raw.length > BROTLI_BIG ? { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } } : {}) : null };
+    // The tag is the file's content: a new version with the same size and time (an image built with fixed times) is still new.
+    c = { key, etag: `"${crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 16)}"`, raw, gz: text || font ? zlib.gzipSync(raw) : null, br: text ? zlib.brotliCompressSync(raw, raw.length > BROTLI_BIG ? { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } } : {}) : null };
     staticCache.set(file, c);
   }
   headers.ETag = c.etag;
@@ -252,11 +254,28 @@ function appIn(dir) {
 const androidApp = () => appIn(ANDROID_DIR);
 const macApp = () => appIn(MAC_DIR);
 const withoutFile = ({ file, ...a }) => a;
+// The page's own files as this server sends them, in a word (`web` in GET /api/version): an open page compares it with
+// the one it was loaded with and loads itself again after an update that changed them (public/fresh.js). Read once:
+// the files change only with a new version, which restarts the server.
+let webStamp = null;
+function pageStamp() {
+  if (webStamp) return webStamp;
+  const h = crypto.createHash('sha1');
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const f = path.join(dir, e.name);
+      if (e.isDirectory()) walk(f);
+      else if (e.isFile()) h.update(path.relative(PUBLIC, f)).update('\0').update(fs.readFileSync(f));
+    }
+  };
+  try { walk(PUBLIC); } catch { return null; }
+  return (webStamp = h.digest('hex').slice(0, 12));
+}
 async function versionInfo() {
   const u = await updates.status().catch(() => null);
   const revision = u?.version?.revision || GIT_REV;
   // whatsNew: the newest note this version ships, so the front door can say what a waiting update brings (#303).
-  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES, docker: fs.existsSync('/.dockerenv'), android: withoutFile(androidApp() || {}), mac: withoutFile(macApp() || {}), whatsNew: whatsNew.newest() };
+  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES, docker: fs.existsSync('/.dockerenv'), android: withoutFile(androidApp() || {}), mac: withoutFile(macApp() || {}), whatsNew: whatsNew.newest(), web: pageStamp() };
 }
 
 // What needs the owner, now: for the feed's first message and to notice changes.
