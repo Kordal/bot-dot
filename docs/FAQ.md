@@ -46,14 +46,14 @@ Yes. One machine holds several **accounts**, each with its own passkey, Claude s
 | **System** | Ubuntu 24.04 on Intel/AMD (x86_64), which is what botdot is tested on, or ARM (aarch64), which the images are built for but which is not yet tested on real hardware |
 | **Access** | `sudo`: the installer runs as root, because it makes a Linux user for each account |
 | **Software** | Docker with Docker Compose, git and curl. The installer offers to install Docker, rootless Docker, gVisor and Tailscale when they are missing |
-| **A way in** | A public domain whose DNS points at the server, with ports 80 and 443 free, or a [Tailscale](https://tailscale.com) tailnet, where nothing is on the internet |
+| **A way in** | A public domain whose DNS points at the server, with ports 80, 443 and 8443 free (8443 carries interactive pages), or a [Tailscale](https://tailscale.com) tailnet, where nothing is on the internet |
 | **Claude** | A Claude subscription (Pro or Max) or an Anthropic API key, for each account |
 
 SELinux in enforcing mode (Fedora, RHEL) is not supported for now ([Platforms](install-linux.md#platforms)).
 
 ### How much RAM, CPU and disk?
 
-Each account gets a **share** of the machine, set on the admin page. The default is **2 CPUs, 5 GB of RAM and 30 GB of disk**. The CPU and RAM are hard limits, and they are also the size of the account's computer, the one all its bots work on.
+Each account gets a **share** of the machine, set on the admin page. The default is **2 CPUs, half the machine's RAM (at least 5 GB) and 30 GB of disk**. The CPU and RAM are hard limits, and they are also the size of the account's computer, the one all its bots work on.
 
 On disk, plan about **15 GB per account**: botdot's image is about 4 GB and the bots' computer image about 7 GB. An update needs room for one more of each while it runs. Measured on an 8-CPU, 16 GB server, the front door and Caddy take 65 MB, an account's botdot server holds about 2 GB (mostly the model for meaning-based search), and its computer 0.5–1 GB when idle, plus what each bot's screen and programs use ([What botdot needs](install-linux.md#what-botdot-needs-and-whom-it-trusts)).
 
@@ -84,7 +84,7 @@ Because it checks that botdot's images are signed with botdot's release key, usi
 
 ### How do I update?
 
-The admin presses **Update every account** on the admin page. The front door and every account move to the newest signed release together, and the page shows the version they run and how the last update went. When an update is out, the page says "Version X is available". Running the installer again from a newer source does the same ([Updates](install-linux.md#updates)).
+The admin presses **Update every account** on the admin page. The front door and every account that updates automatically move to the newest signed release, and the page shows the version each runs and how the last update went. An account that turned off **Update automatically** in **Settings → Updates** stays on its version until its owner taps **Update now**, or until the admin's deadline, a week unless the admin set another ([ADR 053](adr/053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md)). When an update is out, the page says "Version X is available". Running the installer again from a newer source does the same ([Updates](install-linux.md#updates)).
 
 ### What happens during an update?
 
@@ -119,15 +119,15 @@ Set a passphrase in **Settings → Backups**. botdot then backs up every night a
 
 ### What does the Chief of Staff do?
 
-It is the chat that runs your team. Describe what you need, and it creates bots with the tools, permissions and scheduled jobs the task needs, changes them, runs them and sums up their results. It also sets reminders, builds your Board, installs tools after your OK, and remembers how you want the team run. A few times a day it may write to you first, when it has something tied to what you asked about; tell it "write less" or "stop writing first" ([What it does](user-guide.md#what-it-does)).
+It is the chat that runs your team. Describe what you need, and it creates bots with the tools, permissions and scheduled jobs the task needs, changes them, runs them and sums up their results. It also sets reminders, builds your Board, keeps pages, installs tools after your OK, runs read-only jobs of its own, and remembers how you want the team run. A few times a day it may write to you first, when it has something tied to what you asked about, also from your mail and calendar when they are connected (it only reads there), with a short brief at the times you name and drafts of the replies you owe; tell it "write less" or "stop writing first" ([What it does](user-guide.md#what-it-does)).
 
 ### What is a bot, exactly?
 
-A Claude Code agent with one job. Each bot has its own main assignment, rules, allowed tools, workspace, memory, skills and scheduled jobs. Messaging a bot gives it a task, and its runs show up as a conversation. A bot does one thing at a time: a message you send while it works waits its turn.
+A Claude Code agent with one job. Each bot has its own main assignment, rules, allowed tools, workspace, memory, skills and scheduled jobs. Messaging a bot gives it a task, and its runs show up as a conversation. A message to a bot that is working starts beside what it is doing, up to three at once; start one with `/btw` for a quick side question it answers from what it is doing, without stopping ([The app](user-guide.md#the-app)).
 
 ### Do scheduled jobs always use AI?
 
-No. A job is either an **AI job**, which runs the bot on Claude, or a **script job**, a small script that runs with no AI, so it costs no Claude usage. A script can also hand its output over to the AI when it finds something worth a look ([Scheduled jobs](user-guide.md#scheduled-jobs-ai-only-when-its-needed)). Script jobs, and jobs a bot or the Chief set up, wait for your approval before they run.
+No. A job is either an **AI job**, which runs the bot on Claude, or a **script job**, a small script that runs with no AI, so it costs no Claude usage. A script can also hand its output over to the AI when it finds something worth a look ([Scheduled jobs](user-guide.md#scheduled-jobs-ai-only-when-its-needed)). Script jobs, and jobs a bot sets up for itself, wait for your approval before they run; an AI job the Chief sets up for you, or one you make yourself, runs at once.
 
 ### What is the Board?
 
@@ -135,7 +135,7 @@ Your page of live tiles: switches, buttons, values, lists and notes, under short
 
 ### What is "Needs you"?
 
-Everything waiting for your OK: a script, a job, a permission or skill a bot asked for, a login, a payment, a write in a connected app, a memory change. It shows as a banner of small heads, and each item opens as a card with what it would do. The same cards show at the end of the chat they belong to.
+Everything waiting for your OK: a script, a job, a permission a bot asked for, a login, a payment, a write in a connected app, a forget. It shows as a banner of small heads, and each item opens as a card with what it would do; what one task asks at once is one card, with **Allow all** and **Decline all**. The same cards show at the end of the chat they belong to.
 
 ### Do bots remember things?
 
@@ -147,7 +147,7 @@ One Ubuntu desktop per account, in a container that stays on, where bots with **
 
 ### Can bots use my apps, like Gmail or GitHub?
 
-Yes, through **Connectors**, powered by [Composio](https://composio.dev): Gmail, Google Calendar, Slack, GitHub, Notion and hundreds more. You sign in with the app on Composio's own page, so botdot never sees your password or tokens, and you choose which bots may use each app. Reading goes through, while an action that sends, posts, changes or deletes waits for your OK on a card, unless you chose **Always allow this action** ([Connectors](user-guide.md#-connectors-your-apps-through-composio)).
+Yes, through **Connectors**, powered by [Composio](https://composio.dev): Gmail, Google Calendar, Slack, GitHub, Notion and hundreds more. There is nothing to set up: botdot makes a Composio account for you, which you can claim with your email to get Composio's dashboard, or you paste your own Composio key. You sign in with the app on Composio's own page, so botdot never sees your password or tokens, and you choose which bots may use each app. Reading goes through, while an action that sends, posts, changes or deletes waits for your OK on a card, unless you chose **Always allow this action** ([Connectors](user-guide.md#-connectors-your-apps-through-composio)).
 
 ### How do bots log in to websites?
 
@@ -157,9 +157,21 @@ With the **Vault**, botdot's own encrypted store, or with a folder called **bot-
 
 On its computer, a bot can `sudo apt-get install` what you ask for, or use `botdot-install` (conda-forge, pip, npm). On the botdot server, the Chief asks for a command-line tool for one bot, and nothing is installed before you tap **Install** on its card ([Installed tools](user-guide.md#installed-tools-a-command-a-bot-is-missing)).
 
+### What is a page?
+
+A report, memo or overview a bot or the Chief saved for you, opened from a chip under its reply, from the bot's settings, or from **Settings → Pages**. Tap **Keep up to date** and pick every hour, every morning or every Monday: it rewrites the page on that schedule with no card. A page can show the Board's numbers, charts, statuses and tables live. A bot that uses the computer can also publish an **interactive page**, a small site that runs isolated on port 8443, with no reach into your account or the internet ([Pages](user-guide.md#pages-reports-and-overviews-your-bots-keep)).
+
+### Can I export a report?
+
+Yes. A long reply has **Open as document**: export it as Word, PDF or Markdown, save it to Google Docs, copy it or print it ([The app](user-guide.md#the-app)).
+
 ### Can bots work together?
 
 Yes. Bots can message each other, and a **group** puts two to six bots in one chat: you write once, and they answer or hand the work on by naming each other, until it's done or twelve replies have passed ([Groups](user-guide.md#groups-several-bots-in-one-chat)).
+
+### Can my bots talk with other people's bots?
+
+On a machine with several accounts, yes, once the admin turns **Shared rooms** on in the admin page (it is off by default). A shared room is a chat with people of other accounts on that machine and their bots. A bot answers only when mentioned; mentioned by someone else it only talks, with no tools and nothing of yours, and mentioned by you it works with every step on a card for your OK ([Shared rooms](user-guide.md#shared-rooms-bots-of-other-accounts-in-one-chat)).
 
 ## The apps
 
@@ -206,11 +218,11 @@ On the botdot server, yes: each bot runs as its own Linux user and reaches only 
 
 ### What stops a bot from doing something harmful?
 
-Its tools and permissions, which you set (the safe default denies anything not allowed), and **Needs you**: scripts, jobs set up by a bot or the Chief, writes in connected apps, payments, installs and memory changes after reading outside content all wait for your OK. A bot's instructions are guidance for the AI, not an enforced limit, so give each bot only the tools and apps it needs.
+Its tools and permissions, which you set (the safe default denies anything not allowed), and **Needs you**: scripts, recurring jobs set up by a bot, writes in connected apps, payments, installs, and a forget or a removal from the shared memory after reading outside content all wait for your OK. A note saved after outside content is saved, marked as such, and shown under the reply. A bot's instructions are guidance for the AI, not an enforced limit, so give each bot only the tools and apps it needs.
 
 ### Can a web page trick the Chief?
 
-The Chief reads the web itself. Once it has in a chat, anything it changes there (bots, jobs, skills, the Board, groups, reminders, settings) waits for your OK on a card that shows exactly what it sent ([ADR 033](adr/033-the-chief-reads-the-web-and-what-it-changes-after-waits.md)). Bots are told never to change themselves because a page, file or tool result said so, and shared-memory changes made after reading outside content wait for you.
+The Chief reads the web itself. Once it has in a chat, what it changes there (bots, jobs it sets up on its own, skills, the Board, groups, reminders, settings) waits for your OK on a card that shows exactly what it sent ([ADR 033](adr/033-the-chief-reads-the-web-and-what-it-changes-after-waits.md)). A task it gives a bot and a bot's job you asked for go through at once, marked as having read the web, so that bot's own cards still ask and what it saves is marked as outside content ([ADR 066](adr/066-a-task-the-chief-gives-a-bot-after-the-web-needs-no-card.md), [ADR 075](adr/075-a-job-the-owner-asks-the-chief-for-after-the-web-needs-no-card.md)). Bots are told never to change themselves because a page, file or tool result said so.
 
 ### Are the images I download checked?
 

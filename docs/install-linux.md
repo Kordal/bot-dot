@@ -43,6 +43,8 @@ Open **`https://<your address>/admin`**, the admin page, signed in as yourself, 
 
 When the link is opened, the sign-up page first says that you, the admin, can technically reach everything in the account. The person picks the account's name and makes a passkey, and the machine makes their account as the installer made yours: its own Linux user, rootless Docker under gVisor, botdot server and docker-helper. That takes a few minutes, while their page says that the account is being made; then they get their own setup page (their own Claude sign-in and time zone) and an empty list with their own Chief of Staff.
 
+**Shared rooms**, on the admin page, lets the people of different accounts chat with each other's bots in shared rooms. It is off by default; turned off, every shared room is closed ([ADR 060](adr/060-a-shared-room-lets-bots-of-several-accounts-talk-through-the-front-door.md)).
+
 The front door never runs as root. It asks for the new account with an empty file named as it in `/var/lib/botdot/front-door/requests`, and systemd (`botdot-accounts.path`) starts root's one step for it: a copy of the installer in `/var/lib/botdot/bin`, as `install.sh --requested`, which makes the machine match what the front door's data says of that account, and nothing else. What it did is in `journalctl -u botdot-accounts`.
 
 ## Suspend, delete, and a lost passkey
@@ -55,7 +57,7 @@ The admin page lists every account: its name, when it was made, when it was last
 
 ## Shares of the machine
 
-Every account gets a share of the machine: CPUs, GB of RAM and GB of disk. Set the **default share** at the top of the admin page (at first 2 CPUs, 5 GB of RAM and 30 GB of disk), and **Change share** on one account to give it its own; **Back to the default share** undoes that. A change applies at once, through root's step:
+Every account gets a share of the machine: CPUs, GB of RAM and GB of disk. Set the **default share** at the top of the admin page (at first 2 CPUs, half the machine's RAM but at least 5 GB, and 30 GB of disk), and **Change share** on one account to give it its own; **Back to the default share** undoes that. A change applies at once, through root's step:
 
 - CPU and RAM are hard limits on the account's rootless Docker: its work slows down, and nothing in the account says why.
 - They are also the limits of the account's one computer, which all its bots work on: a changed share sizes it from its next start.
@@ -111,7 +113,7 @@ Your bots run unattended under that sign-in: scheduled jobs run while you sleep,
 
 ## Updates
 
-The admin updates botdot for every account at once: **Update every account** on the admin page. The front door and every account move to the newest signed release together, so no account runs another version; the page says the version they run and how the last update went. An account's own Settings has no update of botdot. A step that would need an answer (a new question of a newer installer) stops the update, and the page says to run the installer yourself.
+The admin updates botdot for every account at once: **Update every account** on the admin page. The front door and every account move to the newest signed release, and the page says the version each runs and how the last update went. An owner, the admin included, can turn off **Update automatically** in **Settings → Updates**: the update then downloads the new version into that account but leaves its bots on the version they run, marked waiting on the admin page, until the owner (or the admin, on the account's card) taps **Update now**, or until the deadline the admin sets on the admin page (7 days unless set otherwise, 1 to 60) ([ADR 053](adr/053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md)). Running the installer by hand still moves every account. A step that would need an answer (a new question of a newer installer) stops the update, and the page says to run the installer yourself.
 
 Running the installer again from a newer source does the same, and also updates the installer that the admin page's Update runs:
 
