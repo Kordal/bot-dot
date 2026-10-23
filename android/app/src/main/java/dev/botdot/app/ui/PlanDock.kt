@@ -225,8 +225,8 @@ fun PlanFold(plan: Plan?) {
             if (plan.finished) Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(16.dp))
             Text("Plan · ${plan.done} of ${plan.total} done ${if (open) "⌄" else "›"}", color = p.muted, fontSize = 13.sp)
         }
-        if (open) plan.steps.forEachIndexed { i, s ->
+        Unfold(open) { Column { plan.steps.forEachIndexed { i, s ->
             Text("${i + 1}. ${s.text}", color = p.faint, fontSize = 13.sp, lineHeight = 18.sp, textDecoration = if (s.status == Plan.DONE) TextDecoration.LineThrough else null, modifier = Modifier.padding(start = 4.dp, top = 2.dp))
-        }
+        } } }
     }
 }

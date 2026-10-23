@@ -1,6 +1,18 @@
 package dev.botdot.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.Modifier
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -63,4 +75,34 @@ fun BotDotTheme(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalPaper provides p, LocalFigure provides figure) {
         ProvideFigureClock { MaterialTheme(colorScheme = scheme, typography = type, content = content) }
     }
+}
+
+/**
+ * botdot's motion (#496), the same values as the web page's --t1/--t2/--t3/--out/--in: three durations and two curves.
+ * An enter takes [Out]; an exit takes [In] and is one step shorter. Only place and alpha move, nothing waits for a
+ * movement before it takes a tap, and with the system's "Remove animations" Compose skips them all.
+ */
+object Motion {
+    const val FAST = 120
+    const val BASE = 200
+    const val SLOW = 260
+    val Out: Easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
+    val In: Easing = CubicBezierEasing(0.4f, 0f, 1f, 1f)
+
+    fun <T> enter(ms: Int = BASE) = tween<T>(ms, easing = Out)
+    fun <T> exit(ms: Int = FAST) = tween<T>(ms, easing = In)
+
+    /** A fold opening: its height and then its words. */
+    val unfold: EnterTransition = expandVertically(enter()) + fadeIn(enter())
+    val fold: ExitTransition = shrinkVertically(exit(BASE)) + fadeOut(exit())
+
+    /** A panel from the right (the settings panel, the viewer): an eighth of its width, and in. */
+    val panelIn: EnterTransition = slideInHorizontally(enter()) { it / 8 } + fadeIn(enter())
+    val panelOut: ExitTransition = fadeOut(exit())
+}
+
+/** [content] shown while [open], opening and closing as a fold does ([Motion.unfold]). */
+@Composable
+fun Unfold(open: Boolean, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    AnimatedVisibility(open, modifier, enter = Motion.unfold, exit = Motion.fold) { content() }
 }

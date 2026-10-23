@@ -1,6 +1,12 @@
 package dev.botdot.app.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -33,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -245,8 +252,9 @@ private val BIG_KEY_HEIGHT = 148.dp
 @Composable
 private fun KeyView(number: Int, look: KeyLook, lit: Boolean, modifier: Modifier = Modifier, aimed: Boolean = false, big: Boolean = false, onClick: () -> Unit) {
     val p = LocalPaper.current
+    val pop = donePop(look.status.kind)
     Box(
-        modifier.fillMaxWidth().height(if (big) BIG_KEY_HEIGHT else KEY_HEIGHT).clip(KEY_SHAPE).background(p.panel)
+        modifier.fillMaxWidth().height(if (big) BIG_KEY_HEIGHT else KEY_HEIGHT).graphicsLayer { scaleX = pop; scaleY = pop }.clip(KEY_SHAPE).background(p.panel)
             .border(1.dp, if (aimed) p.text else if (lit) p.muted else p.line2, KEY_SHAPE)
             .semantics { selected = lit }.clickable(onClickLabel = look.name, onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp),
     ) {
@@ -285,16 +293,34 @@ internal const val KEY_STATUS = "key-status"
 @Composable
 private fun StatusRow(look: KeyLook) {
     val p = LocalPaper.current
-    val (fg, bg) = statusColors(look.status.kind)
+    val (fgNow, bgNow) = statusColors(look.status.kind)
+    val fg by animateColorAsState(fgNow, Motion.enter(), label = "status")
+    val bg by animateColorAsState(bgNow, Motion.enter(), label = "status ground")
     Row(verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.clip(RoundedCornerShape(99.dp)).background(bg).padding(horizontal = 10.dp, vertical = 3.dp).testTag(KEY_STATUS), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(6.dp).clip(CircleShape).background(fg))
             Spacer(Modifier.size(6.dp))
-            Text(look.status.text, color = fg, fontSize = 12.5.sp, maxLines = 1)
+            // The word cross-fades (Working → Done, #496).
+            AnimatedContent(look.status.text, transitionSpec = { fadeIn(Motion.enter(Motion.FAST)) togetherWith fadeOut(Motion.exit()) }, label = "status word") {
+                Text(it, color = fg, fontSize = 12.5.sp, maxLines = 1)
+            }
         }
         if (look.time.isNotEmpty()) Text(look.time, color = p.faint, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp))
     }
     if (look.status.kind == Keypad.StatusKind.WORKING) RunLine()
+}
+
+/** A key's scale: 1, and once when its bot goes from Working to Done, up to 1.03 and back (#496). */
+@Composable
+private fun donePop(kind: Keypad.StatusKind): Float {
+    val scale = remember { Animatable(1f) }
+    var was by remember { mutableStateOf(kind) }
+    LaunchedEffect(kind) {
+        val done = was == Keypad.StatusKind.WORKING && kind == Keypad.StatusKind.DONE
+        was = kind
+        if (done) { scale.animateTo(1.03f, Motion.enter(Motion.FAST)); scale.animateTo(1f, Motion.exit()) }
+    }
+    return scale.value
 }
 
 private val VIOLET = Color(0xFF8B7CF6)
@@ -408,7 +434,8 @@ private val SECTION_KEY_HEIGHT = 160.dp
 private fun SectionKey(look: KeyLook, wide: Boolean, onClick: () -> Unit) {
     val p = LocalPaper.current
     val shape = RoundedCornerShape(16.dp)
-    val box = Modifier.fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line2, shape).clickable(onClickLabel = look.name, onClick = onClick).padding(16.dp)
+    val pop = donePop(look.status.kind)
+    val box = Modifier.fillMaxWidth().graphicsLayer { scaleX = pop; scaleY = pop }.clip(shape).background(p.panel).border(1.dp, p.line2, shape).clickable(onClickLabel = look.name, onClick = onClick).padding(16.dp)
     if (wide) Row(box) {
         KeyHead(look, 44)
         Spacer(Modifier.width(14.dp))

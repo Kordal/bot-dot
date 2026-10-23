@@ -374,13 +374,16 @@ private fun ExchangeFold(r: Run, to: List<SentTo>, footer: String, startOpen: Bo
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         FigureText(label, color = p.muted, fontSize = 13.5.sp, maxLines = 1,
             modifier = Modifier.padding(end = 32.dp).clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
-        if (open) {
-            messages.forEach { t ->
-                FigureText(buildAnnotatedString { append("To "); bot(named(w?.bot(t.id), t.name, t.color)) }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
-                TheirBubble(null, copyText = t.text) { MarkdownText(t.text.orEmpty()) }
+        Unfold(open) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                messages.forEach { t ->
+                    FigureText(buildAnnotatedString { append("To "); bot(named(w?.bot(t.id), t.name, t.color)) }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                    TheirBubble(null, copyText = t.text) { MarkdownText(t.text.orEmpty()) }
+                }
+                reply()
             }
-            reply()
-        } else if (footer.isNotBlank()) Text(footer, color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+        }
+        if (!open && footer.isNotBlank()) Text(footer, color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
     }
 }
 
@@ -398,12 +401,12 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         FigureText(buildAnnotatedString { append("$heading "); bots(who); append(if (open) " ⌄" else " ›") }, color = p.muted, fontSize = 13.5.sp,
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
-        if (open) notes.forEach { n ->
+        Unfold(open) { Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) { notes.forEach { n ->
             FigureText(buildAnnotatedString { bot(whoOf(n)); n.at?.let { append(" · ${shortTime(it)}") } }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(n.text), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.padding(start = 48.dp).clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).holdToCopy(n.text).background(p.sunk)
                     .border(1.dp, p.line2, RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).padding(horizontal = 14.dp, vertical = 10.dp))
-        }
+        } } }
         // Under the notes that wait (#225): how long the oldest has waited, and "Run now", which starts the bot with them.
         if (foot.isNotEmpty() || onRunNow != null) Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (foot.isNotEmpty()) Text(foot, color = p.faint, fontSize = 12.sp)
@@ -434,10 +437,10 @@ private fun FromBotBubble(r: Run, startOpen: Boolean = false) {
         }
         FigureText(line, color = p.muted, fontSize = 13.5.sp, maxLines = 1,
             modifier = Modifier.padding(start = 48.dp).clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
-        if (open) Column(Modifier.padding(start = 48.dp).clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).holdToCopy(r.prompt).background(p.sunk)
+        Unfold(open) { Column(Modifier.padding(start = 48.dp).clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).holdToCopy(r.prompt).background(p.sunk)
                 .border(1.dp, p.line2, RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(r.prompt), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge)
             if (!r.attachments.isNullOrEmpty()) FilesRow(r.attachments, onDark = false)
-        }
+        } }
     }
 }
