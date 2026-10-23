@@ -222,7 +222,8 @@ function keyStatus(x) {
   }
   const r = state.runs.find((y) => y.botId === x.id);
   const running = !!x.running || r?.status === 'running';
-  const s = Keypad.status({ running, needs: keyLine(x).cls === 'asks' || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null });
+  const runs = x.runningCount ?? state.runs.filter((y) => y.botId === x.id && y.status === 'running').length; // a server without it: the list's
+  const s = Keypad.status({ running, runs, needs: keyLine(x).cls === 'asks' || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null });
   // How long it has worked, from the run that is going; a run not in the list yet: no time.
   return { ...s, time: running ? (r?.status === 'running' && r.startedAt ? Keypad.since(Date.now() - Date.parse(r.startedAt)) : '') : shortTime(r?.startedAt) };
 }

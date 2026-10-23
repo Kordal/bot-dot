@@ -169,14 +169,14 @@ internal object Keypad {
 
     /**
      * A key's status pill (#397), the web page's rule (keypad.js, status): [kind] is also its colour. Working while a run
-     * is going, Needs you while it asks or a card waits for it, its unread replies, else what its newest run did
+     * is going ("Working ×2" while [runs], the runs going, is 2 or more: ADR 062), Needs you while it asks or a card waits for it, its unread replies, else what its newest run did
      * ([last], its status: Done, Couldn't finish; Idle for none, or one the owner stopped).
      */
     data class Status(val kind: StatusKind, val text: String)
     enum class StatusKind { WORKING, NEEDS, UNREAD, DONE, FAILED, IDLE }
 
-    fun status(running: Boolean = false, needs: Boolean = false, unread: Int = 0, last: String? = null): Status = when {
-        running -> Status(StatusKind.WORKING, "Working")
+    fun status(running: Boolean = false, needs: Boolean = false, unread: Int = 0, last: String? = null, runs: Int = 0): Status = when {
+        running -> Status(StatusKind.WORKING, if (runs > 1) "Working ×$runs" else "Working")
         needs -> Status(StatusKind.NEEDS, "Needs you")
         unread > 0 -> Status(StatusKind.UNREAD, "$unread unread")
         last == "success" -> Status(StatusKind.DONE, "Done")

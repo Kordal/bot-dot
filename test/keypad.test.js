@@ -229,6 +229,10 @@ test('moves: a key that is on no page, or a page that is not there, moves nothin
 test('status: Working, then Needs you, then unread, then the last run: Done, Couldn\'t finish, else Idle', () => {
   const S = (o) => Keypad.status(o);
   assert.deepEqual(S({ running: true, needs: true, unread: 3, last: 'error' }), { kind: 'working', text: 'Working' });
+  assert.deepEqual(S({ running: true, runs: 1 }), { kind: 'working', text: 'Working' }, 'one run: no count');
+  assert.deepEqual(S({ running: true, runs: 2 }), { kind: 'working', text: 'Working ×2' });
+  assert.deepEqual(S({ running: true, runs: 3, needs: true }), { kind: 'working', text: 'Working ×3' });
+  assert.deepEqual(S({ runs: 2, last: 'success' }), { kind: 'done', text: 'Done' }, 'runs counts only while it works');
   assert.deepEqual(S({ needs: true, unread: 3 }), { kind: 'needs', text: 'Needs you' });
   assert.deepEqual(S({ unread: 2, last: 'success' }), { kind: 'unread', text: '2 unread' });
   assert.deepEqual(S({ last: 'success' }), { kind: 'done', text: 'Done' });

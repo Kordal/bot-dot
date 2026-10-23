@@ -36,6 +36,8 @@ test('the owner\'s messages to a busy bot start beside its run, up to three; the
   assert.match(rec3.system, /- The long task\n- A quick question\n/);
   assert.equal((await going(bot)).length, 3);
   assert.equal((await srv.api(`/bots/${bot.id}`)).data.running, true);
+  assert.equal((await srv.api(`/bots/${bot.id}`)).data.runningCount, 3, 'its key says Working ×3');
+  assert.equal((await srv.api('/bots')).data.find((b) => b.id === bot.id).runningCount, 3);
 
   // The fourth waits: three go at once.
   const fourth = await send(bot, 'And one more');
@@ -54,6 +56,7 @@ test('the owner\'s messages to a busy bot start beside its run, up to three; the
   srv.unhold();
   for (const r of [first.rec, rec3, rec4]) srv.release(r);
   for (const id of [first.run.id, third.data.id, fourth.data.id]) assert.equal((await srv.finished(id)).status, 'success');
+  assert.equal((await srv.api(`/bots/${bot.id}`)).data.runningCount, 0);
 });
 
 test('a teammate\'s request to a busy bot starts beside its run, and its asker gets the answer', async () => {

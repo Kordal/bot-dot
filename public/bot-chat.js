@@ -201,7 +201,7 @@ function renderBotChat() {
   if (av.dataset.sig !== look) { av.dataset.sig = look; av.innerHTML = botFigure(bot.color, bot.state, 'sm', bot.outfit); }
   $('#bot-name').textContent = bot.name;
   // Only what's happening now; its skills, jobs and computer are in its settings, behind its figure and name.
-  $('#bot-sub').textContent = bot.running ? 'working…' : '';
+  $('#bot-sub').textContent = !bot.running ? '' : bot.runningCount > 1 ? `working ×${bot.runningCount}…` : 'working…';
   $('#bot-screen').classList.toggle('hidden', bot.computer !== 'linux');
   // The small plus right of the name (the owner at the test of Milestone 10): only where a group can be made.
   $('#bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));
