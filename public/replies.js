@@ -66,7 +66,9 @@ function unreadNow(chat) {
   const [kind, id] = chatParts(chat);
   return kind === 'bot' ? api(`/bots/${encodeURIComponent(id)}`) : kind === 'group' ? api(`/group-chats/${encodeURIComponent(id)}`) : api(`/chief/chats/${encodeURIComponent(id)}?limit=1`);
 }
-const loadFeatures = () => api('/version').then((v) => { state.features = v.features || []; }).catch(() => {});
+// After an update that changed the page's files, an open page loads itself again (fresh.js): refresh() asks.
+const fresh = Fresh.keeper(window, () => api('/version'));
+const loadFeatures = () => api('/version').then((v) => { state.features = v.features || []; fresh.seen(v); }).catch(() => {});
 const loadChief = () => api('/chief').then((c) => { Object.assign(state, { chats: c.chats, chiefBusy: c.busy, chiefUnread: Unread.count(c) }); if (takeChiefName(c.chief?.name)) drawChiefName(); renderContacts(); }).catch(() => {});
 
 let readChat = null; // the chat last seen on screen and in front

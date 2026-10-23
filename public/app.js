@@ -722,6 +722,7 @@ const replyDrafts = (() => {
 
 async function refresh() {
   state.refreshedAt = Date.now();
+  fresh.check();
   try {
     const skillLib = loadSkillLib(); // for mentions
     const groupsRead = loadGroups(); // the groups, beside the bots (groups.js): never rejects
