@@ -48,14 +48,30 @@ fun rememberMentions(app: BotDotApp, chat: String): Mentions.World? {
     val name by app.store.chiefName.collectAsState()
     val server by app.store.version.value.collectAsState()
     val runsSkills = server?.features?.contains(Mentions.SKILL_COMMANDS) == true // "/" runs a skill (#237)
-    return remember(bots, skills, chat, name, runsSkills) {
+    val (pages, tiles) = rememberMentionables(app)
+    return remember(bots, skills, chat, name, runsSkills, pages, tiles) {
         bots?.let {
             val library = skills?.library.orEmpty()
             val account = skills?.machine.orEmpty()
             Mentions.World(chat, listOf(chiefBot(name)) + it, library.map { k -> k.name },
                 about = (account.associate { k -> k.name to k.description } + library.associate { k -> k.name to k.description }),
-                runsSkills = runsSkills, account = account.map { k -> k.name })
+                runsSkills = runsSkills, account = account.map { k -> k.name }, pages = pages, tiles = tiles)
         }
+    }
+}
+
+/** Every page of the account and the Board's approved tiles, which a mention can name on a botdot that hands them to the
+ *  run (feature `page-mentions`, #473); none without it. Never in a shared room. */
+@Composable
+fun rememberMentionables(app: BotDotApp): Pair<List<Mentions.PageRef>, List<Mentions.TileRef>> {
+    val server by app.store.version.value.collectAsState()
+    val pages by app.store.pages.value.collectAsState()
+    val board by app.store.dashboard.value.collectAsState()
+    val on = server?.features?.contains(Mentions.PAGE_MENTIONS) == true
+    return remember(on, pages, board) {
+        if (!on) emptyList<Mentions.PageRef>() to emptyList<Mentions.TileRef>()
+        else pages.orEmpty().map { Mentions.PageRef(it.botId, it.slug, it.title) } to
+            board?.tiles.orEmpty().filter { it.approved }.map { Mentions.TileRef(it.id, it.title, it.kind) }
     }
 }
 
@@ -78,7 +94,7 @@ fun withMentions(text: String, w: Mentions.World?, tint: Color): AnnotatedString
             append(text.substring(at, m.start))
             when (m.kind) {
                 Mentions.Kind.BOT -> w!!.bot(m.bot).let { b -> bot(b?.name ?: m.text, b?.color, b?.outfit) }
-                Mentions.Kind.JOB, Mentions.Kind.SKILL, Mentions.Kind.ALL, Mentions.Kind.COMMAND -> withStyle(SpanStyle(color = tint)) { append(m.text) }
+                Mentions.Kind.JOB, Mentions.Kind.SKILL, Mentions.Kind.ALL, Mentions.Kind.COMMAND, Mentions.Kind.PAGE, Mentions.Kind.TILE -> withStyle(SpanStyle(color = tint)) { append(m.text) }
             }
             at = m.end
         }
@@ -130,6 +146,8 @@ fun MentionList(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.R
             val label = buildAnnotatedString {
                 when (r.kind) {
                     Mentions.Kind.BOT, Mentions.Kind.JOB -> w.bot(r.bot).let { b -> bot(r.label, b?.color, b?.outfit) }
+                    // A page (#473): its bot's mark and "Bot · Title", or the title alone when its bot is not in this chat.
+                    Mentions.Kind.PAGE -> w.bot(r.bot)?.let { b -> bot(r.label, b.color, b.outfit) } ?: append(r.label)
                     Mentions.Kind.COMMAND -> {
                         append(r.text)
                         if (r.about.isNotEmpty()) withStyle(SpanStyle(color = p.muted)) { append("  ${r.about}") }

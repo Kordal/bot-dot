@@ -6,7 +6,10 @@ package dev.botdot.app.data
  *   - bot: its name without spaces, each word capitalised: @FleetDoctor (the Chief is @ChiefOfStaff)
  *   - job: bot then job: @FleetDoctor/MorningCheck
  *   - skill: its name as is: @weekly-report
- * Matching ignores case; a bot wins over a skill of the same name; "@" inside a word (an email) isn't one; anything
+ *   - page (#473): a bot's page (or the Chief's), its title squashed as a bot's name: @IssueList, or @FleetDoctor/IssueList
+ *   - tile (#473): a tile of the Board, its title squashed the same way: @LivingRoom
+ * A page or a tile mention hands its content to the run that answers (the botdot server does that).
+ * Matching ignores case; for one name a bot wins, then a page (the chat's own bot's first), then a tile, then a skill; "@" inside a word (an email) isn't one; anything
  * that matches nothing stays plain text.
  *
  * Commands (#237): "/" and one of a bot's skills at the very start of a message in that bot's own chat runs the skill,
@@ -48,6 +51,14 @@ object Mentions {
     /** A skill switched off for a bot, by its name or a namespaced one ("anthropic-skills:pdf"). */
     private fun isOff(name: String, off: List<String>) = off.any { it == name || it.endsWith(":$name") }
 
+    /** The feature of a botdot that hands a mentioned page or tile to the run (#473): only then are they offered. */
+    const val PAGE_MENTIONS = "page-mentions"
+
+    /** A page a mention can name (#473): its bot's id ([CHIEF] for the Chief's), its slug and its title. */
+    data class PageRef(val bot: String, val slug: String, val title: String)
+    /** A tile of the Board a mention can name (#473); a page's tile and a group of tiles are left out. */
+    data class TileRef(val id: String, val title: String, val kind: String = "")
+
     /** The Chief's mention by its role, which still means it after the owner named it (#41); never suggested. */
     const val CHIEF_ALIAS = "ChiefOfStaff"
 
@@ -59,10 +70,15 @@ object Mentions {
      * matched nor suggested). [about]: the library's descriptions by name, shown beside a skill to run. [runsSkills]:
      * the server runs a skill sent as "/" and its name (feature `skill-commands`, #237); without it "/" lists nothing.
      * [account]: the names of the Claude account's skills, for "/" only. [labels]: a bot's words in the suggestions by its
-     * id, in place of its name (a shared room's "name · account", ADR 060).
+     * id, in place of its name (a shared room's "name · account", ADR 060). [pages] and [tiles]: every page of the account
+     * and the Board's tiles (#473), on a botdot with [PAGE_MENTIONS].
      */
     class World(val chat: String, val bots: List<Bot>, val library: List<String>, val all: Boolean = false, val about: Map<String, String> = emptyMap(),
-                val runsSkills: Boolean = true, val account: List<String> = emptyList(), val labels: Map<String, String> = emptyMap()) {
+                val runsSkills: Boolean = true, val account: List<String> = emptyList(), val labels: Map<String, String> = emptyMap(),
+                val pages: List<PageRef> = emptyList(), tiles: List<TileRef> = emptyList()) {
+        /** The pages by their flat name, the chat's own bot's first. */
+        val pagesInScope: List<PageRef> = pages.filter { it.title.isNotBlank() && shortName(it.title).isNotEmpty() }.let { ok -> ok.filter { it.bot == chat } + ok.filter { it.bot != chat } }
+        val tiles: List<TileRef> = tiles.filter { shortName(it.title).isNotEmpty() && it.kind != "page" && it.kind != "group" }
         val skills: List<String> = if (chat == CHIEF) library else bots.firstOrNull { it.id == chat }
             ?.takeIf { it.useSkills }?.let { b -> library.filter { it in b.skills } }.orEmpty()
         /** The skills "/" runs here: a bot's own chat only. The account's after the library's (#236). */
@@ -71,14 +87,16 @@ object Mentions {
         fun bot(id: String?) = bots.firstOrNull { it.id == id }
     }
 
-    enum class Kind { BOT, JOB, SKILL, ALL, COMMAND }
+    enum class Kind { BOT, JOB, SKILL, ALL, COMMAND, PAGE, TILE }
 
-    /** One mention in a text: [start] until [end] is [text]. [bot] and [job] are ids, [skill] a name. */
-    data class Found(val kind: Kind, val text: String, val start: Int, val end: Int, val bot: String? = null, val job: String? = null, val skill: String? = null)
+    /** One mention in a text: [start] until [end] is [text]. [bot] and [job] are ids, [skill] a name, [page] a slug, [tile] an id. */
+    data class Found(val kind: Kind, val text: String, val start: Int, val end: Int, val bot: String? = null, val job: String? = null, val skill: String? = null,
+                     val page: String? = null, val tile: String? = null)
 
     /** One suggestion: picking it puts [text] plus a space in place of the "@…" (or the "/…") being typed. [about]: a
      *  skill to run's description. */
-    data class Row(val kind: Kind, val text: String, val label: String, val bot: String? = null, val job: String? = null, val skill: String? = null, val about: String = "")
+    data class Row(val kind: Kind, val text: String, val label: String, val bot: String? = null, val job: String? = null, val skill: String? = null, val about: String = "",
+                   val page: String? = null, val tile: String? = null)
 
     /** The mentions in a text, in order. */
     fun find(text: String, w: World): List<Found> {
@@ -90,21 +108,32 @@ object Mentions {
             if (w.all && same(a, ALL)) return@mapNotNull null
             // The Chief keeps its role's mention beside the name the owner gave it (CHIEF_ALIAS).
             val bot = w.bots.firstOrNull { same(shortName(it.name), a) } ?: if (same(CHIEF_ALIAS, a)) w.bots.firstOrNull { it.id == CHIEF } else null
+            val flat = if (b == null) m.value else "@$a" // the mention without what follows its "/"
             if (bot != null) {
                 val job = b?.let { j -> bot.jobs.firstOrNull { same(shortName(it.name), j) } }
+                val page = if (job == null && b != null) w.pages.firstOrNull { it.bot == bot.id && it.title.isNotBlank() && same(shortName(it.title), b) } else null
                 if (job != null) Found(Kind.JOB, m.value, start, m.range.last + 1, bot = bot.id, job = job.id)
+                else if (page != null) Found(Kind.PAGE, m.value, start, m.range.last + 1, bot = bot.id, page = page.slug)
                 else "@$a".let { Found(Kind.BOT, it, start, start + it.length, bot = bot.id) }
             } else {
-                val skill = w.skills.firstOrNull { same(it, a) } ?: return@mapNotNull null
-                val t = if (b == null) m.value else "@$a"
-                Found(Kind.SKILL, t, start, start + t.length, skill = skill)
+                val page = w.pagesInScope.firstOrNull { same(shortName(it.title), a) }
+                val tile = if (page == null) w.tiles.firstOrNull { same(shortName(it.title), a) } else null
+                when {
+                    page != null -> Found(Kind.PAGE, flat, start, start + flat.length, bot = page.bot, page = page.slug)
+                    tile != null -> Found(Kind.TILE, flat, start, start + flat.length, tile = tile.id)
+                    else -> {
+                        val skill = w.skills.firstOrNull { same(it, a) } ?: return@mapNotNull null
+                        Found(Kind.SKILL, flat, start, start + flat.length, skill = skill)
+                    }
+                }
             }
         }.toList()
     }
 
     /**
      * The suggestion rows for the text typed up to the cursor, when it ends in a word starting with "@". "@all" first
-     * in a group ([World.all]), then bots, then jobs, then skills, at most [MAX_ROWS]. After "@Bot/" only that bot's jobs.
+     * in a group ([World.all]), then bots, then jobs, then pages, then tiles, then skills, at most [MAX_ROWS]; a name an earlier
+     * row took is not offered again, except a page's, offered as "@Bot/Title". After "@Bot/" only that bot's jobs, then its pages.
      * "/" at the very start of a bot's own chat lists its skills to run instead ([Kind.COMMAND]).
      */
     fun suggest(typed: String, w: World): List<Row> {
@@ -115,17 +144,30 @@ object Mentions {
         val m = TYPING.find(typed) ?: return emptyList()
         val bots = w.bots.filter { shortName(it.name).isNotEmpty() && !(w.all && same(shortName(it.name), ALL)) } // a name of only emoji can't be mentioned
         fun jobRow(bot: Bot, j: Job) = Row(Kind.JOB, "@${shortName(bot.name)}/${shortName(j.name)}", "${bot.name} · ${j.name}", bot = bot.id, job = j.id)
+        fun pageRow(p: PageRef, text: String) = Row(Kind.PAGE, text, w.bot(p.bot)?.name?.let { "$it · ${p.title}" } ?: p.title, bot = p.bot, page = p.slug)
         val q = m.groupValues[1]
         val after = m.groups[2]?.value
         val rows = if (after != null) {
             val bot = bots.firstOrNull { same(shortName(it.name), q) }
-            bot?.jobs?.filter { has(shortName(it.name), after) }?.map { jobRow(bot, it) }.orEmpty()
+            bot?.let { b ->
+                b.jobs.filter { has(shortName(it.name), after) }.map { jobRow(b, it) } +
+                    w.pages.filter { it.bot == b.id && shortName(it.title).isNotEmpty() && has(shortName(it.title), after) }.map { pageRow(it, "@${shortName(b.name)}/${shortName(it.title)}") }
+            }.orEmpty()
         } else {
-            val botNames = bots.map { shortName(it.name).lowercase() }.toSet()
+            val taken = bots.map { shortName(it.name).lowercase() }.toMutableSet()
             val all = if (w.all && typed.substring(0, m.range.first).isBlank() && has(ALL, q)) listOf(Row(Kind.ALL, "@$ALL", "all: every member at once")) else emptyList()
+            // A page's flat name, or "@Bot/Title" when a bot or an earlier page has it (and its bot can be mentioned).
+            val pageRows = w.pagesInScope.filter { has(shortName(it.title), q) }.mapNotNull { p ->
+                val short = shortName(p.title)
+                if (taken.add(short.lowercase())) pageRow(p, "@$short")
+                else shortName(w.bot(p.bot)?.name.orEmpty()).takeIf { it.isNotEmpty() }?.let { pageRow(p, "@$it/$short") }
+            }
+            val tileRows = w.tiles.filter { has(shortName(it.title), q) && taken.add(shortName(it.title).lowercase()) }
+                .map { Row(Kind.TILE, "@${shortName(it.title)}", it.title, tile = it.id) }
             all + bots.filter { has(shortName(it.name), q) }.map { Row(Kind.BOT, "@${shortName(it.name)}", w.labels[it.id] ?: it.name, bot = it.id) } +
                 bots.flatMap { b -> b.jobs.filter { has(shortName(it.name), q) }.map { jobRow(b, it) } } +
-                w.skills.filter { has(it, q) && it.lowercase() !in botNames }.map { Row(Kind.SKILL, "@$it", it, skill = it) }
+                pageRows + tileRows +
+                w.skills.filter { has(it, q) && it.lowercase() !in taken }.map { Row(Kind.SKILL, "@$it", it, skill = it) }
         }
         return rows.take(MAX_ROWS)
     }

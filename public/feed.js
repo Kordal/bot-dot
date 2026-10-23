@@ -19,6 +19,8 @@ function followFeed() {
     let d = {};
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
     if (typeof Pages !== 'undefined') Pages.changed(d);
+    state.mentionPagesAt = 0; // its title can be mentioned now (#473)
+    loadMentionPages();
   });
   // The Chief's own jobs changed (#408): their list in its settings follows.
   es.addEventListener('chief_jobs', (e) => {

@@ -376,7 +376,8 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     // Typing "@" in a group suggests its members, and "@all" first at the start of a message (#124); a member named in
     // the owner's message is drawn as a mention.
     val all = hasGroupAll(features)
-    val mentions = remember(members, chatKey, all) { Mentions.World(chatKey, members, emptyList(), all) }
+    val (mentionPages, mentionTiles) = rememberMentionables(app) // a page or a tile, named for every turn (#473)
+    val mentions = remember(members, chatKey, all, mentionPages, mentionTiles) { Mentions.World(chatKey, members, emptyList(), all, pages = mentionPages, tiles = mentionTiles) }
     // Text selected in a message is quoted into this chat's message box (QuoteUi.kt).
     // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
     val api by app.api.collectAsState()

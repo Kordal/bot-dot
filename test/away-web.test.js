@@ -157,7 +157,7 @@ test('web: while the line shows, the page asks again soon, also when a proxy hol
 test('web: the background refresh shows no toast while botdot is away; the line says it', async () => {
   const { ctx, shown } = page(noAnswer);
   const toasts = [];
-  Object.assign(ctx, { state: {}, Date, toast: (...a) => toasts.push(a), loadSkillLib: () => Promise.resolve(), loadGroups: () => Promise.resolve([]), fresh: { check() {} } });
+  Object.assign(ctx, { state: {}, Date, toast: (...a) => toasts.push(a), loadSkillLib: () => Promise.resolve(), loadMentionPages: () => null, loadGroups: () => Promise.resolve([]), fresh: { check() {} } });
   vm.runInContext(`${cut('async function refresh()', 'function render()')}\nthis.refresh = refresh;`, ctx);
   await ctx.refresh();
   await ctx.refresh();

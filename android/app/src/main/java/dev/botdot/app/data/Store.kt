@@ -127,6 +127,11 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     val tileTicks = TileTicks() // a page's blocks read tiles (#395)
     /** The skill library and the Claude account's skills (for mentions and the skills "/" runs: see Mentions). */
     val skills = Part { a -> a.skills() }
+    /** Every page of the account, for mentions of pages (#473): none from a botdot without `page-mentions`. */
+    val pages = Part { a ->
+        val features = (version.value.value ?: a.version().also { if (api.value === a) version.set(it) }).features
+        if (Mentions.PAGE_MENTIONS in features) a.allPages() else emptyList()
+    }
     /** Logins and payments, Bitwarden, memory changes, permissions, skills and tools asked for. (Jobs waiting for your OK
      *  come with [bots], plans for the Chief with [chief], the Board's tiles with [dashboard]: see [waiting].) */
     val needs = Part { a ->
@@ -141,7 +146,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         }
     }
 
-    private val parts = listOf(bots, chief, recent, dashboard, version, needs, skills, groups)
+    private val parts = listOf(bots, chief, recent, dashboard, version, needs, skills, groups, pages)
 
     /** Everything that waits for you, from the parts above: one list, so every screen counts the same. */
     val waiting: Flow<List<Waiting>> = combine(bots.value, chief.value, needs.value, dashboard.value) { b, c, n, d -> waitingOf(b.orEmpty(), c, n, d) }
@@ -162,6 +167,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         turnLines.handle(ev) // what a member at work in a group said it is doing
         cardGroups.handle(ev) // the group a waiting job or tile was asked in
         pageSaves.handle(ev) // a bot saved a page (#346)
+        if (ev.type == "page") pages.changed() // its title can be mentioned (#473)
         // What happens in a group: who works in it, its newest reply, its question, its stopped line, its new replies.
         // At once, and again from botdot where a list fetched meanwhile may be from before the event.
         if (ev.type.startsWith("group_")) {

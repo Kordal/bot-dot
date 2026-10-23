@@ -9,6 +9,7 @@
     "suggestions: the rows offered while the text before the cursor is typed, in order, as the text a pick inserts (followed by a space). [] means no list. Rows: bots, then jobs, then skills; a skill named like a bot is left out; after '@Bot/' only that bot's jobs; matching is a case-insensitive 'contains' on the short name.",
     "picks: { name, world, chat, before, pick, after, jobsNext }. before and after are the whole message with '|' where the cursor is. pick is the text of the suggested row (for the text before the cursor) that is picked. Picking puts the row's text in place of the '@…' before the cursor and the rest of that word, then a space unless a space (not a line break) follows already; the cursor goes after the space. jobsNext: a bot was picked and the space is new, so a '/' typed next replaces the space and lists the bot's jobs.",
     "renamed: the team with the Chief named by the owner (#41). '@ChiefOfStaff' still means the Chief beside its name, and is not suggested.",
+    "pages (#473): a world with pages: [{ bot, slug, title }] (the Chief's with bot 'chief') and tiles: [{ id, title, kind }] of the Board. A page is '@' and its title as a short name, or '@Bot/Title'; a tile is '@' and its title as a short name. For one name a bot wins, then a page (the chat's own bot's first, then the list's order), then a tile, then a skill. A tile of kind 'page' or 'group' is no mention. matches: { kind: page, text, bot, page (its slug) } and { kind: tile, text, tile (its id) }. Suggestions: bots, jobs, pages, tiles, skills; a name an earlier row took is left out, except a page's, offered as '@Bot/Title'. After '@Bot/': its jobs, then its pages.",
     "group: a group's chat with all true (#124): '@all' is offered first while it is typed at the start of the message, and is no member's mention: a member named All is neither matched nor suggested there. Elsewhere '@all' is nothing of its own.",
     "Commands (#237): '/' at the very start of the message in a bot's own chat lists that bot's skills (its picked skills, as for mentions; none when useSkills is false), filtered by a case-insensitive 'contains' on the name, at most maxRows. A row's text is '/' and the skill's name; picking it replaces the '/…' word as a mention pick does. Never in the Chief chat or a group. Once a space follows the name, no list.",
     "commands: { name, world, chat, text, command }. command is what sending text runs: { skill, args } (args: the rest of the message after the name, trimmed), or null when it is plain text (no '/' at the very start, a name the bot has no skill of, a name joined to more text, the Chief chat, a group).",
@@ -66,6 +67,30 @@
         { "id": "allie", "name": "Allie", "jobs": [] }
       ],
       "library": []
+    },
+    "pages": {
+      "bots": [
+        { "id": "chief", "name": "Chief of Staff", "jobs": [] },
+        { "id": "fleet", "name": "Fleet Doctor", "skills": ["notes"], "jobs": [{ "id": "j1", "name": "Morning check" }] },
+        { "id": "coder", "name": "Coder", "jobs": [] },
+        { "id": "digest", "name": "Digest", "jobs": [] }
+      ],
+      "library": [{ "name": "notes", "description": "How notes are kept." }],
+      "pages": [
+        { "bot": "fleet", "slug": "issue-list", "title": "Issue list" },
+        { "bot": "coder", "slug": "status", "title": "Status" },
+        { "bot": "fleet", "slug": "status", "title": "Status" },
+        { "bot": "chief", "slug": "plan", "title": "Plan" },
+        { "bot": "fleet", "slug": "digest", "title": "Digest" }
+      ],
+      "tiles": [
+        { "id": "t1", "title": "Living room", "kind": "switch" },
+        { "id": "t2", "title": "Notes", "kind": "note" },
+        { "id": "t3", "title": "Issue list", "kind": "page" },
+        { "id": "t4", "title": "Home", "kind": "group" },
+        { "id": "t5", "title": "Plan", "kind": "value" },
+        { "id": "t6", "title": "Living room", "kind": "value" }
+      ]
     }
   },
   "cases": [
@@ -154,9 +179,46 @@
     { "name": "/ not at the start lists nothing", "world": "team", "chat": "fleet", "typed": "a /dig", "suggestions": [] },
     { "name": "/ in the chat of a bot with skills switched off lists nothing", "world": "team", "chat": "social", "typed": "/", "suggestions": [] },
     { "name": "/ in the Chief chat lists nothing", "world": "team", "chat": "chief", "typed": "/", "suggestions": [] },
-    { "name": "/ in a group lists nothing", "world": "group", "chat": "group:g1", "typed": "/", "suggestions": [] }
+    { "name": "/ in a group lists nothing", "world": "group", "chat": "group:g1", "typed": "/", "suggestions": [] },
+    { "name": "a page by its title", "world": "pages", "chat": "chief", "text": "@IssueList take all remaining issues",
+      "matches": [{ "kind": "page", "text": "@IssueList", "bot": "fleet", "page": "issue-list" }] },
+    { "name": "a page under its bot", "world": "pages", "chat": "chief", "text": "see @fleetdoctor/status",
+      "matches": [{ "kind": "page", "text": "@fleetdoctor/status", "bot": "fleet", "page": "status" }] },
+    { "name": "the Chief's page under its name", "world": "pages", "chat": "coder", "text": "@ChiefOfStaff/Plan",
+      "matches": [{ "kind": "page", "text": "@ChiefOfStaff/Plan", "bot": "chief", "page": "plan" }] },
+    { "name": "two pages of one title: the first in the list", "world": "pages", "chat": "chief", "text": "@Status",
+      "matches": [{ "kind": "page", "text": "@Status", "bot": "coder", "page": "status" }] },
+    { "name": "two pages of one title: the chat's own bot's first", "world": "pages", "chat": "fleet", "text": "@Status",
+      "matches": [{ "kind": "page", "text": "@Status", "bot": "fleet", "page": "status" }] },
+    { "name": "a bot wins over a page", "world": "pages", "chat": "chief", "text": "@Digest",
+      "matches": [{ "kind": "bot", "text": "@Digest", "bot": "digest" }] },
+    { "name": "a page wins over a tile", "world": "pages", "chat": "chief", "text": "@Plan",
+      "matches": [{ "kind": "page", "text": "@Plan", "bot": "chief", "page": "plan" }] },
+    { "name": "a tile of the Board", "world": "pages", "chat": "chief", "text": "Is @LivingRoom on?",
+      "matches": [{ "kind": "tile", "text": "@LivingRoom", "tile": "t1" }] },
+    { "name": "a tile wins over a skill", "world": "pages", "chat": "fleet", "text": "@notes",
+      "matches": [{ "kind": "tile", "text": "@notes", "tile": "t2" }] },
+    { "name": "a group of tiles is no tile mention", "world": "pages", "chat": "chief", "text": "@Home",
+      "matches": [] },
+    { "name": "pages after bots, a taken name under its bot", "world": "pages", "chat": "chief", "typed": "@sta",
+      "suggestions": ["@ChiefOfStaff", "@Status", "@FleetDoctor/Status"] },
+    { "name": "the chat's own bot's page first", "world": "pages", "chat": "fleet", "typed": "@sta",
+      "suggestions": ["@ChiefOfStaff", "@Status", "@Coder/Status"] },
+    { "name": "a page named like a bot, under its bot", "world": "pages", "chat": "chief", "typed": "@dig",
+      "suggestions": ["@Digest", "@FleetDoctor/Digest"] },
+    { "name": "a tile named like a page is left out", "world": "pages", "chat": "chief", "typed": "@pla",
+      "suggestions": ["@Plan"] },
+    { "name": "a page's tile is left out", "world": "pages", "chat": "chief", "typed": "@iss",
+      "suggestions": ["@IssueList"] },
+    { "name": "a skill named like a tile is left out", "world": "pages", "chat": "fleet", "typed": "@not",
+      "suggestions": ["@Notes"] },
+    { "name": "a / after a bot lists its jobs, then its pages", "world": "pages", "chat": "chief", "typed": "@FleetDoctor/",
+      "suggestions": ["@FleetDoctor/MorningCheck", "@FleetDoctor/IssueList", "@FleetDoctor/Status", "@FleetDoctor/Digest"] },
+    { "name": "a group of tiles is not offered", "world": "pages", "chat": "chief", "typed": "@hom", "suggestions": []},
+    { "name": "two tiles of one name: the first", "world": "pages", "chat": "chief", "typed": "@liv", "suggestions": ["@LivingRoom"] }
   ],
   "picks": [
+    { "name": "a page", "world": "pages", "chat": "chief", "before": "@iss|", "pick": "@IssueList", "after": "@IssueList |", "jobsNext": false },
     { "name": "a bot at the end", "world": "team", "chat": "chief", "before": "Ask @fle|", "pick": "@FleetDoctor",
       "after": "Ask @FleetDoctor |", "jobsNext": true },
     { "name": "a bot mid-word takes the rest of the word", "world": "team", "chat": "chief", "before": "Ask @fle|et now", "pick": "@FleetDoctor",

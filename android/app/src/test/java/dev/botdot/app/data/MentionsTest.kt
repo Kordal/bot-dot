@@ -15,10 +15,18 @@ class MentionsTest {
     data class Library(val name: String, val description: String = "")
 
     @Serializable
-    data class World(val bots: List<Bot>, val library: List<Library>, val all: Boolean = false, val account: List<Library> = emptyList())
+    data class Page(val bot: String, val slug: String, val title: String)
 
     @Serializable
-    data class Match(val kind: String, val text: String, val bot: String? = null, val job: String? = null, val skill: String? = null)
+    data class Tile(val id: String, val title: String, val kind: String = "")
+
+    @Serializable
+    data class World(val bots: List<Bot>, val library: List<Library>, val all: Boolean = false, val account: List<Library> = emptyList(),
+                     val pages: List<Page> = emptyList(), val tiles: List<Tile> = emptyList())
+
+    @Serializable
+    data class Match(val kind: String, val text: String, val bot: String? = null, val job: String? = null, val skill: String? = null,
+                     val page: String? = null, val tile: String? = null)
 
     @Serializable
     data class Case(val name: String, val world: String, val chat: String, val text: String? = null, val matches: List<Match>? = null,
@@ -50,7 +58,8 @@ class MentionsTest {
 
     private fun world(name: String, chat: String) = table.worlds.getValue(name).let {
         Mentions.World(chat, it.bots, it.library.map { k -> k.name }, all = it.all,
-            about = it.account.associate { k -> k.name to k.description } + it.library.associate { k -> k.name to k.description }, account = it.account.map { k -> k.name })
+            about = it.account.associate { k -> k.name to k.description } + it.library.associate { k -> k.name to k.description }, account = it.account.map { k -> k.name },
+            pages = it.pages.map { p -> Mentions.PageRef(p.bot, p.slug, p.title) }, tiles = it.tiles.map { t -> Mentions.TileRef(t.id, t.title, t.kind) })
     }
     private fun world(c: Case) = world(c.world, c.chat)
 
@@ -62,7 +71,7 @@ class MentionsTest {
         val cases = table.cases.filter { it.text != null }
         assert(cases.isNotEmpty())
         cases.forEach { c ->
-            val found = Mentions.find(c.text!!, world(c)).map { Match(it.kind.name.lowercase(), it.text, it.bot, it.job, it.skill) }
+            val found = Mentions.find(c.text!!, world(c)).map { Match(it.kind.name.lowercase(), it.text, it.bot, it.job, it.skill, it.page, it.tile) }
             assertEquals(c.name, c.matches, found)
             // Where each one is: its text, at its place in the message.
             Mentions.find(c.text, world(c)).forEach { assertEquals(c.name, it.text, c.text.substring(it.start, it.end)) }

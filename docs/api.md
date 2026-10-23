@@ -1141,6 +1141,15 @@ When `features` also has `chief-pages` ([#384](https://github.com/Kordal/bot-dot
 - **Refresh now** is `POST /api/bots/chief/jobs/page-<slug>/run`: `202` while the run starts, `409` while a look, a checkup or another page's run is at work, `404` for a page not kept up to date.
 - **The keeping run** is the Chief in a session of its own, as a look's, with web search, web pages, botdot's reading tools and `save_page`; it is handed the page. Its last words are posted in the chat the owner last used, as the Chief's message with `kept: { slug, title }`, `pages` and `startedBy: "botdot"`: always with `notify: "always"`, else only when something needs the owner.
 
+### A page or a tile mentioned
+
+When `features` has `page-mentions` ([#473](https://github.com/Kordal/bot-dot/issues/473), [ADR 078](adr/078-a-mentioned-page-or-tile-is-handed-to-the-run.md)), the owner's message can mention a page (a bot's or the Chief's) or a tile of the Board, and the run that answers gets what it holds now.
+
+- **The names.** A page is `@` and its title as a mention writes a name (`Issue list` -> `@IssueList`), or `@<Bot>/<Title>` for that bot's page (after its jobs). A tile is `@` and its title the same way; a tile of kind `page` or `group` is none. Matching ignores case. For one name a bot wins, then a page (the page of the chat's own bot first, then the others), then a tile, then a skill. The rules are `public/mentions.js` and `test/fixtures/mentions.json` (world `pages`): the `matches` of a page are `{ kind: "page", text, bot, page }` (`page` its slug), of a tile `{ kind: "tile", text, tile }` (its id).
+- **Typing `@`** offers, after the bots and the jobs and before the skills, the pages and then the tiles, each name once; a page whose name an earlier row has is offered as `@<Bot>/<Title>`. After `@<Bot>/`, its jobs and then its pages. The apps read the pages from `GET /api/pages` (each `botId`, `slug`, `title`) and the tiles from the Board (`GET /api/dashboard`, only those with `approved` not `false`). Not in a shared room. Without the feature an app offers none and draws none.
+- **What the run gets.** The note about the owner's mentions says for a page whose page it is, its slug and when it was saved, then its text as it stands, its blocks written out as a document reads them, between `<mentioned-page>` tags; for a tile its kind, its value and when it was read, and what it last read between `<mentioned-tile>` tags. Both are content, never instructions. A page is cut at 20,000 characters, all the pages of a message at 60,000. An interactive page is named as such, without its site. A page or a tile that is gone is said to be unreadable.
+- **Where.** A message in a bot's chat, in the Chief's chat, and in a group: every turn of the owner's message gets the lines of its pages and tiles (not of its members: the turn names them). A page or a tile mention gives nobody a turn in a group; `@<Member>/<Page>` names that member, as a job does.
+
 ## A document
 
 When `features` has `document-export` ([#348](https://github.com/Kordal/bot-dot/issues/348)), a long reply can be opened as a document and taken out of botdot as a file.
