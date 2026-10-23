@@ -29,6 +29,16 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -72,6 +82,7 @@ import sh.calvin.reorderable.ReorderableItem
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Dashboard
 import dev.botdot.app.data.Tile
+import dev.botdot.app.data.TileAsk
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
@@ -83,7 +94,7 @@ import kotlinx.serialization.json.jsonPrimitive
 /**
  * The Board (like the web page's): tiles the Chief put together, under their headings. A tap does the
  * tile's thing (switch, button, refresh), a list or note opens its bot's chat. Press, hold and drag to move a
- * tile (among others, under another heading, into or out of an open group); hold and let go to remove it. While it's on screen, the stale tiles are read again every little while.
+ * tile (among others, under another heading, into or out of an open group); hold and let go to ask the Chief for a change or remove it (#430; remove only, from a botdot before it). While it's on screen, the stale tiles are read again every little while.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -100,6 +111,9 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     val bots = botsNow.orEmpty()
     var refreshing by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf<Tile?>(null) }
+    var asking by remember { mutableStateOf<Tile?>(null) } // the tile whose change is being asked for (#430)
+    val server by store.version.value.collectAsState()
+    val chiefName by store.chiefName.collectAsState()
     val flash = remember { mutableStateMapOf<String, String>() } // "Asked Home Keeper" and the like, for a moment after a tap
     val open = remember { mutableStateMapOf<String, Boolean>() } // the groups you opened
     val popped = remember { mutableStateMapOf<String, Boolean>() } // a tap that just worked: the card pops once, no words
@@ -207,6 +221,40 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
         )
     }
 
+    // Held without moving (#430): what should change, sent to the Chief, or the trash. Removing still asks first.
+    asking?.let { t ->
+        var text by remember(t.id) { mutableStateOf("") }
+        var sending by remember(t.id) { mutableStateOf(false) }
+        ModalBottomSheet(onDismissRequest = { asking = null }, containerColor = p.panel) {
+            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, bottom = 24.dp).imePadding()) {
+                Text(t.title, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                BasicTextField(
+                    text, { text = it },
+                    textStyle = TextStyle(color = p.text, fontSize = 16.sp, lineHeight = 22.sp),
+                    cursorBrush = SolidColor(p.text),
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp).heightIn(min = 88.dp),
+                    decorationBox = { inner -> Box { if (text.isEmpty()) Text(TileAsk.PLACEHOLDER, color = p.faint, fontSize = 16.sp); inner() } },
+                )
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { asking = null; removing = t }) { Icon(Icons.Outlined.Delete, contentDescription = "Remove from Board", tint = p.faint) }
+                    Spacer(Modifier.weight(1f))
+                    val can = text.isNotBlank() && !sending
+                    Box(
+                        Modifier.size(36.dp).clip(CircleShape).background(if (can) p.ink else p.line).clickable(enabled = can) {
+                            sending = true
+                            scope.launch {
+                                runCatching { api!!.askTileChange(t.id, text.trim()) }
+                                    .onSuccess { asking = null; blink(t, TileAsk.sent(chiefName)) }
+                                    .onError { sending = false; tell(it.message ?: "Couldn't send") }
+                            }
+                        },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Filled.ArrowUpward, contentDescription = "Send", tint = if (can) p.inkText else p.faint, modifier = Modifier.size(20.dp)) }
+                }
+            }
+        }
+    }
+
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
@@ -270,7 +318,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             fun dropped(t: Tile) {
                 dragged = null
                 scope.launch { delay(400); if (held == t.id) held = null } // no tap came after it
-                if (!moved) { removing = t; return }
+                if (!moved) { if (TileAsk.shows(server?.features)) asking = t else removing = t; return }
                 moved = false
                 val i = rows.indexOf(t.id)
                 val parent = groupAt(i)

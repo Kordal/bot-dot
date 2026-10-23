@@ -183,11 +183,16 @@ function tileHTML(t, waiting, sourced = false) {
   const aside = t.ai && hasMarkdown(look.face) ? '<span class="tile-ai">written by AI</span>' : t.source && !kpi && !sourced ? `<span class="tile-src">${esc(t.source)}</span>` : '';
   const when = t.kind === 'note' && t.at ? `<span class="tile-when">${esc(kitClock(Date.parse(t.at)))}</span>` : '';
   return `<div role="button" tabindex="0" class="tile kind-${t.kind} size-${size} ${kpi ? 'kpi-tile' : ''} ${kpi && size === 'small' ? 'compact' : ''} ${look.dot?.big ? 'big-dot' : ''} ${waiting ? 'waiting' : ''} ${open ? 'open' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${pressed}${t.kind === 'group' ? ` aria-expanded="${open}"` : ''} title="${esc(t.error || '')}">
-    <div class="tile-head">${dot}<span class="tile-title">${esc(t.title)}</span>${when}${aside}</div>
+    <div class="tile-head">${dot}<span class="tile-title">${esc(t.title)}</span>${when}${aside}${PEN_BTN()}</div>
     ${body}
     ${note ? `<div class="tile-sub">${esc(note)}</div>` : ''}
   </div>`;
 }
+
+// The pencil on a tile (#430), shown on hover: it opens the ask for a change. Only when the server takes one.
+const PEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';
+const canAsk = () => (state.features || []).includes('tile-change');
+const PEN_BTN = () => (canAsk() ? `<button type="button" class="tile-edit" data-tile-edit aria-label="Change">${PEN}</button>` : '');
 
 // A switch or a button as a row of the Controls box: its title and line, and a switch (on, off, not known) or a go mark.
 const GO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
@@ -197,7 +202,7 @@ function controlRowHTML(t, waiting) {
   const on = look.dot?.filled;
   const end = t.kind === 'switch' ? `<span class="sw ${on === true ? 'on' : on === false ? '' : 'unknown'}" aria-hidden="true"></span>` : `<span class="go">${GO}</span>`;
   return `<div role="button" tabindex="0" class="tile ctl-row kind-${t.kind} ${waiting ? 'waiting' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${look.tap === 'toggle' ? ` aria-pressed="${on === true}"` : ''} title="${esc(t.error || '')}">
-    <span class="n"><span class="tile-title">${esc(t.title)}</span>${note ? `<span class="tile-sub">${esc(note)}</span>` : ''}</span>${end}
+    <span class="n"><span class="tile-title">${esc(t.title)}</span>${note ? `<span class="tile-sub">${esc(note)}</span>` : ''}</span>${PEN_BTN()}${end}
   </div>`;
 }
 
@@ -278,6 +283,7 @@ function renderDashboard() {
     };
   });
   wireTileDrags(root);
+  if (asking) placeAsk();
   wireCharts(root);
   wireTables(root);
   // A folded note that has more to it fades out at the bottom.
@@ -311,11 +317,17 @@ function wireTile(el, t, waiting) {
   if (!t) return;
   let timer = null, long = false;
   const cancel = () => clearTimeout(timer);
-  el.onpointerdown = (e) => { long = false; if (e.pointerType === 'touch') timer = setTimeout(() => { long = true; removeTile(t); }, 550); }; // a mouse drags instead
+  const manage = () => (canAsk() ? openAsk(t) : removeTile(t)); // a long press, a right-click: change it or remove it
+  el.onpointerdown = (e) => { long = false; if (e.pointerType === 'touch') timer = setTimeout(() => { long = true; manage(); }, 550); }; // a mouse drags instead
   el.onpointerup = cancel;
   el.onpointerleave = cancel;
   el.onpointercancel = cancel;
-  el.oncontextmenu = (e) => { if (e.target.closest('[data-ctl-wrap], [data-ctl]')) return; e.preventDefault(); cancel(); if (!long) removeTile(t); long = true; };
+  el.oncontextmenu = (e) => { if (e.target.closest('[data-ctl-wrap], [data-ctl]')) return; e.preventDefault(); cancel(); if (!long) manage(); long = true; };
+  const pen = $('[data-tile-edit]', el);
+  if (pen) {
+    pen.onpointerdown = (e) => e.stopPropagation();
+    pen.onclick = (e) => { e.stopPropagation(); openAsk(t); };
+  }
   el.onkeydown = (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === el) { e.preventDefault(); el.click(); } };
   el.onclick = (e) => {
     if (e.target.closest('[data-ctl-wrap], [data-ctl], [data-tile-chat]')) return; // a control on the tile does its own thing
@@ -558,6 +570,82 @@ async function sendCtl(t, key, value, { pop: popIt = false, quiet = false } = {}
 // Groups you opened stay open (in this browser).
 const openGroups = new Set((() => { try { return JSON.parse(localStorage.getItem('dash-open') || '[]'); } catch { return []; } })());
 function saveOpenGroups() { try { localStorage.setItem('dash-open', JSON.stringify([...openGroups])); } catch { /* private window */ } }
+
+// ---------- asking the Chief to change a tile (#430) ----------
+// Under the tile on a wide screen; a sheet from the bottom with its title on a phone. Enter sends, Shift+Enter is a
+// new line, Esc or a tap beside it closes it. The trash removes the tile (asked first, as a long press did).
+const BIN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13"/></svg>';
+const UP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+let asking = null; // { t, pop, dim }
+const askSheet = () => matchMedia('(max-width: 760px)').matches;
+function openAsk(t) {
+  closeAsk();
+  const sheet = askSheet();
+  const pop = document.createElement('div');
+  pop.className = `ask-pop${sheet ? ' ask-sheet' : ''}`;
+  pop.setAttribute('role', 'dialog');
+  pop.setAttribute('aria-label', t.title);
+  pop.innerHTML = `${sheet ? `<h2>${esc(t.title)}</h2>` : ''}<textarea rows="3" placeholder="What should change?"></textarea>
+    <div class="row"><button type="button" class="rm" data-ask-rm aria-label="Remove from Board">${BIN}</button><button type="button" class="send off" data-ask-send aria-label="Send">${UP}</button></div>`;
+  const dim = sheet ? Object.assign(document.createElement('div'), { className: 'ask-dim' }) : null;
+  if (dim) { dim.onclick = closeAsk; document.body.append(dim); }
+  document.body.append(pop);
+  asking = { t, pop, dim };
+  const ta = $('textarea', pop);
+  const sendBtn = $('[data-ask-send]', pop);
+  ta.oninput = () => sendBtn.classList.toggle('off', !ta.value.trim());
+  ta.onkeydown = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); closeAsk(); }
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendAsk(); }
+  };
+  sendBtn.onclick = sendAsk;
+  $('[data-ask-rm]', pop).onclick = () => { closeAsk(); removeTile(t); };
+  placeAsk();
+  ta.focus();
+}
+function placeAsk() {
+  if (!asking) return;
+  const el = $(`#view-dashboard [data-tile="${CSS.escape(asking.t.id)}"]`);
+  if (!el) return closeAsk();
+  el.classList.add('asking');
+  if (asking.pop.classList.contains('ask-sheet')) return;
+  const r = el.getBoundingClientRect();
+  const w = Math.min(Math.max(300, r.width), innerWidth - 32);
+  const h = asking.pop.offsetHeight;
+  const below = r.bottom + 8 + h <= innerHeight - 8;
+  asking.pop.style.width = `${w}px`;
+  asking.pop.style.left = `${Math.max(16, Math.min(r.left, innerWidth - w - 16))}px`;
+  asking.pop.style.top = `${below ? r.bottom + 8 : Math.max(8, r.top - 8 - h)}px`;
+}
+function closeAsk() {
+  if (!asking) return;
+  asking.pop.remove();
+  asking.dim?.remove();
+  $$('#view-dashboard .tile.asking').forEach((x) => x.classList.remove('asking'));
+  asking = null;
+}
+async function sendAsk() {
+  if (!asking || asking.sending) return;
+  const { t, pop } = asking;
+  const text = $('textarea', pop).value.trim();
+  if (!text) return;
+  asking.sending = true;
+  try {
+    await api(`/dashboard/tiles/${t.id}/change`, { method: 'POST', body: { text } });
+  } catch (e) {
+    if (asking?.pop === pop) asking.sending = false;
+    return toast(e.message, true);
+  }
+  if (asking?.pop === pop) closeAsk(); // not another tile's ask, opened while this one went
+  tapped.set(t.id, `Sent to ${chiefName()}`);
+  renderDashboard();
+  setTimeout(() => { tapped.delete(t.id); renderDashboard(); }, 2500);
+}
+document.addEventListener('pointerdown', (e) => {
+  if (asking && !asking.dim && !asking.pop.contains(e.target) && !e.target.closest('[data-tile-edit]')) closeAsk();
+}, true);
+window.addEventListener('resize', () => placeAsk());
+document.addEventListener('scroll', () => placeAsk(), true);
 
 function removeTile(t) {
   const inside = t.kind === 'group' ? (state.dash?.tiles || []).filter((x) => x.parent === t.id) : [];
