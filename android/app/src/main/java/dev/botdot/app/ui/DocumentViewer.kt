@@ -354,7 +354,11 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
                                     tell("Saved to Google Docs")
                                     runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
                                 }
-                                .onError { tell(if ((it as? ApiException)?.status == 409) "Google Docs isn't connected. Tap Google Docs again to connect it." else it.message ?: "Couldn't save it to Google Docs") }
+                                // 409: not connected, or its connection lacks the access (state "reconnect"): the next tap connects it again.
+                                .onError {
+                                    if ((it as? ApiException)?.status == 409) googleDocs = googleDocs?.copy(connected = false)
+                                    tell(if ((it as? ApiException)?.status == 409) "Google Docs needs connecting again. Tap Google Docs to connect it." else it.message ?: "Couldn't save it to Google Docs")
+                                }
                         }
                     }
                     if (gd?.connected != false) return@SheetRow save()

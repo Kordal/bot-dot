@@ -375,7 +375,9 @@ async function sharedByBot(srv, bot, text) {
 // `await app.connect(srv)` gives the server its key. executed: what was run through it, oldest first, each
 // { action, args }. Every action answers { done: true }. connected: the apps Composio lists as connected, by slug
 // (none unless given; change the list to connect or disconnect one): what the Chief is given (ADR 047).
-async function fakeConnectedApp({ connected = [] } = {}) {
+// fails: { ACTION: the app's own error } for an action that fails; accounts: the connections as Composio lists them,
+// in place of one per connected app.
+async function fakeConnectedApp({ connected = [], fails = {}, accounts = null } = {}) {
   const executed = [];
   const server = http.createServer((req, res) => {
     let body = '';
@@ -383,10 +385,13 @@ async function fakeConnectedApp({ connected = [] } = {}) {
     req.on('end', () => {
       res.setHeader('Content-Type', 'application/json');
       if (req.url.startsWith('/tools/execute/')) {
-        executed.push({ action: req.url.split('/').at(-1), args: JSON.parse(body).arguments });
+        const action = req.url.split('/').at(-1);
+        const { arguments: args, connected_account_id: account } = JSON.parse(body);
+        executed.push({ action, args, ...(account ? { account } : {}) });
+        if (fails[action]) return res.end(JSON.stringify({ successful: false, error: fails[action], data: {} }));
         return res.end(JSON.stringify({ successful: true, data: { done: true } }));
       }
-      if (req.url.startsWith('/connected_accounts')) return res.end(JSON.stringify({ items: connected.map((slug) => ({ id: `ca_${slug}`, toolkit: { slug }, status: 'ACTIVE' })) }));
+      if (req.url.startsWith('/connected_accounts')) return res.end(JSON.stringify({ items: accounts || connected.map((slug) => ({ id: `ca_${slug}`, toolkit: { slug }, status: 'ACTIVE' })) }));
       if (req.url.startsWith('/tools/')) {
         const slug = req.url.split('/').at(-1);
         // GMAIL_FETCH_EMAILS reads with the owner's connection: it runs only while `connected` has gmail.
