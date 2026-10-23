@@ -32,6 +32,8 @@ document.addEventListener('click', (e) => {
   await loadFeatures();
   // A document's own tab (#348): the document alone, none of the app.
   if (location.hash.startsWith('#doc/')) return DocPage.show(location.hash, docPageTools());
+  // And the browser's back to a document, or its address typed in: the document alone, drawn at load.
+  addEventListener('hashchange', () => { if (location.hash.startsWith('#doc/')) location.reload(); });
   showAdminLink();
   await figure;
   const [view, hashSub] = location.hash.slice(1).split('/');

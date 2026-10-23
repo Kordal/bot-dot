@@ -155,3 +155,27 @@ test('the Export menu no longer sends a document page to /#connectors, which doe
   assert.doesNotMatch(read('document.js'), /location\.href = '\/#connectors'/);
   assert.match(read('document.js'), /try \{ await googleDocs\(doc, gd, g, ui\); \}/);
 });
+
+// Back to chat (and the browser's back) only changed the hash: the document was drawn instead of the app, at load only,
+// so it stayed on screen at the chat's address. Leaving it for anything but one of its sections now loads the app.
+test('leaving a document for a chat or another document loads the page again; its sections do not', () => {
+  const has = (id) => ['sec-1', 'sec-2'].includes(id);
+  for (const h of ['#chief/20261021063526-0cb6ae', '#bot/b1', '#group/g1', '#chief', '', '#', '#doc/run/r-2', '#doc/chief/c1/4']) {
+    assert.equal(DocPage.leaves(h, has), true, h);
+  }
+  for (const h of ['#sec-1', '#sec-2']) assert.equal(DocPage.leaves(h, has), false, h);
+  assert.match(read('boot.js'), /addEventListener\('hashchange', \(\) => \{ if \(location\.hash\.startsWith\('#doc\/'\)\) location\.reload\(\); \}\);/, 'and back into a document from the app');
+  assert.match(read('document.js'), /addEventListener\('hashchange', \(\) => \{ if \(leaves\(location\.hash, .+\)\) location\.reload\(\); \}\);/);
+});
+
+test('every document goes back to its chat: a run to its bot or group, a Chief message to its chat, a page to its owner', async () => {
+  const g = (answer) => ({ api: async () => answer, botName: () => 'Ada', chiefName: () => 'Chief of Staff' });
+  assert.equal((await DocPage.load({ run: 'r1' }, g({ botId: 'b1', result: 'x' }))).back, '#bot/b1');
+  assert.equal((await DocPage.load({ run: 'r1' }, g({ botId: 'b1', groupId: 'g1', result: 'x' }))).back, '#group/g1');
+  assert.equal((await DocPage.load({ chat: 'c1', at: 3 }, g({ messages: [{ role: 'chief', text: 'x' }] }))).back, '#chief/c1');
+  const file = (f) => DocPage.load({ file: f }, g({ kind: 'markdown', text: 'x', name: 'Mapa.md' })).then((d) => d.back);
+  assert.equal(await file('/bots/chief/pages/mapa'), '#chief');
+  assert.equal(await file('/bots/b%201/pages/plan'), '#bot/b%201');
+  assert.equal(await file('/bots/b1/path?path=notes%2Fplan.md'), '#bot/b1');
+  assert.equal(await file('/files/r1/Report.md'), '', 'a file no bot owns: no button');
+});
