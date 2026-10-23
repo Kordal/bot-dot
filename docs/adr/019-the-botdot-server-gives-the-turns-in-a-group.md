@@ -77,6 +77,8 @@ Amended by [#124](https://github.com/Kordal/bot-dot/issues/124) (2026-10-19), "@
 - **`@all` is reserved in a group's chat:** the mention rules read it as no member's mention (`public/mentions.js`, `all` in their context), so a member named "All" cannot be mentioned there. Typing `@` at the start of a message offers `@all` first, on the web page and on Android, when the server announces `group-all` in `features`.
 - **Why not instead.** The alternative "Every member answers at the same moment" below was rejected as the default for the duplicates it builds in; it stays rejected as the default. `@all` is the owner's choice per message, for questions each member answers alone, where duplicates are the point and hand-ons are not wanted.
 
+Amended by [ADR 077](077-a-member-posts-in-its-group-on-its-own.md) (2026-10-23): a member's post starts a line too, for the members it names alone, each handed on by the poster; a post that names nobody gives no turn, and the 12 replies count from it.
+
 ## Alternatives
 
 - **The bots decide among themselves with `message_bot`.** Nothing to build on the server. Rejected: the limit is twenty hops per chain and not per message of the owner's, the messages are folded into each bot's own chat, and nothing but a model's judgement ends the exchange.
