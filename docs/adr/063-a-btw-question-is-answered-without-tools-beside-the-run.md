@@ -33,3 +33,7 @@ Claude Code has `/btw`, a side question answered from the current conversation w
 ## Addendum (2026-10-22, [#386](https://github.com/Kordal/bot-dot/issues/386))
 
 The Chief of Staff gets the same: the owner's `/btw` in a Chief chat whose reply is going is answered by a talk-only turn run as the Chief, told that reply's request, working line, plan and draft. The question and the answer are messages of the chat (`btw`, the pair's id) placed before the reply still coming, not a run, and nothing waits in the chat's queue. The Chief's session never saw them, so its next turn the owner starts is told the exchange, with the kinds of text that reply had read (ADR 017), as an unasked message is.
+
+## Addendum (2026-10-23)
+
+The owner wrote "/btw check also the backups" to a bot at work, and the side turn answered that it could not add it. A `/btw` is often work for the run, not a question. So the side turn of a bot (not the Chief's) decides which it is: for work it answers `STEER:` (`STEER <n>:` when several runs go) and a sentence for the owner, and botdot steers what follows `/btw` into that run as a waiting message (ADR 040), read at its next tool call, as if the owner had pressed Steer. A run that ends before reading it leaves it to start as its own run; a run that can't be steered gets it as a message as any. The side turn's record has `handedOn`. Rejected: steering every `/btw` (a question would wait for the next tool call) and a second prefix (one more thing to learn).

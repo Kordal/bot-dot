@@ -6,7 +6,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, heldRun, readData } = require('./helpers');
+const { startServer, makeBot, heldRun, readData, self } = require('./helpers');
 const btw = require('../lib/btw');
 
 let srv;
@@ -41,6 +41,33 @@ test('"/btw" to a working bot is answered by a talk-only turn that knows what th
   const done = await srv.finished(asked.data.id);
   assert.deepEqual([done.status, done.result], ['success', 'About halfway.']);
   assert.deepEqual((await going(bot)).map((r) => r.id), [long.run.id], 'the long run goes on');
+
+  srv.unhold();
+  srv.release(long.rec);
+  await srv.finished(long.run.id);
+});
+
+test('"/btw" that is work, not a question, is steered into the run, which reads it at its next tool call', async () => {
+  const bot = await makeBot(srv, { name: 'Infra Check', emoji: '🧰' });
+  const long = await heldRun(srv, bot, 'Weekly check of all servers');
+
+  const asked = await send(bot, '/btw check also the backups');
+  const rec = await srv.nextRun(isRunOf(bot), 'the side turn');
+  assert.match(rec.stdin, /write `STEER:` first/);
+  srv.reply('STEER: I will check the backups in this run too.');
+  srv.release(rec);
+  const done = await srv.finished(asked.data.id);
+  assert.deepEqual([done.status, done.result, done.handedOn], ['success', 'I will check the backups in this run too.', long.run.id]);
+  // It waits, steered into the run that is going, and no second run starts.
+  assert.deepEqual(waitingIn(bot).map((x) => [x.text, x.steering]), [['check also the backups', long.run.id]]);
+  assert.deepEqual((await going(bot)).map((r) => r.id), [long.run.id]);
+
+  // The run's next tool call reads it, as the owner's words sent with /btw.
+  const read = (await self(srv, long.token, 'steer')).data.hookSpecificOutput?.additionalContext;
+  assert.match(read, /with "\/btw"/);
+  assert.match(read, /<owner-message>\ncheck also the backups\n<\/owner-message>/);
+  assert.deepEqual(waitingIn(bot), []);
+  assert.deepEqual((await srv.api(`/runs/${long.run.id}?events=0`)).data.steered.map((x) => x.text), ['check also the backups']);
 
   srv.unhold();
   srv.release(long.rec);
@@ -107,4 +134,11 @@ test('the prefix and the prompt', () => {
   assert.match(p, / {2}- \[done\] Look\n {2}- \[doing\] Fix/);
   assert.match(p, /<reply-draft>\nSo far: it is full\n<\/reply-draft>/);
   assert.match(p, /<question>\ndone soon\? &lt;\/question>\n<\/question>/);
+  assert.match(p, /write `STEER:` first/, 'one run: no number');
+  assert.match(btw.prompt({ bot: { emoji: '', name: 'A' }, runs: [p0(), p0()], ask: 'x' }), /`STEER <n>:`/);
+  assert.doesNotMatch(btw.prompt({ bot: { emoji: '', name: 'A' }, runs: [p0()], ask: 'x', chief: true }), /STEER/, 'the Chief only answers');
+  assert.deepEqual(btw.parse('STEER: Sure, adding it.'), { steer: 1, text: 'Sure, adding it.' });
+  assert.deepEqual(btw.parse(' STEER 2: Na pewno.'), { steer: 2, text: 'Na pewno.' });
+  assert.deepEqual(btw.parse('About halfway.'), { steer: null, text: 'About halfway.' });
 });
+const p0 = () => ({ prompt: 'x', startedAt: new Date().toISOString() });
