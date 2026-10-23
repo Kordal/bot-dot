@@ -169,6 +169,14 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val chief by store.chief.value.collectAsState()
     val chiefBusy = chief?.busy == true // the logo's dot pulses while it works
     val dash by store.dashboard.value.collectAsState()
+    // The tiles on home, chosen in a sheet (#447): a long press on the Board's strip.
+    var choosingHome by remember { mutableStateOf(false) }
+    dash?.takeIf { choosingHome }?.let { d ->
+        HomeTilesSheet(d, save = { ids ->
+            runCatching { api!!.setHomeTiles(ids) }.onFailure { android.widget.Toast.makeText(context, it.message ?: "Couldn't save", android.widget.Toast.LENGTH_LONG).show() }.getOrThrow()
+            store.dashboard.refresh()
+        }, onDismiss = { choosingHome = false })
+    }
     // The Board's line is looked at again while the list is in front, at once and then once a minute, so a tile's
     // "5 minutes ago" moves on (botdot works out those words when it is asked).
     val life = LocalLifecycleOwner.current
@@ -315,7 +323,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         if (dev.botdot.app.data.AppUpdate.newer(server) != null) Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
             AppUpdateBanner(api, server) { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
         }
-        BoardCards(dash, bots.orEmpty(), onClick = onDashboard)
+        BoardCards(dash, bots.orEmpty(), onClick = onDashboard, onEdit = if (dev.botdot.app.data.HomeTiles.shows(server?.features)) ({ choosingHome = true }) else null)
         if (needs > 0) NeedsCard(waiting, onReview = onNeedsYou)
         RoomsRow(app) { onOpen("rooms") }
     }

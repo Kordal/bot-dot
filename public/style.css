@@ -1442,9 +1442,9 @@ a.file-chip.link:hover { border-color: var(--faint); }
 }
 /* Over the keys (#397): the Board's strip of small kpi cards, then Needs you as one warm card, and Rooms. */
 .kp-head { display: flex; align-items: stretch; gap: 12px; min-height: 0; }
-.kp-board { flex: 1 1 auto; min-width: 0; }
+.kp-board { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; }
 /* The Board's strip: one card per tile, as wide as it needs between 150 and 220; those that don't fit scroll sideways. */
-.kp-board-line { display: flex; gap: 12px; width: 100%; height: 100%; overflow-x: auto; scrollbar-width: none; cursor: pointer; }
+.kp-board-line { flex: 1 1 auto; min-width: 0; display: flex; gap: 12px; height: 100%; overflow-x: auto; scrollbar-width: none; cursor: pointer; }
 .kp-board-line::-webkit-scrollbar { display: none; }
 .kp-card { flex: 0 0 auto; display: flex; min-width: 150px; max-width: 220px; min-height: 96px; padding: 14px 18px; border: 1px solid var(--line-2); border-radius: 16px; background: var(--panel); }
 .kp-card .kit-kpi { flex: 1; min-width: 0; margin-top: 0; gap: 8px; justify-content: space-between; }
@@ -1460,6 +1460,27 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .kp-board-line:hover .kp-card, .kp-board-line.active .kp-card { border-color: var(--faint); }
 .kp-board-line .none { align-self: center; color: var(--muted); font-size: 13px; }
 .kp-board-line .none b { color: var(--text); font-weight: 500; }
+/* The tiles on home (#447): a pencil beside the strip on hover, and its list of the Board's tiles. */
+.kp-board-edit { flex: none; width: 34px; height: 34px; padding: 0; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line-2); background: var(--panel); color: var(--muted); cursor: pointer; opacity: 0; }
+.kp-board-edit svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.kp-board-edit:hover { color: var(--text); }
+.kp-board:hover .kp-board-edit, .kp-board:focus-within .kp-board-edit, .kp-board.editing .kp-board-edit { opacity: 1; }
+.kp-board.editing .kp-board-edit { border-color: var(--faint); color: var(--text); }
+@media (hover: none) { .kp-board-edit { display: none; } }
+.home-pop { gap: 0; padding: 6px; overflow-y: auto; }
+.home-pop.ask-sheet { max-height: 75vh; }
+.home-row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 9px; cursor: pointer; user-select: none; outline: none; }
+.home-row:hover, .home-row:focus-visible { background: var(--sunk); }
+.home-row.dragging { background: var(--sunk); box-shadow: var(--shadow-lg); }
+.ask-sheet .home-row { padding: 12px 10px; }
+.home-grip { flex: none; width: 16px; height: 16px; color: var(--faint); cursor: grab; touch-action: none; }
+.home-grip svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; }
+.home-chk { flex: none; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--faint); display: grid; place-items: center; }
+.home-row.on .home-chk { background: var(--text); border-color: var(--text); }
+.home-row.on .home-chk::after { content: ""; width: 9px; height: 5px; border: 2px solid var(--ink-text); border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); }
+.home-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-row:not(.on) .home-t { color: var(--muted); }
+.home-sep { height: 1px; background: var(--line); margin: 4px 8px; }
 .kp-needs { flex: none; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; padding: 6px 10px; border-radius: 10px; color: var(--muted); font: inherit; font-size: 12.5px; cursor: pointer; }
 .kp-needs:hover { background: var(--sunk); color: var(--text); }
 /* Needs you: "N need you", what waits in one line, and Review. */
@@ -1852,7 +1873,7 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 }
 
 /* ---------- asking the Chief to change a tile (#430) ---------- */
-.tile-edit { flex: none; width: 26px; height: 26px; margin: -4px 0 -4px auto; padding: 0; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--line-2); background: var(--sunk); color: var(--muted); cursor: pointer; opacity: 0; transition: opacity .12s; }
+.tile-edit { flex: none; width: 26px; height: 26px; margin: -4px 0 -4px auto; padding: 0; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--line-2); background: var(--sunk); color: var(--muted); cursor: pointer; opacity: 0; }
 .tile-src + .tile-edit, .tile-ai + .tile-edit, .tile-when + .tile-edit { margin-left: 8px; }
 .ctl-row .tile-edit { margin: 0 10px 0 auto; }
 .tile-edit svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

@@ -252,19 +252,29 @@ function stripKpi(t) {
     : `<div class="kit-kpi"><div class="kit-kpi-main"><div class="kit-label">${esc(t.title)}</div><div class="kit-num kp-card-dot">${tileMark(t)}${dot && dot.big ? `<span>${dot.filled === true ? 'On' : dot.filled === false ? 'Off' : '·'}</span>` : ''}</div></div></div>`;
   return `<span class="kp-card">${card}</span>`;
 }
-// The Board's strip: one small kpi card per tile, as many as fit and the rest sideways (on a phone too). A tap, or
-// Enter on it, opens the Board. A box and not a button, which would not scroll. Not there until the Board is read.
+// The Board's strip: one small kpi card per tile on home, as many as fit and the rest sideways (on a phone too). A tap,
+// or Enter on it, opens the Board. A box and not a button, which would not scroll. Not there until the Board is read.
+// Beside it, a pencil on hover chooses its tiles (#447); on a touch screen a long press does.
 function boardLine() {
   if (!state.dash) return '';
-  return `<div class="kp-board-line ${state.view === 'dashboard' ? 'active' : ''}" role="button" tabindex="0" data-board title="Board">${boardTiles().map(stripKpi).join('') || BOARD_EMPTY}</div>`;
+  const edit = canHome() ? `<button type="button" class="kp-board-edit" data-home-edit aria-label="Tiles on home">${PEN}</button>` : '';
+  return `<div class="kp-board-line ${state.view === 'dashboard' ? 'active' : ''}" role="button" tabindex="0" data-board title="Board">${boardTiles().map(stripKpi).join('') || BOARD_EMPTY}</div>${edit}`;
 }
 // The Board's line drawn in `el`: the keypad's, or a phone's.
 function drawBoardLine(el) {
   el.innerHTML = boardLine();
   $$('[data-board]', el).forEach((b) => {
-    b.onclick = () => setView('dashboard');
+    let timer = null, long = false, x0 = 0, y0 = 0;
+    const cancel = () => clearTimeout(timer);
+    b.onpointerdown = (e) => { long = false; x0 = e.clientX; y0 = e.clientY; if (e.pointerType === 'touch' && canHome()) timer = setTimeout(() => { long = true; openHomePick(el); }, 550); };
+    b.onpointermove = (e) => { if (Math.abs(e.clientX - x0) + Math.abs(e.clientY - y0) > 8) cancel(); }; // it scrolls
+    b.onpointerup = cancel;
+    b.onpointercancel = cancel;
+    b.oncontextmenu = (e) => { if (!canHome()) return; e.preventDefault(); cancel(); if (!long) openHomePick(el); };
+    b.onclick = () => { if (long) { long = false; return; } setView('dashboard'); };
     b.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView('dashboard'); } };
   });
+  $$('[data-home-edit]', el).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); homePickOpen() ? closeHomePick() : openHomePick(el); }));
 }
 // The Chief of Staff's key, first on Pinned: its row in the list as a key, with Esc where a bot's key has its digit,
 // and its status: Working while it replies, its new replies, else Idle, and when it last wrote.

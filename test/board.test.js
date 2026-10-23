@@ -49,7 +49,7 @@ test("the Chief's instructions say Board, name its skill and tools, and say the 
   for (const name of ['get_board', 'arrange_board']) assert.ok(offered.some((x) => x.name === name), name);
   await assert.rejects(tools.call('get_dashboard'), /Unknown tool get_dashboard/);
   await assert.rejects(tools.call('arrange_dashboard', { sections: ['Home'] }), /Unknown tool arrange_dashboard/);
-  assert.deepEqual(Object.keys(await tools.json('get_board')).sort(), ['pending', 'sections', 'suggestions', 'tiles']);
+  assert.deepEqual(Object.keys(await tools.json('get_board')).sort(), ['home', 'homeAuto', 'pending', 'sections', 'suggestions', 'tiles']);
   assert.ok(Array.isArray((await tools.json('arrange_board', { sections: ['Home'] })).tiles));
 });
 

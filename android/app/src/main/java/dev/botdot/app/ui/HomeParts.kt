@@ -8,6 +8,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -195,16 +196,18 @@ internal fun DashboardStrip(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot
  * The Board's strip over the keys, on the keypad and a phone (#397): one small kpi card per tile ([stripKpi]): its
  * title over its first number with its sparkline or bar (not on a phone), or its dot (a switch On or Off). Those that
  * don't fit scroll sideways. A tap opens the Board; with no tile it says so. Not there before the Board has loaded.
+ * A long press chooses its tiles ([onEdit], #447), where the server can.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, onClick: () -> Unit) {
+internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, onClick: () -> Unit, onEdit: (() -> Unit)? = null) {
     val p = LocalPaper.current
     val tiles = stripTiles(dash) ?: return
     if (tiles.isEmpty()) {
         Text(buildAnnotatedString {
             withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(BoardWords.NAME) }
             append(" · ${BoardWords.NOTHING}")
-        }, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 10.dp))
+        }, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onEdit).padding(horizontal = 20.dp, vertical = 10.dp))
         return
     }
     val phone = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < Keypad.LIST
@@ -212,7 +215,7 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp).testTag(BOARD_CARDS), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         for (t in tiles) {
             val c = parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint)
-            Box(Modifier.widthIn(min = 132.dp, max = 220.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape).clickable(onClickLabel = BoardWords.NAME, onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Box(Modifier.widthIn(min = 132.dp, max = 220.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape).combinedClickable(onClickLabel = BoardWords.NAME, onClick = onClick, onLongClickLabel = if (onEdit != null) HOME_TILES else null, onLongClick = onEdit).padding(horizontal = 16.dp, vertical = 12.dp)) {
                 val kpi = stripKpi(t)
                 if (kpi != null) KitKpi(if (phone) kpi.copy(points = emptyList(), ratio = null) else kpi, tint(kpi.color, c), compact = true, small = true)
                 else Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -231,6 +234,8 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
 
 /** The tag of the Board's strip of cards (KeypadUiTest). */
 internal const val BOARD_CARDS = "board-cards"
+/** What a long press on the strip does, for TalkBack, and the sheet's name (#447). */
+internal const val HOME_TILES = "Tiles on home"
 
 /**
  * Needs you over the keys (#397): one warm card, "N need you", what waits in one line, and Review, which opens
