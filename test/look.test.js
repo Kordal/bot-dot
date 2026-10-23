@@ -348,3 +348,27 @@ test('the Chief has one tool for the checkup\'s setting and one for a checkup th
   }
   assert.equal(reading.requests.length, 0);
 });
+
+test('a [[draft]] block in a look\'s answer is posted as the mail draft\'s card (#422); a look sends nothing', async () => {
+  const block = (head = 'draft') => `[[${head}]]\nTo: Anna <anna@example.com>\nSubject: Re: Plans\n\nHi Anna, Friday works.\n[[/draft]]`;
+  const w = make({ answer: `Anna waits 3 days for your answer on Plans. Bob too, on Invoice.\n\n${block()}` });
+  assert.equal((await w.tickAt('2026-10-05T08:53:00Z')).posted, true);
+  assert.deepEqual(w.posted, ['Anna waits 3 days for your answer on Plans. Bob too, on Invoice.']);
+  assert.deepEqual(w.offered[0].draft, { to: 'Anna <anna@example.com>', subject: 'Re: Plans', text: 'Hi Anna, Friday works.', state: 'draft' });
+  const raised = JSON.parse(fs.readFileSync(path.join(w.dir, 'looks.json'), 'utf8')).raised;
+  assert.equal(raised[0].text, 'Anna waits 3 days for your answer on Plans. Bob too, on Invoice.\nDraft to Anna <anna@example.com>: Re: Plans', 'the record names the draft');
+
+  const only = make({ answer: block() });
+  assert.equal((await only.tickAt('2026-10-05T08:53:00Z')).posted, true, 'a draft alone is a message');
+  assert.deepEqual([only.posted[0], only.offered[0].draft.subject], ['', 'Re: Plans']);
+
+  const sent = make({ answer: `Done.\n${block('draft sent')}` });
+  await sent.tickAt('2026-10-05T08:53:00Z');
+  assert.equal(sent.offered[0].draft, undefined, 'a [[draft sent]] from a look is no card');
+
+  const plain = make();
+  await plain.tickAt('2026-10-05T08:53:00Z');
+  assert.equal(plain.offered[0].draft, undefined);
+  const nothing = make({ answer: `NOTHING\n${block()}` });
+  assert.equal((await nothing.tickAt('2026-10-05T08:53:00Z')).posted, false, 'NOTHING stays nothing');
+});

@@ -49,8 +49,13 @@ object MailCard {
     const val SEND = "Send now"
     const val KEEP = "Not now"
 
-    /** The state line, without the sent time: "Sent" is followed by it. */
-    fun state(d: MailDraft) = when (d.state) { "sent" -> "Sent"; "kept" -> "Kept in Drafts · not sent"; else -> "In Drafts · not sent" }
+    /** The state line, without the sent time: "Sent" is followed by it. A look's draft ([MailDraft.unsaved], #422) is in no mailbox yet. */
+    fun state(d: MailDraft) = when {
+        d.state == "sent" -> "Sent"
+        d.unsaved -> "Not sent"
+        d.state == "kept" -> "Kept in Drafts · not sent"
+        else -> "In Drafts · not sent"
+    }
 
     /** The buttons on the card: Send now and Not now while it waits, Send now alone once kept, none when sent or folded. */
     fun actions(d: MailDraft) = when {

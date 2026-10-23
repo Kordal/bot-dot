@@ -2,7 +2,7 @@
 // message as `draft`; a newer version folds the earlier one, [[draft sent]] says it went, and Not now keeps it.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { split, settle, answered, answerNote, asText, CHOICES } = require('../lib/mail-draft');
+const { NOTE, split, settle, answered, answerNote, asText, CHOICES } = require('../lib/mail-draft');
 const { startServer, waitFor } = require('./helpers');
 
 const MAIL = 'Hello Stefan,\n\nCould today\'s appointment be online?\n\nKind regards';
@@ -64,6 +64,14 @@ test('answered reads Send now and Not now as the tap on the newest open draft', 
   assert.equal(answered(messages, 'Send now'), null, 'a sent draft is answered no more');
   assert.equal(answered([{ role: 'chief', draft: { state: 'draft', earlier: true } }], 'Not now'), null, 'nor a folded one');
   assert.match(asText(card.draft), /^To: a@b\.example\nSubject: Hi\nSent\.\n\nx$/);
+});
+
+test('a look\'s draft is in no mailbox yet: the Chief is told so on a tap and in its text', () => {
+  const draft = { to: 'a@b.example', subject: 'Re: Hi', text: 'x', state: 'draft', unsaved: true };
+  assert.match(answerNote({ draft, send: true }), /"Re: Hi" \(not in the mailbox yet\): send it now/);
+  assert.match(answerNote({ draft, send: false }), /not now, leave it unsent/);
+  assert.match(asText(draft), /^To: a@b\.example\nSubject: Re: Hi\nNot sent, not in the mailbox yet\.\n\nx$/);
+  assert.match(NOTE, /A reply you drafted in a message you wrote first is in no mailbox yet: on "Send now", make it a draft in that email's thread, then send that draft/);
 });
 
 test('the reply draft never shows the block: the card shows it once the reply has ended', () => {
