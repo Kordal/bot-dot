@@ -3,7 +3,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, makeBot, waitFor } = require('./helpers');
-const { shortName, findMentions, suggest, pick, command, mentionsNote, MAX_ROWS } = require('../lib/mentions');
+const { shortName, findMentions, suggest, pick, command, commandMark, mentionsNote, MAX_ROWS } = require('../lib/mentions');
 const table = require('./fixtures/mentions.json');
 
 test('the table and the module agree on the row limit', () => {
@@ -47,6 +47,12 @@ for (const c of table.picks) {
 for (const c of table.commands) {
   test(`table command: ${c.name}`, () => {
     assert.deepEqual(command(c.text, { chat: c.chat, ...table.worlds[c.world] }), c.command);
+  });
+}
+
+for (const c of table.marks) {
+  test(`table mark: ${c.name}`, () => {
+    assert.deepEqual(commandMark(c.text, { chat: c.chat, ...table.worlds[c.world] }), c.mark);
   });
 }
 

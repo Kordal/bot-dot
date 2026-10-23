@@ -21,7 +21,7 @@ function composerHTML(placeholder, ctx = '') {
         <div class="composer-box">
           <button class="attach-btn" type="button" aria-label="Attach files" title="Attach files (or drop them here)">${ICON.clip}</button>
           <input type="file" name="files" multiple hidden>
-          <textarea name="text" rows="1" placeholder="${esc(placeholder)}"></textarea>
+          <div class="ta-wrap"><div class="ta-mark" aria-hidden="true"></div><textarea name="text" rows="1" placeholder="${esc(placeholder)}"></textarea></div>
           <button class="send-btn" type="submit" aria-label="Send">${ICON.send}</button>
         </div>
       </div>
@@ -223,7 +223,15 @@ function wireComposer(form, onSend, uploadTo, chat) {
   const btn = form.querySelector('.send-btn');
   const files = uploadTo ? wireAttachments(form, uploadTo) : null;
   if (!uploadTo) $('.attach-btn', form)?.remove();
-  const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 200) + 'px'; };
+  // The chip of what the message invokes (markOf) is drawn behind its text, in a copy of the box's first characters.
+  const under = $('.ta-mark', form);
+  const paint = () => {
+    const m = chat ? markOf(ta.value, chat) : null;
+    if (under) under.innerHTML = m ? `${esc(ta.value.slice(0, m.start))}${markHTML(m)}` : '';
+    if (under) under.style.transform = `translateY(${-ta.scrollTop}px)`;
+  };
+  ta.addEventListener('scroll', paint);
+  const grow = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 200) + 'px'; paint(); };
   const mentions = chat ? wireMentions(form, chat, grow) : null;
   // The message that failed last, as it was sent: { text, files, key }. Sent again with this text and these files,
   // it is that message; an edit, or other files, makes a new one.

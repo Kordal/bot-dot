@@ -12,6 +12,9 @@
 // that reach the bot's runs (commandSkills: while its skills are on, its picked library skills, then the Claude
 // account's not switched off for it and not named like a library skill, #236).
 //
+// Chips (2026-10-23): a message that runs a skill, or a "/btw" in a bot's own chat or the Chief chat, is drawn with
+// that start as a chip, in the message box and in the owner's bubble (commandMark). The text sent stays as typed.
+//
 // ctx, for every function: { chat, bots, library }
 //   chat: 'chief' or the id of the bot whose chat it is
 //   bots: [{ id, name, description?, prompt?, skills?, useSkills?, jobs?: [{ id, name, cron?, at?, kind?, prompt? }] }], the Chief included
@@ -153,7 +156,23 @@ function command(text, ctx) {
   return skill ? { skill: skill.name, args: String(m[2] || '').trim() } : null;
 }
 
-const api = { shortName, findMentions, suggest, pick, command, skillsInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
+const BTW = /^\s*(\/btw)(?=\s|$)/i; // the owner's quick side question (lib/btw.js PREFIX)
+
+// What the start of a message invokes, for the apps to draw it as a chip: { kind: 'skill', skill, text, start, end } when
+// sending it runs a skill (command), { kind: 'btw', text, start, end } for "/btw" in a bot's own chat or the Chief chat
+// (ADR 063), else null. text is the part of the message the chip shows; the message itself stays as typed.
+function commandMark(text, ctx) {
+  const s = String(text || '');
+  const c = command(s, ctx);
+  if (c) return { kind: 'skill', skill: c.skill, text: s.slice(0, c.skill.length + 1), start: 0, end: c.skill.length + 1 };
+  const own = ctx.chat === CHIEF || (ctx.bots || []).some((b) => b.id === ctx.chat && b.id !== CHIEF);
+  const b = own && !ctx.all && s.match(BTW);
+  if (!b) return null;
+  const start = b[0].length - b[1].length;
+  return { kind: 'btw', text: b[1], start, end: start + b[1].length };
+}
+
+const api = { shortName, findMentions, suggest, pick, command, commandMark, skillsInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Mentions = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
