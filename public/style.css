@@ -479,6 +479,7 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .skill-pick-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .skill-pick-desc { color: var(--muted); font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
 .skill-pick-over { display: flex; gap: 6px; align-items: center; font-size: 12.5px; }
+.bot-pick { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .skill-card .chips .chip { font-family: var(--font); font-size: 12px; }
 .machine-skills { padding: 4px 0; }
 .machine-skill { display: grid; grid-template-columns: 150px 1fr auto; gap: 14px; padding: 10px 16px; font-size: 13px; align-items: baseline; }
