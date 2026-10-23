@@ -52,13 +52,48 @@ function drawConnectors() {
     };
     return;
   }
+  if (d.keyRejected) {
+    // Composio refuses the key: nothing on the page works until it is replaced (#409).
+    const own = d.account === 'own';
+    root.innerHTML = `${head}
+      <div class="card setup-card">
+        <h3>${own ? `Composio no longer accepts your key ${esc(d.keyHint || '')}` : 'Composio no longer accepts botdot\'s Composio account'}</h3>
+        ${own ? `
+          <form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="New Composio API key" required><button class="btn primary">Save</button></form>
+          <div style="margin-top:10px"><a class="btn sm" href="https://platform.composio.dev" target="_blank" rel="noopener">Open Composio</a> <button class="btn sm" id="conn-forget">Use botdot's account</button></div>`
+        : `
+          <div style="margin:10px 0"><button class="btn primary" id="conn-renew">New Composio account</button></div>
+          <form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="Or your own Composio key" required><button class="btn">Use</button></form>`}
+      </div>`;
+    const renew = $('#conn-renew');
+    if (renew) renew.onclick = async () => {
+      renew.disabled = true;
+      try { await api('/connectors/renew', { method: 'POST' }); conn.catalog = []; toast('Done. Connect your apps again'); } catch (err) { toast(err.message, true); }
+      renderConnectors(true);
+    };
+    $('#conn-key').onsubmit = async (e) => {
+      e.preventDefault();
+      try { await api('/connectors/key', { method: 'PUT', body: { key: e.target.key.value } }); conn.catalog = []; toast('Saved'); renderConnectors(true); } catch (err) { toast(err.message, true); }
+    };
+    const forget = $('#conn-forget');
+    if (forget) forget.onclick = async () => { await api('/connectors/key', { method: 'DELETE' }); conn.catalog = []; renderConnectors(true); };
+    return;
+  }
   const botName = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `<span class="chip">${botLabel(b)}</span>` : ''; };
   const connectedSlugs = new Set(d.connections.filter((c) => c.status === 'ACTIVE').map((c) => c.toolkit));
   const pending = new Set(d.connections.filter((c) => c.status !== 'ACTIVE').map((c) => c.toolkit));
   root.innerHTML = `${head}
     ${d.error ? `<div class="req-note">${esc(d.error)}</div>` : ''}
     <h3 class="page-sub">Your apps <span class="faint">· choose which bots may use each one</span></h3>
-    ${d.connections.length ? `<div class="grid">${d.connections.map((c) => {
+    ${d.connections.length || d.reconnect?.length ? `<div class="grid">${(d.reconnect || []).map((a) => `
+      <article class="card app-card">
+        <div class="app-top">${appLogo(a)}<div class="grow"><b>${esc(a.name)}</b></div></div>
+        <div class="chips">${a.usedBy.map(botName).join('')}</div>
+        <div class="app-actions">
+          <button class="btn sm primary" data-connect="${esc(a.slug)}">Connect again</button>
+          <button class="btn sm" data-forget-app="${esc(a.slug)}">Remove</button>
+        </div>
+      </article>`).join('')}${d.connections.map((c) => {
       const [tone, label] = CONN_STATUS[c.status] || ['', c.status.toLowerCase()];
       return `<article class="card app-card" data-conn="${esc(c.id)}">
         <div class="app-top">${appLogo(c.app)}<div class="grow"><b>${esc(c.app?.name || c.toolkit)}</b><div><span class="pill ${tone}">${esc(label)}</span></div></div></div>
@@ -111,6 +146,9 @@ function drawConnectors() {
   const more = $('#conn-more');
   if (more) more.onclick = async () => { more.disabled = true; await loadCatalog(false); drawConnectors(); };
   $$('[data-connect]', root).forEach((b) => (b.onclick = () => connectApp(b.dataset.connect)));
+  $$('[data-forget-app]', root).forEach((b) => (b.onclick = async () => {
+    try { await api(`/connectors/reconnect/${encodeURIComponent(b.dataset.forgetApp)}`, { method: 'DELETE' }); await refresh(); renderConnectors(true); } catch (e) { toast(e.message, true); }
+  }));
   $$('[data-app-bots]', root).forEach((b) => (b.onclick = () => chooseAppBots(b.dataset.appBots)));
   $$('[data-disconnect]', root).forEach((b) => (b.onclick = async () => {
     const c = d.connections.find((x) => x.id === b.dataset.disconnect);

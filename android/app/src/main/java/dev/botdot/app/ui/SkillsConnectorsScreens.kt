@@ -162,9 +162,21 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                 item { Section("Connectors aren't working yet", listOfNotNull(i.error, "Come back to try again, or use your own Composio key on botdot's web page (Connectors).").joinToString("\n\n")) {} }
                 return@LazyColumn
             }
+            if (i.keyRejected) {
+                // Composio refuses the key; it is replaced on the web page (#409).
+                item { Section("Composio no longer accepts the key", i.error ?: "Fix it on the Connectors page of botdot's web page.") {} }
+                return@LazyColumn
+            }
             if (!i.error.isNullOrBlank()) item { Text(i.error, color = p.err) }
             item { Text("Connected", color = p.text, style = MaterialTheme.typography.titleMedium) }
-            if (i.connections.isEmpty()) item { Hint("No apps yet. Search for one below.") }
+            if (i.connections.isEmpty() && i.reconnect.isEmpty()) item { Hint("No apps yet. Search for one below.") }
+            items(i.reconnect, key = { "r:${it.slug}" }) { a ->
+                Row(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(a.name.ifBlank { a.slug }, color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { connect(a.slug) }) { Text("Connect again", color = p.okText) }
+                    TextButton(onClick = { scope.launch { runCatching { api!!.forgetReconnect(a.slug) }.onError { tell(it.message ?: "Couldn't remove") }; load() } }) { Text("Remove", color = p.muted) }
+                }
+            }
             items(i.connections, key = { it.id }) { c ->
                 Row(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
