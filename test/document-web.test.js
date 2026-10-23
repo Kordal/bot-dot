@@ -140,6 +140,17 @@ test('Google Docs connected: saves at once; a connection gone since says to tap 
   assert.equal(h.rows.at(-1), 'Connect…');
 });
 
+test('Google Docs without the access to make documents: the plain sentence and a Reconnect button that connects it again', async () => {
+  const st = { configured: true, connected: true };
+  const h = gdHarness({ answers: { 'POST /export/google-docs': Object.assign(new Error("Google Docs wasn't allowed to do this."), { state: 'reconnect' }) } });
+  await DocPage.googleDocs(doc, st, h.g, h.ui);
+  assert.deepEqual(h.said.at(-1), { t: "Google Docs wasn't allowed to do this.", error: true, reconnect: true });
+  assert.equal(st.connected, false, 'the next tap connects it first');
+  assert.equal(h.rows.at(-1), 'Connect…');
+  assert.match(read('document.js'), /data-doc="gdocs-reconnect">Reconnect<\/button>/);
+  assert.match(read('document.js'), /if \(what === 'gdocs-reconnect'\) gd\.connected = false;/);
+});
+
 test('the Export menu no longer sends a document page to /#connectors, which does nothing there', () => {
   assert.doesNotMatch(read('document.js'), /location\.href = '\/#connectors'/);
   assert.match(read('document.js'), /try \{ await googleDocs\(doc, gd, g, ui\); \}/);

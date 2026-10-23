@@ -158,9 +158,10 @@ function wire(page, doc, g) {
   const ui = {
     open: () => window.open('about:blank', '_blank'),
     row: (text) => { if (gdState) gdState.textContent = text; },
-    // A line at the bottom: progress, the result or what went wrong, with a link that opens a tab of its own.
-    status: (text, { link, error } = {}) => {
-      saved.innerHTML = `${g.esc(text)}${link ? ` <a href="${g.esc(link.href)}" target="_blank" rel="noopener">${g.esc(link.text)}</a>` : ''}`;
+    // A line at the bottom: progress, the result or what went wrong, with a link that opens a tab of its own, or a
+    // Reconnect button, which connects Google Docs again and then saves.
+    status: (text, { link, error, reconnect } = {}) => {
+      saved.innerHTML = `${g.esc(text)}${link ? ` <a href="${g.esc(link.href)}" target="_blank" rel="noopener">${g.esc(link.text)}</a>` : ''}${reconnect ? ' <button type="button" data-doc="gdocs-reconnect">Reconnect</button>' : ''}`;
       saved.classList.toggle('err', !!error);
       saved.hidden = false;
     },
@@ -179,9 +180,10 @@ function wire(page, doc, g) {
       try { await navigator.clipboard.writeText(doc.text); g.toast('Copied'); } catch { g.toast("Couldn't copy", true); }
       return;
     }
-    if (what === 'gdocs') {
+    if (what === 'gdocs' || what === 'gdocs-reconnect') {
       if (gd.busy) return;
       gd.busy = true;
+      if (what === 'gdocs-reconnect') gd.connected = false; // its connection is there but lacks access: a new one
       try { await googleDocs(doc, gd, g, ui); } finally { gd.busy = false; }
       return;
     }
@@ -251,8 +253,10 @@ async function googleDocs(doc, st, g, ui) {
       ui.row(gdLabel(st));
       return ui.status("Google Docs isn't connected. Tap Google Docs again to connect it.", { error: true });
     }
+    // Google Docs wasn't given this access, or is signed out: Reconnect connects it again and saves (state "reconnect").
+    if (err.state === 'reconnect') st.connected = false;
     ui.row(gdLabel(st));
-    ui.status(err.message || "Couldn't save it to Google Docs", { error: true });
+    ui.status(err.message || "Couldn't save it to Google Docs", { error: true, reconnect: err.state === 'reconnect' });
   }
 }
 
