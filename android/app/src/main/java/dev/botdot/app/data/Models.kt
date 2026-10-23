@@ -1119,7 +1119,7 @@ data class AppInfo(val slug: String = "", val name: String = "", val description
 data class Connection(val id: String, val toolkit: String = "", val status: String = "", val app: AppInfo? = null, val usedBy: List<String> = emptyList())
 
 @Serializable
-data class ConnectorsInfo(val configured: Boolean = false, val keyHint: String? = null, val error: String? = null, val keyRejected: Boolean = false, val connections: List<Connection> = emptyList(), val reconnect: List<ReconnectApp> = emptyList())
+data class ConnectorsInfo(val configured: Boolean = false, val account: String? = null, val claimed: Boolean? = null, val claimInvite: String? = null, val claimInviteAt: String? = null, val keyHint: String? = null, val error: String? = null, val keyRejected: Boolean = false, val connections: List<Connection> = emptyList(), val reconnect: List<ReconnectApp> = emptyList())
 
 /** An app connected before a switch to another Composio account, offered with "Connect again" (#409). */
 @Serializable
