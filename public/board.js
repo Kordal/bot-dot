@@ -633,10 +633,10 @@ async function sendAsk() {
   try {
     await api(`/dashboard/tiles/${t.id}/change`, { method: 'POST', body: { text } });
   } catch (e) {
-    if (asking) asking.sending = false;
+    if (asking?.pop === pop) asking.sending = false;
     return toast(e.message, true);
   }
-  closeAsk();
+  if (asking?.pop === pop) closeAsk(); // not another tile's ask, opened while this one went
   tapped.set(t.id, `Sent to ${chiefName()}`);
   renderDashboard();
   setTimeout(() => { tapped.delete(t.id); renderDashboard(); }, 2500);
