@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadmap</title>
+<link rel="stylesheet" href="kit/botdot-kit.css">
+</head>
+<body>
+<div class="site">
+  <nav class="nav">
+    <span class="logo"><i></i><span id="name"></span></span>
+    <button class="link on" data-view="overview">Overview</button>
+    <button class="link" data-view="roadmap">Roadmap</button>
+    <button class="link" data-view="releases">Releases</button>
+    <button class="link" data-view="bots">Bots</button>
+    <span class="spacer"></span>
+    <input class="search" id="q" placeholder="⌘K Search" aria-label="Search">
+  </nav>
+
+  <header class="hero" data-panel="overview">
+    <div class="text">
+      <div class="eyebrow" id="asof"></div>
+      <h1 id="title"></h1>
+      <p id="lead"></p>
+    </div>
+    <div id="ring"></div>
+  </header>
+
+  <div data-panel="overview roadmap">
+    <div class="bar-row">
+      <span id="areas" style="display:contents"></span>
+      <span class="spacer"></span>
+      <select class="chip" id="sort" aria-label="Sort">
+        <option value="changed">Sort: last change</option>
+        <option value="title">Sort: name</option>
+        <option value="progress">Sort: progress</option>
+      </select>
+    </div>
+    <div class="kanban" id="board"></div>
+  </div>
+
+  <section class="section" data-panel="releases" hidden>
+    <h2>Releases</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Version</th><th>Date</th><th>What came</th><th>State</th></tr></thead>
+        <tbody id="releases"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" data-panel="bots" hidden>
+    <h2>Bots</h2>
+    <div class="grid c3" id="bots"></div>
+  </section>
+</div>
+<script src="kit/botdot-kit.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
