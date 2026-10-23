@@ -51,10 +51,21 @@ const Pages = (() => {
     if (typeof loadDash === 'function') loadDash(true);
     return true;
   }
-  // The viewer's "Board" button: the page goes on the Board or off it, and the button says so, with nothing reloaded.
+  // The viewer's "Board" button: it flips at once (#475), and back if the server says no, with nothing reloaded.
+  const boarding = new Set(); // "<botId>/<slug>" of a page going on the Board or off it
   async function toggleBoard(botId, page, btn) {
-    if (!page || !(await setBoard(botId, page, !page.onBoard))) return;
+    const key = `${botId}/${page?.slug}`;
+    if (!page || boarding.has(key)) return;
+    boarding.add(key);
+    const was = page.onBoard;
+    page.onBoard = !was;
     btn.outerHTML = boardBtn(page);
+    if (!(await setBoard(botId, page, !was))) {
+      page.onBoard = was;
+      const now = document.querySelector('#doc-viewer .pg-board');
+      if (now) now.outerHTML = boardBtn(page);
+    }
+    boarding.delete(key);
   }
 
   // The viewer's bar on a page: what keeps it up to date, or the button that does; and whether it is on the Board.
@@ -76,13 +87,16 @@ const Pages = (() => {
   }
 
   // "Keep up to date": how often, whether to hear of every update, and what to check. The tap is the consent: the
-  // job it makes runs with no card. Resolves true once the page keeps up to date (or keeps on another schedule).
-  function openKeep(botId, page, from) {
-    const keep = page.keep;
+  // job it makes runs with no card. The dialog closes at once and the save runs on with the corner pill (#475); its
+  // error opens the dialog again with what was entered. Resolves true once the page keeps up to date (or keeps on
+  // another schedule). draft: what was entered before, when the dialog opens again.
+  const saving = new Set(); // "<botId>/<slug>" of a page whose schedule is being saved
+  function openKeep(botId, page, from, draft = null) {
+    const keep = draft || page.keep;
     const every = keep?.every || 'day';
     const time = keep?.time || '07:00';
     return new Promise((resolve) => {
-      let done = false;
+      let body = null;
       const m = openModal(`
         <div class="modal-head"><h2>Keep “${esc(page.title)}” up to date</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
         <div class="modal-body pg-sheet">
@@ -102,26 +116,35 @@ const Pages = (() => {
           <button type="button" class="btn primary" id="pg-go">Keep it up to date</button>
         </div>`);
       $$('[name="pg-every"]', m).forEach((r) => (r.onchange = () => $('.pg-time', m).classList.toggle('hidden', r.value === 'hour' && r.checked)));
-      m.addEventListener('close', () => resolve(done), { once: true });
-      $('#pg-go', m).onclick = async () => {
-        $('#pg-go', m).disabled = true;
-        const body = { every: $('[name="pg-every"]:checked', m).value, time: $('#pg-time', m).value, notify: $('[name="pg-notify"]:checked', m).value, check: $('#pg-check', m).value };
-        try { await api(`${src(botId, page.slug)}/keep`, { method: 'POST', body }); } catch (e) { $('#pg-go', m).disabled = false; return toast(e.message, true); }
-        done = true;
-        toast('It keeps up to date now');
+      m.addEventListener('close', () => (body ? saveKeep(botId, page, from, body).then(resolve) : resolve(false)), { once: true });
+      $('#pg-go', m).onclick = () => {
+        body = { every: $('[name="pg-every"]:checked', m).value, time: $('#pg-time', m).value, notify: $('[name="pg-notify"]:checked', m).value, check: $('#pg-check', m).value };
         m.close();
       };
     });
   }
+  async function saveKeep(botId, page, from, body) {
+    const key = `${botId}/${page.slug}`;
+    saving.add(key);
+    try {
+      return await inBackground('Saving schedule…', () => api(`${src(botId, page.slug)}/keep`, { method: 'POST', body }),
+        { ok: 'It keeps up to date now', retry: () => openKeep(botId, page, from, body) });
+    } finally { saving.delete(key); }
+  }
 
-  // The viewer's buttons on a page. Resolves true when the page should be read again.
+  // The viewer's buttons on a page, each done at once with the corner pill (#475). Resolves true when the page should
+  // be read again.
   async function act(what, botId, page, from) {
     if (!page) return false;
+    if (saving.has(`${botId}/${page.slug}`)) return false; // its schedule is still being saved: the pill says so
+    const again = () => act(what, botId, page, from);
     if (what === 'keep') return openKeep(botId, page, from);
-    try {
-      if (what === 'refresh') { await api(`/bots/${encodeURIComponent(botId)}/jobs/${encodeURIComponent(page.keep.jobId)}/run`, { method: 'POST' }); toast(`${from || 'The bot'} is refreshing it`); return false; }
-      if (what === 'stop') { await api(`${src(botId, page.slug)}/keep`, { method: 'DELETE' }); toast('It no longer keeps up to date'); return true; }
-    } catch (e) { toast(e.message, true); }
+    if (what === 'refresh') {
+      await inBackground('Starting the refresh…', () => api(`/bots/${encodeURIComponent(botId)}/jobs/${encodeURIComponent(page.keep.jobId)}/run`, { method: 'POST' }),
+        { ok: `${from || 'The bot'} is refreshing it`, retry: again });
+      return false;
+    }
+    if (what === 'stop') return inBackground('Stopping…', () => api(`${src(botId, page.slug)}/keep`, { method: 'DELETE' }), { ok: 'It no longer keeps up to date', retry: again });
     return false;
   }
 
