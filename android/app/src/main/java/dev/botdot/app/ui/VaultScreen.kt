@@ -5,6 +5,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -84,6 +86,8 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     var addingFile by remember { mutableStateOf(false) }
     var master by remember { mutableStateOf("") }
     var removingFile by remember { mutableStateOf<SecretFilePlace?>(null) }
+    // Saves, Sync and Lock run on after the tap, with a line that says how they go (#478).
+    val work = rememberWork()
 
     suspend fun load() {
         val a = api ?: return
@@ -97,6 +101,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
         topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("🔐 Vault", style = MaterialTheme.typography.titleMedium) }) },
+        bottomBar = { work.now?.let { w -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), contentAlignment = Alignment.Center) { WorkLine(w) { work.now = null } } } },
     ) { pad ->
         val b = bw ?: return@Scaffold
         val locked = b.configured && !b.unlocked
@@ -125,8 +130,9 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
                     Row(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("🛡 ${b.email ?: b.server ?: "Bitwarden"} · ${b.items ?: 0} item${if (b.items == 1) "" else "s"}${b.lastSync?.let { " · synced ${shortTime(it)}" } ?: ""}",
                             color = p.muted, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
-                        TextButton(onClick = { scope.launch { runCatching { api!!.syncBitwarden() }.onSuccess { tell("Synced") }.onError { tell(it.message ?: "Couldn't sync") }; load() } }) { Text("Sync", color = p.text) }
-                        TextButton(onClick = { scope.launch { runCatching { api!!.lockBitwarden() }.onSuccess { tell("Locked") }.onError { tell(it.message ?: "Couldn't lock") }; load() } }) { Text("Lock", color = p.text) }
+                        fun sync() { work.run("Syncing…", { "Synced" }, retry = ::sync) { try { api!!.syncBitwarden() } finally { load() } } }
+                        TextButton(onClick = ::sync, enabled = !work.busy) { Text("Sync", color = p.text) }
+                        TextButton(onClick = { work.run("Locking…", { "Locked" }) { try { api!!.lockBitwarden() } finally { load() } } }, enabled = !work.busy) { Text("Lock", color = p.text) }
                     }
                 }
             }
@@ -153,12 +159,12 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     val done: (String?) -> Unit = { msg -> editing = null; adding = false; msg?.let(::tell); scope.launch { load() } }
     val allBots = bots.orEmpty()
     when {
-        adding -> LoginEditor(null, allBots, bw?.configured == true, features, api, done) { adding = false }
-        editing?.kind == "login" -> LoginEditor(editing, allBots, bw?.configured == true, features, api, done) { editing = null }
-        editing != null -> ItemBots(editing!!, allBots, api, done) { editing = null }
-        addingKey -> SshKeyEditor(allBots, api, { key -> addingKey = false; addedKey = key; scope.launch { load() } }) { addingKey = false }
+        adding -> LoginEditor(null, allBots, bw?.configured == true, features, api, work, done) { adding = false }
+        editing?.kind == "login" -> LoginEditor(editing, allBots, bw?.configured == true, features, api, work, done) { editing = null }
+        editing != null -> ItemBots(editing!!, allBots, api, work, done) { editing = null }
+        addingKey -> SshKeyEditor(allBots, api, work, { key -> addingKey = false; addedKey = key; scope.launch { load() } }) { addingKey = false }
         addedKey != null -> SshPublicKey(addedKey!!) { addedKey = null }
-        addingFile -> FileEditor(allBots, api, { addingFile = false; tell("Saved"); scope.launch { load() } }) { addingFile = false }
+        addingFile -> FileEditor(allBots, api, work, { addingFile = false; scope.launch { load() } }) { addingFile = false }
         removingFile != null -> {
             val f = removingFile!!
             AlertDialog(onDismissRequest = { removingFile = null }, title = { Text("Remove the file?") },
@@ -177,7 +183,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
  * 64 KB, read here and sent once. Only its name and size are shown again.
  */
 @Composable
-private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: () -> Unit, close: () -> Unit) {
+private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, work: WorkState, added: () -> Unit, close: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -185,7 +191,8 @@ private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: ()
     var picked by remember { mutableStateOf<Pair<String, ByteArray>?>(null) }
     var chosen by remember { mutableStateOf(emptySet<String>()) }
     var error by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
+    // Set aside while it saves (#478): gone at once, back with the server's sentence when refused.
+    var aside by remember { mutableStateOf(false) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -203,7 +210,7 @@ private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: ()
             }
         }
     }
-    AlertDialog(onDismissRequest = { picked = null; close() }, title = { Text("📄 Add a file") }, text = {
+    if (!aside) AlertDialog(onDismissRequest = { picked = null; close() }, title = { Text("📄 Add a file") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(picked?.let { "${it.first} · ${VaultTypes.fileSize(it.second.size.toLong())}" } ?: "Pick the file", color = p.text) }
             Hint("Any file, at most 64 KB. Saved in your Bitwarden's bot-dot folder: bots never see what is in it, and you can't see it here again.")
@@ -214,18 +221,15 @@ private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: ()
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
         }
     }, confirmButton = {
-        TextButton(enabled = !busy && picked != null, onClick = {
+        TextButton(enabled = !work.busy && picked != null, onClick = {
             picked?.let { (fileName, bytes) ->
-                busy = true
-                scope.launch {
-                    runCatching { api!!.addFile(name.trim(), fileName, bytes, chosen.toList()) }
-                        .onSuccess { picked = null; added() }
-                        // Refused: the server's sentence, in the form, which stays open.
-                        .onError { error = it.message ?: "Couldn't save" }
-                    busy = false
+                aside = true
+                // Refused: the server's sentence, in the form, which comes back as it was.
+                work.run("Adding the file…", { "Saved" }, refused = { error = it; aside = false }) {
+                    api!!.addFile(name.trim(), fileName, bytes, chosen.toList()); picked = null; added()
                 }
             }
-        }) { Text(if (busy) "Saving…" else "Add file", color = p.text) }
+        }) { Text("Add file", color = p.text) }
     }, dismissButton = { TextButton(onClick = { picked = null; close() }) { Text("Cancel", color = p.text) } })
 }
 
@@ -246,7 +250,7 @@ private fun readBytesAtMost(input: java.io.InputStream, limit: Int): ByteArray {
  * the owner picks, or none, and botdot makes a new one. The key goes to the server once and is never shown again.
  */
 @Composable
-private fun SshKeyEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: (VaultItem) -> Unit, close: () -> Unit) {
+private fun SshKeyEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, work: WorkState, added: (VaultItem) -> Unit, close: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -254,7 +258,8 @@ private fun SshKeyEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: 
     var key by remember { mutableStateOf("") }
     var chosen by remember { mutableStateOf(emptySet<String>()) }
     var error by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
+    // Set aside while it saves (#478): gone at once, back with the server's sentence when refused.
+    var aside by remember { mutableStateOf(false) }
     // The system's file picker; the file is read here, at most 64 KB (an SSH private key is a few).
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -269,7 +274,7 @@ private fun SshKeyEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: 
             }
         }
     }
-    AlertDialog(onDismissRequest = { key = ""; close() }, title = { Text("🗝️ Add an SSH key") }, text = {
+    if (!aside) AlertDialog(onDismissRequest = { key = ""; close() }, title = { Text("🗝️ Add an SSH key") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(name, { name = it.take(100) }, label = { Text("Name") }, placeholder = { Text("Home servers") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(key, { key = it }, label = { Text("Private key") }, placeholder = { Text("-----BEGIN OPENSSH PRIVATE KEY-----") }, minLines = 3, maxLines = 6,
@@ -282,16 +287,14 @@ private fun SshKeyEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, added: 
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
         }
     }, confirmButton = {
-        TextButton(enabled = !busy && name.isNotBlank(), onClick = {
-            busy = true
-            scope.launch {
-                runCatching { api!!.addSshKey(name.trim(), key.trim().ifEmpty { null }, chosen.toList()) }
-                    .onSuccess { key = ""; added(it) }
-                    // Refused: the server's sentence, in the form, which stays open with what was given.
-                    .onError { error = it.message ?: "Couldn't save" }
-                busy = false
+        TextButton(enabled = !work.busy && name.isNotBlank(), onClick = {
+            aside = true
+            val given = key.isNotBlank()
+            // Refused: the server's sentence, in the form, which comes back with what was given.
+            work.run(if (given) "Adding the key…" else "Generating a key…", { if (given) "Key added" else "Key made" }, refused = { error = it; aside = false }) {
+                val made = api!!.addSshKey(name.trim(), key.trim().ifEmpty { null }, chosen.toList()); key = ""; added(made)
             }
-        }) { Text(if (busy) "Saving…" else if (key.isBlank()) "Generate new key" else "Add key", color = p.text) }
+        }) { Text(if (key.isBlank()) "Generate new key" else "Add key", color = p.text) }
     }, dismissButton = { TextButton(onClick = { key = ""; close() }) { Text("Cancel", color = p.text) } })
 }
 
@@ -404,7 +407,7 @@ private fun BitwardenSetup(onConnect: (server: String, serverUrl: String, client
  * follow it at once (VaultTypes). The secret is write-only: empty keeps the saved one.
  */
 @Composable
-private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, features: Collection<String>?, api: dev.botdot.app.data.Api?, done: (String?) -> Unit, close: () -> Unit) {
+private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, features: Collection<String>?, api: dev.botdot.app.data.Api?, work: WorkState, done: (String?) -> Unit, close: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(item?.name.orEmpty()) }
@@ -420,11 +423,12 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
     val showsInComputer = VaultTypes.showsInComputer(features)
     var chosen by remember { mutableStateOf(item?.allowedBots.orEmpty().toSet()) }
     var error by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
+    // Set aside while it saves (#478): gone at once, back with the server's sentence when refused.
+    var aside by remember { mutableStateOf(false) }
     var askDelete by remember { mutableStateOf(false) }
     val pick = rememberSecretFilePick({ pw = it; error = null }) { error = it }
 
-    AlertDialog(onDismissRequest = close, title = { Text(item?.let { "Edit ${it.name}" } ?: "Add to the Vault") }, text = {
+    if (!aside) AlertDialog(onDismissRequest = close, title = { Text(item?.let { "Edit ${it.name}" } ?: "Add to the Vault") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // A type with its own address (a GitHub App's api.github.com) fills an empty address field.
             if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.options(features, item?.type)) { type = it; VaultTypes.of(it).site?.let { s -> if (site.isBlank()) site = s } }
@@ -450,20 +454,17 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
                 CheckRow("${b.emoji} ${b.name}", if (b.computer == "linux") null else "No computer, so it can't sign in to websites", b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id }
             }
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
-            if (item != null) TextButton(onClick = { askDelete = true }, enabled = !busy) { Text("Delete", color = p.err) }
+            if (item != null) TextButton(onClick = { askDelete = true }, enabled = !work.busy) { Text("Delete", color = p.err) }
         }
     }, confirmButton = {
-        TextButton(enabled = !busy && name.isNotBlank() && site.isNotBlank() && (item != null || pw.isNotEmpty()), onClick = {
-            busy = true
-            scope.launch {
-                runCatching {
-                    val sent = VaultTypes.sent(type, user, features, saved = item?.type)
-                    api!!.saveVaultLogin(item?.id, name.trim(), site, sent.username, pw, insecure, chosen.toList(),
-                        hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type, if (showsInComputer) inComputer else null)
-                }.onSuccess { pw = ""; done(if (bitwarden) "Saved in Bitwarden" else "Saved") }
-                    // A refused save: the server's sentence, the form as it was typed, the secret cleared (docs/api.md).
-                    .onError { pw = ""; error = it.message ?: "Couldn't save" }
-                busy = false
+        TextButton(enabled = !work.busy && name.isNotBlank() && site.isNotBlank() && (item != null || pw.isNotEmpty()), onClick = {
+            aside = true
+            // A refused save: the server's sentence, the form as it was typed, the secret cleared (docs/api.md).
+            work.run("Saving…", { if (bitwarden) "Saved in Bitwarden" else "Saved" }, refused = { pw = ""; error = it; aside = false }) {
+                val sent = VaultTypes.sent(type, user, features, saved = item?.type)
+                api!!.saveVaultLogin(item?.id, name.trim(), site, sent.username, pw, insecure, chosen.toList(),
+                    hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type, if (showsInComputer) inComputer else null)
+                pw = ""; done(null)
             }
         }) { Text("Save", color = p.text) }
     }, dismissButton = { TextButton(onClick = close) { Text("Cancel", color = p.text) } })
@@ -484,20 +485,22 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
 
 /** Which bots may use a card or an identity; the details themselves are changed in Bitwarden. */
 @Composable
-private fun ItemBots(item: VaultItem, bots: List<Bot>, api: dev.botdot.app.data.Api?, done: (String?) -> Unit, close: () -> Unit) {
+private fun ItemBots(item: VaultItem, bots: List<Bot>, api: dev.botdot.app.data.Api?, work: WorkState, done: (String?) -> Unit, close: () -> Unit) {
     val p = LocalPaper.current
-    val scope = rememberCoroutineScope()
     var chosen by remember { mutableStateOf(item.allowedBots.toSet()) }
     var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(onDismissRequest = close, title = { Text("${KIND_ICON[item.kind] ?: ""} ${item.name}") }, text = {
+    // Set aside while it saves (#478): gone at once, back with the server's sentence when refused.
+    var aside by remember { mutableStateOf(false) }
+    if (!aside) AlertDialog(onDismissRequest = close, title = { Text("${KIND_ICON[item.kind] ?: ""} ${item.name}") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Hint(VaultTypes.itemBotsHint(item.kind) + " Change the details themselves in Bitwarden.")
             bots.forEach { b -> CheckRow("${b.emoji} ${b.name}", null, b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id } }
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
         }
     }, confirmButton = {
-        TextButton(onClick = {
-            scope.launch { runCatching { api!!.setVaultBots(item.id, chosen.toList()) }.onSuccess { done("Saved") }.onError { error = it.message ?: "Couldn't save" } }
+        TextButton(enabled = !work.busy, onClick = {
+            aside = true
+            work.run("Saving…", { "Saved" }, refused = { error = it; aside = false }) { api!!.setVaultBots(item.id, chosen.toList()); done(null) }
         }) { Text("Save", color = p.text) }
     }, dismissButton = { TextButton(onClick = close) { Text("Cancel", color = p.text) } })
 }

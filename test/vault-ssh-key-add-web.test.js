@@ -27,8 +27,9 @@ test('web: the dialog sends the pasted or picked key, or asks for a new one, and
   assert.match(editor, /\.\.\.\(privateKey \? \{ privateKey \} : \{ generate: true \}\)/, 'an empty field generates');
   assert.match(editor, /api\('\/vault\/ssh-keys', \{ method: 'POST', body \}\)/);
   assert.match(editor, /'Add key' : 'Generate new key'/);
-  assert.match(editor, /refused\.textContent = err\.message/, "a refusal is the server's sentence, in the form");
-  assert.match(editor, /addEventListener\('close', \(\) => \{ form\.privateKey\.value = ''; \}/, 'closing it forgets the key');
+  assert.match(editor, /setAside\(m, privateKey \? 'Adding the key…' : 'Generating a key…'/, "set aside while it saves; refused, it comes back with the server's sentence in the form (#478)");
+  assert.match(editor, /const forget = \(\) => \{ if \(aside\) return; form\.privateKey\.value = '';/, 'closing it forgets the key, unless it is only set aside');
+  assert.match(editor, /body\.privateKey = null;/, 'and the request keeps none after the answer');
 });
 
 test('web: afterwards the public key is shown, escaped, with a copy button, and never the private key', () => {

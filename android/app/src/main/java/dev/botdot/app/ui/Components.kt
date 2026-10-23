@@ -1,5 +1,10 @@
 package dev.botdot.app.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -949,5 +954,48 @@ fun Questions(questions: List<String>?, onSend: suspend (String, String) -> Bool
             enabled = canSend,
             modifier = Modifier.align(Alignment.End),
         ) { Text("Send") }
+    }
+}
+
+/** Work that runs on after the tap (#475, #478): [kind] is busy, ok or err; [retry]: what a tap on an error does. */
+internal data class Work(val kind: String, val text: String, val retry: (() -> Unit)? = null)
+
+/** A screen's work that runs on after the tap (#478), as Bitwarden's unlock does, and the line that says how it goes. */
+internal class WorkState(private val scope: CoroutineScope) {
+    var now by mutableStateOf<Work?>(null)
+    val busy get() = now?.kind == "busy"
+
+    /**
+     * [words] while [act] runs, then [ok] (gone by itself). On an error, [refused] gets its sentence when given (a dialog
+     * that comes back with it); otherwise the line says it, and its tap tries again with [retry].
+     */
+    fun run(words: String, ok: () -> String, retry: (() -> Unit)? = null, refused: ((String) -> Unit)? = null, act: suspend () -> Unit) {
+        now = Work("busy", words)
+        scope.launch {
+            runCatching { act() }
+                .onSuccess { val w = Work("ok", ok()); now = w; kotlinx.coroutines.delay(2500); if (now === w) now = null }
+                .onError { val said = it.message ?: "Couldn't do it"; if (refused != null) { now = null; refused(said) } else now = Work("err", said, retry) }
+        }
+    }
+}
+
+@Composable
+internal fun rememberWork(): WorkState {
+    val scope = rememberCoroutineScope()
+    return remember { WorkState(scope) }
+}
+
+/** The line that says how work that runs on goes (#475, #478): a pulsing dot, then done, or the error to tap. */
+@Composable
+internal fun WorkLine(w: Work, modifier: Modifier = Modifier, onClose: () -> Unit) {
+    val p = LocalPaper.current
+    val a by rememberInfiniteTransition(label = "work").animateFloat(1f, if (w.kind == "busy") 0.35f else 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "a")
+    val err = w.kind == "err"
+    Row(modifier.clip(RoundedCornerShape(99.dp)).background(if (err) p.errSoft else p.sunk)
+        .then(if (err) Modifier.clickable { onClose(); w.retry?.invoke() } else Modifier).padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.size(8.dp).alpha(a).clip(CircleShape).background(when (w.kind) { "ok" -> p.ok; "err" -> p.err; else -> p.dot }))
+        Text(w.text, color = if (err) p.err else p.text, fontSize = 13.sp)
+        if (err) Text("✕", color = p.err, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onClose))
     }
 }

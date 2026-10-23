@@ -517,14 +517,15 @@ async function openDuplicate(b) {
       <button type="button" class="btn" data-dismiss>Cancel</button>
       <button type="button" class="btn primary" id="dup-go" ${plan.vaultLocked ? 'disabled' : ''}>Duplicate</button>
     </div>`);
+  // The dialog goes away at once and the copy is made with the corner pill (#478); refused (a name in use, say), it
+  // comes back as it was. The copy's chat opens when the owner is still where they asked for it.
   $('#dup-go', m).onclick = async () => {
-    $('#dup-go', m).disabled = true;
+    const name = $('#dup-name', m).value;
+    const from = [state.view, state.botId].join('/');
     let made;
-    try { made = await api(`/bots/${b.id}/duplicate`, { method: 'POST', body: { name: $('#dup-name', m).value } }); } catch (e) { $('#dup-go', m).disabled = false; return toast(e.message, true); }
-    m.close();
-    toast(`${made.name} made`);
+    if (!(await setAside(m, `Duplicating ${b.name}…`, async () => { made = await api(`/bots/${b.id}/duplicate`, { method: 'POST', body: { name } }); }, { ok: () => `${made.name} made` }))) return;
     await refresh();
-    setView('bot', made.id);
+    if ([state.view, state.botId].join('/') === from && !$('#modal').open) setView('bot', made.id);
   };
 }
 
