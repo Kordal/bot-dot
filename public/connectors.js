@@ -128,7 +128,9 @@ function drawConnectors() {
   $$('[data-disconnect]', root).forEach((b) => (b.onclick = async () => {
     const c = d.connections.find((x) => x.id === b.dataset.disconnect);
     if (!confirm(`Disconnect ${c?.app?.name || c?.toolkit}? Bots lose access, and Composio revokes its access to your account.`)) return;
-    try { await api(`/connectors/connections/${encodeURIComponent(b.dataset.disconnect)}`, { method: 'DELETE' }); toast('Disconnected'); await refresh(); renderConnectors(true); } catch (e) { toast(e.message, true); }
+    try { const r = await api(`/connectors/connections/${encodeURIComponent(b.dataset.disconnect)}`, { method: 'DELETE' }); toast(r?.note || 'Disconnected'); } catch (e) { toast(e.message, true); }
+    await refresh();
+    renderConnectors(true);
   }));
   const replace = $('#conn-replace');
   if (replace) replace.onclick = () => { conn.replacing = true; drawConnectors(); $('#conn-key input').focus(); };
