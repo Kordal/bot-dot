@@ -130,15 +130,16 @@ fun SettingsScreen(
         topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("Settings", style = MaterialTheme.typography.titleMedium) }) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Section("Default model and reasoning") {
+            // Every section folds, closed whenever Settings opens; the links under More stay open.
+            FoldSection("Default model and reasoning") {
                 Choice("Model", edit.defaultModel, models) { edit = edit.copy(defaultModel = it) }
                 if (canThink(edit.defaultModel)) Choice("Reasoning", edit.defaultEffort, efforts) { edit = edit.copy(defaultEffort = it) }
+                Button(
+                    onClick = { scope.launch { runCatching { api!!.saveSettings(edit) }.onSuccess { info = it; edit = it.settings; tell("Saved. New runs use it.") }.onError { tell(it.message ?: "Couldn't save") } } },
+                    enabled = edit != info.settings, modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
+                ) { Text("Save") }
             }
-            Button(
-                onClick = { scope.launch { runCatching { api!!.saveSettings(edit) }.onSuccess { info = it; edit = it.settings; tell("Saved. New runs use it.") }.onError { tell(it.message ?: "Couldn't save") } } },
-                enabled = edit != info.settings, modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
-            ) { Text("Save") }
 
             // Usage (#301): only from a server that counts it.
             val usageApi = api
@@ -154,7 +155,7 @@ fun SettingsScreen(
                         load()
                     }
                 }
-                Section("✳︎ Claude") {
+                FoldSection("✳︎ Claude") {
                     if (keys && keyOpen && loginUrl == null) {
                         Hint("Paste an Anthropic API key. Make one in the Claude Console (console.anthropic.com → API keys). botdot checks it with Anthropic, keeps it encrypted and never shows it again.")
                         OutlinedTextField(apiKey, { apiKey = it.trim() }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
@@ -213,7 +214,7 @@ fun SettingsScreen(
             }
 
             backups?.let { b ->
-                Section("Backups") {
+                FoldSection("Backups") {
                     if (!b.configured) Hint("Turn them on with a passphrase on botdot's web page (Settings → Backups).")
                     else {
                         Hint(if (backingUp || b.running) "Backing up…" else (b.last?.let { "Last backup ${shortTime(it.at)} · ${b.count} kept" } ?: "No backup yet") + ". Every night at 03:00.")
@@ -236,7 +237,7 @@ fun SettingsScreen(
             }
 
             update?.let { u ->
-                Section("Updates") {
+                FoldSection("Updates") {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Update automatically", color = p.text, style = MaterialTheme.typography.bodyLarge)
@@ -260,7 +261,8 @@ fun SettingsScreen(
 
             // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in again.
             if (server?.features?.contains("accounts") == true) {
-                Section("Sign-ins", "Signs out this phone and every browser and app signed in to your account. Each signs in again with your passkey.") {
+                FoldSection("Sign-ins") {
+                    Hint("Signs out this phone and every browser and app signed in to your account. Each signs in again with your passkey.")
                     OutlinedButton(onClick = { confirmSignOut = true }) { Text("Sign out everywhere", color = p.text) }
                 }
             }
