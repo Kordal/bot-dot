@@ -16,7 +16,7 @@ Every bot with a computer works on the account's one computer (ADR 035): a conta
 - **One machine per bot**, made on its first computer tool and started again on the next one after it stopped. It stops after 30 minutes unused; boat.dev's own auto-stop (2 hours, pushed back on use) is the net under a botdot that stopped.
 - **The admin's key**, set on the admin page, checked with one call (`GET /me`) before it is kept, never answered, and handed to each account by the front door every minute, as the group router's key (ADR 082).
 - **When boat.dev can't start the machine** (no key, refused, unreachable), the bot's commands run on the account's computer for that run, and `run_shell` says so: a bot keeps working, and nobody is misled about where.
-- **The Chief's setting a bot to boat.dev waits for the owner's OK**, as a new computer does; the owner's own switch does not.
+- **The Chief's change of a bot's computer waits for the owner's OK**: to boat.dev, which costs, and from one computer to the other, as a new computer does. Taking a computer away does not wait, nor does the owner's own switch.
 
 ## Alternatives
 
