@@ -699,14 +699,19 @@ function handRouter() {
   const body = groupRouter.forAccounts();
   for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/group-router', body, 5000);
 }
-// The admin's boat.dev key (#529): handed the same way, on a change and, while one is set, every minute. Without
-// one there is nothing to hand: an account starts with none.
+// The admin's boat.dev key (#529): handed the same way, on a change and, while one is set, every minute. A removed
+// key is handed every minute too until each account took it; after that there is nothing to hand: an account starts
+// with none.
 const boat = ONE_ACCOUNT ? null : boatStore.open(DATA);
+let boatRemovedFrom = new Set(); // the accounts that still had the key when it was removed
 function handBoat(changed = false) {
   if (!boat) return;
   const body = boat.forAccounts();
-  if (!body.key && !changed) return;
-  for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/boat', body, 5000);
+  const names = doors.listAccounts().map((a) => a.name);
+  if (changed) boatRemovedFrom = new Set(body.key ? [] : names);
+  for (const name of body.key ? names : [...boatRemovedFrom]) {
+    askAccount(name, 'POST', '/api/boat', body, 5000).then((r) => { if (!body.key && (r.status === 200 || !doors.accountExists(name))) boatRemovedFrom.delete(name); });
+  }
 }
 if (boat) {
   setTimeout(() => handBoat(), 3000).unref();
@@ -964,6 +969,7 @@ async function adminRoutes(req, res, p, account) {
     if (key) {
       const checked = await boatLib.checkKey(key);
       if (checked === 'refused') return send(res, 400, { error: 'boat.dev refused this key.' });
+      if (checked === 'billing') return send(res, 400, { error: 'boat.dev wants a plan or a payment method on this account first.' });
       if (checked === 'unreachable') return send(res, 502, { error: "boat.dev can't be reached. Try again." });
     }
     const shown = boat.set(key);

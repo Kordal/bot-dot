@@ -55,6 +55,7 @@ test('the admin key is checked with one call to boat.dev before it is kept', asy
   assert.equal(await boatLib.checkKey(`boat_${'y'.repeat(16)}`, { fetch: b.fetch }), 'refused');
   assert.equal(await boatLib.checkKey('no', { fetch: b.fetch }), 'refused', 'no call for what is no key');
   assert.equal(await boatLib.checkKey(KEY, { fetch: async () => { throw new Error('down'); } }), 'unreachable');
+  assert.equal(await boatLib.checkKey(KEY, { fetch: async () => ({ ok: false, status: 402, json: async () => ({ code: 'billing_required' }) }) }), 'billing', 'a good key on an account without a plan');
 });
 
 test("a bot's first command makes its machine, the next ones use it, and it stays the bot's across a restart", async (t) => {
@@ -143,6 +144,68 @@ test("when boat.dev can't start the machine, the account's computer runs the com
   assert.equal(r.stdout, 'on the account');
   assert.match(r.error, /ran on the account's computer/);
   assert.deepEqual(got, ['ensure', 'runShell']);
+  assert.match((await f.runWithLogin('coder', { command: 'x' })).error, /no saved login/, "its Vault secrets don't go to the account's computer either");
+  assert.match((await f.readFile('coder', { path: 'a' })).error, /ran on the account's computer/, 'a file read says so too');
+  assert.deepEqual(got, ['ensure', 'runShell', 'readFile']);
+});
+
+test("a machine that boat.dev can't start again mid-run hands over to the account's computer", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  let down = false;
+  const fetch = (url, opts) => (down ? Promise.reject(new Error('down')) : b.fetch(url, opts));
+  const boat = boatLib.create(dir(), { fetch, sleep: async () => {}, now: () => (down ? 1e13 : 1e6) });
+  const { f, got } = facadeWith(boat);
+  await f.ensureMachine('coder');
+  assert.equal((await f.runShell('coder', { command: 'ls' })).stdout, 'ran: ls');
+  await boat.restIdle(); // still keyed, but boat.dev is down from here on
+  down = true;
+  await boat.restIdle();
+  const r = await f.runShell('coder', { command: 'ls' });
+  assert.equal(r.stdout, 'on the account');
+  assert.match(r.error, /ran on the account's computer/);
+  assert.deepEqual(got, ['runShell']);
+});
+
+test('a command right after an idle stop waits for the stop, then starts the machine again', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  let now = 1_000_000;
+  let release;
+  const held = new Promise((r) => { release = r; });
+  // boat.dev answers the stop only once let go, and says running for a moment after it
+  let stops = 0;
+  const fetch = async (url, opts) => {
+    if (url.endsWith('/stop')) { stops++; await held; const r = await b.fetch(url, opts); [...b.machines.values()][0].state = 'running'; setTimeout(() => { [...b.machines.values()][0].state = 'archived'; }, 0); return r; }
+    return b.fetch(url, opts);
+  };
+  const boat = boatLib.create(dir(), { fetch, sleep: () => new Promise((r) => setTimeout(r, 1)), now: () => now, restAfterMs: 60_000 });
+  await boat.runShell('coder', { command: 'ls' });
+  now += 120_000;
+  const resting = boat.restIdle();
+  const ran = boat.runShell('coder', { command: 'pwd' });
+  release();
+  await resting;
+  const r = await ran;
+  assert.equal(r.code, 0);
+  assert.equal(stops, 1);
+  assert.ok(b.calls.some((c) => c.path.endsWith('/resume')), 'started again after the stop, not run on a stopping machine');
+});
+
+test("without a key, idle machines are kept in mind and stopped once a key is back", async () => {
+  boatLib.setKey(KEY);
+  const b = fakeBoat();
+  let now = 1_000_000;
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 60_000 });
+  await boat.runShell('coder', { command: 'ls' });
+  boatLib.setKey(null);
+  now += 120_000;
+  assert.deepEqual(await boat.restIdle(), []);
+  boatLib.setKey(KEY);
+  assert.deepEqual(await boat.restIdle(), ['coder']);
+  boatLib.setKey(null);
 });
 
 test("a bot on the account's computer is not touched by boat.dev", async () => {
