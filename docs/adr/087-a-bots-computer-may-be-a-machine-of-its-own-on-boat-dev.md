@@ -1,4 +1,4 @@
-# ADR-086: A bot's computer may be a machine of its own on boat.dev
+# ADR-087: A bot's computer may be a machine of its own on boat.dev
 
 - **Status:** Accepted (2026-10-24)
 - **Owning task:** [#529](https://github.com/Kordal/bot-dot/issues/529)

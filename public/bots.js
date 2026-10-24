@@ -202,7 +202,7 @@ function renderBotSettings(force = false) {
   const b = bot;
   const docker = state.status?.docker?.ok;
   // A bot's computer: its screen on the account's computer, or a machine of its own on boat.dev once the admin set
-  // a key there (ADR 086).
+  // a key there (ADR 087).
   const hasComputer = b.computer === 'linux' || b.computer === 'boat';
   const boatChoice = state.features.includes('boat-computer') && (state.status?.boat || b.computer === 'boat');
   const knownTools = new Set(PERMS.flatMap((p) => p.tools));
