@@ -155,7 +155,7 @@ data class JobChange(
             return JobChange(
                 o["name"].textOrNull(), o["kind"].textOrNull(), o["when"].textOrNull(), whole("prompt"), whole("script"), o["by"].textOrNull(), o["notify"].textOrNull(), o["aiWhen"].textOrNull(), o["at"].textOrNull(), whole("summary")?.trim()?.ifEmpty { null },
                 (o["call"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull, o["callMode"].textOrNull(), o["notifyUrl"].textOrNull(),
-                loginNames(o["logins"]).orEmpty(),
+                loginNames(o["logins"]),
             )
         }
     }
