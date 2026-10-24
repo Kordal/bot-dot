@@ -34,6 +34,6 @@ The bot used `browser_navigate` in 4 tasks of 10 (the price, settings, help, the
 
 ## Consequences
 
-- On a machine that switches it on, a task that clicks through a few pages to one takes a step instead of one per page; other tasks are as today. Over the bench, 4% faster at the median, with the same success and about the same cost.
+- On a machine that switches it on, a task that clicks through a few pages to one takes a step instead of one per page; other tasks are as today. Over the bench, 4% faster at the median, with the same success; Claude's cost per task 17% more over all ten tasks ($0.0246 against $0.0210) and 6% less over the eight of the bench's own site ($0.0216 against $0.0229).
 - Each page `browser_navigate` or a `what` reads goes to OpenRouter and TypeSafe, as a group message does with Jev.
 - A wrong pick by Jev is a click on another control of the same page; the bot sees where it landed in the tree it gets back.
