@@ -700,7 +700,7 @@ function handRouter() {
   for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/group-router', body, 5000);
 }
 // The admin's boat.dev key (#529): handed the same way, on a change and, while one is set, every minute. A removed
-// key is handed every minute too until each account took it; after that there is nothing to hand: an account starts
+// key is handed every minute too to each account that gave no answer yet; after that there is nothing to hand: an account starts
 // with none.
 const boat = ONE_ACCOUNT ? null : boatStore.open(DATA);
 let boatRemovedFrom = new Set(); // the accounts that still had the key when it was removed
@@ -710,7 +710,7 @@ function handBoat(changed = false) {
   const names = doors.listAccounts().map((a) => a.name);
   if (changed) boatRemovedFrom = new Set(body.key ? [] : names);
   for (const name of body.key ? names : [...boatRemovedFrom]) {
-    askAccount(name, 'POST', '/api/boat', body, 5000).then((r) => { if (!body.key && (r.status === 200 || !doors.accountExists(name))) boatRemovedFrom.delete(name); });
+    askAccount(name, 'POST', '/api/boat', body, 5000).then((r) => { if (!body.key && (r.status || !doors.accountExists(name))) boatRemovedFrom.delete(name); });
   }
 }
 if (boat) {
