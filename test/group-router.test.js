@@ -45,6 +45,7 @@ test('route answers the members it picked, or falls back with why, and never thr
 test('Jev is asked one yes/no question per member and one for everyone; its answer picks the two likeliest at 0.5 or more', () => {
   const body = router.jevRequest({ text: 'Disk is full', members: MEMBERS, recent: [{ who: 'QA Tester', text: 'Build 12 passed.' }] });
   assert.equal(body.model, router.JEV_MODEL);
+  assert.equal(router.JEV_MODEL, '~typesafe/jev-latest', 'always the newest Jev (#536)');
   assert.deepEqual(Object.keys(body.questions), ['everyone', 'm1', 'm2', 'm3']);
   assert.ok(Object.values(body.questions).every((q) => q.type === 'noul' && q.criteria.true && q.criteria.false));
   assert.ok(body.questions.m1.instructions.includes('Infra Admin') && body.questions.m1.instructions.includes('Keeps the servers up.'));
