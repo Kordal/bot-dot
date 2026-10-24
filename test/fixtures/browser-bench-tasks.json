@@ -1,0 +1,15 @@
+{
+  "about": "Browsing tasks of scripts/browser-bench.js. {site} is the bench's own site. answer: what the bot's last line must match (a regular expression, case-insensitive). posted: what the site must have received for the task, path and fields. live: on a public site, which may change.",
+  "tasks": [
+    { "id": "price", "start": "{site}/", "task": "Find the price of the shoe Trail Runner 3 in the shop.", "answer": "89\\.00" },
+    { "id": "missing", "start": "{site}/", "task": "Find the price of the shoe Moon Boots X in the shop. If the shop does not sell it, answer NOT FOUND.", "answer": "NOT FOUND" },
+    { "id": "docs-search", "start": "{site}/", "task": "Search the docs for rate limits and tell how many requests per minute the API allows.", "answer": "\\b120\\b" },
+    { "id": "paged", "start": "{site}/", "task": "Find order #1047 in the list of orders and tell its status.", "answer": "returned" },
+    { "id": "many-links", "start": "{site}/", "task": "Find the phone number of the Kraków office.", "answer": "555[ -]?0147" },
+    { "id": "form", "start": "{site}/", "task": "Subscribe to the newsletter as Ada Lovelace, with the email ada@example.com and the topic Release notes, agreeing to the terms. Answer DONE when the site confirms it.", "answer": "DONE", "posted": { "path": "/newsletter", "fields": { "name": "Ada Lovelace", "email": "ada@example.com", "topic": "release-notes", "agree": "on" } } },
+    { "id": "settings", "start": "{site}/", "task": "In the settings, turn the Weekly digest email on and the Product news email off, and save. Answer DONE when it is saved.", "answer": "DONE", "posted": { "path": "/settings/notifications", "fields": { "weekly": "on", "news": null } } },
+    { "id": "help", "start": "{site}/", "task": "In Help, find within how many days a refund can be asked for.", "answer": "\\b30\\b" },
+    { "id": "wikipedia", "start": "https://en.wikipedia.org/wiki/Python_(programming_language)", "task": "From this article, open the article about the person who designed Python and tell the year he was born.", "answer": "1956", "live": true },
+    { "id": "python-docs", "start": "https://docs.python.org/3/library/index.html", "task": "Open the documentation of the json module and tell the name of the function that serializes an object to a JSON formatted str.", "answer": "dumps", "live": true }
+  ]
+}

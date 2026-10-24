@@ -46,44 +46,52 @@ test('the admin chooses Jev with a key that OpenRouter takes; the key is never a
   const a = await signUp('ann', door.firstLink);
   const bob = await signUp('bob', { path: new URL((await a.post('/admin/links', {})).data.url).pathname });
   assert.equal((await bob.get('/admin/group-router')).status, 404, 'only the admin');
-  assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false });
+  assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false, browserPicker: false });
   // The accounts are handed the choice every while: Haiku until the admin chooses.
   await waitFor(() => (handed().length ? true : null), { what: 'the account to be handed the router' });
-  assert.deepEqual(JSON.parse(handed()[0].body), { router: 'haiku', key: null, wakeGate: false });
+  assert.deepEqual(JSON.parse(handed()[0].body), { router: 'haiku', key: null, wakeGate: false, browserPicker: false });
   assert.equal(handed()[0].headers['x-botdot-room'], '1', 'as the front door itself');
 
   assert.equal((await a.post('/admin/group-router', { router: 'jev' })).status, 400, 'Jev needs a key');
   assert.equal((await a.post('/admin/group-router', { router: 'gpt' })).status, 400);
   const refused = await a.post('/admin/group-router', { router: 'jev', key: BAD });
   assert.deepEqual([refused.status, refused.data.error], [400, 'OpenRouter refused this key.']);
-  assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false }, 'a refused key is not kept');
+  assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false, browserPicker: false }, 'a refused key is not kept');
   assert.equal(asked.at(-1).url, '/api/alpha/decisions');
 
   const chosen = await a.post('/admin/group-router', { router: 'jev', key: GOOD, wakeGate: false });
-  assert.deepEqual([chosen.status, chosen.data], [200, { router: 'jev', keySet: true, wakeGate: false }]);
+  assert.deepEqual([chosen.status, chosen.data], [200, { router: 'jev', keySet: true, wakeGate: false, browserPicker: false }]);
   assert.ok(!chosen.text.includes(GOOD) && !(await a.get('/admin/group-router')).text.includes(GOOD), 'the key is never answered');
   const file = path.join(door.data, 'group-router.json');
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
   await waitFor(() => (handed().some((r) => JSON.parse(r.body).router === 'jev') ? true : null), { what: 'the account to be handed Jev' });
-  assert.deepEqual(JSON.parse(handed().find((r) => JSON.parse(r.body).router === 'jev').body), { router: 'jev', key: GOOD, wakeGate: false });
+  assert.deepEqual(JSON.parse(handed().find((r) => JSON.parse(r.body).router === 'jev').body), { router: 'jev', key: GOOD, wakeGate: false, browserPicker: false });
   // Jev again, without a key: the one set stays.
-  assert.deepEqual((await a.post('/admin/group-router', { router: 'jev' })).data, { router: 'jev', keySet: true, wakeGate: false });
+  assert.deepEqual((await a.post('/admin/group-router', { router: 'jev' })).data, { router: 'jev', keySet: true, wakeGate: false, browserPicker: false });
   assert.ok(!door.log.join('').includes(GOOD), 'nor written to the log');
 
   // Haiku drops the key.
-  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku' })).data, { router: 'haiku', keySet: false, wakeGate: false });
+  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku' })).data, { router: 'haiku', keySet: false, wakeGate: false, browserPicker: false });
   assert.ok(!fs.readFileSync(file, 'utf8').includes(GOOD));
   const n = handed().length;
   await waitFor(() => (handed().slice(n).some((r) => JSON.parse(r.body).router === 'haiku') ? true : null), { what: 'the account to be handed Haiku' });
 
   // The wake gate (ADR 083): off until the admin switches it on; each account is handed it, and a choice of router
   // that does not send it keeps it.
-  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku', wakeGate: true })).data, { router: 'haiku', keySet: false, wakeGate: true });
+  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku', wakeGate: true })).data, { router: 'haiku', keySet: false, wakeGate: true, browserPicker: false });
   let m = handed().length;
   await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).wakeGate === true) ? true : null), { what: 'the account to be handed the wake gate' });
   assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku' })).data.wakeGate, true, 'kept when not sent');
   assert.equal(JSON.parse(fs.readFileSync(path.join(door.data, 'group-router.json'), 'utf8')).wakeGate, true);
-  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku', wakeGate: false })).data.wakeGate, false);
+  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku', wakeGate: false, browserPicker: false })).data.wakeGate, false);
   m = handed().length;
   await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).wakeGate === false) ? true : null), { what: 'the account to be handed the wake gate off' });
+
+  // Jev in the browser tools (ADR 085): the same, off until switched on, handed to each account and kept when not sent.
+  assert.equal((await a.post('/admin/group-router', { router: 'haiku', browserPicker: true })).data.browserPicker, true);
+  m = handed().length;
+  await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).browserPicker === true) ? true : null), { what: 'the account to be handed Jev in the browser' });
+  assert.equal((await a.post('/admin/group-router', { router: 'haiku', wakeGate: true })).data.browserPicker, true, 'kept when not sent');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(door.data, 'group-router.json'), 'utf8')).browserPicker, true);
+  assert.equal((await a.post('/admin/group-router', { router: 'haiku', browserPicker: false })).data.browserPicker, false);
 });
