@@ -243,7 +243,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -657,6 +657,7 @@ async function api(req, res, url, replay = null) {
 
 // A bot's own processes may only use their run's tools, with their own run's key.
 const BOT_PATHS = ['/api/self/session', '/api/vault/session', '/api/connectors/session'];
+const SCRIPT_PATH = '/api/vault/script/';
 
 // A request's path, or '' for an address that is not one.
 function pathOf(req) {
@@ -684,6 +685,8 @@ function gate(req) {
   if (who !== 'owner') {
     let p;
     try { p = new URL(req.url, 'http://x').pathname; } catch { return 'Bad address'; }
+    // A script job's botdot-request (ADR 085): its run's key, of this bot's job.
+    if (p.startsWith(SCRIPT_PATH)) return B.scriptSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
     if (!BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`))) return "Bots can only use their own run's tools.";
     const session = B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token']);
     if (!session || session.botId !== who.bot) return "That run key isn't this bot's.";
@@ -694,6 +697,7 @@ function gate(req) {
   const p = pathOf(req);
   if (chief.isKey(req.headers['x-chief-key'])) return null;
   if (BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) && B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token'])) return null;
+  if (p.startsWith(SCRIPT_PATH) && B.scriptSession(req.headers['x-run-token'])) return null;
   // The tools of a Chief turn that has connected apps, with that turn's own token (ADR 047): only their routes.
   if ((p === '/api/connectors/session' || p.startsWith('/api/connectors/session/')) && connectorApprovals.chiefSession(req.headers['x-run-token'])) return null;
   if (p === '/api/version' && req.method === 'GET') return null;

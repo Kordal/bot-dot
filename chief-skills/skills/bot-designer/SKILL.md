@@ -58,7 +58,7 @@ Pick the limits that fit the job and write them into what it never does:
 
 ## Jobs and the first run
 
-- Add its jobs with `add_job` once what it needs is in place (the login saved, the cards answered). First decide whether the job needs AI at all. A watch gets notify "report-only"; a digest the user expects every time gets notify "always". A script job waits for the user's OK in Needs you. botdot tells you in this chat when a card is answered: then add the job or start the bot, as you said you would.
+- Add its jobs with `add_job` once what it needs is in place (the login saved, the cards answered). First decide whether the job needs AI at all. A job that only counts or checks (open issues, a health check, an infra review over an API) is a script job, with the saved logins it calls APIs with in `logins` and `aiWhen` "output", not an AI job. A watch gets notify "report-only"; a digest the user expects every time gets notify "always". A script job waits for the user's OK in Needs you. botdot tells you in this chat when a card is answered: then add the job or start the bot, as you said you would.
 - When the user said "now", start the bot with `run_bot` and a first-run checklist: what to gather first (the saved login by name, the start address), the first concrete task, and what needs the user's OK. Then `wait_for_run` and report the outcome.
 - With nothing to start now, leave it: a new bot writes its own first message in its chat.
 

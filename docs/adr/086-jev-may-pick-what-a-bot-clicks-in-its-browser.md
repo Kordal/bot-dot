@@ -1,4 +1,4 @@
-# ADR-085: Jev may pick what a bot clicks in its browser
+# ADR-086: Jev may pick what a bot clicks in its browser
 
 - **Status:** Proposed (asked for by the owner, 2026-10-24), off until the admin switches it on
 - **Owning task:** [#526](https://github.com/Kordal/bot-dot/issues/526)

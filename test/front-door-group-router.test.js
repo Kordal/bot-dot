@@ -87,7 +87,7 @@ test('the admin chooses Jev with a key that OpenRouter takes; the key is never a
   m = handed().length;
   await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).wakeGate === false) ? true : null), { what: 'the account to be handed the wake gate off' });
 
-  // Jev in the browser tools (ADR 085): the same, off until switched on, handed to each account and kept when not sent.
+  // Jev in the browser tools (ADR 086): the same, off until switched on, handed to each account and kept when not sent.
   assert.equal((await a.post('/admin/group-router', { router: 'haiku', browserPicker: true })).data.browserPicker, true);
   m = handed().length;
   await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).browserPicker === true) ? true : null), { what: 'the account to be handed Jev in the browser' });

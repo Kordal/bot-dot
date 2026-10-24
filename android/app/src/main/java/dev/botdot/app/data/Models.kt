@@ -85,9 +85,14 @@ data class Job(
     @SerialName("then") val thenValue: JsonElement? = null,
     // Whether the owner hears of every run ("always") or only of what it reports ("report-only"), kept as it came.
     @SerialName("notify") val notifyValue: JsonElement? = null,
+    // The Vault logins a script job's script may use (`job-logins`, ADR 085), kept as they came.
+    @SerialName("logins") val loginsValue: JsonElement? = null,
 ) {
     /** Its report setting, "always" or "report-only"; null from a server that does not say. */
     val notify: String? get() = notifyValue.textOrNull()
+
+    /** The Vault logins its script may use, by name; empty without any, or from an older server. */
+    val logins: List<String> get() = loginNames(loginsValue).orEmpty()
 
     /** The change that waits for the owner's answer while the job runs on as approved, or null. */
     val change: JobChange? get() = JobChange.of(changeValue)
@@ -137,6 +142,7 @@ data class JobChange(
     val prompt: String? = null, val script: String? = null, val by: String? = null,
     val notify: String? = null, val aiWhen: String? = null, val at: String? = null, val summary: String? = null,
     val call: Boolean? = null, val callMode: String? = null, val notifyUrl: String? = null,
+    val logins: List<String>? = null,
 ) {
     /** The job as proposed runs a script: it says so, or it carries one. The card then shows that script. */
     val runsScript: Boolean get() = kind == "script" || !script.isNullOrBlank()
@@ -149,6 +155,7 @@ data class JobChange(
             return JobChange(
                 o["name"].textOrNull(), o["kind"].textOrNull(), o["when"].textOrNull(), whole("prompt"), whole("script"), o["by"].textOrNull(), o["notify"].textOrNull(), o["aiWhen"].textOrNull(), o["at"].textOrNull(), whole("summary")?.trim()?.ifEmpty { null },
                 (o["call"] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull, o["callMode"].textOrNull(), o["notifyUrl"].textOrNull(),
+                loginNames(o["logins"]),
             )
         }
     }
@@ -448,6 +455,9 @@ data class Run(
 }
 
 /** A field as text: a JSON string that is not blank, without the blanks around it. Anything else is none. */
+/** A list of login names (`logins`, ADR 085): its texts, or null when it is no list. */
+internal fun loginNames(v: JsonElement?): List<String>? = (v as? JsonArray)?.mapNotNull { it.textOrNull() }
+
 internal fun JsonElement?.textOrNull(): String? = (this as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.ifEmpty { null }
 
 /**

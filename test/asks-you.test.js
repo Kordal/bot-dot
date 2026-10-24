@@ -209,6 +209,29 @@ test("a bot asks until the owner writes to it: asks on the bot, the feed's event
   } finally { f.close(); srv.unhold(); await srv.stop(); }
 });
 
+test("the Chief's message to a bot answers its open question, as the owner's does: the buttons and needs_you go (#517)", async () => {
+  const srv = await startServer();
+  const f = await listen(srv);
+  try {
+    const bot = await makeBot(srv, { name: 'Infra Admin', emoji: '🛠️' });
+    srv.reply('The update needs a restart.\nShould I restart the host?\n\n[[choices: Yes, now | No, later]]');
+    const asking = await say(srv, bot, 'update the host');
+    assert.equal((await botOf(srv, bot)).asks.runId, asking.id);
+
+    // The owner said yes on a card in Needs you; the Chief passes it on, and the bot is at it.
+    srv.hold();
+    srv.reply('Restarted. Everything is back.');
+    const relay = (await srv.asChief(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'The owner approved the restart.' } })).data;
+    const rec = await srv.nextRun(isRunOf(bot, 'The owner approved the restart.'));
+    for (const b of [await botOf(srv, bot), await listed(srv, bot)]) assert.deepEqual([b.asks, b.state === 'needs_you'], [undefined, false]);
+    assert.equal((await f.wait('asks', (d) => d.botId === bot.id && d.asks === null)).data.asks, null, 'the feed says so');
+    srv.release(rec);
+    await srv.finished(relay.id);
+    assert.equal((await botOf(srv, bot)).asks, undefined, 'its reply to the Chief opens nothing again');
+
+  } finally { f.close(); srv.unhold(); await srv.stop(); }
+});
+
 test("a job's question is never quiet: it is in the chat with its answers, new, and at night it is held and delivered when quiet hours end", async () => {
   let srv = await startServer();
   let f;
@@ -400,14 +423,18 @@ test('an open question found on disk: the newest reply to the owner decides, and
   try {
     const bot = await makeBot(srv, { name: 'Mail Sorter', emoji: '📬' });
     const other = await makeBot(srv, { name: 'Watcher', emoji: '👀' });
+    const relayed = await makeBot(srv, { name: 'Infra Admin', emoji: '🛠️' });
     let ids;
     srv = await restartServer(srv, () => {
-      // A question, then a run of the Chief's and a quiet run, which are no replies to the owner: still open.
-      ids = seedRuns(srv, bot, [{ result: 'Send it?', choices: ['Yes', 'No'] }, { startedBy: 'chief', notificationAudience: 'internal', result: 'Done for the Chief.' }, { trigger: 'schedule', notify: 'report-only', jobId: 'j1', customPrompt: false, reporting: 'quiet', result: '' }]);
+      // A question, then a quiet run and a teammate's request, which are no replies to the owner and no answer: still open.
+      ids = seedRuns(srv, bot, [{ result: 'Send it?', choices: ['Yes', 'No'] }, { trigger: 'schedule', notify: 'report-only', jobId: 'j1', customPrompt: false, reporting: 'quiet', result: '' }, { trigger: 'bot', fromBot: { id: other.id, name: other.name }, notificationAudience: 'internal', result: 'Done for the Watcher.' }]);
+      // A question, then a message the Chief sent for the owner: answered (#517).
+      seedRuns(srv, relayed, [{ result: 'Restart the host?', choices: ['Yes, now', 'No, later'] }, { startedBy: 'chief', notificationAudience: 'internal', result: 'Restarted.' }]);
       // A questions-only run that an earlier botdot stored as quiet.
       seedRuns(srv, other, [{ trigger: 'schedule', notify: 'report-only', jobId: 'j1', customPrompt: false, reporting: 'quiet', result: '', choices: ['Yes', 'No'] }]);
     });
     assert.equal((await botOf(srv, bot)).asks.runId, ids[0]);
     assert.deepEqual([(await botOf(srv, other)).asks, (await botOf(srv, other)).unread], [undefined, 0]);
+    assert.deepEqual([(await botOf(srv, relayed)).asks, (await botOf(srv, relayed)).state === 'needs_you'], [undefined, false]);
   } finally { await srv.stop(); }
 });

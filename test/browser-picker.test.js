@@ -1,4 +1,4 @@
-// Jev in the bots' browser tools (ADR 085, lib/browser-picker.js): off, every tool goes to the bridge as before; on,
+// Jev in the bots' browser tools (ADR 086, lib/browser-picker.js): off, every tool goes to the bridge as before; on,
 // with Jev and its key, a control may be named by what it is and browser_navigate clicks its way to a page (and, in
 // the bench's brief mode, browser_find answers with lines and an action with the page's title alone). Jev's answer is checked: a pick under SURE, a failed or late Jev, acts on nothing.
 const { test } = require('node:test');
