@@ -1,0 +1,174 @@
+#!/usr/bin/python3 -I
+"""What a command of botdot's starts on the account's computer ends with it (#535).
+
+botdot-run [--keep] [--screen <n>] -- <command>...
+
+Runs the command as its child and makes itself the subreaper of all it starts (PR_SET_CHILD_SUBREAPER): a process
+whose parent died comes to it, also one that left with setsid or nohup, and it reaps each one that ends, so no zombie
+stays behind on PID 1, which on a computer made before #535 is `sleep` and never reaps.
+Without --keep (a bot's command, a screen's supervisord, a browser's bridge) everything still left when the command
+ends is ended: SIGTERM, then SIGKILL after a moment. What runs as another user (root, through sudo) goes on: it is the
+computer's own, such as its Tailscale. With --keep (start_program) it stays while anything it started runs, for a
+program that forks and lets its first process go. A SIGTERM, SIGINT or SIGHUP goes to the command first and
+then ends the rest the same way. --screen names the bot's screen (its display's number) on the command line, so that
+the end of that screen finds what runs for it (lib/computers.js STOP_SCREEN). Exits as the command did.
+botdot sends this file's own copy with every call (lib/computers.js reaped), so it needs no file in the computer."""
+import ctypes
+import os
+import select
+import signal
+import sys
+import time
+
+PR_SET_CHILD_SUBREAPER = 36
+GRACE = 2.0  # how long the command has to end after a signal, and the rest after SIGTERM, before SIGKILL
+
+
+def options(argv):
+    keep = False
+    i = 0
+    while i < len(argv) and argv[i] != "--":
+        if argv[i] == "--keep":
+            keep = True
+            i += 1
+        elif argv[i] == "--screen" and i + 1 < len(argv):
+            i += 2
+        else:
+            raise SystemExit(f"botdot-run: unknown option {argv[i]}")
+    command = argv[i + 1:]
+    if not command:
+        raise SystemExit("botdot-run takes a command after --")
+    return keep, command
+
+
+def descendants():
+    """The live processes under this one, at any depth, read from /proc, that are its own user's: what a command
+    started as root through sudo (a daemon such as the computer's Tailscale) is the computer's own and goes on. A
+    zombie is left to its parent to reap."""
+    parent_of = {}
+    uid = os.getuid()
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            with open(f"/proc/{pid}/stat", "rb") as f:
+                rest = f.read().rsplit(b")", 1)[1].split()
+            owner = os.stat(f"/proc/{pid}").st_uid
+        except (OSError, IndexError):
+            continue
+        if rest and rest[0] != b"Z":
+            parent_of[int(pid)] = (int(rest[1]), uid == 0 or owner == uid)
+    me = os.getpid()
+    under = set()
+    grew = True
+    while grew:
+        grew = False
+        for pid, (parent, _) in parent_of.items():
+            if pid not in under and (parent == me or parent in under):
+                under.add(pid)
+                grew = True
+    return {pid for pid in under if parent_of[pid][1]}
+
+
+def reap():
+    """Every child that ended, reaped: their exit statuses by pid, and whether no child is left at all."""
+    ended = {}
+    while True:
+        try:
+            pid, status = os.waitpid(-1, os.WNOHANG)
+        except ChildProcessError:
+            return ended, True
+        if pid == 0:
+            return ended, False
+        ended[pid] = status
+
+
+def signal_all(pids, sig):
+    for pid in pids:
+        try:
+            os.kill(pid, sig)
+        except OSError:
+            pass
+
+
+def end_rest():
+    """SIGTERM to all that is left, SIGKILL to what still runs after GRACE, also to what was forked meanwhile."""
+    told = set()
+    killed = None  # when SIGKILL was first sent
+    deadline = time.monotonic() + GRACE
+    while True:
+        reap()
+        left = descendants()
+        if not left:
+            return
+        if killed is None and time.monotonic() > deadline:
+            killed = time.monotonic()
+            told = set()
+        if killed is not None and time.monotonic() > killed + GRACE:
+            return  # what not even SIGKILL ended (a process stuck in the kernel) goes to PID 1
+        signal_all(left - told, signal.SIGTERM if killed is None else signal.SIGKILL)
+        told |= left
+        time.sleep(0.05)
+
+
+def main():
+    argv = sys.argv[1:]
+    if argv and argv[0] == "botdot-run":  # botdot's copy, run with python3 -c: its name comes first
+        argv = argv[1:]
+    keep, command = options(argv)
+    try:
+        ctypes.CDLL(None, use_errno=True).prctl(PR_SET_CHILD_SUBREAPER, 1, 0, 0, 0)
+    except (OSError, AttributeError):
+        pass  # without it, what leaves its parent still goes to PID 1; the rest of what it does holds
+    # A signal is only noted, and wakes the loop below through the pipe, as a child's end does: the loop alone reaps,
+    # so no exit status is lost to a signal that comes as the command ends.
+    got = []
+    wake_r, wake_w = os.pipe()
+    os.set_blocking(wake_w, False)
+    signal.set_wakeup_fd(wake_w)
+    ending = (signal.SIGTERM, signal.SIGINT, signal.SIGHUP)
+    for sig in ending:
+        signal.signal(sig, lambda signum, _frame: got.append(signum))
+    signal.signal(signal.SIGCHLD, lambda *_: None)
+    child = os.fork()
+    if child == 0:
+        for sig in (*ending, signal.SIGCHLD):
+            signal.signal(sig, signal.SIG_DFL)
+        try:
+            os.execvp(command[0], command)
+        except OSError as e:
+            sys.stderr.write(f"{command[0]}: {e.strerror}\n")
+            os._exit(127)
+    code = None
+
+    def wait(seconds):
+        select.select([wake_r], [], [], seconds)
+        try:
+            os.read(wake_r, 4096)
+        except BlockingIOError:
+            pass
+
+    os.set_blocking(wake_r, False)
+    while True:
+        ended, none_left = reap()
+        if child in ended:
+            code = os.waitstatus_to_exitcode(ended[child])
+        if got or (code is not None and (not keep or none_left)):
+            break
+        wait(1.0)
+    if got and code is None:
+        signal_all([child], got[0])  # not reaped yet, so the pid is still the command's
+        until = time.monotonic() + GRACE
+        while code is None and time.monotonic() < until:
+            ended, _ = reap()
+            if child in ended:
+                code = os.waitstatus_to_exitcode(ended[child])
+            else:
+                wait(0.05)
+    end_rest()
+    if code is None:
+        code = 128 + got[0] if got else 1
+    sys.exit(code if code >= 0 else 128 - code)
+
+
+main()

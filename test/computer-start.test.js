@@ -282,3 +282,31 @@ test('a seat that is no screen is refused before anything runs (#105)', async ()
   }
   assert.deepEqual(calls, []);
 });
+
+// A computer up for days held more than a thousand processes no one reaped, as PID 1 was `sleep` (#535): Docker's init
+// is PID 1 now, and every screen, bridge and program botdot starts runs under botdot-run, which ends what it leaves.
+test("a new computer has Docker's init as PID 1, and its screen and bridge run under botdot-run", async () => {
+  await computers.ensure(PC);
+  const run = calls.find((c) => isRun(c.args)).args;
+  assert.ok(run.indexOf('--init') >= 0 && run.indexOf('--init') < run.indexOf('--entrypoint'), 'init before sleep');
+  for (const a of [calls.find((c) => isDesktop(c.args)).args, calls.find((c) => isBridge(c.args)).args]) {
+    const at = a.indexOf('botdot-run');
+    assert.deepEqual(a.slice(at - 4, at), ['/usr/bin/python3', '-I', '-c', require('./helpers').REAPED[3]]);
+    assert.deepEqual(a.slice(at + 1, at + 4), ['--screen', '11', '--'], 'the end of its screen finds it');
+  }
+});
+
+test('a Docker without an init makes the computer without one', async (t) => {
+  const warn = t.mock.method(console, 'warn', () => {});
+  const base = docker();
+  answer = (args) => {
+    if (args[0] === 'run' && args.includes('--init')) throw new Error('docker: Error response from daemon: exec: "docker-init": executable file not found in $PATH');
+    return base(args);
+  };
+  await computers.ensure(PC);
+  const runs = calls.filter((c) => isRun(c.args)).map((c) => c.args);
+  assert.equal(runs.length, 2);
+  assert.ok(!runs[1].includes('--init'));
+  assert.ok(calls.some((c) => c.args[0] === 'rm' && c.args.includes('botdot.account.computer')), 'the half-made one goes first');
+  assert.match(warn.mock.calls[0].arguments[0], /no init/);
+});

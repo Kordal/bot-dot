@@ -20,9 +20,9 @@ const PAGE = Number(childProcess.execFileSync('getconf', ['PAGESIZE'], { encodin
 // A /proc of its own: each process its stat (ppid, CPU ticks, resident pages), environment and command line.
 function fakeProc(procs) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-usage-proc-'));
-  for (const { pid, ppid = 1, comm = 'x', ticks = 0, rss = 0, env = [], cmd = [comm] } of procs) {
+  for (const { pid, ppid = 1, comm = 'x', ticks = 0, rss = 0, env = [], cmd = [comm], state = 'S' } of procs) {
     fs.mkdirSync(path.join(dir, String(pid)));
-    const rest = ['S', ppid, 0, 0, 0, 0, 0, 0, 0, 0, 0, ticks, 0, 0, 0, 0, 0, 0, 0, 0, 0, rss];
+    const rest = [state, ppid, 0, 0, 0, 0, 0, 0, 0, 0, 0, ticks, 0, 0, 0, 0, 0, 0, 0, 0, 0, rss];
     fs.writeFileSync(path.join(dir, String(pid), 'stat'), `${pid} (${comm}) ${rest.join(' ')}\n`);
     fs.writeFileSync(path.join(dir, String(pid), 'environ'), env.map((e) => `${e}\0`).join(''));
     fs.writeFileSync(path.join(dir, String(pid), 'cmdline'), cmd.map((e) => `${e}\0`).join(''));
@@ -49,8 +49,29 @@ test('botdot-usage counts each process for the screen in its environment, or its
   const u = usage(proc);
   assert.deepEqual(u.screens['11'], { memoryBytes: 300 * PAGE, cpuPercent: 0, processes: 2 });
   assert.deepEqual(u.screens['12'], { memoryBytes: 750 * PAGE, cpuPercent: 0, processes: 3 });
-  assert.deepEqual(u.other, { memoryBytes: 17 * PAGE, cpuPercent: 0, processes: 2 });
+  assert.deepEqual(u.other, { memoryBytes: 17 * PAGE, cpuPercent: 0, processes: 2, zombies: 0,
+    top: [{ name: 'Xvnc', parent: '', processes: 1, cpuPercent: 0 }, { name: 'sleep', parent: 'sleep', processes: 1, cpuPercent: 0 }] });
   assert.deepEqual(Object.keys(u.screens).sort(), ['11', '12']);
+});
+
+// What is left behind on no bot's screen can be told before a restart wipes it (#535): how many are zombies, and the
+// largest groups by name and parent's name.
+test("botdot-usage says of what runs on no bot's screen how many are zombies, and its largest groups", (t) => {
+  const zombies = Array.from({ length: 7 }, (_, i) => ({ pid: 100 + i, comm: 'camoufox-bin', state: 'Z' }));
+  const proc = fakeProc([
+    { pid: 1, comm: 'sleep', rss: 10 },
+    ...zombies,
+    { pid: 200, ppid: 0, comm: 'node', rss: 5 },
+    { pid: 201, ppid: 200, comm: 'retry.sh', rss: 1 },
+    { pid: 202, ppid: 200, comm: 'retry.sh', rss: 1 },
+    { pid: 20, comm: 'supervisord', env: ['SCREEN=11'] },
+  ]);
+  t.after(() => fs.rmSync(proc, { recursive: true, force: true }));
+  const { other } = usage(proc);
+  assert.equal(other.processes, 11);
+  assert.equal(other.zombies, 7);
+  assert.deepEqual(other.top.slice(0, 2), [{ name: 'camoufox-bin', parent: 'sleep', processes: 7, cpuPercent: 0 }, { name: 'retry.sh', parent: 'node', processes: 2, cpuPercent: 0 }]);
+  assert.equal(other.top.length, 4, 'the screen\'s own are not among them');
 });
 
 // A busy loop gets one CPU fully only on an idle machine: on a loaded one it gets what the scheduler gives it. So
@@ -90,7 +111,7 @@ test('computers.usage runs botdot-usage as root in the account\'s computer and h
   delete require.cache[require.resolve('../lib/computers')];
 
   const u = await computers.usage();
-  assert.deepEqual(u, { state: 'running', screens: [{ screen: 1, memoryBytes: 5, cpuPercent: 1.5, processes: 2 }, { screen: 3, memoryBytes: 7, cpuPercent: 0, processes: 1 }], other: said.other });
+  assert.deepEqual(u, { state: 'running', screens: [{ screen: 1, memoryBytes: 5, cpuPercent: 1.5, processes: 2 }, { screen: 3, memoryBytes: 7, cpuPercent: 0, processes: 1 }], other: { ...said.other, zombies: 0, top: [] } });
   const exec = calls.find((a) => a[0] === 'exec');
   assert.deepEqual(exec.slice(0, 6), ['exec', '-u', 'root', '-w', '/', 'botdot.account.computer']);
   assert.ok(exec.includes('-I') && exec.includes(fs.readFileSync(USAGE, 'utf8')), "botdot's own copy, in Python's isolated mode");

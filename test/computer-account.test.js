@@ -163,7 +163,7 @@ test("every bot's commands, logins, keys and secrets reach the account's compute
   assert.equal(program[program.indexOf('-u') + 1], 'box');
   const login = calls.find((a) => a.includes('BOTDOT_PASSWORD'));
   assert.equal(login[login.indexOf('-u') + 1], 'box');
-  const secret = calls.find((a) => a.includes('-I'));
+  const secret = calls.find((a) => a.includes('-I') && !a.includes('botdot-run'));
   assert.equal(secret[secret.indexOf('-u') + 1], 'browser', 'the bridge still answers only the browser user');
 });
 
@@ -181,7 +181,7 @@ test("two bots working at once each reach only their own screen, browser and fol
   const execs = calls.filter((a) => a[0] === 'exec');
   const http = execs.filter((a) => a.includes('python3') && !a.includes('-I')).map((a) => a.at(-1)).sort();
   assert.deepEqual(http, ['8111', '8112'], "each bot's computer-server");
-  const secrets = execs.filter((a) => a.includes('-I')).map((a) => a.at(-1)).sort();
+  const secrets = execs.filter((a) => a.includes('-I') && !a.includes('botdot-run')).map((a) => a.at(-1)).sort();
   assert.deepEqual(secrets, ['/run/botdot-browser/bridge-11.sock', '/run/botdot-browser/bridge-12.sock'], "each bot's own browser");
   const login = execs.find((a) => a.includes('BOTDOT_PASSWORD'));
   assert.ok(login.includes('DISPLAY=:12') && login.includes('/workspace/b1'));

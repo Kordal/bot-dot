@@ -436,4 +436,7 @@ async function hookCall(settings, input = { hook_event_name: 'PostToolUse', tool
   return res.ok ? res.json() : null;
 }
 
-module.exports = { vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
+// What lib/computers.js puts around a command on the account's computer: botdot's own copy of botdot-run (#535).
+const REAPED = ['/usr/bin/python3', '-I', '-c', require('fs').readFileSync(require('path').join(__dirname, '..', 'deploy', 'desktop', 'botdot-run'), 'utf8'), 'botdot-run', '--'];
+
+module.exports = { REAPED, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
