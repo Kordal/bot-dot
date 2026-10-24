@@ -64,6 +64,16 @@ class ChangeCardTest {
         assertNull(card.scriptWas); assertNull(card.promptWas); assertNull("nothing runs before its first OK", card.line)
     }
 
+    @Test fun aScriptJobsCardListsItsLoginsAndAChangeTheListItBecomes() {
+        val fresh = jobCard(job("""{"id":"j1","name":"Issues","kind":"script","when":"Hourly","approved":false,"script":"x","logins":["GitHub token","Proxmox",7]}"""))
+        assertEquals(listOf("Logins: GitHub token, Proxmox"), fresh.also)
+        assertEquals("none, from an older server too", emptyList<String>(), jobCard(job("""{"id":"j1","kind":"script","approved":false,"script":"x"}""")).also)
+        val approved = """{"id":"j1","name":"Issues","kind":"script","when":"Hourly","approved":true,"script":"x","aiWhen":"output","logins":["GitHub token"],"""
+        assertEquals(listOf("Logins: GitHub token → GitHub token, Proxmox"), jobCard(job(approved + """"change":{"kind":"script","script":"x","logins":["GitHub token","Proxmox"]}}""")).also)
+        assertEquals(listOf("Logins: GitHub token → none"), jobCard(job(approved + """"change":{"kind":"script","script":"y"}}""")).also)
+        assertEquals(emptyList<String>(), jobCard(job(approved + """"change":{"kind":"script","script":"y","logins":["GitHub token"]}}""")).also)
+    }
+
     @Test fun againstAServerWithoutDeclineWordsTheCardIsAsBefore() {
         val card = jobCard(job("""{"id":"j1","name":"Morning news","kind":"ai","when":"Daily at 08:00","approved":false,"prompt":"$old","changedBy":"chief"}"""))
         assertEquals(JobCard("Morning news", "Daily at 08:00 · uses AI · added by the Chief", null, null, old, null, null, "Decline", "Approve"), card)

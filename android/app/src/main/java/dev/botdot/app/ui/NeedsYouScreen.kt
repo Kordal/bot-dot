@@ -567,7 +567,7 @@ internal fun scriptsLeft(names: List<String>): String? = when (names.size) {
  * schedule and the new one, and what goes beside what comes: [promptWas] is the approved text, struck above [prompt],
  * where the text changes; [scriptWas] the approved script above [script], where the script changes. [script] is null
  * for a job that runs none after the yes. [line]: [RUNS_AS_APPROVED] on a change. [also]: what else the change
- * changes, a line each: whether the owner hears of every run, and when a script job asks the AI. [summary]: what the
+ * changes, a line each: whether the owner hears of every run, when a script job asks the AI, and its logins (a new job lists them too). [summary]: what the
  * change changes in its proposer's one sentence, null where the server sends none: a closed card shows it in place of
  * what goes and what comes, which a tap brings.
  */
@@ -609,7 +609,8 @@ internal fun jobCard(j: Job): JobCard {
     if (c == null) {
         val by = when (j.changedBy ?: j.createdBy) { "chief" -> "added by the Chief"; "bot" -> "added by itself"; else -> "changed" }
         val script = j.kind == "script"
-        return JobCard(j.name, "$was · ${kindWords(script)} · $by", j.script.takeIf { script }, null, j.prompt, null, null, j.no ?: "Decline", j.yes ?: "Approve")
+        return JobCard(j.name, "$was · ${kindWords(script)} · $by", j.script.takeIf { script }, null, j.prompt, null, null, j.no ?: "Decline", j.yes ?: "Approve",
+            listOfNotNull(j.logins.takeIf { script && it.isNotEmpty() }?.let { "Logins: ${it.joinToString(", ")}" }))
     }
     val by = when (c.by) { "chief" -> "changed by the Chief"; "bot" -> "changed by itself"; else -> "changed" }
     val now = c.words ?: was
@@ -631,6 +632,7 @@ internal fun jobCard(j: Job): JobCard {
         listOfNotNull(
             changed("Tells you", j.notify ?: "report-only", c.notify, ::notifyWords),
             changed("Asks the AI", j.aiWhen?.ifBlank { null }, c.aiWhen.takeIf { script }, ::aiWhenWords),
+            changed("Logins", j.logins.joinToString(", ").ifEmpty { null }, if (!script) null else c.logins.orEmpty().joinToString(", ").ifEmpty { if (j.logins.isEmpty()) null else "none" }) { it },
         ),
         c.summary,
     )

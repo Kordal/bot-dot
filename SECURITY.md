@@ -118,6 +118,14 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   say that every bot on the account's computer can read it. Saved logins used through
   `api_request` never reach the computer, and a GitHub App's private key never leaves botdot: a bot
   gets only the installation tokens botdot makes from it, which expire within the hour (ADR 037).
+- **A script job calls APIs with saved logins but never holds one.** A script job lists the logins its
+  script may use, and the owner approves them with the script; a login added later waits for their OK
+  again. Its `botdot-request` asks botdot to send the request, as `api_request` does: the values go in
+  headers only, to the login's own address, and are blanked out of the answer. The key it asks with
+  lasts one run of that job, is that bot's alone and lets it use only that job's logins. No value of a
+  login is put in the script's environment or a file. A script can still send what an API answered
+  elsewhere: that is why the owner reads the script before approving it
+  ([ADR 085](docs/adr/085-a-script-job-calls-apis-with-the-logins-its-job-lists.md)).
 - **The Chief makes an SSH key but never reads it.** When the owner asks in its chat, the Chief has
   botdot make a new ed25519 key in the Vault and share it with the bots the owner names (#181), and it
   can share a key with more bots, take bots off it and rename it (#182). It can ask to remove an entry,

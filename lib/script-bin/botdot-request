@@ -1,0 +1,68 @@
+#!/usr/bin/env node
+// botdot-request: an API call with a saved login, from a script job's script (ADR 085). botdot sends the request,
+// fills the login's values into its headers, sends it only to that login's own address and blanks the secret out of
+// the answer, as a bot's api_request does: the script never has the secret. It works only while the job's run goes,
+// and only with the logins its job lists, which the owner approved with the script.
+//
+//   botdot-request --login NAME [--login NAME2] [-H 'Header: value'] [-d BODY | -d @FILE | -d -] [-i] [METHOD] URL
+//
+// Prints the answer's body. -i: its status line first. Exit 0 for an answer below 400, 22 for one of 400 or more
+// (as curl -f; the body is still printed), 1 when no answer came (the reason on stderr), 2 for a wrong call.
+const fs = require('fs');
+
+const USAGE = `Usage: botdot-request --login NAME [-H 'Authorization: Bearer {{token}}'] [-d BODY | -d @FILE | -d -] [-i] [METHOD] URL
+Write {{username}}, {{password}} (or {{token}}, {{secret}}) or {{basic}} where the login's values go in a header.
+With several logins give --login for each and write {{NAME.token}}.`;
+const fail = (code, text) => { process.stderr.write(`botdot-request: ${text}\n`); process.exit(code); };
+
+const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD'];
+const logins = [];
+const headers = {};
+const rest = [];
+let data = null;
+let include = false;
+const args = process.argv.slice(2);
+for (let i = 0; i < args.length; i++) {
+  const a = args[i];
+  const next = () => { if (i + 1 >= args.length) fail(2, `${a} needs a value.\n${USAGE}`); return args[++i]; };
+  if (a === '--login' || a === '-l') logins.push(next());
+  else if (a === '-H' || a === '--header') {
+    const h = next();
+    const at = h.indexOf(':');
+    if (at < 1) fail(2, `"${h}" isn't a header. Write it as 'Name: value'.`);
+    headers[h.slice(0, at).trim()] = h.slice(at + 1).trim();
+  } else if (a === '-d' || a === '--data') {
+    const d = next();
+    try { data = d === '-' ? fs.readFileSync(0, 'utf8') : d.startsWith('@') ? fs.readFileSync(d.slice(1), 'utf8') : d; } catch (e) { fail(2, `couldn't read ${d.slice(1) || 'stdin'}: ${e.code || e.message}`); }
+  } else if (a === '-i' || a === '--include') include = true;
+  else if (a === '-h' || a === '--help') { process.stdout.write(`${USAGE}\n`); process.exit(0); }
+  else if (a.startsWith('-') && a !== '-') fail(2, `unknown option ${a}.\n${USAGE}`);
+  else rest.push(a);
+}
+if (!logins.length) fail(2, `say which login to use with --login.\n${USAGE}`);
+if (!rest.length || rest.length > 2) fail(2, USAGE);
+const url = rest[rest.length - 1];
+const method = rest.length === 2 ? rest[0].toUpperCase() : data !== null ? 'POST' : 'GET';
+if (!METHODS.includes(method)) fail(2, `the method is one of ${METHODS.join(', ')}, not ${rest[0]}.`);
+
+const base = process.env.BOTDOT_URL;
+const key = process.env.BOTDOT_RUN;
+if (!base || !key) fail(1, "this works only in a script job's run whose job lists the logins it uses.");
+
+(async () => {
+  let r;
+  try {
+    const res = await fetch(`${base}/api/vault/script/http`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1', 'X-Run-Token': key },
+      body: JSON.stringify({ ...(logins.length === 1 ? { login: logins[0] } : { logins }), method, url, headers, ...(data !== null ? { body: data } : {}) }),
+    });
+    r = await res.json();
+  } catch (e) {
+    fail(1, `couldn't reach botdot: ${e.cause?.code || e.message}`);
+  }
+  if (!r?.ok) fail(1, r?.error || 'the request failed.');
+  if (include) process.stdout.write(`HTTP ${r.status}\n\n`);
+  process.stdout.write(r.body ?? '');
+  if (r.status >= 400) { process.stderr.write(`botdot-request: HTTP ${r.status}\n`); process.exit(22); }
+})();
