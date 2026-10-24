@@ -27,6 +27,10 @@ test('web: a bot\'s settings have no "Keep its computer on", and saving sends no
   const sent = ctx.readBotForm(form, { skills: [], connectors: [], others: [], mayMessage: new Set() });
   assert.equal(sent.computer, 'linux');
   assert.equal('computerAlwaysOn' in sent, false);
+  // Once boat.dev is set up it is one choice (#541): none, this machine or boat.dev.
+  for (const where of ['none', 'linux', 'boat']) {
+    assert.equal(ctx.readBotForm({ ...form, computer: { type: 'select-one', value: where } }, { skills: [], connectors: [], others: [], mayMessage: new Set() }).computer, where);
+  }
 });
 
 test("web: deleting a bot says its screen and its browser's logins go, and its folder stays, not that its computer goes", () => {
