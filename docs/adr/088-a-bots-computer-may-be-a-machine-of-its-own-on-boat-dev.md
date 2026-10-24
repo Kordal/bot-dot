@@ -10,7 +10,7 @@ Every bot with a computer works on the account's one computer (ADR 035): a conta
 
 ## Decision
 
-- **Per bot, the owner chooses where its computer is:** this machine (the account's computer, the default and free) or boat.dev (`computer: "boat"`). The choice shows only once the admin set a boat.dev key, with one short line saying this machine is free and boat.dev costs.
+- **Per bot, the owner chooses where its computer is:** this machine (the account's computer, the default and free) or boat.dev (`computer: "boat"`). The choice shows only once the admin set a boat.dev key, as one "Computer" choice in a bot's settings (None, "This machine · free", "boat.dev · costs") in place of the "Uses the computer" switch (#541).
 - **Only the computer moves.** Claude Code still runs on the botdot server with the owner's Claude sign-in; botdot reaches the bot's boat.dev machine through boat.dev's API (`lib/boat.js`) instead of `docker exec`. No SSH key and no Claude token go there.
 - **Commands and files only.** A boat bot's tools are `run_shell`, `read_file`, `write_file` and the interactive page tools; it has no screen, no browser, and botdot puts no Vault secret there (`run_with_login`, `run_with_ssh_key`, `run_with_file`, `place_secret_file` and typing a login are refused). Its prompt says so.
 - **One machine per bot**, made on its first computer tool and started again on the next one after it stopped. It stops after 30 minutes unused; boat.dev's own auto-stop (2 hours, pushed back on use) is the net under a botdot that stopped.
