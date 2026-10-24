@@ -345,7 +345,8 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
     val mentions = remember(room) { Rooms.world(room) }
     val shown by remember { derivedStateOf { vm.messages.asReversed() } }
     val sent = vm.outbox.sent?.unlessIn(vm.own(mine))
-    CompositionLocalProvider(LocalMentions provides mentions) {
+    val server by app.store.version.value.collectAsState()
+    CompositionLocalProvider(LocalMentions provides mentions, LocalSiteIcons provides sitesShown(server?.features)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },

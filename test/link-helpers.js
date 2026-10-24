@@ -143,4 +143,4 @@ async function fileServer({ dir = null } = {}) {
   };
 }
 
-module.exports = { sha, elf, script, tar, tarGz, tarEntry, zip, fileServer, MACHINE, OTHER_MACHINE };
+module.exports = { certificate, sha, elf, script, tar, tarGz, tarEntry, zip, fileServer, MACHINE, OTHER_MACHINE };
