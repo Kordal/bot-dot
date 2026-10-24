@@ -69,6 +69,11 @@ dashboard.pagesWith((botId, ref) => require('./lib/routes/pages').pageTileInfo(b
 B.tilesOf((botId) => dashboard.pushable(botId));
 chief.boardOf(() => dashboard.list().tiles); // what a checkup is told of the Board (ADR 023)
 B.dashboardOf((botId) => dashboard.forBot(botId));
+// The Vault SSH keys a script job lists, for its run's own ssh-agent (ADR 087): from Bitwarden, shared with its bot.
+B.scriptKeysFrom(async (botId, names) => {
+  if (!bitwarden.configured() || !(await readyForSecrets(botId))) return [];
+  return names.flatMap((n) => { try { const k = bitwarden.sshKey(botId, n); console.log(`[vault] ${botId} script uses the SSH key "${k.name}"`); return [k]; } catch { return []; } });
+});
 // What an "@" mention can name beside the team (#473): every page and the Board's tiles, and what each holds now.
 B.mentionablesFrom(() => {
   const pagesRoutes = require('./lib/routes/pages');
