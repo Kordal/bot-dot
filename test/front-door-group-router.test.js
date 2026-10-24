@@ -46,6 +46,8 @@ test('the admin chooses Jev with a key that OpenRouter takes; the key is never a
   const a = await signUp('ann', door.firstLink);
   const bob = await signUp('bob', { path: new URL((await a.post('/admin/links', {})).data.url).pathname });
   assert.equal((await bob.get('/admin/group-router')).status, 404, 'only the admin');
+  const page = (await a.get('/admin')).text;
+  assert.ok(page.includes('<h2>Decision model</h2>') && page.includes('<option value="jev">Jev latest</option>'), 'one choice of the model for every small decision (#536)');
   assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false });
   // The accounts are handed the choice every while: Haiku until the admin chooses.
   await waitFor(() => (handed().length ? true : null), { what: 'the account to be handed the router' });
@@ -58,6 +60,7 @@ test('the admin chooses Jev with a key that OpenRouter takes; the key is never a
   assert.deepEqual([refused.status, refused.data.error], [400, 'OpenRouter refused this key.']);
   assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false }, 'a refused key is not kept');
   assert.equal(asked.at(-1).url, '/api/alpha/decisions');
+  assert.equal(asked.at(-1).body.model, '~typesafe/jev-latest', 'the key is checked on the newest Jev (#536)');
 
   const chosen = await a.post('/admin/group-router', { router: 'jev', key: GOOD, wakeGate: false });
   assert.deepEqual([chosen.status, chosen.data], [200, { router: 'jev', keySet: true, wakeGate: false }]);

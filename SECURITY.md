@@ -126,6 +126,9 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   login is put in the script's environment or a file. A script can still send what an API answered
   elsewhere: that is why the owner reads the script before approving it
   ([ADR 085](docs/adr/085-a-script-job-calls-apis-with-the-logins-its-job-lists.md)).
+  An SSH key the job lists is used through an ssh-agent that botdot serves itself for that run
+  ([ADR 087](docs/adr/087-a-script-job-signs-with-ssh-keys-through-botdots-own-agent.md)): it signs in
+  botdot's own process, so the key never reaches the script, a file or the bot's user.
 - **The Chief makes an SSH key but never reads it.** When the owner asks in its chat, the Chief has
   botdot make a new ed25519 key in the Vault and share it with the bots the owner names (#181), and it
   can share a key with more bots, take bots off it and rename it (#182). It can ask to remove an entry,

@@ -1,4 +1,4 @@
-// A bot's computer on boat.dev (#529, ADR 087): its commands and files go to a machine of its own there, through
+// A bot's computer on boat.dev (#529, ADR 088): its commands and files go to a machine of its own there, through
 // boat.dev's API with the admin's key. The machine is made or started on the first of them and stops after 30
 // minutes unused; it has no screen and no Vault secret; when boat.dev can't start it, the account's computer stands in.
 const { test } = require('node:test');

@@ -84,7 +84,7 @@ async function fake(prompt) {
   const lat = asked.map((x) => x.ms).sort((a, b) => a - b);
   const pct = (p) => lat[Math.min(lat.length - 1, Math.floor(p * lat.length))] ?? 0;
   const total = {
-    cases: n, mode: JEV ? 'jev (typesafe/jev-1.14)' : LIVE ? `live (${gate.MODEL})` : 'stand-in',
+    cases: n, mode: JEV ? `jev (${require('../lib/group-router').JEV_MODEL})` : LIVE ? `live (${gate.MODEL})` : 'stand-in',
     expected: Object.fromEntries(['run', 'wait', 'save'].map((k) => [k, rows.filter((x) => x.expect === k).length])),
     runs: [n, runs],
     avoided: n - runs,

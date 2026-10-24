@@ -99,7 +99,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var model by remember { mutableStateOf("") }
     var effort by remember { mutableStateOf("") }
     var computer by remember { mutableStateOf(false) }
-    var computerOn by remember { mutableStateOf("linux") } // where its computer is: this machine, or boat.dev (ADR 087)
+    var computerOn by remember { mutableStateOf("linux") } // where its computer is: this machine, or boat.dev (ADR 088)
     var useSkills by remember { mutableStateOf(true) }
     var skills by remember { mutableStateOf(setOf<String>()) }
     var sysSkills by remember { mutableStateOf(listOf<Pair<dev.botdot.app.data.BuiltinSkill, String>>()) } // every bot has these unless switched off
