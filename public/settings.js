@@ -337,6 +337,10 @@ function renderSettings() {
         <div class="catalog-line">${catalogLine()} <button type="button" class="link-btn" id="refresh-models">Check for new models</button></div>
       </details>
     </form>
+    ${state.features.includes('boat-size') && state.status?.boat ? `<details class="card settings-card settings-fold" id="boat-size-card">
+      <summary><h3 class="page-sub">boat.dev machines</h3></summary>
+      <label class="field">Size<select id="boat-size" disabled><option>Loading…</option></select></label>
+    </details>` : ''}
     <details class="card settings-card settings-fold">
       <summary><h3 class="page-sub">Bots with their own choice</h3></summary>
       ${custom.length
@@ -359,6 +363,7 @@ function renderSettings() {
   if (signOut) signOut.onclick = signOutEverywhere;
   drawSettingsLinks(root);
   loadBackupsCard();
+  loadBoatSize(root);
   if ($('#usage-card', root) && typeof Usage !== 'undefined') Usage.open($('#usage-card', root)); // public/usage.js (#301)
   const form = $('#settings-form', root);
   wireLlmFields(form, 'default');
@@ -382,6 +387,23 @@ function renderSettings() {
       const r = await api('/settings', { method: 'PUT', body: { defaultModel: d.model, defaultEffort: d.effort } });
       state.settings = r.settings;
       toast('Saved. New runs use it.');
+    } catch (err) { toast(err.message, true); }
+  };
+}
+
+// The size of the account's boat.dev machines (#539): the sizes boat.dev makes now, and the chosen one even when not.
+const boatSizeLabel = (s) => `${s.id[0].toUpperCase()}${s.id.slice(1)} · ${s.cpus} CPU · ${s.memoryGB} GB · $${s.perHour}/h`;
+async function loadBoatSize(root) {
+  const pick = $('#boat-size', root);
+  if (!pick) return;
+  let r;
+  try { r = await api('/settings/boat-size'); } catch { $('#boat-size-card', root).hidden = true; return; }
+  pick.innerHTML = r.sizes.filter((s) => s.available || s.id === r.size).map((s) => `<option value="${esc(s.id)}"${s.id === r.size ? ' selected' : ''}>${esc(boatSizeLabel(s))}</option>`).join('');
+  pick.disabled = false;
+  pick.onchange = async () => {
+    try {
+      await api('/settings/boat-size', { method: 'PUT', body: { size: pick.value } });
+      toast('Saved. Each machine takes it when it starts next.');
     } catch (err) { toast(err.message, true); }
   };
 }

@@ -77,7 +77,8 @@ test("botdot-usage says of what runs on no bot's screen how many are zombies, an
 // A busy loop gets one CPU fully only on an idle machine: on a loaded one it gets what the scheduler gives it. So
 // the measure is held against the CPU the loop really had over the same time, read from its /proc/<pid>/stat.
 test('botdot-usage measures CPU over its wait: 100 is one CPU fully used', async (t) => {
-  const busy = childProcess.spawn('python3', ['-c', 'while True: pass'], { env: { ...process.env, SCREEN: '97' }, stdio: 'ignore' });
+  // Screen 93: test/computer-leftovers.test.js, which may run at the same time, ends what carries SCREEN=97.
+  const busy = childProcess.spawn('python3', ['-c', 'while True: pass'], { env: { ...process.env, SCREEN: '93' }, stdio: 'ignore' });
   t.after(() => busy.kill('SIGKILL'));
   await new Promise((r) => setTimeout(r, 200));
   const HZ = Number(childProcess.execFileSync('getconf', ['CLK_TCK'], { encoding: 'utf8' }).trim());
@@ -86,10 +87,10 @@ test('botdot-usage measures CPU over its wait: 100 is one CPU fully used', async
   const u = await new Promise((resolve, reject) => childProcess.execFile('python3', ['-I', USAGE, '/proc', '0.5'], { encoding: 'utf8' },
     (e, out) => (e ? reject(e) : resolve(JSON.parse(out)))));
   const had = ((ticks() - t0) / HZ / ((performance.now() - w0) / 1000)) * 100; // its share of one CPU, in percent
-  const said = u.screens['97'].cpuPercent;
+  const said = u.screens['93'].cpuPercent;
   // The wait of botdot-usage is a part of the time measured here, so the two differ by what the loop got around it.
   assert.ok(said >= Math.floor(had / 3) && said < 130, `botdot-usage said ${said}, the loop had ${had.toFixed(0)}`);
-  assert.ok(u.screens['97'].memoryBytes > 0);
+  assert.ok(u.screens['93'].memoryBytes > 0);
 });
 
 // ---------- lib/computers.js: by screen ----------

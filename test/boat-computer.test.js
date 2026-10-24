@@ -25,9 +25,10 @@ function fakeBoat({ refuse = false } = {}) {
     calls.push({ method, path: p, body: data, auth: headers.Authorization });
     if (refuse || headers.Authorization !== `Bearer ${KEY}`) return reply(401, { ok: false, code: 'unauthorized' });
     if (p === '/me') return reply(200, { ok: true, user: { login: 'x' } });
+    if (p === '/limits') return reply(200, { ok: true, machineTypes: [{ type: 'small', available: true }, { type: 'default', available: true }, { type: 'large', available: false, reason: 'not during the free trial' }, { type: 'xlarge', available: false }] });
     if (p === '/sandboxes' && method === 'POST') {
       const id = `bx_${String(++n).padStart(8, 'a')}`;
-      machines.set(id, { id, state: 'ready', files: new Map() });
+      machines.set(id, { id, state: 'ready', type: data.type, files: new Map() });
       return reply(202, { ok: true, sandbox: { id, state: 'provisioning' } });
     }
     const m = p.match(/^\/sandboxes\/(bx_[a-z0-9]+)(?:\/(.+))?$/);
@@ -36,7 +37,10 @@ function fakeBoat({ refuse = false } = {}) {
     if (!m[2] && method === 'GET') return reply(200, { ok: true, sandbox: { id: box.id, state: box.state } });
     if (!m[2] && method === 'PATCH') return reply(200, { ok: true });
     if (m[2] === 'stop') { box.state = 'archived'; return reply(202, { ok: true }); }
-    if (m[2] === 'resume') { box.state = 'ready'; return reply(202, { ok: true }); }
+    if (m[2] === 'resume') {
+      if (data?.type === 'xlarge') return reply(403, { ok: false, code: 'machine_type_unavailable' });
+      box.state = 'ready'; if (data?.type) box.type = data.type; return reply(202, { ok: true });
+    }
     if (m[2] === 'files' && method === 'PUT') { box.files.set(data.path, data.content); return reply(200, { ok: true }); }
     if (m[2] === 'files') return reply(200, { ok: true, content: box.files.get(u.searchParams.get('path')) || '' });
     if (m[2] === 'commands') {
@@ -232,4 +236,52 @@ test('an account takes the key only as a key, and says boat.dev is ready once it
   assert.equal(boatLib.configured(), true);
   assert.equal(boatLib.setKey(null), false);
   assert.equal(boatLib.configured(), false);
+});
+
+test("the account's size makes new machines, and moves a bot's machine to it the next time it starts (#539)", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  let size = 'small';
+  let now = 1_000_000;
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 60_000, size: () => size });
+  await boat.runShell('coder', { command: 'ls' });
+  const [box] = b.machines.values();
+  assert.equal(box.type, 'small', 'made at the chosen size');
+  size = 'large';
+  await boat.runShell('coder', { command: 'ls' });
+  assert.equal(box.type, 'small', 'a running machine keeps its size');
+  now += 120_000;
+  await boat.restIdle();
+  await boat.runShell('coder', { command: 'ls' });
+  assert.equal(box.type, 'large', 'started again at the new size');
+  assert.equal(b.machines.size, 1, 'the same machine, its files kept');
+  size = 'xlarge'; // boat.dev won't make it now
+  now += 120_000;
+  await boat.restIdle();
+  assert.equal((await boat.runShell('coder', { command: 'ls' })).code, 0, 'it starts at its old size');
+  assert.equal(box.type, 'large');
+  size = 'nonsense';
+  now += 120_000;
+  await boat.restIdle();
+  await boat.runShell('coder', { command: 'ls' });
+  assert.equal(box.type, 'default', 'what is no size is the default one');
+});
+
+test('the sizes say which ones boat.dev makes now, with its reason', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  const sizes = await boatLib.sizes({ fetch: b.fetch, now: () => 5e12 });
+  assert.deepEqual(sizes.map((s) => [s.id, s.available]), [['small', true], ['default', true], ['large', false], ['xlarge', false]]);
+  assert.equal(sizes.find((s) => s.id === 'large').reason, 'not during the free trial');
+  assert.deepEqual(Object.keys(sizes[0]).sort(), ['available', 'cpus', 'diskGB', 'id', 'memoryGB', 'perHour']);
+});
+
+test("an account's size is one of boat.dev's sizes, the default one until chosen", () => {
+  const settings = require('../lib/settings').create(dir());
+  assert.equal(settings.get().boatSize, 'default');
+  assert.equal(settings.update({ boatSize: 'large' }).boatSize, 'large');
+  assert.throws(() => settings.update({ boatSize: 'huge' }), /boatSize must be one of small, default, large, xlarge/);
+  assert.equal(settings.get().boatSize, 'large');
 });
