@@ -331,26 +331,26 @@ function renderSettings() {
     <div class="section-head"><div><h1>Settings</h1><p>Defaults for your team. Each bot can override them in its own settings.</p></div></div>
     <div class="card settings-card settings-links" id="settings-links"></div>
     <form id="settings-form" autocomplete="off">
-      <div class="card settings-card">
-        <h3 class="page-sub" style="margin-top:0">Default model and reasoning</h3>
+      <details class="card settings-card settings-fold">
+        <summary><h3 class="page-sub">Default model and reasoning</h3></summary>
         ${llmFieldsHTML('default', { model: s.defaultModel, effort: s.defaultEffort })}
         <div class="catalog-line">${catalogLine()} <button type="button" class="link-btn" id="refresh-models">Check for new models</button></div>
-      </div>
+      </details>
     </form>
-    <div class="card settings-card">
-      <h3 class="page-sub" style="margin-top:0">Bots with their own choice</h3>
+    <details class="card settings-card settings-fold">
+      <summary><h3 class="page-sub">Bots with their own choice</h3></summary>
       ${custom.length
         ? custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')
         : '<p class="muted settings-hint" style="margin:0">None: every bot uses the default. Change a bot in its settings (⚙ in its chat).</p>'}
-    </div>
-    ${state.features.includes('token-usage') ? '<div class="card settings-card" id="usage-card"></div>' : ''}
+    </details>
+    ${state.features.includes('token-usage') ? '<details class="card settings-card settings-fold" id="usage-card"></details>' : ''}
     <div class="card settings-card bs-rows" id="install-card" hidden></div>
     ${pushCardHTML()}
-    <div class="card settings-card" id="backups-card">
-      <h3 class="page-sub" style="margin-top:0">Backups</h3>
+    <details class="card settings-card settings-fold" id="backups-card">
+      <summary><h3 class="page-sub">Backups</h3></summary>
       <p class="muted settings-hint" style="margin:0">Checking…</p>
-    </div>
-    <div class="card settings-card" id="update-card" hidden></div>
+    </details>
+    <details class="card settings-card settings-fold" id="update-card" hidden></details>
     ${signOutCardHTML()}`;
   drawInstallCard();
   loadUpdateCard();
@@ -371,6 +371,7 @@ function renderSettings() {
     } catch (err) { toast(err.message, true); }
     root.innerHTML = '';
     renderSettings();
+    $('#settings-form details', root).open = true; // the fold the button is in stays open
   };
   $$('[data-edit-bot]', root).forEach((b) => (b.onclick = () => setView('botsettings', b.dataset.editBot)));
   // Saves by itself, like a bot's settings.
@@ -500,7 +501,7 @@ function drawUpdateCard(u) {
   card.hidden = !u;
   if (!u) { card.innerHTML = ''; return; }
   card.innerHTML = `
-      <h3 class="page-sub" style="margin-top:0">Updates</h3>
+      <summary><h3 class="page-sub">Updates</h3></summary>
       <div class="bs-rows"><div class="bs-row">
         <div class="grow"><b>Update automatically</b><div class="faint">On: Always use the latest botdot version.</div><div class="faint">Off: Update when you're ready, before the admin's deadline.</div></div>
         <label class="switch"><input type="checkbox" id="auto-update" aria-label="Update automatically"${u.autoUpdate ? ' checked' : ''}><span></span></label>
@@ -544,11 +545,11 @@ async function frontDoorPost(path, body) {
 // Settings → "Sign out everywhere" (ADR 028): the front door ends every session of the account, in every browser
 // and app, this one too, and the page opens its sign-in. Only behind a front door (`accounts` in features).
 const signOutCardHTML = () => (state.features.includes('accounts') ? `
-    <div class="card settings-card" id="sign-out-card">
-      <h3 class="page-sub" style="margin-top:0">Sign-ins</h3>
+    <details class="card settings-card settings-fold" id="sign-out-card">
+      <summary><h3 class="page-sub">Sign-ins</h3></summary>
       <p class="muted settings-hint">Signs out this browser and every browser and app signed in to your account. Each signs in again with your passkey.</p>
       <button type="button" class="btn" id="sign-out-everywhere">Sign out everywhere</button>
-    </div>` : '');
+    </details>` : '');
 
 async function signOutEverywhere() {
   if (!confirm('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.')) return;
@@ -686,7 +687,7 @@ async function loadBackupsCard() {
   if (!card) return;
   let b;
   try { b = await api('/backups'); } catch (e) { card.querySelector('p').textContent = e.message; return; }
-  const head = '<h3 class="page-sub" style="margin-top:0">Backups</h3>';
+  const head = '<summary><h3 class="page-sub">Backups</h3></summary>';
   if (!b.configured) {
     card.innerHTML = `${head}
       <p class="muted settings-hint">Set a passphrase and botdot backs up every night. Keep it safe, e.g. in Bitwarden: without it a backup can't be opened.</p>

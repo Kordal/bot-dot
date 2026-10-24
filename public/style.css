@@ -1347,12 +1347,13 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .bs-icon { width: 22px; flex: none; text-align: center; }
 .bs-link { width: 100%; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .bs-link:hover b { text-decoration: underline; text-underline-offset: 2px; }
-.bs-advanced > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; list-style: none; }
-.bs-advanced > summary::-webkit-details-marker { display: none; }
-.bs-advanced > summary::before { content: "▸"; color: var(--faint); transition: transform .15s; }
-.bs-advanced[open] > summary::before { transform: rotate(90deg); }
+.bs-advanced > summary, .settings-fold > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; list-style: none; }
+.bs-advanced > summary::-webkit-details-marker, .settings-fold > summary::-webkit-details-marker { display: none; }
+.bs-advanced > summary::before, .settings-fold > summary::before { content: "▸"; color: var(--faint); transition: transform .15s; }
+.bs-advanced[open] > summary::before, .settings-fold[open] > summary::before { transform: rotate(90deg); }
 .bs-advanced > summary .faint { font-size: 12.5px; }
-.bs-advanced:not([open]) { gap: 0; }
+.bs-advanced:not([open]), .settings-fold:not([open]) { gap: 0; }
+.settings-fold > summary .page-sub { margin: 0; } /* every card of Settings, closed whenever Settings opens */
 .bs-advanced div.field .toggle { font-size: 13.5px; color: var(--text); }
 .bs-exact { display: grid; gap: 10px; }
 .bs-exact > summary, .job-more > summary, .bs-history > summary { cursor: pointer; font-size: 12.5px; font-weight: 400; }

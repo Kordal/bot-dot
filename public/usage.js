@@ -77,7 +77,7 @@ const Usage = (() => {
     if (!c) return;
     const d = c.data;
     c.box.innerHTML = `
-      <h3 class="page-sub" style="margin-top:0">Usage</h3>
+      <summary><h3 class="page-sub">Usage</h3></summary>
       <p class="muted settings-hint">Tokens as Claude Code reports them, for your bots and the Chief of Staff, counted from this update on.</p>
       ${pickerHTML(c)}
       ${c.error ? `<div class="req-note">${esc(c.error)}</div>` : !d ? '<p class="muted settings-hint" style="margin:0">Loading…</p>' : `

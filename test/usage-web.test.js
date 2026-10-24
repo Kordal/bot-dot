@@ -41,7 +41,7 @@ test('web: index.html loads usage.js after boot.js, and Settings draws the card 
   const scripts = [...read('index.html').matchAll(/<script src="\/([^"]+)"><\/script>/g)].map((m) => m[1]);
   assert.ok(scripts.indexOf('usage.js') > scripts.indexOf('boot.js'));
   const settings = read('settings.js');
-  assert.match(settings, /state\.features\.includes\('token-usage'\) \? '<div class="card settings-card" id="usage-card"><\/div>'/);
+  assert.match(settings, /state\.features\.includes\('token-usage'\) \? '<details class="card settings-card settings-fold" id="usage-card"><\/details>'/);
   assert.match(settings, /typeof Usage !== 'undefined'\) Usage\.open\(\$\('#usage-card', root\)\)/);
 });
 
