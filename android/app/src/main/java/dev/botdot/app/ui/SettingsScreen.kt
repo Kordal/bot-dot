@@ -80,6 +80,7 @@ fun SettingsScreen(
     var setup by remember { mutableStateOf<SetupInfo?>(null) }
     var server by remember { mutableStateOf<dev.botdot.app.data.VersionInfo?>(null) }
     var backups by remember { mutableStateOf<dev.botdot.app.data.BackupInfo?>(null) }
+    var boatSizes by remember { mutableStateOf<dev.botdot.app.data.BoatSizes?>(null) } // only while boat.dev is set up (#539)
     var backingUp by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<dev.botdot.app.data.OwnUpdate?>(null) }
     var updateNotes by remember { mutableStateOf<List<dev.botdot.app.data.WhatsNew.Entry>>(emptyList()) } // what a waiting version brings (#303)
@@ -109,6 +110,7 @@ fun SettingsScreen(
             launch { runCatching { a.setup() }.onSuccess { setup = it } }
             launch {
                 runCatching { a.version() }.onSuccess { server = it; app.store.version.set(it) }
+                if (server?.boat == true && server?.features?.contains("boat-size") == true) boatSizes = runCatching { a.boatSizes() }.getOrNull()
                 // Updates: only where the front door says this account chooses when it switches (ADR 053).
                 val session = runCatching { a.frontDoorSession() }.getOrNull()
                 update = if (dev.botdot.app.data.OwnUpdate.on(server?.features, session)) runCatching { a.ownUpdate() }.getOrNull() else null
@@ -139,6 +141,14 @@ fun SettingsScreen(
                     enabled = edit != info.settings, modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
                 ) { Text("Save") }
+            }
+
+            boatSizes?.let { b ->
+                FoldSection("boat.dev machines") {
+                    Choice("Size", b.size, b.offered) { size ->
+                        scope.launch { runCatching { api!!.setBoatSize(size) }.onSuccess { boatSizes = it; tell("Saved. Each machine takes it when it starts next.") }.onError { tell(it.message ?: "Couldn't save") } }
+                    }
+                }
             }
 
             // Usage (#301): only from a server that counts it.

@@ -1133,6 +1133,18 @@ data class ModelChoice(val id: String, val label: String = "", val group: String
 @Serializable
 data class EffortChoice(val id: String, val label: String = "", val note: String? = null)
 
+/** The size of the account's boat.dev machines (#539): the choice, and the sizes with whether boat.dev makes each now. */
+@Serializable
+data class BoatSize(val id: String, val cpus: Int = 0, val memoryGB: Int = 0, val perHour: Double = 0.0, val available: Boolean = true) {
+    val label get() = "${id.replaceFirstChar { it.uppercase() }} · $cpus CPU · $memoryGB GB · $$perHour/h"
+}
+
+@Serializable
+data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = emptyList()) {
+    /** What the picker offers: the sizes boat.dev makes now, and the chosen one even when not. */
+    val offered get() = sizes.filter { it.available || it.id == size }.map { it.id to it.label }
+}
+
 @Serializable
 data class SettingsInfo(val settings: AppSettings = AppSettings(), val models: List<ModelChoice> = emptyList(), val efforts: List<EffortChoice> = emptyList())
 

@@ -520,6 +520,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun claudeUse(use: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/use", buildJsonObject { put("use", use) }))
     suspend fun claudeRemoveKey(): ClaudeStatus? = claudeOfAnswer(send("DELETE", "/setup/claude/key"))
     suspend fun backups(): BackupInfo = json.decodeFromString(get("/backups"))
+    suspend fun boatSizes(): BoatSizes = json.decodeFromString(get("/settings/boat-size"))
+    suspend fun setBoatSize(size: String): BoatSizes = json.decodeFromString(send("PUT", "/settings/boat-size", buildJsonObject { put("size", size) }))
     suspend fun backupNow(): BackupInfo = json.decodeFromString(send("POST", "/backups/now"))
     fun backupUrl(name: String) = url("/backups/${enc(name)}")
     /** The session's cookie, for a download Android makes itself (a backup): the front door lets in nothing without it. */
