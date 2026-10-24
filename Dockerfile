@@ -27,12 +27,12 @@ FROM micromamba-${TARGETARCH} AS micromamba
 
 FROM ${LLAMA_IMAGE}
 
-# Everyday tools bots use (git, python3, curl), time zones, and tini to pass on signals and reap
+# Everyday tools bots use (git, python3, curl, ssh for script jobs, ADR 087), time zones, and tini to pass on signals and reap
 # finished processes. Files bots make for the owner: WeasyPrint (HTML to PDF, with fonts for most
 # languages), python-docx (Word) and openpyxl (Excel).
 RUN apt-get update \
  && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates curl git python3 tzdata tini \
+      ca-certificates curl git openssh-client python3 tzdata tini \
       weasyprint python3-docx python3-openpyxl fonts-dejavu fonts-liberation2 \
  && rm -rf /var/lib/apt/lists/*
 
