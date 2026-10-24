@@ -620,6 +620,12 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .md table { border-collapse: collapse; font-size: 13px; }
 .md td, .md th { border: 1px solid var(--line); padding: 4px 8px; }
 .md a { text-underline-offset: 2px; }
+/* A site's icon before a link (#530): on a light rounded backing, so a dark icon shows on the dark page; a globe where
+   botdot keeps none. */
+.md a .site-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-right: 4px; vertical-align: -3px; border-radius: 4px; background: #e6e6e6; overflow: hidden; }
+.md a .site-icon img { width: 14px; height: 14px; display: block; }
+.md a .site-icon.globe { background: none; }
+.md a .site-icon.globe svg { width: 15px; height: 15px; fill: none; stroke: var(--faint); stroke-width: 1.6; }
 
 /* ---------- modal / forms ---------- */
 dialog { border: 1px solid var(--line); border-radius: 22px; padding: 0; background: var(--panel); color: var(--text); box-shadow: var(--shadow-lg); width: min(680px, calc(100% - 24px)); max-height: calc(100dvh - 40px); }

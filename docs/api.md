@@ -1072,6 +1072,14 @@ A bot can give the owner files with its reply (a PDF, a Word or Excel file…). 
 
 `GET /api/files/<file>` (that is, `/api/files/<runId>/<name>`, each part URL-encoded) downloads one. PDFs come `inline`, everything else as an attachment. They are kept for 90 days; after that it's a 404.
 
+## Site icons
+
+When `features` has `site-icons` ([#530](https://github.com/Kordal/bot-dot/issues/530), [ADR 086](adr/086-botdot-fetches-site-icons-itself.md)), the apps draw a site's small icon before each web link in a reply (a Markdown link or a bare address), 16 px, on a light rounded backing. Without the feature a link is drawn as before.
+
+- `GET /api/favicon?host=<host>` (the owner only; the Chief gets `403`): the icon botdot keeps for the site, `image/png` or `image/x-icon`, at most 32 KB, with `Cache-Control: private, max-age=604800`. `404` when the site has none botdot keeps (`max-age=86400`): the app then draws a grey globe. `400` for a host that is not a public DNS name (an IP address, a port, a path, a local name such as `nas.local`).
+- botdot fetches the icon itself over HTTPS, never through a favicon service, and the apps never ask the site: the icons the site's home page names in `<link rel="icon">` (an SVG never), then `/favicon.ico`. A host that resolves to a local, private or Tailscale address is never asked. An icon is kept for 7 days, a site without one for a day.
+- The host an app asks for is the link's host in lowercase; an IP address or a local name gets the globe without asking (`test/fixtures/site-hosts.json`, shared by both apps).
+
 ## The document viewer
 
 When `features` has `document-viewer` ([#251](https://github.com/Kordal/bot-dot/issues/251)), the apps open a file in their own viewer: a file chip of a reply, a file you attached, a file in a bot's settings, and a file path a bot wrote in its reply. Without the feature an app downloads the file as before, and a path in a reply stays text.

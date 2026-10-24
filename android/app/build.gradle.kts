@@ -97,9 +97,11 @@ android {
         // How a reply is read into blocks, as the web page reads it (MarkdownTest).
         val markdownCases = rootProject.file("../test/fixtures/markdown-cases.json")
         val chatLinks = rootProject.file("../test/fixtures/chat-links.json")
+        val siteHosts = rootProject.file("../test/fixtures/site-hosts.json") // #530
         unitTests.all {
             it.systemProperty("markdownCases", markdownCases.path); it.inputs.file(markdownCases)
             it.systemProperty("chatLinks", chatLinks.path); it.inputs.file(chatLinks)
+            it.systemProperty("siteHosts", siteHosts.path); it.inputs.file(siteHosts)
         }
         // Which reply is a document, as the web page decides it (DocumentOpenTest, #348).
         val documentCases = rootProject.file("../test/fixtures/document-cases.json")

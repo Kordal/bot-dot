@@ -5,6 +5,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,19 +23,23 @@ import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.CheckBoxOutlineBlank
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
@@ -131,6 +136,16 @@ internal fun filePathsIn(text: String): List<FilePaths.Found> =
 private const val PATH_TAG = "path"
 /** The small file icon before a path ([PathText] draws it; elsewhere it is a space). */
 private const val FILE_ICON = "file-icon"
+/** A site's icon before a web link (#530): its inline content is "site:<host>", "site:" for the globe, and
+ *  [SITE_TAG] holds the host where it stands. */
+private const val SITE_ICON = "site:"
+private const val SITE_TAG = "site"
+
+/** Site icons before the links of a reply: a chat's screen turns them on for the replies in it ([sitesShown]), not
+ *  for a tile or a page. */
+val LocalSiteIcons = compositionLocalOf { false }
+/** Whether a chat shows site icons: only from a server whose features name `site-icons` (#530). */
+internal fun sitesShown(features: List<String>?) = features?.contains("site-icons") == true
 
 /** Enough Markdown for bots' replies: headings, lists, quotes, code, tables, bold, links. [onWeb]: where this chat
  *  opens on the web page, for the link under a diagram's code ([webLinkUnder]). [paths]: what a file path does.
@@ -140,29 +155,31 @@ private const val FILE_ICON = "file-icon"
 fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current, copy: Boolean = true) {
     val p = LocalPaper.current
     val blocks = remember(text) { parseBlocks(text) }
+    val sites = LocalSiteIcons.current
     // Its styled text, made once (and again only when the text, the searched words or the colours change), not on
     // every redraw of the chat.
     val terms = SearchMarks.terms
-    val styled = remember(blocks, terms, color, p, paths) {
+    val styled = remember(blocks, terms, color, p, paths, sites) {
         blocks.map { b ->
             when (b) {
-                is Block.Heading -> listOf(inline(b.text, color, p, paths))
-                is Block.Para -> listOf(inline(b.text, color, p, paths))
-                is Block.Item -> listOf(inline(b.text, color, p, paths))
-                is Block.Quote -> listOf(inline(b.text, color, p, paths))
-                is Block.Table -> b.rows.flatMap { row -> row.map { inline(it, color, p, paths) } }
+                is Block.Heading -> listOf(inline(b.text, color, p, paths, sites))
+                is Block.Para -> listOf(inline(b.text, color, p, paths, sites))
+                is Block.Item -> listOf(inline(b.text, color, p, paths, sites))
+                is Block.Quote -> listOf(inline(b.text, color, p, paths, sites))
+                is Block.Table -> b.rows.flatMap { row -> row.map { inline(it, color, p, paths, sites) } }
                 else -> emptyList()
             }
         }
     }
+    val icons = remember(styled) { siteIconsIn(styled.flatten()) }
     QuotableSelection(modifier) { // selectable, with Quote in its menu inside a chat (QuoteUi.kt)
         Column {
             blocks.forEachIndexed { i, b ->
                 val st = styled[i]
                 val above = Modifier.padding(top = gapAbove(blocks.getOrNull(i - 1), b))
                 when (b) {
-                    is Block.Heading -> Text(st[0], color = color, fontWeight = FontWeight.SemiBold, fontSize = headingSize(b.level), modifier = above)
-                    is Block.Para -> PathText(st[0], color, paths, above)
+                    is Block.Heading -> Text(st[0], color = color, fontWeight = FontWeight.SemiBold, fontSize = headingSize(b.level), modifier = above, inlineContent = icons)
+                    is Block.Para -> PathText(st[0], color, paths, above, icons)
                     // The indent moves the whole row, so a sub-item's text starts right of its parent's text.
                     is Block.Item -> Row(above.padding(start = itemIndent(b.indent))) {
                         // A task item shows its checkbox in place of the marker; it only says done or not (#267).
@@ -173,10 +190,10 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                             })
                         else Text(if (b.number != null) "${b.number}." else "•", color = p.muted, style = MaterialTheme.typography.bodyLarge,
                             maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = markerWidth(b.number != null)).padding(end = 4.dp))
-                        PathText(st[0], color, paths, Modifier)
+                        PathText(st[0], color, paths, Modifier, icons)
                     }
                     is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
-                        modifier = above.padding(start = 10.dp))
+                        modifier = above.padding(start = 10.dp), inlineContent = icons)
                     is Block.Code -> {
                         // Copy in its top-right corner (#285), in a column of its own that the code scrolls beside.
                         Row(above.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp))) {
@@ -189,7 +206,7 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                                 fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                         }
                     }
-                    is Block.Table -> Box(above) { Table(b.rows, st, color, p) }
+                    is Block.Table -> Box(above) { Table(b.rows, st, color, p, icons) }
                     Block.Rule -> Box(above.fillMaxWidth().height(1.dp).background(p.line2))
                 }
             }
@@ -199,9 +216,9 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
 
 /** A paragraph or an item's text; with [paths], a long press on a file path in it offers Open and Copy path. */
 @Composable
-private fun PathText(text: AnnotatedString, color: Color, paths: PathActions?, modifier: Modifier) {
+private fun PathText(text: AnnotatedString, color: Color, paths: PathActions?, modifier: Modifier, sites: Map<String, InlineTextContent> = emptyMap()) {
     if (paths == null || text.getStringAnnotations(PATH_TAG, 0, text.length).isEmpty()) {
-        return Text(text, style = MaterialTheme.typography.bodyLarge, color = color, modifier = modifier)
+        return Text(text, style = MaterialTheme.typography.bodyLarge, color = color, modifier = modifier, inlineContent = sites)
     }
     val p = LocalPaper.current
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -210,7 +227,7 @@ private fun PathText(text: AnnotatedString, color: Color, paths: PathActions?, m
             Icon(Icons.Outlined.Description, contentDescription = null, tint = p.mention)
         })
     }
-    Text(text, style = MaterialTheme.typography.bodyLarge, color = color, inlineContent = icon, onTextLayout = { layout = it },
+    Text(text, style = MaterialTheme.typography.bodyLarge, color = color, inlineContent = icon + sites, onTextLayout = { layout = it },
         modifier = modifier.pathLongPress(text, { layout }, paths.menu))
 }
 
@@ -257,14 +274,14 @@ internal fun markerWidth(numbered: Boolean): Dp = if (numbered) 24.dp else 16.dp
 /** A grid with columns as wide as their widest cell (up to a limit, then wrapping), the header row bold and
  *  underlined, scrolling sideways when it's wider than the chat. */
 @Composable
-private fun Table(rows: List<List<String>>, cells: List<AnnotatedString>, color: Color, p: Paper) {
+private fun Table(rows: List<List<String>>, cells: List<AnnotatedString>, color: Color, p: Paper, sites: Map<String, InlineTextContent> = emptyMap()) {
     val cols = rows.maxOf { it.size }
     // cells: each row's styled cells, one after another (rows can be shorter than the widest).
     val starts = rows.runningFold(0) { at, row -> at + row.size }
     Layout(
         content = {
             for ((ri, row) in rows.withIndex()) for (c in 0 until cols) {
-                Text(if (c < row.size) cells[starts[ri] + c] else AnnotatedString(""), color = color, fontSize = 14.sp,
+                Text(if (c < row.size) cells[starts[ri] + c] else AnnotatedString(""), color = color, fontSize = 14.sp, inlineContent = sites,
                     fontWeight = if (ri == 0) FontWeight.SemiBold else null)
             }
             Box(Modifier.background(p.line2))
@@ -458,17 +475,62 @@ internal fun chatLinks(text: String): List<ChatLink> {
     }.toList()
 }
 
-/** Link plain chat text without changing its characters, mentions or search marks. */
-internal fun linkedChatText(source: AnnotatedString, color: Color): AnnotatedString = buildAnnotatedString {
-    append(source)
+/** Link plain chat text without changing its characters, mentions or search marks; with [sites], each link has its
+ *  site's icon before it ([siteIcon]). */
+internal fun linkedChatText(source: AnnotatedString, color: Color, sites: Boolean = false): AnnotatedString = buildAnnotatedString {
     val styles = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline))
+    var at = 0
     chatLinks(source.text).forEach { link ->
         val end = link.start + link.text.length
-        if (source.getLinkAnnotations(link.start, end).isEmpty()) addLink(LinkAnnotation.Url(link.url, styles), link.start, end)
+        if (source.getLinkAnnotations(link.start, end).isNotEmpty()) return@forEach
+        append(source.subSequence(at, link.start))
+        if (sites) siteIcon(link.url)
+        val start = length
+        append(source.subSequence(link.start, end))
+        addLink(LinkAnnotation.Url(link.url, styles), start, length)
+        at = end
+    }
+    append(source.subSequence(at, source.length))
+}
+
+/** The host botdot is asked for a link's icon, or null for one it would refuse (an IP address, a local name): the
+ *  web page's linkHost (test/fixtures/site-hosts.json). */
+internal fun siteHostOf(url: String): String? {
+    val host = runCatching { java.net.URI(url).host }.getOrNull()?.lowercase() ?: return null
+    return host.takeIf { it.contains('.') && !NOT_A_SITE.containsMatchIn(it) }
+}
+private val NOT_A_SITE = Regex("""^[\d.]+$|^\[|\.(local|localhost|lan|internal|home\.arpa)$""")
+
+/** A site's icon before a link: drawn by [SiteIcon] where the text's inlineContent has [siteIconsIn]. */
+private fun AnnotatedString.Builder.siteIcon(url: String) {
+    val host = siteHostOf(url).orEmpty()
+    val start = length
+    appendInlineContent(SITE_ICON + host, " ")
+    addStringAnnotation(SITE_TAG, host, start, length)
+}
+
+/** The inline content for the site icons in [texts]: one per site. */
+internal fun siteIconsIn(texts: List<AnnotatedString>): Map<String, InlineTextContent> =
+    texts.flatMap { t -> t.getStringAnnotations(SITE_TAG, 0, t.length).map { it.item } }.toSet().associate { host ->
+        SITE_ICON + host to InlineTextContent(Placeholder(16.sp, 16.sp, PlaceholderVerticalAlign.TextCenter)) { SiteIcon(host) }
+    }
+
+/** The icon botdot keeps for [host] (/api/favicon), on a light rounded backing so a dark icon shows on the dark
+ *  page; a grey globe where it keeps none. */
+@Composable
+private fun SiteIcon(host: String) {
+    val p = LocalPaper.current
+    val api by dev.botdot.app.BotDotApp.of(LocalContext.current).api.collectAsState()
+    var failed by remember(host) { mutableStateOf(false) }
+    val a = api
+    if (host.isEmpty() || failed || a == null) return Icon(Icons.Outlined.Language, contentDescription = null, tint = p.faint, modifier = Modifier.fillMaxSize().padding(1.dp))
+    Box(Modifier.fillMaxSize().padding(1.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFE6E6E6)), contentAlignment = Alignment.Center) {
+        coil3.compose.AsyncImage(model = a.url("/favicon?host=" + dev.botdot.app.data.Api.enc(host)), contentDescription = null,
+            onState = { if (it is coil3.compose.AsyncImagePainter.State.Error) failed = true }, modifier = Modifier.fillMaxSize().padding(1.dp))
     }
 }
 
-private fun inline(s: String, color: Color, p: Paper, paths: PathActions? = null): AnnotatedString = SearchMarks.mark(inlineText(s, color, p, paths))
+private fun inline(s: String, color: Color, p: Paper, paths: PathActions? = null, sites: Boolean = false): AnnotatedString = SearchMarks.mark(inlineText(s, color, p, paths, sites))
 
 /** A file path as a link: blue, a tap opens it, and tagged for [pathLongPress]. */
 private fun AnnotatedString.Builder.pathLink(path: String, p: Paper, paths: PathActions, content: AnnotatedString.Builder.() -> Unit) {
@@ -478,28 +540,28 @@ private fun AnnotatedString.Builder.pathLink(path: String, p: Paper, paths: Path
 }
 
 /** Plain text with its web addresses linked and, with [paths], its file paths. */
-private fun linkedReplyText(s: String, color: Color, p: Paper, paths: PathActions?): AnnotatedString {
-    if (paths == null) return linkedChatText(AnnotatedString(s), color)
+private fun linkedReplyText(s: String, color: Color, p: Paper, paths: PathActions?, sites: Boolean): AnnotatedString {
+    if (paths == null) return linkedChatText(AnnotatedString(s), color, sites)
     return buildAnnotatedString {
         var at = 0
         for (f in filePathsIn(s)) {
-            append(linkedChatText(AnnotatedString(s.substring(at, f.start)), color))
+            append(linkedChatText(AnnotatedString(s.substring(at, f.start)), color, sites))
             appendInlineContent(FILE_ICON, " ")
             pathLink(f.text, p, paths) { append(f.text) }
             at = f.start + f.text.length
         }
-        append(linkedChatText(AnnotatedString(s.substring(at)), color))
+        append(linkedChatText(AnnotatedString(s.substring(at)), color, sites))
     }
 }
 
-internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? = null): AnnotatedString = buildAnnotatedString {
+internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? = null, sites: Boolean = false): AnnotatedString = buildAnnotatedString {
     val links = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline))
     var at = 0
     for (m in INLINE.findAll(s)) {
-        append(linkedReplyText(s.substring(at, m.range.first), color, p, paths))
+        append(linkedReplyText(s.substring(at, m.range.first), color, p, paths, sites))
         val g = m.groupValues
         when {
-            g[1].isNotEmpty() || g[2].isNotEmpty() -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(inlineText(g[1].ifEmpty { g[2] }, color, p, paths)) }
+            g[1].isNotEmpty() || g[2].isNotEmpty() -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(inlineText(g[1].ifEmpty { g[2] }, color, p, paths, sites)) }
             g[3].isNotEmpty() && paths != null && FilePaths.isPath(g[4]) -> pathLink(g[4], p, paths) {
                 withStyle(SpanStyle(fontFamily = GeistMono, background = p.sunk, fontSize = 13.sp)) { append(g[4]) }
             }
@@ -507,14 +569,15 @@ internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? =
             g[5].isNotEmpty() -> {
                 val target = runCatching { java.net.URI(g[6]) }.getOrNull()
                 if (target?.scheme?.lowercase() in listOf("http", "https") && !target?.host.isNullOrEmpty()) {
+                    if (sites) siteIcon(g[6])
                     withLink(LinkAnnotation.Url(g[6], links)) { append(g[5]) }
                 } else append(g[5])
             }
-            g[7].isNotEmpty() -> append(linkedChatText(AnnotatedString(g[7]), color))
-            g[8].isNotEmpty() || g[9].isNotEmpty() -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(inlineText(g[8].ifEmpty { g[9] }, color, p, paths)) }
-            g[10].isNotEmpty() -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { append(inlineText(g[10], color, p, paths)) }
+            g[7].isNotEmpty() -> append(linkedChatText(AnnotatedString(g[7]), color, sites))
+            g[8].isNotEmpty() || g[9].isNotEmpty() -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(inlineText(g[8].ifEmpty { g[9] }, color, p, paths, sites)) }
+            g[10].isNotEmpty() -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { append(inlineText(g[10], color, p, paths, sites)) }
         }
         at = m.range.last + 1
     }
-    append(linkedReplyText(s.substring(at), color, p, paths))
+    append(linkedReplyText(s.substring(at), color, p, paths, sites))
 }

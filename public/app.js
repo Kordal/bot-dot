@@ -787,11 +787,44 @@ function linkifyChat(root) {
     }
   }
 }
+// A site's icon before each web link in a reply (#530, ADR 086), from botdot (/api/favicon), never from the site: a
+// grey globe where botdot keeps none. Only from a server whose `features` name `site-icons`.
+const GLOBE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>';
+const SITE_LINKS = '.bubble .md a[href^="http"]:not(.file-path):not([data-site-icon])';
+// The host botdot is asked for, or null for an address it would refuse (an IP address, a local name).
+function linkHost(href) {
+  let host;
+  try { host = new URL(href).hostname.toLowerCase(); } catch { return null; }
+  return host.includes('.') && !/^[\d.]+$|^\[|\.(local|localhost|lan|internal|home\.arpa)$/.test(host) ? host : null;
+}
+function siteIcons(root) {
+  if (!state.features?.includes('site-icons')) return;
+  const links = [...(root.matches?.(SITE_LINKS) ? [root] : []), ...root.querySelectorAll(SITE_LINKS)];
+  for (const a of links) {
+    if (a.closest('code, pre')) continue;
+    a.dataset.siteIcon = '';
+    const host = linkHost(a.href);
+    const icon = document.createElement('span');
+    icon.className = 'site-icon';
+    if (host) {
+      const img = document.createElement('img');
+      img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      img.addEventListener('error', () => { icon.classList.add('globe'); icon.innerHTML = GLOBE_ICON; }, { once: true });
+      img.src = `/api/favicon?host=${encodeURIComponent(host)}`;
+      icon.append(img);
+    } else { icon.classList.add('globe'); icon.innerHTML = GLOBE_ICON; }
+    a.prepend(icon);
+  }
+}
 // Covers loaded history, optimistic user messages, and live replies/files alike.
 new MutationObserver((changes) => {
   for (const change of changes) for (const node of change.addedNodes) {
-    if (node.nodeType === Node.ELEMENT_NODE) linkifyChat(node);
-    else if (node.nodeType === Node.TEXT_NODE && node.parentElement) linkifyChat(node.parentElement);
+    const el = node.nodeType === Node.ELEMENT_NODE ? node : node.nodeType === Node.TEXT_NODE ? node.parentElement : null;
+    if (!el) continue;
+    linkifyChat(el);
+    siteIcons(el);
   }
 }).observe(document.getElementById('app'), { childList: true, subtree: true });
 // A reply's diagrams, wherever a reply, a tile or a skill is drawn: on the page and in its dialog (diagrams.js).

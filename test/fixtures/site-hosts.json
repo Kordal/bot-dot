@@ -1,0 +1,16 @@
+{
+  "about": "The host each app asks botdot for a link's site icon (#530), or null where it draws the globe without asking: the web page's linkHost (public/app.js) and the Android app's siteHostOf (Markdown.kt).",
+  "cases": [
+    ["https://news.example.com/a?b=1", "news.example.com"],
+    ["https://News.YCombinator.com/item?id=1", "news.ycombinator.com"],
+    ["http://example.org:8080/x", "example.org"],
+    ["https://127.0.0.1/x", null],
+    ["https://100.96.60.62/", null],
+    ["https://[::1]/", null],
+    ["https://localhost/", null],
+    ["https://nas.local/", null],
+    ["https://router.lan/admin", null],
+    ["https://box.home.arpa/", null],
+    ["https://intranet/", null]
+  ]
+}
