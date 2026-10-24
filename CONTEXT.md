@@ -22,6 +22,10 @@ _Avoid_: Chief bot, manager, admin
 The one Linux computer of an account, a container that stays on, which every bot with a computer works on at the same time, as the same user (`box`) with sudo. Its memory and CPUs are the account's share. Each bot has a screen of its own there; `/home/box` and `/workspace` are shared. Every bot there can see and change what the others do and read the secrets used there: the screens are separate work surfaces, not walls ([ADR 035](docs/adr/035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md)).
 _Avoid_: VM, sandbox, container, a bot's own computer, computers (there is one per account)
 
+**boat.dev computer**:
+A bot's computer when its owner chose boat.dev for it: a Linux machine of its own at boat.dev, a paid cloud service, in place of the account's computer. It has commands and files only (no screen, no browser, no saved secret), starts on the bot's first command and stops after 30 minutes unused ([ADR 088](docs/adr/088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md)). "This machine" is the account's computer, which is free.
+_Avoid_: sandbox (boat.dev's own word), VM, cloud computer
+
 **Bot's computer**:
 The account's computer as one bot works on it: its own screen (a desktop with its own browser), which the user can watch live or take control of, and its own folder, `/workspace/<bot id>`. "Uses the computer" in a bot's settings gives a bot one; a bot without it has no screen and cannot reach the computer. A bot's old computer of its own, from before the account's computer, is kept stopped until the owner copies its files and erases it.
 _Avoid_: VM, sandbox, desktop

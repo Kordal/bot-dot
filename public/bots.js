@@ -84,7 +84,7 @@ function readBotForm(form, sel) {
     group: form.group.value.trim(),
     prompt: form.prompt.value,
     systemPrompt: form.systemPrompt.value,
-    computer: form.computer.checked ? 'linux' : 'none',
+    computer: !form.computer.checked ? 'none' : form.computerOn?.value === 'boat' ? 'boat' : 'linux',
     skills: [...sel.skills],
     disabledSkills: readDisabledSkills(form),
     connectors: [...sel.connectors],
@@ -201,6 +201,10 @@ function renderBotSettings(force = false) {
   root.dataset.bot = bot.id;
   const b = bot;
   const docker = state.status?.docker?.ok;
+  // A bot's computer: its screen on the account's computer, or a machine of its own on boat.dev once the admin set
+  // a key there (ADR 088).
+  const hasComputer = b.computer === 'linux' || b.computer === 'boat';
+  const boatChoice = state.features.includes('boat-computer') && (state.status?.boat || b.computer === 'boat');
   const knownTools = new Set(PERMS.flatMap((p) => p.tools));
   const has = (p) => p.tools.every((t) => b.allowedTools.includes(t));
   root.innerHTML = `
@@ -219,11 +223,16 @@ function renderBotSettings(force = false) {
       </div>
 
       <div class="card settings-card bs-rows">
-        <div class="bs-row ${docker || b.computer === 'linux' ? '' : 'hidden'}">
+        <div class="bs-row ${docker || hasComputer ? '' : 'hidden'}">
           <span class="bs-icon">🖥</span>
-          <div class="grow"><b>Uses the computer</b><div class="faint">Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.${b.computer === 'linux' ? ' <button type="button" class="link-btn" data-bs-screen>See its screen</button>' : ''}</div></div>
-          <label class="switch"><input type="checkbox" name="computer" ${b.computer === 'linux' ? 'checked' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'} aria-label="Uses the computer"><span></span></label>
+          <div class="grow"><b>Uses the computer</b>${b.computer === 'boat' ? '' : `<div class="faint">Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.${b.computer === 'linux' ? ' <button type="button" class="link-btn" data-bs-screen>See its screen</button>' : ''}</div>`}</div>
+          <label class="switch"><input type="checkbox" name="computer" ${hasComputer ? 'checked' : ''} ${docker || hasComputer ? '' : 'disabled'} aria-label="Uses the computer"><span></span></label>
         </div>
+        ${boatChoice ? `<div class="bs-row ${hasComputer ? '' : 'hidden'}" id="bs-computer-on">
+          <span class="bs-icon"></span>
+          <div class="grow"><b>Computer</b><div class="faint">This machine is free. boat.dev costs.</div></div>
+          <select name="computerOn" aria-label="Computer"><option value="linux">This machine</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>boat.dev</option></select>
+        </div>` : ''}
         <div class="bs-row">
           <span class="bs-icon">📌</span>
           <div class="grow"><b>Pinned below the Chief</b></div>
@@ -335,6 +344,8 @@ function renderBotSettings(force = false) {
   };
   const saveSoon = () => { clearTimeout(timer); timer = setTimeout(save, 300); };
   form.addEventListener('change', (e) => { if (!e.target.matches('[data-perm]')) saveSoon(); });
+  const computerOn = $('#bs-computer-on', root);
+  if (computerOn) form.computer.addEventListener('change', () => computerOn.classList.toggle('hidden', !form.computer.checked));
   if (form.allowRooms) form.allowRooms.addEventListener('change', () => $('.bs-rooms-who', root).classList.toggle('hidden', !form.allowRooms.checked));
   // "Everything allowed" asks first. Until the answer the select is back at its earlier mode, so that no
   // save, this one or another field's, carries the new one; Cancel leaves it there and saves nothing.

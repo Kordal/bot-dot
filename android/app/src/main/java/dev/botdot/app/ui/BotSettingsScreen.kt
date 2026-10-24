@@ -99,6 +99,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var model by remember { mutableStateOf("") }
     var effort by remember { mutableStateOf("") }
     var computer by remember { mutableStateOf(false) }
+    var computerOn by remember { mutableStateOf("linux") } // where its computer is: this machine, or boat.dev (ADR 088)
     var useSkills by remember { mutableStateOf(true) }
     var skills by remember { mutableStateOf(setOf<String>()) }
     var sysSkills by remember { mutableStateOf(listOf<Pair<dev.botdot.app.data.BuiltinSkill, String>>()) } // every bot has these unless switched off
@@ -112,7 +113,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
 
     fun fill(b: Bot) {
         bot = b; color = b.color.orEmpty(); name = b.name; description = b.description; group = b.group; pinned = b.pinned > 0; task = b.prompt
-        model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux"
+        model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux" || b.computer == "boat"; computerOn = if (b.computer == "boat") "boat" else "linux"
         useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
         othersMayAsk = b.othersMayAsk != false
         rooms = b.rooms ?: dev.botdot.app.data.BotRooms()
@@ -150,7 +151,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             if (task != b.prompt) put("prompt", task)
             if (model != b.model.orEmpty()) put("model", model)
             if (effort != b.effort.orEmpty()) put("effort", effort)
-            if (computer != (b.computer == "linux")) put("computer", if (computer) "linux" else "none")
+            val nextComputer = if (computer) computerOn else "none"
+            if (nextComputer != b.computer) put("computer", nextComputer)
             if (useSkills != b.useSkills) put("useSkills", useSkills)
             if (skills != b.skills.toSet()) put("skills", JsonArray(skills.map { JsonPrimitive(it) }))
             if (disabled != b.disabledSkills.toSet()) put("disabledSkills", JsonArray(disabled.map { JsonPrimitive(it) }))
@@ -192,7 +194,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 OutlinedTextField(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
             }
             Section("What it can do") {
-                SwitchRow("Uses the computer", "Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.", computer) { computer = it }
+                SwitchRow("Uses the computer", if (b.computer == "boat") null else "Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.", computer) { computer = it }
+                if (computer && "boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
+                    Choice("Computer", computerOn, listOf("linux" to "This machine", "boat" to "boat.dev")) { computerOn = it }
+                    Hint("This machine is free. boat.dev costs.")
+                }
                 if (b.computer == "linux") OutlinedButton(onClick = onScreen) { Text("🖥 See its screen", color = p.text) }
                 val waiting = b.jobs.count { it.waits }
                 androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clickable(onClick = onJobs).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
