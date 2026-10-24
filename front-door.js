@@ -699,16 +699,18 @@ function handRouter() {
   const body = groupRouter.forAccounts();
   for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/group-router', body, 5000);
 }
-// The admin's boat.dev key (#529): handed the same way, on a change and every minute.
+// The admin's boat.dev key (#529): handed the same way, on a change and, while one is set, every minute. Without
+// one there is nothing to hand: an account starts with none.
 const boat = ONE_ACCOUNT ? null : boatStore.open(DATA);
-function handBoat() {
+function handBoat(changed = false) {
   if (!boat) return;
   const body = boat.forAccounts();
+  if (!body.key && !changed) return;
   for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/boat', body, 5000);
 }
 if (boat) {
-  setTimeout(handBoat, 3000).unref();
-  setInterval(handBoat, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
+  setTimeout(() => handBoat(), 3000).unref();
+  setInterval(() => handBoat(), Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
 }
 if (groupRouter) {
   setTimeout(handRouter, 3000).unref();
@@ -966,7 +968,7 @@ async function adminRoutes(req, res, p, account) {
     }
     const shown = boat.set(key);
     console.log(`[front door] the admin ${key ? 'set' : 'removed'} the boat.dev key`);
-    handBoat();
+    handBoat(true);
     return send(res, 200, shown);
   }
   if (p === '/admin/accounts' && req.method === 'GET') {
