@@ -286,6 +286,8 @@ const kindWords = (script) => (script ? 'a script, no AI' : 'uses AI');
 const NOTIFY_WORDS = { always: 'after every run', 'report-only': 'only when it has something to report' };
 const changedBy = (by) => (by === 'chief' ? 'changed by the Chief' : by === 'bot' ? 'changed by itself' : 'changed');
 // "<label>: <was> → <now>" for a setting a change changes, '' for one it leaves. words: a value in words.
+// The Vault logins a script job's script may use (ADR 085), as one line of their names; '' for none.
+const loginNames = (list) => (Array.isArray(list) ? list.filter((n) => typeof n === 'string').join(', ') : '');
 const changedLine = (label, was, now, words) => (typeof now !== 'string' || now === was ? '' : was ? `${label}: ${words(was)} → ${words(now)}` : `${label}: ${words(now)}`);
 
 // What the card and the dialog of a waiting job show (docs/api.md, "Decline" and "A change that waits").
@@ -302,7 +304,7 @@ function jobCard(j) {
     const script = j.kind === 'script';
     const by = j.changedBy === 'bot' ? 'added by itself' : j.changedBy === 'chief' ? 'added by the Chief' : 'changed';
     return { change: false, summary: '', title: j.name, name: j.name, when: j.when, meta: `${j.when} · ${kindWords(script)} · ${by}`, isScript: script, script: script ? j.script || '' : null, scriptWas: null,
-      prompt: j.prompt || '', promptWas: null, also: [], aiWhen: j.aiWhen, assessment: j.assessment || '', line: '', no: said(j.no) || 'Decline', yes: 'Approve' };
+      prompt: j.prompt || '', promptWas: null, also: script && loginNames(j.logins) ? [`Logins: ${loginNames(j.logins)}`] : [], aiWhen: j.aiWhen, assessment: j.assessment || '', line: '', no: said(j.no) || 'Decline', yes: 'Approve' };
   }
   const text = (v, or) => (typeof v === 'string' ? v : or); // a field the server left out did not change
   const script = text(c.kind, j.kind) === 'script';
@@ -320,6 +322,7 @@ function jobCard(j) {
     also: [
       changedLine('Tells you', j.notify || 'report-only', c.notify, (v) => NOTIFY_WORDS[v] || v),
       changedLine('Asks the AI', j.kind === 'script' ? j.aiWhen : '', aiWhen, (v) => (AI_WHEN_TEXT[v] || v).toLowerCase()),
+      changedLine('Logins', loginNames(j.logins), script ? loginNames(c.logins) || (loginNames(j.logins) ? 'none' : '') : null, (v) => v),
     ].filter(Boolean),
     aiWhen, assessment: text(c.assessment, j.assessment) || '', line: RUNS_AS_APPROVED, no: said(j.no) || 'Keep as it is', yes: said(j.yes) || 'Approve the change',
   };

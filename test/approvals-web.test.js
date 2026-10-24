@@ -221,6 +221,18 @@ test('web: both scripts where the script changes; a job that becomes a script sh
   assert.match(css, /\.need-card:not\(\.open\) \.need-change pre\.faint-strike \{ -webkit-line-clamp: 2; \}/, 'closed, the card shows the start of both');
 });
 
+test('web: a script job\'s card lists its logins, and a change the list it was and the list it becomes (ADR 085)', () => {
+  const draw = (job) => { const p = page({ state: { bots: withJobs(job) } }); return p.needCardHTML(p.needsItems()[0]); };
+  assert.deepEqual(alsoOf(draw({ ...SCRIPT, logins: ['GitHub token', 'Proxmox'] })), ['Logins: GitHub token, Proxmox']);
+  assert.deepEqual(alsoOf(draw(SCRIPT)), [], 'none: no line');
+  const approved = { ...SCRIPT, logins: ['GitHub token'], approved: true, no: 'Keep as it is', yes: 'Approve the change' };
+  const change = (c) => ({ ...approved, change: { ...CHANGE, name: 'Disk check', kind: 'script', when: 'Every hour', script: approved.script, prompt: '', aiWhen: 'output', ...c } });
+  assert.deepEqual(alsoOf(draw(change({ logins: ['GitHub token', 'Proxmox'] }))), ['Logins: GitHub token → GitHub token, Proxmox']);
+  assert.deepEqual(alsoOf(draw(change({}))), ['Logins: GitHub token → none']);
+  assert.deepEqual(alsoOf(draw(change({ logins: ['GitHub token'] }))), [], 'the same list: no line');
+  assert.deepEqual(alsoOf(draw(change({ kind: 'ai', script: '', prompt: 'Look.' }))), [], 'an AI job has none');
+});
+
 test('web: a closed card shows what changes: the block that changes stands first, and what else changes above the blocks', () => {
   const approved = { ...SCRIPT, prompt: 'Tell me when it is over 90%.', approved: true, notify: 'report-only', no: 'Keep as it is', yes: 'Approve the change' };
   const draw = (change) => { const p = page({ state: { bots: withJobs({ ...approved, change: { ...CHANGE, name: 'Disk check', kind: 'script', when: 'Every hour', script: approved.script, prompt: approved.prompt, aiWhen: 'output', ...change } }) } }); return p.needCardHTML(p.needsItems()[0]); };
