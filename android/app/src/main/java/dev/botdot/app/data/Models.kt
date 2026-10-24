@@ -23,6 +23,7 @@ data class VersionInfo(
     val features: List<String> = emptyList(),
     val frontDoor: Boolean = false, // a front door's own answer, before signing in (ADR 028): botdot is behind it
     val docker: Boolean = false,
+    val boat: Boolean = false, // the admin set a boat.dev key: a bot's computer may be there (ADR 086)
     val android: AndroidRelease? = null, // the app this botdot hands out, to update from
 ) {
     /**

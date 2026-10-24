@@ -56,6 +56,8 @@ const roomStore = require('./lib/front-door/rooms');
 const roomTurns = require('./lib/front-door/room-turns');
 const groupRouterStore = require('./lib/front-door/group-router');
 const groupRouterLib = require('./lib/group-router');
+const boatStore = require('./lib/front-door/boat');
+const boatLib = require('./lib/boat');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -697,6 +699,17 @@ function handRouter() {
   const body = groupRouter.forAccounts();
   for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/group-router', body, 5000);
 }
+// The admin's boat.dev key (#529): handed the same way, on a change and every minute.
+const boat = ONE_ACCOUNT ? null : boatStore.open(DATA);
+function handBoat() {
+  if (!boat) return;
+  const body = boat.forAccounts();
+  for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/boat', body, 5000);
+}
+if (boat) {
+  setTimeout(handBoat, 3000).unref();
+  setInterval(handBoat, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
+}
 if (groupRouter) {
   setTimeout(handRouter, 3000).unref();
   setInterval(handRouter, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
@@ -938,6 +951,22 @@ async function adminRoutes(req, res, p, account) {
     try { shown = groupRouter.set(body.router, key || undefined, typeof body.wakeGate === 'boolean' ? body.wakeGate : undefined); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
     console.log(`[front door] the admin chose ${shown.router === 'jev' ? 'Jev' : 'Haiku'} to pick who answers in a group; the wake gate is ${shown.wakeGate ? 'on' : 'off'}`);
     handRouter();
+    return send(res, 200, shown);
+  }
+  // The boat.dev key (#529), checked with one call before it is kept; null removes it. It is never answered.
+  if (p === '/admin/boat' && req.method === 'GET') return send(res, 200, boat.shown());
+  if (p === '/admin/boat' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const key = typeof body.key === 'string' ? body.key.trim() : null;
+    if (body.key !== null && !key) return send(res, 400, { error: 'Paste a boat.dev API key.' });
+    if (key) {
+      const checked = await boatLib.checkKey(key);
+      if (checked === 'refused') return send(res, 400, { error: 'boat.dev refused this key.' });
+      if (checked === 'unreachable') return send(res, 502, { error: "boat.dev can't be reached. Try again." });
+    }
+    const shown = boat.set(key);
+    console.log(`[front door] the admin ${key ? 'set' : 'removed'} the boat.dev key`);
+    handBoat();
     return send(res, 200, shown);
   }
   if (p === '/admin/accounts' && req.method === 'GET') {
