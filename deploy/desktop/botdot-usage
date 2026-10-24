@@ -6,6 +6,8 @@ DISPLAY=:<n> (a command botdot ran on the screen), else to the display its comma
 camoufox-browser --serve :<n>), else to its parent's. Screens are displays 11 to 99 (lib/computers.js screenPorts);
 the rest is the computer's own ("other"). Memory is resident memory, so what processes share counts in each;
 CPU is measured over a wait (argv[2] seconds, half a second by default), 100 being one CPU fully used.
+"other" also says how many of its processes are zombies, and its largest groups by name and parent's name, most CPU
+first, so that what was left behind on the computer can be told after a restart has wiped it (#535).
 argv[1] is the /proc to read, /proc by default."""
 import json
 import os
@@ -30,7 +32,7 @@ def read(pid, name):
 
 
 def stats():
-    """Every process: (parent, CPU ticks so far, resident bytes)."""
+    """Every process: (parent, CPU ticks so far, resident bytes, name, state)."""
     out = {}
     for pid in os.listdir(PROC):
         if not pid.isdigit():
@@ -39,8 +41,9 @@ def stats():
         if not stat:
             continue
         try:
+            name = stat[stat.index(b"(") + 1:stat.rindex(b")")].decode("utf-8", "replace")
             rest = stat[stat.rindex(b")") + 2:].split()
-            out[pid] = (rest[1].decode(), int(rest[11]) + int(rest[12]), int(rest[21]) * PAGE)
+            out[pid] = (rest[1].decode(), int(rest[11]) + int(rest[12]), int(rest[21]) * PAGE, name, rest[0].decode())
         except (ValueError, IndexError):
             continue
     return out
@@ -81,17 +84,29 @@ def display_of(pid, depth=0):
     return n
 
 
+def rounded(cpu):
+    cpu = round(cpu, 1)
+    return int(cpu) if cpu == int(cpu) else cpu
+
+
+TOP = 5
 screens = {}
-other = {"memoryBytes": 0, "cpuPercent": 0.0, "processes": 0}
-for pid, (_parent, ticks, rss) in now.items():
+other = {"memoryBytes": 0, "cpuPercent": 0.0, "processes": 0, "zombies": 0}
+groups = {}  # (name, parent's name) -> what of "other" has them
+for pid, (parent, ticks, rss, name, state) in now.items():
     n = display_of(pid)
     into = screens.setdefault(str(n), {"memoryBytes": 0, "cpuPercent": 0.0, "processes": 0}) if n is not None and 11 <= n <= 99 else other
+    cpu = max(ticks - before.get(pid, (None, 0))[1], 0) * 100.0 / HZ / WAIT if WAIT > 0 else 0.0
     into["memoryBytes"] += rss
     into["processes"] += 1
-    if WAIT > 0:
-        into["cpuPercent"] += max(ticks - before.get(pid, (None, 0, 0))[1], 0) * 100.0 / HZ / WAIT
+    into["cpuPercent"] += cpu
+    if into is other:
+        other["zombies"] += state == "Z"
+        g = groups.setdefault((name, now[parent][3] if parent in now else ""), {"processes": 0, "cpuPercent": 0.0})
+        g["processes"] += 1
+        g["cpuPercent"] += cpu
 for u in list(screens.values()) + [other]:
-    u["cpuPercent"] = round(u["cpuPercent"], 1)
-    if u["cpuPercent"] == int(u["cpuPercent"]):
-        u["cpuPercent"] = int(u["cpuPercent"])
+    u["cpuPercent"] = rounded(u["cpuPercent"])
+top = sorted(groups.items(), key=lambda kv: (-kv[1]["cpuPercent"], -kv[1]["processes"], kv[0]))[:TOP]
+other["top"] = [{"name": name, "parent": parent, "processes": g["processes"], "cpuPercent": rounded(g["cpuPercent"])} for (name, parent), g in top]
 print(json.dumps({"screens": screens, "other": other}))

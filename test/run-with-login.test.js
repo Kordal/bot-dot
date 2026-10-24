@@ -12,7 +12,7 @@ const util = require('node:util');
 const childProcess = require('node:child_process');
 const vaultLib = require('../lib/vault');
 const { hideLogin } = require('../lib/vault-http');
-const { startServer, makeBot, heldRun } = require('./helpers');
+const { startServer, makeBot, heldRun, REAPED } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 const SECRET = 'br1dge-S3cret/+=';
@@ -60,7 +60,7 @@ test('the login goes to docker exec in its own environment, never on its command
   // The command runs as given, in sh, inside `timeout`, in this bot's computer, in its own folder and on its own
   // screen (#105).
   const at = args.indexOf(computers.containerName('mail'));
-  assert.deepEqual(args.slice(at + 1), ['timeout', '-k', '5', '120', 'sh', '-c', 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"',
+  assert.deepEqual(args.slice(at + 1), ['timeout', '-k', '5', '120', ...REAPED, 'sh', '-c', 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"',
     'sh', '/workspace/mail', 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/INBOX']);
   assert.ok(args.includes('DISPLAY=:11'));
 });

@@ -18,7 +18,7 @@ const FAKE_BW = path.join(__dirname, 'fixtures', 'fake-bw.js');
 process.env.BW_BIN = FAKE_BW;
 const bitwardenLib = require('../lib/bitwarden');
 const { hideSshKey } = require('../lib/vault-http');
-const { startServer, makeBot, heldRun } = require('./helpers');
+const { startServer, makeBot, heldRun, REAPED } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 const CLIENT_ID = 'user.00000000-0000-0000-0000-000000000000';
@@ -122,15 +122,15 @@ function computer(change = {}) {
     if (args[0] === 'inspect') return change.labels ?? '2|2';
     if (args[0] !== 'exec') return '';
     if (args.some((a) => String(a).includes('ssh-agent -D'))) return change.agent ?? `${AGENT_DIR} 4242`;
-    if (args.includes('/usr/bin/python3')) return change.load ?? '{"ok": true}';
     if (args.includes('timeout')) return change.run ?? { stdout: ' 10:00:00 up 3 days\n' };
+    if (args.includes('/usr/bin/python3')) return change.load ?? '{"ok": true}';
     return '';
   };
 }
 const execs = () => calls.filter((c) => c.args[0] === 'exec');
 const step = (name) => execs().find((c) => ({
   agent: () => c.args.some((a) => String(a).includes('ssh-agent -D')),
-  load: () => c.args.includes('/usr/bin/python3'),
+  load: () => c.args.includes('/usr/bin/python3') && !c.args.includes('timeout'),
   run: () => c.args.includes('timeout'),
   stop: () => c.args.some((a) => String(a).startsWith('kill "$1"')),
 }[name])());
@@ -150,7 +150,7 @@ test('runWithSshKey: the agent as the bot, the key as root on stdin only, the co
   const run = step('run');
   assert.deepEqual(run.args.slice(0, 3), ['exec', '-u', 'box']);
   assert.equal(run.args[run.args.indexOf(`SSH_AUTH_SOCK=${AGENT_DIR}/agent`) - 1], '-e');
-  assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '5', '30', 'sh', '-c', 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"',
+  assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '5', '30', ...REAPED, 'sh', '-c', 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"',
     'sh', '/workspace/ops', 'ssh admin@server.example.ts.net uptime'], 'in its own folder (#105)');
   const stop = step('stop');
   assert.deepEqual(stop.args.slice(0, 4), ['exec', '-u', 'box', name]);
