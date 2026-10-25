@@ -78,7 +78,7 @@ test("git commits under the bot's name from the system level, and what a reposit
     assert.equal(git(repo, ['log', '-1', '--format=%an <%ae>'], env).stdout.trim(), 'Ops "Night" \\ Bot evil = 1 <b1@bots.botdot.invalid>');
     git(repo, ['config', 'user.email', 'owner@example.com'], env);
     assert.equal(git(repo, ['config', 'user.email'], env).stdout.trim(), 'owner@example.com');
-    assert.equal(workspaceGit.identityConfig('b2', ' \n '), '[user]\n\tname = "b2"\n\temail = "b2@bots.botdot.invalid"\n', 'no name: the id');
+    assert.equal(workspaceGit.identityConfig('b2', ' \n '), '[include]\n\tpath = /etc/gitconfig\n[user]\n\tname = "b2"\n\temail = "b2@bots.botdot.invalid"\n', 'no name: the id');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
