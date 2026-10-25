@@ -17,7 +17,7 @@ process.env.BW_BIN = FAKE_BW;
 const vaultFiles = require('../lib/vault-files');
 const bitwardenLib = require('../lib/bitwarden');
 const { hideFile } = require('../lib/vault-http');
-const { startServer, makeBot, heldRun, REAPED } = require('./helpers');
+const { startServer, makeBot, heldRun, REAPED, IN_OWN_FOLDER } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 const CLIENT_ID = 'user.00000000-0000-0000-0000-000000000000';
@@ -196,7 +196,7 @@ test('runWithFile: the file is there for the command, 0600 in a 0700 folder, and
     assert.deepEqual(start.args.slice(0, 5), ['exec', '-i', '-u', 'box', name], 'made as the bot user');
     assert.ok(Buffer.from(start.stdin).equals(PEM_BYTES), 'the bytes on stdin');
     assert.deepEqual(run.args.slice(0, 3), ['exec', '-u', 'box']);
-    assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '5', '30', ...REAPED, 'sh', '-c', 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"',
+    assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '5', '30', ...REAPED, 'sh', '-c', IN_OWN_FOLDER,
       'sh', '/workspace/ops', 'openssl dgst -sha256 -sign "$BOTDOT_FILE" data'], 'in its own folder (#105)');
     assert.deepEqual(remove.args.slice(0, 4), ['exec', '-u', 'box', name]);
     assert.equal(calls.length, 3);

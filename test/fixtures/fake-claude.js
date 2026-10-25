@@ -99,6 +99,7 @@ if (promptFile !== null) { const st = fs.statSync(promptFile); rec.promptFile = 
 const settingsArg = val('--settings');
 if (settingsArg) { try { rec.settings = JSON.parse(fs.readFileSync(settingsArg, 'utf8')); rec.settingsMode = fs.statSync(settingsArg).mode & 0o777; } catch { rec.settings = null; } }
 rec.env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith('CLAUDE_CODE_'))); // Claude Code's own switches
+rec.git = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith('GIT_'))); // where git stops, and whose identity it has
 rec.apiKey = process.env.ANTHROPIC_API_KEY || null; // the Anthropic API key it runs on, in API-key mode only (#35)
 rec.uid = process.getuid?.();
 rec.cwd = process.cwd();

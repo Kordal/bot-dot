@@ -439,4 +439,9 @@ async function hookCall(settings, input = { hook_event_name: 'PostToolUse', tool
 // What lib/computers.js puts around a command on the account's computer: botdot's own copy of botdot-run (#535).
 const REAPED = ['/usr/bin/python3', '-I', '-c', require('fs').readFileSync(require('path').join(__dirname, '..', 'deploy', 'desktop', 'botdot-run'), 'utf8'), 'botdot-run', '--'];
 
-module.exports = { REAPED, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
+// What lib/computers.js runs a bot's command in on the account's computer: its git identity put in place first
+// (lib/workspace-git.js), then its own folder.
+const IN_OWN_FOLDER = '[ -z "$BOTDOT_GIT" ] || [ "$(cat "$GIT_CONFIG_SYSTEM" 2>/dev/null)" = "$BOTDOT_GIT" ] || { mkdir -p "${GIT_CONFIG_SYSTEM%/*}" && printf \'%s\n\' "$BOTDOT_GIT" > "$GIT_CONFIG_SYSTEM.$$" && mv -f "$GIT_CONFIG_SYSTEM.$$" "$GIT_CONFIG_SYSTEM"; } 2>/dev/null; unset BOTDOT_GIT; '
+  + 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"';
+
+module.exports = { REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };

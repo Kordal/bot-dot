@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const util = require('node:util');
 const childProcess = require('node:child_process');
+const { IN_OWN_FOLDER } = require('./helpers');
 
 const HELPER = fs.readFileSync(path.join(__dirname, '..', 'deploy', 'desktop', 'botdot-type-secret'), 'utf8');
 
@@ -162,7 +163,7 @@ test("start_program runs as box, on the bot's own screen and in its own folder (
   assert.ok(call.args.includes('HOME=/home/box'));
   assert.ok(!call.args.includes('HOME=/root'));
   assert.ok(call.args.includes('DISPLAY=:11') && other.args.includes('DISPLAY=:12'), 'each on its own screen');
-  assert.deepEqual(call.args.slice(-6), ['sh', '-c', 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"', 'sh', '/workspace/progbot', 'xfce4-terminal']);
+  assert.deepEqual(call.args.slice(-6), ['sh', '-c', IN_OWN_FOLDER, 'sh', '/workspace/progbot', 'xfce4-terminal']);
   assert.deepEqual(other.args.slice(-2), ['/workspace/other', 'xterm']);
 });
 

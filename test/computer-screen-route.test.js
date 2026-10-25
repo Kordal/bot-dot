@@ -90,7 +90,7 @@ test("each bot's computer tools reach its own screen, and the view shows the bot
   assert.equal(rb.data.ok, true);
   const screens = map();
   assert.deepEqual(Object.values(screens).sort(), [1, 2], 'two screens');
-  const seat = (bot) => ({ bot: bot.id, screen: screens[bot.id] });
+  const seat = (bot) => ({ bot: bot.id, screen: screens[bot.id], name: bot.name });
   const requests = asked.filter(([op]) => op === 'request').map(([, s, , body]) => [s, body.command]);
   assert.deepEqual(requests.sort((x, y) => x[0].screen - y[0].screen), [[seat(alice), 'screenshot'], [seat(bob), 'left_click']]
     .sort((x, y) => x[0].screen - y[0].screen));
@@ -117,7 +117,7 @@ test("a deleted bot's screen ends, and its number goes to the next bot (#105)", 
   assert.ok(n);
   asked = [];
   assert.equal((await srv.api(`/bots/${gone.id}`, { method: 'DELETE' })).status, 200);
-  assert.deepEqual(asked.find(([op]) => op === 'freeScreen'), ['freeScreen', { bot: gone.id, screen: n }]);
+  assert.deepEqual(asked.find(([op]) => op === 'freeScreen'), ['freeScreen', { bot: gone.id, screen: n, name: 'Gone' }]);
   assert.equal(map()[gone.id], undefined);
   const next = await makeBot(srv, { name: 'Next', computer: 'linux' });
   assert.equal((await srv.api(`/bots/${next.id}/computer`, { method: 'POST', body: { action: 'start' } })).status, 200);
