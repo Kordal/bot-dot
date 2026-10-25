@@ -771,6 +771,13 @@ When `features` has `job-logins`, a script job can call APIs with saved logins (
 
 - **SSH keys** ([ADR 087](adr/087-a-script-job-signs-with-ssh-keys-through-botdots-own-agent.md)): `logins` may also name Vault SSH keys shared with the bot. A run of a job that lists logins has `SSH_AUTH_SOCK` set to an ssh-agent botdot serves for that run, which offers those keys and signs with them, so `ssh`, `scp` and `git` work with them. It answers only list and sign requests. It reads the keys from Bitwarden only when first asked, and the socket is gone when the script ends.
 
+### git in a bot's run
+
+A bot's AI run signs git in through botdot ([ADR 090](adr/090-a-bots-ai-run-signs-git-in-through-botdot.md)). Apps need nothing new.
+
+- Every AI run but a memory review has `SSH_AUTH_SOCK` set to an ssh-agent botdot serves for that run, with every Vault SSH key shared with the bot, as a script job's (ADR 087), and git's `credential.helper` and `core.sshCommand` set through `GIT_CONFIG_*`.
+- **Under it**, `POST /api/vault/git/credential` on botdot's own port with the header `X-Run-Token: $BOTDOT_GIT` and `{ protocol, host }`, as git hands its helper: for `https` to a GitHub of a GitHub App login shared with the bot, `{ ok: true, username: "x-access-token", password }` with that app's installation token; for any other, `{ ok: true }`; when it can't, `{ ok: false, error }`. The key is made for one run and is gone when its Claude Code has: then, and for any other user than that bot's, `403`.
+
 ### A job that is called
 
 When `features` has `job-calls`, a job can run when called: a device or service (a Home Assistant automation, a NAS, a script, a phone shortcut) sends a request to the job's **call address**, a webhook at the machine's front door that names the account, and the job runs now ([ADR 026](adr/026-a-call-is-let-in-on-the-jobs-key-alone.md), [ADR 028](adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)). This is for senders, not for the apps.
