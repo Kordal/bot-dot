@@ -51,14 +51,17 @@ test("a bot with a computer is told it shares the account's computer, as box wit
   // Its own screen and browser, and its own folder (#105).
   assert.match(rec.system, /You have a screen of your own on it, a plain desktop \(1024x768, windows only: no panel or desktop icons\) with your own Camoufox browser/);
   assert.match(rec.system, /The owner can watch your screen and take the mouse and keyboard at any time/);
-  assert.ok(rec.system.includes(`Both start in your own folder, /workspace/${bot.id}.`));
+  // Two places, one word each (#545): its workspace on botdot and its computer, and what crosses between them.
+  assert.ok(rec.system.includes(`your workspace on botdot (Read, Write, Bash, uploads/) and your computer, whose folder /workspace/${bot.id} your commands start in`));
+  assert.ok(rec.system.includes(`Files handed to you are in uploads/ on both. attach_file and message_bot take a path on your computer too (/workspace/${bot.id}/… or /home/box/…).`));
   assert.match(rec.system, /Every bot works there as the user box, with sudo without a password/);
   assert.match(rec.system, /Your screen is no wall/);
   // What an update of the account's computer keeps (#107).
   assert.match(rec.system, /Files in \/home\/box and \/workspace also stay when the owner updates the computer to a newer desktop; programs installed with apt do not/);
   assert.match(rec.system, /never touch their files, screens, windows or programs/);
   assert.doesNotMatch(rec.system, /that only you use/);
-  assert.match(rec.system, /use run_with_login with a command that reads "\$BOTDOT_USERNAME" and "\$BOTDOT_PASSWORD"\. For several logins in one command, give logins \(up to 8\): each is then in "\$BOTDOT_<NAME>_USERNAME" and "\$BOTDOT_<NAME>_PASSWORD"[^.]*\. It works only for logins with inComputer in list_logins/);
+  // How each tool takes a secret is in its description (lib/computer-mcp.js); the prompt names the only ways.
+  assert.match(rec.system, /A saved secret reaches a command only by run_with_login, run_with_ssh_key or run_with_file, and a file only by place_secret_file: never print, store or encode one/);
   // A request signed with several secrets goes through a command, not api_request (#228).
   assert.match(rec.system, /except an API that signs each request with several secrets \([^)]*\): compute and send that in one run_with_login command with logins/);
   srv.release(rec);
