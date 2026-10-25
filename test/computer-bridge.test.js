@@ -133,8 +133,16 @@ test("attach_file and message_bot say that they take a path on the computer, and
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'lib', 'computer-mcp.js'), 'utf8'), /Read a text file from your computer\. For a PDF, an image or another file for the owner or a teammate, give its path to attach_file or message_bot instead\./);
 });
 
-test("a bot with no computer in its run is told its workspace has no such file; one whose computer can't start is told why", async () => {
-  const srv = await startServer();
+// A docker that always fails, first on PATH: the computer never starts, whatever Docker the machine has.
+function noDocker(t) {
+  const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-no-docker-'));
+  fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\necho "no docker in this test" >&2\nexit 1\n', { mode: 0o755 });
+  t.after(() => fs.rmSync(bin, { recursive: true, force: true }));
+  return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+}
+
+test("a bot with no computer in its run is told its workspace has no such file; one whose computer can't start is told why", async (t) => {
+  const srv = await startServer({ env: noDocker(t) });
   after(() => srv.stop());
   const plain = await makeBot(srv, { name: 'Plain' });
   const desk = await makeBot(srv, { name: 'Desk', computer: 'linux' });
@@ -155,7 +163,7 @@ test("a bot with no computer in its run is told its workspace has no such file; 
   assert.equal((await self(srv, token, 'file', { path: 'here.pdf' })).data.ok, true, 'a file of its workspace as before');
   const off = await self(srv, token, 'file', { path: `/workspace/${desk.id}/out/report.pdf` });
   assert.equal(off.data.ok, false);
-  assert.match(off.data.error, /Docker/, 'the stand-in server has no Docker: said in a sentence');
+  assert.match(off.data.error, /Docker/, 'a server whose Docker fails: said in a sentence');
   const sent = await self(srv, token, 'message', { to: plain.id, message: 'x', priority: false, files: [`/workspace/${desk.id}/a.pdf`] });
   assert.equal(sent.data.ok, false);
   assert.match(sent.data.error, /Docker/, 'brought out before it is sent');
