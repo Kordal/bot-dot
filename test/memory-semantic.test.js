@@ -97,13 +97,18 @@ test('unhealthy or failing embedding services fall back to lexical recall withou
   assert.equal((await search(m, 'violet'))[0].id, note.id);
 });
 
-test('a failed embedding batch is retried, and concurrent requests do not start duplicate batches', async (t) => {
+test('a failed embedding batch is retried after a pause, and concurrent requests do not start duplicate batches', async (t) => {
   const { memory: m, state } = await service(t);
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
   m.addNote('alpha', 'Violet retry');
   state.error = true;
   assert.equal(await m.embedPending(), 0);
   assert.equal((await m.semanticStatus()).done, 0);
   state.error = false;
+  const asked = state.requests.length;
+  assert.equal(await m.embedPending(), 0, 'no request while it waits after a failure');
+  assert.equal(state.requests.length, asked);
+  t.mock.timers.tick(15_000);
   let entered;
   const started = new Promise((r) => { entered = r; });
   let release;
@@ -202,4 +207,31 @@ test('sections of a long reply get their own vectors: a meaning found only at th
   m.forgetRunsOfBot('alpha');
   await m.embedPending();
   assert.deepEqual([(await m.semanticStatus()).done, (await m.semanticStatus()).total], [0, 0], 'section vectors are swept up');
+});
+
+// On hq a round of 64 texts in one request took longer than its 120 s: it was dropped, sent again every 5 s and never
+// saved, and llama-server took the account's CPUs for hours.
+test('REGRESSION: a large round goes in small requests, each saved at once, and a failure pauses the next round', async (t) => {
+  const { memory: m, state } = await service(t);
+  t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+  for (let i = 0; i < 12; i++) m.indexRun(runMeta({ result: `Violet ${i}: ${'the pump and the valves were fine. '.repeat(38)}` }));
+  const sizes = [];
+  // Each request's size; the second one fails.
+  state.hold = async function hold(body) { sizes.push(body.input.join('').length); if (sizes.length === 2) state.error = true; state.hold = hold; };
+  assert.equal(await m.embedPending(16), 0, 'the round failed at its second request');
+  assert.ok(sizes.every((n) => n <= 6000), JSON.stringify(sizes));
+  assert.ok((await m.semanticStatus()).done > 0, 'what the first request embedded is kept');
+  const done = (await m.semanticStatus()).done;
+  state.error = false;
+  assert.equal(await m.embedPending(16), 0, 'paused after the failure');
+  assert.equal(sizes.length, 2);
+  t.mock.timers.tick(15_000);
+  assert.equal(await m.embedPending(16), 12 - done);
+  assert.equal((await m.semanticStatus()).done, 12);
+  assert.ok(sizes.every((n) => n <= 6000), JSON.stringify(sizes));
+});
+
+test("llama-server's threads: half the CPUs it sees, at least 1 and at most 4", () => {
+  const { threads } = require('../lib/embed');
+  assert.deepEqual([1, 2, 3, 8, 16].map(threads), [1, 1, 1, 4, 4]);
 });
