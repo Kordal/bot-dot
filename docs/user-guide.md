@@ -50,7 +50,7 @@ Its settings hold its name, model, skills, Files, Workspace, its jobs and **Alwa
 
 It controls botdot through a small built-in MCP server (`lib/mcp-server.js`). It can't change files itself, and it can never give a bot `bypassPermissions`; only you can set that, in the bot's settings (Advanced → Exact tools and permission mode). Chats are saved in `data/chief/`, and each one continues the same Claude Code session.
 
-**Bots** each run as `claude -p` in their own workspace, `data/workspaces/<bot-id>/`. It's a separate folder with its own empty git repository, so bots never see botdot's code. Each bot has:
+**Bots** each run as `claude -p` in their own workspace, `data/workspaces/<bot-id>/`. It's a separate folder where git finds no repository above it, so bots never see botdot's code; each bot commits under its own name (`<bot-id>@bots.botdot.invalid`), on its computer too, unless it or a repository sets another. Each bot has:
 - a main assignment (placeholders: `{{date}}`, `{{datetime}}`, `{{bot}}`), which also guides how it handles messages you send it
 - its chat as you saw it, included when you message it, so follow-ups work: your last four exchanges with it and the last two that the Chief, a teammate or a scheduled job started, from the last seven days, each under the name of who asked. Its newest reply is there whole, older ones are cut and can be read in full, and a tapped answer arrives with the question it answers. Runs with nothing to report are left out
 - personality or rules, added to what botdot tells it on every run. That text also holds its notes and its chat, so botdot hands it to Claude Code in a private file, never on the command line ([SECURITY.md](../SECURITY.md))

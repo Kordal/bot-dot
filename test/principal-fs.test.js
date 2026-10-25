@@ -84,20 +84,24 @@ test('Chief workspace and cross-principal attachments preserve identity scope an
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
-test('workspace initialization creates and preserves a Git repository as its principal', { skip: spawnSync('git', ['--version']).error?.code === 'ENOENT' }, () => {
+test('preparing a workspace drops an empty git repository at its top and writes the git identity in the home, as its principal', { skip: spawnSync('git', ['--version']).error?.code === 'ENOENT' }, () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'principal-git-'));
   const api = createPrincipalFs({ dataDir: root, client: transport(root), enabled: true });
   try {
     const dir = path.join(root, 'workspaces', 'alice');
-    api.initWorkspace(dir);
-    assert.match(api.readFileSync(path.join(dir, '.git', 'HEAD'), 'utf8'), /^ref: refs\/heads\//);
-    assert.equal(api.statSync(path.join(dir, '.git')).uid, process.getuid() === 0 ? 65534 : process.getuid());
-    api.writeFileSync(path.join(dir, '.git', 'review-marker'), 'preserved');
-    api.initWorkspace(dir);
-    assert.equal(api.readFileSync(path.join(dir, '.git', 'review-marker'), 'utf8'), 'preserved');
+    const home = path.join(root, 'homes', 'alice');
+    fs.mkdirSync(dir, { recursive: true }); fs.mkdirSync(home, { recursive: true });
+    if (process.getuid?.() === 0) for (const d of [path.join(root, 'workspaces'), dir, path.join(root, 'homes'), home]) fs.chownSync(d, 65534, 65534);
+    spawnSync('git', ['init', '-q'], { cwd: dir });
+    if (process.getuid?.() === 0) spawnSync('chown', ['-R', '65534:65534', dir]);
+    const identity = { file: path.join(home, '.botdot-gitconfig'), content: '[user]\n\tname = "Alice"\n' };
+    api.prepareWorkspace(dir, identity);
+    assert.equal(api.existsSync(path.join(dir, '.git')), false, 'the empty repository is gone');
+    assert.equal(api.readFileSync(identity.file, 'utf8'), identity.content);
+    assert.equal(api.statSync(identity.file).uid, process.getuid() === 0 ? 65534 : process.getuid());
+    assert.throws(() => api.prepareWorkspace(dir, { file: path.join(root, 'homes', 'bob', '.botdot-gitconfig'), content: 'x' }), { code: 'EACCES' });
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
-
 test('the workspace file manager lists a folder and counts what it holds in one call each, never following a link (#296)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'principal-list-'));
   const api = createPrincipalFs({ dataDir: root, client: transport(root), enabled: true });
