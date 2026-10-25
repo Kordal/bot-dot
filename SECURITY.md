@@ -129,6 +129,14 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   An SSH key the job lists is used through an ssh-agent that botdot serves itself for that run
   ([ADR 087](docs/adr/087-a-script-job-signs-with-ssh-keys-through-botdots-own-agent.md)): it signs in
   botdot's own process, so the key never reaches the script, a file or the bot's user.
+- **A bot's git signs in without holding a key.** In a bot's AI run on the server, `SSH_AUTH_SOCK` points
+  to an ssh-agent botdot serves for that run with the Vault SSH keys shared with the bot, which signs in
+  botdot's own process as a script job's does. git's credential helper there asks botdot, with a key of
+  that run alone, for the token of a GitHub App login shared with the bot, for that app's GitHub only:
+  the run can read that token, which expires within the hour and opens no more than `api_request` with
+  that login already does; the app's private key never leaves botdot. No other login is handed to git,
+  and nothing is written in a repository's `.git/config`
+  ([ADR 090](docs/adr/090-a-bots-ai-run-signs-git-in-through-botdot.md)).
 - **The Chief makes an SSH key but never reads it.** When the owner asks in its chat, the Chief has
   botdot make a new ed25519 key in the Vault and share it with the bots the owner names (#181), and it
   can share a key with more bots, take bots off it and rename it (#182). It can ask to remove an entry,

@@ -69,10 +69,12 @@ dashboard.pagesWith((botId, ref) => require('./lib/routes/pages').pageTileInfo(b
 B.tilesOf((botId) => dashboard.pushable(botId));
 chief.boardOf(() => dashboard.list().tiles); // what a checkup is told of the Board (ADR 023)
 B.dashboardOf((botId) => dashboard.forBot(botId));
-// The Vault SSH keys a script job lists, for its run's own ssh-agent (ADR 087): from Bitwarden, shared with its bot.
+// The Vault SSH keys of a run's own ssh-agent, from Bitwarden and shared with its bot: those a script job lists
+// (ADR 087), or with no names, for a bot's AI run, every one (ADR 090).
 B.scriptKeysFrom(async (botId, names) => {
   if (!bitwarden.configured() || !(await readyForSecrets(botId))) return [];
-  return names.flatMap((n) => { try { const k = bitwarden.sshKey(botId, n); console.log(`[vault] ${botId} script uses the SSH key "${k.name}"`); return [k]; } catch { return []; } });
+  const which = names || bitwarden.forBot(botId).filter((e) => e.kind === 'ssh-key').map((e) => e.name);
+  return which.flatMap((n) => { try { const k = bitwarden.sshKey(botId, n); console.log(`[vault] ${botId} ${names ? 'script' : 'run'} uses the SSH key "${k.name}"`); return [k]; } catch { return []; } });
 });
 // What an "@" mention can name beside the team (#473): every page and the Board's tiles, and what each holds now.
 B.mentionablesFrom(() => {
@@ -665,6 +667,7 @@ async function api(req, res, url, replay = null) {
 // A bot's own processes may only use their run's tools, with their own run's key.
 const BOT_PATHS = ['/api/self/session', '/api/vault/session', '/api/connectors/session'];
 const SCRIPT_PATH = '/api/vault/script/';
+const GIT_PATH = '/api/vault/git/'; // git's credential helper in a bot's AI run (ADR 090)
 
 // A request's path, or '' for an address that is not one.
 function pathOf(req) {
@@ -694,6 +697,7 @@ function gate(req) {
     try { p = new URL(req.url, 'http://x').pathname; } catch { return 'Bad address'; }
     // A script job's botdot-request (ADR 085): its run's key, of this bot's job.
     if (p.startsWith(SCRIPT_PATH)) return B.scriptSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
+    if (p.startsWith(GIT_PATH)) return B.gitSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
     if (!BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`))) return "Bots can only use their own run's tools.";
     const session = B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token']);
     if (!session || session.botId !== who.bot) return "That run key isn't this bot's.";
@@ -705,6 +709,7 @@ function gate(req) {
   if (chief.isKey(req.headers['x-chief-key'])) return null;
   if (BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) && B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token'])) return null;
   if (p.startsWith(SCRIPT_PATH) && B.scriptSession(req.headers['x-run-token'])) return null;
+  if (p.startsWith(GIT_PATH) && B.gitSession(req.headers['x-run-token'])) return null;
   // The tools of a Chief turn that has connected apps, with that turn's own token (ADR 047): only their routes.
   if ((p === '/api/connectors/session' || p.startsWith('/api/connectors/session/')) && connectorApprovals.chiefSession(req.headers['x-run-token'])) return null;
   if (p === '/api/version' && req.method === 'GET') return null;
