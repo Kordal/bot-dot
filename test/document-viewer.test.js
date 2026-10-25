@@ -98,6 +98,41 @@ test('a path in a reply: a missing file is gone, a folder or a path out of the b
   assert.doesNotMatch(JSON.stringify(esc.data), /not yours/);
 });
 
+test('a bare name in a reply opens the file a teammate handed over, or one the bot made in a folder (#543)', async () => {
+  // message_bot copies a teammate's files into uploads/<time>-<hex>-<name>; the reply names them by their plain name.
+  const up = path.join(ws(), 'uploads');
+  fs.mkdirSync(up, { recursive: true });
+  fs.writeFileSync(path.join(up, '20261024120000-0a1b-Tester-Pain-Questions.md'), '# Old script\n');
+  fs.writeFileSync(path.join(up, '20261025094000-c3d4-Tester-Pain-Questions.md'), '# Script\n');
+  fs.utimesSync(path.join(up, '20261024120000-0a1b-Tester-Pain-Questions.md'), new Date('2026-10-24'), new Date('2026-10-24'));
+  fs.writeFileSync(path.join(up, '20261025094000-e5f6-Tester-Pain-Answers-Log.csv'), 'code,question,answer\n');
+  const md = await srv.api(at('Tester-Pain-Questions.md', '&view=1'));
+  assert.equal(md.status, 200, JSON.stringify(md.data));
+  assert.equal(md.data.name, 'Tester-Pain-Questions.md');
+  assert.equal(md.data.text, '# Script\n', 'the newest copy');
+  const csv = await srv.api(at('Tester-Pain-Answers-Log.csv', '&view=1'));
+  assert.equal(csv.status, 200);
+  assert.equal(csv.data.kind, 'csv');
+  assert.equal(csv.data.text, 'code,question,answer\n');
+  // Its raw download too, under its plain name.
+  const res = await fetch(`${srv.base}/api${at('Tester-Pain-Answers-Log.csv')}`, { headers: { 'X-Bot-Dot': '1' } });
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-disposition'), /Tester-Pain-Answers-Log\.csv$/);
+  // A file the bot made in a folder of its own, named bare; never one in a hidden folder.
+  fs.mkdirSync(path.join(ws(), 'drafts', 'calls'), { recursive: true });
+  fs.writeFileSync(path.join(ws(), 'drafts', 'calls', 'plan.md'), '# Plan\n');
+  assert.equal((await srv.api(at('plan.md', '&view=1'))).data.text, '# Plan\n');
+  fs.mkdirSync(path.join(ws(), '.claude'), { recursive: true });
+  fs.writeFileSync(path.join(ws(), '.claude', 'hidden.md'), 'no');
+  assert.equal((await srv.api(at('hidden.md', '&view=1'))).status, 404);
+  // A path with a folder is read only where it says; a link out of the workspace stays refused.
+  assert.equal((await srv.api(at('other/plan.md', '&view=1'))).status, 404);
+  fs.symlinkSync(path.join(srv.dir, 'secret.txt'), path.join(up, '20261025094500-0000-leak.txt'));
+  const leak = await srv.api(at('leak.txt', '&view=1'));
+  assert.equal(leak.status, 403);
+  assert.doesNotMatch(JSON.stringify(leak.data), /not yours/);
+});
+
 test('only the owner opens files: the Chief is refused', async () => {
   for (const p of [at('out/all.csv', '&view=1'), `/files/${runId}/report.md?view=1`]) {
     const r = await srv.asChief(p);
