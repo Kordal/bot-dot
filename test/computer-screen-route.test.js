@@ -8,6 +8,7 @@ const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
 const { startServer, makeBot, heldRun } = require('./helpers');
+const { validate } = require('../lib/docker-helper');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-screens-'));
 const socket = path.join(dir, 'helper.sock');
@@ -22,6 +23,8 @@ before(async () => {
     let body = '';
     for await (const chunk of req) body += chunk;
     const { operation, args } = JSON.parse(body);
+    // What the real helper refuses, the stand-in refuses too: a seat botdot hands on must pass its checks.
+    if (!validate(operation, args)) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'Invalid helper operation' })); }
     asked.push([operation, ...args]);
     const [seat] = args;
     let value = null;
