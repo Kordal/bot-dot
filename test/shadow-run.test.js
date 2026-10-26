@@ -1,4 +1,4 @@
-// A shadow run end to end (ADR 099): the Chief starts a script beside a bot's AI job; after each scheduled run the
+// A shadow run end to end (ADR 100): the Chief starts a script beside a bot's AI job; after each scheduled run the
 // script runs too, its output goes nowhere, and a short model call compares the two. A week of the same answers
 // ends with one card, a change of the job to a script job; the owner's yes promotes it, and back_to_ai brings the
 // AI job back as it was. A run that differs ends the shadow, and the AI job stays. The tests' week is 6 seconds,

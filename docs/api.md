@@ -788,7 +788,7 @@ When `features` has `job-logins`, a script job can call APIs with saved logins (
 
 ### A shadow run
 
-A script on trial beside an AI job ([ADR 099](adr/099-a-script-runs-in-the-shadow-of-an-ai-job-before-it-replaces-it.md)). Apps need nothing new: the swap comes as a change that waits (see A change that waits), and the fields below are for the Chief and for apps that want them.
+A script on trial beside an AI job ([ADR 100](adr/100-a-script-runs-in-the-shadow-of-an-ai-job-before-it-replaces-it.md)). Apps need nothing new: the swap comes as a change that waits (see A change that waits), and the fields below are for the Chief and for apps that want them.
 
 - `POST /api/bots/:id/jobs/:jobId/shadow` with `{ script, logins?, aiWhen?, prompt?, timeoutSeconds? }`, the Chief or the owner: starts the shadow of an approved, repeating AI job, or starts it over. Answers the job. A job that is not such a job, or an empty script, is `400`; a bot's own key is `403`.
 - `GET …/shadow`: the whole of it: `script`, `logins`, `startedAt`, `runs` (`{ at, runId, match, why }`), and `ended` (`{ at, why, said?, ai?, script? }`: `why` is `differed`, `changed`, `removed`, `too-few`, `stopped`, `proposed`, `declined` or `failed`; a run that differed keeps both sides). `DELETE …/shadow` ends it (`stopped`).

@@ -1,4 +1,4 @@
-// A shadow run (ADR 099): a script beside an AI job for a week, compared after each of its runs, and the swap
+// A shadow run (ADR 100): a script beside an AI job for a week, compared after each of its runs, and the swap
 // proposed only when every run said the same. Here lib/shadow.js alone, with its clock and its model handed in.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
