@@ -103,3 +103,11 @@ test("owner edits and power settings never turn off the account's computer (#104
   const other = await makeBot(srv, { name: 'Second', computer: 'linux' });
   assert.deepEqual((await srv.api('/computers')).data, { [other.id]: 'running' });
 });
+
+test("a seat may carry its bot's name, which its commits on the computer carry (#547)", () => {
+  const { validate } = require('../lib/docker-helper');
+  assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, name: 'Claude Coder' }]), true);
+  assert.equal(validate('runShell', [{ bot: 'ops', screen: 2, name: 'Ops' }, { command: 'git log' }]), true);
+  for (const name of [42, 'x'.repeat(201), null]) assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, name }]), false, String(name));
+  assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, image: 'evil' }]), false);
+});
