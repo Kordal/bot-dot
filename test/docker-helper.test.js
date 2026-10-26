@@ -111,3 +111,46 @@ test("a seat may carry its bot's name, which its commits on the computer carry (
   for (const name of [42, 'x'.repeat(201), null]) assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, name }]), false, String(name));
   assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, image: 'evil' }]), false);
 });
+
+test("the bridge to the bot's workspace (#545) goes through the helper: bringOut, listUploads and putUpload, the file's bytes whole", async (t) => {
+  const { createServer, validate } = require('../lib/docker-helper');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-helper-bridge-'));
+  const socket = path.join(dir, 'helper.sock');
+  const calls = [];
+  const server = createServer({ updates: {}, computers: {
+    bringOut: async (seat, opts) => { calls.push(['bringOut', seat, opts]); return { code: 0, stdout: 'size 3\nYWJj\n' }; },
+    listUploads: async (seat) => { calls.push(['listUploads', seat]); return { code: 0, stdout: 'a.pdf\n' }; },
+    putUpload: async (seat, { name, data }) => { calls.push(['putUpload', seat, name, Buffer.isBuffer(data), data.toString('hex')]); return { code: 0 }; },
+  } });
+  await new Promise((r) => server.listen(socket, r));
+  const before = process.env.BOT_DOT_HELPER_SOCKET;
+  process.env.BOT_DOT_HELPER_SOCKET = socket;
+  t.after(async () => {
+    if (before === undefined) delete process.env.BOT_DOT_HELPER_SOCKET; else process.env.BOT_DOT_HELPER_SOCKET = before;
+    await new Promise((r) => server.close(r)); fs.rmSync(dir, { recursive: true, force: true });
+  });
+  // lib/computer-screens.js's facade on a machine with the helper (hq): every call the bridge makes is there.
+  const computers = require('../lib/helper-client').computers({});
+  const seat = { bot: 'desk', screen: 2, name: 'Desk' };
+  assert.deepEqual(await computers.bringOut(seat, { script: 'echo the script' }), { code: 0, stdout: 'size 3\nYWJj\n' });
+  assert.deepEqual(await computers.listUploads(seat), { code: 0, stdout: 'a.pdf\n' });
+  const data = Buffer.from([0, 1, 2, 255, 254, 10]);
+  assert.deepEqual(await computers.putUpload(seat, { name: '20261025120000-ab12-cv.pdf', data }), { code: 0 });
+  assert.deepEqual(calls, [
+    ['bringOut', seat, { script: 'echo the script' }],
+    ['listUploads', seat],
+    ['putUpload', seat, '20261025120000-ab12-cv.pdf', true, '000102fffe0a'],
+  ]);
+  // A file up to uploads.js's 25 MB fits in one call.
+  const big = Buffer.alloc(25 * 1024 * 1024, 7);
+  assert.deepEqual(await computers.putUpload(seat, { name: 'big.bin', data: big }), { code: 0 });
+
+  // Only a plain name in uploads/, never a path, a hidden file or bytes that are not base64.
+  for (const name of ['../x', 'a/b', '.part', '', 'x'.repeat(256), 'a\0b']) assert.equal(validate('putUpload', [seat, { name, data: 'YWJj' }]), false, name);
+  assert.equal(validate('putUpload', [seat, { name: 'a.pdf', data: 'not base64!' }]), false);
+  assert.equal(validate('putUpload', [seat, { name: 'a.pdf', data: 'YWJj', path: '/etc' }]), false);
+  assert.equal(validate('bringOut', [seat, { script: '' }]), false);
+  assert.equal(validate('bringOut', [seat, { script: 'x', image: 'evil' }]), false);
+  assert.equal(validate('listUploads', [seat, '/etc']), false);
+  assert.equal(validate('listUploads', ['desk']), false, 'a seat, not a bare bot');
+});
