@@ -3,6 +3,7 @@
 - **Status:** Accepted (2026-10-26)
 - **Owning task:** [#556](https://github.com/Kordal/bot-dot/issues/556)
 - **Amends:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md)
+- **Amended by:** [ADR 095](095-a-bots-browser-logins-move-with-its-files.md)
 
 ## Context
 
@@ -18,7 +19,7 @@ A bot's computer may be the account's computer or a machine of its own on boat.d
 
 ## Not copied
 
-- **Browser logins:** a boat.dev machine has no browser. They stay in the bot's browser on the account's computer.
+- **Browser logins:** a boat.dev machine has no browser. They stay in the bot's browser on the account's computer. (Amended by [ADR 095](095-a-bots-browser-logins-move-with-its-files.md): they are copied too.)
 - **Tailscale:** the account's computer is one tailnet device that every bot on it uses, and botdot runs none on boat.dev.
 - **`/home/box`:** every bot on the account's computer shares it, so it is no one bot's to take along.
 - **Installed programs:** installed again when needed.
