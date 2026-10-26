@@ -66,6 +66,7 @@ import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.groupOfChat
 import dev.botdot.app.feed.FeedService
 import dev.botdot.app.feed.Notifier
+import dev.botdot.app.ui.BoatScreen
 import dev.botdot.app.ui.BotChatScreen
 import dev.botdot.app.ui.BotSettingsScreen
 import dev.botdot.app.ui.GroupChatScreen
