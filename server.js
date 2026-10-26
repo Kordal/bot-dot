@@ -162,7 +162,8 @@ const connectedApps = connectedAppsLib.create({ tellChief: (turn) => chief.tell(
 // A change tried on a bot's past tasks before the owner sees it (ADR 101): one replay at a time, at the admin's pace;
 // the Chief's model judges.
 const replays = require('./lib/replay').create({
-  tasks: (botId, n) => B.replayTasks(botId, n), run: (bot, task, candidate) => B.replayRun(bot, task, candidate),
+  tasks: (botId, n) => B.replayTasks(botId, n), run: (bot, task, candidate, scope) => B.replayRun(bot, task, candidate, scope),
+  scope: () => B.replayComputers.scope(), endScope: (scope) => B.replayComputers.endScope(scope),
   ask: (prompt, opts) => require('./lib/dresser').askClaude(prompt, { ...opts, ms: 3 * 60_000 }),
 });
 // A proposal of the Chief's review, tried on its bots' tasks: a new skill as it would be written, a share as it is.
@@ -650,6 +651,7 @@ const ROUTES = [
   require('./lib/routes/room-bots').create(ctx), // the bots a shared room may ask, for the front door (#316)
   require('./lib/routes/pages').create(ctx), // every bot's pages in one list (#361)
   require('./lib/routes/projects').create(ctx), // shared projects on the account's computer (#578)
+  require('./lib/routes/replay').create(ctx), // a replay's computer tools, on its copy (#595)
   require('./lib/routes/setup').create(ctx),
   require('./lib/routes/memory').create(ctx),
   require('./lib/routes/group-chats').create(ctx),
@@ -691,6 +693,7 @@ async function api(req, res, url, replay = null) {
 const BOT_PATHS = ['/api/self/session', '/api/vault/session', '/api/connectors/session'];
 const SCRIPT_PATH = '/api/vault/script/';
 const GIT_PATH = '/api/vault/git/'; // git's credential helper in a bot's AI run (ADR 090)
+const REPLAY_PATH = '/api/replay/session/'; // a replay's computer tools, on its copy of the bot's computer (#595)
 
 // A request's path, or '' for an address that is not one.
 function pathOf(req) {
@@ -721,6 +724,8 @@ function gate(req) {
     // A script job's botdot-request (ADR 085): its run's key, of this bot's job.
     if (p.startsWith(SCRIPT_PATH)) return B.scriptSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
     if (p.startsWith(GIT_PATH)) return B.gitSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
+    // A replay's computer tools (#595): the key of a copy made for one of this bot's replays.
+    if (p.startsWith(REPLAY_PATH)) return B.replayComputers.byKey(req.headers['x-replay-key'])?.botId === who.bot ? null : "That replay key isn't this bot's.";
     if (!BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`))) return "Bots can only use their own run's tools.";
     const session = B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token']);
     if (!session || session.botId !== who.bot) return "That run key isn't this bot's.";
@@ -733,6 +738,7 @@ function gate(req) {
   if (BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) && B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token'])) return null;
   if (p.startsWith(SCRIPT_PATH) && B.scriptSession(req.headers['x-run-token'])) return null;
   if (p.startsWith(GIT_PATH) && B.gitSession(req.headers['x-run-token'])) return null;
+  if (p.startsWith(REPLAY_PATH) && B.replayComputers.byKey(req.headers['x-replay-key'])) return null;
   // The tools of a Chief turn that has connected apps, with that turn's own token (ADR 047): only their routes.
   if ((p === '/api/connectors/session' || p.startsWith('/api/connectors/session/')) && connectorApprovals.chiefSession(req.headers['x-run-token'])) return null;
   if (p === '/api/version' && req.method === 'GET') return null;

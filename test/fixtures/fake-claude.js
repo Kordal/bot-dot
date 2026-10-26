@@ -110,7 +110,7 @@ if (String(val('--system-prompt') || '').startsWith('You compare two replies')) 
 let mcp = { mcpServers: {} };
 try { const mc = val('--mcp-config'); mcp = JSON.parse(mc.trim().startsWith('{') ? mc : fs.readFileSync(mc, 'utf8')); } catch { /* none */ }
 // system: the appended prompt, read now from its file: botdot removes the file when the run has ended.
-const rec = { n, who, args, self: mcp.mcpServers.self || null, botdot: mcp.mcpServers.botdot || null, connectors: mcp.mcpServers.connectors || null, system: promptFile === null ? val('--append-system-prompt') : fs.readFileSync(promptFile, 'utf8'), stdin: '', at: Date.now() };
+const rec = { n, who, args, self: mcp.mcpServers.self || null, botdot: mcp.mcpServers.botdot || null, connectors: mcp.mcpServers.connectors || null, computer: mcp.mcpServers.computer || null, system: promptFile === null ? val('--append-system-prompt') : fs.readFileSync(promptFile, 'utf8'), stdin: '', at: Date.now() };
 if (promptFile !== null) { const st = fs.statSync(promptFile); rec.promptFile = { path: promptFile, mode: st.mode & 0o777, uid: st.uid }; }
 // The settings it was given (--settings, a private file): botdot's hook for a steered message (ADR 040), and that file's mode.
 const settingsArg = val('--settings');
@@ -161,7 +161,7 @@ const finish = () => {
   // A refused tool asks nobody by itself (#279): like a bot that follows its prompt, this one asks the owner for each
   // permission it was refused with ask_permission, once, before it ends; not while $FAKE_OUT/no-ask exists.
   // Its tool calls first, through the PreToolUse hooks its settings name, as Claude Code runs them (ADR 067).
-  const hooked = preToolHooks();
+  const hooked = replayShell().then(preToolHooks);
   const asked = hooked.then(() => (denials.length && !fs.existsSync(path.join(OUT, 'no-ask')) ? askFor(denials) : undefined));
   const end = () => {
     console.log(JSON.stringify(failed === null
@@ -175,6 +175,17 @@ const finish = () => {
   try { stream = JSON.parse(fs.readFileSync(path.join(OUT, own('stream', '.json')), 'utf8')); } catch { /* the reply comes whole */ }
   asked.then(() => (stream ? streamed(stream, result, end) : end()));
 };
+// A replay's run_shell (lib/replay-computer-mcp.js, #595): with $FAKE_OUT/replay-command.txt, a run that has a copy of
+// its computer runs that command there through botdot, as its MCP server does, and what came back is on the record,
+// `replayShell`; $FAKE_OUT/replay-key.txt, when it exists, is the key it sends instead of its own.
+function replayShell() {
+  const env = rec.computer?.env;
+  if (!env?.REPLAY_URL || !has('replay-command.txt')) return Promise.resolve();
+  const key = has('replay-key.txt') ? fs.readFileSync(path.join(OUT, 'replay-key.txt'), 'utf8').trim() : env.REPLAY_KEY;
+  return fetch(`${env.REPLAY_URL}/shell`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1', 'X-Replay-Key': key }, body: JSON.stringify({ command: fs.readFileSync(path.join(OUT, 'replay-command.txt'), 'utf8') }) })
+    .then(async (r) => ({ status: r.status, ...(await r.json().catch(() => ({}))) }), (e) => ({ error: e.message }))
+    .then((r) => { rec.replayShell = r; save(); });
+}
 // The tool calls of $FAKE_OUT/tool-calls.json ([{ tool_name, tool_input }]), each handed to every PreToolUse command
 // hook of its settings on stdin, as Claude Code does: what each hook said is on the record, `hooks`: [{ tool, code,
 // stderr }]. Exit 2 blocks the call; the fake makes no call either way.
