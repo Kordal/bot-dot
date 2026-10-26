@@ -192,7 +192,7 @@ test("boat.dev's side packs /home/user without its caches, and takes pieces thro
     if (p.endsWith('/commands')) { commands.push(d.command); return reply(200, { ok: true, exitCode: 0, stdout: d.command.endsWith('stat -c %s /tmp/botdot-move-coder.tgz') ? '1234\n' : '' }); }
     return reply(200, { ok: true });
   };
-  const boat = boatLib.create(dir(), { fetch, sleep: async () => {} });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch, sleep: async () => {} });
   const packed = await boat.moveFiles('coder', { op: 'pack' });
   assert.equal(packed.code, 0);
   assert.equal(packed.size, 1234);

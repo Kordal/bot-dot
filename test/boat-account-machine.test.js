@@ -46,7 +46,7 @@ const keyed = (t) => { boatLib.setKey(KEY); t.after(() => boatLib.setKey(null));
 test("bots without a machine of their own share the account's one, named for the account, each in its own folder", async (t) => {
   keyed(t);
   const b = fakeBoat();
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, account: 'Kordal', ownOf: () => false });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, account: 'Kordal', ownOf: () => false });
   await boat.runShell('coder', { command: 'git status' });
   await boat.runShell('writer', { command: 'ls' });
   assert.equal(b.machines.size, 1, 'one machine for the account');
@@ -63,7 +63,7 @@ test("bots without a machine of their own share the account's one, named for the
 test("a file, a folder and a Vault command start in the bot's folder on the account's machine", async (t) => {
   keyed(t);
   const b = fakeBoat();
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, ownOf: () => false });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, ownOf: () => false });
   await boat.readFile('coder', { path: 'notes.md' });
   await boat.writeFile('coder', { path: 'notes.md', content: 'x' });
   await boat.runWithLogin('coder', { command: 'deploy', username: 'u', password: 'p' });
@@ -79,7 +79,7 @@ test('the shared machine stops only once every bot on it left it unused', async 
   keyed(t);
   const b = fakeBoat();
   let now = 0;
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 1000, ownOf: () => false });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 1000, ownOf: () => false });
   await boat.runShell('coder', { command: 'ls' });
   now = 900;
   await boat.runShell('writer', { command: 'ls' });
@@ -95,7 +95,7 @@ test('a bot that wants one has a machine of its own, and one made before is used
   const b = fakeBoat();
   const data = dir();
   const own = new Set(['private']);
-  const boat = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, ownOf: (id) => own.has(id) });
+  const boat = boatLib.create(data, { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, ownOf: (id) => own.has(id) });
   await boat.runShell('private', { command: 'ls' });
   await boat.runShell('coder', { command: 'ls' });
   assert.equal(b.machines.size, 2);
@@ -117,7 +117,7 @@ test('a bot that wants one has a machine of its own, and one made before is used
 test("a copy's steps go to the side asked for: the bot's own machine, or its folder on the account's", async (t) => {
   keyed(t);
   const b = fakeBoat();
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, ownOf: () => false });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, ownOf: () => false });
   const ownPack = await boat.moveFiles('coder', { op: 'pack' }, { own: true });
   assert.equal(ownPack.size, 42);
   const acctPack = await boat.moveFiles('coder', { op: 'pack' }, { own: false });
