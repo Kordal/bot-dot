@@ -68,7 +68,7 @@ test("a bot's first command makes its machine, the next ones use it, and it stay
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
   const data = dir();
-  const boat = boatLib.create(data, { fetch: b.fetch, sleep: async () => {} });
+  const boat = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: '' });
   const r = await boat.runShell('coder', { command: 'git status', timeoutSeconds: 30 });
   assert.equal(r.code, 0);
   assert.equal(r.stdout, 'ran: git status');
@@ -365,4 +365,63 @@ test('a file is there for the command alone and goes when it ends', async (t) =>
   assert.ok(cmd.trimEnd().endsWith(`rm -rf -- ${put.body.path}.d; exit $s`));
   await boat.runWithFile('coder', { command: 'x', fileName: '../etc/passwd', content: '' });
   assert.ok(b.calls.filter((c) => c.path.endsWith('/commands')).some((c) => /\.d\/file timeout/.test(c.body.command)), 'a name that is no file name is "file"');
+});
+
+test("a machine's name on boat.dev tells the account and the bot it belongs to", () => {
+  assert.equal(boatLib.machineName('d9aa2f01', { account: 'alice', botName: 'Coder' }), 'botdot-alice-coder-d9aa2f01');
+  assert.equal(boatLib.machineName('d9aa2f01', { account: 'alice', botName: 'Pan Łukasz & Co.' }), 'botdot-alice-pan-lukasz-co-d9aa2f01', 'only letters, digits and dashes');
+  assert.equal(boatLib.machineName('d9aa2f01', { account: 'alice' }), 'botdot-alice-d9aa2f01');
+  assert.equal(boatLib.machineName('d9aa2f01', {}), 'botdot-d9aa2f01', 'a single-account server');
+  const long = boatLib.machineName('d9aa2f01', { account: 'alice', botName: 'x'.repeat(300) });
+  assert.ok(long.length <= 120 && long.endsWith('-d9aa2f01'), "boat.dev's limit, the bot id kept");
+});
+
+test('a machine made under the old name takes the new one on its next start, by its id, its disk untouched', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  const data = dir();
+  let name = 'Coder';
+  const first = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: 'alice', nameOf: () => name });
+  await first.runShell('d9aa2f01', { command: 'ls' });
+  const made = b.calls.find((c) => c.path === '/sandboxes' && c.method === 'POST');
+  assert.equal(made.body.name, 'botdot-alice-coder-d9aa2f01');
+  assert.equal(b.calls.filter((c) => c.method === 'PATCH').length, 0, 'a new machine is named when made');
+  // An older botdot named it botdot-<bot id> and kept no name.
+  const file = path.join(data, 'boat-machines.json');
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const id = saved.d9aa2f01.id;
+  delete saved.d9aa2f01.name;
+  fs.writeFileSync(file, JSON.stringify(saved));
+  b.machines.get(id).state = 'archived';
+  const again = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: 'alice', nameOf: () => name });
+  await again.runShell('d9aa2f01', { command: 'ls' });
+  assert.equal(b.calls.filter((c) => c.path === '/sandboxes' && c.method === 'POST').length, 1, 'no new machine');
+  const renamed = b.calls.filter((c) => c.method === 'PATCH' && c.body.name);
+  assert.deepEqual(renamed.map((c) => [c.path, c.body.name]), [[`/sandboxes/${id}`, 'botdot-alice-coder-d9aa2f01']]);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).d9aa2f01.name, 'botdot-alice-coder-d9aa2f01');
+  // Renamed once; a bot that is renamed renames its machine on the next start.
+  b.machines.get(id).state = 'archived';
+  name = 'Writer';
+  const third = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: 'alice', nameOf: () => name });
+  await third.runShell('d9aa2f01', { command: 'ls' });
+  assert.deepEqual(b.calls.filter((c) => c.method === 'PATCH' && c.body.name).map((c) => c.body.name), ['botdot-alice-coder-d9aa2f01', 'botdot-alice-writer-d9aa2f01']);
+});
+
+test("a refused rename doesn't stop the machine; it is tried again on the next start", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  const data = dir();
+  const fetch = async (url, opts = {}) => (opts.method === 'PATCH' ? { ok: false, status: 400, json: async () => ({ ok: false, code: 'invalid_name' }) } : b.fetch(url, opts));
+  const file = path.join(data, 'boat-machines.json');
+  const first = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: '' });
+  await first.runShell('d9aa2f01', { command: 'ls' });
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  saved.d9aa2f01.name = 'botdot-d9aa2f01-old';
+  fs.writeFileSync(file, JSON.stringify(saved));
+  const again = boatLib.create(data, { fetch, sleep: async () => {}, account: 'alice', nameOf: () => 'Coder' });
+  const r = await again.runShell('d9aa2f01', { command: 'ls' });
+  assert.equal(r.code, 0);
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).d9aa2f01.name, 'botdot-d9aa2f01-old', 'kept, so the next start tries again');
 });
