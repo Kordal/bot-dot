@@ -474,6 +474,14 @@ class Api(val baseUrl: String, val session: Session? = null) {
         call(request(WorkspaceFiles.upload(botId, path, root, made)).header("X-Bot-Dot", "1").header("X-File-Name", enc(name)).post(body).build())
         Unit
     }
+    /** Shared projects (#578, `projects`): every one, and the bots in each. */
+    suspend fun projects(): List<Project> = json.decodeFromString<ProjectList>(get("/projects")).projects
+    suspend fun createProject(name: String, bots: List<String>): Project =
+        json.decodeFromString(send("POST", "/projects", buildJsonObject { put("name", name); put("bots", JsonArray(bots.map { JsonPrimitive(it) })) }))
+    suspend fun setProjectBots(name: String, bots: List<String>): Project =
+        json.decodeFromString(send("PUT", "/projects/${enc(name)}", buildJsonObject { put("bots", JsonArray(bots.map { JsonPrimitive(it) })) }))
+    /** Deletes the project with its folder; the computer must run (else 409). */
+    suspend fun deleteProject(name: String) { send("DELETE", "/projects/${enc(name)}") }
     suspend fun computer(botId: String): ComputerInfo = json.decodeFromString(get("/bots/${enc(botId)}/computer"))
     suspend fun startComputer(botId: String) { send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "start") }) }
     /**

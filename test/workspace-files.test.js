@@ -346,8 +346,9 @@ test('the computer scripts (#576) make a folder, put a file and move, inside the
     assert.equal(fs.readFileSync(path.join(root, 'proj', 'a.txt'), 'utf8'), 'a', 'never over a file');
     assert.equal(W.computerMade(run(W.putScript(root, 'proj/site/css', '.env', { folders: true }), '')), '.env');
     assert.equal(fs.readFileSync(path.join(root, 'proj/site/css/.env'), 'utf8'), '');
-    assert.throws(() => W.computerMade(run(W.putScript(root, 'nope/x', 'a.txt'), 'x')), { status: 404 });
-    assert.throws(() => W.computerMade(run(W.putScript(root, 'away/x', 'a.txt', { folders: true }), 'x')), { status: 403 });
+    // A refusal ends before it reads stdin: given none, as a pipe written to then would break (EPIPE).
+    assert.throws(() => W.computerMade(run(W.putScript(root, 'nope/x', 'a.txt'))), { status: 404 });
+    assert.throws(() => W.computerMade(run(W.putScript(root, 'away/x', 'a.txt', { folders: true }))), { status: 403 });
     assert.deepEqual(fs.readdirSync(path.join(dir, 'other')), [], 'nothing through a link');
     assert.deepEqual(fs.readdirSync(path.join(root, 'proj')).filter((n) => n.startsWith('.botdot-upload')), []);
 

@@ -1225,6 +1225,17 @@ A bot has two folders, each a **root**, named by `?root=`:
 
 Every write is in the audit log, `workspace-file.uploaded`, `workspace-file.folder-made`, `workspace-file.moved` (with `to`) and `workspace-file.deleted`, each with the bot, the root and the path, never a file's content.
 
+### Shared projects
+
+When `features` has `projects` ([#578](https://github.com/Kordal/bot-dot/issues/578), [ADR 097](adr/097-a-shared-project-is-a-folder-on-the-accounts-computer.md)), a **project** is a folder on the account's computer, `/workspace/projects/<name>`, that the bots in it work in together. Only bots with `computer: "linux"` can be in one. The owner's alone: the Chief gets `403`.
+
+- `GET /api/projects` answers `{ projects, max }`: each `{ name, bots, createdAt, folder }`, `bots` the ids of its bots, `max` how many an account may have (50).
+- `POST /api/projects` with `{ name, bots }` makes one: `201` with the project. `name` is one folder name, at most 64 characters, without `/` and not starting with a dot (`400`); one that is taken is `409` `{ state: "exists" }`. `bots` holds at least one bot, each on the account's computer, else `400` with a sentence naming it. Its folder is made at once when the computer runs, else when a member's Workspace opens it or a member's run first uses the computer; nothing starts the computer for it.
+- `PUT /api/projects/:name` with `{ bots }` changes its bots, as above; `404` `{ state: "gone" }` for no such project.
+- `DELETE /api/projects/:name` deletes it with its folder and what it holds: `{ ok: true, name }`. While the computer is off `409` `{ state: "computer-off" }`; the apps ask first, with what a `count` of its root says.
+- **In a member's Workspace** it is a root of its own: `?root=project&project=<name>` on every route of [a bot's workspace](#a-bots-workspace), managed as the `computer` root is, its folder made first where it is not there. A bot that is not in it gets `404` `{ state: "no-project" }`; its top itself is never deleted (`403`). The audit log's lines carry `project`.
+- **A member's prompt** names each project it is in, its folder and its other members, and says the files there are its and theirs. A deleted bot leaves its projects; a project with no bot left stays until the owner deletes it. Audit: `project.created`, `project.changed`, `project.deleted`.
+
 ## The Vault's items
 
 What the owner saved for the bots to use without ever seeing it: in botdot's own vault or, once Bitwarden is connected, in the **bot-dot** folder of the owner's Bitwarden. Only the owner writes here; the Chief's tools read the list and, with `chief-ssh-key-add`, make a new SSH key, with `chief-ssh-key-change` change one's bots and name (below), and with `chief-vault-remove` ask the owner on a card to remove an entry (Things that need the owner), and nothing else. No answer holds a secret.

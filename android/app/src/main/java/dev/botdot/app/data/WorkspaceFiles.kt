@@ -25,7 +25,11 @@ object WorkspaceFiles {
 
     /** A bot's, or the Chief's own folder ([UploadedFiles.CHIEF], #383), which has none on the computer. */
     private fun base(botId: String) = UploadedFiles.owner(botId) + "/workspace"
-    private fun query(root: String, path: String) = "?root=${Api.enc(root)}&path=${Api.enc(path)}"
+    /** A shared project's folder as a root (#578): "project/<name>", asked as ?root=project&project=<name>. */
+    fun projectRoot(name: String) = "${Projects.ROOT}/$name"
+    fun projectOf(root: String): String? = root.takeIf { it.startsWith("${Projects.ROOT}/") }?.substringAfter('/')
+    private fun rootQuery(root: String) = projectOf(root)?.let { "?root=${Projects.ROOT}&project=${Api.enc(it)}" } ?: "?root=${Api.enc(root)}"
+    private fun query(root: String, path: String) = rootQuery(root) + "&path=${Api.enc(path)}"
 
     /** A folder's listing, a count before a delete, and the delete itself. */
     fun list(botId: String, root: String, path: String) = base(botId) + query(root, path)
@@ -34,8 +38,8 @@ object WorkspaceFiles {
     fun file(botId: String, root: String, path: String) = base(botId) + "/file" + query(root, path)
     /** [made]: the folders of [path] that are not there yet are made first (a folder's upload, #576). */
     fun upload(botId: String, path: String, root: String = SERVER, made: Boolean = false) = base(botId) + "/upload" + query(root, path) + if (made) "&folders=1" else ""
-    fun folder(botId: String, root: String = SERVER) = base(botId) + "/folder?root=${Api.enc(root)}"
-    fun move(botId: String, root: String = SERVER) = base(botId) + "/move?root=${Api.enc(root)}"
+    fun folder(botId: String, root: String = SERVER) = base(botId) + "/folder" + rootQuery(root)
+    fun move(botId: String, root: String = SERVER) = base(botId) + "/move" + rootQuery(root)
 
     /** The entries as shown: folders first, then files, by name or newest first; dot-names only with [hidden]. */
     fun sorted(entries: List<WorkspaceEntry>, byDate: Boolean = false, hidden: Boolean = false): List<WorkspaceEntry> {
@@ -80,7 +84,7 @@ object WorkspaceFiles {
     }
 
     /** Whether an entry may be deleted here: on botdot a link is never changed; on the computer deleting one takes the link alone. */
-    fun deletes(root: String, listing: WorkspaceListing, e: WorkspaceEntry): Boolean = root == COMPUTER || (!e.kept && e.type != "link" && !listing.readOnly)
+    fun deletes(root: String, listing: WorkspaceListing, e: WorkspaceEntry): Boolean = root != SERVER || (!e.kept && e.type != "link" && !listing.readOnly)
     /** Whether a folder takes uploads and new folders: on botdot, and on the computer from a server with [FOLDERS]. */
     fun writes(root: String, listing: WorkspaceListing, folders: Boolean): Boolean = (root == SERVER || folders) && !listing.readOnly
     /** Whether an entry may be renamed or moved: where [writes], and not a file the owner gave the bot (uploads/). */

@@ -106,6 +106,10 @@ _Avoid_: subagent, copy, clone, worker
 What the user (or a teammate) gave a bot, kept in its folder until the user deletes them. Every task of the bot names them. Not the files a bot attaches to its reply, which are kept with that reply.
 _Avoid_: uploads, attachments (in what the user reads)
 
+**Project**:
+A folder on the account's computer, `/workspace/projects/<name>`, that the bots the user put in it work in together ([ADR 097](docs/adr/097-a-shared-project-is-a-folder-on-the-accounts-computer.md)). Only bots on the account's computer can be in one. Not a group, which is a chat.
+_Avoid_: shared folder, team folder, repo (for the project itself)
+
 **A bot's page**:
 A lasting page a bot writes for the user in Markdown (a report, a memo, an overview), kept in its folder, opened in the app and listed under Pages in its settings. "Keep up to date" gives it a job that rewrites it ([ADR 065](docs/adr/065-a-page-is-a-bots-markdown-kept-up-to-date-by-the-owners-tap.md)). Never HTML, except an interactive page. Not a page of the keypad, and not the Board.
 _Avoid_: artifact, document, report (for the page itself)
