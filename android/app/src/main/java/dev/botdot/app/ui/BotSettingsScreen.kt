@@ -216,7 +216,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                         }
                     }
                 } else SwitchRow("Uses the computer", "Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.", computer) { computer = it }
-                if (b.computer == "linux") OutlinedButton(onClick = onScreen) { Text("🖥 See its screen", color = p.text) }
+                if (b.computer == "linux" || (b.computer == "boat" && "boat-desktop" in server?.features.orEmpty())) OutlinedButton(onClick = onScreen) { Text("🖥 See its screen", color = p.text) }
                 val waiting = b.jobs.count { it.waits }
                 androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clickable(onClick = onJobs).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {

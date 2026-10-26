@@ -364,8 +364,9 @@ class MainActivity : ComponentActivity() {
                     composable("screen/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""
                         val bots by app.store.bots.value.collectAsState()
-                        val name = bots?.firstOrNull { it.id == id }?.let { "${it.emoji} ${it.name}" }.orEmpty()
-                        LiveScreen(app, id, name) { nav.popBackStack() }
+                        val bot = bots?.firstOrNull { it.id == id }
+                        val name = bot?.let { "${it.emoji} ${it.name}" }.orEmpty()
+                        if (bot?.computer == "boat") BoatScreen(app, id, name) { nav.popBackStack() } else LiveScreen(app, id, name) { nav.popBackStack() }
                     }
                     composable("settings") {
                         SettingsScreen(app, onSkills = { nav.navigate("skills") }, onConnectors = { nav.navigate("connectors") }, onVault = { nav.navigate("vault") }, onPages = { nav.navigate("pages") },

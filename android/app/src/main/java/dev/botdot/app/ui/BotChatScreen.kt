@@ -176,7 +176,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     // The owner at the test of Milestone 10: the plus stands right of the bot's name, with no words beside it.
                     beside = if (bot != null && canMakeGroup(features, others.size)) ({ SmallPlus(ADD_A_BOT) { makingGroup = true } }) else null,
                 ) {
-                    if (bot?.computer == "linux") RoundButton(Icons.Filled.DesktopWindows, "Its screen", onClick = onScreen)
+                    if (bot?.computer == "linux" || (bot?.computer == "boat" && "boat-desktop" in features.orEmpty())) RoundButton(Icons.Filled.DesktopWindows, "Its screen", onClick = onScreen)
                     val jobs = bot?.jobs.orEmpty()
                     if (jobs.isNotEmpty()) RoundButton(Icons.Filled.Schedule, "Scheduled jobs", dot = jobs.any { it.waits }, onClick = onJobs)
                 }

@@ -251,7 +251,7 @@ function renderBotSettings(force = false) {
       <div class="card settings-card bs-rows">
         ${boatChoice ? `<div class="bs-row">
           <span class="bs-icon">🖥</span>
-          <div class="grow"><b>Computer</b>${b.computer === 'linux' ? '<div><button type="button" class="link-btn" data-bs-screen>See its screen</button></div>' : ''}<div class="faint" id="bs-move">${computerMoveLine(b)}</div></div>
+          <div class="grow"><b>Computer</b>${b.computer === 'linux' || b.computer === 'boat' ? '<div><button type="button" class="link-btn" data-bs-screen>See its screen</button></div>' : ''}<div class="faint" id="bs-move">${computerMoveLine(b)}</div></div>
           <select name="computer" aria-label="Computer"><option value="none">None</option><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>This machine · free</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>boat.dev · costs</option></select>
         </div>` : `<div class="bs-row ${docker || hasComputer ? '' : 'hidden'}">
           <span class="bs-icon">🖥</span>
