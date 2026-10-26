@@ -955,8 +955,8 @@ async function adminRoutes(req, res, p, account) {
       if (checked === 'unreachable') return send(res, 502, { error: "OpenRouter can't be reached. Try again." });
     }
     let shown;
-    try { shown = groupRouter.set(body.router, key || undefined, typeof body.wakeGate === 'boolean' ? body.wakeGate : undefined); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
-    console.log(`[front door] the admin chose ${shown.router === 'jev' ? 'Jev' : 'Haiku'} as the decision model; the wake gate is ${shown.wakeGate ? 'on' : 'off'}`);
+    try { shown = groupRouter.set(body.router, key || undefined, typeof body.wakeGate === 'boolean' ? body.wakeGate : undefined, body.replaysPerHour); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
+    console.log(`[front door] the admin chose ${shown.router === 'jev' ? 'Jev' : 'Haiku'} as the decision model; the wake gate is ${shown.wakeGate ? 'on' : 'off'}; ${shown.replaysPerHour} replays an hour`);
     handRouter();
     return send(res, 200, shown);
   }
