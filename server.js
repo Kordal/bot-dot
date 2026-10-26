@@ -726,6 +726,8 @@ function parseComputerPath(url) {
   return m ? { botId: m[1], rest: m[2] || '/' } : null;
 }
 
+const screenNote = (text) => `<body style="font:14px system-ui;background:#111;color:#aaa;display:grid;place-items:center;height:100vh;margin:0">${text}</body>`;
+
 async function serveScreen(req, res, { botId, rest }) {
   let rel;
   try { rel = decodeURIComponent(rest.split('?')[0]); } catch { rel = ''; }
@@ -739,7 +741,7 @@ async function serveScreen(req, res, { botId, rest }) {
   if (state !== 'running') {
     const why = state === 'off' ? "This bot's screen starts when it first uses its computer." : "This bot's computer is turned off.";
     res.writeHead(503, { 'Content-Type': 'text/html' });
-    return res.end(`<body style="font:14px system-ui;background:#111;color:#aaa;display:grid;place-items:center;height:100vh;margin:0">${why}</body>`);
+    return res.end(screenNote(why));
   }
   if (req.method === 'HEAD') { res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' }); return res.end(); }
   sendFile(res, file, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
@@ -774,7 +776,13 @@ async function handle(req, res) {
   // file, and nothing else of botdot, whatever the address asks for.
   if (req.socket[FROM_FRONT_DOOR] && req.headers['x-botdot-sandbox'] === '1') return B.pages.sites.serve(req, res, B.pages.hasVersion);
   const screen = parseComputerPath(req.url);
-  if (screen) return serveScreen(req, res, screen).catch(() => { if (!res.headersSent) res.writeHead(502); res.end(); });
+  if (screen) return serveScreen(req, res, screen).catch((e) => {
+    // Words in the viewer's frame, not the browser's empty error page, and the reason in the log.
+    console.warn(`[computers] couldn't show the screen of ${screen.botId}: ${e.message}`);
+    if (res.headersSent) return res.destroy();
+    res.writeHead(502, { 'Content-Type': 'text/html' });
+    res.end(screenNote("This bot's screen couldn't be shown. Try again in a moment."));
+  });
   let url;
   try { url = new URL(req.url, `http://${req.headers.host}`); } catch { throw httpError(400, 'Bad address'); }
   if (url.pathname === '/connectors/done') {
