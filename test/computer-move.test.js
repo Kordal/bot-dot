@@ -12,21 +12,25 @@ const helper = require('../lib/docker-helper');
 const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-move-'));
 const pieces = { linux: { readMax: 7, writeMax: 3 }, boat: { readMax: 5, writeMax: 4 } };
 
-// One side of a copy: a packed folder of its own, or the bytes it was handed, as each step leaves them.
-function side(packed, { fail = null } = {}) {
-  const s = { got: Buffer.alloc(0), unpacked: null, dropped: 0, steps: [] };
-  s.moveFiles = async (botId, { op, offset, length, data }) => {
-    s.steps.push(op);
-    if (fail === op) return { code: 1, stderr: 'tar: No space left on device\n' };
-    if (op === 'pack') return { code: 0, size: packed.length };
-    if (op === 'read') return { code: 0, data: packed.subarray(offset, offset + length).toString('base64') };
+// One side of a copy: a packed folder and browser profile of its own (none: no profile), or the bytes it was handed,
+// as each step leaves them.
+function side(packed, { profile = Buffer.alloc(0), fail = null } = {}) {
+  const own = { files: packed, profile };
+  const got = { files: Buffer.alloc(0), profile: Buffer.alloc(0) };
+  const s = { got: Buffer.alloc(0), unpacked: null, profileUnpacked: null, dropped: 0, steps: [] };
+  s.moveFiles = async (botId, { op, part = 'files', offset, length, data }) => {
+    s.steps.push(part === 'files' ? op : `${op} ${part}`);
+    if (fail === op || fail === `${op} ${part}`) return { code: 1, stderr: 'tar: No space left on device\n' };
+    if (op === 'pack') return { code: 0, size: own[part].length };
+    if (op === 'read') return { code: 0, data: own[part].subarray(offset, offset + length).toString('base64') };
     if (op === 'write') {
-      if (offset !== s.got.length) return { code: 4, stderr: 'a piece came out of order' };
-      s.got = Buffer.concat([s.got, Buffer.from(data, 'base64')]);
+      if (offset !== got[part].length) return { code: 4, stderr: 'a piece came out of order' };
+      got[part] = Buffer.concat([got[part], Buffer.from(data, 'base64')]);
+      s.got = got.files;
       return { code: 0 };
     }
-    if (op === 'unpack') { s.unpacked = s.got; return { code: 0 }; }
-    if (op === 'drop') { s.dropped++; return { code: 0 }; }
+    if (op === 'unpack') { if (part === 'files') s.unpacked = got.files; else s.profileUnpacked = got.profile; return { code: 0 }; }
+    if (op === 'drop') { if (part === 'files') s.dropped++; return { code: 0 }; }
     throw new Error(op);
   };
   return s;
@@ -85,7 +89,80 @@ test('a copy botdot started again during is failed, and one over 2 GB is not sta
   big.moveFiles = async (id, { op }) => (op === 'pack' ? { code: 0, size: moveLib.MAX_BYTES + 1 } : { code: 0 });
   const other = side(Buffer.alloc(0));
   await moveLib.create(dir(), { sides: { linux: big, boat: other }, pieces }).start('coder', 'linux', 'boat');
-  assert.deepEqual(other.steps, ['drop'], 'nothing written');
+  assert.deepEqual(other.steps, ['drop', 'drop profile'], 'nothing written');
+});
+
+test("the browser's profile goes after the files, counted in the same bytes; a side without one leaves the other's", async () => {
+  const files = Buffer.from('the bot folder, packed');
+  const profile = Buffer.from('cookies and local storage of the bot');
+  const boat = side(files, { profile });
+  const linux = side(Buffer.alloc(0));
+  const seen = [];
+  const moves = moveLib.create(dir(), { sides: { linux, boat }, pieces, every: 0, onChange: (id) => seen.push(moves.of(id)) });
+  await moves.start('coder', 'boat', 'linux');
+  assert.deepEqual(linux.unpacked, files);
+  assert.deepEqual(linux.profileUnpacked, profile, 'the browser stays signed in');
+  assert.ok(linux.steps.indexOf('unpack') > linux.steps.lastIndexOf('write profile'), 'nothing is unpacked before every part is there');
+  const totals = seen.filter(Boolean).map((m) => m.total).filter(Boolean);
+  assert.ok(totals.every((t) => t === files.length + profile.length));
+  const done = seen.filter(Boolean).map((m) => m.done);
+  assert.deepEqual(done, [...done].sort((a, b) => a - b), 'what is done only grows');
+  assert.ok(boat.steps.includes('drop profile'), 'the old side drops both tars');
+
+  const back = side(Buffer.alloc(0));
+  await moveLib.create(dir(), { sides: { linux: side(files), boat: back }, pieces }).start('coder', 'linux', 'boat');
+  assert.deepEqual(back.unpacked, files);
+  assert.equal(back.profileUnpacked, null, 'no profile on the old side: the new side keeps its own');
+  assert.ok(!back.steps.some((x) => x === 'write profile' || x === 'unpack profile'));
+});
+
+test("a profile that can't be taken fails the copy with its reason, and leaves nothing", async () => {
+  const boat = side(Buffer.from('files'), { profile: Buffer.from('profile') });
+  const linux = side(Buffer.alloc(0), { fail: 'unpack profile' });
+  const moves = moveLib.create(dir(), { sides: { linux, boat }, pieces });
+  await moves.start('coder', 'boat', 'linux');
+  assert.match(moves.of('coder').error, /couldn't unpack its browser's profile on this machine: tar: No space left on device/);
+  assert.ok(linux.steps.includes('drop profile') && boat.steps.includes('drop profile'));
+
+  const refused = side(Buffer.alloc(0), { fail: 'write profile' });
+  await moveLib.create(dir(), { sides: { linux: refused, boat }, pieces }).start('coder', 'boat', 'linux');
+  assert.equal(refused.unpacked, null, 'a profile that never arrived leaves the folder there as it was');
+});
+
+test("this machine's side packs a profile as the browser user, without its caches, and replaces the other's whole", { skip: process.platform !== 'linux' }, () => {
+  const { execFileSync } = require('node:child_process');
+  const { PROFILE_SCRIPTS } = require('../lib/computers');
+  const run = (op, profiles, tar, ...rest) => execFileSync('sh', ['-c', PROFILE_SCRIPTS[op], 'sh', profiles, tar, ...rest], { encoding: 'utf8' });
+  const a = dir();
+  const b = dir();
+  fs.mkdirSync(path.join(a, 'coder', 'cache2'), { recursive: true });
+  fs.writeFileSync(path.join(a, 'coder', 'cookies.sqlite'), 'signed in');
+  fs.writeFileSync(path.join(a, 'coder', 'cache2', 'entry'), 'cached');
+  fs.writeFileSync(path.join(a, 'coder', '.parentlock'), '');
+  const tar = path.join(a, 'out.tgz');
+  const size = Number(run('pack', a, tar, '0', '0', 'coder'));
+  assert.ok(size > 0);
+  assert.equal(run('pack', a, path.join(a, 'none.tgz'), '0', '0', 'nobody').trim(), '0', 'no profile packs nothing');
+  const piece = run('read', a, tar, '0', String(size), 'coder');
+  fs.mkdirSync(path.join(b, 'coder'));
+  fs.writeFileSync(path.join(b, 'coder', 'old.sqlite'), 'the other one');
+  const into = path.join(b, 'in.tgz');
+  execFileSync('sh', ['-c', PROFILE_SCRIPTS.write, 'sh', b, into, '0', '0', 'coder'], { input: Buffer.from(piece, 'base64') });
+  run('unpack', b, into, '0', '0', 'coder');
+  assert.equal(fs.readFileSync(path.join(b, 'coder', 'cookies.sqlite'), 'utf8'), 'signed in');
+  assert.equal(fs.existsSync(path.join(b, 'coder', 'old.sqlite')), false, 'the old profile is replaced whole');
+  assert.equal(fs.existsSync(path.join(b, 'coder', 'cache2')), false, 'its caches stay behind');
+  assert.equal(fs.existsSync(path.join(b, 'coder', '.parentlock')), false);
+  assert.equal(fs.existsSync(into), false);
+  assert.throws(() => run('unpack', b, into, '0', '0', ''), 'no bot, no profile touched');
+
+  const evil = dir();
+  fs.mkdirSync(path.join(evil, 'p'));
+  fs.symlinkSync('/etc', path.join(evil, 'p', 'etc'));
+  const bad = path.join(evil, 'bad.tgz');
+  execFileSync('tar', ['-czf', bad, '-C', path.join(evil, 'p'), '.']);
+  assert.throws(() => execFileSync('sh', ['-c', PROFILE_SCRIPTS.unpack, 'sh', b, bad, '0', '0', 'coder'], { stdio: 'pipe' }), /holds links/);
+  assert.equal(fs.readFileSync(path.join(b, 'coder', 'cookies.sqlite'), 'utf8'), 'signed in', 'a refused profile changes nothing');
 });
 
 test('only a move between this machine and boat.dev copies', () => {
@@ -132,6 +209,21 @@ test("boat.dev's side packs /home/user without its caches, and takes pieces thro
   assert.doesNotMatch(commands[3], /^: >/);
   await boat.moveFiles('coder', { op: 'unpack' });
   assert.match(commands[4], /tar -xzf \/tmp\/botdot-move\.tgz -C \/home\/user --no-same-owner/);
+
+  commands.length = 0;
+  await boat.moveFiles('coder', { op: 'pack', part: 'profile' });
+  assert.match(commands[0], /P="\/home\/browser\/profiles\/\$b"/);
+  assert.doesNotMatch(commands[0], /profiles\/coder/, 'the command never names the profile pkill looks for');
+  assert.match(commands[0], /sudo -n pkill -u browser -f "\$P/, 'Camoufox closed first');
+  assert.match(commands[0], /sudo -n tar --ignore-failed-read -czf \/tmp\/botdot-profile\.tgz -C "\$P" .*--exclude=\.\/cache2/);
+  await boat.moveFiles('coder', { op: 'write', part: 'profile', offset: 0, data: 'YWJj' });
+  assert.equal(files.get('/tmp/botdot-profile.part'), 'YWJj');
+  await boat.moveFiles('coder', { op: 'unpack', part: 'profile' });
+  assert.match(commands[2], /useradd --create-home --shell \/usr\/sbin\/nologin --groups user browser/, 'the browser user as the screen kit makes it');
+  assert.match(commands[2], /chown -R browser:browser "\$P\.new" .*sudo -n rm -rf "\$P" && sudo -n mv "\$P\.new" "\$P"/);
+  await boat.moveFiles('coder', { op: 'drop', part: 'profile' });
+  assert.match(commands[3], /^sudo -n rm -f \/tmp\/botdot-profile\.tgz/);
+  await assert.rejects(boat.moveFiles('coder', { op: 'pack', part: 'home' }), /No such step/);
 });
 
 test("the Docker helper takes a copy's steps on the bot's own folder only, a piece within 1 MB", () => {
@@ -139,6 +231,8 @@ test("the Docker helper takes a copy's steps on the bot's own folder only, a pie
   assert.ok(helper.validate('moveFiles', [seat, { op: 'pack' }]));
   assert.ok(helper.validate('moveFiles', [seat, { op: 'read', offset: 0, length: 3145728 }]));
   assert.ok(helper.validate('moveFiles', [seat, { op: 'write', offset: 5, data: 'YWJj' }]));
+  assert.ok(helper.validate('moveFiles', [seat, { op: 'unpack', part: 'profile' }]));
+  assert.equal(helper.validate('moveFiles', [seat, { op: 'pack', part: '/etc' }]), false);
   assert.equal(helper.validate('moveFiles', [seat, { op: 'rm' }]), false);
   assert.equal(helper.validate('moveFiles', [seat, { op: 'pack', path: '/etc' }]), false, 'no path of the caller');
   assert.equal(helper.validate('moveFiles', [seat, { op: 'write', offset: -1, data: '' }]), false);
