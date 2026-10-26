@@ -12,8 +12,8 @@ const ROOT = path.join(__dirname, '..');
 const read = (...p) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const EVERY_BOT = /every (other )?bot on the account's computer can read/i;
 
-async function listed(t, file) {
-  const mcp = rpcClient(t, file, { VAULT_URL: 'http://127.0.0.1:9', VAULT_TOKEN: 'fixture' });
+async function listed(t, file, env = {}) {
+  const mcp = rpcClient(t, file, { VAULT_URL: 'http://127.0.0.1:9', VAULT_TOKEN: 'fixture', ...env });
   await mcp.request('initialize', {});
   const { tools } = await mcp.request('tools/list');
   return Object.fromEntries(tools.map((x) => [x.name, x.description]));
@@ -26,6 +26,17 @@ test('every computer tool that uses a saved secret says every bot on the account
     assert.match(tools[name], /sudo/, name);
   }
   assert.doesNotMatch(tools.run_shell, EVERY_BOT, 'a plain command uses no secret');
+});
+
+test("a machine of the bot's own on boat.dev has the Vault tools for one command, with no word of other bots (#560)", async (t) => {
+  const tools = await listed(t, 'computer-mcp.js', { COMPUTER_KIND: 'boat' });
+  for (const name of ['run_with_login', 'run_with_ssh_key', 'run_with_file']) {
+    assert.ok(tools[name], name);
+    assert.doesNotMatch(tools[name], EVERY_BOT, name);
+    assert.doesNotMatch(tools[name], /other bots/, name);
+  }
+  assert.equal(tools.place_secret_file, undefined, 'no secret kept on disk at boat.dev');
+  assert.equal(tools.type_login, undefined, 'no browser there');
 });
 
 test('the vault tools say it of "Usable in its computer"', async (t) => {
