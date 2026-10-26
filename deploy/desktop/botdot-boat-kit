@@ -2,9 +2,11 @@
 # The screen kit on a bot's machine on boat.dev (#563, ADR 093): what the desktop image (deploy/desktop/Dockerfile)
 # carries for a screen, put on the machine's own desktop (Xorg :0) the first time the bot uses a screen tool there.
 # cua's computer-server and Camoufox, each in its own venv at the paths and versions the image has, botdot's bridge
-# (camoufox-browser) and the browser user it runs as, with the bot's downloads in /home/user/Downloads.
+# (camoufox-browser) and the browser user it runs as, with the bot's downloads in /home/user/Downloads, and Camoufox
+# as the desktop's browser in place of the machine's own Chrome (#582), as the image makes it.
 #
-# botdot (lib/boat.js) puts this file and camoufox-browser in a folder of /tmp through boat.dev's file API and runs
+# botdot (lib/boat.js) puts this file, camoufox-browser and camoufox.desktop in a folder of /tmp through boat.dev's
+# file API as soon as the machine starts (#582) and runs
 #   sudo sh botdot-boat-kit <version> <that folder>
 # detached. It writes what it does to /opt/botdot/kit.log, and at its end <version> to /opt/botdot/kit-version, or
 # the step that failed to /opt/botdot/kit-failed. It stays on the machine's disk: botdot runs it again only for a
@@ -59,6 +61,28 @@ install -d -o browser -g browser -m 0700 /opt/camoufox-cache/camoufox/fontconfig
 
 step="the bridge"
 install -m 0755 "$FROM/camoufox-browser" /usr/local/bin/camoufox-browser
+
+step="Camoufox as the desktop's browser"
+# As the image's Dockerfile: its launcher in the menu, x-www-browser, and the machine user's default for web pages,
+# so xdg-open, a clicked link and the owner on the stream open Camoufox, not Chrome. Other defaults stay as they are.
+install -m 0644 "$FROM/camoufox.desktop" /usr/share/applications/camoufox.desktop
+update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/local/bin/camoufox-browser 300
+update-alternatives --set x-www-browser /usr/local/bin/camoufox-browser
+install -d -o user -g user /home/user/.config
+python3 -I - /home/user/.config/mimeapps.list <<'PY'
+import configparser, sys
+c = configparser.RawConfigParser(delimiters=("=",), strict=False, interpolation=None)
+c.optionxform = str
+c.read(sys.argv[1])
+for section in ("Default Applications", "Added Associations"):
+    if not c.has_section(section):
+        c.add_section(section)
+    for kind in ("text/html", "x-scheme-handler/http", "x-scheme-handler/https"):
+        c.set(section, kind, "camoufox.desktop;" if section == "Added Associations" else "camoufox.desktop")
+with open(sys.argv[1], "w") as f:
+    c.write(f, space_around_delimiters=False)
+PY
+chown user:user /home/user/.config/mimeapps.list
 
 step="done"
 printf '%s\n' "$VERSION" > "$KIT/kit-version"

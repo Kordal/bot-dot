@@ -75,7 +75,7 @@ test("a bot's first command makes its machine, the next ones use it, and it stay
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
   const data = dir();
-  const boat = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: '' });
+  const boat = boatLib.create(data, { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, account: '' });
   const r = await boat.runShell('coder', { command: 'git status', timeoutSeconds: 30 });
   assert.equal(r.code, 0);
   assert.equal(r.stdout, 'ran: git status');
@@ -86,7 +86,7 @@ test("a bot's first command makes its machine, the next ones use it, and it stay
   assert.equal(made.auth, `Bearer ${KEY}`);
   const failed = await boat.runShell('coder', { command: 'false' });
   assert.equal(failed.code, 1, 'its exit code comes back');
-  const again = boatLib.create(data, { fetch: b.fetch, sleep: async () => {} });
+  const again = boatLib.create(data, { kitOnStart: false, fetch: b.fetch, sleep: async () => {} });
   await again.runShell('coder', { command: 'pwd' });
   assert.equal(b.machines.size, 1, 'botdot started again: the same machine');
 });
@@ -95,7 +95,7 @@ test('a file is written through boat.dev\'s file API and moved where the bot sai
   boatLib.setKey(KEY);
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {} });
   const r = await boat.writeFile('coder', { path: "notes/it's.md", content: 'hello' });
   assert.equal(r.code, 0);
   const put = b.calls.find((c) => c.method === 'PUT');
@@ -110,7 +110,7 @@ test('a machine unused for 30 minutes stops, and the next command starts it agai
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
   let now = 1_000_000;
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 30 * 60_000 });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 30 * 60_000 });
   await boat.runShell('coder', { command: 'ls' });
   now += 29 * 60_000;
   assert.deepEqual(await boat.restIdle(), [], 'still in use');
@@ -138,7 +138,7 @@ test("a boat bot's commands and Vault secrets go to boat.dev; its placed files a
   boatLib.setKey(KEY);
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
-  const { f, got } = facadeWith(boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} }));
+  const { f, got } = facadeWith(boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {} }));
   await f.ensureMachine('coder');
   assert.equal((await f.runShell('coder', { command: 'ls' })).stdout, 'ran: ls');
   const login = await f.runWithLogin('coder', { command: 'x', username: 'u', password: 'p4ssw0rd' });
@@ -152,7 +152,7 @@ test("a boat bot's commands and Vault secrets go to boat.dev; its placed files a
 test("when boat.dev can't start the machine, the account's computer runs the command and says so", async () => {
   const b = fakeBoat({ refuse: true });
   boatLib.setKey(null); // no key at all: the same
-  const { f, got } = facadeWith(boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} }));
+  const { f, got } = facadeWith(boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {} }));
   await f.ensureMachine('coder');
   const r = await f.runShell('coder', { command: 'ls' });
   assert.equal(r.stdout, 'on the account');
@@ -169,7 +169,7 @@ test("a machine that boat.dev can't start again mid-run hands over to the accoun
   const b = fakeBoat();
   let down = false;
   const fetch = (url, opts) => (down ? Promise.reject(new Error('down')) : b.fetch(url, opts));
-  const boat = boatLib.create(dir(), { fetch, sleep: async () => {}, now: () => (down ? 1e13 : 1e6) });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch, sleep: async () => {}, now: () => (down ? 1e13 : 1e6) });
   const { f, got } = facadeWith(boat);
   await f.ensureMachine('coder');
   assert.equal((await f.runShell('coder', { command: 'ls' })).stdout, 'ran: ls');
@@ -195,7 +195,7 @@ test('a command right after an idle stop waits for the stop, then starts the mac
     if (url.endsWith('/stop')) { stops++; await held; const r = await b.fetch(url, opts); [...b.machines.values()][0].state = 'running'; setTimeout(() => { [...b.machines.values()][0].state = 'archived'; }, 0); return r; }
     return b.fetch(url, opts);
   };
-  const boat = boatLib.create(dir(), { fetch, sleep: () => new Promise((r) => setTimeout(r, 1)), now: () => now, restAfterMs: 60_000 });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch, sleep: () => new Promise((r) => setTimeout(r, 1)), now: () => now, restAfterMs: 60_000 });
   await boat.runShell('coder', { command: 'ls' });
   now += 120_000;
   const resting = boat.restIdle();
@@ -212,7 +212,7 @@ test("without a key, idle machines are kept in mind and stopped once a key is ba
   boatLib.setKey(KEY);
   const b = fakeBoat();
   let now = 1_000_000;
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 60_000 });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 60_000 });
   await boat.runShell('coder', { command: 'ls' });
   boatLib.setKey(null);
   now += 120_000;
@@ -224,7 +224,7 @@ test("without a key, idle machines are kept in mind and stopped once a key is ba
 
 test("a bot on the account's computer is not touched by boat.dev", async () => {
   const b = fakeBoat();
-  const { f, got } = facadeWith(boatLib.create(dir(), { fetch: b.fetch }), 'linux');
+  const { f, got } = facadeWith(boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch }), 'linux');
   await f.ensureMachine('helper');
   await f.runShell('helper', { command: 'ls' });
   assert.deepEqual(got, ['ensure', 'runShell']);
@@ -254,7 +254,7 @@ test("the account's size makes new machines, and moves a bot's machine to it the
   const b = fakeBoat();
   let size = 'small';
   let now = 1_000_000;
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 60_000, size: () => size });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 60_000, size: () => size });
   await boat.runShell('coder', { command: 'ls' });
   const [box] = b.machines.values();
   assert.equal(box.type, 'small', 'made at the chosen size');
@@ -301,7 +301,7 @@ test("a bot's machine is described as the owner sees it: not made yet, on, stopp
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
   let now = 0;
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 1000, size: () => 'small' });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 1000, size: () => 'small' });
   assert.deepEqual(boat.info('coder'), { state: 'none', size: 'small', shared: false, text: 'External Virtual PC · 2 CPUs · 4 GB · not made yet' });
   await boat.runShell('coder', { command: 'ls' });
   assert.deepEqual(boat.info('coder'), { state: 'running', size: 'small', shared: false, text: 'External Virtual PC · 2 CPUs · 4 GB · on' });
@@ -316,7 +316,7 @@ test('a login reaches the command through a file of its own that goes before the
   boatLib.setKey(KEY);
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {} });
   const secret = "s3cr'et pass";
   const r = await boat.runWithLogin('coder', { command: 'git push', username: 'x-access-token', password: secret, timeoutSeconds: 60 });
   assert.equal(r.code, 0);
@@ -333,7 +333,7 @@ test('several logins each get their variables, and a name that makes no variable
   boatLib.setKey(KEY);
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {} });
   await boat.runWithLogin('coder', { command: 'x', env: { BOTDOT_OVH_KEY_USERNAME: 'a', BOTDOT_OVH_KEY_PASSWORD: 'b' } });
   assert.equal(Buffer.from(b.calls.find((c) => c.method === 'PUT').body.content, 'base64').toString(), "export BOTDOT_OVH_KEY_USERNAME='a'\nexport BOTDOT_OVH_KEY_PASSWORD='b'\n");
   const before = b.calls.length;
@@ -346,7 +346,7 @@ test('an SSH key goes into an ssh-agent of the command and its file before the c
   boatLib.setKey(KEY);
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {} });
   const r = await boat.runWithSshKey('coder', { command: 'git push', privateKey: 'KEYDATA', timeoutSeconds: 30 });
   assert.equal(r.code, 0);
   const put = b.calls.find((c) => c.method === 'PUT');
@@ -361,7 +361,7 @@ test('a file is there for the command alone and goes when it ends', async (t) =>
   boatLib.setKey(KEY);
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {} });
   const r = await boat.runWithFile('coder', { command: 'cat "$BOTDOT_FILE" | wc -c', fileName: 'key.pem', content: Buffer.from('PEM').toString('base64') });
   assert.equal(r.code, 0);
   const put = b.calls.find((c) => c.method === 'PUT');
@@ -388,7 +388,7 @@ test('a machine made under the old name takes the new one on its next start, by 
   const b = fakeBoat();
   const data = dir();
   let name = 'Coder';
-  const first = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: 'alice', nameOf: () => name });
+  const first = boatLib.create(data, { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, account: 'alice', nameOf: () => name });
   await first.runShell('d9aa2f01', { command: 'ls' });
   const made = b.calls.find((c) => c.path === '/sandboxes' && c.method === 'POST');
   assert.equal(made.body.name, 'botdot-alice-coder-d9aa2f01');
@@ -400,7 +400,7 @@ test('a machine made under the old name takes the new one on its next start, by 
   delete saved.d9aa2f01.name;
   fs.writeFileSync(file, JSON.stringify(saved));
   b.machines.get(id).state = 'archived';
-  const again = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: 'alice', nameOf: () => name });
+  const again = boatLib.create(data, { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, account: 'alice', nameOf: () => name });
   await again.runShell('d9aa2f01', { command: 'ls' });
   assert.equal(b.calls.filter((c) => c.path === '/sandboxes' && c.method === 'POST').length, 1, 'no new machine');
   const renamed = b.calls.filter((c) => c.method === 'PATCH' && c.body.name);
@@ -409,7 +409,7 @@ test('a machine made under the old name takes the new one on its next start, by 
   // Renamed once; a bot that is renamed renames its machine on the next start.
   b.machines.get(id).state = 'archived';
   name = 'Writer';
-  const third = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: 'alice', nameOf: () => name });
+  const third = boatLib.create(data, { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, account: 'alice', nameOf: () => name });
   await third.runShell('d9aa2f01', { command: 'ls' });
   assert.deepEqual(b.calls.filter((c) => c.method === 'PATCH' && c.body.name).map((c) => c.body.name), ['botdot-alice-coder-d9aa2f01', 'botdot-alice-writer-d9aa2f01']);
 });
@@ -421,12 +421,12 @@ test("a refused rename doesn't stop the machine; it is tried again on the next s
   const data = dir();
   const fetch = async (url, opts = {}) => (opts.method === 'PATCH' ? { ok: false, status: 400, json: async () => ({ ok: false, code: 'invalid_name' }) } : b.fetch(url, opts));
   const file = path.join(data, 'boat-machines.json');
-  const first = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, account: '' });
+  const first = boatLib.create(data, { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, account: '' });
   await first.runShell('d9aa2f01', { command: 'ls' });
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   saved.d9aa2f01.name = 'botdot-d9aa2f01-old';
   fs.writeFileSync(file, JSON.stringify(saved));
-  const again = boatLib.create(data, { fetch, sleep: async () => {}, account: 'alice', nameOf: () => 'Coder' });
+  const again = boatLib.create(data, { kitOnStart: false, fetch, sleep: async () => {}, account: 'alice', nameOf: () => 'Coder' });
   const r = await again.runShell('d9aa2f01', { command: 'ls' });
   assert.equal(r.code, 0);
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).d9aa2f01.name, 'botdot-d9aa2f01-old', 'kept, so the next start tries again');
@@ -437,7 +437,7 @@ test("the owner's screen of a boat bot: its machine starts in the background, th
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat({ desktopReadyAfter: 1 });
   let clock = 1_000_000;
-  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => clock, account: '' });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, now: () => clock, account: '' });
   const logged = [];
   const warn = console.warn, log = console.log;
   console.warn = (...a) => logged.push(a.join(' ')); console.log = (...a) => logged.push(a.join(' '));
@@ -463,7 +463,7 @@ test('watching a boat bot\'s screen counts as use: its machine does not stop whi
   const b = fakeBoat();
   let clock = 1_000_000;
   const data = dir();
-  const boat = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, now: () => clock, account: '', restAfterMs: 30 * 60_000 });
+  const boat = boatLib.create(data, { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, now: () => clock, account: '', restAfterMs: 30 * 60_000 });
   await boat.runShell('coder', { command: 'ls' });
   for (let i = 0; i < 3; i++) {
     clock += 20 * 60_000;
@@ -480,7 +480,7 @@ test("a boat bot's screen that boat.dev can't start says why on the next ask", a
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
   const fetch = async (url, opts) => (opts?.method === 'POST' && new URL(url).pathname.endsWith('/sandboxes') ? { ok: false, status: 402, json: async () => ({ ok: false, code: 'billing_required' }) } : b.fetch(url, opts));
-  const boat = boatLib.create(dir(), { fetch, sleep: async () => {}, account: '' });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch, sleep: async () => {}, account: '' });
   assert.deepEqual(await boat.desktop('coder'), { starting: true });
   for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
   await assert.rejects(boat.desktop('coder'), /plan or a payment method/);
