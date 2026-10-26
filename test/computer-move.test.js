@@ -61,18 +61,18 @@ test('a failed copy says why, keeps the old side whole and is tried again the sa
   const linux = side(Buffer.alloc(0), { fail: 'unpack' });
   const data = dir();
   const after = [];
-  const moves = moveLib.create(data, { sides: { linux, boat }, pieces, after: async (...a) => after.push(a) });
-  await moves.start('coder', 'boat', 'linux');
+  const moves = moveLib.create(data, { sides: { linux, 'boat-own': boat }, pieces: { ...pieces, 'boat-own': pieces.boat }, after: async (...a) => after.push(a) });
+  await moves.start('coder', 'boat-own', 'linux');
   const m = moves.of('coder');
   assert.equal(m.state, 'failed');
   assert.match(m.error, /couldn't unpack its files on this machine: tar: No space left on device/);
-  assert.ok(moves.holdsBoat('coder'), 'its boat.dev machine is still needed');
+  assert.ok(moves.holdsBoat('coder'), 'its own boat.dev machine is still needed');
   assert.deepEqual(after, [], 'nothing lets its machine go');
-  assert.equal(moveLib.create(data, { sides: { linux, boat }, pieces }).of('coder').state, 'failed', 'kept across a restart');
+  assert.equal(moveLib.create(data, { sides: { linux, 'boat-own': boat }, pieces: { ...pieces, 'boat-own': pieces.boat } }).of('coder').state, 'failed', 'kept across a restart');
   linux.moveFiles = side(Buffer.alloc(0)).moveFiles;
   await moves.retry('coder');
   assert.equal(moves.of('coder'), null);
-  assert.deepEqual(after, [['coder', 'boat', 'linux']]);
+  assert.deepEqual(after, [['coder', 'boat-own', 'linux']]);
   assert.equal(moves.retry('coder'), null, 'nothing to try again');
 });
 
@@ -98,8 +98,8 @@ test("the browser's profile goes after the files, counted in the same bytes; a s
   const boat = side(files, { profile });
   const linux = side(Buffer.alloc(0));
   const seen = [];
-  const moves = moveLib.create(dir(), { sides: { linux, boat }, pieces, every: 0, onChange: (id) => seen.push(moves.of(id)) });
-  await moves.start('coder', 'boat', 'linux');
+  const moves = moveLib.create(dir(), { sides: { linux, 'boat-own': boat }, pieces: { ...pieces, 'boat-own': pieces.boat }, every: 0, onChange: (id) => seen.push(moves.of(id)) });
+  await moves.start('coder', 'boat-own', 'linux');
   assert.deepEqual(linux.unpacked, files);
   assert.deepEqual(linux.profileUnpacked, profile, 'the browser stays signed in');
   assert.ok(linux.steps.indexOf('unpack') > linux.steps.lastIndexOf('write profile'), 'nothing is unpacked before every part is there');
@@ -110,7 +110,7 @@ test("the browser's profile goes after the files, counted in the same bytes; a s
   assert.ok(boat.steps.includes('drop profile'), 'the old side drops both tars');
 
   const back = side(Buffer.alloc(0));
-  await moveLib.create(dir(), { sides: { linux: side(files), boat: back }, pieces }).start('coder', 'linux', 'boat');
+  await moveLib.create(dir(), { sides: { linux: side(files), 'boat-own': back }, pieces: { ...pieces, 'boat-own': pieces.boat } }).start('coder', 'linux', 'boat-own');
   assert.deepEqual(back.unpacked, files);
   assert.equal(back.profileUnpacked, null, 'no profile on the old side: the new side keeps its own');
   assert.ok(!back.steps.some((x) => x === 'write profile' || x === 'unpack profile'));
@@ -119,13 +119,13 @@ test("the browser's profile goes after the files, counted in the same bytes; a s
 test("a profile that can't be taken fails the copy with its reason, and leaves nothing", async () => {
   const boat = side(Buffer.from('files'), { profile: Buffer.from('profile') });
   const linux = side(Buffer.alloc(0), { fail: 'unpack profile' });
-  const moves = moveLib.create(dir(), { sides: { linux, boat }, pieces });
-  await moves.start('coder', 'boat', 'linux');
+  const moves = moveLib.create(dir(), { sides: { linux, 'boat-own': boat }, pieces: { ...pieces, 'boat-own': pieces.boat } });
+  await moves.start('coder', 'boat-own', 'linux');
   assert.match(moves.of('coder').error, /couldn't unpack its browser's profile on this machine: tar: No space left on device/);
   assert.ok(linux.steps.includes('drop profile') && boat.steps.includes('drop profile'));
 
   const refused = side(Buffer.alloc(0), { fail: 'write profile' });
-  await moveLib.create(dir(), { sides: { linux: refused, boat }, pieces }).start('coder', 'boat', 'linux');
+  await moveLib.create(dir(), { sides: { linux: refused, 'boat-own': boat }, pieces: { ...pieces, 'boat-own': pieces.boat } }).start('coder', 'boat-own', 'linux');
   assert.equal(refused.unpacked, null, 'a profile that never arrived leaves the folder there as it was');
 });
 
@@ -189,26 +189,26 @@ test("boat.dev's side packs /home/user without its caches, and takes pieces thro
     if (p === '/sandboxes/bx_aaaaaaaa' && method === 'GET') return reply(200, { ok: true, sandbox: { state: 'ready' } });
     if (p.endsWith('/files') && method === 'PUT') { files.set(d.path, d.content); return reply(200, { ok: true }); }
     if (p.endsWith('/files')) return reply(200, { ok: true, content: Buffer.from('piece').toString('base64') });
-    if (p.endsWith('/commands')) { commands.push(d.command); return reply(200, { ok: true, exitCode: 0, stdout: d.command.endsWith('stat -c %s /tmp/botdot-move.tgz') ? '1234\n' : '' }); }
+    if (p.endsWith('/commands')) { commands.push(d.command); return reply(200, { ok: true, exitCode: 0, stdout: d.command.endsWith('stat -c %s /tmp/botdot-move-coder.tgz') ? '1234\n' : '' }); }
     return reply(200, { ok: true });
   };
   const boat = boatLib.create(dir(), { fetch, sleep: async () => {} });
   const packed = await boat.moveFiles('coder', { op: 'pack' });
   assert.equal(packed.code, 0);
   assert.equal(packed.size, 1234);
-  assert.match(commands[0], /tar --ignore-failed-read -czf \/tmp\/botdot-move\.tgz -C \/home\/user .*--exclude=\.\/\.cache/);
+  assert.match(commands[0], /tar --ignore-failed-read -czf \/tmp\/botdot-move-coder\.tgz -C '\/home\/user' .*--exclude=\.\/\.cache/);
   const read = await boat.moveFiles('coder', { op: 'read', offset: 10, length: 5 });
   assert.equal(Buffer.from(read.data, 'base64').toString(), 'piece');
-  assert.match(commands[1], /tail -c \+11 \/tmp\/botdot-move\.tgz \| head -c 5/);
+  assert.match(commands[1], /tail -c \+11 \/tmp\/botdot-move-coder\.tgz \| head -c 5/);
   const w = await boat.moveFiles('coder', { op: 'write', offset: 0, data: Buffer.from('abc').toString('base64') });
   assert.equal(w.code, 0);
-  assert.equal(files.get('/tmp/botdot-move.part'), Buffer.from('abc').toString('base64'));
-  assert.match(commands[2], /^: > \/tmp\/botdot-move\.tgz/, 'the first piece starts the tar');
+  assert.equal(files.get('/tmp/botdot-move-coder.part'), Buffer.from('abc').toString('base64'));
+  assert.match(commands[2], /^: > \/tmp\/botdot-move-coder\.tgz/, 'the first piece starts the tar');
   await boat.moveFiles('coder', { op: 'write', offset: 3, data: 'ZGVm' });
   assert.match(commands[3], /= 3 \]/, 'a later piece checks it comes in order');
   assert.doesNotMatch(commands[3], /^: >/);
   await boat.moveFiles('coder', { op: 'unpack' });
-  assert.match(commands[4], /tar -xzf \/tmp\/botdot-move\.tgz -C \/home\/user --no-same-owner/);
+  assert.match(commands[4], /tar -xzf \/tmp\/botdot-move-coder\.tgz -C '\/home\/user' --no-same-owner/);
 
   commands.length = 0;
   await boat.moveFiles('coder', { op: 'pack', part: 'profile' });
