@@ -166,3 +166,76 @@ test("a copy to or from the account's machine moves the folder alone, never a bo
   assert.equal(moves.of('coder'), null, 'done');
   assert.ok(!steps.some((s) => /:(pack|read|write|unpack):profile$/.test(s)), steps.join(' '));
 });
+
+test("at boat.dev's limit, a bot's own machine becomes the account's: no new machine, its home in its folder, its browser the account's", async (t) => {
+  keyed(t);
+  const b = fakeBoat();
+  const own = new Set(['coder', 'writer']);
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, account: 'Kordal', ownOf: (id) => own.has(id) });
+  await boat.runShell('coder', { command: 'ls' });
+  await boat.runShell('writer', { command: 'ls' });
+  own.clear();
+  const made = () => b.calls.filter((c) => c.path === '/sandboxes' && c.method === 'POST').length;
+  assert.equal(made(), 2);
+  // Both move at once: one hands its machine over, the other waits and then finds it.
+  const [first, second] = await Promise.all([boat.handOver('coder'), boat.handOver('writer')]);
+  assert.deepEqual([first, second], [true, false]);
+  assert.equal(made(), 2, 'no machine made');
+  assert.equal(boat.has('coder'), false);
+  assert.equal(boat.has('writer'), true, 'its files are copied over as before');
+  assert.equal(boat.info('coder').shared, true);
+  const given = b.commandsOn('bx_aaaaaaa1').at(-1);
+  assert.match(given, /mv -T -- \/home\/user\/\.botdot-handover '\/home\/user\/workspace\/coder'/);
+  assert.match(given, /case "\$f" in \.botdot-handover\|\.cache\|/, "the shell's own dotfiles stay home");
+  assert.match(given, /sudo -n mv -T -- \/home\/browser\/profiles\/'coder' \/home\/browser\/profiles\/account/);
+  assert.ok(b.calls.some((c) => c.method === 'PATCH' && c.path === '/sandboxes/bx_aaaaaaa1' && c.body.name === 'botdot-kordal'), 'renamed for the account');
+  await boat.runShell('writer', { command: 'pwd' }); // still on its own until its copy succeeded
+  await boat.moveFiles('writer', { op: 'unpack' }, { own: false });
+  assert.match(b.commandsOn('bx_aaaaaaa1').at(-1), /-C '\/home\/user\/workspace\/writer'/, "the other bot's copy goes into the handed-over machine");
+  await boat.runShell('coder', { command: 'pwd' });
+  assert.match(b.commandsOn('bx_aaaaaaa1').at(-1), /workspace\/coder' \|\| exit 1\npwd$/);
+  assert.equal(await boat.handOver('writer'), false, 'the account has its machine');
+});
+
+test('a handover that failed keeps the bot on its own machine; a bot without one has nothing to hand over', async (t) => {
+  keyed(t);
+  const b = fakeBoat();
+  const failing = async (url, opts) => (String(opts?.body || '').includes('.botdot-handover')
+    ? { ok: true, status: 200, json: async () => ({ ok: true, exitCode: 1, stdout: '', stderr: 'mv: disk full', timedOut: false }) }
+    : b.fetch(url, opts));
+  const own = new Set(['coder']);
+  const boat = boatLib.create(dir(), { fetch: failing, sleep: async () => {}, ownOf: (id) => own.has(id) });
+  await boat.runShell('coder', { command: 'ls' });
+  own.clear();
+  await assert.rejects(() => boat.handOver('coder'), /couldn't make its own External Virtual PC the account's: mv: disk full/);
+  assert.equal(boat.has('coder'), true, 'still on its own machine');
+  assert.equal(await boat.handOver('writer'), false);
+});
+
+test("a copy whose new side takes the old one whole copies nothing; one boat.dev refused for its limit is tried again after a pause", async () => {
+  const steps = [];
+  const sideOf = (name) => ({ moveFiles: async (id, { op, part }) => { steps.push(`${name}:${op}:${part}`); return op === 'pack' ? { code: 0, size: 3 } : op === 'read' ? { code: 0, data: 'YWJj' } : { code: 0 }; } });
+  const afters = [];
+  const moves = moveLib.create(dir(), { sides: { 'boat-own': sideOf('own'), boat: sideOf('acct') }, takeOver: async (id) => id === 'coder', after: async (id, from, to) => { afters.push(`${id}:${from}:${to}`); } });
+  await moves.start('coder', 'boat-own', 'boat');
+  assert.equal(moves.of('coder'), null, 'done');
+  assert.deepEqual(steps, [], 'nothing copied or dropped');
+  assert.deepEqual(afters, ['coder:boat-own:boat'], 'its old machine is let go as after a copy');
+  await moves.start('writer', 'boat-own', 'boat');
+  assert.ok(steps.includes('acct:unpack:files'), 'the next bot is copied');
+
+  let at = 1000;
+  const refusing = moveLib.create(dir(), { sides: { 'boat-own': sideOf('own'), boat: sideOf('acct') }, takeOver: async () => { throw new Error('boat.dev answered 429 (limit_reached)'); }, now: () => at });
+  steps.length = 0;
+  await refusing.start('coder', 'boat-own', 'boat');
+  const m = refusing.raw('coder');
+  assert.equal(m.state, 'failed');
+  assert.equal(m.failedAt, 1000);
+  assert.deepEqual(steps, [], 'a failed handover leaves both sides alone');
+  assert.equal(moveLib.dueAgain(m, at + 60_000), false, 'not at once');
+  assert.equal(moveLib.dueAgain(m, at + moveLib.LIMIT_PAUSE_MS), true, 'after the pause');
+  assert.equal(moveLib.dueAgain({ state: 'failed', error: 'boat.dev answered 429 (limit_reached)' }), true, 'one from before this, at once');
+  assert.equal(moveLib.dueAgain({ state: 'failed', error: moveLib.RESTARTED }), true);
+  assert.equal(moveLib.dueAgain({ state: 'failed', error: 'over 2 GB', failedAt: 0 }), false, 'others wait for Try again');
+  assert.equal(moveLib.dueAgain({ state: 'copying', error: moveLib.RESTARTED }), false);
+});
