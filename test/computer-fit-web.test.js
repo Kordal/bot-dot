@@ -8,19 +8,24 @@ const vm = require('vm');
 const { cut, element, finders } = require('./web-page');
 
 // The dialog with its screen `screen` tall and everything else in it `rest` tall, in a window `height` tall.
-function dialog({ height, screen, rest, open = true }) {
+function dialog({ height, screen, rest, open = true, ratio }) {
   const vars = new Map();
   const frame = element({}, { offsetHeight: screen });
   const m = element({ '#screen-frame': frame }, { open, scrollHeight: screen + rest, style: { setProperty: (k, v) => vars.set(k, v), getPropertyValue: (k) => vars.get(k) || '' } });
   const ctx = vm.createContext({ ...finders(m), window: { innerHeight: height }, Math });
-  vm.runInContext(`${cut('function fitScreen(m) {', 'function openScreen(botId) {')}\nthis.fitScreen = fitScreen;`, ctx);
-  ctx.fitScreen(m);
+  vm.runInContext(`${cut('function fitScreen(m, ratio = 4 / 3) {', '// A bot\'s machine of its own on boat.dev')}\nthis.fitScreen = fitScreen;`, ctx);
+  ctx.fitScreen(m, ratio);
   return vars.get('--screen-w') ?? null;
 }
 
 test('web: in a window 837 tall the computer\'s screen is 882 wide, under 133 of title and buttons', () => {
   // 837 less the dialog's margin of 40 and border of 2, less 133: 662 for the screen, 882.67 wide at 4:3.
   assert.equal(dialog({ height: 837, screen: 773, rest: 133 }), '882px');
+});
+
+test("web: a boat.dev machine's desktop is fitted at its 16:9 (#564)", () => {
+  // 662 for the screen, as above: 1176.89 wide at 16:9.
+  assert.equal(dialog({ height: 837, screen: 773, rest: 133, ratio: 16 / 9 }), '1176px');
 });
 
 test('web: the screen grows again when the window does, measured from what it is now', () => {

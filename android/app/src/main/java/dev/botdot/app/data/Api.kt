@@ -486,6 +486,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** Copies the home of a bot's old computer into its folder on the account's computer (#107, `old-computer-copy`). */
     suspend fun copyOldComputer(botId: String): OldCopied =
         json.decodeFromString(send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "copy-old") }))
+    /** A new address of the desktop of a bot's machine on boat.dev (#564, `boat-desktop`); each ask keeps it on. */
+    suspend fun boatDesktop(botId: String): BoatDesktop = json.decodeFromString(send("POST", "/bots/${enc(botId)}/computer/desktop"))
     /** The page that shows a bot's desktop (noVNC, relayed by botdot). control = mouse and keyboard, not just watching. */
     fun screenUrl(botId: String, control: Boolean): String {
         val id = enc(botId)

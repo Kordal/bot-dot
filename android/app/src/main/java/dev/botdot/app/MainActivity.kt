@@ -66,6 +66,7 @@ import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.groupOfChat
 import dev.botdot.app.feed.FeedService
 import dev.botdot.app.feed.Notifier
+import dev.botdot.app.ui.BoatScreen
 import dev.botdot.app.ui.BotChatScreen
 import dev.botdot.app.ui.BotSettingsScreen
 import dev.botdot.app.ui.GroupChatScreen
@@ -364,8 +365,9 @@ class MainActivity : ComponentActivity() {
                     composable("screen/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""
                         val bots by app.store.bots.value.collectAsState()
-                        val name = bots?.firstOrNull { it.id == id }?.let { "${it.emoji} ${it.name}" }.orEmpty()
-                        LiveScreen(app, id, name) { nav.popBackStack() }
+                        val bot = bots?.firstOrNull { it.id == id }
+                        val name = bot?.let { "${it.emoji} ${it.name}" }.orEmpty()
+                        if (bot?.computer == "boat") BoatScreen(app, id, name) { nav.popBackStack() } else LiveScreen(app, id, name) { nav.popBackStack() }
                     }
                     composable("settings") {
                         SettingsScreen(app, onSkills = { nav.navigate("skills") }, onConnectors = { nav.navigate("connectors") }, onVault = { nav.navigate("vault") }, onPages = { nav.navigate("pages") },

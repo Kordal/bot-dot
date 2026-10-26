@@ -60,4 +60,15 @@ class ComputerInfoTest {
         assertEquals("Couldn't keep its files", failed.error)
         assertEquals("/workspace/c1/old-computer", json.decodeFromString<OldCopied>("""{"copied":"/workspace/c1/old-computer"}""").copied)
     }
+
+    @Test fun aBoatMachineIsItsLineAndItsDesktopIsShownOnlyOnceItRuns() {
+        val info = json.decodeFromString<ComputerInfo>("""{"kind":"boat","state":"stopped","size":"default","text":"boat.dev · 4 CPUs · 8 GB · stopped"}""")
+        assertEquals("boat", info.kind)
+        assertEquals("boat.dev · 4 CPUs · 8 GB · stopped", info.text)
+        assertFalse(json.decodeFromString<BoatDesktop>("""{"state":"starting"}""").running)
+        val d = json.decodeFromString<BoatDesktop>("""{"state":"running","url":"https://desk.example/stream.html#token=t","expiresAt":"2026-10-26T13:00:00.000Z"}""")
+        assertTrue(d.running)
+        assertEquals("https://desk.example/stream.html#token=t", d.url)
+        assertFalse("only an https address is shown", json.decodeFromString<BoatDesktop>("""{"state":"running","url":"javascript:alert(1)"}""").running)
+    }
 }
