@@ -779,6 +779,16 @@ When `features` has `job-logins`, a script job can call APIs with saved logins (
 
 - **SSH keys** ([ADR 087](adr/087-a-script-job-signs-with-ssh-keys-through-botdots-own-agent.md)): `logins` may also name Vault SSH keys shared with the bot. A run of a job that lists logins has `SSH_AUTH_SOCK` set to an ssh-agent botdot serves for that run, which offers those keys and signs with them, so `ssh`, `scp` and `git` work with them. It answers only list and sign requests. It reads the keys from Bitwarden only when first asked, and the socket is gone when the script ends.
 
+### A shadow run
+
+A script on trial beside an AI job ([ADR 099](adr/099-a-script-runs-in-the-shadow-of-an-ai-job-before-it-replaces-it.md)). Apps need nothing new: the swap comes as a change that waits (see A change that waits), and the fields below are for the Chief and for apps that want them.
+
+- `POST /api/bots/:id/jobs/:jobId/shadow` with `{ script, logins?, aiWhen?, prompt?, timeoutSeconds? }`, the Chief or the owner: starts the shadow of an approved, repeating AI job, or starts it over. Answers the job. A job that is not such a job, or an empty script, is `400`; a bot's own key is `403`.
+- `GET …/shadow`: the whole of it: `script`, `logins`, `startedAt`, `runs` (`{ at, runId, match, why }`), and `ended` (`{ at, why, said?, ai?, script? }`: `why` is `differed`, `changed`, `removed`, `too-few`, `stopped`, `proposed`, `declined` or `failed`; a run that differed keeps both sides). `DELETE …/shadow` ends it (`stopped`).
+- **On the job**, while there is one: `shadow: { startedAt, until, compared, matched, logins?, ended? }`, and once a swap was approved, `promoted: { at, matched }`.
+- `POST /api/bots/:id/jobs/:jobId/back-to-ai`, the Chief or the owner: a promoted script job becomes the AI job it was, at once. Answers the job; a job that was not promoted is `409`.
+- After a week in which every compared run (3 at least) said the same, the job gets a change from the Chief: `kind: "script"`, the shadow's `script` and `logins`, and `summary` "Same answers N of N in 7 days: runs as a script, without AI."
+
 ### git in a bot's run
 
 A bot's AI run signs git in through botdot ([ADR 090](adr/090-a-bots-ai-run-signs-git-in-through-botdot.md)). Apps need nothing new.

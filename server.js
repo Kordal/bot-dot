@@ -462,14 +462,14 @@ const CHIEF_ROUTES = [
   ['GET', /^(bots|skills|connectors|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
   ['GET', /^runs\/[^/]+\/wait$/],
-  ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup$/],
+  ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)$/],
   ['GET', /^bots\/[^/]+\/(computer\/(status|logs)|files)$/],
   ['GET', /^computer\/status$/],
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
   ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|chief\/jobs|chief\/jobs\/[^/]+\/run|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|connectors\/session\/(actions|run|wait))$/],
-  ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
+  ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['PUT', /^(chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
-  ['DELETE', /^(chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
+  ['DELETE', /^(chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
 const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method && re.test(parts.join('/')));
 
@@ -514,6 +514,9 @@ function heldTitle(method, parts, body) {
     [/^bots\/[^/]+\/jobs\/[^/]+$/, 'DELETE', () => `Remove the job ${jobName} of ${botName}`],
     [/^bots\/[^/]+\/jobs\/[^/]+\/run$/, 'POST', () => `Run the job ${jobName} of ${botName}`],
     [/^bots\/[^/]+\/jobs\/[^/]+\/call\/setup$/, null, () => `Change calls to the job ${jobName} of ${botName}`],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/shadow$/, 'POST', () => `Try a script beside the job ${jobName} of ${botName}`],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/shadow$/, 'DELETE', () => `End the script trial of the job ${jobName} of ${botName}`],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/back-to-ai$/, 'POST', () => `Turn the job ${jobName} of ${botName} back to AI`],
     [/^bots\/[^/]+\/jobs\/[^/]+\/notify\/setup$/, null, () => `Change the notify address of the job ${jobName} of ${botName}`],
     [/^skills$/, 'POST', () => `Make the skill ${quoted(body?.name)}`],
     [/^skills\/[^/]+$/, 'PUT', () => `Change the skill ${quoted(decoded(parts[1]))}`],
