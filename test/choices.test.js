@@ -34,7 +34,25 @@ test('split takes several [[ask: …]] lines off as questions', () => {
   const many = split(`Hm.\n${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => `[[ask: Q${n}?]]`).join('\n')}`);
   assert.equal(many.questions.length, 6, 'at most 6 in the card');
   assert.equal(many.text, 'Hm.\n\nQ7?\n\nQ8?', 'the rest stay in the reply');
-  assert.equal(split('[[ask: A?]] and more\n[[ask: B?]]').text, '[[ask: A?]] and more\n\nB?', 'only as last lines');
+  assert.equal(split('[[ask: A?]] and more\n[[ask: B?]]').text, 'A? and more\n\nB?', 'a marker inside a sentence is no question, and no brackets show');
+});
+
+test('[[ask: …]] lines with text after them still become a card', () => {
+  // The shape of a real reply: a list, two ask lines one under the other, then the note the bot saved.
+  const reply = 'Here is what I found:\n\n- **New address:** the admin box has a new address.\n- **Server A:** stopped since Friday; I did not touch it.\n\n'
+    + '[[ask: Should I start the service on server A and enable it at boot, or did someone stop it on purpose?]]\n'
+    + '[[ask: Should I set up the app on server B now, before you add the DNS record and the API key?]]\n\n'
+    + 'I saved the new address and the state of server A.';
+  assert.deepEqual(split(reply), {
+    text: 'Here is what I found:\n\n- **New address:** the admin box has a new address.\n- **Server A:** stopped since Friday; I did not touch it.\n\nI saved the new address and the state of server A.',
+    choices: null,
+    questions: ['Should I start the service on server A and enable it at boot, or did someone stop it on purpose?', 'Should I set up the app on server B now, before you add the DNS record and the API key?'],
+  });
+  assert.deepEqual(split('Hm.\n[[ask: A?]]\nNoted.\n[[ask: B?]]'), { text: 'Hm.\n\nNoted.', choices: null, questions: ['A?', 'B?'] }, 'apart, too');
+  assert.deepEqual(split('Hm.\n[[ask: Send it?]]\nNoted.'), { text: 'Hm.\n\nSend it?\n\nNoted.', choices: null, questions: null }, 'one question stays text where it was');
+  for (const t of ['Hm.\n[[ask: A?]]\n[[ask: B?]]\nNoted.', 'See [[ask: this?]] here.', '[[ask: A?]]\n\nok']) {
+    assert.doesNotMatch(split(t).text, /\[\[\s*ask/i, `no raw marker in ${JSON.stringify(t)}`);
+  }
 });
 
 let srv;
