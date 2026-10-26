@@ -1,4 +1,4 @@
-// A bot's screen on its boat.dev machine (#563, ADR 093): its screen and browser tools go to the machine's own desktop,
+// A bot's screen on its boat.dev machine (#563, ADR 094): its screen and browser tools go to the machine's own desktop,
 // where botdot puts its screen kit the first time and starts computer-server and Camoufox's bridge, through boat.dev's
 // command and file API. Never to the account's computer, also when the machine can't start.
 const { test } = require('node:test');

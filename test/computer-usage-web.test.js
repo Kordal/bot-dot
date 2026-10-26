@@ -73,10 +73,14 @@ test("Android: its screen shows each bot's memory and CPU from the server", () =
   assert.match(kt('data/Models.kt'), /val usage: ComputerUsage\? = null/);
 });
 
-test("web: a bot on boat.dev opens its own machine's line, with no live screen of the account's computer", () => {
+test("web: a bot on boat.dev opens its own machine's desktop and line, with nothing of the account's computer (#564)", () => {
   const boat = cut('function openBoatComputer(', 'function openScreen(');
-  assert.doesNotMatch(boat, /screen-reset|screen-update|usage|iframe/, "nothing of the account's computer");
+  assert.doesNotMatch(boat, /screen-reset|screen-update|usage|vnc\.html/, "nothing of the account's computer");
   assert.match(boat, /d\.text/, "the server's words");
+  assert.match(boat, /\/computer\/desktop`, \{ method: 'POST' \}/, 'a new address from the server each time');
+  assert.match(boat, /boatFrameUrl\(d\.url\)/, 'in the frame of its own');
+  assert.match(boat, /screen-shield/, 'watching until Take control');
+  assert.match(cut('const boatFrameUrl', 'function openBoatComputer('), /\/boat-desktop\.html#u=\$\{encodeURIComponent\(url\)\}/, 'the address in the fragment, never sent to botdot');
   assert.match(cut('function openScreen(', '// Plain-language explanation for a failed or stopped run'), /bot\.computer === 'boat'\) return openBoatComputer\(bot\)/);
   // Its runs show no screen: the picture-in-picture and the run's live screen are for the account's computer only.
   assert.match(app, /updatePip\(bot, bot\.computer === 'linux' \?/);

@@ -26,15 +26,15 @@ function computerLabel(botId) {
   return st === 'running' ? 'on' : st === 'stopped' ? 'starting again' : 'not made yet';
 }
 
-// The screen as large as the window lets it be, at the desktop's 4:3, with all of the dialog in the window and no
+// The screen as large as the window lets it be, at the desktop's 4:3 (a boat.dev machine's 16:9), with all of the dialog in the window and no
 // scrollbar of its own (#43): the screen is made as narrow as the height left for it asks. What is under it keeps
 // the dialog's width, so its height does not change with the screen's.
-function fitScreen(m) {
+function fitScreen(m, ratio = 4 / 3) {
   const f = $('#screen-frame', m);
   if (!f || !m.open) return;
   // The dialog's height may be the window's less 40 (the stylesheet's max-height), its 1px border included.
   const room = window.innerHeight - 42 - (m.scrollHeight - f.offsetHeight);
-  m.style.setProperty('--screen-w', `${Math.max(240, Math.floor((room * 4) / 3))}px`);
+  m.style.setProperty('--screen-w', `${Math.max(240, Math.floor(room * ratio))}px`);
 }
 
 // What each bot uses of the account's computer (#109), as the server words it: its line, then a row per bot, most
@@ -45,13 +45,78 @@ function usageRows(usage) {
   return `<div class="muted usage-text">${esc(usage.text || '')}</div>${usage.bots.map((b) => row(b.name, b.text)).join('')}${usage.other ? row(usage.other.name || '', usage.other.text) : ''}`;
 }
 
-// A bot's machine of its own on boat.dev (ADR 088): no screen, and nothing of the account's computer. Its line, in the
-// server's words: where it is, its size and whether it is on.
+// A bot's machine of its own on boat.dev (ADR 088): its desktop from boat.dev's stream (#564), at its 16:9, and its line
+// in the server's words. The page asks botdot for a new address each time it opens the screen, and again every few
+// minutes while it is open, which keeps the machine on and the full-screen link fresh; an address is never kept. As
+// on the account's computer, the owner watches until Take control lifts the shield that keeps clicks and keys off it.
+const BOAT_ASK_MS = 4 * 60_000;
+const boatFrameUrl = (url) => `/boat-desktop.html#u=${encodeURIComponent(url)}`;
 function openBoatComputer(bot) {
+  let control = false;
   const m = openModal(`
     <div class="modal-head"><h2>${botLabel(bot)}'s computer</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
-    <div class="modal-body"><div class="muted" id="boat-state">Loading…</div></div>`);
-  api(`/bots/${bot.id}/computer`).then((d) => { $('#boat-state', m).textContent = d.text || ''; }, (e) => { $('#boat-state', m).textContent = e.message; });
+    <div class="modal-body">
+      <div class="screen-frame wide-screen" id="screen-frame"><div class="screen-off">Starting…</div></div>
+      <div class="screen-bar">
+        <span class="muted" id="boat-state" style="font-size:12.5px"></span>
+        <span style="flex:1"></span>
+        <button class="btn sm" id="screen-control" disabled>🖱 Take control</button>
+        <a class="btn sm hidden" id="screen-full" target="_blank" rel="noopener noreferrer">⤢ Full screen</a>
+      </div>
+    </div>`);
+  m.classList.add('wide', 'screen');
+  const fit = () => fitScreen(m, 16 / 9);
+  window.addEventListener('resize', fit);
+  const line = () => api(`/bots/${bot.id}/computer`).then((d) => { $('#boat-state', m).textContent = d.text || ''; }, () => {});
+  let shown = false, timer = null, open = true;
+  const shield = () => {
+    $('#screen-control', m).textContent = control ? '👁 Just watch' : '🖱 Take control';
+    $('#screen-shield', m)?.classList.toggle('hidden', control);
+    $('#screen-frame iframe', m)?.setAttribute('tabindex', control ? '0' : '-1'); // no keys reach it by Tab either
+  };
+  const ask = async () => {
+    if (!open) return;
+    let d;
+    try { d = await api(`/bots/${bot.id}/computer/desktop`, { method: 'POST' }); } catch (e) {
+      shown = false;
+      $('#screen-frame', m).innerHTML = `<div class="screen-off"><div class="big">🖥</div>${esc(e.message)}</div>`;
+      $('#screen-control', m).disabled = true;
+      $('#screen-full', m).classList.add('hidden');
+      timer = setTimeout(ask, BOAT_ASK_MS);
+      return;
+    }
+    if (!open) return;
+    if (d.state !== 'running') {
+      // Started again, or its desktop still readying: a new address once it runs, never the old one.
+      shown = false;
+      $('#screen-frame', m).innerHTML = '<div class="screen-off">Starting…</div>';
+      $('#screen-control', m).disabled = true;
+      $('#screen-full', m).classList.add('hidden');
+      timer = setTimeout(ask, 3000);
+      return;
+    }
+    $('#screen-full', m).href = d.url;
+    $('#screen-full', m).classList.remove('hidden');
+    $('#screen-control', m).disabled = false;
+    if (!shown) {
+      shown = true;
+      $('#screen-frame', m).innerHTML = `<iframe src="${esc(boatFrameUrl(d.url))}" title="Live screen" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe><div class="screen-shield" id="screen-shield"></div>`;
+      shield();
+      line();
+    }
+    timer = setTimeout(ask, BOAT_ASK_MS);
+  };
+  $('#screen-control', m).onclick = () => { control = !control; shield(); };
+  m.addEventListener('close', () => {
+    open = false;
+    clearTimeout(timer);
+    m.classList.remove('wide', 'screen');
+    m.style.removeProperty('--screen-w');
+    window.removeEventListener('resize', fit);
+  }, { once: true });
+  line();
+  ask();
+  fit();
 }
 
 function openScreen(botId) {

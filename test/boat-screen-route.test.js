@@ -29,7 +29,7 @@ test("a boat bot's screen tools wait for its machine's screen, and say why there
   const browser = await call('/browser', { op: 'snapshot' });
   assert.match(browser.data.error, /boat\.dev has no key/);
   const kept = await call('/hold');
-  assert.deepEqual([kept.data.ok, kept.data.text], [true, 'Your machine on boat.dev stays on after you reply, with everything open on your screen, until it is 30 minutes unused.']);
+  assert.deepEqual([kept.data.ok, kept.data.text], [true, 'Your machine on boat.dev stays on after you reply, with everything open on your screen, while the owner watches it and until it is 30 minutes unused.']);
   srv.release(rec);
   await srv.finished(run.id);
   srv.unhold();

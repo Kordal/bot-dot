@@ -14,7 +14,7 @@ const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-boat-'));
 const KEY = `boat_${'x'.repeat(16)}`; // no real key
 
 // boat.dev as far as botdot uses it: machines that are made, stopped, started again, and run commands and files.
-function fakeBoat({ refuse = false } = {}) {
+function fakeBoat({ refuse = false, desktopReadyAfter = 0 } = {}) {
   const machines = new Map();
   const calls = [];
   let n = 0;
@@ -41,6 +41,13 @@ function fakeBoat({ refuse = false } = {}) {
     if (m[2] === 'resume') {
       if (data?.type === 'xlarge') return reply(403, { ok: false, code: 'machine_type_unavailable' });
       box.state = 'ready'; if (data?.type) box.type = data.type; return reply(202, { ok: true });
+    }
+    if (m[2] === 'desktop' && method === 'POST') {
+      if (box.state !== 'ready') return reply(409, { ok: false, code: 'desktop_not_ready' });
+      if (box.desktopPrepared === undefined) { box.desktopPrepared = desktopReadyAfter; }
+      if (box.desktopPrepared-- > 0) return reply(200, { ok: true, type: 'desktop.provisioning', provisioning: true });
+      box.desktops = (box.desktops || 0) + 1;
+      return reply(200, { ok: true, type: 'desktop.url', success: true, desktopUrl: `https://desk.example/stream.html?hostId=1&appId=2#token=t${box.desktops}` });
     }
     if (m[2] === 'files' && method === 'PUT') { box.files.set(data.path, data.content); return reply(200, { ok: true }); }
     if (m[2] === 'files') return reply(200, { ok: true, content: box.files.get(u.searchParams.get('path')) || '' });
@@ -138,7 +145,7 @@ test("a boat bot's commands and Vault secrets go to boat.dev; its placed files a
   assert.equal(login.code, 0);
   assert.match(login.stdout, /timeout -k 5 120 sh -c 'x'/);
   assert.match((await f.placeFile('coder', { path: '/etc/x' })).error, /keeps no file of the Vault/);
-  assert.throws(() => f.screenPipe('coder'), /can't be watched here yet/);
+  assert.throws(() => f.screenPipe('coder'), /watched through boat.dev's stream/);
   assert.deepEqual(got, [], "nothing reached the account's computer");
 });
 
@@ -423,4 +430,59 @@ test("a refused rename doesn't stop the machine; it is tried again on the next s
   const r = await again.runShell('d9aa2f01', { command: 'ls' });
   assert.equal(r.code, 0);
   assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).d9aa2f01.name, 'botdot-d9aa2f01-old', 'kept, so the next start tries again');
+});
+
+test("the owner's screen of a boat bot: its machine starts in the background, then each ask is a new desktop address (#564)", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat({ desktopReadyAfter: 1 });
+  let clock = 1_000_000;
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => clock, account: '' });
+  const logged = [];
+  const warn = console.warn, log = console.log;
+  console.warn = (...a) => logged.push(a.join(' ')); console.log = (...a) => logged.push(a.join(' '));
+  t.after(() => { console.warn = warn; console.log = log; });
+  assert.deepEqual(await boat.desktop('coder'), { starting: true }, 'not made yet: it is made in the background');
+  await new Promise((r) => setImmediate(r));
+  await new Promise((r) => setImmediate(r));
+  for (let i = 0; i < 20 && !boat.isUp('coder'); i++) await new Promise((r) => setImmediate(r));
+  assert.ok(boat.isUp('coder'));
+  assert.deepEqual(await boat.desktop('coder'), { starting: true }, "boat.dev still readies its desktop");
+  const first = await boat.desktop('coder');
+  assert.equal(first.url, 'https://desk.example/stream.html?hostId=1&appId=2#token=t1');
+  assert.equal(first.expiresAt, new Date(clock + boatLib.DESKTOP_URL_MS).toISOString());
+  const second = await boat.desktop('coder');
+  assert.notEqual(second.url, first.url, 'never one kept from before');
+  assert.ok(b.calls.filter((c) => c.path.endsWith('/desktop')).every((c) => c.method === 'POST'));
+  assert.ok(!logged.some((l) => l.includes('desk.example')), 'the address is never logged');
+});
+
+test('watching a boat bot\'s screen counts as use: its machine does not stop while the owner asks', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  let clock = 1_000_000;
+  const data = dir();
+  const boat = boatLib.create(data, { fetch: b.fetch, sleep: async () => {}, now: () => clock, account: '', restAfterMs: 30 * 60_000 });
+  await boat.runShell('coder', { command: 'ls' });
+  for (let i = 0; i < 3; i++) {
+    clock += 20 * 60_000;
+    assert.ok((await boat.desktop('coder')).url);
+    assert.deepEqual(await boat.restIdle(), []);
+  }
+  assert.ok(!fs.readFileSync(path.join(data, 'boat-machines.json'), 'utf8').includes('desk.example'), 'the address is not kept');
+  clock += 31 * 60_000;
+  assert.deepEqual(await boat.restIdle(), ['coder']);
+});
+
+test("a boat bot's screen that boat.dev can't start says why on the next ask", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  const fetch = async (url, opts) => (opts?.method === 'POST' && new URL(url).pathname.endsWith('/sandboxes') ? { ok: false, status: 402, json: async () => ({ ok: false, code: 'billing_required' }) } : b.fetch(url, opts));
+  const boat = boatLib.create(dir(), { fetch, sleep: async () => {}, account: '' });
+  assert.deepEqual(await boat.desktop('coder'), { starting: true });
+  for (let i = 0; i < 20; i++) await new Promise((r) => setImmediate(r));
+  await assert.rejects(boat.desktop('coder'), /plan or a payment method/);
+  assert.deepEqual(await boat.desktop('coder'), { starting: true }, 'the next ask tries again');
 });

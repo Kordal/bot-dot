@@ -1254,6 +1254,9 @@ data class ComputerInfo(
     val old: OldComputer? = null,
     val usage: ComputerUsage? = null,
     val screenOff: ScreenOff? = null,
+    /** "boat" for a bot's machine of its own on boat.dev (ADR 088): only [state] and [text] are about it. */
+    val kind: String = "",
+    val text: String = "",
 ) {
     /** Whether Reset erases the account's computer for every bot ([reset]), or, on a server from before, the bot's own. */
     val resetsAll: Boolean get() = reset != null
@@ -1571,4 +1574,13 @@ data class TileChange(val title: String? = null, val scripts: List<String>? = nu
             return TileChange(o["title"].textOrNull(), scripts, o["by"].textOrNull() ?: o["changedBy"].textOrNull(), o["at"].textOrNull())
         }
     }
+}
+
+/**
+ * The desktop of a bot's machine on boat.dev (#564), from `POST /api/bots/:id/computer/desktop`: "starting" until it
+ * runs, then boat.dev's stream [url], which a new viewer may open until [expiresAt] (10 minutes). A secret: shown, never kept.
+ */
+@Serializable
+data class BoatDesktop(val state: String = "starting", val url: String? = null, val expiresAt: String? = null) {
+    val running: Boolean get() = state == "running" && url?.startsWith("https://") == true
 }

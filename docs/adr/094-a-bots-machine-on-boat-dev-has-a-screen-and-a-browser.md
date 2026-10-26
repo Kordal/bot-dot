@@ -1,4 +1,4 @@
-# ADR-093: A bot's machine on boat.dev has a screen and a browser
+# ADR-094: A bot's machine on boat.dev has a screen and a browser
 
 - **Status:** Accepted (2026-10-26)
 - **Owning task:** [#563](https://github.com/Kordal/bot-dot/issues/563)
@@ -6,7 +6,7 @@
 
 ## Context
 
-ADR 088 gave a boat bot commands and files only, on the belief that a boat.dev machine has no screen. It has one: every machine runs an X11 desktop (Xorg `:0`, 1920x1080) with `xdotool`, Python 3.12 and passwordless sudo. boat.dev documents no screenshot, input or CDP API of its own, and its in-machine computer tools serve its own agent only. Its command API takes a command, a timeout and `detached`, but no input and no environment.
+ADR 088 gave a boat bot commands and files only, on the belief that a boat.dev machine has no screen; ADR 093 lets the owner watch that desktop, but the bot still had no tool for it. It has one: every machine runs an X11 desktop (Xorg `:0`, 1920x1080) with `xdotool`, Python 3.12 and passwordless sudo. boat.dev documents no screenshot, input or CDP API of its own, and its in-machine computer tools serve its own agent only. Its command API takes a command, a timeout and `detached`, but no input and no environment.
 
 ## Decision
 
@@ -27,4 +27,4 @@ ADR 088 gave a boat bot commands and files only, on the belief that a boat.dev m
 - The bot has sudo on its own machine, so a command it writes could reach the bridge and a secret typed there, as on the account's computer (ADR 035): the file and the browser user guard against leaks by accident, not against the bot.
 - The first screen tool on a new machine takes minutes; later starts of that machine only start computer-server and the bridge.
 - Camoufox and computer-server on the machine follow the image's pins: a bump in `deploy/desktop/Dockerfile` must be made in the kit too (`test/boat-screen.test.js` checks they agree).
-- The owner can't watch that screen yet (#564), and a browser's logins do not move with the bot's files yet (#565).
+- It is the desktop the owner watches and takes over through boat.dev's stream (ADR 093, #564). A browser's logins do not move with the bot's files yet (#565).
