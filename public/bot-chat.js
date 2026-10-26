@@ -243,7 +243,7 @@ function renderBotChat() {
   if (big && thread.dataset.look !== look) big.outerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit);
   thread.dataset.look = look;
   updateChatNeeds($('#bot-thread'), bot.id);
-  updatePip(bot, bot.computer === 'linux' ? runs.find((r) => r.status === 'running' && r.computer) : null); // a machine on boat.dev has no screen
+  updatePip(bot, bot.computer === 'linux' ? runs.find((r) => r.status === 'running' && r.computer) : null); // a machine on boat.dev has no live screen beside its runs
   setSendBusy($('form', root), false);
   globalThis.drawBotPlan?.(bot, runs);
   placeStatusLines();
