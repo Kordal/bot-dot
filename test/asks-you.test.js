@@ -386,6 +386,77 @@ test("a run the Chief started gets no note for answer buttons; a question it wri
   } finally { srv.unhold(); await srv.stop(); }
 });
 
+test("a waiting teammate's question the asker never puts to the owner opens in the teammate's own chat (#574)", async () => {
+  const srv = await startServer();
+  try {
+    const bot = await makeBot(srv, { name: 'Infra Keeper', emoji: '🧰' });
+    const helper = await makeBot(srv, { name: 'Key Writer', emoji: '🔑' });
+
+    // The asker hands on the request and waits. The helper needs the owner's OK: its question goes back as text.
+    const origin = await heldRun(srv, bot, 'Get the deploy key added');
+    await self(srv, origin.token, 'message', { to: helper.id, message: 'Add the deploy key', priority: true });
+    const helped = await srv.nextRun(isRunOf(helper, 'Add the deploy key'));
+    srv.reply('I can add it with the saved token. Do you approve?\n\n[[choices: Yes, add it | No]]');
+    srv.release(helped);
+    const id = (await srv.api(`/runs?botId=${helper.id}`)).data[0].id;
+    const held = await srv.finished(id);
+    assert.deepEqual([held.askedAsker, held.choices, held.asks, held.notificationAudience], [true, undefined, undefined, 'internal'], 'folded, no buttons yet');
+
+    // The asker's follow-up ends with no question for the owner: the helper's question opens in its own chat.
+    const f = await listen(srv);
+    srv.reply('I asked the helper.');
+    srv.release(origin.rec);
+    const back = await srv.nextRun((x) => isRunOf(bot)(x) && x.at > helped.at, "the asker's run with the reply");
+    assert.match(back.stdin, /That reply ends with questions for the owner/);
+    srv.reply('The helper will add the key.');
+    srv.release(back);
+    const open = await waitFor(async () => { const r = (await srv.api(`/runs/${id}`)).data; return r.asks ? r : null; }, { what: "the helper's question to open" });
+    assert.deepEqual([open.result, open.choices, open.yes, open.askedAsker, open.heldQuestion, open.notificationAudience, open.question, !!open.deliveredAt],
+      ['I can add it with the saved token. Do you approve?', ['Yes, add it', 'No'], 0, undefined, undefined, 'owner', 'Do you approve?', true]);
+    const now = await botOf(srv, helper);
+    assert.deepEqual([now.asks?.runId, now.state, now.unread], [id, 'needs_you', 1], 'Asks in the list, new');
+    const rang = await f.wait('run_finished', (d) => d.id === id);
+    assert.deepEqual([rang.data.new, rang.data.asks], [true, true], 'it notifies');
+    f.close();
+
+    // The asker that does ask the owner leaves the helper's question folded: asked once, never twice.
+    const again = await heldRun(srv, bot, 'Get the second key added');
+    await self(srv, again.token, 'message', { to: helper.id, message: 'Add the second key', priority: true });
+    const helped2 = await srv.nextRun(isRunOf(helper, 'Add the second key'));
+    srv.reply('Do you approve the second key?\n\n[[choices: Yes | No]]');
+    srv.release(helped2);
+    const id2 = (await srv.api(`/runs?botId=${helper.id}`)).data[0].id;
+    await srv.finished(id2);
+    srv.reply('I asked the helper.');
+    srv.release(again.rec);
+    const back2 = await srv.nextRun((x) => isRunOf(bot)(x) && x.at > helped2.at, "the asker's second follow-up");
+    srv.reply('Key Writer asks: may it add the second key?\n\n[[choices: Yes | No]]');
+    srv.release(back2);
+    await waitFor(async () => (await botOf(srv, bot)).asks, { what: 'the asker to ask the owner' });
+    const still = (await srv.api(`/runs/${id2}`)).data;
+    assert.deepEqual([still.askedAsker, still.choices, still.asks], [true, undefined, undefined]);
+
+    // A helper that answers with message_bot: the asker reads that message, never the question in the reply, so the
+    // question opens in the helper's chat whatever the follow-up says.
+    const third = await heldRun(srv, bot, 'Get the third key added');
+    await self(srv, third.token, 'message', { to: helper.id, message: 'Add the third key', priority: true });
+    const helped3 = await srv.nextRun(isRunOf(helper, 'Add the third key'));
+    await self(srv, helped3.self.env.RUN_TOKEN, 'message', { to: bot.id, message: 'Waiting for the owner on the third key.' });
+    srv.reply('Do you approve the third key?\n\n[[choices: Yes | No]]');
+    srv.release(helped3);
+    const id3 = (await srv.api(`/runs?botId=${helper.id}`)).data[0].id;
+    assert.equal((await srv.finished(id3)).askedAsker, true);
+    srv.reply('I asked the helper.');
+    srv.release(third.rec);
+    const back3 = await srv.nextRun((x) => isRunOf(bot)(x) && x.at > helped3.at, "the asker's third follow-up");
+    assert.doesNotMatch(back3.stdin, /third key\?/, 'the asker never saw the question');
+    srv.reply('Something else entirely?\n\n[[choices: Yes | No]]');
+    srv.release(back3);
+    const open3 = await waitFor(async () => { const r = (await srv.api(`/runs/${id3}`)).data; return r.asks ? r : null; }, { what: 'the third question to open' });
+    assert.deepEqual(open3.choices, ['Yes', 'No']);
+  } finally { srv.unhold(); await srv.stop(); }
+});
+
 test('a job and a tile that wait for their first approval say "Decline and remove", and the decline answers "Declined and removed"', async () => {
   const srv = await startServer();
   try {
