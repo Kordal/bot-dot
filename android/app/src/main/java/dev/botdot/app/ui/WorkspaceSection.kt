@@ -38,22 +38,26 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.BotFiles
+import dev.botdot.app.data.PickedFolder
 import dev.botdot.app.data.WorkspaceEntry
 import dev.botdot.app.data.WorkspaceFiles
 import dev.botdot.app.data.WorkspaceListing
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** What a workspace dialog asks: a new folder's name, a new name, a folder to move to, or a yes to a delete. */
 private data class WorkspaceAsk(val kind: String, val entry: WorkspaceEntry? = null, val words: String = "")
 
 /**
  * A bot's workspace in its settings (#296), next to its Files: every file in its folder on botdot, to open in the
- * viewer, save, upload into, rename, move and delete, and, for a bot that uses the computer, its folder there, to
- * open, save and delete in while the computer runs; a computer that is off is started only by the owner's tap.
- * Only from a server with `workspace-files` ([WorkspaceFiles]).
+ * viewer, save, upload into (a file, or with [folders] a whole folder, #576), rename, move and delete, and, for a bot
+ * that uses the computer, its folder there, the same with [folders] (else only open, save and delete) while the
+ * computer runs; a computer that is off is started only by the owner's tap. Only from a server with
+ * `workspace-files` ([WorkspaceFiles]); [folders] from one with `workspace-folders`.
  */
 @Composable
-fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Boolean, viewer: Boolean, tell: (String) -> Unit) {
+fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Boolean, viewer: Boolean, tell: (String) -> Unit, folders: Boolean = false) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -66,6 +70,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
     var hidden by remember { mutableStateOf(false) }
     var ask by remember { mutableStateOf<WorkspaceAsk?>(null) }
     var answer by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf<String?>(null) }
 
     fun go(r: String, to: String) { root = r; path = to }
     fun act(what: String, block: suspend (Api) -> Unit) {
@@ -76,10 +81,31 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         if (uris.size > WorkspaceFiles.MAX_FILES) tell("Upload at most ${WorkspaceFiles.MAX_FILES} files at a time.")
         val into = path
+        val r = root
         act("upload") { a ->
             for (uri in uris.take(WorkspaceFiles.MAX_FILES)) {
-                runCatching { a.uploadToWorkspace(context.contentResolver, uri, botId, into) }.onError { tell(it.message ?: "Couldn't upload") }
+                runCatching { a.uploadToWorkspace(context.contentResolver, uri, botId, into, r) }.onError { tell(it.message ?: "Couldn't upload") }
             }
+        }
+    }
+    // A whole folder (#576): its top made first under a free name, then its files one by one, their folders made as they come.
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        if (tree == null) return@rememberLauncherForActivityResult
+        val into = path
+        val r = root
+        act("upload the folder") { a ->
+            val picked = withContext(Dispatchers.IO) { PickedFolder.read(context.contentResolver, tree) }
+            if (picked.tooMany) return@act tell("${picked.name} has more than ${String.format(java.util.Locale.ROOT, "%,d", WorkspaceFiles.MAX_FOLDER_FILES)} files: upload at most that many at a time.")
+            val top = a.makeWorkspaceFolder(botId, into, picked.name, r, free = true)
+            var failed = 0
+            try {
+                picked.files.forEachIndexed { i, f ->
+                    busy = "Uploading ${picked.name}: ${i + 1} of ${picked.files.size}"
+                    if ((f.size ?: 0) > WorkspaceFiles.MAX_BYTES) failed++
+                    else runCatching { a.uploadToWorkspace(context.contentResolver, f.uri, botId, WorkspaceFiles.folderDir(top, f.dir), r, made = true) }.onError { failed++ }
+                }
+            } finally { busy = null }
+            tell(if (failed > 0) "${picked.name}: $failed of ${picked.files.size} files didn't upload." else "Uploaded ${picked.name}")
         }
     }
     fun open(e: WorkspaceEntry) {
@@ -125,14 +151,17 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
             e != null -> Hint(e.message ?: "Couldn't load it.")
             l == null -> Hint("Loading…")
             else -> {
-                val writes = root == WorkspaceFiles.SERVER && !l.readOnly
+                val writes = WorkspaceFiles.writes(root, l, folders)
                 Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { byDate = !byDate }) { Text(if (byDate) "Sorted by date" else "Sorted by name", color = p.muted) }
                     val hid = WorkspaceFiles.hiddenCount(l.entries)
                     if (hid > 0) TextButton(onClick = { hidden = !hidden }) { Text(if (hidden) "Hide hidden ($hid)" else "Show hidden ($hid)", color = p.muted) }
-                    if (writes) {
+                    val b = busy
+                    if (b != null) Text(b, color = p.muted, style = MaterialTheme.typography.bodySmall)
+                    else if (writes) {
                         TextButton(onClick = { answer = ""; ask = WorkspaceAsk("folder") }) { Text("New folder", color = p.text) }
                         TextButton(onClick = { pick.launch("*/*") }) { Text("Upload", color = p.text) }
+                        if (folders) TextButton(onClick = { pickFolder.launch(null) }) { Text("Upload folder", color = p.text) }
                     }
                 }
                 if (l.readOnly) Hint("botdot keeps this folder as it is: it is part of how the bot works. Open or save what is in it.")
@@ -143,8 +172,8 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
                         EntryRow(entry, WorkspaceFiles.detail(entry, shortTime(entry.at)),
                             onOpen = { when (entry.type) { "folder" -> { path = entry.path }; "file" -> open(entry) } },
                             onSave = if (entry.type == "file") ({ act("save it") { BotFiles.saveToDownloads(context, it, WorkspaceFiles.file(botId, root, entry.path), entry.name); tell("Saving ${entry.name} to Downloads") } }) else null,
-                            onRename = if (WorkspaceFiles.changes(root, l, entry)) ({ answer = entry.name; ask = WorkspaceAsk("rename", entry) }) else null,
-                            onMove = if (WorkspaceFiles.changes(root, l, entry)) ({ answer = WorkspaceFiles.parentOf(entry.path); ask = WorkspaceAsk("move", entry) }) else null,
+                            onRename = if (WorkspaceFiles.changes(root, l, entry, folders)) ({ answer = entry.name; ask = WorkspaceAsk("rename", entry) }) else null,
+                            onMove = if (WorkspaceFiles.changes(root, l, entry, folders)) ({ answer = WorkspaceFiles.parentOf(entry.path); ask = WorkspaceAsk("move", entry) }) else null,
                             onDelete = if (WorkspaceFiles.deletes(root, l, entry)) ({
                                 val r = root
                                 scope.launch {
@@ -181,9 +210,9 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
                 TextButton(enabled = a.kind == "delete" || a.kind == "move" || answer.isNotBlank(), onClick = {
                     ask = null
                     when (a.kind) {
-                        "folder" -> act("make it") { it.makeWorkspaceFolder(botId, path, answer.trim()) }
-                        "rename" -> if (!WorkspaceFiles.nameOk(answer)) tell("A name can't have / in it. To put it in another folder, use Move.") else entry?.let { en -> WorkspaceFiles.renamed(en.path, answer).takeIf { it != en.path }?.let { to -> act("rename it") { it.moveInWorkspace(botId, en.path, to) } } }
-                        "move" -> entry?.let { en -> WorkspaceFiles.movedTo(en.path, answer).takeIf { it != en.path }?.let { to -> act("move it") { it.moveInWorkspace(botId, en.path, to) } } }
+                        "folder" -> act("make it") { it.makeWorkspaceFolder(botId, path, answer.trim(), r) }
+                        "rename" -> if (!WorkspaceFiles.nameOk(answer)) tell("A name can't have / in it. To put it in another folder, use Move.") else entry?.let { en -> WorkspaceFiles.renamed(en.path, answer).takeIf { it != en.path }?.let { to -> act("rename it") { it.moveInWorkspace(botId, en.path, to, r) } } }
+                        "move" -> entry?.let { en -> WorkspaceFiles.movedTo(en.path, answer).takeIf { it != en.path }?.let { to -> act("move it") { it.moveInWorkspace(botId, en.path, to, r) } } }
                         else -> entry?.let { en -> act("delete it") { it.deleteFromWorkspace(botId, r, en.path); tell("Deleted ${en.name}") } }
                     }
                 }) { Text(when (a.kind) { "folder" -> "Make"; "rename" -> "Rename"; "move" -> "Move"; else -> "Delete" }, color = if (a.kind == "delete") p.err else p.text) }

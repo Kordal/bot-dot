@@ -209,7 +209,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onBack: () -> 
                 val viewer = DocumentView.shows(server?.features)
                 FilesSection(api, UploadedFiles.CHIEF, LocalChiefName.current, viewer,
                     hint = "It sees this list in every reply. A file kept in mind comes with every reply.", empty = "None yet. Attach a file in its chat.", tell = ::tell)
-                if (WorkspaceFiles.shows(server?.features)) WorkspaceSection(api, UploadedFiles.CHIEF, LocalChiefName.current, usesComputer = false, viewer = viewer, tell = ::tell)
+                if (WorkspaceFiles.shows(server?.features)) WorkspaceSection(api, UploadedFiles.CHIEF, LocalChiefName.current, usesComputer = false, viewer = viewer, tell = ::tell, folders = WorkspaceFiles.folders(server?.features))
             }
             checkup?.takeIf { hasCheckup }?.let { c ->
                 Section(null) {

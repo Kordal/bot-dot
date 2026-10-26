@@ -1,17 +1,22 @@
 // A bot's workspace in its settings (#296; docs/api.md, "A bot's workspace"): every file in its folder on botdot's
-// server, to open in the viewer (viewer.js), download, upload into, rename, move and delete, and, for a bot that uses
-// the computer, its folder there, to open, download and delete in while the computer runs. Only from a server whose
+// server, to open in the viewer (viewer.js), download, upload into (a file or a whole folder, #576), rename, move and
+// delete, and, for a bot that uses the computer, its folder there, the same while the computer runs (with
+// `workspace-folders`; before it only opened, downloaded and deleted in). Only from a server whose
 // features have `workspace-files`; bots.js draws the box, this file fills it. The Chief's settings (settings.js) open
 // its own folder here too, from a server with `chief-files` (#383): its `bot` is { name, base: '/chief' }, with no computer.
 
 const Workspace = (() => {
   const MAX_FILES = 10;
   const MAX_BYTES = 25 * 1024 * 1024;
+  const MAX_FOLDER_FILES = 1000; // of one uploaded folder
   let cur = null; // { bot, box, root, path, data, error, sort, hidden }
 
   const base = (c) => `${c.bot.base || `/bots/${encodeURIComponent(c.bot.id)}`}/workspace`; // the Chief's (#383): base '/chief'
   const query = (c, p) => `?root=${c.root}&path=${encodeURIComponent(p)}`;
   const KB = (n) => (typeof fmtSize === 'function' ? fmtSize(n) : `${n} B`);
+  // A server with `workspace-folders` (#576): writes on the computer too, and a whole folder uploaded.
+  const folders = () => (state.features || []).includes('workspace-folders');
+  const writesIn = (c) => c.root === 'server' || folders();
   const when = (iso) => (iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
   // The entries as shown: folders first, then files, by name or newest first; dot-names only under "Show hidden".
@@ -46,7 +51,7 @@ const Workspace = (() => {
         : `<span class="ws-name">${icon} ${esc(e.name)}</span>`;
     // On botdot a link is never changed; on the computer deleting one takes the link alone.
     const canDelete = c.root === 'computer' || (!e.protected && e.type !== 'link' && !c.data.readOnly);
-    const canChange = c.root === 'server' && canDelete && !e.keepsName;
+    const canChange = writesIn(c) && canDelete && !e.keepsName;
     const acts = [
       e.type === 'file' ? `<a class="link-btn" href="/api${esc(src)}" download="${esc(e.name)}">Download</a>` : '',
       canChange ? '<button type="button" class="link-btn" data-ws="rename">Rename</button><button type="button" class="link-btn" data-ws="move">Move</button>' : '',
@@ -72,13 +77,13 @@ const Workspace = (() => {
     }
     if (!c.data) return `${roots}${nav}<p class="faint">Loading…</p>`;
     const d = c.data;
-    const writes = c.root === 'server' && !d.readOnly;
+    const writes = writesIn(c) && !d.readOnly;
     const hid = hiddenCount(c);
     const bar = `<div class="ws-bar">
       <label class="ws-sort">Sort <select data-ws-sort aria-label="Sort"><option value="name"${c.sort === 'name' ? ' selected' : ''}>Name</option><option value="date"${c.sort === 'date' ? ' selected' : ''}>Date</option></select></label>
       ${hid ? `<label class="toggle ws-hidden"><input type="checkbox" data-ws-hidden${c.hidden ? ' checked' : ''}> Show hidden (${hid})</label>` : ''}
       <span class="grow"></span>
-      ${writes ? '<button type="button" class="btn sm" data-ws="folder">New folder</button><button type="button" class="btn sm" data-ws="upload">Upload</button><input type="file" multiple hidden data-ws-files>' : ''}
+      ${c.busy ? `<span class="faint">${esc(c.busy)}</span>` : writes ? `<button type="button" class="btn sm" data-ws="folder">New folder</button><button type="button" class="btn sm" data-ws="upload">Upload</button><input type="file" multiple hidden data-ws-files>${folders() ? '<button type="button" class="btn sm" data-ws="upload-folder">Upload folder</button><input type="file" webkitdirectory hidden data-ws-folder>' : ''}` : ''}
     </div>`;
     const list = sorted(d.entries, c);
     const rows = list.length ? list.map((e) => rowHTML(c, e)).join('') : `<p class="faint">${d.entries.length ? 'Only hidden files here.' : 'Empty.'}</p>`;
@@ -104,16 +109,48 @@ const Workspace = (() => {
   const entryOf = (c, btn) => c.data?.entries.find((e) => e.path === btn.closest('[data-path]')?.dataset.path);
   const parentOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
 
+  // One file into folder `dir`; `made`: the folders of `dir` that are not there yet are made (a folder's upload).
+  async function sendFile(c, dir, file, made = false) {
+    const r = await fetch(`/api${base(c)}/upload${query(c, dir)}${made ? '&folders=1' : ''}`, { method: 'POST', headers: { 'X-Bot-Dot': '1', 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, body: file });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || `Upload failed (${r.status})`);
+  }
+
   async function upload(c, files) {
     if (files.length > MAX_FILES) toast(`Upload at most ${MAX_FILES} files at a time.`, true);
     for (const file of [...files].slice(0, MAX_FILES)) {
       if (file.size > MAX_BYTES) { toast(`${file.name} is over 25 MB.`, true); continue; }
-      try {
-        const r = await fetch(`/api${base(c)}/upload${query(c, c.path)}`, { method: 'POST', headers: { 'X-Bot-Dot': '1', 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, body: file });
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.error || `Upload failed (${r.status})`);
-      } catch (e) { toast(`${file.name}: ${e.message}`, true); }
+      try { await sendFile(c, c.path, file); } catch (e) { toast(`${file.name}: ${e.message}`, true); }
     }
+    return load(c);
+  }
+
+  // Where each file of a picked folder goes: its folder inside the folder made for it, from webkitRelativePath
+  // ("site/css/a.css" into "site (2)" goes to "site (2)/css").
+  function folderPlan(files, into) {
+    return files.map((file) => {
+      const parts = String(file.webkitRelativePath || file.name).split('/').slice(1, -1);
+      return { file, dir: [into, ...parts].filter(Boolean).join('/') };
+    });
+  }
+
+  // A whole folder (#576): its top made first, under a free name, then its files one by one, its tree made as they come.
+  async function uploadFolder(c, files) {
+    if (!files.length) return undefined;
+    const top = String(files[0].webkitRelativePath || '').split('/')[0] || 'folder';
+    if (files.length > MAX_FOLDER_FILES) return toast(`${top} has ${files.length.toLocaleString('en')} files: upload at most ${MAX_FOLDER_FILES.toLocaleString('en')} at a time.`, true);
+    let made;
+    try { made = await api(`${base(c)}/folder?root=${c.root}`, { method: 'POST', body: { path: c.path, name: top, free: true } }); } catch (e) { return toast(e.message, true); }
+    let failed = 0;
+    const plan = folderPlan(files, made.path);
+    for (const [i, { file, dir }] of plan.entries()) {
+      c.busy = `Uploading ${top}: ${i + 1} of ${plan.length}`;
+      draw(c);
+      if (file.size > MAX_BYTES) { failed++; continue; }
+      try { await sendFile(c, dir, file, true); } catch { failed++; }
+    }
+    c.busy = null;
+    toast(failed ? `${top}: ${failed} of ${plan.length} files didn't upload.` : `Uploaded ${top}`, !!failed);
     return load(c);
   }
 
@@ -128,11 +165,13 @@ const Workspace = (() => {
       try { await api(`/bots/${encodeURIComponent(c.bot.id)}/computer`, { method: 'POST', body: { action: 'start' } }); } catch (e) { toast(e.message, true); }
       return cur === c ? load(c) : undefined;
     }
+    if (c.busy) return undefined;
     if (what === 'upload') return c.box.querySelector('[data-ws-files]')?.click();
+    if (what === 'upload-folder') return c.box.querySelector('[data-ws-folder]')?.click();
     if (what === 'folder') {
       const name = prompt('Name of the new folder');
       if (!name?.trim()) return;
-      try { await api(`${base(c)}/folder`, { method: 'POST', body: { path: c.path, name: name.trim() } }); } catch (e) { return toast(e.message, true); }
+      try { await api(`${base(c)}/folder?root=${c.root}`, { method: 'POST', body: { path: c.path, name: name.trim() } }); } catch (e) { return toast(e.message, true); }
       return load(c);
     }
     const e = entryOf(c, btn);
@@ -145,7 +184,7 @@ const Workspace = (() => {
       const folder = answer.trim().replace(/^\/+|\/+$/g, '');
       const to = what === 'rename' ? (parentOf(e.path) ? `${parentOf(e.path)}/${answer.trim()}` : answer.trim()) : (folder ? `${folder}/${e.name}` : e.name);
       if (to === e.path) return;
-      try { await api(`${base(c)}/move`, { method: 'POST', body: { from: e.path, to } }); } catch (err) { return toast(err.message, true); }
+      try { await api(`${base(c)}/move?root=${c.root}`, { method: 'POST', body: { from: e.path, to } }); } catch (err) { return toast(err.message, true); }
       toast(what === 'rename' ? 'Renamed' : 'Moved');
       return load(c);
     }
@@ -171,9 +210,10 @@ const Workspace = (() => {
       if (t.matches?.('[data-ws-sort]')) { cur.sort = t.value; draw(); }
       else if (t.matches?.('[data-ws-hidden]')) { cur.hidden = t.checked; draw(); }
       else if (t.matches?.('[data-ws-files]')) { const files = [...t.files]; t.value = ''; upload(cur, files); }
+      else if (t.matches?.('[data-ws-folder]')) { const files = [...t.files]; t.value = ''; uploadFolder(cur, files); }
     };
     return load(cur);
   }
 
-  return { open, html, sorted, crumbs, deleteWords, act, now: () => cur };
+  return { open, html, sorted, crumbs, deleteWords, folderPlan, act, now: () => cur };
 })();

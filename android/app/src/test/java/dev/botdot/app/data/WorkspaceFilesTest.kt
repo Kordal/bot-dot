@@ -96,7 +96,7 @@ class WorkspaceFilesTest {
         server.enqueue(json("""{"ok":true,"path":"notes/old/a.txt"}"""))
         api.moveInWorkspace("b1", "a.txt", "notes/old/a.txt")
         val moved = server.takeRequest()
-        assertEquals("/api/bots/b1/workspace/move", moved.target)
+        assertEquals("/api/bots/b1/workspace/move?root=server", moved.target)
         assertEquals("""{"from":"a.txt","to":"notes/old/a.txt"}""", moved.body?.utf8())
         server.enqueue(json("""{"ok":true}"""))
         api.deleteFromWorkspace("b1", "server", "notes/a b.txt")
@@ -104,5 +104,29 @@ class WorkspaceFilesTest {
         assertEquals("DELETE", del.method)
         assertEquals("/api/bots/b1/workspace?root=server&path=notes%2Fa%20b.txt", del.target)
         assertEquals("/bots/b1/workspace/file?root=computer&path=out.csv", WorkspaceFiles.file("b1", "computer", "out.csv"))
+    }
+
+    @Test fun withWorkspaceFoldersTheComputerTakesWritesAndAFolderGoesUpUnderAFreeName() = runBlocking {
+        val listing = WorkspaceListing(root = WorkspaceFiles.COMPUTER)
+        val file = WorkspaceEntry("out.csv", "out.csv", "file", 9)
+        assertFalse(WorkspaceFiles.writes(WorkspaceFiles.COMPUTER, listing, folders = false))
+        assertFalse(WorkspaceFiles.changes(WorkspaceFiles.COMPUTER, listing, file))
+        assertTrue(WorkspaceFiles.writes(WorkspaceFiles.COMPUTER, listing, folders = true))
+        assertTrue(WorkspaceFiles.changes(WorkspaceFiles.COMPUTER, listing, file, folders = true))
+        assertFalse(WorkspaceFiles.writes(WorkspaceFiles.SERVER, WorkspaceListing(readOnly = true), folders = true))
+        assertTrue(WorkspaceFiles.folders(listOf("workspace-files", "workspace-folders")))
+        assertFalse(WorkspaceFiles.folders(listOf("workspace-files")))
+        assertEquals("proj/site (2)/css/deep", WorkspaceFiles.folderDir("proj/site (2)", "css/deep"))
+        assertEquals("site", WorkspaceFiles.folderDir("site", ""))
+        assertEquals("/bots/b1/workspace/upload?root=computer&path=a%20b&folders=1", WorkspaceFiles.upload("b1", "a b", WorkspaceFiles.COMPUTER, made = true))
+
+        server.enqueue(json("""{"ok":true,"path":"proj/site (2)"}""", 201))
+        assertEquals("proj/site (2)", api.makeWorkspaceFolder("b1", "proj", "site", WorkspaceFiles.COMPUTER, free = true))
+        val made = server.takeRequest()
+        assertEquals("/api/bots/b1/workspace/folder?root=computer", made.target)
+        assertEquals("""{"path":"proj","name":"site","free":true}""", made.body?.utf8())
+        server.enqueue(json("""{"ok":true,"path":"b.txt"}"""))
+        api.moveInWorkspace("b1", "a.txt", "b.txt", WorkspaceFiles.COMPUTER)
+        assertEquals("/api/bots/b1/workspace/move?root=computer", server.takeRequest().target)
     }
 }

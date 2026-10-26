@@ -1,6 +1,6 @@
 // A bot's workspace in its settings (#296): the owner lists, opens, downloads, uploads, makes folders, renames,
-// moves and deletes in the bot's folder on this server; on the account's computer it lists, opens, downloads and
-// deletes while the computer runs, which is never started for it. Paths stay inside their root, links are never
+// moves and deletes in the bot's folder on this server, and the same on the account's computer (#576) while the
+// computer runs, which is never started for it; a whole folder is uploaded file by file. Paths stay inside their root, links are never
 // followed, what botdot keeps there is read-only, every write is in the audit log, and the Chief is refused.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
@@ -104,6 +104,27 @@ test('upload into a folder, a new folder, rename and move; each in the audit log
   const log = audit();
   assert.deepEqual(log.map((l) => l.action), ['workspace-file.uploaded', 'workspace-file.uploaded', 'workspace-file.folder-made', 'workspace-file.moved', 'workspace-file.moved']);
   assert.deepEqual({ ...log[3], time: null }, { time: null, actor: 'owner', action: 'workspace-file.moved', bot: bot.id, root: 'server', path: 'notes/hi there (2).txt', to: 'notes/second.txt' });
+});
+
+test('a whole folder (#576): its top takes a free name, its files go into folders made as they come', async () => {
+  put('site/old.txt', 'old');
+  let r = await srv.api(`/bots/${bot.id}/workspace/folder`, { method: 'POST', body: { path: '', name: 'site', free: true } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.equal(r.data.path, 'site (2)');
+  for (const [dir, name, text] of [['site (2)', 'index.html', '<p>'], ['site (2)/css/deep', 'a.css', 'a{}'], ['site (2)/css', 'empty.txt', '']]) {
+    r = await srv.api(`/bots/${bot.id}/workspace/upload${q(dir, '&folders=1')}`, { method: 'POST', raw: Buffer.from(text), headers: { 'X-File-Name': name } });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(r.data.path, `${dir}/${name}`);
+  }
+  assert.equal(fs.readFileSync(path.join(ws(), 'site (2)/css/deep/a.css'), 'utf8'), 'a{}');
+  assert.equal(fs.readFileSync(path.join(ws(), 'site (2)/css/empty.txt'), 'utf8'), '');
+  assert.equal(fs.readFileSync(path.join(ws(), 'site/old.txt'), 'utf8'), 'old', 'the folder that was there is untouched');
+  r = await srv.api(`/bots/${bot.id}/workspace/upload${q('nowhere/x')}`, { method: 'POST', raw: Buffer.from('x'), headers: { 'X-File-Name': 'a.txt' } });
+  assert.equal(r.status, 404, 'without folders=1 a missing folder is not made');
+  r = await srv.api(`/bots/${bot.id}/workspace/upload${q('.claude/x', '&folders=1')}`, { method: 'POST', raw: Buffer.from('x'), headers: { 'X-File-Name': 'a.txt' } });
+  assert.equal(r.status, 403, 'nothing is made in what botdot keeps');
+  assert.ok(!fs.existsSync(path.join(ws(), '.claude/x')));
+  fs.rmSync(path.join(ws(), 'site'), { recursive: true }); fs.rmSync(path.join(ws(), 'site (2)'), { recursive: true });
 });
 
 test('an upload over 25 MB is refused and leaves nothing', async () => {
@@ -233,8 +254,42 @@ test("on the computer: off, it says so and nothing starts; on, the bot's folder 
   assert.equal((await srv.api(c('', 'proj/old'))).status, 404);
   assert.equal((await srv.api(c('', ''), { method: 'DELETE' })).status, 403, 'its folder itself stays');
   assert.equal((await srv.api(c('', '../other'))).status, 403);
-  assert.equal((await srv.api(`/bots/${pc.id}/workspace/folder?root=computer`, { method: 'POST', body: { name: 'x' } })).status, 405, 'nothing else changes there');
+
+  // #576: a folder, an upload and a move there, each by botdot's script as box, each in the audit log.
+  const lastScript = () => docker.calls().filter((x) => x.args[0] === 'exec').at(-1).args;
+  docker.answer('exec.txt', 'ok site (2)\n');
+  let w = await srv.api(`/bots/${pc.id}/workspace/folder?root=computer`, { method: 'POST', body: { path: 'proj', name: 'site', free: true } });
+  assert.equal(w.status, 201, JSON.stringify(w.data));
+  assert.deepEqual(w.data, { ok: true, path: 'proj/site (2)' });
+  assert.ok(lastScript().includes('box'), 'made as box');
+  assert.match(lastScript().at(-1), /mkdir -- "\$t\/\$f"/);
+  docker.answer('exec.txt', 'exists\n');
+  assert.equal((await srv.api(`/bots/${pc.id}/workspace/folder?root=computer`, { method: 'POST', body: { path: 'proj', name: 'site' } })).status, 409);
+  assert.equal((await srv.api(`/bots/${pc.id}/workspace/folder?root=computer`, { method: 'POST', body: { path: 'proj', name: 'a/b' } })).status, 400);
+
+  docker.answer('exec.txt', 'ok index.html\n');
+  w = await srv.api(`/bots/${pc.id}/workspace/upload?root=computer&path=${encodeURIComponent('proj/site (2)/css')}&folders=1`, { method: 'POST', raw: Buffer.from('<p>'), headers: { 'X-File-Name': 'index.html' } });
+  assert.equal(w.status, 201, JSON.stringify(w.data));
+  assert.deepEqual(w.data, { name: 'index.html', path: 'proj/site (2)/css/index.html', size: 3 });
+  assert.ok(lastScript().includes('-i'), 'the bytes on its stdin');
+  assert.match(lastScript().at(-1), /mkdir -- "\$t" \|\| \{ echo failed/, 'the missing folders are made');
+
+  docker.answer('exec.txt', 'ok\n');
+  w = await srv.api(`/bots/${pc.id}/workspace/move?root=computer`, { method: 'POST', body: { from: 'proj/a.txt', to: 'proj/src/a.txt' } });
+  assert.equal(w.status, 200, JSON.stringify(w.data));
+  assert.match(lastScript().at(-1), /mv -n -T -- "\$s" "\$t\/\$f"/);
+  assert.equal((await srv.api(`/bots/${pc.id}/workspace/move?root=computer`, { method: 'POST', body: { from: 'proj', to: 'proj/x/proj' } })).status, 400, 'not into itself');
+  assert.equal((await srv.api(`/bots/${pc.id}/workspace/move?root=computer`, { method: 'POST', body: { from: '', to: 'x' } })).status, 400, 'its folder itself stays');
+  assert.deepEqual(audit().slice(-3).map((l) => [l.action, l.root, l.path, l.to]), [
+    ['workspace-file.folder-made', 'computer', 'proj/site (2)', undefined],
+    ['workspace-file.uploaded', 'computer', 'proj/site (2)/css/index.html', undefined],
+    ['workspace-file.moved', 'computer', 'proj/a.txt', 'proj/src/a.txt'],
+  ]);
   docker.answer('inspect.json', null);
+  const still = docker.calls().length;
+  assert.equal((await srv.api(`/bots/${pc.id}/workspace/upload?root=computer&path=`, { method: 'POST', raw: Buffer.from('x'), headers: { 'X-File-Name': 'a' } })).data.state, 'computer-off');
+  assert.equal((await srv.api(`/bots/${pc.id}/workspace/move?root=computer`, { method: 'POST', body: { from: 'a', to: 'b' } })).data.state, 'computer-off');
+  assert.ok(!docker.calls().slice(still).some((x) => ['run', 'start', 'exec'].includes(x.args[0])), 'nothing started or run');
   docker.answer('exec.txt', null);
 });
 
@@ -268,5 +323,41 @@ test('the computer scripts list, count and delete inside the folder only, never 
     W.computerRemoved(run(W.removeScript(root, 'src')));
     W.computerRemoved(run(W.removeScript(root, "it's.md")));
     assert.deepEqual(fs.readdirSync(root), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the computer scripts (#576) make a folder, put a file and move, inside the folder only, never through a link or over a file', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-ws-'));
+  const root = path.join(dir, 'bot');
+  fs.mkdirSync(path.join(root, 'proj'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'proj', 'a.txt'), 'a');
+  fs.mkdirSync(path.join(dir, 'other'));
+  fs.symlinkSync(path.join(dir, 'other'), path.join(root, 'away'));
+  const run = (script, input) => execFileSync('sh', ['-c', script], { encoding: 'utf8', input });
+  try {
+    assert.equal(W.computerMade(run(W.folderScript(root, 'proj', "it's new"))), "it's new");
+    assert.throws(() => W.computerMade(run(W.folderScript(root, 'proj', "it's new"))), { status: 409 });
+    assert.equal(W.computerMade(run(W.folderScript(root, 'proj', "it's new", { free: true }))), "it's new (2)");
+    assert.throws(() => W.computerMade(run(W.folderScript(root, 'away', 'x'))), { status: 403 });
+    assert.throws(() => W.computerMade(run(W.folderScript(root, 'nothing', 'x'))), { status: 404 });
+    assert.throws(() => W.computerMade(run(W.folderScript(root, 'proj/a.txt', 'x'))), { status: 400 });
+
+    assert.equal(W.computerMade(run(W.putScript(root, 'proj', 'a.txt'), 'second')), 'a (2).txt');
+    assert.equal(fs.readFileSync(path.join(root, 'proj', 'a.txt'), 'utf8'), 'a', 'never over a file');
+    assert.equal(W.computerMade(run(W.putScript(root, 'proj/site/css', '.env', { folders: true }), '')), '.env');
+    assert.equal(fs.readFileSync(path.join(root, 'proj/site/css/.env'), 'utf8'), '');
+    assert.throws(() => W.computerMade(run(W.putScript(root, 'nope/x', 'a.txt'), 'x')), { status: 404 });
+    assert.throws(() => W.computerMade(run(W.putScript(root, 'away/x', 'a.txt', { folders: true }), 'x')), { status: 403 });
+    assert.deepEqual(fs.readdirSync(path.join(dir, 'other')), [], 'nothing through a link');
+    assert.deepEqual(fs.readdirSync(path.join(root, 'proj')).filter((n) => n.startsWith('.botdot-upload')), []);
+
+    W.computerMoved(run(W.moveScript(root, 'proj/a (2).txt', "proj/it's new/b.txt")));
+    assert.equal(fs.readFileSync(path.join(root, "proj/it's new/b.txt"), 'utf8'), 'second');
+    assert.throws(() => W.computerMoved(run(W.moveScript(root, 'proj/a.txt', "proj/it's new/b.txt"))), { status: 409 });
+    assert.throws(() => W.computerMoved(run(W.moveScript(root, 'proj/a.txt', 'away/a.txt'))), { status: 403 });
+    assert.throws(() => W.computerMoved(run(W.moveScript(root, 'proj/gone.txt', 'proj/b.txt'))), { status: 404 });
+    W.computerMoved(run(W.moveScript(root, 'proj/site', 'site')));
+    assert.ok(fs.statSync(path.join(root, 'site/css')).isDirectory());
+    assert.deepEqual(fs.readdirSync(path.join(dir, 'other')), []);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

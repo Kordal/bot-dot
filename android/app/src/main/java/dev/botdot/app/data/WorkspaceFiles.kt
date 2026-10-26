@@ -11,12 +11,17 @@ import kotlinx.serialization.Serializable
  */
 object WorkspaceFiles {
     const val FEATURE = "workspace-files"
+    /** #576: the computer's folder takes writes too, and a whole folder is uploaded. */
+    const val FOLDERS = "workspace-folders"
+    /** The files of one uploaded folder, at most. */
+    const val MAX_FOLDER_FILES = 1000
     const val SERVER = "server"
     const val COMPUTER = "computer"
     const val MAX_FILES = 10
     const val MAX_BYTES = 25L * 1024 * 1024
 
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
+    fun folders(features: Collection<String>?): Boolean = features != null && FOLDERS in features
 
     /** A bot's, or the Chief's own folder ([UploadedFiles.CHIEF], #383), which has none on the computer. */
     private fun base(botId: String) = UploadedFiles.owner(botId) + "/workspace"
@@ -27,9 +32,10 @@ object WorkspaceFiles {
     fun count(botId: String, root: String, path: String) = base(botId) + "/count" + query(root, path)
     /** A file, for the viewer (DocumentView) and Save. */
     fun file(botId: String, root: String, path: String) = base(botId) + "/file" + query(root, path)
-    fun upload(botId: String, path: String) = base(botId) + "/upload" + query(SERVER, path)
-    fun folder(botId: String) = base(botId) + "/folder"
-    fun move(botId: String) = base(botId) + "/move"
+    /** [made]: the folders of [path] that are not there yet are made first (a folder's upload, #576). */
+    fun upload(botId: String, path: String, root: String = SERVER, made: Boolean = false) = base(botId) + "/upload" + query(root, path) + if (made) "&folders=1" else ""
+    fun folder(botId: String, root: String = SERVER) = base(botId) + "/folder?root=${Api.enc(root)}"
+    fun move(botId: String, root: String = SERVER) = base(botId) + "/move?root=${Api.enc(root)}"
 
     /** The entries as shown: folders first, then files, by name or newest first; dot-names only with [hidden]. */
     fun sorted(entries: List<WorkspaceEntry>, byDate: Boolean = false, hidden: Boolean = false): List<WorkspaceEntry> {
@@ -75,8 +81,13 @@ object WorkspaceFiles {
 
     /** Whether an entry may be deleted here: on botdot a link is never changed; on the computer deleting one takes the link alone. */
     fun deletes(root: String, listing: WorkspaceListing, e: WorkspaceEntry): Boolean = root == COMPUTER || (!e.kept && e.type != "link" && !listing.readOnly)
-    /** Whether an entry may be renamed or moved: on botdot only, and not a file the owner gave the bot (uploads/). */
-    fun changes(root: String, listing: WorkspaceListing, e: WorkspaceEntry): Boolean = root == SERVER && deletes(root, listing, e) && !e.keepsName
+    /** Whether a folder takes uploads and new folders: on botdot, and on the computer from a server with [FOLDERS]. */
+    fun writes(root: String, listing: WorkspaceListing, folders: Boolean): Boolean = (root == SERVER || folders) && !listing.readOnly
+    /** Whether an entry may be renamed or moved: where [writes], and not a file the owner gave the bot (uploads/). */
+    fun changes(root: String, listing: WorkspaceListing, e: WorkspaceEntry, folders: Boolean = false): Boolean = (root == SERVER || folders) && deletes(root, listing, e) && !e.keepsName
+
+    /** Where a file of an uploaded folder goes: [dir], its folder inside the picked one ("" at its top), in [into]. */
+    fun folderDir(into: String, dir: String): String = listOf(into, dir).filter { it.isNotEmpty() }.joinToString("/")
 
     /** A new name is one name: with a / in it, it would be a move. */
     fun nameOk(name: String): Boolean = name.isNotBlank() && '/' !in name
@@ -110,3 +121,7 @@ data class WorkspaceListing(
 /** What a delete takes (`GET /api/bots/:id/workspace/count`). */
 @Serializable
 data class WorkspaceCount(val type: String = "file", val files: Int = 0, val folders: Int = 0, val capped: Boolean = false)
+
+/** What making a folder answers: its path, under the name it got. */
+@Serializable
+data class WorkspaceMade(val path: String = "")
