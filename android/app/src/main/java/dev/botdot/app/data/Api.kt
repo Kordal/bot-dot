@@ -433,6 +433,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     // ---------- a bot's settings and computer ----------
 
     suspend fun updateBot(botId: String, changes: JsonObject): Bot = json.decodeFromString(send("PUT", "/bots/${enc(botId)}", changes))
+    /** A copy of its files to its new computer that failed, again (#556). */
+    suspend fun retryComputerMove(botId: String) { send("POST", "/bots/${enc(botId)}/computer/move") }
     suspend fun deleteBot(botId: String) { send("DELETE", "/bots/${enc(botId)}") }
     /** What a copy of the bot would get (#227). Only with `duplicate-bot` in its features. */
     suspend fun copyPlan(botId: String): CopyPlan = json.decodeFromString(get("/bots/${enc(botId)}/duplicate"))
