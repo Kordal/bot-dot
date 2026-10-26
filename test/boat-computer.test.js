@@ -145,7 +145,7 @@ test("a boat bot's commands and Vault secrets go to boat.dev; its placed files a
   assert.equal(login.code, 0);
   assert.match(login.stdout, /timeout -k 5 120 sh -c 'x'/);
   assert.match((await f.placeFile('coder', { path: '/etc/x' })).error, /keeps no file of the Vault/);
-  assert.throws(() => f.screenPipe('coder'), /watched through boat.dev's stream/);
+  assert.throws(() => f.screenPipe('coder'), /External Virtual PC is watched through its own stream/);
   assert.deepEqual(got, [], "nothing reached the account's computer");
 });
 
@@ -156,10 +156,10 @@ test("when boat.dev can't start the machine, the account's computer runs the com
   await f.ensureMachine('coder');
   const r = await f.runShell('coder', { command: 'ls' });
   assert.equal(r.stdout, 'on the account');
-  assert.match(r.error, /ran on the account's computer/);
+  assert.match(r.error, /ran on this machine's computer/);
   assert.deepEqual(got, ['ensure', 'runShell']);
-  assert.match((await f.runWithLogin('coder', { command: 'x' })).error, /couldn't start your machine, and botdot uses a saved secret nowhere else/, "its Vault secrets don't go to the account's computer");
-  assert.match((await f.readFile('coder', { path: 'a' })).error, /ran on the account's computer/, 'a file read says so too');
+  assert.match((await f.runWithLogin('coder', { command: 'x' })).error, /couldn't start, and botdot uses a saved secret nowhere else/, "its Vault secrets don't go to the account's computer");
+  assert.match((await f.readFile('coder', { path: 'a' })).error, /ran on this machine's computer/, 'a file read says so too');
   assert.deepEqual(got, ['ensure', 'runShell', 'readFile']);
 });
 
@@ -178,7 +178,7 @@ test("a machine that boat.dev can't start again mid-run hands over to the accoun
   await boat.restIdle();
   const r = await f.runShell('coder', { command: 'ls' });
   assert.equal(r.stdout, 'on the account');
-  assert.match(r.error, /ran on the account's computer/);
+  assert.match(r.error, /ran on this machine's computer/);
   assert.deepEqual(got, ['runShell']);
 });
 
@@ -302,13 +302,13 @@ test("a bot's machine is described as the owner sees it: not made yet, on, stopp
   const b = fakeBoat();
   let now = 0;
   const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 1000, size: () => 'small' });
-  assert.deepEqual(boat.info('coder'), { state: 'none', size: 'small', shared: false, text: 'boat.dev · 2 CPUs · 4 GB · not made yet' });
+  assert.deepEqual(boat.info('coder'), { state: 'none', size: 'small', shared: false, text: 'External Virtual PC · 2 CPUs · 4 GB · not made yet' });
   await boat.runShell('coder', { command: 'ls' });
-  assert.deepEqual(boat.info('coder'), { state: 'running', size: 'small', shared: false, text: 'boat.dev · 2 CPUs · 4 GB · on' });
+  assert.deepEqual(boat.info('coder'), { state: 'running', size: 'small', shared: false, text: 'External Virtual PC · 2 CPUs · 4 GB · on' });
   now = 5000;
   await boat.restIdle();
   assert.equal(boat.info('coder').state, 'stopped');
-  assert.equal(boat.info('coder').text, 'boat.dev · 2 CPUs · 4 GB · stopped');
+  assert.equal(boat.info('coder').text, 'External Virtual PC · 2 CPUs · 4 GB · stopped');
 });
 
 // The Vault on the bot's machine (#560, ADR 092): the secret goes through the file API, never in a command.

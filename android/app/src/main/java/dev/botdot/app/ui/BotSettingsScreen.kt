@@ -198,24 +198,26 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 OutlinedTextField(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
             }
             Section("What it can do") {
-                // Where its computer is, in one choice beside the others (ADR 088): none, this machine or boat.dev.
-                if ("boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
-                    Choice("Computer", if (computer) computerOn else "none", listOf("none" to "None", "linux" to "This machine · free", "boat" to "boat.dev · costs")) {
+                // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here
+                // only whether. A server from before chose it per bot (ADR 088).
+                val accountComputer = "account-computer" in server?.features.orEmpty()
+                if (!accountComputer && "boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
+                    Choice("Computer", if (computer) computerOn else "none", listOf("none" to "None", "linux" to "This machine", "boat" to "External Virtual PC")) {
                         // Between this machine and boat.dev, its files go along or not: asked first (#556).
                         if ("computer-move" in server?.features.orEmpty() && it != b.computer && it != "none" && b.computer != "none") { askMove = it; return@Choice }
                         computer = it != "none"
                         if (computer) computerOn = it
                         moveFiles = false
                     }
-                    val move = botsNow?.firstOrNull { it.id == botId }?.computerMove ?: b.computerMove
-                    if (move != null) androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (move.state == "copying") Text("Copying files" + (if (move.total > 0) " · ${move.done * 100 / move.total}%" else "…"), color = p.muted, style = MaterialTheme.typography.bodySmall)
-                        else {
-                            Text("Files not copied: ${move.error ?: "it failed"}", color = p.err, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { scope.launch { runCatching { api!!.retryComputerMove(botId) }.onError { tell(it.message ?: "Couldn't try again") } } }) { Text("Try again", color = p.text) }
-                        }
+                } else SwitchRow("Uses the computer", if (accountComputer) null else "Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.", computer) { computer = it }
+                val move = botsNow?.firstOrNull { it.id == botId }?.computerMove ?: b.computerMove
+                if (move != null) androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (move.state == "copying") Text("Copying files" + (if (move.total > 0) " · ${move.done * 100 / move.total}%" else "…"), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                    else {
+                        Text("Files not copied: ${move.error ?: "it failed"}", color = p.err, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { scope.launch { runCatching { api!!.retryComputerMove(botId) }.onError { tell(it.message ?: "Couldn't try again") } } }) { Text("Try again", color = p.text) }
                     }
-                } else SwitchRow("Uses the computer", "Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.", computer) { computer = it }
+                }
                 if (b.computer == "linux" || (b.computer == "boat" && "boat-desktop" in server?.features.orEmpty())) OutlinedButton(onClick = onScreen) { Text("🖥 See its screen", color = p.text) }
                 val waiting = b.jobs.count { it.waits }
                 androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clickable(onClick = onJobs).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -416,7 +418,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
         val choose = { copy: Boolean -> computer = true; computerOn = to; moveFiles = copy; askMove = null }
         AlertDialog(
             onDismissRequest = { askMove = null },
-            title = { Text("Copy its files to ${if (to == "boat") "boat.dev" else "this machine"}?") },
+            title = { Text("Copy its files to ${if (to == "boat") "the External Virtual PC" else "this machine"}?") },
             confirmButton = { TextButton(onClick = { choose(true) }) { Text("Copy files", color = p.text) } },
             dismissButton = { TextButton(onClick = { choose(false) }) { Text("Start empty", color = p.text) } },
         )

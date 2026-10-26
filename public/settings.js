@@ -338,8 +338,9 @@ function renderSettings() {
       </details>
     </form>
     ${state.features.includes('boat-size') && state.status?.boat ? `<details class="card settings-card settings-fold" id="boat-size-card">
-      <summary><h3 class="page-sub">boat.dev machines</h3></summary>
-      <label class="field">Size<select id="boat-size" disabled><option>Loading…</option></select></label>
+      <summary><h3 class="page-sub">Computer</h3></summary>
+      ${state.features.includes('account-computer') ? `<label class="field">Where<select id="computer-place" disabled><option value="linux">This machine</option><option value="boat">External Virtual PC</option></select></label>` : ''}
+      <label class="field" id="boat-size-field">Size<select id="boat-size" disabled><option>Loading…</option></select></label>
     </details>` : ''}
     <details class="card settings-card settings-fold">
       <summary><h3 class="page-sub">Bots with their own choice</h3></summary>
@@ -363,6 +364,7 @@ function renderSettings() {
   if (signOut) signOut.onclick = signOutEverywhere;
   drawSettingsLinks(root);
   loadBackupsCard();
+  loadComputerPlace(root);
   loadBoatSize(root);
   if ($('#usage-card', root) && typeof Usage !== 'undefined') Usage.open($('#usage-card', root)); // public/usage.js (#301)
   const form = $('#settings-form', root);
@@ -391,8 +393,31 @@ function renderSettings() {
   };
 }
 
+// Where the account's computer is (#579): this machine or its External Virtual PC on boat.dev, for every bot with a
+// computer. A switch asks once whether the bots' files go along.
+async function loadComputerPlace(root) {
+  const pick = $('#computer-place', root);
+  if (!pick) return;
+  let place;
+  try { ({ place } = await api('/settings/computer')); } catch { return; }
+  const show = () => { pick.value = place; $('#boat-size-field', root).hidden = place !== 'boat'; };
+  show();
+  pick.disabled = false;
+  pick.onchange = async () => {
+    const to = pick.value;
+    pick.value = place; // back at the saved one until the answer
+    const copy = state.bots.some((b) => b.computer === 'linux' || b.computer === 'boat') ? await askMoveFiles(to, 'the bots\'') : false;
+    if (copy === null) return;
+    try {
+      ({ place } = await api('/settings/computer', { method: 'PUT', body: { place: to, moveFiles: copy } }));
+      show();
+      await refresh();
+    } catch (err) { toast(err.message, true); }
+  };
+}
+
 // The size of the account's boat.dev machines (#539): the sizes boat.dev makes now, and the chosen one even when not.
-const boatSizeLabel = (s) => `${s.id[0].toUpperCase()}${s.id.slice(1)} · ${s.cpus} CPU · ${s.memoryGB} GB · $${s.perHour}/h`;
+const boatSizeLabel = (s) => `${s.id[0].toUpperCase()}${s.id.slice(1)} · ${s.cpus} CPU · ${s.memoryGB} GB`;
 async function loadBoatSize(root) {
   const pick = $('#boat-size', root);
   if (!pick) return;
