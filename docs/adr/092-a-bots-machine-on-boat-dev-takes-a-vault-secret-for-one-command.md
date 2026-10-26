@@ -3,6 +3,7 @@
 - **Status:** Accepted (2026-10-26)
 - **Owning task:** [#560](https://github.com/Kordal/bot-dot/issues/560)
 - **Amends:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md)
+- **Amended by:** [ADR 093](093-a-bots-machine-on-boat-dev-has-a-screen-and-a-browser.md) (typing a login on its screen)
 
 ## Context
 

@@ -23,7 +23,7 @@ The one Linux computer of an account, a container that stays on, which every bot
 _Avoid_: VM, sandbox, container, a bot's own computer, computers (there is one per account)
 
 **boat.dev computer**:
-A bot's computer when its owner chose boat.dev for it: a Linux machine of its own at boat.dev, a paid cloud service, in place of the account's computer. It has commands and files only (no screen, no browser, no saved secret), starts on the bot's first command and stops after 30 minutes unused ([ADR 088](docs/adr/088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md)). "This machine" is the account's computer, which is free.
+A bot's computer when its owner chose boat.dev for it: a Linux machine of its own at boat.dev, a paid cloud service, in place of the account's computer. It has the bot's commands and files, and a screen of its own with the bot's Camoufox browser ([ADR 093](docs/adr/093-a-bots-machine-on-boat-dev-has-a-screen-and-a-browser.md)), starts on the bot's first command and stops after 30 minutes unused ([ADR 088](docs/adr/088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md)). "This machine" is the account's computer, which is free.
 _Avoid_: sandbox (boat.dev's own word), VM, cloud computer
 
 **Bot's computer**:

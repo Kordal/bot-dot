@@ -37,6 +37,8 @@ BRIDGE_LOG = "/home/browser/bridge.log"  # as told in lib/computers.js, above st
 LOG_CAP = 1024 * 1024
 OPEN_PORT = 47111
 PROFILE = os.path.expanduser("~/.camoufox-profile")
+# Where the browser saves downloads: box's on the account's computer, the bot's own home on a boat.dev machine (#563).
+DOWNLOADS = os.environ.get("BOTDOT_DOWNLOADS") or "/home/box/Downloads"
 # Screen :N's bridge port is OPEN_PORT_BASE + N, as lib/computers.js (screenPorts) has it.
 OPEN_PORT_BASE = 47200
 DISPLAY_FORM = re.compile(r"^:([0-9]{1,3})(\.[0-9]+)?$")
@@ -503,7 +505,7 @@ def run_browser(url):
             "signon.autofillForms": False,
             # The bot's own folder, which the browser user may write into (deploy/desktop/Dockerfile): the bot
             # reads what it downloads, and this user's home stays closed to it.
-            "browser.download.dir": "/home/box/Downloads",
+            "browser.download.dir": DOWNLOADS,
             "browser.download.folderList": 2,
             # Less memory (#152): gVisor never gives back what the browser once took, and the guest sees all of
             # the machine's RAM, so Firefox never thinks memory is short. One content process for every site, no

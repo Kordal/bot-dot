@@ -1,6 +1,6 @@
 // A bot's computer on boat.dev (#529, ADR 088): its commands and files go to a machine of its own there, through
 // boat.dev's API with the admin's key. The machine is made or started on the first of them and stops after 30
-// minutes unused; it has no screen, takes a Vault secret for one command (#560) and never on a command line; when
+// minutes unused; its screen is tested in boat-screen.test.js (#563); it takes a Vault secret for one command (#560) and never on a command line; when
 // boat.dev can't start it, the account's computer stands in for its commands and files, never for its secrets.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -127,7 +127,7 @@ function facadeWith(boat, kind = 'boat') {
   return { f, got };
 }
 
-test("a boat bot's commands and Vault secrets go to boat.dev; its screen and placed files are refused", async (t) => {
+test("a boat bot's commands and Vault secrets go to boat.dev; its placed files are refused", async (t) => {
   boatLib.setKey(KEY);
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
@@ -138,8 +138,7 @@ test("a boat bot's commands and Vault secrets go to boat.dev; its screen and pla
   assert.equal(login.code, 0);
   assert.match(login.stdout, /timeout -k 5 120 sh -c 'x'/);
   assert.match((await f.placeFile('coder', { path: '/etc/x' })).error, /keeps no file of the Vault/);
-  await assert.rejects(f.request('coder', {}), /no screen or browser/);
-  await assert.rejects(f.ensure('coder'), /no screen or browser/);
+  assert.throws(() => f.screenPipe('coder'), /can't be watched here yet/);
   assert.deepEqual(got, [], "nothing reached the account's computer");
 });
 
