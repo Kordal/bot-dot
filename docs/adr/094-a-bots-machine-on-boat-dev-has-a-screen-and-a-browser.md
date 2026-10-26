@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (2026-10-26)
 - **Owning task:** [#563](https://github.com/Kordal/bot-dot/issues/563)
-- **Amended by:** [ADR 095](095-the-accounts-boat-bots-share-one-machine-there.md) (one machine per account)
+- **Amended by:** [ADR 096](096-the-accounts-boat-bots-share-one-machine-there.md) (one machine per account)
 - **Amends:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md), [ADR 092](092-a-bots-machine-on-boat-dev-takes-a-vault-secret-for-one-command.md)
 
 ## Context
@@ -28,4 +28,4 @@ ADR 088 gave a boat bot commands and files only, on the belief that a boat.dev m
 - The bot has sudo on its own machine, so a command it writes could reach the bridge and a secret typed there, as on the account's computer (ADR 035): the file and the browser user guard against leaks by accident, not against the bot.
 - The first screen tool on a new machine takes minutes; later starts of that machine only start computer-server and the bridge.
 - Camoufox and computer-server on the machine follow the image's pins: a bump in `deploy/desktop/Dockerfile` must be made in the kit too (`test/boat-screen.test.js` checks they agree).
-- It is the desktop the owner watches and takes over through boat.dev's stream (ADR 093, #564). A browser's logins do not move with the bot's files yet (#565).
+- It is the desktop the owner watches and takes over through boat.dev's stream (ADR 093, #564). A browser's logins move with the bot's files since ADR 095 (#565).

@@ -1,4 +1,4 @@
-// One boat.dev machine per account (#568, ADR 095): the account's boat bots share one machine there, each in a folder
+// One boat.dev machine per account (#568, ADR 096): the account's boat bots share one machine there, each in a folder
 // of its own; a bot that wants one has a machine of its own, and one made before is used until its files moved over.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -156,4 +156,13 @@ test("the Chief's card names which machine on boat.dev", () => {
   const part = (a) => asks.proposalView({ kind: 'bot-change', botId: 'b1', ...a }, 'Coder').parts[0].now;
   assert.match(part({ changes: { computer: 'boat' }, before: { computer: 'none' } }), /^the account's machine on boat\.dev, which has costs$/);
   assert.match(part({ changes: { computer: 'boat' }, before: { computer: 'none' }, ownMachine: true, moveFiles: true }), /^a machine of its own on boat\.dev, which has costs, with its files$/);
+});
+
+test("a copy to or from the account's machine moves the folder alone, never a bot's browser profile", async () => {
+  const steps = [];
+  const sideOf = (name) => ({ moveFiles: async (id, { op, part }) => { steps.push(`${name}:${op}:${part}`); return op === 'pack' ? { code: 0, size: 3 } : op === 'read' ? { code: 0, data: 'YWJj' } : { code: 0 }; } });
+  const moves = moveLib.create(dir(), { sides: { 'boat-own': sideOf('own'), boat: sideOf('acct') } });
+  await moves.start('coder', 'boat-own', 'boat');
+  assert.equal(moves.of('coder'), null, 'done');
+  assert.ok(!steps.some((s) => /:(pack|read|write|unpack):profile$/.test(s)), steps.join(' '));
 });

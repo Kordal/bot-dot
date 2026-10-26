@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (2026-10-24)
 - **Owning task:** [#529](https://github.com/Kordal/bot-dot/issues/529)
-- **Amended by:** [ADR 092](092-a-bots-machine-on-boat-dev-takes-a-vault-secret-for-one-command.md) (Vault secrets for one command), [ADR 093](093-the-owner-watches-a-boat-dev-machines-desktop-through-boat-devs-stream.md) (the owner watches its desktop), [ADR 094](094-a-bots-machine-on-boat-dev-has-a-screen-and-a-browser.md) (a screen and a browser), [ADR 095](095-the-accounts-boat-bots-share-one-machine-there.md) (one machine per account, a bot's own on request)
+- **Amended by:** [ADR 092](092-a-bots-machine-on-boat-dev-takes-a-vault-secret-for-one-command.md) (Vault secrets for one command), [ADR 093](093-the-owner-watches-a-boat-dev-machines-desktop-through-boat-devs-stream.md) (the owner watches its desktop), [ADR 094](094-a-bots-machine-on-boat-dev-has-a-screen-and-a-browser.md) (a screen and a browser), [ADR 096](096-the-accounts-boat-bots-share-one-machine-there.md) (one machine per account, a bot's own on request)
 - **Amends:** [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md)
 
 ## Context
