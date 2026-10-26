@@ -117,7 +117,10 @@ test('a bot that wants one has a machine of its own, and one made before is used
 test("a copy's steps go to the side asked for: the bot's own machine, or its folder on the account's", async (t) => {
   keyed(t);
   const b = fakeBoat();
-  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, ownOf: () => false });
+  const own = new Set(['coder']);
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, ownOf: (id) => own.has(id) });
+  await boat.ensure('coder');
+  own.delete('coder');
   const ownPack = await boat.moveFiles('coder', { op: 'pack' }, { own: true });
   assert.equal(ownPack.size, 42);
   const acctPack = await boat.moveFiles('coder', { op: 'pack' }, { own: false });
@@ -128,6 +131,24 @@ test("a copy's steps go to the side asked for: the bot's own machine, or its fol
   const [pack, unpack] = b.commandsOn('bx_aaaaaaa2');
   assert.match(pack, /tar --ignore-failed-read -czf \/tmp\/botdot-move-coder\.tgz -C '\/home\/user\/workspace\/coder' \./);
   assert.match(unpack, /tar -xzf \/tmp\/botdot-move-coder\.tgz -C '\/home\/user\/workspace\/coder'/);
+});
+
+test("a bot's own machine let go during its copy is never made again: a new one would hold nothing of it (#586)", async (t) => {
+  keyed(t);
+  const b = fakeBoat();
+  const own = new Set(['coder']);
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, ownOf: (id) => own.has(id) });
+  await boat.ensure('coder');
+  own.delete('coder');
+  const read = await boat.moveFiles('coder', { op: 'read', offset: 0, length: 5 }, { own: true });
+  assert.match(b.commandsOn('bx_aaaaaaa1').at(-1), /\[ -f \/tmp\/botdot-move-coder\.tgz \] \|\| \{ echo "its packed folder is gone" >&2; exit 5; \}; tail -c \+1 /, 'a read says when the pack is gone');
+  assert.equal(read.code, 0);
+  await boat.forget('coder');
+  const gone = await boat.moveFiles('coder', { op: 'read', offset: 0, length: 5 }, { own: true });
+  assert.equal(gone.code, null);
+  assert.match(gone.error, /no External Virtual PC of its own/);
+  assert.equal((await boat.moveFiles('coder', { op: 'drop' }, { own: true })).code, 0, 'nothing to drop');
+  assert.equal(b.machines.size, 1, 'no machine made for it');
 });
 
 test("files move between this machine, the account's machine on boat.dev and a bot's own; the apps see both as boat.dev", async () => {
