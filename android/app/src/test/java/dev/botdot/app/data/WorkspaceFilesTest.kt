@@ -129,4 +129,39 @@ class WorkspaceFilesTest {
         api.moveInWorkspace("b1", "a.txt", "b.txt", WorkspaceFiles.COMPUTER)
         assertEquals("/api/bots/b1/workspace/move?root=computer", server.takeRequest().target)
     }
+
+    @Test fun aSharedProjectIsARootOfItsOwnAndItsBotsAreThoseOnTheComputer() = runBlocking {
+        val root = WorkspaceFiles.projectRoot("my site")
+        assertEquals("my site", WorkspaceFiles.projectOf(root))
+        assertEquals(null, WorkspaceFiles.projectOf(WorkspaceFiles.COMPUTER))
+        assertEquals("/bots/b1/workspace?root=project&project=my%20site&path=css", WorkspaceFiles.list("b1", root, "css"))
+        assertEquals("/bots/b1/workspace/folder?root=project&project=my%20site", WorkspaceFiles.folder("b1", root))
+        assertEquals("/bots/b1/workspace/upload?root=project&project=my%20site&path=&folders=1", WorkspaceFiles.upload("b1", "", root, made = true))
+        assertTrue(WorkspaceFiles.deletes(root, WorkspaceListing(root = "project"), WorkspaceEntry("a", "a", "link")))
+
+        val bots = listOf(Bot(id = "c1", name = "Coder", computer = "linux"), Bot(id = "w1", name = "Writer"))
+        val site = Project("site", listOf("c1", "gone"), "/workspace/projects/site")
+        assertEquals("Coder, gone", Projects.members(site, bots))
+        assertEquals(listOf("c1"), Projects.eligible(bots).map { it.id })
+        assertEquals(listOf(site), Projects.of("c1", listOf(site, Project("other", listOf("w1")))))
+        assertTrue(Projects.shows(listOf("projects")))
+        assertFalse(Projects.shows(null))
+
+        server.enqueue(json("""{"projects":[{"name":"site","bots":["c1"],"folder":"/workspace/projects/site","createdAt":"2026-10-26T20:00:00.000Z"}],"max":50}"""))
+        assertEquals(listOf("site"), api.projects().map { it.name })
+        assertEquals("/api/projects", server.takeRequest().target)
+        server.enqueue(json("""{"name":"docs","bots":["c1"],"folder":"/workspace/projects/docs"}""", 201))
+        assertEquals("docs", api.createProject("docs", listOf("c1")).name)
+        val made = server.takeRequest()
+        assertEquals("POST", made.method)
+        assertEquals("""{"name":"docs","bots":["c1"]}""", made.body?.utf8())
+        server.enqueue(json("""{"name":"my site","bots":["c1","s1"]}"""))
+        api.setProjectBots("my site", listOf("c1", "s1"))
+        val put = server.takeRequest()
+        assertEquals("/api/projects/my%20site", put.target)
+        assertEquals("""{"bots":["c1","s1"]}""", put.body?.utf8())
+        server.enqueue(json("""{"ok":true,"name":"docs"}"""))
+        api.deleteProject("docs")
+        assertEquals("DELETE", server.takeRequest().method)
+    }
 }

@@ -1,7 +1,8 @@
 // A bot's workspace in its settings (#296; docs/api.md, "A bot's workspace"): every file in its folder on botdot's
 // server, to open in the viewer (viewer.js), download, upload into (a file or a whole folder, #576), rename, move and
 // delete, and, for a bot that uses the computer, its folder there, the same while the computer runs (with
-// `workspace-folders`; before it only opened, downloaded and deleted in). Only from a server whose
+// `workspace-folders`; before it only opened, downloaded and deleted in), and each shared project it is in (#578,
+// `projects`): a folder there that several bots work in, with its bots. Only from a server whose
 // features have `workspace-files`; bots.js draws the box, this file fills it. The Chief's settings (settings.js) open
 // its own folder here too, from a server with `chief-files` (#383): its `bot` is { name, base: '/chief' }, with no computer.
 
@@ -9,10 +10,15 @@ const Workspace = (() => {
   const MAX_FILES = 10;
   const MAX_BYTES = 25 * 1024 * 1024;
   const MAX_FOLDER_FILES = 1000; // of one uploaded folder
-  let cur = null; // { bot, box, root, path, data, error, sort, hidden }
+  let cur = null; // { bot, box, root, project, projects, picking, path, data, error, sort, hidden }
 
   const base = (c) => `${c.bot.base || `/bots/${encodeURIComponent(c.bot.id)}`}/workspace`; // the Chief's (#383): base '/chief'
-  const query = (c, p) => `?root=${c.root}&path=${encodeURIComponent(p)}`;
+  const query = (c, p) => `?root=${c.root}${c.root === 'project' ? `&project=${encodeURIComponent(c.project)}` : ''}&path=${encodeURIComponent(p)}`;
+  // Shared projects (#578): for a bot on the account's computer, from a server with `projects`.
+  const projectsOn = (c) => c.bot.computer === 'linux' && (state.features || []).includes('projects');
+  const mine = (c) => (c.projects || []).filter((p) => p.bots.includes(c.bot.id));
+  const project = (c) => (c.projects || []).find((p) => p.name === c.project) || null;
+  const nameOfBot = (id) => (state.bots || []).find((b) => b.id === id)?.name || id;
   const KB = (n) => (typeof fmtSize === 'function' ? fmtSize(n) : `${n} B`);
   // A server with `workspace-folders` (#576): writes on the computer too, and a whole folder uploaded.
   const folders = () => (state.features || []).includes('workspace-folders');
@@ -64,18 +70,22 @@ const Workspace = (() => {
   function html(c) {
     const roots = c.bot.computer === 'linux' ? `<div class="dv-seg ws-roots" role="group" aria-label="Which folder">
       <button type="button" data-ws="root" data-root="server" class="${c.root === 'server' ? 'on' : ''}" aria-pressed="${c.root === 'server'}">On botdot</button>
-      <button type="button" data-ws="root" data-root="computer" class="${c.root === 'computer' ? 'on' : ''}" aria-pressed="${c.root === 'computer'}">On the computer</button></div>` : '';
-    const rootName = c.root === 'computer' ? `/workspace/${c.bot.id}` : 'Its folder';
+      <button type="button" data-ws="root" data-root="computer" class="${c.root === 'computer' ? 'on' : ''}" aria-pressed="${c.root === 'computer'}">On the computer</button>${projectsOn(c) ? `${mine(c).map((p) => {
+        const on = c.root === 'project' && c.project === p.name;
+        return `<button type="button" data-ws="root" data-root="project" data-project="${esc(p.name)}" class="${on ? 'on' : ''}" aria-pressed="${on}">${esc(p.name)}</button>`;
+      }).join('')}<button type="button" data-ws="new-project">+ Project</button>` : ''}</div>` : '';
+    const rootName = c.root === 'computer' ? `/workspace/${c.bot.id}` : c.root === 'project' ? `/workspace/projects/${c.project}` : 'Its folder';
     const nav = `<nav class="ws-crumbs" aria-label="Folder">${crumbs(c.path, rootName).map((x, i, all) => (i === all.length - 1 ? `<b>${esc(x.name)}</b>` : `<button type="button" class="link-btn" data-ws="go" data-path="${esc(x.path)}">${esc(x.name)}</button><span class="faint">/</span>`)).join('')}</nav>`;
+    const team = c.root === 'project' ? projectHTML(c) : '';
     if (c.error) {
       const e = c.error;
       const body = e.state === 'computer-off'
         ? `<p class="muted">The computer is off. botdot doesn't start it just to show its files.</p><button type="button" class="btn sm" data-ws="start">Start the computer</button>`
         : e.status === 404 ? `<p class="muted">This folder is gone.</p><button type="button" class="btn sm" data-ws="go" data-path="">Back to the top</button>`
           : `<p class="muted">${esc(e.message || "Couldn't load it.")}</p>`;
-      return `${roots}${nav}<div class="ws-state">${body}</div>`;
+      return `${roots}${team}${nav}<div class="ws-state">${body}</div>`;
     }
-    if (!c.data) return `${roots}${nav}<p class="faint">Loading…</p>`;
+    if (!c.data) return `${roots}${team}${nav}<p class="faint">Loading…</p>`;
     const d = c.data;
     const writes = writesIn(c) && !d.readOnly;
     const hid = hiddenCount(c);
@@ -89,7 +99,24 @@ const Workspace = (() => {
     const rows = list.length ? list.map((e) => rowHTML(c, e)).join('') : `<p class="faint">${d.entries.length ? 'Only hidden files here.' : 'Empty.'}</p>`;
     const note = d.readOnly ? '<p class="faint">botdot keeps this folder as it is: it is part of how the bot works. Open or download what is in it.</p>' : '';
     const more = d.more ? `<p class="faint">…and ${d.more.toLocaleString('en')} more, not listed.</p>` : '';
-    return `${roots}${nav}${bar}${note}<div class="ws-list">${rows}</div>${more}`;
+    return `${roots}${team}${nav}${bar}${note}<div class="ws-list">${rows}</div>${more}`;
+  }
+
+  // A project's bots, to change (any bot on the account's computer), and its delete.
+  function projectHTML(c) {
+    const p = project(c);
+    if (!p) return '';
+    if (c.picking) {
+      const all = (state.bots || []).filter((b) => b.computer === 'linux');
+      return `<div class="ws-team">${all.map((b) => `<label class="toggle"><input type="checkbox" data-ws-member="${esc(b.id)}"${p.bots.includes(b.id) ? ' checked' : ''}> ${esc(b.name)}</label>`).join('')}
+        <button type="button" class="btn sm" data-ws="members-save">Save</button><button type="button" class="link-btn" data-ws="members-cancel">Cancel</button></div>`;
+    }
+    return `<div class="ws-team"><span>${esc(p.bots.map(nameOfBot).join(', '))}</span><button type="button" class="link-btn" data-ws="members">Bots</button><button type="button" class="link-btn danger-text" data-ws="delete-project">Delete project</button></div>`;
+  }
+
+  async function loadProjects(c) {
+    if (!projectsOn(c)) return;
+    try { c.projects = (await api('/projects')).projects || []; } catch { c.projects = []; }
   }
 
   function draw(c = cur) { if (c?.box) c.box.innerHTML = html(c); }
@@ -159,7 +186,41 @@ const Workspace = (() => {
     if (!c) return;
     const what = btn.dataset.ws;
     if (what === 'go') { c.path = btn.dataset.path || ''; return load(c); }
-    if (what === 'root') { if (c.root !== btn.dataset.root) { c.root = btn.dataset.root; c.path = ''; return load(c); } return; }
+    if (what === 'root') {
+      const to = btn.dataset.root; const p = btn.dataset.project || null;
+      if (c.root !== to || (to === 'project' && c.project !== p)) { c.root = to; c.project = to === 'project' ? p : null; c.picking = false; c.path = ''; return load(c); }
+      return;
+    }
+    if (what === 'new-project') {
+      const name = prompt('Name of the new project');
+      if (!name?.trim()) return;
+      let made;
+      try { made = await api('/projects', { method: 'POST', body: { name: name.trim(), bots: [c.bot.id] } }); } catch (e) { return toast(e.message, true); }
+      await loadProjects(c);
+      c.root = 'project'; c.project = made.name; c.path = ''; c.picking = true;
+      return load(c);
+    }
+    if (what === 'members') { c.picking = true; return draw(c); }
+    if (what === 'members-cancel') { c.picking = false; return draw(c); }
+    if (what === 'members-save') {
+      const bots = [...c.box.querySelectorAll('[data-ws-member]')].filter((x) => x.checked).map((x) => x.dataset.wsMember);
+      if (!bots.length) return toast('Keep at least one bot in the project, or delete it.', true);
+      try { await api(`/projects/${encodeURIComponent(c.project)}`, { method: 'PUT', body: { bots } }); } catch (e) { return toast(e.message, true); }
+      await loadProjects(c);
+      c.picking = false;
+      if (!bots.includes(c.bot.id)) { c.root = 'computer'; c.project = null; c.path = ''; return load(c); }
+      return draw(c);
+    }
+    if (what === 'delete-project') {
+      let n;
+      try { n = await api(`${base(c)}/count${query(c, '')}`); } catch (err) { return toast(err.message, true); }
+      if (!confirm(deleteWords({ name: c.project }, n).replace('Delete the folder', 'Delete the project'))) return;
+      try { await api(`/projects/${encodeURIComponent(c.project)}`, { method: 'DELETE' }); } catch (err) { return toast(err.message, true); }
+      toast(`Deleted ${c.project}`);
+      await loadProjects(c);
+      c.root = 'computer'; c.project = null; c.path = '';
+      return load(c);
+    }
     if (what === 'start') {
       btn.disabled = true;
       try { await api(`/bots/${encodeURIComponent(c.bot.id)}/computer`, { method: 'POST', body: { action: 'start' } }); } catch (e) { toast(e.message, true); }
@@ -201,8 +262,9 @@ const Workspace = (() => {
   // Fills `box` with the bot's workspace, at the top of its folder on botdot. Each box keeps its own place: the
   // Chief's settings stay drawn while a bot's open and close (#383), and a tap in a box acts on that box's folder.
   function open(bot, box) {
-    const c = { bot, box, root: 'server', path: '', data: null, error: null, sort: 'name', hidden: false };
+    const c = { bot, box, root: 'server', project: null, projects: [], picking: false, path: '', data: null, error: null, sort: 'name', hidden: false };
     cur = c;
+    loadProjects(c).then(() => { if (c.projects.length) draw(c); });
     box.onclick = (ev) => { const btn = ev.target.closest?.('[data-ws]'); if (btn) { ev.preventDefault(); cur = c; act(btn); } };
     box.onchange = (ev) => {
       cur = c;

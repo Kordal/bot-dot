@@ -1371,7 +1371,10 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .bs-file .link-btn.on { color: var(--text); }
 /* A bot's workspace in its settings (#296, workspace.js). */
 .ws { display: grid; gap: 8px; margin-top: 8px; min-width: 0; }
-.ws-roots { justify-self: start; }
+.ws-roots { justify-self: start; flex-wrap: wrap; max-width: 100%; border-radius: 14px; }
+/* A shared project's bots (#578). */
+.ws-team { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px; color: var(--muted); }
+.ws-team .toggle { font-size: 12.5px; margin: 0; }
 .ws-crumbs { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 13px; overflow-wrap: anywhere; }
 .ws-crumbs .link-btn { font-size: 13px; color: var(--muted); }
 .ws-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 12.5px; color: var(--muted); }

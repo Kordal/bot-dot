@@ -21,7 +21,7 @@ const LIST = {
   ],
 };
 
-function page({ answers = {}, features = ['workspace-files', 'document-viewer'], confirmed = true, prompted = null } = {}) {
+function page({ answers = {}, features = ['workspace-files', 'document-viewer'], confirmed = true, prompted = null, bots = [] } = {}) {
   const calls = []; const toasts = []; const asked = [];
   const ctx = vm.createContext({
     api: async (url, opts = {}) => {
@@ -33,7 +33,7 @@ function page({ answers = {}, features = ['workspace-files', 'document-viewer'],
     },
     fetch: async (url, opts) => { calls.push([url, { method: opts.method, name: opts.headers['X-File-Name'] }]); return { ok: true, status: 201, json: async () => ({}) }; },
     esc, toast: (t, bad) => toasts.push([t, !!bad]), confirm: (t) => { asked.push(t); return confirmed; }, prompt: (t, v) => { asked.push(t); return prompted; },
-    fmtSize: (n) => `${n} B`, state: { features }, Date, encodeURIComponent,
+    fmtSize: (n) => `${n} B`, state: { features, bots }, Date, encodeURIComponent,
   });
   vm.runInContext(`${read('workspace.js')}\nthis.Workspace = Workspace;`, ctx);
   return { W: ctx.Workspace, calls, toasts, asked };
@@ -257,4 +257,47 @@ test('web: without workspace-folders there is no folder upload', async () => {
   const box = element();
   await p.W.open(bot, box);
   assert.doesNotMatch(box.innerHTML, /upload-folder|webkitdirectory/);
+});
+
+test('web (#578): a bot on the computer has its projects as roots, makes one, changes its bots and deletes it', async () => {
+  let projects = [{ name: 'site', bots: ['b2', 'b3'], folder: '/workspace/projects/site' }, { name: 'other', bots: ['b3'], folder: '/workspace/projects/other' }];
+  const p = page({ features: ['workspace-files', 'workspace-folders', 'projects'], prompted: 'docs', bots: [{ id: 'b2', name: 'Desk Worker', computer: 'linux' }, { id: 'b3', name: 'Scout', computer: 'linux' }, { id: 'b4', name: 'Writer', computer: 'none' }], answers: {
+    '/projects/': (url, opts) => { if (opts.method === 'PUT') projects = projects.map((x) => (url.endsWith('/site') ? { ...x, bots: opts.body.bots } : x)); if (opts.method === 'DELETE') projects = projects.filter((x) => !url.endsWith(`/${x.name}`)); return { ok: true }; },
+    '/projects': (url, opts) => { if (opts.method === 'POST') { projects.push({ name: opts.body.name, bots: opts.body.bots }); return { name: opts.body.name, bots: opts.body.bots }; } return { projects }; },
+    '/bots/b2/workspace/count': { type: 'folder', files: 2, folders: 0, capped: false },
+    '/bots/b2/workspace?root=project': (url) => ({ ...LIST, root: 'project', entries: [{ name: 'index.html', path: 'index.html', type: 'file', size: 3 }] }),
+  } });
+  const pc = { id: 'b2', name: 'Desk Worker', computer: 'linux' };
+  const box = element();
+  await p.W.open(pc, box);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.match(box.innerHTML, /data-root="project" data-project="site"[^>]*>site<\/button>/);
+  assert.doesNotMatch(box.innerHTML, /data-project="other"/, 'only its own projects');
+  assert.match(box.innerHTML, /data-ws="new-project">\+ Project/);
+  await p.W.act(button({ ws: 'root', root: 'project', project: 'site' }));
+  assert.ok(p.calls.some(([u]) => u === '/bots/b2/workspace?root=project&project=site&path='));
+  assert.match(box.innerHTML, /\/workspace\/projects\/site/);
+  assert.match(box.innerHTML, /<span>Desk Worker, Scout<\/span><button type="button" class="link-btn" data-ws="members">Bots/);
+  assert.match(box.innerHTML, /data-ws="upload-folder"/, 'managed as the computer root is');
+
+  await p.W.act(button({ ws: 'new-project' }));
+  assert.deepEqual(p.calls.find(([u, o]) => u === '/projects' && o.method === 'POST'), ['/projects', { method: 'POST', body: { name: 'docs', bots: ['b2'] } }]);
+  assert.match(box.innerHTML, /data-ws-member="b2" checked> Desk Worker/, 'its bots are picked next');
+  assert.match(box.innerHTML, /data-ws-member="b3"> Scout/);
+  assert.doesNotMatch(box.innerHTML, /Writer/, 'only bots on the computer');
+  assert.match(box.innerHTML, /data-ws="members-save"/);
+
+  await p.W.act(button({ ws: 'root', root: 'project', project: 'site' }));
+  await p.W.act(button({ ws: 'delete-project' }));
+  assert.equal(p.asked.at(-1), "Delete the project site? It holds 2 files, which go with it. This can't be undone.");
+  assert.deepEqual(p.calls.find(([u, o]) => u === '/projects/site' && o.method === 'DELETE'), ['/projects/site', { method: 'DELETE' }]);
+  assert.doesNotMatch(box.innerHTML, /data-project="site"/);
+});
+
+test('web: a bot without the computer, or a server without projects, shows no projects', async () => {
+  const p = page({ features: ['workspace-files', 'workspace-folders'] });
+  const box = element();
+  await p.W.open({ id: 'b2', name: 'Desk Worker', computer: 'linux' }, box);
+  assert.doesNotMatch(box.innerHTML, /new-project/);
+  assert.ok(!p.calls.some(([u]) => u === '/projects'));
 });
