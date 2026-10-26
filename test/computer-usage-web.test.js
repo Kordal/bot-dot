@@ -72,3 +72,14 @@ test("Android: its screen shows each bot's memory and CPU from the server", () =
   assert.match(kt('ui/LiveScreen.kt'), /info\?\.usage/);
   assert.match(kt('data/Models.kt'), /val usage: ComputerUsage\? = null/);
 });
+
+test("web: a bot on boat.dev opens its own machine's line, with no live screen of the account's computer", () => {
+  const boat = cut('function openBoatComputer(', 'function openScreen(');
+  assert.doesNotMatch(boat, /screen-reset|screen-update|usage|iframe/, "nothing of the account's computer");
+  assert.match(boat, /d\.text/, "the server's words");
+  assert.match(cut('function openScreen(', '// Plain-language explanation for a failed or stopped run'), /bot\.computer === 'boat'\) return openBoatComputer\(bot\)/);
+  // Its runs show no screen: the picture-in-picture and the run's live screen are for the account's computer only.
+  assert.match(app, /updatePip\(bot, bot\.computer === 'linux' \?/);
+  assert.match(app, /ev\.meta\.computer && ev\.meta\.status === 'running' && state\.bots\.find\(\(b\) => b\.id === ev\.meta\.botId\)\?\.computer === 'linux'/);
+  assert.match(app, /'#bot-screen'\)\.classList\.toggle\('hidden', bot\.computer !== 'linux' && bot\.computer !== 'boat'\)/);
+});

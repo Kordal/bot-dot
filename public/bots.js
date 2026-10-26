@@ -25,6 +25,32 @@ function askEverythingAllowed(name) {
   });
 }
 
+// A bot's computer moves between this machine and boat.dev (#556): its files copied along, or not. true, false, or
+// null for neither (the switch is taken back).
+const COMPUTER_PLACE = { linux: 'this machine', boat: 'boat.dev' };
+function askMoveFiles(to) {
+  return new Promise((resolve) => {
+    const m = openModal(`
+      <div class="modal-head"><h2>Copy its files to ${COMPUTER_PLACE[to]}?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-foot">
+        <button type="button" class="btn" id="move-empty">Start empty</button>
+        <button type="button" class="btn primary" id="move-copy">Copy files</button>
+      </div>`);
+    let answer = null;
+    $('#move-empty', m).onclick = () => { answer = false; m.close(); };
+    $('#move-copy', m).onclick = () => { answer = true; m.close(); };
+    m.addEventListener('close', () => resolve(answer), { once: true });
+  });
+}
+const isComputerMove = (from, to) => from !== to && !!COMPUTER_PLACE[from] && !!COMPUTER_PLACE[to];
+// Its copy's line under Computer: how far it is, or why it failed, with Try again.
+function computerMoveLine(b) {
+  const mv = b.computerMove;
+  if (!mv) return '';
+  if (mv.state === 'copying') return `Copying files${mv.total ? ` · ${Math.floor((mv.done / mv.total) * 100)}%` : '…'}`;
+  return `<span class="danger-text">Files not copied: ${esc(mv.error || 'it failed')}</span> <button type="button" class="link-btn" data-bs-move-retry>Try again</button>`;
+}
+
 function openRunDialog(botId) {
   const bot = botId && state.bots.find((b) => b.id === botId);
   const m = openModal(`
@@ -225,7 +251,7 @@ function renderBotSettings(force = false) {
       <div class="card settings-card bs-rows">
         ${boatChoice ? `<div class="bs-row">
           <span class="bs-icon">🖥</span>
-          <div class="grow"><b>Computer</b>${b.computer === 'linux' ? '<div><button type="button" class="link-btn" data-bs-screen>See its screen</button></div>' : ''}</div>
+          <div class="grow"><b>Computer</b>${b.computer === 'linux' ? '<div><button type="button" class="link-btn" data-bs-screen>See its screen</button></div>' : ''}<div class="faint" id="bs-move">${computerMoveLine(b)}</div></div>
           <select name="computer" aria-label="Computer"><option value="none">None</option><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>This machine · free</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>boat.dev · costs</option></select>
         </div>` : `<div class="bs-row ${docker || hasComputer ? '' : 'hidden'}">
           <span class="bs-icon">🖥</span>
@@ -320,6 +346,7 @@ function renderBotSettings(force = false) {
   let saved = readBotForm(form, sel);
   let chain = Promise.resolve();
   let timer = null;
+  let moveFiles = false; // the owner's "Copy files" for the computer's next save (#556)
   // Send only what changed since the last save, one save at a time.
   const save = () => {
     clearTimeout(timer);
@@ -327,10 +354,12 @@ function renderBotSettings(force = false) {
       const now = readBotForm(form, sel);
       const changes = Object.fromEntries(Object.entries(now).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(saved[k])));
       if (!Object.keys(changes).length) return;
+      const copy = 'computer' in changes && moveFiles; // its files go along (#556)
+      moveFiles = false;
       const note = $('#bs-saved', root);
       note.textContent = 'Saving…';
       try {
-        const updated = await api(`/bots/${b.id}`, { method: 'PUT', body: changes });
+        const updated = await api(`/bots/${b.id}`, { method: 'PUT', body: { ...changes, ...(copy ? { moveFiles: true } : {}) } });
         saved = { ...saved, ...changes };
         const i = state.bots.findIndex((x) => x.id === b.id);
         if (i >= 0) state.bots[i] = { ...state.bots[i], ...updated };
@@ -357,6 +386,21 @@ function renderBotSettings(force = false) {
     saveSoon();
   });
   form.onsubmit = (e) => { e.preventDefault(); save(); };
+  // A switch between this machine and boat.dev asks first whether its files go along (#556). Until the answer the
+  // select is back at the saved computer, so no other field's save carries the new one; ✕ leaves it there.
+  if (form.computer.type === 'select-one') form.computer.addEventListener('change', async (e) => {
+    const select = e.target;
+    const to = select.value;
+    if (!isComputerMove(saved.computer, to)) return;
+    e.stopPropagation();
+    select.value = saved.computer;
+    const copy = await askMoveFiles(to);
+    if (copy === null) return;
+    select.value = to;
+    moveFiles = copy;
+    saveSoon();
+  });
+  wireMoveRetry(root, b.id);
 
   $('[data-bs-jobs]', root).onclick = () => setView('botjobs', b.id);
   const scr = $('[data-bs-screen]', root);
@@ -559,9 +603,19 @@ function drawOverrides(root, b) {
   });
 }
 
+// "Try again" on a copy of its files that failed (#556).
+function wireMoveRetry(root, botId) {
+  const retry = $('[data-bs-move-retry]', root);
+  if (retry) retry.onclick = async () => {
+    retry.disabled = true;
+    try { await api(`/bots/${botId}/computer/move`, { method: 'POST' }); } catch (e) { retry.disabled = false; toast(e.message, true); }
+  };
+}
 function drawBotSettingsLive(bot) {
   const root = $('#view-botsettings');
   drawOverrides(root, bot);
+  const mv = $('#bs-move', root);
+  if (mv) { mv.innerHTML = computerMoveLine(bot); wireMoveRetry(root, bot.id); }
   const jobs = bot.jobs || [];
   const waiting = jobs.filter(jobWaits).length;
   const jl = $('#bs-jobs', root);

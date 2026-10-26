@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-10-24)
 - **Owning task:** [#529](https://github.com/Kordal/bot-dot/issues/529)
+- **Amended by:** [ADR 092](092-a-bots-machine-on-boat-dev-takes-a-vault-secret-for-one-command.md) (Vault secrets for one command)
 - **Amends:** [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md)
 
 ## Context

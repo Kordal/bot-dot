@@ -1,6 +1,7 @@
 // A bot's computer on boat.dev (#529, ADR 088): its commands and files go to a machine of its own there, through
 // boat.dev's API with the admin's key. The machine is made or started on the first of them and stops after 30
-// minutes unused; it has no screen and no Vault secret; when boat.dev can't start it, the account's computer stands in.
+// minutes unused; it has no screen, takes a Vault secret for one command (#560) and never on a command line; when
+// boat.dev can't start it, the account's computer stands in for its commands and files, never for its secrets.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -126,14 +127,17 @@ function facadeWith(boat, kind = 'boat') {
   return { f, got };
 }
 
-test("a boat bot's commands go to boat.dev; its screen and Vault secrets are refused", async (t) => {
+test("a boat bot's commands and Vault secrets go to boat.dev; its screen and placed files are refused", async (t) => {
   boatLib.setKey(KEY);
   t.after(() => boatLib.setKey(null));
   const b = fakeBoat();
   const { f, got } = facadeWith(boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} }));
   await f.ensureMachine('coder');
   assert.equal((await f.runShell('coder', { command: 'ls' })).stdout, 'ran: ls');
-  assert.match((await f.runWithLogin('coder', { command: 'x' })).error, /no saved login/);
+  const login = await f.runWithLogin('coder', { command: 'x', username: 'u', password: 'p4ssw0rd' });
+  assert.equal(login.code, 0);
+  assert.match(login.stdout, /timeout -k 5 120 sh -c 'x'/);
+  assert.match((await f.placeFile('coder', { path: '/etc/x' })).error, /keeps no file of the Vault/);
   await assert.rejects(f.request('coder', {}), /no screen or browser/);
   await assert.rejects(f.ensure('coder'), /no screen or browser/);
   assert.deepEqual(got, [], "nothing reached the account's computer");
@@ -148,7 +152,7 @@ test("when boat.dev can't start the machine, the account's computer runs the com
   assert.equal(r.stdout, 'on the account');
   assert.match(r.error, /ran on the account's computer/);
   assert.deepEqual(got, ['ensure', 'runShell']);
-  assert.match((await f.runWithLogin('coder', { command: 'x' })).error, /no saved login/, "its Vault secrets don't go to the account's computer either");
+  assert.match((await f.runWithLogin('coder', { command: 'x' })).error, /couldn't start your machine, and botdot uses a saved secret nowhere else/, "its Vault secrets don't go to the account's computer");
   assert.match((await f.readFile('coder', { path: 'a' })).error, /ran on the account's computer/, 'a file read says so too');
   assert.deepEqual(got, ['ensure', 'runShell', 'readFile']);
 });
@@ -284,6 +288,83 @@ test("an account's size is one of boat.dev's sizes, the default one until chosen
   assert.equal(settings.update({ boatSize: 'large' }).boatSize, 'large');
   assert.throws(() => settings.update({ boatSize: 'huge' }), /boatSize must be one of small, default, large, xlarge/);
   assert.equal(settings.get().boatSize, 'large');
+});
+
+test("a bot's machine is described as the owner sees it: not made yet, on, stopped, each at its size", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  let now = 0;
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 1000, size: () => 'small' });
+  assert.deepEqual(boat.info('coder'), { state: 'none', size: 'small', text: 'boat.dev · 2 CPUs · 4 GB · not made yet' });
+  await boat.runShell('coder', { command: 'ls' });
+  assert.deepEqual(boat.info('coder'), { state: 'running', size: 'small', text: 'boat.dev · 2 CPUs · 4 GB · on' });
+  now = 5000;
+  await boat.restIdle();
+  assert.equal(boat.info('coder').state, 'stopped');
+  assert.equal(boat.info('coder').text, 'boat.dev · 2 CPUs · 4 GB · stopped');
+});
+
+// The Vault on the bot's machine (#560, ADR 092): the secret goes through the file API, never in a command.
+test('a login reaches the command through a file of its own that goes before the command starts', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} });
+  const secret = "s3cr'et pass";
+  const r = await boat.runWithLogin('coder', { command: 'git push', username: 'x-access-token', password: secret, timeoutSeconds: 60 });
+  assert.equal(r.code, 0);
+  const put = b.calls.find((c) => c.method === 'PUT');
+  assert.match(put.body.path, /^\/tmp\/botdot-secret-[0-9a-f]{16}$/);
+  assert.equal(Buffer.from(put.body.content, 'base64').toString(), "export BOTDOT_USERNAME='x-access-token'\nexport BOTDOT_PASSWORD='s3cr'\\''et pass'\n");
+  const sent = b.calls.filter((c) => c.path.endsWith('/commands')).map((c) => c.body.command);
+  assert.ok(sent.every((c) => !c.includes('s3cr')), 'no secret on a command line');
+  assert.ok(sent[0].includes(`. ${put.body.path}; a=$?; rm -f -- ${put.body.path}; [ $a = 0 ] || exit 1; exec timeout -k 5 60 sh -c 'git push'`), 'read, removed, then the command');
+  assert.equal(b.calls.find((c) => c.path.endsWith('/commands')).body.timeoutSeconds, 90, "boat.dev's limit leaves room after the command's");
+});
+
+test('several logins each get their variables, and a name that makes no variable runs nothing', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} });
+  await boat.runWithLogin('coder', { command: 'x', env: { BOTDOT_OVH_KEY_USERNAME: 'a', BOTDOT_OVH_KEY_PASSWORD: 'b' } });
+  assert.equal(Buffer.from(b.calls.find((c) => c.method === 'PUT').body.content, 'base64').toString(), "export BOTDOT_OVH_KEY_USERNAME='a'\nexport BOTDOT_OVH_KEY_PASSWORD='b'\n");
+  const before = b.calls.length;
+  const r = await boat.runWithLogin('coder', { command: 'x', env: { 'A;rm': 'b' } });
+  assert.match(r.error, /no variable/);
+  assert.equal(b.calls.slice(before).filter((c) => c.method === 'PUT' || c.path.endsWith('/commands')).length, 0);
+});
+
+test('an SSH key goes into an ssh-agent of the command and its file before the command starts', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} });
+  const r = await boat.runWithSshKey('coder', { command: 'git push', privateKey: 'KEYDATA', timeoutSeconds: 30 });
+  assert.equal(r.code, 0);
+  const put = b.calls.find((c) => c.method === 'PUT');
+  assert.equal(Buffer.from(put.body.content, 'base64').toString(), 'KEYDATA\n', 'ending in a newline, as ssh-add wants');
+  const cmd = b.calls.find((c) => c.path.endsWith('/commands')).body.command;
+  assert.ok(!cmd.includes('KEYDATA'));
+  assert.ok(cmd.indexOf(`ssh-add -q ${put.body.path} 2>/dev/null; a=$?; rm -f -- ${put.body.path}`) < cmd.indexOf("timeout -k 5 30 sh -c 'git push'"));
+  assert.match(cmd, /ssh-agent -k/, 'the agent ends with the command');
+});
+
+test('a file is there for the command alone and goes when it ends', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {} });
+  const r = await boat.runWithFile('coder', { command: 'cat "$BOTDOT_FILE" | wc -c', fileName: 'key.pem', content: Buffer.from('PEM').toString('base64') });
+  assert.equal(r.code, 0);
+  const put = b.calls.find((c) => c.method === 'PUT');
+  assert.equal(Buffer.from(put.body.content, 'base64').toString(), 'PEM');
+  const cmd = b.calls.find((c) => c.path.endsWith('/commands')).body.command;
+  assert.ok(cmd.includes(`BOTDOT_FILE=${put.body.path}.d/key.pem timeout`));
+  assert.ok(cmd.trimEnd().endsWith(`rm -rf -- ${put.body.path}.d; exit $s`));
+  await boat.runWithFile('coder', { command: 'x', fileName: '../etc/passwd', content: '' });
+  assert.ok(b.calls.filter((c) => c.path.endsWith('/commands')).some((c) => /\.d\/file timeout/.test(c.body.command)), 'a name that is no file name is "file"');
 });
 
 test("a machine's name on boat.dev tells the account and the bot it belongs to", () => {

@@ -100,6 +100,9 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
     var effort by remember { mutableStateOf("") }
     var computer by remember { mutableStateOf(false) }
     var computerOn by remember { mutableStateOf("linux") } // where its computer is: this machine, or boat.dev (ADR 088)
+    var moveFiles by remember { mutableStateOf(false) } // "Copy files" for its new computer (#556)
+    var askMove by remember { mutableStateOf<String?>(null) } // the computer a switch asks about first
+    val botsNow by app.store.bots.value.collectAsState()
     var useSkills by remember { mutableStateOf(true) }
     var skills by remember { mutableStateOf(setOf<String>()) }
     var sysSkills by remember { mutableStateOf(listOf<Pair<dev.botdot.app.data.BuiltinSkill, String>>()) } // every bot has these unless switched off
@@ -153,6 +156,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             if (effort != b.effort.orEmpty()) put("effort", effort)
             val nextComputer = if (computer) computerOn else "none"
             if (nextComputer != b.computer) put("computer", nextComputer)
+            if (nextComputer != b.computer && moveFiles) put("moveFiles", true)
             if (useSkills != b.useSkills) put("useSkills", useSkills)
             if (skills != b.skills.toSet()) put("skills", JsonArray(skills.map { JsonPrimitive(it) }))
             if (disabled != b.disabledSkills.toSet()) put("disabledSkills", JsonArray(disabled.map { JsonPrimitive(it) }))
@@ -166,7 +170,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
         }
         if (changes.isEmpty()) return@launch tell("Nothing changed.")
         saving = true
-        runCatching { api!!.updateBot(botId, changes) }.onSuccess { fill(it); tell("Saved. Its next run uses this.") }.onError { tell(it.message ?: "Couldn't save") }
+        runCatching { api!!.updateBot(botId, changes) }.onSuccess { fill(it); moveFiles = false; tell("Saved. Its next run uses this.") }.onError { tell(it.message ?: "Couldn't save") }
         saving = false
     }
 
@@ -197,8 +201,19 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 // Where its computer is, in one choice beside the others (ADR 088): none, this machine or boat.dev.
                 if ("boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
                     Choice("Computer", if (computer) computerOn else "none", listOf("none" to "None", "linux" to "This machine · free", "boat" to "boat.dev · costs")) {
+                        // Between this machine and boat.dev, its files go along or not: asked first (#556).
+                        if ("computer-move" in server?.features.orEmpty() && it != b.computer && it != "none" && b.computer != "none") { askMove = it; return@Choice }
                         computer = it != "none"
                         if (computer) computerOn = it
+                        moveFiles = false
+                    }
+                    val move = botsNow?.firstOrNull { it.id == botId }?.computerMove ?: b.computerMove
+                    if (move != null) androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (move.state == "copying") Text("Copying files" + (if (move.total > 0) " · ${move.done * 100 / move.total}%" else "…"), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                        else {
+                            Text("Files not copied: ${move.error ?: "it failed"}", color = p.err, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            TextButton(onClick = { scope.launch { runCatching { api!!.retryComputerMove(botId) }.onError { tell(it.message ?: "Couldn't try again") } } }) { Text("Try again", color = p.text) }
+                        }
                     }
                 } else SwitchRow("Uses the computer", "Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.", computer) { computer = it }
                 if (b.computer == "linux") OutlinedButton(onClick = onScreen) { Text("🖥 See its screen", color = p.text) }
@@ -394,6 +409,16 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 }) { Text("Duplicate", color = p.text) }
             },
             dismissButton = { TextButton(onClick = { copyPlan = null }) { Text("Cancel", color = p.text) } },
+        )
+    }
+
+    askMove?.let { to ->
+        val choose = { copy: Boolean -> computer = true; computerOn = to; moveFiles = copy; askMove = null }
+        AlertDialog(
+            onDismissRequest = { askMove = null },
+            title = { Text("Copy its files to ${if (to == "boat") "boat.dev" else "this machine"}?") },
+            confirmButton = { TextButton(onClick = { choose(true) }) { Text("Copy files", color = p.text) } },
+            dismissButton = { TextButton(onClick = { choose(false) }) { Text("Start empty", color = p.text) } },
         )
     }
 
