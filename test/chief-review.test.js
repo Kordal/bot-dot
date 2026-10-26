@@ -65,6 +65,42 @@ test('it runs only when something changed since the last one, and a yes on a sha
   assert.throws(() => r.approve(share), (e) => e.status === 409 && /changed since/.test(e.message));
 });
 
+test('a proposal is tried on past tasks before its card; one worse on more is dropped, and a restart meanwhile still brings the cards', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'chief-review-'));
+  after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const notes = [{ id: 'n1', owner: '_shared', text: 'To file: open the sheet.', at: '2026-01-01' }, { id: 'n2', owner: '_shared', text: 'To order: call.', at: '2026-01-01' }];
+  const added = [];
+  let posted = '';
+  let release;
+  const held = new Promise((r) => { release = r; });
+  const deps = {
+    dataDir: dir,
+    memory: { lastReview: () => null, setLastReview: () => {}, notesOf: (o) => (o === '_shared' ? notes : []), reviewSettings: () => ({ model: 'opus' }) },
+    skills: { list: () => [] }, bots: { list: () => BOTS, get: (id) => BOTS.find((b) => b.id === id) },
+    asks: { list: () => [], add: (a) => added.push(a) }, attachSkill: () => {}, post: (t) => { posted = t; return 'c1'; },
+    run: async () => JSON.stringify({ proposals: [{ ...NEW, bots: ['Cook'], replaces: ['n1'] }, { ...NEW, name: 'ordering', bots: ['Cook'], replaces: ['n2'] }] }),
+  };
+  const tried = [];
+  const r = review.create({ ...deps, test: async (p) => { tried.push(p.name); await held; return p.name === 'ordering' ? { of: 4, better: 1, worse: 2, same: 1, failed: 0 } : { of: 4, better: 3, worse: 0, same: 1, failed: 0 }; } });
+  const going = r.review();
+  await waitFor(() => tried.length === 1, { what: 'the first to be tried' });
+  assert.deepEqual(added, [], 'no card while it is tried');
+  // botdot stops now and starts again: the cards of what was being tried come untried.
+  review.create({ ...deps, test: async () => null });
+  assert.deepEqual(added.map((a) => [a.written.name, a.written.tested]), [['expense-filing', undefined], ['ordering', undefined]]);
+  added.length = 0;
+  release();
+  await going;
+  assert.deepEqual(tried, ['expense-filing', 'ordering']);
+  assert.deepEqual(added.map((a) => a.written.name), ['expense-filing'], 'the worse one gets no card');
+  assert.match(added[0].reason, /^Better on 3 of 4 past tasks, worse on 0\. It is a how-to\./);
+  assert.deepEqual(added[0].written.tested, { of: 4, better: 3, worse: 0, same: 1, failed: 0 });
+  assert.match(posted, /- Proposed the skill “expense-filing” for Cook, in place of one note\. Better on 3 of 4 past tasks, worse on 0\./);
+  assert.match(posted, /- Dropped the skill “ordering”: worse on 2 of 4 past tasks, better on 1\./);
+  const saved = JSON.parse(fs.readFileSync(path.join(dir, 'chief-review.json'), 'utf8'));
+  assert.deepEqual([saved.testing, saved.declined.map((d) => d.key)], [[], ['skill:ordering']], 'not proposed again');
+});
+
 // ---------- on a real botdot ----------
 
 let srv, cook, shopper;

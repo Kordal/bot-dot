@@ -159,10 +159,21 @@ connectorApprovals.start(); // no run of before the start waits for an answer an
 const backups = require('./lib/backup').create({ dataDir: B.DATA_DIR, memory: B.memory, revision: process.env.BOT_DOT_REVISION, account: ACCOUNT || null, audit });
 // Tools installed on the botdot server for one bot, on the owner's OK (ADR 007).
 const connectedApps = connectedAppsLib.create({ tellChief: (turn) => chief.tell(turn) });
+// A change tried on a bot's past tasks before the owner sees it (ADR 101): one replay at a time, at the admin's pace;
+// the Chief's model judges.
+const replays = require('./lib/replay').create({
+  tasks: (botId, n) => B.replayTasks(botId, n), run: (bot, task, candidate) => B.replayRun(bot, task, candidate),
+  ask: (prompt, opts) => require('./lib/dresser').askClaude(prompt, { ...opts, ms: 3 * 60_000 }),
+});
+// A proposal of the Chief's review, tried on its bots' tasks: a new skill as it would be written, a share as it is.
+const tryProposal = (p) => replays.score({
+  bots: p.bots.map((id) => B.bots.get(id)).filter(Boolean),
+  candidate: p.kind === 'share' ? { name: p.name } : { name: p.name, description: p.description, instructions: p.instructions },
+});
 // The Chief's memory review of its own and the shared notes (#117): proposals on cards, done on the owner's yes.
 const chiefReview = require('./lib/chief-review').create({
   dataDir: B.DATA_DIR, memory: B.memory, skills: B.skills, bots: B.bots, asks, chiefHas: shared.chiefHas, attachSkill: (name, ids) => shared.attachSkill(name, ids),
-  settings: () => B.settings.get(), run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId),
+  settings: () => B.settings.get(), run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId), test: tryProposal,
 });
 B.onChiefReview(() => chiefReview.due());
 const tools = toolsLib.create({ dataDir: B.DATA_DIR, bots: B.bots, asks, audit, starts: B.toolStarts, tellChief: (turn) => chief.tell(turn), notify: (text) => chief.post(text), ownerWrote: (chatId) => chief.ownerWrote(chatId) });

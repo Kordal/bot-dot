@@ -90,6 +90,23 @@ if (String(val('--system-prompt') || '').startsWith('You decide whether a messag
   });
   return;
 }
+// A replay's judge (lib/replay.js, ADR 101), told by its own system prompt: no run. It writes what it was asked to
+// $FAKE_OUT/judge-<n>.txt and picks the reply that holds the text of $FAKE_OUT/judge-picks.txt (or neither).
+if (String(val('--system-prompt') || '').startsWith('You compare two replies')) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `judge-${at}.txt`), asked);
+    let pick = '';
+    try { pick = fs.readFileSync(path.join(OUT, 'judge-picks.txt'), 'utf8').trim(); } catch { /* neither */ }
+    const reply = (k) => (asked.match(new RegExp(`<reply-${k}>([\\s\\S]*?)</reply-${k}>`)) || [])[1] || '';
+    const better = !pick ? 0 : reply(1).includes(pick) ? 1 : reply(2).includes(pick) ? 2 : 0;
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: JSON.stringify({ better, why: 'fake' }), session_id: `judge-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+    process.exit(0);
+  });
+  return;
+}
 let mcp = { mcpServers: {} };
 try { const mc = val('--mcp-config'); mcp = JSON.parse(mc.trim().startsWith('{') ? mc : fs.readFileSync(mc, 'utf8')); } catch { /* none */ }
 // system: the appended prompt, read now from its file: botdot removes the file when the run has ended.
@@ -133,6 +150,8 @@ const finish = () => {
   if (fs.existsSync(path.join(OUT, 'no-result'))) process.exit(0); // like a Claude Code whose output botdot can't read
   let result = 'Done.';
   try { result = fs.readFileSync(path.join(OUT, own('result', '.txt')), 'utf8'); } catch { /* the default */ }
+  // A run that has the library skill <name> answers $FAKE_OUT/result-with-<name>.txt when there is one (a replay's candidate, ADR 101).
+  for (const k of skills) { try { result = fs.readFileSync(path.join(OUT, `result-with-${k.replace(/^[^:]*:/, '')}.txt`), 'utf8'); break; } catch { /* not this one */ } }
   let denials = []; // the tools its settings refused, as Claude Code reports them: $FAKE_OUT/denials.json
   try { denials = JSON.parse(fs.readFileSync(path.join(OUT, 'denials.json'), 'utf8')); } catch { /* none */ }
   let failed = null;

@@ -48,40 +48,40 @@ test('the admin chooses Jev with a key that OpenRouter takes; the key is never a
   assert.equal((await bob.get('/admin/group-router')).status, 404, 'only the admin');
   const page = (await a.get('/admin')).text;
   assert.ok(page.includes('<h2>Decision model</h2>') && page.includes('<option value="jev">Jev latest</option>'), 'one choice of the model for every small decision (#536)');
-  assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false });
+  assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false, replaysPerHour: 0 });
   // The accounts are handed the choice every while: Haiku until the admin chooses.
   await waitFor(() => (handed().length ? true : null), { what: 'the account to be handed the router' });
-  assert.deepEqual(JSON.parse(handed()[0].body), { router: 'haiku', key: null, wakeGate: false });
+  assert.deepEqual(JSON.parse(handed()[0].body), { router: 'haiku', key: null, wakeGate: false, replaysPerHour: 0 });
   assert.equal(handed()[0].headers['x-botdot-room'], '1', 'as the front door itself');
 
   assert.equal((await a.post('/admin/group-router', { router: 'jev' })).status, 400, 'Jev needs a key');
   assert.equal((await a.post('/admin/group-router', { router: 'gpt' })).status, 400);
   const refused = await a.post('/admin/group-router', { router: 'jev', key: BAD });
   assert.deepEqual([refused.status, refused.data.error], [400, 'OpenRouter refused this key.']);
-  assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false }, 'a refused key is not kept');
+  assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: false, replaysPerHour: 0 }, 'a refused key is not kept');
   assert.equal(asked.at(-1).url, '/api/alpha/decisions');
   assert.equal(asked.at(-1).body.model, '~typesafe/jev-latest', 'the key is checked on the newest Jev (#536)');
 
   const chosen = await a.post('/admin/group-router', { router: 'jev', key: GOOD, wakeGate: false });
-  assert.deepEqual([chosen.status, chosen.data], [200, { router: 'jev', keySet: true, wakeGate: false }]);
+  assert.deepEqual([chosen.status, chosen.data], [200, { router: 'jev', keySet: true, wakeGate: false, replaysPerHour: 0 }]);
   assert.ok(!chosen.text.includes(GOOD) && !(await a.get('/admin/group-router')).text.includes(GOOD), 'the key is never answered');
   const file = path.join(door.data, 'group-router.json');
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
   await waitFor(() => (handed().some((r) => JSON.parse(r.body).router === 'jev') ? true : null), { what: 'the account to be handed Jev' });
-  assert.deepEqual(JSON.parse(handed().find((r) => JSON.parse(r.body).router === 'jev').body), { router: 'jev', key: GOOD, wakeGate: false });
+  assert.deepEqual(JSON.parse(handed().find((r) => JSON.parse(r.body).router === 'jev').body), { router: 'jev', key: GOOD, wakeGate: false, replaysPerHour: 0 });
   // Jev again, without a key: the one set stays.
-  assert.deepEqual((await a.post('/admin/group-router', { router: 'jev' })).data, { router: 'jev', keySet: true, wakeGate: false });
+  assert.deepEqual((await a.post('/admin/group-router', { router: 'jev' })).data, { router: 'jev', keySet: true, wakeGate: false, replaysPerHour: 0 });
   assert.ok(!door.log.join('').includes(GOOD), 'nor written to the log');
 
   // Haiku drops the key.
-  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku' })).data, { router: 'haiku', keySet: false, wakeGate: false });
+  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku' })).data, { router: 'haiku', keySet: false, wakeGate: false, replaysPerHour: 0 });
   assert.ok(!fs.readFileSync(file, 'utf8').includes(GOOD));
   const n = handed().length;
   await waitFor(() => (handed().slice(n).some((r) => JSON.parse(r.body).router === 'haiku') ? true : null), { what: 'the account to be handed Haiku' });
 
   // The wake gate (ADR 083): off until the admin switches it on; each account is handed it, and a choice of router
   // that does not send it keeps it.
-  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku', wakeGate: true })).data, { router: 'haiku', keySet: false, wakeGate: true });
+  assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku', wakeGate: true })).data, { router: 'haiku', keySet: false, wakeGate: true, replaysPerHour: 0 });
   let m = handed().length;
   await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).wakeGate === true) ? true : null), { what: 'the account to be handed the wake gate' });
   assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku' })).data.wakeGate, true, 'kept when not sent');
@@ -89,4 +89,14 @@ test('the admin chooses Jev with a key that OpenRouter takes; the key is never a
   assert.deepEqual((await a.post('/admin/group-router', { router: 'haiku', wakeGate: false })).data.wakeGate, false);
   m = handed().length;
   await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).wakeGate === false) ? true : null), { what: 'the account to be handed the wake gate off' });
+
+  // Replays an hour (ADR 101): none until the admin sets them, a whole number from 0 to 60, kept when not sent, and
+  // handed to each account.
+  assert.ok((await a.get('/admin')).text.includes('name="replaysPerHour"'));
+  for (const bad of [-1, 61, 2.5, '6']) assert.equal((await a.post('/admin/group-router', { router: 'haiku', replaysPerHour: bad })).status, 400, String(bad));
+  assert.equal((await a.post('/admin/group-router', { router: 'haiku', replaysPerHour: 12 })).data.replaysPerHour, 12);
+  assert.equal((await a.post('/admin/group-router', { router: 'haiku' })).data.replaysPerHour, 12, 'kept when not sent');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(door.data, 'group-router.json'), 'utf8')).replaysPerHour, 12);
+  m = handed().length;
+  await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).replaysPerHour === 12) ? true : null), { what: 'the account to be handed the replays' });
 });
