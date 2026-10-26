@@ -183,6 +183,7 @@ data class Bot(
     val model: String? = null,
     val effort: String? = null,
     val computerAlwaysOn: Boolean = false,
+    val computerMove: ComputerMove? = null, // its files on their way to its new computer (#556)
     val useSkills: Boolean = true,
     val skills: List<String> = emptyList(),
     val disabledSkills: List<String> = emptyList(), // skills from your Claude account or Claude Code switched off for it
@@ -1507,6 +1508,10 @@ data class ChartBar(val label: String = "", val text: String = "", val ratio: Do
 
 @Serializable
 data class BlockOption(val label: String, val value: kotlinx.serialization.json.JsonElement)
+
+/** Its files copied from one computer to the other (`computer-move`, #556): `state` "copying" or "failed". */
+@Serializable
+data class ComputerMove(val from: String = "", val to: String = "", val state: String = "", val done: Long = 0, val total: Long = 0, val error: String? = null)
 
 /** A rule of a bot's the owner lifted for one action, for good (`override`, #253): taken back with "Revoke". */
 @Serializable
