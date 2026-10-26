@@ -285,3 +285,18 @@ test("an account's size is one of boat.dev's sizes, the default one until chosen
   assert.throws(() => settings.update({ boatSize: 'huge' }), /boatSize must be one of small, default, large, xlarge/);
   assert.equal(settings.get().boatSize, 'large');
 });
+
+test("a bot's machine is described as the owner sees it: not made yet, on, stopped, each at its size", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  let now = 0;
+  const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 1000, size: () => 'small' });
+  assert.deepEqual(boat.info('coder'), { state: 'none', size: 'small', text: 'boat.dev · 2 CPUs · 4 GB · not made yet' });
+  await boat.runShell('coder', { command: 'ls' });
+  assert.deepEqual(boat.info('coder'), { state: 'running', size: 'small', text: 'boat.dev · 2 CPUs · 4 GB · on' });
+  now = 5000;
+  await boat.restIdle();
+  assert.equal(boat.info('coder').state, 'stopped');
+  assert.equal(boat.info('coder').text, 'boat.dev · 2 CPUs · 4 GB · stopped');
+});
