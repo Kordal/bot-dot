@@ -57,18 +57,18 @@ test('a failed copy says why, keeps the old side whole and is tried again the sa
   const linux = side(Buffer.alloc(0), { fail: 'unpack' });
   const data = dir();
   const after = [];
-  const moves = moveLib.create(data, { sides: { linux, boat }, pieces, after: async (...a) => after.push(a) });
-  await moves.start('coder', 'boat', 'linux');
+  const moves = moveLib.create(data, { sides: { linux, 'boat-own': boat }, pieces: { ...pieces, 'boat-own': pieces.boat }, after: async (...a) => after.push(a) });
+  await moves.start('coder', 'boat-own', 'linux');
   const m = moves.of('coder');
   assert.equal(m.state, 'failed');
   assert.match(m.error, /couldn't unpack its files on this machine: tar: No space left on device/);
-  assert.ok(moves.holdsBoat('coder'), 'its boat.dev machine is still needed');
+  assert.ok(moves.holdsBoat('coder'), 'its own boat.dev machine is still needed');
   assert.deepEqual(after, [], 'nothing lets its machine go');
-  assert.equal(moveLib.create(data, { sides: { linux, boat }, pieces }).of('coder').state, 'failed', 'kept across a restart');
+  assert.equal(moveLib.create(data, { sides: { linux, 'boat-own': boat }, pieces: { ...pieces, 'boat-own': pieces.boat } }).of('coder').state, 'failed', 'kept across a restart');
   linux.moveFiles = side(Buffer.alloc(0)).moveFiles;
   await moves.retry('coder');
   assert.equal(moves.of('coder'), null);
-  assert.deepEqual(after, [['coder', 'boat', 'linux']]);
+  assert.deepEqual(after, [['coder', 'boat-own', 'linux']]);
   assert.equal(moves.retry('coder'), null, 'nothing to try again');
 });
 
@@ -112,26 +112,26 @@ test("boat.dev's side packs /home/user without its caches, and takes pieces thro
     if (p === '/sandboxes/bx_aaaaaaaa' && method === 'GET') return reply(200, { ok: true, sandbox: { state: 'ready' } });
     if (p.endsWith('/files') && method === 'PUT') { files.set(d.path, d.content); return reply(200, { ok: true }); }
     if (p.endsWith('/files')) return reply(200, { ok: true, content: Buffer.from('piece').toString('base64') });
-    if (p.endsWith('/commands')) { commands.push(d.command); return reply(200, { ok: true, exitCode: 0, stdout: d.command.endsWith('stat -c %s /tmp/botdot-move.tgz') ? '1234\n' : '' }); }
+    if (p.endsWith('/commands')) { commands.push(d.command); return reply(200, { ok: true, exitCode: 0, stdout: d.command.endsWith('stat -c %s /tmp/botdot-move-coder.tgz') ? '1234\n' : '' }); }
     return reply(200, { ok: true });
   };
   const boat = boatLib.create(dir(), { fetch, sleep: async () => {} });
   const packed = await boat.moveFiles('coder', { op: 'pack' });
   assert.equal(packed.code, 0);
   assert.equal(packed.size, 1234);
-  assert.match(commands[0], /tar --ignore-failed-read -czf \/tmp\/botdot-move\.tgz -C \/home\/user .*--exclude=\.\/\.cache/);
+  assert.match(commands[0], /tar --ignore-failed-read -czf \/tmp\/botdot-move-coder\.tgz -C '\/home\/user' .*--exclude=\.\/\.cache/);
   const read = await boat.moveFiles('coder', { op: 'read', offset: 10, length: 5 });
   assert.equal(Buffer.from(read.data, 'base64').toString(), 'piece');
-  assert.match(commands[1], /tail -c \+11 \/tmp\/botdot-move\.tgz \| head -c 5/);
+  assert.match(commands[1], /tail -c \+11 \/tmp\/botdot-move-coder\.tgz \| head -c 5/);
   const w = await boat.moveFiles('coder', { op: 'write', offset: 0, data: Buffer.from('abc').toString('base64') });
   assert.equal(w.code, 0);
-  assert.equal(files.get('/tmp/botdot-move.part'), Buffer.from('abc').toString('base64'));
-  assert.match(commands[2], /^: > \/tmp\/botdot-move\.tgz/, 'the first piece starts the tar');
+  assert.equal(files.get('/tmp/botdot-move-coder.part'), Buffer.from('abc').toString('base64'));
+  assert.match(commands[2], /^: > \/tmp\/botdot-move-coder\.tgz/, 'the first piece starts the tar');
   await boat.moveFiles('coder', { op: 'write', offset: 3, data: 'ZGVm' });
   assert.match(commands[3], /= 3 \]/, 'a later piece checks it comes in order');
   assert.doesNotMatch(commands[3], /^: >/);
   await boat.moveFiles('coder', { op: 'unpack' });
-  assert.match(commands[4], /tar -xzf \/tmp\/botdot-move\.tgz -C \/home\/user --no-same-owner/);
+  assert.match(commands[4], /tar -xzf \/tmp\/botdot-move-coder\.tgz -C '\/home\/user' --no-same-owner/);
 });
 
 test("the Docker helper takes a copy's steps on the bot's own folder only, a piece within 1 MB", () => {

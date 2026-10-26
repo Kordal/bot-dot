@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-10-26)
 - **Owning task:** [#556](https://github.com/Kordal/bot-dot/issues/556)
+- **Amended by:** [ADR 095](095-the-accounts-boat-bots-share-one-machine-there.md) (one machine per account)
 - **Amends:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md)
 
 ## Context

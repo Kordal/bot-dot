@@ -302,9 +302,9 @@ test("a bot's machine is described as the owner sees it: not made yet, on, stopp
   const b = fakeBoat();
   let now = 0;
   const boat = boatLib.create(dir(), { fetch: b.fetch, sleep: async () => {}, now: () => now, restAfterMs: 1000, size: () => 'small' });
-  assert.deepEqual(boat.info('coder'), { state: 'none', size: 'small', text: 'boat.dev · 2 CPUs · 4 GB · not made yet' });
+  assert.deepEqual(boat.info('coder'), { state: 'none', size: 'small', shared: false, text: 'boat.dev · 2 CPUs · 4 GB · not made yet' });
   await boat.runShell('coder', { command: 'ls' });
-  assert.deepEqual(boat.info('coder'), { state: 'running', size: 'small', text: 'boat.dev · 2 CPUs · 4 GB · on' });
+  assert.deepEqual(boat.info('coder'), { state: 'running', size: 'small', shared: false, text: 'boat.dev · 2 CPUs · 4 GB · on' });
   now = 5000;
   await boat.restIdle();
   assert.equal(boat.info('coder').state, 'stopped');

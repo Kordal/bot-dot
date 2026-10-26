@@ -20,7 +20,8 @@ after(() => srv.stop());
 test("a boat bot's screen tools wait for its machine's screen, and say why there is none", async () => {
   const { rec, run, token } = await heldRun(srv, bot);
   const call = (what, body = {}) => srv.api(`/vault/session/computer${what}`, { method: 'POST', body, headers: { 'X-Vault-Token': token } });
-  assert.match(rec.system, /It also has a screen, its own desktop \(1920x1080\), with your own Camoufox browser/);
+  assert.match(rec.system, /It also has a screen, one desktop \(1920x1080\) with one Camoufox browser, that those bots share/);
+  assert.ok(rec.system.includes(`start in your folder there, /home/user/workspace/${bot.id},`));
   const screen = await call('', { screen: true });
   assert.equal(screen.data.ok, false);
   assert.match(screen.data.error, /^Couldn't start the screen: boat\.dev has no key/);
