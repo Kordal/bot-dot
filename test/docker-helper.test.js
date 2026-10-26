@@ -154,3 +154,29 @@ test("the bridge to the bot's workspace (#545) goes through the helper: bringOut
   assert.equal(validate('listUploads', [seat, '/etc']), false);
   assert.equal(validate('listUploads', ['desk']), false, 'a seat, not a bare bot');
 });
+
+test('a file uploaded into the bot\'s folder on the computer from its Workspace (#576) goes through the helper: putFile, bytes whole, an empty file too', async (t) => {
+  const { createServer, validate } = require('../lib/docker-helper');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-helper-putfile-'));
+  const socket = path.join(dir, 'helper.sock');
+  const calls = [];
+  const server = createServer({ updates: {}, computers: {
+    putFile: async (seat, { script, data }) => { calls.push([seat, script, Buffer.isBuffer(data), data.toString('hex')]); return { code: 0, stdout: 'ok a.bin\n' }; },
+  } });
+  await new Promise((r) => server.listen(socket, r));
+  const before = process.env.BOT_DOT_HELPER_SOCKET;
+  process.env.BOT_DOT_HELPER_SOCKET = socket;
+  t.after(async () => {
+    if (before === undefined) delete process.env.BOT_DOT_HELPER_SOCKET; else process.env.BOT_DOT_HELPER_SOCKET = before;
+    await new Promise((r) => server.close(r)); fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const computers = require('../lib/helper-client').computers({});
+  const seat = { bot: 'desk', screen: 2, name: 'Desk' };
+  assert.deepEqual(await computers.putFile(seat, { script: 'cat > x', data: Buffer.from([0, 255, 10]) }), { code: 0, stdout: 'ok a.bin\n' });
+  assert.deepEqual(await computers.putFile(seat, { script: 'cat > y', data: Buffer.alloc(0) }), { code: 0, stdout: 'ok a.bin\n' });
+  assert.deepEqual(calls, [[seat, 'cat > x', true, '00ff0a'], [seat, 'cat > y', true, '']]);
+  assert.equal(validate('putFile', [seat, { script: '', data: '' }]), false);
+  assert.equal(validate('putFile', [seat, { script: 'x', data: 'not base64!' }]), false);
+  assert.equal(validate('putFile', [seat, { script: 'x', data: '', path: '/etc' }]), false);
+  assert.equal(validate('putFile', ['desk', { script: 'x', data: '' }]), false, 'a seat, not a bare bot');
+});

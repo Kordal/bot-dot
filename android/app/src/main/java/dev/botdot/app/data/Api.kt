@@ -455,11 +455,13 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** What deleting [path] takes, for its confirmation. */
     suspend fun workspaceCount(botId: String, root: String, path: String): WorkspaceCount = json.decodeFromString(get(WorkspaceFiles.count(botId, root, path)))
     suspend fun deleteFromWorkspace(botId: String, root: String, path: String) { send("DELETE", WorkspaceFiles.list(botId, root, path)) }
-    suspend fun makeWorkspaceFolder(botId: String, path: String, name: String) { send("POST", WorkspaceFiles.folder(botId), buildJsonObject { put("path", path); put("name", name) }) }
-    /** Rename or move, in the bot's folder on botdot: [to] is the new path. */
-    suspend fun moveInWorkspace(botId: String, from: String, to: String) { send("POST", WorkspaceFiles.move(botId), buildJsonObject { put("from", from); put("to", to) }) }
-    /** Uploads one file into folder [path] of the bot's folder on botdot (another name when that one is taken). */
-    suspend fun uploadToWorkspace(resolver: ContentResolver, uri: Uri, botId: String, path: String) = withContext(Dispatchers.IO) {
+    /** Makes a folder and answers its path; [free] (#576): a name that is taken becomes "name (2)". */
+    suspend fun makeWorkspaceFolder(botId: String, path: String, name: String, root: String = WorkspaceFiles.SERVER, free: Boolean = false): String =
+        json.decodeFromString<WorkspaceMade>(send("POST", WorkspaceFiles.folder(botId, root), buildJsonObject { put("path", path); put("name", name); if (free) put("free", true) })).path
+    /** Rename or move, in one root: [to] is the new path. */
+    suspend fun moveInWorkspace(botId: String, from: String, to: String, root: String = WorkspaceFiles.SERVER) { send("POST", WorkspaceFiles.move(botId, root), buildJsonObject { put("from", from); put("to", to) }) }
+    /** Uploads one file into folder [path] (another name when that one is taken); [made]: its missing folders are made first. */
+    suspend fun uploadToWorkspace(resolver: ContentResolver, uri: Uri, botId: String, path: String, root: String = WorkspaceFiles.SERVER, made: Boolean = false) = withContext(Dispatchers.IO) {
         val (name, size) = describe(resolver, uri)
         if (size != null && size > WorkspaceFiles.MAX_BYTES) throw ApiException("$name is over 25 MB.")
         val body = object : RequestBody() {
@@ -469,7 +471,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
                 resolver.openInputStream(uri)?.use { sink.writeAll(it.source()) } ?: throw IOException("Can't open $name")
             }
         }
-        call(request(WorkspaceFiles.upload(botId, path)).header("X-Bot-Dot", "1").header("X-File-Name", enc(name)).post(body).build())
+        call(request(WorkspaceFiles.upload(botId, path, root, made)).header("X-Bot-Dot", "1").header("X-File-Name", enc(name)).post(body).build())
         Unit
     }
     suspend fun computer(botId: String): ComputerInfo = json.decodeFromString(get("/bots/${enc(botId)}/computer"))

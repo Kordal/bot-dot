@@ -119,15 +119,15 @@ test('web: rename, move and new folder send the new path; upload sends at most 1
   let p = page({ prompted: 'b.txt' });
   await p.W.open(bot, element());
   await p.W.act(button({ ws: 'rename' }, 'a.txt'));
-  assert.deepEqual(p.calls.at(-2), ['/bots/b1/workspace/move', { method: 'POST', body: { from: 'a.txt', to: 'b.txt' } }]);
+  assert.deepEqual(p.calls.at(-2), ['/bots/b1/workspace/move?root=server', { method: 'POST', body: { from: 'a.txt', to: 'b.txt' } }]);
   p = page({ prompted: 'notes/old/' });
   await p.W.open(bot, element());
   await p.W.act(button({ ws: 'move' }, 'a.txt'));
-  assert.deepEqual(p.calls.at(-2), ['/bots/b1/workspace/move', { method: 'POST', body: { from: 'a.txt', to: 'notes/old/a.txt' } }]);
+  assert.deepEqual(p.calls.at(-2), ['/bots/b1/workspace/move?root=server', { method: 'POST', body: { from: 'a.txt', to: 'notes/old/a.txt' } }]);
   p = page({ prompted: 'drafts' });
   await p.W.open(bot, element());
   await p.W.act(button({ ws: 'folder' }));
-  assert.deepEqual(p.calls.at(-2), ['/bots/b1/workspace/folder', { method: 'POST', body: { path: '', name: 'drafts' } }]);
+  assert.deepEqual(p.calls.at(-2), ['/bots/b1/workspace/folder?root=server', { method: 'POST', body: { path: '', name: 'drafts' } }]);
 
   p = page();
   const box = element();
@@ -209,4 +209,52 @@ test("web: the Chief's workspace (#383) is asked of /chief/workspace, and two bo
   const settings = read('settings.js');
   assert.match(settings, /state\.features\.includes\('chief-files'\)/);
   assert.match(settings, /drawBotFiles\(chief, null, list\)/);
+});
+
+test('web (#576): with workspace-folders the computer takes writes too, and a whole folder goes up file by file under a free name', async () => {
+  const p = page({ features: ['workspace-files', 'document-viewer', 'workspace-folders'], prompted: 'drafts', answers: {
+    '/bots/b2/workspace/folder': (url, opts) => ({ ok: true, path: opts.body.name === 'site' ? 'proj/site (2)' : `proj/${opts.body.name}` }),
+    '/bots/b2/workspace?root=computer': { ...LIST, root: 'computer', path: 'proj', entries: [{ name: 'out.csv', path: 'proj/out.csv', type: 'file', size: 9 }] },
+  } });
+  const pc = { id: 'b2', name: 'Desk Worker', computer: 'linux' };
+  const box = element();
+  await p.W.open(pc, box);
+  assert.match(box.innerHTML, /data-ws="upload-folder">Upload folder/);
+  assert.match(box.innerHTML, /webkitdirectory hidden data-ws-folder/);
+  await p.W.act(button({ ws: 'root', root: 'computer' }));
+  await p.W.act(button({ ws: 'go', path: 'proj' }));
+  const h = box.innerHTML;
+  assert.match(h, /data-ws="folder">New folder/);
+  assert.match(h, /data-ws="upload">Upload/);
+  assert.match(h, /data-ws="rename".*data-ws="move".*data-ws="delete"/);
+  await p.W.act(button({ ws: 'folder' }));
+  assert.deepEqual(p.calls.at(-2), ['/bots/b2/workspace/folder?root=computer', { method: 'POST', body: { path: 'proj', name: 'drafts' } }]);
+
+  const file = (rel, size = 3) => ({ name: rel.split('/').at(-1), webkitRelativePath: rel, size });
+  const files = [file('site/index.html'), file('site/css/deep/a.css'), file('site/huge.bin', 26 * 1024 * 1024)];
+  const before = p.calls.length;
+  box.onchange({ target: { matches: (sel) => sel === '[data-ws-folder]', files, value: 'x' } });
+  await new Promise((r) => setTimeout(r, 30));
+  const sent = p.calls.slice(before);
+  assert.deepEqual(sent[0], ['/bots/b2/workspace/folder?root=computer', { method: 'POST', body: { path: 'proj', name: 'site', free: true } }]);
+  assert.deepEqual(sent.slice(1, 3), [
+    [`/api/bots/b2/workspace/upload?root=computer&path=${encodeURIComponent('proj/site (2)')}&folders=1`, { method: 'POST', name: 'index.html' }],
+    [`/api/bots/b2/workspace/upload?root=computer&path=${encodeURIComponent('proj/site (2)/css/deep')}&folders=1`, { method: 'POST', name: 'a.css' }],
+  ]);
+  assert.ok(!sent.some(([u, o]) => o.name === 'huge.bin'), 'over 25 MB is not sent');
+  assert.deepEqual(p.toasts.at(-1), ["site: 1 of 3 files didn't upload.", true]);
+
+  const many = Array.from({ length: 1001 }, (_, i) => file(`big/${i}.txt`));
+  const n = p.calls.length;
+  box.onchange({ target: { matches: (sel) => sel === '[data-ws-folder]', files: many, value: 'x' } });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(p.calls.length, n, 'nothing sent');
+  assert.match(p.toasts.at(-1)[0], /big has 1,001 files: upload at most 1,000/);
+});
+
+test('web: without workspace-folders there is no folder upload', async () => {
+  const p = page();
+  const box = element();
+  await p.W.open(bot, box);
+  assert.doesNotMatch(box.innerHTML, /upload-folder|webkitdirectory/);
 });
