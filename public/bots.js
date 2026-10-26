@@ -27,11 +27,12 @@ function askEverythingAllowed(name) {
 
 // A bot's computer moves between this machine and boat.dev (#556): its files copied along, or not. true, false, or
 // null for neither (the switch is taken back).
-const COMPUTER_PLACE = { linux: 'this machine', boat: 'boat.dev' };
-function askMoveFiles(to) {
+const COMPUTER_PLACE = { linux: 'this machine', boat: 'the External Virtual PC' };
+// whose: 'its' for one bot, "the bots'" for the account's switch (settings.js).
+function askMoveFiles(to, whose = 'its') {
   return new Promise((resolve) => {
     const m = openModal(`
-      <div class="modal-head"><h2>Copy its files to ${COMPUTER_PLACE[to]}?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>Copy ${whose} files to ${COMPUTER_PLACE[to]}?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-foot">
         <button type="button" class="btn" id="move-empty">Start empty</button>
         <button type="button" class="btn primary" id="move-copy">Copy files</button>
@@ -230,7 +231,10 @@ function renderBotSettings(force = false) {
   // A bot's computer: its screen on the account's computer, or a machine of its own on boat.dev once the admin set
   // a key there (ADR 088).
   const hasComputer = b.computer === 'linux' || b.computer === 'boat';
-  const boatChoice = state.features.includes('boat-computer') && (state.status?.boat || b.computer === 'boat');
+  // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here only whether.
+  const accountComputer = state.features.includes('account-computer');
+  const boatChoice = !accountComputer && state.features.includes('boat-computer') && (state.status?.boat || b.computer === 'boat');
+  const mayHave = docker || hasComputer || (accountComputer && !!state.status?.boat);
   const knownTools = new Set(PERMS.flatMap((p) => p.tools));
   const has = (p) => p.tools.every((t) => b.allowedTools.includes(t));
   root.innerHTML = `
@@ -252,11 +256,11 @@ function renderBotSettings(force = false) {
         ${boatChoice ? `<div class="bs-row">
           <span class="bs-icon">🖥</span>
           <div class="grow"><b>Computer</b>${b.computer === 'linux' || b.computer === 'boat' ? '<div><button type="button" class="link-btn" data-bs-screen>See its screen</button></div>' : ''}<div class="faint" id="bs-move">${computerMoveLine(b)}</div></div>
-          <select name="computer" aria-label="Computer"><option value="none">None</option><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>This machine · free</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>boat.dev · costs</option></select>
-        </div>` : `<div class="bs-row ${docker || hasComputer ? '' : 'hidden'}">
+          <select name="computer" aria-label="Computer"><option value="none">None</option><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>This machine</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>External Virtual PC</option></select>
+        </div>` : `<div class="bs-row ${mayHave ? '' : 'hidden'}">
           <span class="bs-icon">🖥</span>
-          <div class="grow"><b>Uses the computer</b><div class="faint">Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.${b.computer === 'linux' ? ' <button type="button" class="link-btn" data-bs-screen>See its screen</button>' : ''}</div></div>
-          <label class="switch"><input type="checkbox" name="computer" ${hasComputer ? 'checked' : ''} ${docker || hasComputer ? '' : 'disabled'} aria-label="Uses the computer"><span></span></label>
+          <div class="grow"><b>Uses the computer</b>${accountComputer ? `${hasComputer ? '<div><button type="button" class="link-btn" data-bs-screen>See its screen</button></div>' : ''}<div class="faint" id="bs-move">${computerMoveLine(b)}</div>` : `<div class="faint">Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.${b.computer === 'linux' ? ' <button type="button" class="link-btn" data-bs-screen>See its screen</button>' : ''}</div>`}</div>
+          <label class="switch"><input type="checkbox" name="computer" ${hasComputer ? 'checked' : ''} ${mayHave ? '' : 'disabled'} aria-label="Uses the computer"><span></span></label>
         </div>`}
         <div class="bs-row">
           <span class="bs-icon">📌</span>

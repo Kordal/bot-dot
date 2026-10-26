@@ -81,6 +81,9 @@ fun SettingsScreen(
     var server by remember { mutableStateOf<dev.botdot.app.data.VersionInfo?>(null) }
     var backups by remember { mutableStateOf<dev.botdot.app.data.BackupInfo?>(null) }
     var boatSizes by remember { mutableStateOf<dev.botdot.app.data.BoatSizes?>(null) } // only while boat.dev is set up (#539)
+    var computerPlace by remember { mutableStateOf<dev.botdot.app.data.ComputerPlace?>(null) } // where the account's computer is (#579)
+    var askPlace by remember { mutableStateOf<String?>(null) } // the place a switch asks about first
+    val botsNow by app.store.bots.value.collectAsState()
     var backingUp by remember { mutableStateOf(false) }
     var update by remember { mutableStateOf<dev.botdot.app.data.OwnUpdate?>(null) }
     var updateNotes by remember { mutableStateOf<List<dev.botdot.app.data.WhatsNew.Entry>>(emptyList()) } // what a waiting version brings (#303)
@@ -111,6 +114,7 @@ fun SettingsScreen(
             launch {
                 runCatching { a.version() }.onSuccess { server = it; app.store.version.set(it) }
                 if (server?.boat == true && server?.features?.contains("boat-size") == true) boatSizes = runCatching { a.boatSizes() }.getOrNull()
+                if (dev.botdot.app.data.ComputerPlace.shows(server?.features, server?.boat)) computerPlace = runCatching { a.computerPlace() }.getOrNull()
                 // Updates: only where the front door says this account chooses when it switches (ADR 053).
                 val session = runCatching { a.frontDoorSession() }.getOrNull()
                 update = if (dev.botdot.app.data.OwnUpdate.on(server?.features, session)) runCatching { a.ownUpdate() }.getOrNull() else null
@@ -143,8 +147,16 @@ fun SettingsScreen(
                 ) { Text("Save") }
             }
 
-            boatSizes?.let { b ->
-                FoldSection("boat.dev machines") {
+            if (boatSizes != null || computerPlace != null) FoldSection("Computer") {
+                computerPlace?.let { c ->
+                    Choice("Where", c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
+                        if (to == c.place) return@Choice
+                        // Every bot with a computer moves along: whether their files go too is asked first (#556).
+                        if (botsNow.orEmpty().any { it.computer == "linux" || it.computer == "boat" }) askPlace = to
+                        else scope.launch { runCatching { api!!.setComputerPlace(to, false) }.onSuccess { computerPlace = it }.onError { tell(it.message ?: "Couldn't save") } }
+                    }
+                }
+                boatSizes?.takeIf { computerPlace == null || computerPlace?.place == "boat" }?.let { b ->
                     Choice("Size", b.size, b.offered) { size ->
                         scope.launch { runCatching { api!!.setBoatSize(size) }.onSuccess { boatSizes = it; tell("Saved. Each machine takes it when it starts next.") }.onError { tell(it.message ?: "Couldn't save") } }
                     }
@@ -332,6 +344,19 @@ fun SettingsScreen(
         },
         dismissButton = { TextButton(onClick = { confirmRemoveKey = false }) { Text("Cancel", color = p.text) } },
     )
+    askPlace?.let { to ->
+        val move = { copy: Boolean ->
+            askPlace = null
+            scope.launch { runCatching { api!!.setComputerPlace(to, copy) }.onSuccess { computerPlace = it; app.store.bots.refresh() }.onError { tell(it.message ?: "Couldn't save") } }
+        }
+        AlertDialog(
+            onDismissRequest = { askPlace = null },
+            title = { Text("Copy the bots' files to ${if (to == "boat") "the External Virtual PC" else "this machine"}?") },
+            confirmButton = { TextButton(onClick = { move(true) }) { Text("Copy files", color = p.text) } },
+            dismissButton = { TextButton(onClick = { move(false) }) { Text("Start empty", color = p.text) } },
+        )
+    }
+
     if (confirmUpdateNow) AlertDialog(
         onDismissRequest = { confirmUpdateNow = false },
         title = { Text("Update now?") },

@@ -152,10 +152,10 @@ test("a copy kept from before #568 was from or to the bot's own machine", () => 
   assert.equal(moves.holdsBoat('coder'), true);
 });
 
-test("the Chief's card names which machine on boat.dev", () => {
+test("the Chief's card names the account's External Virtual PC", () => {
   const part = (a) => asks.proposalView({ kind: 'bot-change', botId: 'b1', ...a }, 'Coder').parts[0].now;
-  assert.match(part({ changes: { computer: 'boat' }, before: { computer: 'none' } }), /^the account's machine on boat\.dev, which has costs$/);
-  assert.match(part({ changes: { computer: 'boat' }, before: { computer: 'none' }, ownMachine: true, moveFiles: true }), /^a machine of its own on boat\.dev, which has costs, with its files$/);
+  assert.match(part({ changes: { computer: 'boat' }, before: { computer: 'none' } }), /^the account's External Virtual PC$/);
+  assert.match(part({ changes: { computer: 'boat' }, before: { computer: 'none' }, ownMachine: true, moveFiles: true }), /^the account's External Virtual PC, with its files$/, 'a card kept from before #579 names it too');
 });
 
 test("a copy to or from the account's machine moves the folder alone, never a bot's browser profile", async () => {

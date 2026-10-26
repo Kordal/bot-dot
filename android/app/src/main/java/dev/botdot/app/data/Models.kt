@@ -1137,7 +1137,16 @@ data class EffortChoice(val id: String, val label: String = "", val note: String
 /** The size of the account's boat.dev machines (#539): the choice, and the sizes with whether boat.dev makes each now. */
 @Serializable
 data class BoatSize(val id: String, val cpus: Int = 0, val memoryGB: Int = 0, val perHour: Double = 0.0, val available: Boolean = true) {
-    val label get() = "${id.replaceFirstChar { it.uppercase() }} · $cpus CPU · $memoryGB GB · $$perHour/h"
+    val label get() = "${id.replaceFirstChar { it.uppercase() }} · $cpus CPU · $memoryGB GB"
+}
+
+/** Where the account's computer is (#579, `account-computer`): "linux" (this machine) or "boat" (its External Virtual PC). */
+@Serializable
+data class ComputerPlace(val place: String = "linux", val boat: Boolean = false) {
+    companion object {
+        val options = listOf("linux" to "This machine", "boat" to "External Virtual PC")
+        fun shows(features: List<String>?, boat: Boolean?) = boat == true && "account-computer" in features.orEmpty()
+    }
 }
 
 @Serializable

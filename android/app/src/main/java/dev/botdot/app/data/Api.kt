@@ -534,6 +534,9 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun claudeUse(use: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/use", buildJsonObject { put("use", use) }))
     suspend fun claudeRemoveKey(): ClaudeStatus? = claudeOfAnswer(send("DELETE", "/setup/claude/key"))
     suspend fun backups(): BackupInfo = json.decodeFromString(get("/backups"))
+    /** Where the account's computer is (#579); a switch moves every bot with a computer, its files along with [moveFiles]. */
+    suspend fun computerPlace(): ComputerPlace = json.decodeFromString(get("/settings/computer"))
+    suspend fun setComputerPlace(place: String, moveFiles: Boolean): ComputerPlace = json.decodeFromString(send("PUT", "/settings/computer", buildJsonObject { put("place", place); put("moveFiles", moveFiles) }))
     suspend fun boatSizes(): BoatSizes = json.decodeFromString(get("/settings/boat-size"))
     suspend fun setBoatSize(size: String): BoatSizes = json.decodeFromString(send("PUT", "/settings/boat-size", buildJsonObject { put("size", size) }))
     suspend fun backupNow(): BackupInfo = json.decodeFromString(send("POST", "/backups/now"))
