@@ -45,9 +45,19 @@ function usageRows(usage) {
   return `<div class="muted usage-text">${esc(usage.text || '')}</div>${usage.bots.map((b) => row(b.name, b.text)).join('')}${usage.other ? row(usage.other.name || '', usage.other.text) : ''}`;
 }
 
+// A bot's machine of its own on boat.dev (ADR 088): no screen, and nothing of the account's computer. Its line, in the
+// server's words: where it is, its size and whether it is on.
+function openBoatComputer(bot) {
+  const m = openModal(`
+    <div class="modal-head"><h2>${botLabel(bot)}'s computer</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body"><div class="muted" id="boat-state">Loading…</div></div>`);
+  api(`/bots/${bot.id}/computer`).then((d) => { $('#boat-state', m).textContent = d.text || ''; }, (e) => { $('#boat-state', m).textContent = e.message; });
+}
+
 function openScreen(botId) {
   const bot = state.bots.find((b) => b.id === botId);
   if (!bot) return;
+  if (bot.computer === 'boat') return openBoatComputer(bot);
   let control = false;
   const m = openModal(`
     <div class="modal-head"><h2>${botLabel(bot)}'s computer</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
@@ -309,7 +319,7 @@ function showRun(id) {
     } else if (ev.type === 'run_start') {
       refreshMeta(ev.meta);
       $('#ask').textContent = ev.meta.prompt;
-      if (ev.meta.computer && ev.meta.status === 'running') {
+      if (ev.meta.computer && ev.meta.status === 'running' && state.bots.find((b) => b.id === ev.meta.botId)?.computer === 'linux') {
         $('#live-screen').innerHTML = `<div class="live-screen"><div class="live-label"><span class="pill accent pulse">live</span> ${esc(ev.meta.botName)}'s screen <button class="btn ghost sm" data-screen-open>open</button></div><iframe src="${screenUrl(ev.meta.botId)}" title="Live screen"></iframe></div>`;
         keepScreenConnected($('#live-screen iframe'));
         $('[data-screen-open]').onclick = () => openScreen(ev.meta.botId);

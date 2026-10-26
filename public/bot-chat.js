@@ -202,7 +202,7 @@ function renderBotChat() {
   $('#bot-name').textContent = bot.name;
   // Only what's happening now; its skills, jobs and computer are in its settings, behind its figure and name.
   $('#bot-sub').textContent = !bot.running ? '' : bot.runningCount > 1 ? `working ×${bot.runningCount}…` : 'working…';
-  $('#bot-screen').classList.toggle('hidden', bot.computer !== 'linux');
+  $('#bot-screen').classList.toggle('hidden', bot.computer !== 'linux' && bot.computer !== 'boat');
   // The small plus right of the name (the owner at the test of Milestone 10): only where a group can be made.
   $('#bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));
 
@@ -243,7 +243,7 @@ function renderBotChat() {
   if (big && thread.dataset.look !== look) big.outerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit);
   thread.dataset.look = look;
   updateChatNeeds($('#bot-thread'), bot.id);
-  updatePip(bot, runs.find((r) => r.status === 'running' && r.computer));
+  updatePip(bot, bot.computer === 'linux' ? runs.find((r) => r.status === 'running' && r.computer) : null); // a machine on boat.dev has no screen
   setSendBusy($('form', root), false);
   globalThis.drawBotPlan?.(bot, runs);
   placeStatusLines();
