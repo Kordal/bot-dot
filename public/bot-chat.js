@@ -90,6 +90,8 @@ function shownSteps(r, sent) {
   }
   return rows;
 }
+// What of a running run's step rows the chat shows (#633): a new row, or the last one that came again, draws it anew.
+const stepsSig = (r) => { const rows = Array.isArray(r.steps?.rows) ? r.steps.rows : []; const last = rows[rows.length - 1]; return `${rows.length}:${last?.at ?? ''}:${last?.n ?? 1}`; };
 // The open blocks' step lines, by run: they stay open as the chat is drawn again.
 const openSteps = new Set();
 
@@ -328,7 +330,7 @@ function renderBotChat() {
 
   // Re-render the thread only when something changed, so live bits and scroll survive refreshes.
   const waiting = state.inbox[bot.id] || [];
-  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${r.steps?.rows?.length ?? 0}:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
+  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${stepsSig(r)}:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
   const thread = $('#bot-thread');
   if (root.dataset.sig !== sig) {
     const atBottom = !root.dataset.sig || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
