@@ -124,3 +124,23 @@ test('the workspace file manager lists a folder and counts what it holds in one 
     assert.throws(() => api.listDirSync(path.join(dir, 'z-link'), 10), { code: 'EACCES' });
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
+test('the Files view walks a tree for a copy and reads a small picture in one call each, never following a link (#603)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'principal-walk-'));
+  const api = createPrincipalFs({ dataDir: root, client: transport(root), enabled: true });
+  try {
+    const dir = path.join(root, 'workspaces', 'alice');
+    api.mkdirSync(path.join(dir, 'b', 'inner'), { recursive: true });
+    api.writeFileSync(path.join(dir, 'b', 'inner', 'x.txt'), 'x');
+    api.writeFileSync(path.join(dir, 'a.png'), 'png');
+    fs.symlinkSync(os.tmpdir(), path.join(dir, 'z-link'));
+    const all = api.walkTreeSync(dir, 100);
+    assert.deepEqual(all.entries.map((e) => [e.rel, e.type]), [['a.png', 'file'], ['b', 'folder'], ['z-link', 'link'], ['b/inner', 'folder'], ['b/inner/x.txt', 'file']]);
+    assert.equal(all.capped, false);
+    assert.equal(api.walkTreeSync(dir, 2).capped, true);
+    assert.equal(api.listDirSync(dir, 10).entries.find((e) => e.name === 'b').items, 1);
+    assert.deepEqual(api.readSmallSync(path.join(dir, 'a.png'), 10), { size: 3, data: Buffer.from('png').toString('base64') });
+    assert.deepEqual(api.readSmallSync(path.join(dir, 'a.png'), 2), { size: 3 });
+    assert.equal(api.readSmallSync(path.join(dir, 'b'), 10), null);
+    assert.throws(() => api.readSmallSync(path.join(dir, 'z-link', 'x'), 10), { code: 'EACCES' });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
