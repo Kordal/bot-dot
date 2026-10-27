@@ -698,6 +698,9 @@ async function api(req, res, url, replay = null) {
 const BOT_PATHS = ['/api/self/session', '/api/vault/session', '/api/connectors/session'];
 const SCRIPT_PATH = '/api/vault/script/';
 const GIT_PATH = '/api/vault/git/'; // git's credential helper in a bot's AI run (ADR 090)
+// What a replay's tools use (ADR 102): its connected apps and saved logins, in a dry run.
+const REPLAY_PATHS = ['/api/connectors/session', '/api/vault/session/logins', '/api/vault/session/http'];
+const replayOf = (req, p) => (REPLAY_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) ? B.replaySession(req.headers['x-run-token'] || req.headers['x-vault-token']) : null);
 
 // A request's path, or '' for an address that is not one.
 function pathOf(req) {
@@ -729,7 +732,7 @@ function gate(req) {
     if (p.startsWith(SCRIPT_PATH)) return B.scriptSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
     if (p.startsWith(GIT_PATH)) return B.gitSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
     if (!BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`))) return "Bots can only use their own run's tools.";
-    const session = B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token']);
+    const session = B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token']) || replayOf(req, p);
     if (!session || session.botId !== who.bot) return "That run key isn't this bot's.";
     return null;
   }
@@ -740,6 +743,7 @@ function gate(req) {
   if (BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) && B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token'])) return null;
   if (p.startsWith(SCRIPT_PATH) && B.scriptSession(req.headers['x-run-token'])) return null;
   if (p.startsWith(GIT_PATH) && B.gitSession(req.headers['x-run-token'])) return null;
+  if (replayOf(req, p)) return null;
   // The tools of a Chief turn that has connected apps, with that turn's own token (ADR 047): only their routes.
   if ((p === '/api/connectors/session' || p.startsWith('/api/connectors/session/')) && connectorApprovals.chiefSession(req.headers['x-run-token'])) return null;
   if (p === '/api/version' && req.method === 'GET') return null;
