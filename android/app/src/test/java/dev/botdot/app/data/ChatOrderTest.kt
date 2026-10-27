@@ -41,5 +41,13 @@ class ChatOrderTest {
         }
     }
 
+    @Test fun aReplyIsARoundOfTheBlockItRepliesTo() {
+        fun r(id: String, start: String, end: String, replyTo: String? = null) = Api.JSON.decodeFromString(Run.serializer(),
+            """{"id":"$id","botId":"b","prompt":"$id","status":"success","startedAt":"2026-10-27T$start:00Z","endedAt":"2026-10-27T$end:00Z"${replyTo?.let { ",\"replyTo\":\"$it\"" } ?: ""}}""")
+        val runs = listOf(r("first", "10:00", "10:05"), r("other", "10:10", "10:11"), r("again", "10:20", "10:25", "first"))
+        assertEquals(listOf(listOf("other"), listOf("first", "again")), ChatOrder.rounds(runs).map { b -> b.map { it.id } })
+        assertEquals("the run it replies to is not in the chat", listOf(listOf("other"), listOf("again")), ChatOrder.rounds(runs.drop(1)).map { b -> b.map { it.id } })
+    }
+
     @Test fun none() = assertEquals(emptyList<ChatOrder.Piece>(), ChatOrder.pieces(emptyList()))
 }

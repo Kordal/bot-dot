@@ -4,12 +4,14 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -17,12 +19,17 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
+import androidx.compose.material.icons.automirrored.outlined.Reply
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +44,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -52,16 +60,48 @@ import dev.botdot.app.data.RunSteps
 
 /**
  * One run of a bot's chat as one block (#625; `runBlockHTML` in public/bot-chat.js): a frame that holds what started
- * it, what was steered into it, its step line, its reply and its footer. A run at work has a lighter frame.
+ * it, what was steered into it, its step line, its reply and its footer, and the runs that reply to it as further
+ * rounds (#627). A run at work has a lighter frame. [onReply]: a long press offers "Reply to this task".
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RunBlock(r: Run, content: @Composable ColumnScope.() -> Unit) {
+fun RunBlock(running: Boolean, onReply: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPaper.current
     val shape = RoundedCornerShape(18.dp)
+    var sheet by remember { mutableStateOf(false) }
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(Color(0xFF050505)).border(1.dp, if (r.isRunning) p.line2 else p.line, shape).padding(10.dp),
+        Modifier.fillMaxWidth().clip(shape).background(Color(0xFF050505)).border(1.dp, if (running) p.line2 else p.line, shape)
+            .then(if (onReply != null) Modifier.pointerInput(onReply) { detectTapGestures(onLongPress = { sheet = true }) } else Modifier)
+            .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp), content = content,
     )
+    if (sheet && onReply != null) ModalBottomSheet(onDismissRequest = { sheet = false }, containerColor = p.panel) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { sheet = false; onReply() }.padding(horizontal = 20.dp).padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
+        ) {
+            Icon(Icons.AutoMirrored.Outlined.Reply, null, tint = p.text, modifier = Modifier.size(24.dp))
+            Text("Reply to this task", color = p.text, fontSize = 16.sp)
+        }
+    }
+}
+
+/** The line between two rounds of a block (#627). */
+@Composable
+fun RoundRule() = Spacer(Modifier.fillMaxWidth().padding(horizontal = 4.dp).height(1.dp).background(LocalPaper.current.line))
+
+/** Above the message box while a Reply is picked (#627): what it replies to, and ✕. */
+@Composable
+fun ReplyChip(text: String, onClear: () -> Unit) {
+    val p = LocalPaper.current
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape).padding(start = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Reply to: $text", color = p.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Don't reply to it", tint = p.muted, modifier = Modifier.size(18.dp)) }
+    }
 }
 
 /**

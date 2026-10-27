@@ -241,11 +241,12 @@ class Api(val baseUrl: String, val session: Session? = null) {
      * The answer is a run, or, from a busy bot with `message-waits`, the message that waits its turn: the same
      * fields with `status: "queued"` ([Run.isQueued]). Both are a message that went.
      */
-    suspend fun runBot(botId: String, prompt: String, attachments: List<Attachment>, key: String? = null): Run = json.decodeFromString(
+    suspend fun runBot(botId: String, prompt: String, attachments: List<Attachment>, key: String? = null, replyTo: String? = null): Run = json.decodeFromString(
         send("POST", "/bots/${enc(botId)}/run", buildJsonObject {
             if (prompt.isNotBlank()) put("prompt", prompt)
             put("attachments", json.encodeToJsonElement(attachments))
             if (key != null) put("key", key)
+            if (replyTo != null) put("replyTo", replyTo) // a run the owner picked Reply on (#627)
         }),
     )
 
