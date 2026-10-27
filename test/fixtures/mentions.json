@@ -13,7 +13,8 @@
     "group: a group's chat with all true (#124): '@all' is offered first while it is typed at the start of the message, and is no member's mention: a member named All is neither matched nor suggested there. Elsewhere '@all' is nothing of its own.",
     "Commands (#237): '/' at the very start of the message in a bot's own chat lists that bot's skills (its picked skills, as for mentions; none when useSkills is false), filtered by a case-insensitive 'contains' on the name, at most maxRows. A row's text is '/' and the skill's name; picking it replaces the '/…' word as a mention pick does. Never in the Chief chat or a group. Once a space follows the name, no list.",
     "commands: { name, world, chat, text, command }. command is what sending text runs: { skill, args } (args: the rest of the message after the name, trimmed), or null when it is plain text (no '/' at the very start, a name the bot has no skill of, a name joined to more text, the Chief chat, a group).",
-    "marks: { name, world, chat, text, mark }. mark is the chip the apps draw at the start of the owner's message, or null: { kind: 'skill', skill, text, start, end } when sending it runs a skill (as commands), { kind: 'btw', text, start, end } when it starts with '/btw' (any case, after spaces, then a space, a line break or the end) in a bot's own chat or the Chief chat, never in a group. text is the part of the message the chip covers, as typed, from start to end."
+    "marks: { name, world, chat, text, mark }. mark is the chip the apps draw at the start of the owner's message, or null: { kind: 'skill', skill, text, start, end } when sending it runs a skill (as commands), { kind: 'btw', text, start, end } when it starts with '/btw' (any case, after spaces, then a space, a line break or the end) in a bot's own chat or the Chief chat, never in a group. text is the part of the message the chip covers, as typed, from start to end.",
+    "files (#604): a file mention is '@[' place ':' path ']', place botdot (the bot's workspace on botdot, API root 'server'), computer (its folder on the account's computer) or project (a shared project: its name, then '/', then the path; the path may be empty for the project's folder). A path has no ']' and no line break; '.' and '..' and empty paths (but a project's) are none. found: { text, files } with each file mention in order as { text, root, project?, path, name } (name: the path's last part, or the project's). texts: { ref, text } the text a pick puts for ref, or null when ref can't be one. typing: { typed, want } what the picker looks for while typed is before the cursor: '@' (not inside a word) and what follows without spaces, '@', '[' or ']', as { start, folders, q } (the names before each '/', and the last part), or null; an empty name on the way is null. picks: { before, ref, after } picking a file puts its text and a space in place of the '@' and everything typed after it up to a space, '@', '[' or ']'. In findMentions (cases.matches) a file comes as { kind: file, text } among the others, in order, and a name inside a file mention is no mention."
   ],
   "maxRows": 6,
   "shortNames": [
@@ -215,7 +216,8 @@
     { "name": "a / after a bot lists its jobs, then its pages", "world": "pages", "chat": "chief", "typed": "@FleetDoctor/",
       "suggestions": ["@FleetDoctor/MorningCheck", "@FleetDoctor/IssueList", "@FleetDoctor/Status", "@FleetDoctor/Digest"] },
     { "name": "a group of tiles is not offered", "world": "pages", "chat": "chief", "typed": "@hom", "suggestions": []},
-    { "name": "two tiles of one name: the first", "world": "pages", "chat": "chief", "typed": "@liv", "suggestions": ["@LivingRoom"] }
+    { "name": "two tiles of one name: the first", "world": "pages", "chat": "chief", "typed": "@liv", "suggestions": ["@LivingRoom"] },
+    { "name": "a file mention, and a bot's name inside one is none", "world": "team", "chat": "fleet", "text": "Send @[botdot:a/@FleetDoctor.md] to @FleetDoctor", "matches": [{ "kind": "file", "text": "@[botdot:a/@FleetDoctor.md]", "root": "server", "path": "a/@FleetDoctor.md", "name": "@FleetDoctor.md" }, { "kind": "bot", "text": "@FleetDoctor", "bot": "fleet" }] }
   ],
   "picks": [
     { "name": "a page", "world": "pages", "chat": "chief", "before": "@iss|", "pick": "@IssueList", "after": "@IssueList |", "jobsNext": false },
@@ -266,5 +268,35 @@
     { "name": "btw joined to more text is plain text", "world": "team", "chat": "fleet", "text": "/btwx now", "mark": null },
     { "name": "only the start is marked", "world": "team", "chat": "fleet", "text": "/weekly-report /btw", "mark": { "kind": "skill", "skill": "weekly-report", "text": "/weekly-report", "start": 0, "end": 14 } },
     { "name": "btw in a group is plain text", "world": "group", "chat": "group:g1", "text": "/btw hi", "mark": null }
-  ]
+  ],
+  "files": {
+    "found": [
+      { "text": "Send @[botdot:reports/summary-w43.md] and attach @[computer:archive/prices w43.csv].", "files": [{ "text": "@[botdot:reports/summary-w43.md]", "root": "server", "path": "reports/summary-w43.md", "name": "summary-w43.md" }, { "text": "@[computer:archive/prices w43.csv]", "root": "computer", "path": "archive/prices w43.csv", "name": "prices w43.csv" }] },
+      { "text": "@[project:Website/src/index.html] and @[project:Website]", "files": [{ "text": "@[project:Website/src/index.html]", "root": "project", "project": "Website", "path": "src/index.html", "name": "index.html" }, { "text": "@[project:Website]", "root": "project", "project": "Website", "path": "", "name": "Website" }] },
+      { "text": "mail@[botdot:a.md] @[botdot:] @[botdot:../x] @[cloud:a.md] @[botdot:a\nb] @[project:/a]", "files": [] }
+    ],
+    "texts": [
+      { "ref": { "root": "server", "path": "reports/summary.md" }, "text": "@[botdot:reports/summary.md]" },
+      { "ref": { "root": "computer", "path": "a b/c.txt" }, "text": "@[computer:a b/c.txt]" },
+      { "ref": { "root": "project", "project": "Website", "path": "index.html" }, "text": "@[project:Website/index.html]" },
+      { "ref": { "root": "project", "project": "Website", "path": "" }, "text": "@[project:Website]" },
+      { "ref": { "root": "server", "path": "a]b.md" }, "text": null },
+      { "ref": { "root": "server", "path": "" }, "text": null }
+    ],
+    "typing": [
+      { "typed": "Send @sum", "want": { "start": 5, "folders": [], "q": "sum" } },
+      { "typed": "@summary.md", "want": { "start": 0, "folders": [], "q": "summary.md" } },
+      { "typed": "Check @reports/", "want": { "start": 6, "folders": ["reports"], "q": "" } },
+      { "typed": "@reports/2026-w43/pri", "want": { "start": 0, "folders": ["reports", "2026-w43"], "q": "pri" } },
+      { "typed": "@", "want": { "start": 0, "folders": [], "q": "" } },
+      { "typed": "mail me@sum", "want": null },
+      { "typed": "@sum and more", "want": null },
+      { "typed": "@/x", "want": null },
+      { "typed": "@a//", "want": null }
+    ],
+    "picks": [
+      { "before": "Send @rep/su| now", "ref": { "root": "server", "path": "reports/summary w43.md" }, "after": "Send @[botdot:reports/summary w43.md] |now" },
+      { "before": "@su|mm", "ref": { "root": "computer", "path": "summary.md" }, "after": "@[computer:summary.md] |" }
+    ]
+  }
 }

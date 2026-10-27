@@ -409,6 +409,32 @@ div.plan-head { cursor: default; }
 .mention-list button[aria-selected="true"], .mention-list button:hover { background: var(--sunk); }
 .mention-list .about { color: var(--muted); margin-left: 6px; } /* a skill's description, after "/name" (#237) */
 /* Mentions in a message: a bot as its small head and name, a job or a skill tinted. */
+/* Files in the "@" list (#604): icon, name, where it lives; a folder opened has a header that goes back up. */
+.mention-list.files { width: min(720px, calc(100% - 24px)); max-height: min(380px, 50vh); overflow-y: auto; }
+.mention-list .fm-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 12px; font-size: 14.5px; }
+.fm-icon { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; color: var(--muted); }
+.fm-icon.fm-folder { color: var(--warn); }
+.fm-icon.fm-table { color: var(--ok); }
+.fm-icon.fm-image { color: var(--mention); }
+.fm-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.fm-name b { font-weight: 600; }
+.fm-where { display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 40%; color: var(--faint); font-size: 13px; overflow: hidden; }
+.fm-where span { overflow: hidden; text-overflow: ellipsis; }
+.fm-icon.fm-place, .fm-icon.fm-more { width: 15px; height: 15px; color: var(--faint); }
+.fm-head { position: sticky; top: -4px; z-index: 1; display: flex; align-items: center; gap: 6px; margin: -4px -4px 4px; padding: 6px 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
+.mention-list .fm-head button { padding: 0; border-radius: 8px; color: var(--muted); font-size: 13.5px; }
+.mention-list .fm-head .fm-back { width: 36px; height: 36px; display: grid; place-items: center; flex: none; }
+.mention-list .fm-head .fm-trail { min-height: 36px; padding: 0 4px; overflow: hidden; text-overflow: ellipsis; }
+.fm-trail b { color: var(--text); font-weight: 500; }
+.fm-sep { margin: 0 6px; color: var(--faint); }
+/* A file mentioned (#604), in a bubble: its icon and name. */
+.file-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 1px 8px; border-radius: 7px; background: color-mix(in srgb, currentColor 10%, transparent); color: inherit; font-weight: 500; text-decoration: none; white-space: nowrap; vertical-align: baseline; }
+.file-chip span { overflow: hidden; text-overflow: ellipsis; }
+.file-chip .fm-icon { width: 14px; height: 14px; color: inherit; }
+.file-chip .fm-icon.fm-folder { color: var(--warn); }
+.file-chip .fm-icon.fm-table { color: var(--ok); }
+.file-chip .fm-icon.fm-image { color: var(--mention); }
+a.file-chip:hover { background: color-mix(in srgb, currentColor 16%, transparent); }
 .mention { font-weight: 500; }
 .mention.tint { color: var(--mention); }
 .ctx-select { border: 0; background: var(--sunk); color: var(--muted); border-radius: 99px; padding: 4px 10px; font-size: 12px; max-width: 240px; cursor: pointer; outline: none; width: auto; }
