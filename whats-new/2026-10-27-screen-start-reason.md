@@ -1,3 +1,3 @@
-A screen that won't start says why
-- When the screen of the External Virtual PC doesn't start, the bot's error now names what didn't start: the browser or the screen itself.
-- The error ends with the last lines of that part's log, so the cause shows in the run.
+The External Virtual PC's browser starts again
+- Screenshots and open_browser work again on the External Virtual PC: its screen stopped starting after a library update.
+- If the screen ever fails to start, the bot's error now names what didn't start, with the last lines of its log.

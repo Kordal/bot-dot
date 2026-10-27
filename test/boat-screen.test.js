@@ -95,6 +95,7 @@ test('the screen kit carries the versions the desktop image pins', () => {
   const pins = (text) => [...text.matchAll(/'([A-Za-z][\w.[\]-]*==[\w.]+)'/g)].map((x) => x[1]);
   const imagePins = pins(image).filter((x) => !x.startsWith('proxy-addr'));
   assert.ok(imagePins.includes('cua-computer-server==0.3.46') || imagePins.some((x) => x.startsWith('cua-computer-server==')), 'the image pins computer-server');
+  assert.ok(imagePins.includes('fastapi==0.144.0'), 'FastAPI is pinned: computer-server 0.3.46 ends at its start on 0.145 or newer (#601)');
   for (const pin of imagePins) assert.ok(pins(kit).includes(pin), `the kit installs ${pin}, as the image does`);
   const browsers = (text) => [...text.matchAll(/official\/[\w./-]+/g)].map((x) => x[0]).sort();
   assert.deepEqual(browsers(kit), browsers(image), "the kit fetches and sets the image's Camoufox");
