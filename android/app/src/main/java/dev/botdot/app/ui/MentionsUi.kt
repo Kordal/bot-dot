@@ -154,20 +154,20 @@ fun MentionList(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.R
 @Composable
 fun MentionRows(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.Row) -> Unit) {
     val p = LocalPaper.current
-        rows.forEach { r ->
-            val label = buildAnnotatedString {
-                when (r.kind) {
-                    Mentions.Kind.BOT, Mentions.Kind.JOB -> w.bot(r.bot).let { b -> bot(r.label, b?.color, b?.outfit) }
-                    // A page (#473): its bot's mark and "Bot · Title", or the title alone when its bot is not in this chat.
-                    Mentions.Kind.PAGE -> w.bot(r.bot)?.let { b -> bot(r.label, b.color, b.outfit) } ?: append(r.label)
-                    Mentions.Kind.COMMAND -> {
-                        append(r.text)
-                        if (r.about.isNotEmpty()) withStyle(SpanStyle(color = p.muted)) { append("  ${r.about}") }
-                    }
-                    else -> append(r.label)
+    rows.forEach { r ->
+        val label = buildAnnotatedString {
+            when (r.kind) {
+                Mentions.Kind.BOT, Mentions.Kind.JOB -> w.bot(r.bot).let { b -> bot(r.label, b?.color, b?.outfit) }
+                // A page (#473): its bot's mark and "Bot · Title", or the title alone when its bot is not in this chat.
+                Mentions.Kind.PAGE -> w.bot(r.bot)?.let { b -> bot(r.label, b.color, b.outfit) } ?: append(r.label)
+                Mentions.Kind.COMMAND -> {
+                    append(r.text)
+                    if (r.about.isNotEmpty()) withStyle(SpanStyle(color = p.muted)) { append("  ${r.about}") }
                 }
+                else -> append(r.label)
             }
-            FigureText(label, color = p.text, fontSize = 15.sp, maxLines = 1,
-                modifier = Modifier.fillMaxWidth().clickable { onPick(r) }.padding(horizontal = 16.dp, vertical = 11.dp))
         }
+        FigureText(label, color = p.text, fontSize = 15.sp, maxLines = 1,
+            modifier = Modifier.fillMaxWidth().clickable { onPick(r) }.padding(horizontal = 16.dp, vertical = 11.dp))
+    }
 }
