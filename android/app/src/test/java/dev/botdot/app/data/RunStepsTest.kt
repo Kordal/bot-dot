@@ -55,7 +55,7 @@ class RunStepsTest {
     }
 
     @Test fun aLongReplyFoldsToItsFirstParagraphAndKeepsItsLinks() {
-        val para = "word ".repeat(40).trim()
+        val para = "word ".repeat(80).trim()
         val text = "First.\n\n$para\n\nThe PR: https://github.com/x/y/pull/1\n\n$para"
         assertEquals("First.\n\nThe PR: https://github.com/x/y/pull/1", RunSteps.folded(text))
         assertNull("short", RunSteps.folded("Short.\n\nReply."))
