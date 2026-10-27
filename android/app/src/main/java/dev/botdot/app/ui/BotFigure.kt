@@ -184,7 +184,7 @@ fun figureInlines(text: AnnotatedString): Map<String, InlineTextContent> {
         }
     }
 }
-private const val INLINE_CONTENT_TAG = "androidx.compose.foundation.text.inlineContent"
+internal const val INLINE_CONTENT_TAG = "androidx.compose.foundation.text.inlineContent"
 private const val SMALL_EM = 1.5f // as on the web page: the whole box, hat included, is one and a half letters tall
 
 /** Text that names bots (built with [bot]): each with its small mark. */
