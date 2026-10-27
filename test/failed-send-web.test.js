@@ -328,7 +328,7 @@ test('web: every quick answer, question card, starter and plan approval sends th
   assert.match(app, /wireChoices\(thread, \(t, key\) => sendFrom\(\$\('form', root\), \(\) => runBot\(bot\.id, t, \[\], key\)\)\);/);
   assert.match(app, /b\.onclick = withKey\(\(key\) => sendFrom\(form, \(\) => sendToChief\(b\.textContent, \[\], key\)\)\)/);
   assert.match(app, /build\.onclick = withKey\(async \(key\) => \{ if \(await sendFrom\(form, \(\) => sendToChief\(PLAN_APPROVAL, \[\], key\)\)\) build\.closest\('\.suggestion-actions'\)\?\.remove\(\); \}\);/);
-  assert.match(app, /wireComposer\(form, \(text, files, key\) => runBot\(bot\.id, text, files, key\), \(\) => `bot:\$\{bot\.id\}`, bot\.id\);/);
+  assert.match(app, /wireComposer\(form, \(text, files, key\) => runBot\(bot\.id, text, files, key, replyingTo\.get\(bot\.id\)\?\.runId\), \(\) => `bot:\$\{bot\.id\}`, bot\.id\);/);
   const calls = [...app.matchAll(/(?<!function )\b(sendToChief|runBot)\(/g)].map((m) => app.slice(app.lastIndexOf('\n', m.index) + 1, app.indexOf('\n', m.index)));
   for (const line of calls) assert.match(line, /sendFrom\(|wireComposer\(/, `a send that can fail is caught: ${line.trim()}`);
   assert.match(app, /wireComposer\(\$\('form', root\), sendToChief, \(\) => 'chief', CHIEF_BOT\.id\);/);
@@ -359,7 +359,7 @@ function senders(reply) {
   });
   vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}
     ${cut('async function sendToChief(text, attachments = [], key = messageKey())', 'function followChief(id)')}
-    ${cut('async function runBot(botId, text, attachments = [], key = messageKey())', '// A bot\'s running run as it happens')}
+    ${cut('async function runBot(botId, text, attachments = [], key = messageKey(), replyTo = null)', '// A bot\'s running run as it happens')}
     this.sendToChief = sendToChief; this.runBot = runBot;`, ctx);
   return { ctx, thread, calls, bodies, said };
 }

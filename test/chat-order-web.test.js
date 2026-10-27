@@ -82,3 +82,19 @@ test('web: a finished block folds its steps into one line: the count, the skills
   const plainBlock = page().botThreadHTML(bot, [run('quiet', { prompt: 'Hi', result: 'Hello.', startedAt: '2026-10-23T11:28:00.000Z', endedAt: '2026-10-23T11:28:05.000Z' })]);
   assert.doesNotMatch(plainBlock, /run-steps/, 'a run without a step, a skill or a message has no step line');
 });
+
+test('web: a reply to a run is a further round of its block, which stands where its newest reply does; Reply is on its last round (#627)', () => {
+  const ctx = page();
+  const first = run('first', { prompt: 'Check the backup disk', result: 'It is 80% full.', startedAt: '2026-10-23T10:00:00.000Z', endedAt: '2026-10-23T10:05:00.000Z' });
+  const other = run('other', { prompt: 'Weather?', result: 'Sunny.', startedAt: '2026-10-23T10:10:00.000Z', endedAt: '2026-10-23T10:10:05.000Z' });
+  const again = run('again', { prompt: 'Clean the old snapshots', result: 'Freed 90 GB.', replyTo: 'first', startedAt: '2026-10-23T10:20:00.000Z', endedAt: '2026-10-23T10:25:00.000Z' });
+  const html = ctx.botThreadHTML(bot, [first, other, again]);
+  assert.deepEqual(blocks(html), ['other', 'again'], 'one block for the two rounds, after the block that ended between');
+  order(html, 'Weather?', 'Check the backup disk', 'It is 80% full.', 'class="round-rule"', 'Clean the old snapshots', 'Freed 90 GB.');
+  assert.doesNotMatch(html, /data-reply-run/, 'no Reply against a botdot that does not take it');
+  ctx.state.features = ['reply-to'];
+  const withReply = ctx.botThreadHTML(bot, [first, other, again]);
+  assert.deepEqual([...withReply.matchAll(/data-reply-run="([^"]+)"/g)].map((m) => m[1]), ['other', 'again'], 'on each block, for its last round');
+  const lost = ctx.botThreadHTML(bot, [other, again]); // the run it replies to is further back than the chat shows
+  assert.deepEqual(blocks(lost), ['other', 'again']);
+});

@@ -253,11 +253,21 @@ a.more-btn { text-decoration: none; }
 .block-foot { margin: 0 4px; min-height: 28px; font-size: 12px; }
 .block-foot .grow { flex: 1; }
 .bubble-meta .block-stop { color: var(--err); }
+.reply-btn { border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; padding: 2px 6px; border-radius: 8px; cursor: pointer; visibility: hidden; }
+.reply-btn:hover { color: var(--text); background: var(--sunk); }
+.run-block:hover .reply-btn, .run-block:focus-within .reply-btn { visibility: visible; }
+.round-rule { height: 1px; background: var(--line); margin: 2px 4px; }
+.reply-chip { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; padding: 6px 6px 6px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); color: var(--muted); font-size: 13px; }
+.reply-chip .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reply-chip button { border: 0; background: none; color: var(--muted); font: inherit; padding: 2px 6px; border-radius: 8px; cursor: pointer; }
+.reply-chip button:hover { color: var(--text); background: var(--sunk); }
+.reply-chip.hidden { display: none; }
 .reply-more { display: none; border: 0; background: none; padding: 6px 0 0; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 @container main (max-width: 480px) {
   .run-block { padding: 10px; border-radius: 18px; }
   .md.long:not(.more) > :not(:first-child):not(.keep) { display: none; }
   .md.long:not(.more) + .reply-more { display: inline-flex; }
+  .reply-btn { visibility: visible; } /* a phone has no hover */
   .step-pip span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } /* a phone: the icons alone; the line's aria-label names them */
 }
 .day { text-align: center; color: var(--faint); font-size: 11.5px; margin: 10px 0 2px; }

@@ -40,6 +40,19 @@ object ChatOrder {
     /** The runs as blocks (#625), oldest first: each run is one block, where its reply ends; a run at work at the bottom. */
     fun blocks(runs: List<Run>): List<Run> = pieces(runs).filterIsInstance<Piece.Reply>().map { it.run }
 
+    /**
+     * The blocks of a chat (#625, #627), oldest first: each a run and the runs that reply to it ([Run.replyTo], followed
+     * back while those runs are in [runs]) as its rounds, oldest first. A block stands where its newest round's reply does.
+     */
+    fun rounds(runs: List<Run>): List<List<Run>> {
+        val byId = runs.associateBy { it.id }
+        fun rootOf(r: Run): String { var x = r; var i = 0; while (i++ < 50) { x = x.replyTo?.let(byId::get) ?: break }; return x.id }
+        val replies = blocks(runs)
+        val at = replies.withIndex().associate { it.value.id to it.index }
+        return replies.groupBy(::rootOf).values.sortedBy { b -> b.maxOf { at.getValue(it.id) } }
+            .map { b -> b.sortedBy { millis(it.startedAt) ?: 0L } } // rounds in the order they started
+    }
+
     /** The run whose reply is drawn last in the chat: its quick answers stand under it. */
     fun lastReply(pieces: List<Piece>): Run? = pieces.lastOrNull { it is Piece.Reply }?.run
 }

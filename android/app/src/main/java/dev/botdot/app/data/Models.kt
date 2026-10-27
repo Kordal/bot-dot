@@ -382,6 +382,7 @@ data class Run(
     val startedBy: String? = null, // "chief" when the Chief handed the bot this task
     val notificationAudience: String? = null, // "owner" when its reply addresses the owner, a teammate's request too
     val inbox: List<InboxNote>? = null, // notes other bots left, read at its start
+    val replyTo: String? = null, // the run the owner replied to (#627): this run is a further round of its block
     val sentTo: SentTo? = null, // the latest teammate this run messaged
     val sentToAll: List<SentTo>? = null, // every teammate it messaged, once each
     val choices: List<String>? = null, // quick answers to its closing question

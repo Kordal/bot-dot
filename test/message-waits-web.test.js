@@ -68,7 +68,7 @@ function page({ features = ['message-waits'], reply = async () => ({}) } = {}) {
     ${cut('const readyFiles = ', '// "@" suggestions above the message box')}
     ${cut('function sendNoteText(err)', 'function renderChief() {')}
     ${cut('async function sendToChief(text, attachments = [], key = messageKey())', 'function followChief(id)')}
-    ${cut('async function runBot(botId, text, attachments = [], key = messageKey())', '// A bot\'s running run as it happens')}
+    ${cut('async function runBot(botId, text, attachments = [], key = messageKey(), replyTo = null)', '// A bot\'s running run as it happens')}
     ${cut('const chatParts = ', '// What the page knows about')}
     ${cut('// ---------- a message that waits ----------', '// ---------- a working bot\'s opening line ----------')}
     ${cut('function placeStatusLines() {', '// Stop a run.')}
