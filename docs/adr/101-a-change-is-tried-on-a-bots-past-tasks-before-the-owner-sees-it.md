@@ -3,7 +3,7 @@
 - **Status:** Accepted (2026-10-26)
 - **Owning task:** [#593](https://github.com/Kordal/bot-dot/issues/593), part of [#592](https://github.com/Kordal/bot-dot/issues/592)
 - **Builds on:** [ADR 099](099-every-bot-run-has-an-outcome-in-a-ledger.md) (the outcome ledger)
-- **Amended by:** [ADR 102](102-a-replay-reads-in-connected-apps-and-with-saved-logins.md): a replay reads in its connected apps and with its saved logins, in a dry run
+- **Amended by:** [ADR 102](102-a-replay-reads-in-connected-apps-and-with-saved-logins.md): a replay reads in its connected apps and with its saved logins, in a dry run; [ADR 104](104-a-replays-commands-run-on-a-throwaway-copy-of-the-bots-computer.md): a replay runs its commands on a throwaway copy of the bot's computer
 
 ## Context
 

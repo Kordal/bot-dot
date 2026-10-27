@@ -1514,6 +1514,10 @@ A shared room ([ADR 060](adr/060-a-shared-room-lets-bots-of-several-accounts-tal
 - `rung: false` and nothing on the feed for the owner's own words (`account` is this account's and `bot` is `null`). Any other message, the reply of the owner's own bot too, becomes one `room_notice` on the feed (see The live feed): `from.name` is the front door's label (`"<bot> · <account>"` for a bot, the account's name for a person), `from.color` is the bot's colour when it is this account's own, and `preview` is the text as plain text in one line, at most 140 characters. The rest of the text and the room stay in the front door.
 - **What rings:** the web page's push (`title` "Scout · ann in Garden club", `target` and `tag` `"room:<id>"`) and the Android app's notification, in the channel of replies, the room's messages stacked under its name. Neither rings while the web page is in use (`webActive`), where the room shows already. A tap opens the room: on the web page its Rooms view (`#rooms/<id>`), in the Android app where it has the room's screen, and the app otherwise.
 
+## A replay's computer
+
+A replay of a bot with a computer ([ADR 104](adr/104-a-replays-commands-run-on-a-throwaway-copy-of-the-bots-computer.md), #595) has three tools on a copy of that computer, made for that replay and removed as it ends: `POST /api/replay/session/shell` `{ command, timeoutSeconds? }` → `{ ok: true, stdout, stderr, exitCode, timedOut, error? }`, `POST /api/replay/session/read` `{ path }` → `{ ok: true, content }` and `POST /api/replay/session/write` `{ path, content }` → `{ ok: true }`; a file that can't be read or written is `{ ok: false, error }`. Only the replay's own MCP server calls them, with the header `X-Replay-Key`, the key of its copy; any other key, and the key of a replay that ended, is `401`. No app calls them.
+
 ## The Android app's update
 
 - `GET /api/version` includes `android: { versionCode, versionName, sha256, size }`, the app this botdot's image carries (empty when running from source).
