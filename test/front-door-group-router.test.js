@@ -91,12 +91,30 @@ test('the admin chooses Jev with a key that OpenRouter takes; the key is never a
   await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).wakeGate === false) ? true : null), { what: 'the account to be handed the wake gate off' });
 
   // Replays an hour (ADR 101): none until the admin sets them, a whole number from 0 to 60, kept when not sent, and
-  // handed to each account.
-  assert.ok((await a.get('/admin')).text.includes('name="replaysPerHour"'));
+  // handed to each account. Its own section since #616, not in the decision model's form.
+  const admin = (await a.get('/admin')).text;
+  assert.ok(admin.includes('<section id="replays"><h2>Replays</h2>') && admin.includes('href="#replays"'));
+  // Every section says in one line what it is for (#616).
+  for (const id of ['machine', 'accounts', 'usage', 'sign-up-links', 'update-section', 'rooms', 'group-router', 'replays', 'boat', 'feedback']) {
+    const at = admin.indexOf(`<section id="${id}">`);
+    assert.ok(at >= 0 && admin.slice(at, admin.indexOf('</section>', at)).includes('class="note"'), id);
+  }
+  const routerForm = admin.slice(admin.indexOf('<form id="router-form"'), admin.indexOf('</form>', admin.indexOf('<form id="router-form"')));
+  assert.ok(!routerForm.includes('replaysPerHour'), 'not in the decision model form');
+  assert.ok(admin.slice(admin.indexOf('<form id="replays-form"')).includes('name="replaysPerHour"'));
   for (const bad of [-1, 61, 2.5, '6']) assert.equal((await a.post('/admin/group-router', { router: 'haiku', replaysPerHour: bad })).status, 400, String(bad));
   assert.equal((await a.post('/admin/group-router', { router: 'haiku', replaysPerHour: 12 })).data.replaysPerHour, 12);
   assert.equal((await a.post('/admin/group-router', { router: 'haiku' })).data.replaysPerHour, 12, 'kept when not sent');
   assert.equal(JSON.parse(fs.readFileSync(path.join(door.data, 'group-router.json'), 'utf8')).replaysPerHour, 12);
   m = handed().length;
   await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).replaysPerHour === 12) ? true : null), { what: 'the account to be handed the replays' });
+  // POST /admin/replays (#616) sets them alone and keeps the decision model's choice.
+  assert.deepEqual((await a.get('/admin/replays')).data, { replaysPerHour: 12 });
+  for (const bad of [-1, 61, 2.5, '6', undefined]) assert.equal((await a.post('/admin/replays', { replaysPerHour: bad })).status, 400, String(bad));
+  await a.post('/admin/group-router', { router: 'haiku', wakeGate: true });
+  assert.deepEqual([(await a.post('/admin/replays', { replaysPerHour: 30 })).status, (await a.get('/admin/replays')).data], [200, { replaysPerHour: 30 }]);
+  assert.deepEqual((await a.get('/admin/group-router')).data, { router: 'haiku', keySet: false, wakeGate: true, replaysPerHour: 30 });
+  assert.equal(JSON.parse(fs.readFileSync(path.join(door.data, 'group-router.json'), 'utf8')).replaysPerHour, 30);
+  m = handed().length;
+  await waitFor(() => (handed().slice(m).some((r) => JSON.parse(r.body).replaysPerHour === 30) ? true : null), { what: 'the account to be handed the replays set alone' });
 });

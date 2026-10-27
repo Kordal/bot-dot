@@ -978,6 +978,16 @@ async function adminRoutes(req, res, p, account) {
     handRouter();
     return send(res, 200, shown);
   }
+  // Replays an hour (ADR 101, #616): its own section on the admin page, kept beside the decision model's choice and
+  // handed to the accounts with it.
+  if (p === '/admin/replays' && req.method === 'GET') return send(res, 200, { replaysPerHour: groupRouter.shown().replaysPerHour });
+  if (p === '/admin/replays' && req.method === 'POST') {
+    let shown;
+    try { shown = groupRouter.setReplays(((await readJson(req)) || {}).replaysPerHour); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
+    console.log(`[front door] the admin set ${shown.replaysPerHour} replays an hour`);
+    handRouter();
+    return send(res, 200, shown);
+  }
   // The boat.dev key (#529), checked with one call before it is kept; null removes it. It is never answered.
   if (p === '/admin/boat' && req.method === 'GET') return send(res, 200, boat.shown());
   if (p === '/admin/boat' && req.method === 'POST') {
