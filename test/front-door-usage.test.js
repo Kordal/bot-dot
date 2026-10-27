@@ -191,11 +191,12 @@ test('the admin page shows the usage collected from each account; nobody else re
   const d = JSON.parse(fs.readFileSync(file, 'utf8'));
   d.accounts.ann.created = new Date(Date.now() - 3 * DAY).toISOString();
   fs.writeFileSync(file, JSON.stringify(d));
-  await waitFor(async () => ((await a.get('/admin/usage')).data.accounts[0].lastDay ? true : null), { what: 'the usage to be collected' });
-  const asked = ann.seen.filter((r) => r.url.startsWith('/api/usage-summary'));
+  // One collection asks her days one at a time, oldest first, and the page shows each as it comes: wait for the last
+  // one, yesterday, read again on each try so a run across midnight waits for the next collection.
+  const r = await waitFor(async () => { const u = (await a.get('/admin/usage')).data; return u.accounts[0].lastDay === dayOf(Date.now() - DAY) ? u : null; }, { what: 'yesterday\'s usage to be collected' });
+  const asked = ann.seen.filter((x) => x.url.startsWith('/api/usage-summary'));
   assert.equal(asked[0].headers['x-botdot-room'], '1');
-  const r = (await a.get('/admin/usage')).data;
-  assert.equal(r.accounts[0].lastDay, dayOf(Date.now() - DAY));
+  assert.equal(r.day, r.accounts[0].lastDay);
   assert.ok(r.accounts[0].runs > 0);
   assert.ok(!JSON.stringify(r).includes('Secretbot'), 'what an account adds is not kept');
   assert.equal((await door.browser().get('/admin/usage')).status, 401);
