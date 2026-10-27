@@ -25,6 +25,7 @@ test('the front door gets a finished day as counts, with no name in it', async (
   assert.equal(typeof r.data.version, 'string');
   assert.deepEqual(Object.keys(r.data.features).sort(), ['boat', 'computer', 'connectors', 'groups', 'jobs', 'pages', 'rooms', 'scripts', 'vaultLogins']);
   for (const k of ['runs', 'errors', 'cards']) assert.equal(typeof r.data[k], 'object');
+  assert.ok(Array.isArray(r.data.failures));
   for (const k of ['counted', 'reasked', 'corrected', 'messages', 'web', 'android']) assert.ok(Number.isInteger(r.data[k]), k);
   assert.equal(typeof r.data.active, 'boolean');
   assert.ok(!JSON.stringify(r.data).includes('Secretname'), 'no name of a bot');
