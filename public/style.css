@@ -327,6 +327,7 @@ button.chip:hover { color: var(--text); }
 .composer textarea::placeholder { color: var(--faint); }
 /* What a message invokes, a skill or "/btw": a chip in your bubble and, drawn behind the text, in the box. */
 .cmd { font-weight: 600; color: var(--mention); background: color-mix(in srgb, var(--mention) 14%, transparent); border-radius: 7px; padding: 1px 6px; }
+.cmd.opens { cursor: pointer; }
 .ta-wrap { flex: 1; min-width: 0; position: relative; display: flex; }
 .ta-wrap textarea { flex: 1; position: relative; }
 .ta-mark { position: absolute; inset: 0; padding: 8px 0; font-size: 14.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: break-word; color: transparent; pointer-events: none; }

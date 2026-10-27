@@ -14,7 +14,8 @@ import androidx.compose.runtime.saveable.Saver
  * [chat]: a bot's id, [SettingsPanel.CHIEF], or a group's chat ("group:<id>": its name and its members). [jobs]: the bot's jobs, not its settings. [fromSettings]: the jobs
  * were opened from the settings, so Back returns there.
  */
-data class Panel(val chat: String, val jobs: Boolean = false, val fromSettings: Boolean = false)
+/** [skill]: the settings open on that skill, a skill's chip was tapped ("" for its Skills alone); null for none. */
+data class Panel(val chat: String, val jobs: Boolean = false, val fromSettings: Boolean = false, val skill: String? = null)
 
 /** What a tap leads to; MainActivity draws it. Widths in dp. */
 object SettingsPanel {
@@ -39,8 +40,8 @@ object SettingsPanel {
     /** The figure and name in a bot's chat, the gear in the Chief's. */
     fun toggle(panel: Panel?, chat: String): Panel? = if (panel != null) null else Panel(chat)
 
-    /** A chip in the chat that leads to the settings (a skill, a change to its instructions, a connected app): opens them, also over the jobs. A chip about a note opens nothing. */
-    fun settings(chat: String) = Panel(chat)
+    /** A chip in the chat that leads to the settings (a skill, a change to its instructions, a connected app): opens them, also over the jobs, a skill's on that skill. A chip about a note opens nothing. */
+    fun settings(chat: String, skill: String? = null) = Panel(chat, skill = skill)
 
     /**
      * A chat was chosen, in the list or by a tapped notification: where the panel covers the chat it makes way,

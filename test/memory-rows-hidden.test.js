@@ -122,7 +122,9 @@ test('an old run in history sends no done memory change, and no row of it at all
   ];
   fs.writeFileSync(file, JSON.stringify({ ...meta, learned: [...learned, ...didRows, ...waits] }));
   srv = await restartServer(srv);
-  assert.deepEqual((await srv.api(`/runs/${run.id}`)).data.learned, waits);
-  assert.deepEqual((await srv.api(`/runs?botId=${b.id}`)).data.find((r) => r.id === run.id).learned, waits);
+  // A skill's item names its skill, from its line (#619).
+  const named = waits.map((x) => (x.kind.startsWith('skill') ? { ...x, skill: 'wash-the-car' } : x));
+  assert.deepEqual((await srv.api(`/runs/${run.id}`)).data.learned, named);
+  assert.deepEqual((await srv.api(`/runs?botId=${b.id}`)).data.find((r) => r.id === run.id).learned, named);
   assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).learned, [...learned, ...didRows, ...waits], 'the record on disk is as it was');
 });

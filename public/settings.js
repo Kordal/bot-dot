@@ -9,12 +9,19 @@ const learnedOpens = (kind) => (kind === 'job' ? 'botjobs' : kind === 'instructi
 // `chip`, whole, and the page adds no word to it. An item without one, a kind that has no chip (a job, a connected
 // app), is drawn from its `text`. A memory change that is done is never sent (ADR 024).
 function learnedChips(r) {
-  const items = (r.learned || []).map((x) => ({ kind: x.kind, line: said(x.chip) || said(x.text) })).filter((x) => x.line);
+  const items = (r.learned || []).map((x) => ({ kind: x.kind, line: said(x.chip) || said(x.text), skill: said(x.skill) })).filter((x) => x.line);
   if (!items.length) return '';
   return `<div class="actions">${items.map((x) => {
     const line = `${LEARN_ICON[x.kind] || '🧠'} ${esc(x.line)}`;
-    return learnedOpens(x.kind) ? `<button class="action-chip" data-learned="${esc(x.kind)}">${line}</button>` : `<span class="action-chip said">${line}</span>`;
+    return learnedOpens(x.kind) ? `<button class="action-chip" data-learned="${esc(x.kind)}"${x.skill ? ` data-skill="${esc(x.skill)}"` : ''}>${line}</button>` : `<span class="action-chip said">${line}</span>`;
   }).join('')}</div>`;
+}
+// A tap on a chip of botId's: a skill's opens its settings on that skill (renderBotSettings), the others what learnedOpens says.
+function openLearned(el, botId) {
+  const view = learnedOpens(el.dataset.learned);
+  if (!view) return;
+  if (String(el.dataset.learned).startsWith('skill')) state.openSkill = { bot: botId, name: el.dataset.skill || '' };
+  setView(view, botId);
 }
 
 // ---------- model & reasoning ----------

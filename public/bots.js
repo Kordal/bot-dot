@@ -224,6 +224,9 @@ function renderBotSettings(force = false) {
   const root = $('#view-botsettings');
   const bot = state.bots.find((b) => b.id === state.botId);
   if (!bot) { if (state.bots.length) leaveBot(); return; }
+  // Opened from a skill's chip, or its address: the Skills open on that skill (openSkill below).
+  const focus = state.openSkill?.bot === bot.id ? state.openSkill : null;
+  if (focus) { delete state.openSkill; force = true; }
   if (!force && root.dataset.bot === bot.id) { drawBotSettingsLive(bot); return; } // don't wipe what's being typed
   root.dataset.bot = bot.id;
   const b = bot;
@@ -477,7 +480,9 @@ function renderBotSettings(force = false) {
       form._sysOff = sys.filter((k) => !on.has(`sys:${k.name}`)).map((k) => k.name);
       saveSoon();
     }, { empty: 'No skills yet. Ask the Chief to write one.', sum });
+    if (focus) openSkill(root, focus.name);
   }).catch(() => { const box = $('#skill-picks', root); if (box) box.innerHTML = '<span class="faint">Couldn\'t load skills.</span>'; });
+  if (focus) { $('#bs-skills', root).classList.add('open'); if (b.useSkills === false) openSkill(root, ''); }
   loadSkills();
 
   // Connected apps (Composio): shown once any are connected, or this bot already has some.
@@ -598,6 +603,14 @@ function drawUndo(root, bot) {
   };
 }
 
+// The Skills of a bot's settings, open, on the skill called name: its row open and in view. A skill it no longer
+// has, or none, leaves the Skills in view.
+function openSkill(root, name) {
+  const row = $('#bs-skills', root);
+  const pick = name && $$('#skill-picks .skill-pick', root).find((el) => ['lib:', 'sys:'].some((k) => $('input', el)?.value === k + name));
+  if (pick?.classList.contains('has-more')) pick.classList.add('open');
+  requestAnimationFrame(() => (pick || row)?.scrollIntoView({ block: pick ? 'center' : 'start' }));
+}
 function drawBotSettingsLive(bot) {
   const root = $('#view-botsettings');
   drawOverrides(root, bot);

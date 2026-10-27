@@ -35,10 +35,10 @@ import androidx.compose.ui.unit.sp
 
 /** A card with a title, like the web page's settings cards. Without one where its rows name themselves. */
 @Composable
-fun Section(title: String?, hint: String? = null, content: @Composable () -> Unit) {
+fun Section(title: String?, hint: String? = null, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val p = LocalPaper.current
     Column(
-        Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(18.dp)).border(1.dp, p.line, RoundedCornerShape(18.dp)).padding(16.dp),
+        modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(18.dp)).border(1.dp, p.line, RoundedCornerShape(18.dp)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         if (title != null) Text(title, style = MaterialTheme.typography.titleMedium, color = p.text)
@@ -47,13 +47,13 @@ fun Section(title: String?, hint: String? = null, content: @Composable () -> Uni
     }
 }
 
-/** A card like Section that opens and closes with a tap on its title (closed at first). */
+/** A card like Section that opens and closes with a tap on its title (closed at first, unless [startOpen]). */
 @Composable
-fun FoldSection(title: String, hint: String? = null, content: @Composable () -> Unit) {
+fun FoldSection(title: String, hint: String? = null, startOpen: Boolean = false, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val p = LocalPaper.current
-    var open by remember { mutableStateOf(false) }
+    var open by remember(startOpen) { mutableStateOf(startOpen) } // asked open again (a skill's chip), it opens again
     Column(
-        Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(18.dp)).border(1.dp, p.line, RoundedCornerShape(18.dp)).padding(16.dp),
+        modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(18.dp)).border(1.dp, p.line, RoundedCornerShape(18.dp)).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Row(Modifier.fillMaxWidth().clickable { open = !open }, verticalAlignment = Alignment.CenterVertically) {

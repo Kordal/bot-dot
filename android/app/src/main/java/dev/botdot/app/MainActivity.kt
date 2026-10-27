@@ -251,7 +251,7 @@ class MainActivity : ComponentActivity() {
                                 pn.jobs -> JobsScreen(app, pn.chat, onNeedsYou = { nav.navigate("needs") }, onBack = back)
                                 // A group's settings; a deleted group has no chat to go back to.
                                 groupOfChat(pn.chat) != null -> GroupSettingsScreen(app, groupOfChat(pn.chat).orEmpty(), onDeleted = { panelKept = null; nav.popBackStack("home", inclusive = false) }, onBack = back)
-                                else -> BotSettingsScreen(app, pn.chat, onScreen = { nav.navigate("screen/${pn.chat}") }, onJobs = { panelKept = SettingsPanel.jobs(pn, pn.chat) }, onFiles = { nav.navigate("files/${pn.chat}") },
+                                else -> BotSettingsScreen(app, pn.chat, focusSkill = pn.skill, onScreen = { nav.navigate("screen/${pn.chat}") }, onJobs = { panelKept = SettingsPanel.jobs(pn, pn.chat) }, onFiles = { nav.navigate("files/${pn.chat}") },
                                     onDeleted = { panelKept = null; nav.popBackStack("home", inclusive = false) },
                                     onCopied = { panelKept = null; nav.navigate("bot/$it") { popUpTo("home"); launchSingleTop = true } }, onBack = back)
                             }
@@ -334,7 +334,7 @@ class MainActivity : ComponentActivity() {
                     composable("bot/{id}?attach={attach}", arguments = attachArg) { e ->
                         val (files, text) = remember { takeShared(e.arguments?.getString("attach") == "1") }
                         val id = e.arguments?.getString("id") ?: ""
-                        BotChatScreen(app, id, files, text, onJobs = { panelKept = SettingsPanel.jobs(panelKept, id) }, onSettings = { panelKept = SettingsPanel.toggle(panelKept, id) }, onNeeds = { nav.navigate("needs") }, onLearned = { panelKept = SettingsPanel.settings(id) },
+                        BotChatScreen(app, id, files, text, onJobs = { panelKept = SettingsPanel.jobs(panelKept, id) }, onSettings = { panelKept = SettingsPanel.toggle(panelKept, id) }, onNeeds = { nav.navigate("needs") }, onLearned = { panelKept = SettingsPanel.settings(id, it) },
                             // A group made from this bot's chat is in the list and open.
                             onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onGroup = { openGroup(it) }, onScreen = { nav.navigate("screen/$id") }, onFiles = { nav.navigate("files/$id") }) { nav.popBackStack() }
                     }

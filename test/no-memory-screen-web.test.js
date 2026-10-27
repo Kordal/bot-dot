@@ -13,11 +13,23 @@ const said = (v) => (typeof v === 'string' ? v.trim() : '');
 
 // ---------- the chip ----------
 
-const chips = vm.createContext({ esc, said });
-vm.runInContext(`${cut('const LEARN_ICON = {', '// ---------- model & reasoning')}\nthis.page = { learnedChips, learnedOpens };`, chips);
-const { learnedChips, learnedOpens } = chips.page;
+const opened = [];
+const chips = vm.createContext({ esc, said, state: {}, setView: (view, id) => opened.push([view, id, chips.state.openSkill]) });
+vm.runInContext(`${cut('const LEARN_ICON = {', '// ---------- model & reasoning')}\nthis.page = { learnedChips, learnedOpens, openLearned };`, chips);
+const { learnedChips, learnedOpens, openLearned } = chips.page;
 // The chips of a run, in order: [what it is drawn as, the kind it opens something for or null, its line].
-const chipsOf = (learned) => [...learnedChips({ learned }).matchAll(/<(button|span) class="action-chip[^"]*"(?: data-learned="([^"]*)")?>([\s\S]*?)<\/\1>/g)].map((m) => [m[1], m[2] ?? null, m[3]]);
+const chipsOf = (learned) => [...learnedChips({ learned }).matchAll(/<(button|span) class="action-chip[^"]*"(?: data-learned="([^"]*)")?[^>]*>([\s\S]*?)<\/\1>/g)].map((m) => [m[1], m[2] ?? null, m[3]]);
+
+test('web: a skill\'s chip carries its skill, for the settings to open on it (#619)', () => {
+  const html = learnedChips({ learned: [
+    { kind: 'skill-updated', chip: 'Changed the skill buildr-pr-workflow', skill: 'buildr-pr-workflow' },
+    { kind: 'skill', chip: 'Saved the skill "x"', skill: '"><img>' },
+    { kind: 'job', chip: 'Added job Morning news' },
+  ] });
+  assert.match(html, /data-learned="skill-updated" data-skill="buildr-pr-workflow">/);
+  assert.ok(!html.includes('<img'));
+  assert.equal((html.match(/data-skill=/g) || []).length, 2);
+});
 
 test('web: a chip prints the server\'s `chip`, whole, and no word of the page\'s own', () => {
   const long = `Created skill review-drafts: ${'Pull requests are opened as drafts. '.repeat(4).trim()}`;
@@ -64,7 +76,13 @@ test('web: a memory chip opens nothing; the chips for jobs, skills and instructi
   for (const kind of ['instructions', 'skill', 'skill-updated', 'skill-pending', 'connector']) assert.equal(learnedOpens(kind), 'botsettings', kind);
   for (const kind of ['memory', 'memory-shared', 'forgot', undefined]) assert.equal(learnedOpens(kind), '', String(kind));
   // The click goes where learnedOpens says, and nowhere for a chip that is no button.
-  assert.match(app, /\$\$\('\[data-learned\]', thread\)\.forEach\(\(el\) => \(el\.onclick = \(\) => \{ const view = learnedOpens\(el\.dataset\.learned\); if \(view\) setView\(view, state\.botId\); \}\)\);/);
+  assert.match(app, /\$\$\('\[data-learned\]', thread\)\.forEach\(\(el\) => \(el\.onclick = \(\) => openLearned\(el, state\.botId\)\)\);/);
+  const tap = (learned, skill) => { chips.state.openSkill = undefined; opened.length = 0; openLearned({ dataset: { learned, ...(skill ? { skill } : {}) } }, 'b1'); return opened[0] ?? null; };
+  assert.deepEqual(tap('job'), ['botjobs', 'b1', undefined]);
+  assert.deepEqual(tap('instructions'), ['botsettings', 'b1', undefined]);
+  assert.deepEqual({ ...tap('skill-updated', 'weekly')[2] }, { bot: 'b1', name: 'weekly' }, 'a skill\'s chip opens the settings on it (#619)');
+  assert.deepEqual({ ...tap('skill')[2] }, { bot: 'b1', name: '' }, 'with no name, on the Skills');
+  assert.equal(tap('memory'), null);
   assert.match(css, /\.action-chip\.said, \.action-chip\.said:hover \{ cursor: default;/, 'a chip that opens nothing does not look like a button');
 });
 
