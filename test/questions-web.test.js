@@ -20,8 +20,9 @@ test('web: no question for the seven that can be undone or say what they do', ()
   // Deleting a note and downloading the search model went with the memory screens (MEM-007).
 });
 
-test('web: no undo of a bot\'s change: it went with the learning row of its settings (#305)', () => {
-  assert.doesNotMatch(app, /data-undo|\/learning\/undo|The skill "\$\{c\.field\.slice\(6\)\}" is deleted/);
+test('web: no undo of a bot\'s change but the one of a card\'s change to its main assignment (#305, #596)', () => {
+  assert.doesNotMatch(app, /data-undo|The skill "\$\{c\.field\.slice\(6\)\}" is deleted/);
+  assert.match(app, /bot\.undo \? '<button type="button" class="link-btn" data-bs-undo>Undo last change<\/button>' : ''/, 'shown only while the server offers it');
 });
 
 test('web: still asked, unchanged', () => {

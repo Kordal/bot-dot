@@ -113,12 +113,13 @@ async function runTileSource(tile, source, where, extra = {}) {
 const asks = asksLib.create(B.DATA_DIR, { describe: (a, list) => askBrief(a, list) }); // permissions and skills bots ask the owner for
 const secretFiles = require('./lib/secret-files').create(B.DATA_DIR); // Vault secrets kept in files, by the owner's yes (#253)
 // A change a bot proposed to its own instructions keeps the run that proposed it: the bot carries on after the yes (ADR 009).
-B.onChangeRequested((change) => asks.add({ kind: 'bot-change', ...change }, { runId: change.by === 'bot' ? change.runId || null : null }));
+// Its own main assignment or rules are tried on its past tasks first (changeTrials, below; #596).
+B.onChangeRequested((change) => changeTrials.request(change));
 // What each bot's teammates are told it reaches (#136): the names and kinds of the Vault's items shared with it, never a value.
 B.onLoginNames((botId) => store().forBot(botId).map((x) => ({ name: x.name, kind: x.kind || 'login' })));
 // What of a bot waits for the owner's OK on a card, in their words, for its first message (lib/hello.js): a held
 // change of the bot (bot-changes.js waitingWords) and a permission it asked for.
-B.onWaitingOnCards((bot) => asks.list().filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)
+B.onWaitingOnCards((bot) => [...asks.list(), ...changeTrials.list()].filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)
   : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`] : [])));
 // The owner's OK for a write in a connected app: the run waits for it, and a late yes starts the bot again (ADR 010).
 // The Chief is a caller too, in the turns the owner started, and a late yes on its card starts its turn (ADR 047).
@@ -170,10 +171,16 @@ const tryProposal = (p) => replays.score({
   bots: p.bots.map((id) => B.bots.get(id)).filter(Boolean),
   candidate: p.kind === 'share' ? { name: p.name } : { name: p.name, description: p.description, instructions: p.instructions },
 });
+// A bot's proposed main assignment or rules, tried on its past tasks before its card (#596): the bot with the new text.
+const changeTrials = require('./lib/change-trials').create({
+  dataDir: B.DATA_DIR, asks, on: () => require('./lib/replay').perHour() > 0, bot: (id) => B.bots.get(id),
+  score: (a, { gone }) => { const bot = B.bots.get(a.botId); return bot ? replays.score({ bots: [bot], candidate: { changes: a.changes }, gone }) : null; },
+});
 // The Chief's memory review of its own and the shared notes (#117): proposals on cards, done on the owner's yes.
 const chiefReview = require('./lib/chief-review').create({
   dataDir: B.DATA_DIR, memory: B.memory, skills: B.skills, bots: B.bots, asks, chiefHas: shared.chiefHas, attachSkill: (name, ids) => shared.attachSkill(name, ids),
   settings: () => B.settings.get(), run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId), test: tryProposal,
+  changes: (since) => B.bots.list().flatMap((b) => B.learn.proposalsSince(b.id, since).map((c) => ({ ...c, name: b.name }))),
 });
 B.onChiefReview(() => chiefReview.due());
 const tools = toolsLib.create({ dataDir: B.DATA_DIR, bots: B.bots, asks, audit, starts: B.toolStarts, tellChief: (turn) => chief.tell(turn), notify: (text) => chief.post(text), ownerWrote: (chatId) => chief.ownerWrote(chatId) });

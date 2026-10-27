@@ -250,6 +250,7 @@ function renderBotSettings(force = false) {
         </div>
         <label class="field">Main assignment <span class="hint">what it does when a job runs it, and its guide for your messages</span>
           <textarea name="prompt" rows="5" required>${esc(b.prompt)}</textarea></label>
+        <div id="bs-undo"></div>
       </div>
 
       <div class="card settings-card bs-rows">
@@ -503,6 +504,7 @@ function renderBotSettings(force = false) {
 
   const dup = $('#duplicate-bot', root);
   if (dup) dup.onclick = () => openDuplicate(b);
+  drawUndo(root, b);
 
   $('#delete-bot', root).onclick = async () => {
     // Its screen on the account's computer ends and its browser's logins go; the computer, which the other bots use,
@@ -615,9 +617,22 @@ function wireMoveRetry(root, botId) {
     try { await api(`/bots/${botId}/computer/move`, { method: 'POST' }); } catch (e) { retry.disabled = false; toast(e.message, true); }
   };
 }
+// Undo of the change a card made to its main assignment or rules, while nothing changed them since (`undo`, #596).
+function drawUndo(root, bot) {
+  const box = $('#bs-undo', root);
+  if (!box) return;
+  box.innerHTML = bot.undo ? '<button type="button" class="link-btn" data-bs-undo>Undo last change</button>' : '';
+  const btn = $('[data-bs-undo]', box);
+  if (btn) btn.onclick = async () => {
+    btn.disabled = true;
+    try { await api(`/bots/${bot.id}/learning/undo`, { method: 'POST', body: { changeId: bot.undo } }); await refresh(); renderBotSettings(true); } catch (e) { btn.disabled = false; toast(e.message, true); }
+  };
+}
+
 function drawBotSettingsLive(bot) {
   const root = $('#view-botsettings');
   drawOverrides(root, bot);
+  drawUndo(root, bot);
   const mv = $('#bs-move', root);
   if (mv) { mv.innerHTML = computerMoveLine(bot); wireMoveRetry(root, bot.id); }
   const jobs = bot.jobs || [];

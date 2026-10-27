@@ -152,6 +152,8 @@ const finish = () => {
   try { result = fs.readFileSync(path.join(OUT, own('result', '.txt')), 'utf8'); } catch { /* the default */ }
   // A run that has the library skill <name> answers $FAKE_OUT/result-with-<name>.txt when there is one (a replay's candidate, ADR 101).
   for (const k of skills) { try { result = fs.readFileSync(path.join(OUT, `result-with-${k.replace(/^[^:]*:/, '')}.txt`), 'utf8'); break; } catch { /* not this one */ } }
+  // A run whose instructions hold a key of $FAKE_OUT/result-if-told.json answers its value (a replay's proposed main assignment, #596).
+  try { for (const [told, reply] of Object.entries(JSON.parse(fs.readFileSync(path.join(OUT, 'result-if-told.json'), 'utf8')))) if (String(rec.system || '').includes(told)) { result = reply; break; } } catch { /* none */ }
   let denials = []; // the tools its settings refused, as Claude Code reports them: $FAKE_OUT/denials.json
   try { denials = JSON.parse(fs.readFileSync(path.join(OUT, 'denials.json'), 'utf8')); } catch { /* none */ }
   let failed = null;
