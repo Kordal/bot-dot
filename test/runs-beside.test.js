@@ -6,6 +6,8 @@
 // a time (BOT_DOT_RUNS_MAX=1).
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('fs');
+const path = require('path');
 const { startServer, makeBot, heldRun, self, waitFor, readData } = require('./helpers');
 
 let srv;
@@ -15,6 +17,11 @@ after(() => { srv.unhold(); return srv.stop(); });
 const isRunOf = (bot) => (x) => x.self?.env && x.args.includes(`${bot.emoji} ${bot.name}`);
 const send = (bot, prompt) => srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt } });
 const going = async (bot) => (await srv.api(`/runs?botId=${bot.id}`)).data.filter((r) => r.status === 'running');
+const hook = async (token) => (await self(srv, token, 'steer')).data.hookSpecificOutput?.additionalContext ?? null;
+const otherRuns = async (token) => (await self(srv, token, 'other-runs')).data.text;
+// What a held run's stand-in for Claude plays as it goes: here, its plan (a TodoWrite call).
+const play = (rec, ...evs) => fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify(evs));
+const todo = (...steps) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id: `t${Math.random()}`, name: 'TodoWrite', input: { todos: steps.map(([content, status]) => ({ content, status, activeForm: content })) } }] } });
 const waitingIn = (bot) => (readData(srv.data, 'queue.json').queues[bot.id] || []);
 
 test('the owner\'s messages to a busy bot start beside its run, up to three; the fourth waits and starts when one ends', async () => {
@@ -109,4 +116,51 @@ test('a job of a busy bot still waits until the bot is free, and a message does 
   srv.unhold();
   srv.release(recJob);
   await waitFor(async () => ((await going(bot)).length ? null : true), { what: 'the job to end' });
+});
+
+// The owner's case: one run sorts the inbox while a second, started beside it, says "I haven't sorted it yet".
+// The second is told the first's plan as it starts, the first hears of the second at its next tool call, and either
+// may ask other_runs what the others do now.
+test('runs of one bot see what the others are doing: the plan at the start, a new run at the next tool call, other_runs on demand', async () => {
+  const bot = await makeBot(srv, { name: 'Mail Sorter', emoji: '📮' });
+  srv.reply('Done.');
+  const first = await heldRun(srv, bot, '253664');
+  play(first.rec, todo(['Log in to the mail bridge', 'completed'], ['Sort the new inbox mail by the rules', 'in_progress'], ['Report to the owner', 'pending']));
+  await waitFor(async () => ((await srv.api(`/runs/${first.run.id}?events=0`)).data.plan?.steps?.length === 3 || null), { what: 'the first run\'s plan' });
+  assert.equal(await hook(first.token), null, 'alone: its hook says nothing');
+  assert.equal(await otherRuns(first.token), 'No other run of yours is going now.');
+
+  const second = await send(bot, 'How do I add it?');
+  const rec2 = await srv.nextRun(isRunOf(bot), 'the second run');
+  const token2 = rec2.self.env.RUN_TOKEN;
+  assert.match(rec2.system, /<other-runs>\n- 253664\n  plan: \[done\] Log in to the mail bridge; \[doing\] Sort the new inbox mail by the rules; \[todo\] Report to the owner\n<\/other-runs>/);
+  assert.match(rec2.system, /other_runs shows what they are doing now/);
+  assert.ok(rec2.self.env.SELF_BESIDE === '1', 'it is offered other_runs');
+
+  // The first run hears of the second once, at its next tool call.
+  const heard = await hook(first.token);
+  assert.match(heard, /Another run of yours has started beside this one/);
+  assert.match(heard, /<other-runs>\n- How do I add it\?\n<\/other-runs>/);
+  assert.equal(await hook(first.token), null, 'once');
+  assert.equal(await hook(token2), null, 'the second knew of the first from its prompt');
+
+  // other_runs: what the others do now, as /btw reads it.
+  const seen = await otherRuns(token2);
+  assert.match(seen, /^One other run of yours is going now/);
+  assert.match(seen, /<run n="1">\nStarted \d+ minutes? ago, asked by the owner:\n<request>\n253664\n<\/request>/);
+  assert.match(seen, /- \[doing\] Sort the new inbox mail by the rules/);
+  assert.match(await otherRuns(first.token), /<request>\nHow do I add it\?\n<\/request>/);
+
+  // A run the Chief asked for gets the hook too, though no message can be steered into it.
+  const byChief = await srv.asChief(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'The Chief asks' } });
+  assert.equal(byChief.status, 201);
+  const rec3 = await srv.nextRun((x) => isRunOf(bot)(x) && x.stdin.startsWith('The Chief asks'), 'the Chief\'s run');
+  assert.match(rec3.system, /- 253664\n  plan: .*\n- How do I add it\?\n<\/other-runs>/);
+  assert.equal(rec3.settings?.hooks?.PostToolUse?.length, 1);
+  assert.match(await hook(first.token), /<other-runs>\n- The Chief asks\n<\/other-runs>/);
+  assert.match(await hook(token2), /- The Chief asks/);
+
+  srv.unhold();
+  for (const r of [first.rec, rec2, rec3]) srv.release(r);
+  for (const id of [first.run.id, second.data.id, byChief.data.id]) assert.equal((await srv.finished(id)).status, 'success');
 });
