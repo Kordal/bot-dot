@@ -94,6 +94,11 @@ test('the admin chooses Jev with a key that OpenRouter takes; the key is never a
   // handed to each account. Its own section since #616, not in the decision model's form.
   const admin = (await a.get('/admin')).text;
   assert.ok(admin.includes('<section id="replays"><h2>Replays</h2>') && admin.includes('href="#replays"'));
+  // Every section says in one line what it is for (#616).
+  for (const id of ['machine', 'accounts', 'usage', 'sign-up-links', 'update-section', 'rooms', 'group-router', 'replays', 'boat', 'feedback']) {
+    const at = admin.indexOf(`<section id="${id}">`);
+    assert.ok(at >= 0 && admin.slice(at, admin.indexOf('</section>', at)).includes('class="note"'), id);
+  }
   const routerForm = admin.slice(admin.indexOf('<form id="router-form"'), admin.indexOf('</form>', admin.indexOf('<form id="router-form"')));
   assert.ok(!routerForm.includes('replaysPerHour'), 'not in the decision model form');
   assert.ok(admin.slice(admin.indexOf('<form id="replays-form"')).includes('name="replaysPerHour"'));
