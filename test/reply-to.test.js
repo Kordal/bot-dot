@@ -39,10 +39,9 @@ test('a reply to a run at work waits steered into it, and nothing is sorted', as
 
 test('a reply to a finished run starts a run that carries it on, handed that run whole', async () => {
   const bot = await makeBot(srv, { name: 'Infra Admin', emoji: '🛠️' });
+  srv.reply('The disk is 80% full.'); // before the send: a run that isn't held may end before a later write
   const first = await send(bot, 'Check the backup disk');
-  const rec1 = await srv.nextRun(isRunOf(bot), 'the first run');
-  srv.reply('The disk is 80% full.');
-  srv.release(rec1);
+  await srv.nextRun(isRunOf(bot), 'the first run');
   await srv.finished(first.data.id);
 
   const sent = await send(bot, 'clean the old snapshots', { replyTo: first.data.id });
