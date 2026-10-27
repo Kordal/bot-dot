@@ -108,3 +108,25 @@ test('web: its touch targets are 44px, and the page draws it above the box and f
   assert.match(app, /drawBotPlan\?\.\(bot, runs\)/);
   assert.match(app, /drawChiefPlan\?\.\(id, thread\._last\)/);
 });
+
+test('web: a bot\'s plan from the feed lands on its running run and draws its open chat (#629)', () => {
+  const { cut } = require('./web-page');
+  const heard = {};
+  const state = { view: 'bot', botId: 'b1', runs: [{ id: 'r1', botId: 'b1', status: 'running' }, { id: 'r0', botId: 'b1', status: 'success', plan: plan('done') }] };
+  let draws = 0;
+  const ctx = vm.createContext({ JSON, state, renderBotChat: () => { draws++; }, es: { addEventListener: (t, fn) => { heard[t] = fn; } } });
+  vm.runInContext(cut('  // A working bot\'s plan changed (#629)', '  // A reply in the Chief chat that\'s open'), ctx);
+  const feed = (data) => heard.run_plan({ data: JSON.stringify(data) });
+  feed({ chat: 'bot:b1', botId: 'b1', runId: 'r1', plan: plan('done', 'doing', 'todo') });
+  assert.deepEqual(state.runs[0].plan.steps.map((s) => s.status), ['done', 'doing', 'todo']);
+  assert.equal(draws, 1);
+  feed({ chat: 'bot:b1', botId: 'b1', runId: 'r1', plan: plan('done', 'doing', 'todo') });
+  assert.equal(draws, 1, 'the same plan again draws nothing');
+  feed({ chat: 'bot:b1', botId: 'b1', runId: 'r0', plan: plan('todo') });
+  assert.deepEqual(state.runs[1].plan, plan('done'), 'a run that ended keeps the plan it ended with');
+  state.view = 'chief';
+  feed({ chat: 'bot:b1', botId: 'b1', runId: 'r1', plan: null });
+  assert.equal(state.runs[0].plan, undefined, 'a cleared plan is gone');
+  assert.equal(draws, 1, 'another view is not drawn');
+  heard.run_plan({ data: 'not json' });
+});

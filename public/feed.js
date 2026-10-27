@@ -110,6 +110,16 @@ function followFeed() {
     else loadDash(state.view !== 'dashboard');
     if (typeof DocViewer !== 'undefined') DocViewer.tileChanged(d.tile?.id); // a page whose blocks read it (#395)
   });
+  // A working bot's plan changed (#629): on its run as the page holds it, and its chat drawn again when it is open.
+  // The run's own stream says it too, but one that dropped says nothing more, and the feed reconnects.
+  es.addEventListener('run_plan', (e) => {
+    let d = {};
+    try { d = JSON.parse(e.data); } catch { /* not ours */ }
+    const held = state.runs.find((r) => r.id === d.runId && r.status === 'running');
+    if (!held || JSON.stringify(held.plan ?? null) === JSON.stringify(d.plan ?? null)) return;
+    if (d.plan) held.plan = d.plan; else delete held.plan;
+    if (state.view === 'bot' && state.botId === held.botId) renderBotChat();
+  });
   // A reply in the Chief chat that's open, which this page isn't following: a bot's reply posted there, an unasked
   // message, or the Chief answering a message sent from the phone. Show it (after the Chief's own reply, if that's
   // still coming).
