@@ -17,7 +17,7 @@ const SECRET = 'hunter2-pass';
 
 // boat.dev with a machine as far as the screen uses it: the kit on its disk, computer-server and the bridge running
 // until it stops, detached commands, files.
-function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kitFails = false, desktopRefuses = false, installing = false, slow = false } = {}) {
+function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kitFails = false, desktopRefuses = false, installing = false, slow = false, bridgeDies = false } = {}) {
   const machines = new Map();
   const calls = [];
   let n = 0;
@@ -47,7 +47,7 @@ function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE
     if (data.detached) {
       if (c.includes('botdot-boat-kit')) box.installing = c.match(/botdot-boat-kit (\S+)/)[1];
       else if (c.includes('computer_server')) box.server = true;
-      else if (c.includes('camoufox-browser --serve')) box.bridge = true;
+      else if (c.includes('camoufox-browser --serve')) box.bridge = !bridgeDies;
       else box.programs.push(c);
       return reply(200, { ok: true, type: 'command.started', processId: 1 });
     }
@@ -64,6 +64,7 @@ function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE
       return ran(`${box.server ? 'server\n' : ''}${box.bridge ? 'bridge\n' : ''}sha ${box.bridgeSha || ''}\n`);
     }
     if (c.includes('install -m 0755 /tmp/')) { Object.assign(box, { bridgeSha: boatLib.BRIDGE_SHA, bridge: false }); return ran(''); }
+    if (c.includes('botdot-bridge.log')) return ran(`${box.bridge ? '' : "Camoufox's bridge is not running\nModuleNotFoundError: No module named 'camoufox'\n"}${box.server ? '' : 'computer-server is not answering\n'}`);
     if (c.includes('test -S /run/botdot-browser/bridge-0.sock')) return ran('', !box.bridge ? 9 : !box.server ? 7 : 0);
     if (c.includes('urllib.request')) {
       if (!box.server) return ran('[Errno 111] Connection refused', 7);
@@ -94,6 +95,7 @@ test('the screen kit carries the versions the desktop image pins', () => {
   const pins = (text) => [...text.matchAll(/'([A-Za-z][\w.[\]-]*==[\w.]+)'/g)].map((x) => x[1]);
   const imagePins = pins(image).filter((x) => !x.startsWith('proxy-addr'));
   assert.ok(imagePins.includes('cua-computer-server==0.3.46') || imagePins.some((x) => x.startsWith('cua-computer-server==')), 'the image pins computer-server');
+  assert.ok(imagePins.includes('fastapi==0.144.0'), 'FastAPI is pinned: computer-server 0.3.46 ends at its start on 0.145 or newer (#601)');
   for (const pin of imagePins) assert.ok(pins(kit).includes(pin), `the kit installs ${pin}, as the image does`);
   const browsers = (text) => [...text.matchAll(/official\/[\w./-]+/g)].map((x) => x[0]).sort();
   assert.deepEqual(browsers(kit), browsers(image), "the kit fetches and sets the image's Camoufox");
@@ -206,6 +208,17 @@ test("a desktop that won't let botdot in is said, and nothing is started", async
   const { b, boat } = machine({ kit: boatLib.KIT_VERSION, desktopRefuses: true });
   await assert.rejects(boat.ensureScreen('coder'), /screen didn't start: the machine's desktop \(:0\) did not let botdot in/);
   assert.equal(b.commands().filter((c) => c.detached).length, 0);
+});
+
+test("a screen that doesn't come up says which part of it didn't, with the end of its log", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  let at = 0;
+  const { b, boat } = machine({ kit: boatLib.KIT_VERSION, bridgeDies: true }, { now: () => (at += 10_000) });
+  await assert.rejects(boat.ensureScreen('coder'), /screen didn't start in time: Camoufox's bridge is not running\nModuleNotFoundError: No module named 'camoufox'$/);
+  const detached = b.commands().filter((c) => c.detached).map((c) => c.command);
+  assert.ok(detached.some((c) => /^exec >\/tmp\/botdot-computer-server\.log 2>&1\n.*computer_server/s.test(c)), "computer-server's output goes to a log");
+  assert.ok(detached.some((c) => /^exec >\/tmp\/botdot-bridge\.log 2>&1\n.*camoufox-browser --serve/s.test(c)), "the bridge's first output goes to a log");
 });
 
 test('a typed secret reaches the bridge through a file that is gone before the helper starts, never on a command line', async (t) => {

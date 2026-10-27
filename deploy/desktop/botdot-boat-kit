@@ -43,11 +43,12 @@ chmod g+x /home/user
 install -d -o user -g user -m 2775 /home/user/Downloads
 
 step="computer-server"
-# As the image's Dockerfile: cua-computer-server and the fixes pinned beside it.
+# As the image's Dockerfile: cua-computer-server and the fixes pinned beside it, FastAPI at the last release it
+# starts with (#601).
 [ -x /opt/computer-server/venv/bin/python ] || python3 -m venv /opt/computer-server/venv
 /opt/computer-server/venv/bin/pip install --no-cache-dir 'pip==26.2.2'
 /opt/computer-server/venv/bin/pip install --no-cache-dir \
-  'cua-computer-server==0.3.46' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'pillow==13.0.0' 'certifi==2026.10.19'
+  'cua-computer-server==0.3.46' 'fastapi==0.144.0' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'pillow==13.0.0' 'certifi==2026.10.19'
 /opt/computer-server/venv/bin/pip check
 
 step="Camoufox"

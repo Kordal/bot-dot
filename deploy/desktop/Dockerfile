@@ -34,7 +34,8 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # Fix inherited tar, FastMCP and PyJWT vulnerabilities through their owning applications.
-# cua-computer-server 0.3.46 supports FastMCP 3.2; older releases require vulnerable 2.x.
+# cua-computer-server 0.3.46 supports FastMCP 3.2; older releases require vulnerable 2.x. It asks for any FastAPI
+# from 0.111, but FastAPI 0.145 refuses its websocket_max_size and it ends at its start: 0.144.0 is pinned (#601).
 # PyJWT 2.14.0 fixes CVE-2026-102268; it arrives there as a dependency, at 2.13.0.
 # proxy-addr 2.0.8 fixes CVE-2026-90711; the base's supergateway brings 2.0.7 with its express.
 # Pillow 13.0.0 fixes CVE-2026-112403 and certifi 2026.10.19 GHSA-6q48-6c7w-9gw2; both come as dependencies.
@@ -45,7 +46,7 @@ RUN npm install -g npm@10.9.9 \
  && npm cache clean --force \
  && /opt/computer-server/venv/bin/pip install --no-cache-dir 'pip==26.2.2' \
  && /opt/computer-server/venv/bin/pip install --no-cache-dir \
-      'cua-computer-server==0.3.46' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'pillow==13.0.0' 'certifi==2026.10.19' \
+      'cua-computer-server==0.3.46' 'fastapi==0.144.0' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'pillow==13.0.0' 'certifi==2026.10.19' \
  && /opt/computer-server/venv/bin/pip check
 
 # Every bot of the account works on this computer as `box`, with passwordless sudo (ADR 035): there is no wall between
