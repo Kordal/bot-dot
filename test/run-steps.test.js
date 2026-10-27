@@ -44,3 +44,11 @@ test('the timeline keeps its newest rows, and the count stays whole; a new start
   k.again();
   assert.equal(k.view(), null);
 });
+
+test('of a run\'s steps on the feed only the newest is replayed to an app that comes back (#633)', () => {
+  const events = require('../lib/events');
+  const first = events.emit('run_started', { id: 'r1', botId: 'b1' });
+  for (let i = 1; i <= 300; i++) events.emit('run_steps', { chat: 'bot:b1', botId: 'b1', runId: 'r1', steps: { count: i, rows: [] } });
+  const replay = events.since(first.id);
+  assert.deepEqual(replay.map((e) => [e.type, e.data.steps.count]), [['run_steps', 300]]);
+});

@@ -125,6 +125,11 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
                         val plan = ev.data["plan"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }
                         all = all.map { if (it.id == id && it.isRunning) it.copy(planValue = plan) else it }
                     }
+                    // Its steps so far, rows and all (#633), each time it takes one: an open step line grows as it goes.
+                    ev.type == "run_steps" && ev.data.str("botId") == botId -> ev.data.str("runId").let { id ->
+                        val steps = (ev.data["steps"] as? JsonObject) ?: return@let
+                        if (all.any { it.id == id && it.isRunning && it.stepsValue != steps }) all = all.map { if (it.id == id && it.isRunning) it.copy(stepsValue = steps) else it }
+                    }
                     ev.type.startsWith("run_") && ev.data.str("botId") == botId -> kicks.tryEmit(Unit)
                     ev.type == "bot_message" && (ev.data["to"] as? JsonObject)?.str("id") == botId -> kicks.tryEmit(Unit)
                     ev.type == "notes_held" && ev.data.str("botId") == botId -> kicks.tryEmit(Unit) // the wake gate held a note (ADR 083)

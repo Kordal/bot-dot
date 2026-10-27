@@ -130,3 +130,22 @@ test('web: a bot\'s plan from the feed lands on its running run and draws its op
   assert.equal(draws, 1, 'another view is not drawn');
   heard.run_plan({ data: 'not json' });
 });
+
+test('web: a bot\'s steps from the feed land on its running run and draw its open chat (#633)', () => {
+  const { cut } = require('./web-page');
+  const heard = {};
+  const state = { view: 'bot', botId: 'b1', runs: [{ id: 'r1', botId: 'b1', status: 'running', steps: { count: 1, rows: [] } }, { id: 'r0', botId: 'b1', status: 'success', steps: { count: 1, rows: [] } }] };
+  let draws = 0;
+  const ctx = vm.createContext({ JSON, state, renderBotChat: () => { draws++; }, es: { addEventListener: (t, fn) => { heard[t] = fn; } } });
+  vm.runInContext(cut('  // A working bot took a step (#633)', '  // A reply in the Chief chat that\'s open'), ctx);
+  const feed = (data) => heard.run_steps({ data: JSON.stringify(data) });
+  const steps = { count: 2, rows: [{ at: '2026-10-27T10:00:00.000Z', text: 'Reading a.js' }] };
+  feed({ chat: 'bot:b1', botId: 'b1', runId: 'r1', steps });
+  assert.deepEqual(state.runs[0].steps, steps);
+  assert.equal(draws, 1);
+  feed({ chat: 'bot:b1', botId: 'b1', runId: 'r1', steps });
+  assert.equal(draws, 1, 'the same steps again draw nothing');
+  feed({ chat: 'bot:b1', botId: 'b1', runId: 'r0', steps });
+  assert.equal(state.runs[1].steps.count, 1, 'a run that ended keeps the steps of its record');
+  heard.run_steps({ data: 'not json' });
+});

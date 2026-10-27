@@ -344,6 +344,25 @@ test('the line reads the opening line first, then the server\'s words for each f
   srv.unhold();
 });
 
+test('a running run\'s steps so far go on the feed, rows and all, with each step it takes (#633)', async () => {
+  const bot = await makeBot(srv, { name: 'Stepper' });
+  const { run, rec } = await heldRun(srv, bot);
+  const play = player(rec);
+  const fed = () => f.events.filter((e) => e.type === 'run_steps' && e.data.runId === run.id).map((e) => e.data);
+  play(use('WebSearch', { query: 'x' }));
+  await waitFor(() => fed().length === 1, { what: 'the first step on the feed' });
+  assert.deepEqual({ ...fed()[0], steps: undefined, at: undefined }, { chat: `bot:${bot.id}`, botId: bot.id, runId: run.id, steps: undefined, at: undefined });
+  assert.deepEqual(fed()[0].steps.rows.map((r) => r.text), ['Searching the web']);
+  play(use('WebSearch', { query: 'x' }), use('TodoWrite', { todos: [] }), use('Read', { file_path: '/tmp/notes.md' }));
+  await waitFor(() => fed().at(-1)?.steps.count === 3, { what: 'three steps on the feed' });
+  assert.equal(fed().length, 3, 'one per step, and the plan is none');
+  assert.deepEqual(fed().at(-1).steps.rows.map((r) => [r.text, r.n]), [['Searching the web', 2], ['Reading notes.md', undefined]]);
+  assert.deepEqual(fed().at(-1).steps, (await runOf(run.id)).steps, 'the same steps the running run reads');
+  srv.release(rec);
+  await srv.finished(run.id);
+  srv.unhold();
+});
+
 test('the run\'s log holds no more events than before: the line\'s changes are not written to it', async () => {
   const bot = await makeBot(srv, { name: 'Logger' });
   const { run, rec } = await heldRun(srv, bot);
