@@ -126,10 +126,10 @@ test('web: a file mentioned is a chip that opens in the viewer in its bot\'s cha
   const M = require('../public/mentions.js');
   const [file, folder] = M.findFiles('@[computer:archive/prices w42.csv] @[botdot:reports]');
   const chip = p.F.chipHTML(file, 'news');
-  assert.match(chip, /^<a class="file-chip" href="\/api\/bots\/news\/workspace\/file\?root=computer&amp;path=archive%2Fprices%20w42\.csv"/);
+  assert.match(chip, /^<a class="file-mention" href="\/api\/bots\/news\/workspace\/file\?root=computer&amp;path=archive%2Fprices%20w42\.csv"/);
   assert.match(chip, /data-view-bot="news"/);
   assert.match(chip, /fm-table/);
   assert.match(chip, /<span>prices w42\.csv<\/span>/);
-  assert.match(p.F.chipHTML(folder, 'news'), /^<span class="file-chip" title="reports">.*fm-folder/);
-  assert.match(p.F.chipHTML(file, 'chief'), /^<span class="file-chip"/, 'in the Chief chat it is no bot\'s');
+  assert.match(p.F.chipHTML(folder, 'news'), /^<span class="file-mention" title="reports">.*fm-folder/);
+  assert.match(p.F.chipHTML(file, 'chief'), /^<span class="file-mention"/, 'in the Chief chat it is no bot\'s');
 });

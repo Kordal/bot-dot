@@ -1,5 +1,5 @@
 // "/" in a bot's chat on the web page (#237): the message box's list, as the page's own wireMentions draws it (cut out
-// of public/chief.js and run against stand-in elements, with public/mentions.js as the page loads it). The rules
+// of public/chief.js and run against stand-in elements, with public/mentions.js and file-mentions.js as the page loads them). The rules
 // themselves are the table's (test/fixtures/mentions.json, test/mentions-web.test.js).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -15,13 +15,13 @@ function box(features) {
   const wrap = element({}, { append: () => {} });
   const form = element({ '.composer-wrap': wrap }, { text: ta });
   const ctx = vm.createContext({
-    ...finders(), String, Math,
+    ...finders(), String, Math, Date, setTimeout, clearTimeout,
     document: { createElement: () => Object.assign(list, { setAttribute() {} }) },
     state: { features },
     esc: (s) => String(s).replace(/</g, '&lt;'),
     botLabel: (b) => b.name,
   });
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'mentions.js'), 'utf8'), ctx);
+  for (const f of ['mentions.js', 'file-mentions.js']) vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8'), ctx);
   vm.runInContext(`const mentionCtx = (chat) => ({ chat, ...${JSON.stringify(table.worlds.team)} });
     ${cut('function wireMentions(form, chat, grow)', '// onSend(text, attachments, key) sends')}
     this.wireMentions = wireMentions;`, ctx);

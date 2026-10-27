@@ -166,7 +166,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
     val api by app.api.collectAsState()
     // A path in its replies, and a file you sent it, open in the viewer (#251).
-    CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId), LocalQuote provides remember(botId) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "bot", botId) },
+    CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId), LocalFileMentions provides rememberFileMentions(app, botId), LocalQuote provides remember(botId) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "bot", botId) },
         LocalPathActions provides rememberPathActions(botId, bot?.name.orEmpty()), LocalSiteIcons provides sitesShown(features)) {
         Scaffold(
             containerColor = p.bg,

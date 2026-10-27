@@ -52,10 +52,10 @@ const FileMentions = (() => {
     const file = !!f.path && /\.[^./]+$/.test(f.name);
     const inner = `${file ? ICONS[kindOf(f.name, 'file')] : ICONS.folder}<span>${esc(f.name)}</span>`;
     const bot = (state.bots || []).find((b) => b.id === chat);
-    if (!bot || !file) return `<span class="file-chip" title="${esc(f.path || f.name)}">${inner}</span>`;
+    if (!bot || !file) return `<span class="file-mention" title="${esc(f.path || f.name)}">${inner}</span>`;
     const src = `${base(bot.id)}/file?${where(f)}&path=${encodeURIComponent(f.path)}`;
     const view = (state.features || []).includes('document-viewer') ? ` data-view="${esc(src)}" data-view-name="${esc(f.name)}" data-view-from="${esc(bot.name)}"${f.root !== 'server' ? ` data-view-bot="${esc(bot.id)}"` : ''}` : '';
-    return `<a class="file-chip" href="/api${esc(src)}" target="_blank" rel="noopener" title="${esc(f.path)}"${view}>${inner}</a>`;
+    return `<a class="file-mention" href="/api${esc(src)}" target="_blank" rel="noopener" title="${esc(f.path)}"${view}>${inner}</a>`;
   }
 
   // The name with what was typed in it marked.
@@ -83,7 +83,9 @@ const FileMentions = (() => {
     const fetchOnce = (key, url) => {
       const k = kept.get(key);
       if (k && Date.now() - k.at < KEEP_MS) return k.answer;
-      const answer = api(url).catch(() => null);
+      for (const [x, v] of kept) if (Date.now() - v.at >= KEEP_MS) kept.delete(x);
+      // One that failed is not kept: the next key asks again.
+      const answer = api(url).catch(() => { kept.delete(key); return null; });
       kept.set(key, { at: Date.now(), answer });
       return answer;
     };

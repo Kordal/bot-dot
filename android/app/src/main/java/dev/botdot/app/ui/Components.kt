@@ -89,6 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.Attachment
+import dev.botdot.app.data.FileMentions
 import dev.botdot.app.data.Mentions
 import dev.botdot.app.data.Quote
 import androidx.compose.ui.focus.FocusRequester
@@ -601,7 +602,7 @@ fun MyBubble(text: String, files: List<Attachment>? = null) {
             val shown = remember(text, mentions, p.mention) { withMentions(text, mentions, p.mention) }
             // Selectable, with Quote in its menu (QuoteUi.kt), as a bot's reply is.
             if (text.isNotBlank()) QuotableSelection {
-                Text(SearchMarks.mark(linkedChatText(shown, p.inkText)), color = p.inkText, style = MaterialTheme.typography.bodyLarge, inlineContent = figureInlines(shown))
+                Text(SearchMarks.mark(linkedChatText(shown, p.inkText)), color = p.inkText, style = MaterialTheme.typography.bodyLarge, inlineContent = figureInlines(shown) + fileInlines(shown))
             }
             if (!files.isNullOrEmpty()) FilesRow(files, onDark = true)
         }
@@ -781,6 +782,13 @@ fun Composer(
     val rows = remember(text, mentions) {
         if (mentions == null || !text.selection.collapsed) emptyList() else Mentions.suggest(text.text.substring(0, text.selection.start), mentions)
     }
+    // Files for "@" in a bot's own chat (#604, FileMentionsUi.kt): looked for while the text before the cursor asks.
+    val fileMentions = LocalFileMentions.current
+    var fileView by remember { mutableStateOf(FileMentions.View()) }
+    LaunchedEffect(text.text, text.selection, fileMentions) {
+        fileView = if (fileMentions == null || !text.selection.collapsed) FileMentions.View() else fileMentions.look(text.text.substring(0, text.selection.start))
+    }
+    fun moved(to: Pair<String, Int>?) { to?.let { (t, c) -> text = TextFieldValue(t, TextRange(c)); picked = -1; outbox.edited() } }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> files?.add(uris) }
     // A message that could not be sent comes back: its text in front of what was typed since, its files in front of
     // those attached since. Also one whose chat was left while it was sent.
@@ -813,7 +821,12 @@ fun Composer(
                 }
             }
         }
-        if (rows.isNotEmpty() && mentions != null) MentionList(rows, mentions) { row -> pickMention(text, row).let { (v, end) -> text = v; picked = end } }
+        if (fileMentions != null && !fileView.empty) FileMentionList(fileView, rows, mentions,
+            onFile = { r -> moved(if (r.folder) fileMentions.enter(text.text, text.selection.start, r) else fileMentions.put(text.text, text.selection.start, r.text)) },
+            onMention = { row -> pickMention(text, row).let { (v, end) -> text = v; picked = end } },
+            onBack = { moved(fileMentions.back(text.text, text.selection.start)) },
+            onSelf = { fileMentions.self()?.let { moved(fileMentions.put(text.text, text.selection.start, it)) } })
+        else if (rows.isNotEmpty() && mentions != null) MentionList(rows, mentions) { row -> pickMention(text, row).let { (v, end) -> text = v; picked = end } }
         // Claude is signed out ([onSignIn] is given while it is): one standing line, and the way to sign in.
         if (onSignIn != null) Text(
             AnnotatedString.Builder().apply { append("$SIGNED_OUT "); pushStyle(SpanStyle(fontWeight = FontWeight.SemiBold)); append("Sign in"); pop() }.toAnnotatedString(),
