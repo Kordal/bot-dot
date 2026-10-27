@@ -128,8 +128,8 @@ test('a run that cannot be steered, or a bot that is free, answers 409 and the m
   assert.deepEqual((await botOf(srv, bot)).queued.map((q) => [q.id, q.steering]), [[w.id, undefined]]);
   // The Chief's tools may not steer the owner's message.
   assert.equal((await srv.asChief(`/bots/${bot.id}/queued/${w.id}/steer`, { method: 'POST' })).status, 403);
-  // No hook is given to such a run.
-  assert.ok(!rec.args.includes('--settings'));
+  // Its hook hands it no message: only the runs that start beside it (ADR 105).
+  assert.equal(await toolCall(srv, rec.self.env.RUN_TOKEN), null);
   srv.unhold();
   srv.release(rec);
   await ranAll(srv, bot, 2);
