@@ -1,0 +1,49 @@
+{
+  "about": "The blocks of a bot's chat (#625, #627), as public/unread.js (Unread.blocks) and the Android app (ChatOrder.rounds) draw them. A run with replyTo is a round of the block of the run it replied to, followed to the first run of the chain that is in the chat; else a block of its own. A block stands where the reply of its last round stands (chat-order.json). blocks: each block's runs, oldest first.",
+  "cases": [
+    {
+      "name": "no replies: one block a run",
+      "runs": [
+        { "id": "r1", "status": "success", "startedAt": "2026-10-27T10:00:00.000Z", "endedAt": "2026-10-27T10:05:00.000Z" },
+        { "id": "r2", "status": "success", "startedAt": "2026-10-27T10:06:00.000Z", "endedAt": "2026-10-27T10:07:00.000Z" }
+      ],
+      "blocks": [["r1"], ["r2"]]
+    },
+    {
+      "name": "a reply to an older run moves its block down, below the run between",
+      "runs": [
+        { "id": "r1", "status": "success", "startedAt": "2026-10-27T10:00:00.000Z", "endedAt": "2026-10-27T10:05:00.000Z" },
+        { "id": "r2", "status": "success", "startedAt": "2026-10-27T10:06:00.000Z", "endedAt": "2026-10-27T10:07:00.000Z" },
+        { "id": "r3", "status": "success", "replyTo": "r1", "startedAt": "2026-10-27T10:08:00.000Z", "endedAt": "2026-10-27T10:09:00.000Z" }
+      ],
+      "blocks": [["r2"], ["r1", "r3"]]
+    },
+    {
+      "name": "a reply to a reply is a third round of the same block; a reply at work keeps its block at the bottom",
+      "runs": [
+        { "id": "r1", "status": "success", "startedAt": "2026-10-27T10:00:00.000Z", "endedAt": "2026-10-27T10:05:00.000Z" },
+        { "id": "r2", "status": "success", "replyTo": "r1", "startedAt": "2026-10-27T10:06:00.000Z", "endedAt": "2026-10-27T10:07:00.000Z" },
+        { "id": "r3", "status": "success", "startedAt": "2026-10-27T10:07:30.000Z", "endedAt": "2026-10-27T10:07:40.000Z" },
+        { "id": "r4", "status": "running", "replyTo": "r2", "startedAt": "2026-10-27T10:08:00.000Z" }
+      ],
+      "blocks": [["r3"], ["r1", "r2", "r4"]]
+    },
+    {
+      "name": "a reply to a run not in the chat is a block of its own",
+      "runs": [
+        { "id": "r5", "status": "success", "replyTo": "gone", "startedAt": "2026-10-27T10:00:00.000Z", "endedAt": "2026-10-27T10:01:00.000Z" },
+        { "id": "r6", "status": "success", "startedAt": "2026-10-27T10:02:00.000Z", "endedAt": "2026-10-27T10:03:00.000Z" }
+      ],
+      "blocks": [["r5"], ["r6"]]
+    },
+    {
+      "name": "two replies to one run are rounds of its block, in the order they ended",
+      "runs": [
+        { "id": "r1", "status": "success", "startedAt": "2026-10-27T10:00:00.000Z", "endedAt": "2026-10-27T10:05:00.000Z" },
+        { "id": "r2", "status": "success", "replyTo": "r1", "startedAt": "2026-10-27T10:06:00.000Z", "endedAt": "2026-10-27T10:09:00.000Z" },
+        { "id": "r3", "status": "success", "replyTo": "r1", "startedAt": "2026-10-27T10:07:00.000Z", "endedAt": "2026-10-27T10:08:00.000Z" }
+      ],
+      "blocks": [["r1", "r3", "r2"]]
+    }
+  ]
+}

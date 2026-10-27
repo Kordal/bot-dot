@@ -396,6 +396,8 @@ data class Run(
     // `continues` and `waitingFor` as the server sends them, kept as they came: one of a kind this app does not
     // expect leaves the chat readable. Read them through [continues] and [waitsForOk].
     @SerialName("continues") val continuesValue: JsonElement? = null,
+    // The run of the chat the owner picked Reply on, which this one continues (`reply-to`, #627). Read it through [replyTo].
+    @SerialName("replyTo") val replyToValue: JsonElement? = null,
     @SerialName("waitingFor") val waitingForValue: JsonElement? = null,
     // Who ended it (`ended-by`): "owner", "chief", "signout" or "limit". Kept as it came; read it through [endedBy].
     @SerialName("endedBy") val endedByValue: JsonElement? = null,
@@ -457,6 +459,9 @@ data class Run(
      * follows a yes"), or null. The request stands once, above that run's reply: this run draws no message of the owner.
      */
     val continues: String? get() = continuesValue.textOrNull()
+
+    /** The run this one continues because the owner picked Reply on it (`replyTo`, #627): it is a further round of that run's block. */
+    val replyTo: String? get() = replyToValue.textOrNull()
 
     /** While it runs: it waits for the owner's OK on an action in a connected app (`waitingFor: "ok"`). */
     val waitsForOk: Boolean get() = isRunning && OpeningLine.waitsForOk(waitingForValue)

@@ -15,13 +15,14 @@ function botThreadHTML(bot, runs, newFirst = null) {
       </div>`;
   }
   // A block stands where its reply ended, below what came while its run worked (a "/btw", another run): Unread.order (#460).
-  const blocks = Unread.order(runs).filter((p) => p.part === 'reply').map((p) => p.run);
-  const lastReply = blocks[blocks.length - 1]?.id;
+  // A run the owner started with Reply is a further round of the block it replied to (#627): Unread.blocks.
+  const blocks = Unread.blocks(runs);
+  const lastReply = blocks[blocks.length - 1]?.at(-1)?.id;
   const newest = runs[runs.length - 1]?.id;
   let lastDay = '';
-  return blocks.map((r) => {
-    const line = newFirst !== null && r.id === newFirst ? Unread.line(bot.color) : '';
-    const html = r.kind === 'script' ? line + scriptRunHTML(r) : runBlockHTML(bot, r, line, r.id === lastReply, r.id === newest);
+  return blocks.map((rounds) => {
+    const r = rounds[rounds.length - 1];
+    const html = rounds.length === 1 && r.kind === 'script' ? (newFirst !== null && r.id === newFirst ? Unread.line(bot.color) : '') + scriptRunHTML(r) : runBlockHTML(bot, rounds, newFirst, lastReply, newest);
     const when = r.status === 'running' ? r.startedAt : r.endedAt || r.startedAt;
     if (!html || !when) return html;
     const day = new Date(when).toDateString();
@@ -31,13 +32,19 @@ function botThreadHTML(bot, runs, newFirst = null) {
   }).join('');
 }
 
-// One run's block: what started it, what the owner steered into it, its step line and its reply with its footer.
-// line: the "New" line, when it goes in this block: above what started the run, or, below the owner's own message
+// One block: the run that began it and each run the owner started with Reply on it (#627), a round each: what started
+// it, what the owner steered into it, its step line and its reply with its footer. Reply stands in the last round's footer.
+// The "New" line goes in the round of newFirst: above what started it, or, below the owner's own message
 // (Unread.exchange), above the rest. With nothing drawn for what started it, above the rest.
-function runBlockHTML(bot, r, line, last, newest) {
-  const { asked, steered, reply, mine } = runParts(bot, r, last, newest);
-  const top = asked ? Unread.exchange({ asked, mine }, mine ? '' : line) : '';
-  return `<section class="run-block${r.status === 'running' ? ' live' : ''}" data-run="${esc(r.id)}">${top}${steered.join('')}${mine || !asked ? line : ''}${stepLineHTML(r)}${reply}</section>`;
+function runBlockHTML(bot, rounds, newFirst, lastReply, newest) {
+  const html = rounds.map((r, i) => {
+    const line = newFirst !== null && r.id === newFirst ? Unread.line(bot.color) : '';
+    if (r.kind === 'script') return line + scriptRunHTML(r);
+    const { asked, steered, reply, mine } = runParts(bot, r, r.id === lastReply, r.id === newest, i === rounds.length - 1);
+    const top = asked ? Unread.exchange({ asked, mine }, mine ? '' : line) : '';
+    return `<div class="run-round${r.status === 'running' ? ' live' : ''}" data-round="${esc(r.id)}">${top}${steered.join('')}${mine || !asked ? line : ''}${stepLineHTML(r)}${reply}</div>`;
+  }).join('');
+  return `<section class="run-block${rounds.some((r) => r.status === 'running') ? ' live' : ''}" data-run="${esc(rounds[0].id)}">${html}</section>`;
 }
 
 const STEP_ICON = {
@@ -101,12 +108,12 @@ function runLine(r) {
 // The running blocks' lines as the server says them, in place: no redraw of the chat.
 function drawBlockLines(thread) {
   if (!thread) return;
-  $$('.run-block.live', thread).forEach((block) => {
-    const r = state.runs.find((x) => x.id === block.dataset.run);
+  $$('.run-round.live', thread).forEach((block) => {
+    const r = state.runs.find((x) => x.id === block.dataset.round);
     if (!r || r.status !== 'running') return;
     const now = $('.step-now', block);
     if (now && now.textContent !== runLine(r)) now.textContent = runLine(r);
-    block.classList.toggle('held', r.waitingFor === 'ok');
+    block.closest('.run-block')?.classList.toggle('held', r.waitingFor === 'ok');
     if (now) now.onclick = r.waitingFor === 'ok' ? (e) => { e.preventDefault(); if (!toHeldCard(thread, r.botId)) setView('needs'); } : null; // to the card it waits for
     const count = Number(r.steps?.count) || 0;
     const n = $('.step-n', block);
@@ -129,8 +136,10 @@ function foldLongReplies(thread) {
 }
 
 // What a bot's chat draws of one run: what started it, each message steered into it, its reply. last: its reply is
-// the last in the chat (its quick answers stand under it). newest: it is the run that started last.
-function runParts(bot, r, last, newest) {
+// the last in the chat (its quick answers stand under it). newest: it is the run that started last. replies: its footer
+// is its block's, with Reply (#627), when the server takes a reply.
+function runParts(bot, r, last, newest, replies = false) {
+  const replyBtn = replies && state.features.includes('reply-to') ? `<button type="button" class="block-reply" data-reply="${esc(r.id)}">Reply</button>` : '';
   // Messages other bots left for it, read at the start of this run.
   const notes = notesFoldHTML(r.inbox, r.inbox?.length === 1 ? 'Read a note from' : 'Read notes from');
   let mine = false; // your own message started it: that isn't new, so the "New" line goes below it
@@ -154,7 +163,7 @@ function runParts(bot, r, last, newest) {
     // No bubble while it works: its step line says it. Only what it attached so far. From a server with drafts, the
     // reply as it is written so far stands here, and grows in place (replyDrafts). Its footer: when it started, and Stop.
     reply = `<div class="bubble-row from-bot" data-live="${esc(r.id)}">${draftHTML(replyDrafts.of(r.id), true)}${botFilesHTML(r.files)}</div>
-      <div class="bubble-meta block-foot"><span>${esc(msgTime(r.startedAt))}</span><span class="grow"></span><button type="button" class="block-stop" data-stop-run="${esc(r.id)}">Stop</button></div>`;
+      <div class="bubble-meta block-foot"><span>${esc(msgTime(r.startedAt))}</span><span class="grow"></span>${replyBtn}<button type="button" class="block-stop" data-stop-run="${esc(r.id)}">Stop</button></div>`;
   } else {
     const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
     const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || 'Done. (No written reply.)';
@@ -177,10 +186,38 @@ function runParts(bot, r, last, newest) {
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
         ${(last || r.id === bot.asks?.runId) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions) : ''}
-        <div class="bubble-meta block-foot">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
+        <div class="bubble-meta block-foot">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}${replyBtn}</div>
       </div></div>`;
   }
   return { asked, steered, reply, mine };
+}
+
+// The run the owner picked Reply on, by bot (#627): { runId, asked }, what the first run of its block was asked. The
+// next message from the box goes to it; ✕ or sending ends it.
+const replyPicks = new Map();
+function replyAsked(runs, runId) {
+  const byId = new Map(runs.map((r) => [r.id, r]));
+  let r = byId.get(runId);
+  for (let i = 0; r?.replyTo && byId.has(r.replyTo) && i < 50; i++) r = byId.get(r.replyTo);
+  return r ? r.jobName || firstLine(r.prompt) : '';
+}
+function pickReply(botId, runId) {
+  replyPicks.set(botId, { runId, asked: replyAsked(state.runs, runId) });
+  const form = $('#bot-thread')?.parentElement?.querySelector('form.composer');
+  drawReplyChip(form, botId);
+  $('textarea', form)?.focus();
+}
+// The chip above the message box: "Reply to: <what was asked>" and ✕.
+function drawReplyChip(form, botId) {
+  if (!form) return;
+  const pick = replyPicks.get(botId);
+  let el = $('.reply-to', form);
+  if (!pick) { el?.remove(); return; }
+  if (el?.dataset.run === pick.runId) return;
+  if (!el) { $('.composer-box', form).insertAdjacentHTML('beforebegin', '<div class="reply-to"></div>'); el = $('.reply-to', form); }
+  el.dataset.run = pick.runId;
+  el.innerHTML = `<span>Reply to: ${esc(pick.asked)}</span><button type="button" aria-label="Cancel the reply">✕</button>`;
+  $('button', el).onclick = () => { replyPicks.delete(botId); drawReplyChip(form, botId); $('textarea', form)?.focus(); };
 }
 
 // "Run now" under the notes that wait (#225): the bot starts with them, or once it is free.
@@ -277,7 +314,7 @@ function renderBotChat() {
       <div class="pip hidden" id="bot-pip"></div>
       ${composerHTML(`Give ${bot.name} a task…`)}`;
     const form = $('form', root);
-    wireComposer(form, (text, files, key) => runBot(bot.id, text, files, key), () => `bot:${bot.id}`, bot.id);
+    wireComposer(form, (text, files, key) => runBot(bot.id, text, files, key, replyPicks.get(bot.id)?.runId), () => `bot:${bot.id}`, bot.id);
     $('#bot-settings').onclick = () => setPanel('toggle');
     // A group grown from this chat (groups.js): this bot and those picked. Its own chat stays as it is.
     $('#bot-add-to-chat').onclick = () => { const b = state.bots.find((x) => x.id === state.botId); if (b && canMakeGroup(b)) openGroupMaker(b); };
@@ -311,6 +348,7 @@ function renderBotChat() {
     // A block's step line opens and closes, and stays so; Stop in a running block's footer ends that run.
     $$('details.run-steps', thread).forEach((el) => el.addEventListener('toggle', () => { if (el.open) openSteps.add(el.dataset.steps); else openSteps.delete(el.dataset.steps); }));
     $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
+    $$('[data-reply]', thread).forEach((el) => (el.onclick = () => pickReply(bot.id, el.dataset.reply)));
     foldLongReplies(thread);
     $$('[data-run-notes]', thread).forEach((el) => (el.onclick = () => runNotes(el.dataset.runNotes, el)));
     wireChoices(thread, (t, key) => sendFrom($('form', root), () => runBot(bot.id, t, [], key)));
@@ -346,6 +384,7 @@ function renderBotChat() {
   updateChatNeeds($('#bot-thread'), bot.id);
   updatePip(bot, bot.computer === 'linux' ? runs.find((r) => r.status === 'running' && r.computer) : null); // a machine on boat.dev has no live screen beside its runs
   setSendBusy($('form', root), false);
+  drawReplyChip($('form', root), bot.id);
   globalThis.drawBotPlan?.(bot, runs);
   placeStatusLines();
 }
@@ -356,13 +395,14 @@ function renderBotChat() {
 // before. A task botdot had already (again) answers the run it has, which the chat holds once.
 // To a working bot the answer is a run that waits (`status: "queued"`): it is no run yet, so nothing is followed
 // or opened for its id. It is drawn among the bot's `queued`, as every waiting message is.
-async function runBot(botId, text, attachments = [], key = messageKey()) {
+// replyTo: the run the owner picked Reply on (#627); sent, the pick goes.
+async function runBot(botId, text, attachments = [], key = messageKey(), replyTo = null) {
   const at = `bot:${botId}`;
   sentAtOnce(at, { key, text, attachments });
   showSent($('#bot-thread'));
   let took;
   try {
-    took = await api(`/bots/${botId}/run`, { method: 'POST', body: { prompt: text || undefined, attachments, key } });
+    took = await api(`/bots/${botId}/run`, { method: 'POST', body: { prompt: text || undefined, attachments, key, ...(replyTo ? { replyTo } : {}) } });
   } catch (e) {
     sentOver(at, key, false); // it did not go: nothing of it stays in the chat
     placeStatusLines();
@@ -371,6 +411,7 @@ async function runBot(botId, text, attachments = [], key = messageKey()) {
   // The task went. Nothing from here on may reject: the caller would put a sent message back into the box.
   try {
     sentOver(at, key);
+    if (replyTo && replyPicks.get(botId)?.runId === replyTo) replyPicks.delete(botId);
     tookRun(botId, took, text, attachments);
     if (state.view === 'bot' && state.botId === botId) renderBotChat(); else placeStatusLines();
     const thread = $('#bot-thread');

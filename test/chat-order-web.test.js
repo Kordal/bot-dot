@@ -82,3 +82,28 @@ test('web: a finished block folds its steps into one line: the count, the skills
   const plainBlock = page().botThreadHTML(bot, [run('quiet', { prompt: 'Hi', result: 'Hello.', startedAt: '2026-10-23T11:28:00.000Z', endedAt: '2026-10-23T11:28:05.000Z' })]);
   assert.doesNotMatch(plainBlock, /run-steps/, 'a run without a step, a skill or a message has no step line');
 });
+
+// A run the owner started with Reply is a further round of the block it replied to (#627), from the table the
+// Android app is checked against too (test/fixtures/reply-blocks.json).
+for (const c of require('./fixtures/reply-blocks.json').cases) {
+  test(`web reply blocks: ${c.name}`, () => {
+    assert.deepEqual(JSON.parse(JSON.stringify(Unread.blocks(c.runs).map((b) => b.map((r) => r.id)))), c.blocks);
+  });
+}
+
+test('web: a reply is a round of its block, which stands where it ended; Reply is in the last round\'s footer only', () => {
+  const ctx = page();
+  ctx.state.features = ['reply-to'];
+  const first = run('first', { prompt: 'Plan my Thursday', result: 'Gym at 7.', startedAt: '2026-10-27T10:00:00.000Z', endedAt: '2026-10-27T10:05:00.000Z' });
+  const other = run('other', { prompt: 'Any news?', result: 'None.', startedAt: '2026-10-27T10:06:00.000Z', endedAt: '2026-10-27T10:07:00.000Z' });
+  const more = run('more', { prompt: 'move the gym to 8', result: 'Moved.', replyTo: 'first', startedAt: '2026-10-27T10:08:00.000Z', endedAt: '2026-10-27T10:09:00.000Z' });
+  const html = ctx.botThreadHTML(bot, [first, other, more]);
+  assert.deepEqual(blocks(html), ['other', 'first']);
+  order(html, 'Any news?', 'Plan my Thursday', 'Gym at 7.', 'data-round="more"', 'move the gym to 8', 'Moved.', 'data-reply="more"');
+  assert.deepEqual([...html.matchAll(/data-reply="([^"]+)"/g)].map((m) => m[1]), ['other', 'more']);
+  const live = ctx.botThreadHTML(bot, [first, { ...more, status: 'running', endedAt: null, result: null }]);
+  assert.match(live, /<section class="run-block live" data-run="first">/);
+  order(live, 'Gym at 7.', 'move the gym to 8', 'data-reply="more"', 'data-stop-run="more"');
+  ctx.state.features = [];
+  assert.doesNotMatch(ctx.botThreadHTML(bot, [first]), /data-reply/, 'a server without reply-to: no Reply');
+});

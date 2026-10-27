@@ -40,6 +40,29 @@ object ChatOrder {
     /** The runs as blocks (#625), oldest first: each run is one block, where its reply ends; a run at work at the bottom. */
     fun blocks(runs: List<Run>): List<Run> = pieces(runs).filterIsInstance<Piece.Reply>().map { it.run }
 
+    /**
+     * The runs as blocks of rounds (#627, test/fixtures/reply-blocks.json; `Unread.blocks` on the web page): a run with
+     * [Run.replyTo] is a further round of the block of the run it replied to, followed to the first run of the chain
+     * that is in [runs]; else a block of its own. A block stands where the reply of its last round stands.
+     */
+    fun rounds(runs: List<Run>): List<List<Run>> {
+        val replies = blocks(runs)
+        val byId = replies.associateBy { it.id }
+        fun rootOf(r: Run): String {
+            val seen = hashSetOf(r.id)
+            var at = r
+            while (true) {
+                val up = at.replyTo?.let { byId[it] } ?: break
+                if (!seen.add(up.id)) break
+                at = up
+            }
+            return at.id
+        }
+        val roots = replies.associate { it.id to rootOf(it) }
+        val grouped = replies.groupBy { roots.getValue(it.id) }
+        return replies.filter { grouped.getValue(roots.getValue(it.id)).last() === it }.map { grouped.getValue(roots.getValue(it.id)) }
+    }
+
     /** The run whose reply is drawn last in the chat: its quick answers stand under it. */
     fun lastReply(pieces: List<Piece>): Run? = pieces.lastOrNull { it is Piece.Reply }?.run
 }

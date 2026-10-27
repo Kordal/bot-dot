@@ -1,9 +1,14 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -20,9 +25,11 @@ import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,16 +59,42 @@ import dev.botdot.app.data.RunSteps
 
 /**
  * One run of a bot's chat as one block (#625; `runBlockHTML` in public/bot-chat.js): a frame that holds what started
- * it, what was steered into it, its step line, its reply and its footer. A run at work has a lighter frame.
+ * it, what was steered into it, its step line, its reply and its footer, and a further round for each run the owner
+ * started with Reply on it (#627). A block with a run at work has a lighter frame. [onLongPress]: a long press opens
+ * "Reply to this task".
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun RunBlock(r: Run, content: @Composable ColumnScope.() -> Unit) {
+fun RunBlock(live: Boolean, onLongPress: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPaper.current
     val shape = RoundedCornerShape(18.dp)
+    val press = if (onLongPress == null) Modifier
+    else Modifier.combinedClickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onLongClickLabel = REPLY_TO_TASK, onClick = {}, onLongClick = onLongPress)
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(Color(0xFF050505)).border(1.dp, if (r.isRunning) p.line2 else p.line, shape).padding(10.dp),
+        Modifier.fillMaxWidth().clip(shape).background(Color(0xFF050505)).border(1.dp, if (live) p.line2 else p.line, shape).then(press).padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp), content = content,
     )
+}
+
+/** The sheet a long press on a block opens (#627). */
+const val REPLY_TO_TASK = "Reply to this task"
+
+/** A further round of a block (#627): a thin line above it. */
+@Composable
+fun RoundRule() = Box(Modifier.fillMaxWidth().height(1.dp).background(LocalPaper.current.line))
+
+/** Above the message box while a reply is picked (#627): "Reply to: <what was asked>" and ✕. */
+@Composable
+fun ReplyChip(asked: String, onCancel: () -> Unit) {
+    val p = LocalPaper.current
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 6.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape).padding(start = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("Reply to: $asked", color = p.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        IconButton(onClick = onCancel) { Icon(Icons.Outlined.Close, contentDescription = "Cancel the reply", tint = p.muted, modifier = Modifier.size(18.dp)) }
+    }
 }
 
 /**

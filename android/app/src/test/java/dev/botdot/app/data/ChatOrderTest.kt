@@ -42,4 +42,35 @@ class ChatOrderTest {
     }
 
     @Test fun none() = assertEquals(emptyList<ChatOrder.Piece>(), ChatOrder.pieces(emptyList()))
+
+    @Serializable
+    data class BlocksCase(val name: String, val runs: List<JsonObject>, val blocks: List<List<String>>)
+
+    @Serializable
+    data class BlocksTable(val cases: List<BlocksCase>, val about: JsonElement? = null)
+
+    /** A run the owner started with Reply is a further round of its block (#627), from the web page's table too. */
+    @Test fun replyBlocks() {
+        val t = Json { ignoreUnknownKeys = true }.decodeFromString(
+            BlocksTable.serializer(),
+            File(System.getProperty("replyBlocks") ?: "../../test/fixtures/reply-blocks.json").readText(),
+        )
+        assertTrue(t.cases.isNotEmpty())
+        for (c in t.cases) {
+            val runs = c.runs.map { Api.JSON.decodeFromJsonElement(Run.serializer(), it) }
+            assertEquals(c.name, c.blocks, ChatOrder.rounds(runs).map { b -> b.map { it.id } })
+        }
+    }
+
+    @Test fun replyAsked() {
+        val runs = listOf(
+            Run(id = "r1", prompt = "Plan my Thursday\nand Friday"),
+            Run(id = "r2", prompt = "move the gym to 8", replyToValue = kotlinx.serialization.json.JsonPrimitive("r1")),
+            Run(id = "r3", prompt = "loop", replyToValue = kotlinx.serialization.json.JsonPrimitive("r3")),
+        )
+        assertEquals("Plan my Thursday", ReplyTo.asked(runs, runs[1]))
+        assertEquals("loop", ReplyTo.asked(runs, runs[2]))
+        assertTrue(ReplyTo.shows(listOf("reply-to")))
+        assertTrue(!ReplyTo.shows(null) && !ReplyTo.shows(emptyList()))
+    }
 }

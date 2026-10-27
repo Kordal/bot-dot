@@ -115,6 +115,8 @@ android {
         // The order of a bot's chat, as the web page draws it (ChatOrderTest, #460).
         val chatOrder = rootProject.file("../test/fixtures/chat-order.json")
         unitTests.all { it.systemProperty("chatOrder", chatOrder.path); it.inputs.file(chatOrder) }
+        val replyBlocks = rootProject.file("../test/fixtures/reply-blocks.json")
+        unitTests.all { it.systemProperty("replyBlocks", replyBlocks.path); it.inputs.file(replyBlocks) }
         // The figure definition the app bundles (FigureTest).
         unitTests.all { it.systemProperty("figureDefinition", figureDefinition.path); it.inputs.file(figureDefinition) }
         // The definitions every renderer must take alike (FigureTest).

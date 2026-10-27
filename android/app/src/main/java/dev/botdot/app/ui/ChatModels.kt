@@ -184,13 +184,13 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
      * Sends a message; true once it went. [box]: it came from the message box, and goes back there when it failed.
      * The request outlives this chat's screen: leaving the chat neither stops it nor loses a message it could not send.
      */
-    fun send(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null): Deferred<Boolean> {
+    fun send(text: String, attachments: List<Attachment>, box: Boolean = true, key: String? = null, replyTo: String? = null): Deferred<Boolean> {
         var waits = false // the answer was a message that waits its turn: it is in the bot's list, not among its runs
         val known = ownWords(all, queued).mapTo(HashSet()) { it.id }
         // Begun in the tap itself: the message is in the chat before anything else is drawn.
         return app.scope.async(start = CoroutineStart.UNDISPATCHED) {
             outbox.send(text, attachments, box, key, once = takesOnce(app), known = known) { k ->
-                val run = (app.api.value ?: throw ApiException(NOT_CONNECTED)).runBot(botId, text, attachments, k)
+                val run = (app.api.value ?: throw ApiException(NOT_CONNECTED)).runBot(botId, text, attachments, k, replyTo)
                 waits = run.isQueued
                 took(run, text, attachments)
             }

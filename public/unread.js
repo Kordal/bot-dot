@@ -76,6 +76,24 @@ function order(runs) {
   return pieces.sort((a, b) => (a.at === b.at ? 0 : a.at < b.at ? -1 : 1)).map(({ at, ...p }) => p); // stable: ties keep the runs' order
 }
 
+// The blocks of a bot's chat (#625, #627; test/fixtures/reply-blocks.json): each run is a round of the block of the
+// run it replied to (`replyTo`, followed to the first run of the chain that is in `runs`), else a block of its own.
+// A block stands where the reply of its last round stands (order). Returns the blocks, oldest first, each the list of
+// its runs in the order their replies stand.
+function blocks(runs) {
+  const replies = order(runs).filter((p) => p.part === 'reply').map((p) => p.run);
+  const byId = new Map(replies.map((r) => [r.id, r]));
+  const rootOf = (r) => {
+    const seen = new Set([r.id]);
+    let at = r;
+    while (at.replyTo && byId.has(at.replyTo) && !seen.has(at.replyTo)) { at = byId.get(at.replyTo); seen.add(at.id); }
+    return at.id;
+  };
+  const rounds = new Map();
+  for (const r of replies) { const root = rootOf(r); rounds.set(root, [...(rounds.get(root) || []), r]); }
+  return replies.filter((r) => rounds.get(rootOf(r)).at(-1) === r).map((r) => rounds.get(rootOf(r)));
+}
+
 // In a Chief chat the line goes above the message at place `first`, or above the next one that is drawn.
 // places: the place of each drawn row, in order. Returns the row's index, or -1 when none is drawn.
 const rowFrom = (places, first) => (Number.isInteger(first) ? places.findIndex((p) => p >= first) : -1);
@@ -171,7 +189,7 @@ function reporter({ app, post, onRead = () => {}, every = setInterval, stop = cl
 // An id this page makes up for itself, so the server can tell two apps on one chat apart.
 const appId = (random = Math.random) => `web-${Array.from({ length: 12 }, () => Math.floor(random() * 36).toString(36)).join('')}`;
 
-const api = { MAX_DOTS, REPEAT_MS, CHAT_RUNS, count, tint, dots, asks, mark, asked, line, exchange, order, rowFrom, shown, reach, lineKeeper, reporter, appId };
+const api = { MAX_DOTS, REPEAT_MS, CHAT_RUNS, count, tint, dots, asks, mark, asked, line, exchange, order, blocks, rowFrom, shown, reach, lineKeeper, reporter, appId };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Unread = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

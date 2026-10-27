@@ -253,6 +253,16 @@ a.more-btn { text-decoration: none; }
 .block-foot { margin: 0 4px; min-height: 28px; font-size: 12px; }
 .block-foot .grow { flex: 1; }
 .bubble-meta .block-stop { color: var(--err); }
+/* A further round of a block, started with Reply (#627); Reply shows on hover, always where nothing hovers. */
+.run-round { display: flex; flex-direction: column; gap: 10px; }
+.run-round + .run-round { border-top: 1px solid var(--line); padding-top: 10px; }
+.bubble-meta .block-reply { opacity: 0; transition: opacity var(--t1); }
+.run-block:hover .block-reply, .block-reply:focus-visible { opacity: 1; }
+@media (hover: none) { .bubble-meta .block-reply { opacity: 1; } }
+.reply-to { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; padding: 6px 6px 6px 12px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); font-size: 13px; color: var(--muted); }
+.reply-to span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reply-to button { border: 0; background: none; color: var(--muted); width: 28px; height: 28px; border-radius: 8px; cursor: pointer; flex: none; }
+.reply-to button:hover { color: var(--text); background: var(--sunk); }
 .reply-more { display: none; border: 0; background: none; padding: 6px 0 0; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 @container main (max-width: 480px) {
   .run-block { padding: 10px; border-radius: 18px; }
