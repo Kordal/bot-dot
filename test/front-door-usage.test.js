@@ -99,6 +99,37 @@ test('report: weekly active, activation, week 1 and week 4, failures, features a
   assert.equal(cy.lastDay, null);
 });
 
+test('account: one account\'s 30 days one by one, its outcomes, failures, cards and answer time', async (t) => {
+  const dir = scratch(t);
+  const now = Date.parse('2026-11-30T08:00:00Z'); // yesterday: 2026-11-29, 30 days from 2026-10-31
+  const rows = { ann: {
+    '2026-10-30': usageLib.clean(row({ runs: { done: 50 } })), // before the 30 days
+    '2026-11-01': usageLib.clean(row({ runs: { done: 3, failed: 1, stopped: 1 }, errors: { timeout: 1 }, cards: { shown: 2, answered: 2, medianAnswerMs: 1000 } })),
+    '2026-11-02': usageLib.clean(row({ active: false, runs: { failed: 2 }, errors: { limit: 2 }, cards: { shown: 1, answered: 0 } })),
+    '2026-11-29': usageLib.clean(row({ runs: { done: 1 }, errors: {}, cards: { shown: 3, answered: 3, medianAnswerMs: 5000 }, version: '1.3.0', bots: 4 })),
+  } };
+  fs.writeFileSync(path.join(dir, 'usage.json'), JSON.stringify({ rows }));
+  const u = usageLib.open(dir, { now: () => now });
+  const list = [{ name: 'ann', created: '2026-10-01T09:00:00Z' }, { name: 'cy', created: '2026-11-29T09:00:00Z' }];
+  const a = u.account('ann', list);
+  assert.equal(a.day, '2026-11-29');
+  assert.equal(a.days.length, 30);
+  assert.deepEqual([a.days[0].day, a.days[29].day], ['2026-10-31', '2026-11-29']);
+  assert.deepEqual(a.days[1], { day: '2026-11-01', counted: true, active: true, runs: { done: 3, failed: 1, stopped: 1 } });
+  assert.deepEqual(a.days[3], { day: '2026-11-03', counted: false, active: false, runs: {} }, 'a day with no row');
+  assert.deepEqual(a.runsBy, { done: 4, failed: 3, stopped: 1 });
+  assert.deepEqual(a.errors, { timeout: 1, limit: 2 });
+  assert.deepEqual(a.cards, { shown: 6, answered: 5, medianAnswerMs: 3000 }, 'the median of the days that had answers');
+  assert.deepEqual([a.runs, a.failed, a.activeDays, a.bots, a.version], [8, 3, 2, 4, '1.3.0']);
+  assert.deepEqual(a.features, ['groups', 'jobs']);
+  assert.deepEqual(a, { ...u.report(list).accounts[0], day: a.day, runsBy: a.runsBy, errors: a.errors, cards: a.cards, days: a.days }, 'the same numbers as its row');
+  const cy = u.account('cy', list);
+  assert.ok(cy.days.every((d) => !d.counted));
+  assert.deepEqual([cy.cards.medianAnswerMs, cy.lastDay, cy.bots], [null, null, null]);
+  assert.equal(u.account('nobody', list), null);
+  assert.ok(!JSON.stringify(a).includes('Secret'));
+});
+
 test('the admin page shows the usage collected from each account; nobody else reaches it', async (t) => {
   const answer = (req) => (req.url.startsWith('/api/usage-summary?day=') ? [200, row({ day: req.url.slice(-10), name: 'Secretbot' })] : null);
   const door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', BOT_DOT_USAGE_FIRST_MS: '200', BOT_DOT_USAGE_EVERY_MS: '300' } });
@@ -128,4 +159,15 @@ test('the admin page shows the usage collected from each account; nobody else re
   assert.ok(r.accounts[0].runs > 0);
   assert.ok(!JSON.stringify(r).includes('Secretbot'), 'what an account adds is not kept');
   assert.equal((await door.browser().get('/admin/usage')).status, 401);
+  // One account's own numbers (#615).
+  const one = await a.get('/admin/usage/ann');
+  assert.equal(one.status, 200);
+  assert.equal(one.data.name, 'ann');
+  assert.equal(one.data.days.length, 30);
+  assert.ok(one.data.days.some((x) => x.counted));
+  assert.ok(!JSON.stringify(one.data).includes('Secretbot'));
+  assert.equal((await a.get('/admin/usage/nobody')).status, 404);
+  assert.equal((await a.get('/admin/usage/%E0%A4%A')).status, 404);
+  assert.equal((await door.browser().get('/admin/usage/ann')).status, 401);
+  assert.ok(page.includes('<div class="panel" id="usage-account" hidden></div>'));
 });

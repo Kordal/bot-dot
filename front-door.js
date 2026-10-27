@@ -1012,6 +1012,12 @@ async function adminRoutes(req, res, p, account) {
   // The shares of the machine: the default, and the machine's load.
   // How the accounts use botdot (ADR 105): counts alone, from each account's daily summary.
   if (p === '/admin/usage' && req.method === 'GET') return send(res, 200, usage ? usage.report(doors.listAccounts()) : { day: null, totals: null, accounts: [] });
+  if (p.startsWith('/admin/usage/') && req.method === 'GET') {
+    let name = '';
+    try { name = decodeURIComponent(p.slice('/admin/usage/'.length)); } catch { /* not a name */ }
+    const one = usage && usage.account(name, doors.listAccounts());
+    return one ? send(res, 200, one) : send(res, 404, { error: 'No such account.' });
+  }
   if (p === '/admin/share' && req.method === 'GET') return send(res, 200, { share: doors.defaultShare(), machine: load.machine() });
   if (p === '/admin/share' && req.method === 'POST') {
     const accounts = doors.setDefaultShare(await readJson(req));
