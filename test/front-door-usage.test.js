@@ -14,7 +14,7 @@ const usageLib = require('../lib/front-door/usage');
 const DAY = 864e5;
 const scratch = (t) => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'usage-')); t.after(() => fs.rmSync(dir, { recursive: true, force: true })); return dir; };
 const dayOf = (t) => new Date(t).toISOString().slice(0, 10);
-const row = (over = {}) => ({ version: '1.2.3', bots: 1, active: true, runs: { done: 2, failed: 1 }, errors: { timeout: 1 }, counted: 2, reasked: 1, corrected: 1, messages: 3, web: 5, android: 1, cards: { shown: 1, answered: 1, medianAnswerMs: 1000 }, features: { groups: true, jobs: true }, ...over });
+const row = (over = {}) => ({ version: '1.2.3', bots: 1, active: true, runs: { done: 2, failed: 1 }, errors: { timeout: 1 }, counted: 2, reasked: 1, corrected: 1, messages: 3, web: 5, android: 1, cards: { shown: 1, answered: 1, medianAnswerMs: 1000 }, features: { groups: true, jobs: true }, failures: [], ...over });
 
 test('clean keeps counts, yes-or-no and a version, and nothing else', () => {
   const r = usageLib.clean({ version: 'v1 <b>', bots: -2, runs: { done: 3, nope: 9, failed: 1.5 }, errors: { timeout: 2, 'Error: secret text': 1 }, active: 'yes', features: { groups: true, pages: 'yes', other: true }, cards: { shown: 1, medianAnswerMs: -1 }, name: 'Secret', text: 'Secret' });
@@ -28,6 +28,44 @@ test('clean keeps counts, yes-or-no and a version, and nothing else', () => {
   assert.ok(!('other' in r.features));
   assert.deepEqual(r.cards, { shown: 1, answered: 0, medianAnswerMs: null });
   assert.ok(!JSON.stringify(r).includes('Secret'));
+  assert.ok(!('failures' in r), 'from a server that does not list failed runs');
+});
+
+test('clean keeps each failed run as kinds, numbers and tool names, of that day alone (#615)', () => {
+  const r = usageLib.clean({ day: '2026-10-20', failures: [
+    { at: '2026-10-20T10:00:00.000Z', kind: 'limit', bot: 3, source: 'job', run: 'script', durationMs: 14400000, turns: 9, retries: 1, toolErrors: 2, tools: ['mcp__botdot__run_shell', 'Bash', 'secret text with spaces'], job: 'Secret job', error: 'Secret' },
+    { at: '2026-10-20T11:00:00.000Z', kind: 'Error: Secret', bot: 'Secretbot', source: 'Secret', durationMs: -1 },
+    { at: '2026-10-19T11:00:00.000Z', kind: 'idle' },
+    { at: 'Secret' }, null,
+  ] });
+  assert.deepEqual(r.failures, [
+    { at: '2026-10-20T10:00:00.000Z', kind: 'limit', bot: 3, source: 'job', run: 'script', durationMs: 14400000, turns: 9, retries: 1, toolErrors: 2, tools: ['mcp__botdot__run_shell', 'Bash'] },
+    { at: '2026-10-20T11:00:00.000Z', kind: 'error', bot: null, source: null, run: null, durationMs: null, turns: null, retries: 0, toolErrors: 0, tools: [] },
+  ]);
+  assert.ok(!JSON.stringify(r).includes('Secret'));
+  assert.equal(usageLib.clean({ failures: Array.from({ length: 150 }, () => ({ at: '2026-10-20T10:00:00.000Z' })) }).failures.length, 100);
+});
+
+test('collect asks again for a recent day kept before failed runs were listed, until its server lists them (#615)', async (t) => {
+  const dir = scratch(t);
+  const now = Date.parse('2026-10-20T08:00:00Z');
+  const old = usageLib.clean(row({ failures: undefined }));
+  const fine = usageLib.clean(row({ failures: undefined, runs: { done: 1 } }));
+  fs.writeFileSync(path.join(dir, 'usage.json'), JSON.stringify({ rows: { ann: { '2026-10-18': old, '2026-10-19': fine } } }));
+  const u = usageLib.open(dir, { now: () => now });
+  const asked = [];
+  let lists = false;
+  const ask = async (name, day) => { asked.push(day); return { status: 200, data: row({ day, failures: lists ? [{ at: `${day}T09:00:00.000Z`, kind: 'timeout' }] : undefined }) }; };
+  const accounts = [{ name: 'ann', created: '2026-10-18T00:00:00Z' }];
+  await u.collect(accounts, ask);
+  assert.deepEqual(asked, ['2026-10-18'], 'a day without failed runs needs no list');
+  assert.ok(!('failures' in u.rowsOf('ann')['2026-10-18']), 'an older server: the row stays as it was');
+  lists = true; asked.length = 0;
+  await u.collect(accounts, ask);
+  assert.deepEqual(u.rowsOf('ann')['2026-10-18'].failures.map((f) => f.kind), ['timeout']);
+  asked.length = 0;
+  await u.collect(accounts, ask);
+  assert.deepEqual(asked, []);
 });
 
 test('collect asks for each finished day it lacks, from the account\'s first day, and stops at one that fails', async (t) => {
@@ -104,8 +142,8 @@ test('account: one account\'s 30 days one by one, its outcomes, failures, cards 
   const now = Date.parse('2026-11-30T08:00:00Z'); // yesterday: 2026-11-29, 30 days from 2026-10-31
   const rows = { ann: {
     '2026-10-30': usageLib.clean(row({ runs: { done: 50 } })), // before the 30 days
-    '2026-11-01': usageLib.clean(row({ runs: { done: 3, failed: 1, stopped: 1 }, errors: { timeout: 1 }, cards: { shown: 2, answered: 2, medianAnswerMs: 1000 } })),
-    '2026-11-02': usageLib.clean(row({ active: false, runs: { failed: 2 }, errors: { limit: 2 }, cards: { shown: 1, answered: 0 } })),
+    '2026-11-01': usageLib.clean(row({ day: '2026-11-01', runs: { done: 3, failed: 1, stopped: 1 }, errors: { timeout: 1 }, cards: { shown: 2, answered: 2, medianAnswerMs: 1000 }, failures: [{ at: '2026-11-01T10:00:00Z', kind: 'timeout', bot: 2, source: 'job', durationMs: 300000 }] })),
+    '2026-11-02': usageLib.clean(row({ active: false, runs: { failed: 2 }, errors: { limit: 2 }, cards: { shown: 1, answered: 0 }, failures: undefined })),
     '2026-11-29': usageLib.clean(row({ runs: { done: 1 }, errors: {}, cards: { shown: 3, answered: 3, medianAnswerMs: 5000 }, version: '1.3.0', bots: 4 })),
   } };
   fs.writeFileSync(path.join(dir, 'usage.json'), JSON.stringify({ rows }));
@@ -122,7 +160,9 @@ test('account: one account\'s 30 days one by one, its outcomes, failures, cards 
   assert.deepEqual(a.cards, { shown: 6, answered: 5, medianAnswerMs: 3000 }, 'the median of the days that had answers');
   assert.deepEqual([a.runs, a.failed, a.activeDays, a.bots, a.version], [8, 3, 2, 4, '1.3.0']);
   assert.deepEqual(a.features, ['groups', 'jobs']);
-  assert.deepEqual(a, { ...u.report(list).accounts[0], day: a.day, runsBy: a.runsBy, errors: a.errors, cards: a.cards, days: a.days }, 'the same numbers as its row');
+  assert.deepEqual(a.failures, [{ at: '2026-11-01T10:00:00.000Z', kind: 'timeout', bot: 2, source: 'job', run: null, durationMs: 300000, turns: null, retries: 0, toolErrors: 0, tools: [] }]);
+  assert.equal(a.unlisted, 2, 'failed runs of a day kept before they were listed');
+  assert.deepEqual(a, { ...u.report(list).accounts[0], day: a.day, runsBy: a.runsBy, errors: a.errors, cards: a.cards, days: a.days, failures: a.failures, unlisted: a.unlisted }, 'the same numbers as its row');
   const cy = u.account('cy', list);
   assert.ok(cy.days.every((d) => !d.counted));
   assert.deepEqual([cy.cards.medianAnswerMs, cy.lastDay, cy.bots], [null, null, null]);
