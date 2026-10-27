@@ -110,13 +110,13 @@ data class WorkspaceEntry(
     val path: String = "",
     val type: String = "file",
     val size: Long? = null,
-    /** How many entries a folder holds (`files-explorer`, #603). */
-    val items: Int? = null,
     val at: String? = null,
     /** Kept by botdot (CLAUDE.md, .claude, uploads…): not renamed, moved or deleted. */
     @SerialName("protected") val kept: Boolean = false,
     /** A file the owner gave the bot, in uploads/: deleted, never renamed or moved (the Files section goes by its name). */
     val keepsName: Boolean = false,
+    /** How many entries a folder holds (`files-explorer`, #603). */
+    val items: Int? = null,
 )
 
 /** A folder (`GET /api/bots/:id/workspace`): at most 1,000 entries, and how many [more] there are. */

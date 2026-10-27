@@ -31,7 +31,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DriveFileMove
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Add
@@ -346,7 +346,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         bottomBar = {
             if (selecting) Row(Modifier.fillMaxWidth().background(p.panel).navigationBarsPadding().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 val cans = chosen.map { can(it) }
-                BarButton(Icons.Outlined.DriveFileMove, "Move", cans.isNotEmpty() && cans.all { it.move }) { startCarry(true, chosen) }
+                BarButton(Icons.AutoMirrored.Outlined.DriveFileMove, "Move", cans.isNotEmpty() && cans.all { it.move }) { startCarry(true, chosen) }
                 BarButton(Icons.Outlined.ContentCopy, "Copy", cans.isNotEmpty() && cans.all { it.copy }) { startCarry(false, chosen) }
                 BarButton(Icons.Outlined.FileDownload, "Download", cans.any { it.download }) { download(chosen); selected = emptySet() }
                 BarButton(Icons.Outlined.Delete, "Delete", cans.isNotEmpty() && cans.all { it.delete }, danger = true) { delete(chosen) }
@@ -436,7 +436,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                         HorizontalDivider(color = p.line2, modifier = Modifier.padding(vertical = 6.dp))
                         if (c.open) SheetRow(Icons.AutoMirrored.Outlined.InsertDriveFile, "Open") { sheet = null; open(en) }
                         if (c.rename) SheetRow(Icons.Outlined.DriveFileRenameOutline, "Rename") { sheet = null; answer = en.name; ask = FxAsk("rename", listOf(en)) }
-                        if (c.move) SheetRow(Icons.Outlined.DriveFileMove, "Move to…") { sheet = null; startCarry(true, listOf(en)) }
+                        if (c.move) SheetRow(Icons.AutoMirrored.Outlined.DriveFileMove, "Move to…") { sheet = null; startCarry(true, listOf(en)) }
                         if (c.copy) SheetRow(Icons.Outlined.ContentCopy, "Copy to…") { sheet = null; startCarry(false, listOf(en)) }
                         if (c.download) SheetRow(Icons.Outlined.FileDownload, "Download") { sheet = null; download(listOf(en)) }
                         if (c.keep) SheetRow(Icons.Outlined.PushPin, "Keep in mind") { sheet = null; keep(en, true) }
