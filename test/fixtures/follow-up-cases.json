@@ -1,0 +1,57 @@
+{
+  "bots": {
+    "Media Watcher": "Reads @dhh's posts on X.com in the browser on its computer and sends the owner a summary of what is new.",
+    "Infra Admin": "Keeps the Quotz servers up: deploys, backups, monitoring, certificates.",
+    "Coder": "Implements GitHub issues of the bot-dot repo, one branch and one pull request per issue.",
+    "E-mail Assistant": "Reads the owner's Gmail, drafts replies and reminds of what needs an answer.",
+    "Day Planner": "Plans the owner's days in Google Calendar.",
+    "Quotz Manager": "Runs the Quotz product: customers, quotes, pricing and the roadmap."
+  },
+  "cases": [
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Sprobuj jeszcze raz", "secs": 8, "line": "Looking at its screen" }], "recent": [{ "who": "bot", "text": "Ekran :0 działa. Serwer computer_server nie startuje: zainstalowana wersja FastAPI nie zna argumentu websocket_max_size. Niczego nie zmieniałem. Mogę sprawdzić, która wersja FastAPI pasuje, a potem zapytać, czy ją przypiąć." }, { "who": "owner", "text": "Sprobuj jeszcze raz" }], "text": "sprawdzic x", "expect": "steer:1", "note": "the screenshot" },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Przeczytaj nowe posty @dhh i podsumuj", "mins": 1, "line": "Opening x.com/dhh" }], "text": "też @levelsio", "expect": "steer:1" },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Przeczytaj nowe posty @dhh i podsumuj", "mins": 3, "line": "Reading posts" }], "text": "jak idzie?", "expect": "ask" },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Przeczytaj nowe posty @dhh i podsumuj", "mins": 3, "line": "Reading posts" }], "text": "ile postów już masz?", "expect": "ask" },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Przeczytaj nowe posty @dhh i podsumuj", "mins": 2, "line": "Reading posts" }], "text": "przypomnij mi jutro o 9 o dentyście", "expect": "new" },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Przeczytaj nowe posty @dhh i podsumuj", "mins": 2, "line": "Reading posts" }], "text": "stop, jednak nie trzeba", "expect": "steer:1" },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Przeczytaj nowe posty @dhh i podsumuj", "mins": 1, "line": "Reading posts" }], "text": "a co z wczoraj?", "expect": ["steer:1", "new"] },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Przeczytaj nowe posty @dhh i podsumuj", "mins": 1, "line": "Reading posts" }], "text": "Zrób też to samo dla @karpathy jutro rano", "expect": "new" },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Sprobuj jeszcze raz", "secs": 8, "line": "Looking at its screen" }], "recent": [{ "who": "bot", "text": "Serwer computer_server nie startuje: FastAPI nie zna websocket_max_size. Mogę sprawdzić, która wersja pasuje, a potem zapytać, czy ją przypiąć." }, { "who": "owner", "text": "Sprobuj jeszcze raz" }], "text": "tak, sprawdź wersję FastAPI", "expect": ["steer:1", "new"] },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Podsumuj nowe posty @dhh", "mins": 2, "line": "Reading posts" }, { "prompt": "Sprawdź czemu computer_server nie startuje", "mins": 1, "line": "Reading main.py" }], "text": "przypnij FastAPI do 0.110", "expect": "steer:2" },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Podsumuj nowe posty @dhh", "mins": 2, "line": "Reading posts" }, { "prompt": "Sprawdź czemu computer_server nie startuje", "mins": 1, "line": "Reading main.py" }], "text": "dodaj link do każdego posta", "expect": "steer:1" },
+    { "bot": "Media Watcher", "runs": [{ "prompt": "Podsumuj nowe posty @dhh", "mins": 2, "line": "Reading posts" }, { "prompt": "Sprawdź czemu computer_server nie startuje", "mins": 1, "line": "Reading main.py" }], "text": "które skończysz pierwsze?", "expect": "ask" },
+
+    { "bot": "Infra Admin", "runs": [{ "prompt": "Restart the quotz containers and check the logs", "mins": 1, "line": "Running docker ps" }], "text": "use docker compose, not docker restart", "expect": "steer:1" },
+    { "bot": "Infra Admin", "runs": [{ "prompt": "Restart the quotz containers and check the logs", "mins": 1, "line": "Running docker ps" }], "text": "also check disk space while you're there", "expect": "steer:1" },
+    { "bot": "Infra Admin", "runs": [{ "prompt": "Restart the quotz containers and check the logs", "mins": 2, "line": "Restarting" }], "text": "what's the uptime of staging?", "expect": "new" },
+    { "bot": "Infra Admin", "runs": [{ "prompt": "Restart the quotz containers and check the logs", "mins": 2, "line": "Waiting for health checks" }], "text": "did it come back up?", "expect": "ask" },
+    { "bot": "Infra Admin", "runs": [{ "prompt": "Update all containers on staging", "mins": 3, "line": "Pulling images" }], "recent": [{ "who": "bot", "text": "The pull of quotz-api failed: registry timeout." }, { "who": "owner", "text": "Update all containers on staging" }], "text": "try again", "expect": "steer:1" },
+    { "bot": "Infra Admin", "runs": [{ "prompt": "Update all containers on staging", "mins": 1, "line": "Pulling images" }], "text": "wait, not the db container", "expect": "steer:1" },
+    { "bot": "Infra Admin", "runs": [{ "prompt": "Check why the backups failed last night", "mins": 1, "line": "Reading cron logs" }], "text": "the log is in /var/log/restic.log", "expect": "steer:1" },
+    { "bot": "Infra Admin", "runs": [{ "prompt": "Check why the backups failed last night", "mins": 2, "line": "Reading restic.log" }], "text": "ok, a jak wygląda RAM na hq?", "expect": "new" },
+
+    { "bot": "Coder", "runs": [{ "prompt": "Implement issue #251 (empty state)", "mins": 4, "line": "Writing the test" }], "text": "use the mockup in uploads/empty-state.png", "expect": "steer:1" },
+    { "bot": "Coder", "runs": [{ "prompt": "Implement issue #251 (empty state)", "mins": 4, "line": "Writing the test" }], "text": "fix the typo in the README too", "expect": ["steer:1", "new"] },
+    { "bot": "Coder", "runs": [{ "prompt": "Implement issue #251 (empty state)", "mins": 4, "line": "Writing the test" }], "text": "Review PR #252 when you can", "expect": "new" },
+    { "bot": "Coder", "runs": [{ "prompt": "Implement issue #251 (empty state)", "mins": 6, "line": "Committing" }], "text": "nie, zrób to w osobnym PR", "expect": "steer:1" },
+    { "bot": "Coder", "runs": [{ "prompt": "Fix the flaky test reminder-delivery", "mins": 2, "line": "Running the test 20 times" }], "text": "it's the timer, look at fake timers", "expect": "steer:1" },
+    { "bot": "Coder", "runs": [{ "prompt": "Fix the flaky test reminder-delivery", "mins": 2, "line": "Running the test 20 times" }], "text": "how long will it take?", "expect": "ask" },
+    { "bot": "Coder", "runs": [{ "prompt": "Implement issue #251 (empty state)", "mins": 5, "line": "Writing the test" }, { "prompt": "Fix the flaky test reminder-delivery", "mins": 2, "line": "Running the test 20 times" }], "text": "w tym teście użyj fake timers", "expect": "steer:2" },
+    { "bot": "Coder", "runs": [{ "prompt": "Implement issue #251 (empty state)", "mins": 5, "line": "Writing the test" }, { "prompt": "Fix the flaky test reminder-delivery", "mins": 2, "line": "Running the test 20 times" }], "text": "a teraz zrób #260", "expect": "new" },
+    { "bot": "Coder", "runs": [{ "prompt": "Implement issue #251 (empty state)", "mins": 5, "line": "Writing the test" }], "text": "/code-review 252", "expect": "new" },
+
+    { "bot": "E-mail Assistant", "runs": [{ "prompt": "Napisz odpowiedź do Anny w sprawie faktury", "mins": 1, "line": "Reading the thread" }], "text": "bardziej formalnie", "expect": "steer:1" },
+    { "bot": "E-mail Assistant", "runs": [{ "prompt": "Napisz odpowiedź do Anny w sprawie faktury", "mins": 1, "line": "Drafting" }], "text": "i dodaj, że zapłacę w piątek", "expect": "steer:1" },
+    { "bot": "E-mail Assistant", "runs": [{ "prompt": "Napisz odpowiedź do Anny w sprawie faktury", "mins": 1, "line": "Drafting" }], "text": "sprawdź czy przyszło coś od ZUS", "expect": "new" },
+    { "bot": "E-mail Assistant", "runs": [{ "prompt": "Napisz odpowiedź do Anny w sprawie faktury", "mins": 1, "line": "Drafting" }], "text": "nieważne", "expect": "steer:1" },
+
+    { "bot": "Day Planner", "runs": [{ "prompt": "Zaplanuj mój czwartek", "mins": 1, "line": "Reading the calendar" }], "text": "spotkanie z Tomkiem przesunięte na 15", "expect": "steer:1" },
+    { "bot": "Day Planner", "runs": [{ "prompt": "Zaplanuj mój czwartek", "mins": 1, "line": "Reading the calendar" }], "text": "dodaj trening o 18", "expect": "steer:1" },
+    { "bot": "Day Planner", "runs": [{ "prompt": "Zaplanuj mój czwartek", "mins": 1, "line": "Reading the calendar" }], "text": "a piątek?", "expect": ["steer:1", "new"] },
+    { "bot": "Day Planner", "runs": [{ "prompt": "Zaplanuj mój czwartek", "mins": 1, "line": "Reading the calendar" }], "text": "znajdź mi przepis na obiad", "expect": "new" },
+
+    { "bot": "Quotz Manager", "runs": [{ "prompt": "Write the weekly status", "mins": 2, "line": "Reading the roadmap" }], "text": "mention the 1.3 delay", "expect": "steer:1" },
+    { "bot": "Quotz Manager", "runs": [{ "prompt": "Write the weekly status", "mins": 2, "line": "Reading the roadmap" }], "text": "draft a reply to Acme about the PDF export", "expect": "new" },
+    { "bot": "Quotz Manager", "runs": [{ "prompt": "Write the weekly status", "mins": 2, "line": "Reading the roadmap" }], "text": "thanks", "expect": ["ask", "steer:1"] }
+  ]
+}

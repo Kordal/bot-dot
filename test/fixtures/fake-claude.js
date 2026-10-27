@@ -90,6 +90,25 @@ if (String(val('--system-prompt') || '').startsWith('You decide whether a messag
   });
   return;
 }
+// The sorting of the owner's message to a bot at work (lib/follow-up.js, ADR 106), told by its own system prompt: no
+// run. It writes what it was asked to $FAKE_OUT/follow-up-<n>.txt and answers $FAKE_OUT/follow-up.txt (or
+// '{"decision":"new"}'), late for the message $FAKE_OUT/follow-up-slow.txt names.
+if (String(val('--system-prompt') || '').startsWith("You sort the owner's messages")) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `follow-up-${at}.txt`), asked);
+    const read = (f, d) => { try { return fs.readFileSync(path.join(OUT, f), 'utf8'); } catch { return d; } };
+    // A message that holds $FAKE_OUT/follow-up-slow.txt's text is answered after 600 ms.
+    const slow = read('follow-up-slow.txt', '');
+    setTimeout(() => {
+      console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: read('follow-up.txt', '{"decision":"new"}'), session_id: `follow-up-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+      process.exit(0);
+    }, slow && asked.includes(`The message: ${slow}`) ? 600 : 0);
+  });
+  return;
+}
 // A replay's judge (lib/replay.js, ADR 101), told by its own system prompt: no run. It writes what it was asked to
 // $FAKE_OUT/judge-<n>.txt and picks the reply that holds the text of $FAKE_OUT/judge-picks.txt (or neither).
 if (String(val('--system-prompt') || '').startsWith('You compare two replies')) {
