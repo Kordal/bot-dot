@@ -132,3 +132,16 @@ test("the Chief's replies and runs still going have no row", (t) => {
   assert.deepEqual(m.outcomes.list({ botId: 'chief' }), []);
   assert.deepEqual(m.outcomes.list({ botId: 'alpha' }), []);
 });
+
+test('counts: one day of every bot as counts alone, for the usage summary (ADR 105)', (t) => {
+  const { memory: m } = scratchMemory(t);
+  const at = '2026-10-20T10:00:00.000Z';
+  m.outcomes.record(ended({ startedAt: at }), { counted: true, replyAt: at });
+  m.outcomes.record(ended({ startedAt: at, botId: 'beta', status: 'error', error: 'It exited with code 1' }));
+  m.outcomes.record(ended({ startedAt: at, status: 'error', error: 'timed out' }));
+  m.outcomes.record(ended({ startedAt: '2026-10-21T00:00:00.000Z' }), { counted: true, replyAt: '2026-10-21T00:00:01.000Z' });
+  m.outcomes.ownerWrote('alpha', 'no, wrong one', minutes(at, 2));
+  assert.deepEqual(m.outcomes.counts('2026-10-20T00:00:00.000Z', '2026-10-21T00:00:00.000Z'),
+    { runs: { done: 1, failed: 2 }, errors: { exit: 1, timeout: 1 }, counted: 1, reasked: 1, corrected: 1 });
+  assert.deepEqual(m.outcomes.counts('2026-10-22T00:00:00.000Z', '2026-10-23T00:00:00.000Z'), { runs: {}, errors: {}, counted: 0, reasked: 0, corrected: 0 });
+});

@@ -110,7 +110,8 @@ async function runTileSource(tile, source, where, extra = {}) {
   return extra.image ? { type: r.type, data: r.image } : r.body;
 }
 // askBrief is lib/routes/shared.js's, made below once asks and connectorApprovals are.
-const asks = asksLib.create(B.DATA_DIR, { describe: (a, list) => askBrief(a, list) }); // permissions and skills bots ask the owner for
+const activity = require('./lib/activity').create(B.DATA_DIR); // the owner's activity per day, as counts (ADR 105)
+const asks = asksLib.create(B.DATA_DIR, { describe: (a, list) => askBrief(a, list), shown: () => activity.cardShown(), answered: (at) => activity.cardAnswered(at) }); // permissions and skills bots ask the owner for
 const secretFiles = require('./lib/secret-files').create(B.DATA_DIR); // Vault secrets kept in files, by the owner's yes (#253)
 // A change a bot proposed to its own instructions keeps the run that proposed it: the bot carries on after the yes (ADR 009).
 // Its own main assignment or rules are tried on its past tasks first (changeTrials, below; #596).
@@ -636,7 +637,7 @@ const ctx = { ACCOUNT, audit, secretFiles, callKeys, callRefusals, keys, vault, 
   UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, roomRuns, backups, connectedApps, tools, chiefReview, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, macApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
   chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; },
-  fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], ...shared };
+  fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
 ctx.computerRoutes = require('./lib/routes/computers').create(ctx);
 ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
@@ -646,6 +647,7 @@ const ROUTES = [
   require('./lib/routes/room-notice').create(ctx), // a new message in a shared room rings the owner, from the front door only (ADR 060)
   require('./lib/routes/group-router').create(ctx), // the admin's choice of the group router, from the front door only (#513)
   require('./lib/routes/boat').create(ctx), // the admin's boat.dev key, from the front door only (#529)
+  require('./lib/routes/usage-summary').create(ctx), // a day's usage as counts, for the front door only (ADR 105)
   ctx.computerRoutes.ofAccount, // the account's computer for every bot: its reset and update (#107)
   require('./lib/routes/backups').create(ctx),
   require('./lib/routes/files').create(ctx),
@@ -835,6 +837,10 @@ async function handle(req, res) {
   if (called) return takeCall(req, res, called);
   // Custom header forces a CORS preflight (which we never approve) on cross-site writes.
   if (req.method !== 'GET' && req.headers['x-bot-dot'] !== '1') return send(res, 403, { error: 'Missing X-Bot-Dot header' });
+  // The owner's own request, through the front door: counted for the day's usage (ADR 105), never what it says. The
+  // Chief's tools and the bots never come in on the front door's socket, and it strips x-chief-key and x-botdot-room
+  // from what a person sends: one with x-botdot-room is the front door's own.
+  if (req.socket[FROM_FRONT_DOOR] && req.headers['x-botdot-room'] !== '1') activity.saw(req.method, url.pathname, req.headers['user-agent']);
   try {
     await api(req, res, url);
   } catch (e) {

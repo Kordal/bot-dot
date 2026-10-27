@@ -58,6 +58,7 @@ const groupRouterStore = require('./lib/front-door/group-router');
 const groupRouterLib = require('./lib/group-router');
 const boatStore = require('./lib/front-door/boat');
 const boatLib = require('./lib/boat');
+const usageStore = require('./lib/front-door/usage');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -722,6 +723,23 @@ if (groupRouter) {
   setInterval(handRouter, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
 }
 
+// How the accounts use botdot (ADR 105): each account's counts of every finished day, asked for once a day (checked
+// every hour, so a day an account didn't answer is asked for again), for the admin page. Never on a machine of one
+// account, which has no admin page.
+const usage = ONE_ACCOUNT ? null : usageStore.open(DATA);
+let collecting = false;
+async function collectUsage() {
+  if (!usage || collecting) return;
+  collecting = true;
+  try {
+    await usage.collect(doors.listAccounts(), (name, day) => askAccount(name, 'GET', `/api/usage-summary?day=${day}`, null, 10_000));
+  } catch (e) { console.error(`[front door] couldn't collect the usage: ${e.message}`); } finally { collecting = false; }
+}
+if (usage) {
+  setTimeout(collectUsage, Number(process.env.BOT_DOT_USAGE_FIRST_MS) || 60_000).unref();
+  setInterval(collectUsage, Number(process.env.BOT_DOT_USAGE_EVERY_MS) || 3600_000).unref();
+}
+
 // The live events of rooms, per account: GET /front-door/rooms/events.
 const roomStreams = new Map(); // account → Set of responses
 function toAccount(account, event, data) {
@@ -982,6 +1000,8 @@ async function adminRoutes(req, res, p, account) {
     return send(res, 200, { accounts: await listAccounts() });
   }
   // The shares of the machine: the default, and the machine's load.
+  // How the accounts use botdot (ADR 105): counts alone, from each account's daily summary.
+  if (p === '/admin/usage' && req.method === 'GET') return send(res, 200, usage ? usage.report(doors.listAccounts()) : { day: null, totals: null, accounts: [] });
   if (p === '/admin/share' && req.method === 'GET') return send(res, 200, { share: doors.defaultShare(), machine: load.machine() });
   if (p === '/admin/share' && req.method === 'POST') {
     const accounts = doors.setDefaultShare(await readJson(req));
@@ -1054,6 +1074,7 @@ async function accountAction(req, res, name, action) {
     if (body.name !== name) return send(res, 400, { error: `Type the account's name, ${name}, to delete it.` });
     doors.deleteAccount(name);
     roomsWithout(name);
+    usage?.forget(name);
     console.log(`[front door] the admin deleted the account ${name}; the machine erases it`);
     askMachine(name);
     return send(res, 200, { ok: true });
