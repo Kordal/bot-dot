@@ -47,6 +47,19 @@ test('an empty list clears the plan; other events and a helper\'s own plan say n
   assert.deepEqual(plan.progress(plan.fromTodos(todos(['a', 'completed'], ['b', 'in_progress'], ['c', 'pending']))), { done: 1, total: 3 });
 });
 
+test('of a run\'s plan on the feed only the newest is replayed to an app that comes back (#629)', () => {
+  const events = require('../lib/events');
+  const first = events.emit('run_started', { id: 'r1', botId: 'b1' });
+  for (let i = 0; i < 300; i++) {
+    events.emit('run_plan', { chat: 'bot:b1', botId: 'b1', runId: 'r1', plan: { steps: [{ text: `Step ${i}`, status: 'doing' }] } });
+    events.emit('run_plan', { chat: 'bot:b2', botId: 'b2', runId: 'r2', plan: null });
+  }
+  const replay = events.since(first.id);
+  assert.deepEqual(replay.map((e) => [e.type, e.data.runId]), [['run_plan', 'r1'], ['run_plan', 'r2']]);
+  assert.equal(replay[0].data.plan.steps[0].text, 'Step 299');
+  assert.equal(replay[1].data.plan, null, 'a cleared plan is said too');
+});
+
 test('a bot and the Chief are told to plan work of several steps with TodoWrite', () => {
   assert.match(plan.PROMPT, /TodoWrite/);
   assert.match(plan.PROMPT, /above the message box/);
@@ -69,6 +82,7 @@ async function streamOf(p, until, ms = 2000) {
   } catch { /* timed out: what came is what there is */ } finally { clearTimeout(timer); abort.abort(); }
   return got;
 }
+const feedPlans = (got) => got.split('\n\n').filter((b) => /^event: run_plan$/m.test(b)).map((b) => JSON.parse(b.match(/^data: (.*)$/m)[1]));
 const planEvents = (got) => got.split('\n\n').map((b) => b.match(/^data: (.*)$/m)?.[1]).filter(Boolean).map((d) => JSON.parse(d)).filter((e) => e.type === 'plan');
 
 test('the features name it, and Claude Code is started with TodoWrite as its plan tool', async () => {
@@ -92,6 +106,7 @@ test('a bot\'s plan is on its running run and its stream as it changes, and stay
   assert.equal((await runOf()).plan, undefined, 'no plan before the bot makes one');
 
   const live = streamOf(`/runs/${run.id}/stream?simple`, /"status":"done".*"status":"doing"/s, 4000);
+  const onFeed = streamOf('/events', /event: run_plan[^]*event: run_plan/, 4000); // #629: the feed has it too
   await sleep(150);
   play(write(['Read the prices', 'in_progress', 'Reading the prices'], ['Fetch the pages', 'pending'], ['Write the report', 'pending']));
   await waitFor(async () => (await runOf()).plan?.steps?.[0]?.status === 'doing', { what: 'the plan on the running run' });
@@ -102,6 +117,10 @@ test('a bot\'s plan is on its running run and its stream as it changes, and stay
   assert.equal(sent.length, 2, 'each change once, and a call that changes nothing sends nothing');
   assert.deepEqual(sent[1].plan.steps.map((s) => s.status), ['done', 'doing', 'todo']);
   assert.equal(sent[1].plan.steps[1].doing, 'Fetching the pages');
+  // On the feed, which reconnects and replays: each change, with the run it is of.
+  const fed = feedPlans(await onFeed);
+  assert.equal(fed.length, 2);
+  assert.deepEqual({ ...fed[1], at: undefined }, { chat: `bot:${bot.id}`, botId: bot.id, runId: run.id, plan: sent[1].plan, at: undefined });
 
   // A reload, and an app that opens the chat later: the plan as it reads now, wherever the run is read.
   for (const got of [await runOf(), (await srv.api(`/runs?botId=${bot.id}`)).data[0]]) assert.deepEqual(got.plan.steps.map((s) => s.status), ['done', 'doing', 'todo']);

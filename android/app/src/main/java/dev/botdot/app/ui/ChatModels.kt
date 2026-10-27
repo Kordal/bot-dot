@@ -119,6 +119,12 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
             app.feed.events.collect { ev ->
                 when {
                     ev.type == "reset" -> load()
+                    // Its plan as it changes (#629): from the feed too, which reconnects, so a run's stream that
+                    // dropped leaves no plan behind. On the running run as this chat holds it; nothing is read again.
+                    ev.type == "run_plan" && ev.data.str("botId") == botId -> ev.data.str("runId").let { id ->
+                        val plan = ev.data["plan"]?.takeIf { it !is kotlinx.serialization.json.JsonNull }
+                        all = all.map { if (it.id == id && it.isRunning) it.copy(planValue = plan) else it }
+                    }
                     ev.type.startsWith("run_") && ev.data.str("botId") == botId -> kicks.tryEmit(Unit)
                     ev.type == "bot_message" && (ev.data["to"] as? JsonObject)?.str("id") == botId -> kicks.tryEmit(Unit)
                     ev.type == "notes_held" && ev.data.str("botId") == botId -> kicks.tryEmit(Unit) // the wake gate held a note (ADR 083)
@@ -291,7 +297,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         streams.keys.filter { it !in ids }.forEach { streams.remove(it)?.cancel() }
         if (drafts.keys.any { it !in ids }) drafts = drafts.filterKeys { it in ids }
         for (r in going) {
-            if (r.id in streams) continue
+            if (streams[r.id]?.isActive == true) continue // a stream that dropped while the run goes on is followed again
             streams[r.id] = viewModelScope.launch {
                 runCatching {
                     app.api.value?.runStream(r.id)?.collect { ev ->
