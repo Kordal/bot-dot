@@ -62,6 +62,7 @@ import androidx.navigation.navArgument
 import dev.botdot.app.data.BotFiles
 import dev.botdot.app.data.BrowserSignIn
 import dev.botdot.app.data.Handoff
+import dev.botdot.app.data.UploadedFiles
 import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.groupOfChat
 import dev.botdot.app.feed.FeedService
@@ -74,6 +75,7 @@ import dev.botdot.app.ui.GroupSettingsScreen
 import dev.botdot.app.ui.ChiefSettingsScreen
 import dev.botdot.app.ui.ConnectorsScreen
 import dev.botdot.app.ui.DashboardScreen
+import dev.botdot.app.ui.FilesScreen
 import dev.botdot.app.ui.LiveScreen
 import dev.botdot.app.ui.SettingsScreen
 import dev.botdot.app.ui.SkillsScreen
@@ -245,11 +247,11 @@ class MainActivity : ComponentActivity() {
                             val back = { panelKept = SettingsPanel.back(pn) }
                             when {
                                 // An earlier chat takes the place of the one on screen; a panel that covers the chat makes way for it.
-                                pn.chat == SettingsPanel.CHIEF -> ChiefSettingsScreen(app, onChat = { panelOff.value(); nav.navigate("chief/$it") { popUpTo("home"); launchSingleTop = true } }, onBack = back)
+                                pn.chat == SettingsPanel.CHIEF -> ChiefSettingsScreen(app, onChat = { panelOff.value(); nav.navigate("chief/$it") { popUpTo("home"); launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }, onBack = back)
                                 pn.jobs -> JobsScreen(app, pn.chat, onNeedsYou = { nav.navigate("needs") }, onBack = back)
                                 // A group's settings; a deleted group has no chat to go back to.
                                 groupOfChat(pn.chat) != null -> GroupSettingsScreen(app, groupOfChat(pn.chat).orEmpty(), onDeleted = { panelKept = null; nav.popBackStack("home", inclusive = false) }, onBack = back)
-                                else -> BotSettingsScreen(app, pn.chat, onScreen = { nav.navigate("screen/${pn.chat}") }, onJobs = { panelKept = SettingsPanel.jobs(pn, pn.chat) },
+                                else -> BotSettingsScreen(app, pn.chat, onScreen = { nav.navigate("screen/${pn.chat}") }, onJobs = { panelKept = SettingsPanel.jobs(pn, pn.chat) }, onFiles = { nav.navigate("files/${pn.chat}") },
                                     onDeleted = { panelKept = null; nav.popBackStack("home", inclusive = false) },
                                     onCopied = { panelKept = null; nav.navigate("bot/$it") { popUpTo("home"); launchSingleTop = true } }, onBack = back)
                             }
@@ -325,7 +327,7 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("home") {
                         if (wide) ChiefScreen(app, "latest", emptyList(), "", onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },
-                            onBot = { open("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }) {}
+                            onBot = { open("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }) {}
                         else Home(Modifier.fillMaxSize())
                     }
                     val attachArg = listOf(navArgument("attach") { defaultValue = "0" })
@@ -334,12 +336,12 @@ class MainActivity : ComponentActivity() {
                         val id = e.arguments?.getString("id") ?: ""
                         BotChatScreen(app, id, files, text, onJobs = { panelKept = SettingsPanel.jobs(panelKept, id) }, onSettings = { panelKept = SettingsPanel.toggle(panelKept, id) }, onNeeds = { nav.navigate("needs") }, onLearned = { panelKept = SettingsPanel.settings(id) },
                             // A group made from this bot's chat is in the list and open.
-                            onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onGroup = { openGroup(it) }, onScreen = { nav.navigate("screen/$id") }) { nav.popBackStack() }
+                            onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onGroup = { openGroup(it) }, onScreen = { nav.navigate("screen/$id") }, onFiles = { nav.navigate("files/$id") }) { nav.popBackStack() }
                     }
                     composable("chief/{id}?attach={attach}", arguments = attachArg) { e ->
                         val (files, text) = remember { takeShared(e.arguments?.getString("attach") == "1") }
                         ChiefScreen(app, e.arguments?.getString("id") ?: "latest", files, text, onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },
-                            onBot = { nav.navigate("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }) { nav.popBackStack() }
+                            onBot = { nav.navigate("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }) { nav.popBackStack() }
                     }
                     composable("group/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""
@@ -362,6 +364,10 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("dashboard") { DashboardScreen(app, onBot = { nav.navigate("bot/$it") }, onNeeds = { nav.navigate("needs") }) { nav.popBackStack() } }
                     composable("needs") { e -> NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }, onDone = { if (nav.currentBackStackEntry == e) nav.popBackStack() }) { nav.popBackStack() } }
+                    // A bot's files, or the Chief's (#603), full screen.
+                    composable("files/{id}") { e ->
+                        FilesScreen(app, e.arguments?.getString("id") ?: "") { nav.popBackStack() }
+                    }
                     composable("screen/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""
                         val bots by app.store.bots.value.collectAsState()

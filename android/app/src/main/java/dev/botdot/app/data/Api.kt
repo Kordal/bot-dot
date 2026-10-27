@@ -462,6 +462,24 @@ class Api(val baseUrl: String, val session: Session? = null) {
         json.decodeFromString<WorkspaceMade>(send("POST", WorkspaceFiles.folder(botId, root), buildJsonObject { put("path", path); put("name", name); if (free) put("free", true) })).path
     /** Rename or move, in one root: [to] is the new path. */
     suspend fun moveInWorkspace(botId: String, from: String, to: String, root: String = WorkspaceFiles.SERVER) { send("POST", WorkspaceFiles.move(botId, root), buildJsonObject { put("from", from); put("to", to) }) }
+    /**
+     * Files (#603): copies ([move] false) or moves [from] into the folder [into], in [root] or, when [to] is another
+     * root of the bot, there. Never over anything: a name that is taken becomes "name (2)".
+     */
+    suspend fun carryInWorkspace(botId: String, from: String, into: String, root: String, to: String = root, move: Boolean = false): WorkspaceCarried =
+        json.decodeFromString(send("POST", if (move) WorkspaceFiles.move(botId, root) else WorkspaceFiles.copy(botId, root), buildJsonObject {
+            put("from", from); put("into", into)
+            if (to != root) put("place", buildJsonObject {
+                val project = WorkspaceFiles.projectOf(to)
+                put("root", if (project != null) Projects.ROOT else to)
+                if (project != null) put("project", project)
+            })
+        }))
+    /** Keeps a file on botdot in mind (#603): one the owner gave the bot as it is, any other as a copy in uploads/. */
+    suspend fun keepFromWorkspace(botId: String, path: String) { send("POST", WorkspaceFiles.keep(botId), buildJsonObject { put("path", path) }) }
+    /** Every file and folder of the bot whose name matches [q] (#604, `file-mentions`). */
+    suspend fun searchWorkspace(botId: String, q: String): WorkspaceFound =
+        json.decodeFromString(get(UploadedFiles.owner(botId) + "/workspace/search?q=${enc(q)}&root=all"))
     /** Uploads one file into folder [path] (another name when that one is taken); [made]: its missing folders are made first. */
     suspend fun uploadToWorkspace(resolver: ContentResolver, uri: Uri, botId: String, path: String, root: String = WorkspaceFiles.SERVER, made: Boolean = false) = withContext(Dispatchers.IO) {
         val (name, size) = describe(resolver, uri)

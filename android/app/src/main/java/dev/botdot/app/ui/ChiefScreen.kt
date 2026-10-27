@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.ThumbDown as ThumbDownOutline
@@ -76,7 +77,7 @@ private val SUGGESTIONS = listOf(
 
 /** The Chief of Staff: a chat that manages your bots. chatId "latest" opens the newest chat. */
 @Composable
-fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedText: String, onSettings: () -> Unit, onNeeds: () -> Unit, onBot: (String) -> Unit, onScreen: (String) -> Unit, onSkills: () -> Unit, onSignIn: () -> Unit = {}, onBack: () -> Unit) {
+fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedText: String, onSettings: () -> Unit, onNeeds: () -> Unit, onBot: (String) -> Unit, onScreen: (String) -> Unit, onSkills: () -> Unit, onSignIn: () -> Unit = {}, onFiles: () -> Unit = {}, onBack: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
@@ -166,6 +167,8 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
             snackbarHost = { SnackbarHost(snack) },
             topBar = {
                 ChatBar(CHIEF_COLOR, if (busy) "working" else "idle", LocalChiefName.current, onName = onSettings, onBack = onBack, outfit = FigureDef.CHIEF) {
+                    // Its files (#603), as a bot's.
+                    if (dev.botdot.app.data.FilesExplorer.shows(features) && dev.botdot.app.data.UploadedFiles.chiefShows(features)) RoundButton(Icons.Filled.Folder, "Files", onClick = onFiles)
                     RoundButton(Icons.Filled.Add, "New chat") { vm.open(null) }
                 }
             },
