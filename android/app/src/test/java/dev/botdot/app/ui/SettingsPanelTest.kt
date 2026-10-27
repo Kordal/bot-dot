@@ -67,6 +67,7 @@ class SettingsPanelTest {
 
     @Test fun aLinkInTheChatOpensTheSettingsAlsoOverTheJobs() {
         assertEquals(Panel("b1"), SettingsPanel.settings("b1"))
+        assertEquals(Panel("b1", skill = "weekly-report"), SettingsPanel.settings("b1", "weekly-report")) // a skill's chip, on that skill
     }
 
     @Test fun roomThatComesOrGoesKeepsIt() {

@@ -222,7 +222,14 @@ function renderBotChat() {
     wireChoices(thread, (t, key) => sendFrom($('form', root), () => runBot(bot.id, t, [], key)));
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));
     // What it learned: a job opens its jobs, a change to its task, rules or skills its settings. A note opens nothing.
-    $$('[data-learned]', thread).forEach((el) => (el.onclick = () => { const view = learnedOpens(el.dataset.learned); if (view) setView(view, state.botId); }));
+    $$('[data-learned]', thread).forEach((el) => (el.onclick = () => openLearned(el, state.botId)));
+    // A skill's chip at the start of the owner's message opens it in the settings too; "/btw" is no skill.
+    $$('.cmd', thread).forEach((el) => {
+      const name = el.textContent.slice(1).toLowerCase();
+      if (name === 'btw') return;
+      el.classList.add('opens');
+      el.onclick = (e) => { e.stopPropagation(); state.openSkill = { bot: state.botId, name }; setView('botsettings', state.botId); };
+    });
     followBotRuns(runs.filter((r) => r.status === 'running'));
     markSearch(); // what you searched for, marked in the chat
     // From a search match: that run (older runs than the chat shows open on their own).

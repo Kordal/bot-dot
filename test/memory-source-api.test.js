@@ -390,6 +390,8 @@ test('D16: a skill a bot writes is saved at once, also after content from others
     ['skill', 'Saved the skill after-the-web'],
     ['skill-updated', 'Changed the skill written-first'],
   ]);
+  // Each names its skill, for the app to open it in the bot's settings (#619).
+  assert.deepEqual((await learnedOf(h)).map((x) => x.skill), ['written-first', 'after-commands', 'after-the-web', 'written-first']);
   assert.deepEqual((await srv.api('/asks')).data.filter((a) => a.botId === b.id), []);
   const history = (await srv.api(`/bots/${b.id}/learning`)).data.history.filter((c) => c.field === 'skill:written-first');
   assert.equal(history.length, 2);

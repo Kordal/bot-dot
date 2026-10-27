@@ -548,8 +548,7 @@ function renderGroupChat() {
     // What a member learned in its turn opens that bot's jobs or settings, as in its own chat.
     $$('[data-learned]', items).forEach((el) => (el.onclick = () => {
       const run = chat.items.get(el.closest('[data-reply]')?.dataset.reply)?.run;
-      const view = learnedOpens(el.dataset.learned);
-      if (view && run && botById(run.botId)) setView(view, run.botId);
+      if (run && botById(run.botId)) openLearned(el, run.botId);
     }));
     const earlier = $('[data-earlier]', items);
     if (earlier) earlier.onclick = () => loadEarlier(earlier);

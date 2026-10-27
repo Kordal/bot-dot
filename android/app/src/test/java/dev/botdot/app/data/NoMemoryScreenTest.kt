@@ -68,6 +68,12 @@ class NoMemoryScreenTest {
         for (kind in listOf("instructions", "connector", "skill", "skill-updated", "skill-pending")) assertEquals(kind, Learned.Opens.SETTINGS, Learned(kind).opens)
     }
 
+    @Test fun aSkillsChipOpensTheSettingsOnThatSkill() {
+        assertEquals("buildr-pr-workflow", learned("""{"kind":"skill-updated","chip":"Changed the skill buildr-pr-workflow","skill":"buildr-pr-workflow"}""").opensSkill)
+        assertEquals("a server that does not name it: the Skills alone", "", learned("""{"kind":"skill","text":"Saved the skill x"}""").opensSkill)
+        for (kind in listOf("instructions", "connector", "job", "memory")) assertNull(kind, Learned(kind, skill = "x").opensSkill)
+    }
+
     private val add = """{"id":"m1","action":"add","owner":"_shared","text":"The owner flies from Brussels.","botId":"b1","reason":"said in a mail","source":"outside",
         "title":"Add to the shared memory","meta":"after reading outside content","yes":"Approve","no":"Decline","current":null}"""
     private val edit = """{"id":"m2","action":"edit","text":"Lives in Kraków.","botId":"b1","current":{"id":"n1","text":"Lives in Łódź."},

@@ -39,6 +39,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -68,7 +71,7 @@ import kotlinx.serialization.json.put
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJobs: () -> Unit, onDeleted: () -> Unit, onCopied: (String) -> Unit = {}, onBack: () -> Unit) {
+fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null, onScreen: () -> Unit, onJobs: () -> Unit, onDeleted: () -> Unit, onCopied: (String) -> Unit = {}, onBack: () -> Unit) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
@@ -236,7 +239,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                 }
             }
             // Skills, Apps, May message: what's picked in one line; tap to see everything with a checkbox.
-            if (!useSkills) Section("Skills") {
+            // Opened from a skill's chip: the Skills open on that skill, its row open and in view; a skill that is gone, the Skills.
+            val skillsView = remember { BringIntoViewRequester() }
+            val focusRow = focusSkill?.takeIf { f -> f.isNotEmpty() && (library.any { it.name == f } || sysSkills.any { it.first.name == f }) }
+            LaunchedEffect(focusSkill, focusRow) { if (focusSkill != null && focusRow == null) { delay(350); skillsView.bringIntoView() } }
+            if (!useSkills) Section("Skills", modifier = Modifier.bringIntoViewRequester(skillsView)) {
                 Hint("Skills are off for this bot.")
                 OutlinedButton(onClick = { useSkills = true }) { Text("Turn them on", color = p.text) }
             } else {
@@ -247,7 +254,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                     count("from your Claude account").takeIf { it > 0 }?.let { "$it from your Claude account" },
                     count("built into Claude Code").takeIf { it > 0 }?.let { "$it built into Claude Code" },
                 ).joinToString(", ").ifBlank { "None" }
-                FoldSection("Skills", summary) {
+                FoldSection("Skills", summary, startOpen = focusSkill != null, modifier = Modifier.bringIntoViewRequester(skillsView)) {
                     if (library.isEmpty() && sysSkills.isEmpty()) Hint("No skills yet. Ask the Chief to write one.")
                     val botName = { id: String -> (others + b).firstOrNull { it.id == id }?.name ?: "a deleted bot" }
                     if (library.isNotEmpty()) GroupHead("Your skills")
@@ -262,7 +269,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                         val more = listOfNotNull(from, if (k.fileCount > 1) "${k.fileCount} files" else null,
                             if (k.usedBy.isNotEmpty()) "Used by ${k.usedBy.joinToString(", ") { botName(it) }}" else "No bot uses it yet").joinToString("\n") +
                             if (k.instructions.isNotBlank()) "\n\n" + k.instructions.take(600) + (if (k.instructions.length > 600) "…" else "") else ""
-                        key(k.name) { SkillRow(k.name, k.description, more, k.name in skills) { on -> skills = if (on) skills + k.name else skills - k.name } } // its row keeps its open/closed state when the order changes
+                        key(k.name) { SkillRow(k.name, k.description, more, k.name in skills, focus = k.name == focusRow) { on -> skills = if (on) skills + k.name else skills - k.name } } // its row keeps its open/closed state when the order changes
                     }
                     for (group in listOf("from your Claude account", "built into Claude Code")) {
                         val list = sysSkills.filter { it.second == group }.sortedBy { it.first.name in b.disabledSkills }
@@ -270,7 +277,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
                         GroupHead(group.replaceFirstChar { it.uppercase() })
                         list.forEach { (k, _) ->
                             val more = (if (group == "built into Claude Code") "Comes with Claude Code." else "Installed in your Claude account.") + " Every bot has it unless you switch it off here."
-                            key(k.name) { SkillRow(k.name, k.description, more, k.name !in disabled) { on -> disabled = if (on) disabled - k.name else disabled + k.name } }
+                            key(k.name) { SkillRow(k.name, k.description, more, k.name !in disabled, focus = k.name == focusRow) { on -> disabled = if (on) disabled - k.name else disabled + k.name } }
                         }
                     }
                 }
@@ -485,10 +492,12 @@ internal fun GroupHead(text: String) = Text(text, color = LocalPaper.current.mut
 
 /** A skill: the box switches it, a tap on its name shows more about it. */
 @Composable
-internal fun SkillRow(name: String, desc: String, more: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun SkillRow(name: String, desc: String, more: String, checked: Boolean, focus: Boolean = false, onChange: (Boolean) -> Unit) {
     val p = LocalPaper.current
-    var open by remember { mutableStateOf(false) }
-    androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+    var open by remember(focus) { mutableStateOf(focus) } // [focus]: a skill's chip opened the settings on it
+    val view = remember { BringIntoViewRequester() }
+    LaunchedEffect(focus) { if (focus) { delay(350); view.bringIntoView() } } // once the Skills have unfolded
+    androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().bringIntoViewRequester(view)) {
         Checkbox(checked, onChange, colors = CheckboxDefaults.colors(checkedColor = p.ink, checkmarkColor = p.inkText))
         Column(Modifier.weight(1f).clickable(onClickLabel = if (open) "Show less" else "Show more") { open = !open }.padding(top = 12.dp, bottom = 6.dp)) {
             Text(name, color = p.text, style = MaterialTheme.typography.bodyLarge)

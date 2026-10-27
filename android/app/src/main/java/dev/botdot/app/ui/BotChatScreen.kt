@@ -72,7 +72,7 @@ import kotlinx.coroutines.launch
  * opens it. Only against a botdot server that has groups, and with another bot to add.
  */
 @Composable
-fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: String, onJobs: () -> Unit, onSettings: () -> Unit, onScreen: () -> Unit, onNeeds: () -> Unit, onLearned: () -> Unit = onSettings, onSignIn: () -> Unit = {}, onGroup: (String) -> Unit = {}, onBack: () -> Unit) {
+fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: String, onJobs: () -> Unit, onSettings: () -> Unit, onScreen: () -> Unit, onNeeds: () -> Unit, onLearned: (skill: String?) -> Unit = { onSettings() }, onSignIn: () -> Unit = {}, onGroup: (String) -> Unit = {}, onBack: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
@@ -254,7 +254,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                             if (new && (mine || !drawsAsked(r))) NewLine(bot?.color)
                             val theirs = @Composable {
                                 TheirSide(r, open = r.id in opened, features = features, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
-                                    learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> onLearned; null -> null } })
+                                    learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
                                 // Under the reply that is last in the chat, and under the run its open question is from when newer
                                 // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
                                 if ((r.id == lastReply || r.id == askedIn) && r.status == "success") {

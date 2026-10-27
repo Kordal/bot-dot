@@ -467,7 +467,7 @@ internal fun JsonElement?.textOrNull(): String? = (this as? JsonPrimitive)?.take
  * botdot server wrote it (`memory-chips`, docs/api.md "What a run learned"); kept as it came, read through [line].
  */
 @Serializable
-data class Learned(val kind: String = "", val text: String = "", @SerialName("chip") val chipValue: JsonElement? = null) {
+data class Learned(val kind: String = "", val text: String = "", @SerialName("chip") val chipValue: JsonElement? = null, val skill: String? = null) {
     /**
      * What the chip reads. Against a server that announces `memory-chips`, the item's `chip`, whole, with no word
      * of the app's own. An item without one (a job, a connected app, a note in a run from before the chips), and
@@ -485,6 +485,9 @@ data class Learned(val kind: String = "", val text: String = "", @SerialName("ch
         kind == "instructions" || kind == "connector" || kind.startsWith("skill") -> Opens.SETTINGS
         else -> null
     }
+
+    /** The skill the settings open on: a skill's chip names it ("" when the server did not), any other chip none. */
+    val opensSkill: String? get() = if (kind.startsWith("skill")) skill.orEmpty() else null
 
     enum class Opens { JOBS, SETTINGS }
 }

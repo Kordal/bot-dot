@@ -11,6 +11,15 @@ const { startServer, makeBot, self, waitFor, writeData } = require('./helpers');
 const { rpcClient, scratchMemory, runMeta, storedLearned } = require('./memory-helpers');
 const memoryLib = require('../lib/memory');
 const { chipOf, chiefChip, learnedView, SAY, CHIEF_SAY } = require('../lib/learning');
+
+test('a skill\'s item names its skill, also one recorded before it did (#619)', () => {
+  assert.deepEqual(learnedView({ kind: 'skill-updated', text: 'Changed the skill buildr-pr-workflow', chip: 'Changed the skill buildr-pr-workflow' }, null).skill, 'buildr-pr-workflow');
+  assert.equal(learnedView({ kind: 'skill', text: 'Saved the skill a-b', skill: 'kept-name' }, null).skill, 'kept-name');
+  assert.equal(learnedView({ kind: 'skill-pending', text: 'Wants to keep a skill it wrote: “weekly-roundup”' }, null).skill, 'weekly-roundup');
+  assert.equal(learnedView({ kind: 'skill-pending', text: 'Asked to add the skill wash-the-car (waiting for your OK)' }, null).skill, 'wash-the-car');
+  assert.equal(learnedView({ kind: 'skill', text: 'Proposed a skill, waiting for your approval' }, null).skill, undefined, 'no name: the Skills alone');
+  assert.equal(learnedView({ kind: 'job', text: 'Added job the skill x' }, null).skill, undefined);
+});
 const { dayOf } = require('../lib/prompt-text');
 
 const SHARED = memoryLib.SHARED;

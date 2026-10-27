@@ -41,6 +41,9 @@ document.addEventListener('click', (e) => {
   const sub = view === 'rooms' && typeof joinFromLink === 'function' && joinFromLink(hashSub) ? undefined : hashSub;
   if (sub && view === 'runs') state.selectedRun = sub;
   if (sub && (view === 'chief' || view === 'chiefsettings')) state.chatId = sub;
+  // A bot's settings on one of its skills: #botsettings/<bot>/skill/<name>.
+  const [, , what, skill] = location.hash.slice(1).split('/');
+  if (sub && view === 'botsettings' && what === 'skill') { let name = ''; try { name = decodeURIComponent(skill || ''); } catch {} state.openSkill = { bot: sub, name }; }
   await refresh();
   renderStatus();
   // First start, or Claude isn't signed in: open the setup page.
