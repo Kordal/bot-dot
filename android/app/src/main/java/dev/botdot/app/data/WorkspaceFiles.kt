@@ -42,6 +42,10 @@ object WorkspaceFiles {
     fun upload(botId: String, path: String, root: String = SERVER, made: Boolean = false) = base(botId) + "/upload" + query(root, path) + if (made) "&folders=1" else ""
     fun folder(botId: String, root: String = SERVER) = base(botId) + "/folder" + rootQuery(root)
     fun move(botId: String, root: String = SERVER) = base(botId) + "/move" + rootQuery(root)
+    /** Files (#603, `files-explorer`): a copy into a folder, an image for the grid, and keeping a file on botdot in mind. */
+    fun copy(botId: String, root: String = SERVER) = base(botId) + "/copy" + rootQuery(root)
+    fun thumb(botId: String, root: String, path: String) = base(botId) + "/thumb" + query(root, path)
+    fun keep(botId: String) = base(botId) + "/keep"
 
     /** The entries as shown: folders first, then files, by name or newest first; dot-names only with [hidden]. */
     fun sorted(entries: List<WorkspaceEntry>, byDate: Boolean = false, hidden: Boolean = false): List<WorkspaceEntry> {
@@ -111,6 +115,8 @@ data class WorkspaceEntry(
     @SerialName("protected") val kept: Boolean = false,
     /** A file the owner gave the bot, in uploads/: deleted, never renamed or moved (the Files section goes by its name). */
     val keepsName: Boolean = false,
+    /** How many entries a folder holds (`files-explorer`, #603). */
+    val items: Int? = null,
 )
 
 /** A folder (`GET /api/bots/:id/workspace`): at most 1,000 entries, and how many [more] there are. */
@@ -127,6 +133,10 @@ data class WorkspaceListing(
 /** What a delete takes (`GET /api/bots/:id/workspace/count`). */
 @Serializable
 data class WorkspaceCount(val type: String = "file", val files: Int = 0, val folders: Int = 0, val capped: Boolean = false)
+
+/** What a copy or a move into a folder answers (#603): where it landed, under the name it got. */
+@Serializable
+data class WorkspaceCarried(val path: String = "", val root: String = WorkspaceFiles.SERVER, val project: String? = null)
 
 /** What making a folder answers: its path, under the name it got. */
 @Serializable

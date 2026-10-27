@@ -42,12 +42,11 @@ test('web: still asked, unchanged', () => {
     ['deleting a saved login', /confirm\(state\.bw\?\.configured \? `Delete "\$\{l\.name\}"\? It moves to Bitwarden's trash/],
     ['the password hint', /confirm\('This looks like it contains a password\./],
     ['signing out everywhere (#468)', /confirm\('Sign out everywhere\? Every browser and app signed in to your account/],
-    ['deleting one of a bot\'s files (#235)', /if \(!confirm\(`Delete \$\{f\.name\}\? \$\{b\.name\} won't have it any more\.`\)\) return;/],
     ['removing a secret kept in a file (#253)', /if \(!confirm\(`Remove \$\{b\.dataset\.where\}\? The bot can't write it again without asking you on a card\.`\)\) return;/],
     ['switching the account to a new version now (#259)', /if \(!confirm\('Update now\? Your account moves to the new version: your bots restart, and work still running stops\.'\)\) return;/],
     ['removing the Anthropic API key (#35)', /confirm\(c\.subscription === true \? 'Remove the API key\? Bots will run on your Claude subscription\.'/],
   ]) assert.match(app, re, what);
-  assert.equal((app.match(/\bconfirm\(/g) || []).length, 22, 'six questions fewer, none about a note, and no undo (#305); one more to sign out everywhere (#468); none to update botdot, which the admin does (#473); one more to remove the API key (#35); two more to update the account\'s computer and erase a bot\'s old one (#107); one more to delete a bot\'s file (#235); one more to remove a secret kept in a file (#253); one more to switch the account to a new version now, before its bots restart (#259); one more before "Always allow" on a Chief\'s change after the web (#280; the shared-note one went with ADR 059)');
+  assert.equal((app.match(/\bconfirm\(/g) || []).length, 21, 'six questions fewer, none about a note, and no undo (#305); one more to sign out everywhere (#468); none to update botdot, which the admin does (#473); one more to remove the API key (#35); two more to update the account\'s computer and erase a bot\'s old one (#107); one more to delete a bot\'s file (#235), gone with Files (#603), which asks in its own file; one more to remove a secret kept in a file (#253); one more to switch the account to a new version now, before its bots restart (#259); one more before "Always allow" on a Chief\'s change after the web (#280; the shared-note one went with ADR 059)');
 });
 
 // A bot's settings form, as far as the permission mode goes, wired by the page's own lines.

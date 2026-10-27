@@ -409,6 +409,7 @@ function renderChief() {
           <div class="grow"><h2>${esc(chiefName())}</h2><div class="sub" id="chief-sub"></div></div>
         </button>
         <div class="actions-right">
+          ${state.features.includes('files-explorer') && state.features.includes('chief-files') ? `<button class="icon-btn" id="chief-files-btn" title="Files" aria-label="Files">${ICON.folder}</button>` : ''}
           <button class="icon-btn" id="chief-new" title="New chat">${ICON.compose}</button>
         </div>
       </div>
@@ -416,6 +417,7 @@ function renderChief() {
       ${composerHTML('Message the Chief…')}`;
     wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
+    if ($('#chief-files-btn')) $('#chief-files-btn').onclick = () => Files.open(chiefAsBot()); // files.js (#603)
     $('#chief-settings').onclick = () => setPanel('toggle');
     // Messenger feel: open the latest conversation unless a new one was asked for.
     if (!state.chatId && !state.chatNew && state.chats.length) state.chatId = state.chats[0].id;
