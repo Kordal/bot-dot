@@ -1,4 +1,4 @@
-# ADR-102: A bot's proposed main assignment is tried on its past tasks before its card
+# ADR-103: A bot's proposed main assignment is tried on its past tasks before its card
 
 - **Status:** Accepted (2026-10-27)
 - **Owning task:** [#596](https://github.com/Kordal/bot-dot/issues/596), part of [#592](https://github.com/Kordal/bot-dot/issues/592)

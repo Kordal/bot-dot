@@ -1,4 +1,4 @@
-// A bot's proposed main assignment or rules is tried on its past tasks before its card (#596, ADR 102): the card
+// A bot's proposed main assignment or rules is tried on its past tasks before its card (#596, ADR 103): the card
 // waits for the replays and leads with the score, the yes keeps the change and its score in the bot's history, one tap
 // undoes it, and the Chief's weekly report lists it. lib/change-trials.js.
 const { test, before, after } = require('node:test');

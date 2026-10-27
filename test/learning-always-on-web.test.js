@@ -13,7 +13,7 @@ test('web: a bot\'s settings have no "Learns from its work" row, no history and 
   assert.doesNotMatch(settings, /Learns from its work|name="learns"|🧠/);
   assert.doesNotMatch(settings, /bs-learning|bs-history|loadSelfChanges/);
   assert.doesNotMatch(app, /`\/bots\/\$\{[^}]+\}\/learning`/, 'the page asks for no history');
-  // Its one undo is of the change a card made to its main assignment or rules, by the server's `undo` (#596, ADR 102).
+  // Its one undo is of the change a card made to its main assignment or rules, by the server's `undo` (#596, ADR 103).
   assert.deepEqual(app.match(/\/learning\/undo[^`]*`[^)]*\)/g), ['/learning/undo`, { method: \'POST\', body: { changeId: bot.undo } })']);
   assert.doesNotMatch(app, /learning: [^\n]*'off'/);
 });
