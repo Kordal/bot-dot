@@ -17,7 +17,7 @@ const SECRET = 'hunter2-pass';
 
 // boat.dev with a machine as far as the screen uses it: the kit on its disk, computer-server and the bridge running
 // until it stops, detached commands, files.
-function fakeBoat({ kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kitFails = false, desktopRefuses = false, installing = false, slow = false } = {}) {
+function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kitFails = false, desktopRefuses = false, installing = false, slow = false, bridgeDies = false } = {}) {
   const machines = new Map();
   const calls = [];
   let n = 0;
@@ -31,7 +31,7 @@ function fakeBoat({ kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kit
     if (headers.Authorization !== `Bearer ${KEY}`) return reply(401, { ok: false, code: 'unauthorized' });
     if (p === '/sandboxes' && method === 'POST') {
       const id = `bx_${String(++n).padStart(8, 'a')}`;
-      machines.set(id, { id, state: 'ready', files: new Map(), kit, bridgeSha, server: false, bridge: false, installing: installing ? boatLib.KIT_VERSION : false, programs: [], asked: [] });
+      machines.set(id, { id, state: 'ready', files: new Map(), kit, bridgeSha, server: false, bridge: false, installing: installing ? boatLib.KIT_VERSION : false, failed, programs: [], asked: [] });
       return reply(202, { ok: true, sandbox: { id, state: 'provisioning' } });
     }
     const m = p.match(/^\/sandboxes\/(bx_[a-z0-9]+)(?:\/(.+))?$/);
@@ -47,13 +47,13 @@ function fakeBoat({ kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kit
     if (data.detached) {
       if (c.includes('botdot-boat-kit')) box.installing = c.match(/botdot-boat-kit (\S+)/)[1];
       else if (c.includes('computer_server')) box.server = true;
-      else if (c.includes('camoufox-browser --serve')) box.bridge = true;
+      else if (c.includes('camoufox-browser --serve')) box.bridge = !bridgeDies;
       else box.programs.push(c);
       return reply(200, { ok: true, type: 'command.started', processId: 1 });
     }
-    if (c.includes('mkdir -p /tmp/botdot-kit-')) return ran(box.installing ? 'installing\n' : '');
+    if (c.includes('mkdir -p /tmp/botdot-kit-')) { if (!box.installing) box.failed = false; return ran(box.installing ? 'installing\n' : ''); }
     if (c.includes('/opt/botdot/kit-failed ]')) {
-      if (!box.installing) return ran('');
+      if (!box.installing) return ran(box.failed ? "failed\nthe system's packages (exit 100)\n" : box.kit === boatLib.KIT_VERSION ? 'done\n' : '');
       if (kitFails) { box.installing = false; return ran("failed\nthe system's packages (exit 100)\nE: Unable to locate package libgtk-3-0t64\n"); }
       Object.assign(box, { kit: box.installing, bridgeSha: boatLib.BRIDGE_SHA, installing: false });
       return ran('done\n');
@@ -64,6 +64,7 @@ function fakeBoat({ kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kit
       return ran(`${box.server ? 'server\n' : ''}${box.bridge ? 'bridge\n' : ''}sha ${box.bridgeSha || ''}\n`);
     }
     if (c.includes('install -m 0755 /tmp/')) { Object.assign(box, { bridgeSha: boatLib.BRIDGE_SHA, bridge: false }); return ran(''); }
+    if (c.includes('botdot-bridge.log')) return ran(`${box.bridge ? '' : "Camoufox's bridge is not running\nModuleNotFoundError: No module named 'camoufox'\n"}${box.server ? '' : 'computer-server is not answering\n'}`);
     if (c.includes('test -S /run/botdot-browser/bridge-0.sock')) return ran('', !box.bridge ? 9 : !box.server ? 7 : 0);
     if (c.includes('urllib.request')) {
       if (!box.server) return ran('[Errno 111] Connection refused', 7);
@@ -94,6 +95,7 @@ test('the screen kit carries the versions the desktop image pins', () => {
   const pins = (text) => [...text.matchAll(/'([A-Za-z][\w.[\]-]*==[\w.]+)'/g)].map((x) => x[1]);
   const imagePins = pins(image).filter((x) => !x.startsWith('proxy-addr'));
   assert.ok(imagePins.includes('cua-computer-server==0.3.46') || imagePins.some((x) => x.startsWith('cua-computer-server==')), 'the image pins computer-server');
+  assert.ok(imagePins.includes('fastapi==0.144.0'), 'FastAPI is pinned: computer-server 0.3.46 ends at its start on 0.145 or newer (#601)');
   for (const pin of imagePins) assert.ok(pins(kit).includes(pin), `the kit installs ${pin}, as the image does`);
   const browsers = (text) => [...text.matchAll(/official\/[\w./-]+/g)].map((x) => x[0]).sort();
   assert.deepEqual(browsers(kit), browsers(image), "the kit fetches and sets the image's Camoufox");
@@ -108,7 +110,7 @@ test("a bot's first screen tool puts the kit on its machine, starts its screen t
   assert.match(r.text, /"image_data":"iVBOR"/);
   const [box] = b.machines.values();
   assert.equal(box.kit, boatLib.KIT_VERSION, 'the kit is on its disk');
-  for (const f of ['botdot-boat-kit', 'camoufox-browser']) {
+  for (const f of ['botdot-boat-kit', 'camoufox-browser', 'camoufox.desktop']) {
     const sent = [...box.files.entries()].find(([p]) => p.startsWith('/tmp/botdot-kit-') && p.endsWith(`/${f}`));
     assert.ok(sent, `${f} went through the file API`);
     assert.equal(sent[1], fs.readFileSync(path.join(ROOT, 'deploy', 'desktop', f), 'utf8'));
@@ -121,6 +123,59 @@ test("a bot's first screen tool puts the kit on its machine, starts its screen t
   await boat.request('coder', '/cmd', { command: 'left_click', params: { x: 1, y: 2 } });
   assert.deepEqual(box.sent, { command: 'left_click', params: { x: 1, y: 2 } }, 'the body reached computer-server');
   assert.equal(b.calls.length - before, 1, 'one command, nothing installed or started again');
+});
+
+test("the kit makes Camoufox the desktop's browser, as the image does, in place of the machine's Chrome (#582)", () => {
+  const kit = fs.readFileSync(path.join(ROOT, 'deploy', 'desktop', 'botdot-boat-kit'), 'utf8');
+  const image = fs.readFileSync(path.join(ROOT, 'deploy', 'desktop', 'Dockerfile'), 'utf8');
+  assert.match(image, /COPY camoufox\.desktop \/usr\/share\/applications\/camoufox\.desktop/);
+  assert.match(kit, /install -m 0644 "\$FROM\/camoufox\.desktop" \/usr\/share\/applications\/camoufox\.desktop/, 'its launcher');
+  for (const line of ['update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/local/bin/camoufox-browser 300', 'update-alternatives --set x-www-browser /usr/local/bin/camoufox-browser']) {
+    assert.ok(image.includes(line) && kit.includes(line), `both run ${line}`);
+  }
+  // The machine user's defaults for web pages, its other defaults (and Chrome's other kinds) kept.
+  const script = kit.match(/<<'PY'\n([\s\S]*?)\nPY\n/)[1];
+  const d = dir();
+  const list = path.join(d, 'mimeapps.list');
+  fs.writeFileSync(list, '[Default Applications]\ntext/html=google-chrome.desktop\nx-scheme-handler/https=google-chrome.desktop\napplication/pdf=evince.desktop\nx-scheme-handler/mailto=google-chrome.desktop\n');
+  fs.writeFileSync(path.join(d, 'set.py'), script);
+  require('node:child_process').execFileSync('python3', ['-I', path.join(d, 'set.py'), list]);
+  const out = fs.readFileSync(list, 'utf8');
+  for (const kind of ['text/html', 'x-scheme-handler/http', 'x-scheme-handler/https']) assert.match(out, new RegExp(`^${kind.replace('/', '\\/')}=camoufox\\.desktop$`, 'm'), kind);
+  assert.match(out, /^application\/pdf=evince\.desktop$/m);
+  assert.match(out, /^x-scheme-handler\/mailto=google-chrome\.desktop$/m);
+  assert.match(out, /^\[Added Associations\]$/m);
+});
+
+const settle = async (until) => { for (let i = 0; i < 200 && !until(); i++) await new Promise((r) => setImmediate(r)); };
+
+test('the kit goes on a machine as soon as it starts, before any screen tool, and the first screen tool waits for it (#582)', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const { b, boat } = machine();
+  const kitStarts = () => b.commands().filter((c) => c.detached && c.command.includes('botdot-boat-kit'));
+  await boat.runShell('coder', { command: 'which camoufox-browser' });
+  await settle(() => kitStarts().length);
+  assert.equal(kitStarts().length, 1, 'started by the first command');
+  assert.ok(!b.commands().some((c) => c.detached && /computer_server|--serve/.test(c.command)), 'no screen started for it');
+  await boat.request('coder', '/cmd', { command: 'screenshot', params: {} });
+  assert.equal(kitStarts().length, 1, 'the screen tool waited for that install');
+  assert.equal(b.commands().filter((c) => c.detached).length, 3, 'then computer-server and the bridge');
+});
+
+test('a machine that has the kit, or whose kit failed, gets none at its start: a screen tool tries a failed one again', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const ready = machine({ kit: boatLib.KIT_VERSION });
+  await ready.boat.runShell('coder', { command: 'true' });
+  await settle(() => false);
+  assert.ok(!ready.b.commands().some((c) => c.detached), 'nothing sent');
+  const failed = machine({ failed: true });
+  await failed.boat.runShell('coder', { command: 'true' });
+  await settle(() => false);
+  assert.ok(!failed.b.commands().some((c) => c.detached), 'a failed kit waits for a screen tool');
+  await failed.boat.ensureScreen('coder');
+  assert.equal(failed.b.commands().filter((c) => c.detached && c.command.includes('botdot-boat-kit')).length, 1, 'which puts it there again');
 });
 
 test('a machine that has the kit only starts its screen, and one that stopped starts it again', async (t) => {
@@ -153,6 +208,17 @@ test("a desktop that won't let botdot in is said, and nothing is started", async
   const { b, boat } = machine({ kit: boatLib.KIT_VERSION, desktopRefuses: true });
   await assert.rejects(boat.ensureScreen('coder'), /screen didn't start: the machine's desktop \(:0\) did not let botdot in/);
   assert.equal(b.commands().filter((c) => c.detached).length, 0);
+});
+
+test("a screen that doesn't come up says which part of it didn't, with the end of its log", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  let at = 0;
+  const { b, boat } = machine({ kit: boatLib.KIT_VERSION, bridgeDies: true }, { now: () => (at += 10_000) });
+  await assert.rejects(boat.ensureScreen('coder'), /screen didn't start in time: Camoufox's bridge is not running\nModuleNotFoundError: No module named 'camoufox'$/);
+  const detached = b.commands().filter((c) => c.detached).map((c) => c.command);
+  assert.ok(detached.some((c) => /^exec >\/tmp\/botdot-computer-server\.log 2>&1\n.*computer_server/s.test(c)), "computer-server's output goes to a log");
+  assert.ok(detached.some((c) => /^exec >\/tmp\/botdot-bridge\.log 2>&1\n.*camoufox-browser --serve/s.test(c)), "the bridge's first output goes to a log");
 });
 
 test('a typed secret reaches the bridge through a file that is gone before the helper starts, never on a command line', async (t) => {

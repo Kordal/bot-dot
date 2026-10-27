@@ -110,15 +110,17 @@ async function runTileSource(tile, source, where, extra = {}) {
   return extra.image ? { type: r.type, data: r.image } : r.body;
 }
 // askBrief is lib/routes/shared.js's, made below once asks and connectorApprovals are.
-const asks = asksLib.create(B.DATA_DIR, { describe: (a, list) => askBrief(a, list) }); // permissions and skills bots ask the owner for
+const activity = require('./lib/activity').create(B.DATA_DIR); // the owner's activity per day, as counts (ADR 105)
+const asks = asksLib.create(B.DATA_DIR, { describe: (a, list) => askBrief(a, list), shown: () => activity.cardShown(), answered: (at) => activity.cardAnswered(at) }); // permissions and skills bots ask the owner for
 const secretFiles = require('./lib/secret-files').create(B.DATA_DIR); // Vault secrets kept in files, by the owner's yes (#253)
 // A change a bot proposed to its own instructions keeps the run that proposed it: the bot carries on after the yes (ADR 009).
-B.onChangeRequested((change) => asks.add({ kind: 'bot-change', ...change }, { runId: change.by === 'bot' ? change.runId || null : null }));
+// Its own main assignment or rules are tried on its past tasks first (changeTrials, below; #596).
+B.onChangeRequested((change) => changeTrials.request(change));
 // What each bot's teammates are told it reaches (#136): the names and kinds of the Vault's items shared with it, never a value.
 B.onLoginNames((botId) => store().forBot(botId).map((x) => ({ name: x.name, kind: x.kind || 'login' })));
 // What of a bot waits for the owner's OK on a card, in their words, for its first message (lib/hello.js): a held
 // change of the bot (bot-changes.js waitingWords) and a permission it asked for.
-B.onWaitingOnCards((bot) => asks.list().filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)
+B.onWaitingOnCards((bot) => [...asks.list(), ...changeTrials.list()].filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)
   : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`] : [])));
 // The owner's OK for a write in a connected app: the run waits for it, and a late yes starts the bot again (ADR 010).
 // The Chief is a caller too, in the turns the owner started, and a late yes on its card starts its turn (ADR 047).
@@ -159,10 +161,28 @@ connectorApprovals.start(); // no run of before the start waits for an answer an
 const backups = require('./lib/backup').create({ dataDir: B.DATA_DIR, memory: B.memory, revision: process.env.BOT_DOT_REVISION, account: ACCOUNT || null, audit });
 // Tools installed on the botdot server for one bot, on the owner's OK (ADR 007).
 const connectedApps = connectedAppsLib.create({ tellChief: (turn) => chief.tell(turn) });
+// A change tried on a bot's past tasks before the owner sees it (ADR 101): one replay at a time, at the admin's pace;
+// the Chief's model judges.
+const replays = require('./lib/replay').create({
+  tasks: (botId, n) => B.replayTasks(botId, n), run: (bot, task, candidate, scope) => B.replayRun(bot, task, candidate, scope),
+  scope: () => B.replayComputers.scope(), endScope: (scope) => B.replayComputers.endScope(scope),
+  ask: (prompt, opts) => require('./lib/dresser').askClaude(prompt, { ...opts, ms: 3 * 60_000 }),
+});
+// A proposal of the Chief's review, tried on its bots' tasks: a new skill as it would be written, a share as it is.
+const tryProposal = (p) => replays.score({
+  bots: p.bots.map((id) => B.bots.get(id)).filter(Boolean),
+  candidate: p.kind === 'share' ? { name: p.name } : { name: p.name, description: p.description, instructions: p.instructions },
+});
+// A bot's proposed main assignment or rules, tried on its past tasks before its card (#596): the bot with the new text.
+const changeTrials = require('./lib/change-trials').create({
+  dataDir: B.DATA_DIR, asks, on: () => require('./lib/replay').perHour() > 0, bot: (id) => B.bots.get(id),
+  score: (a, { gone }) => { const bot = B.bots.get(a.botId); return bot ? replays.score({ bots: [bot], candidate: { changes: a.changes }, gone }) : null; },
+});
 // The Chief's memory review of its own and the shared notes (#117): proposals on cards, done on the owner's yes.
 const chiefReview = require('./lib/chief-review').create({
   dataDir: B.DATA_DIR, memory: B.memory, skills: B.skills, bots: B.bots, asks, chiefHas: shared.chiefHas, attachSkill: (name, ids) => shared.attachSkill(name, ids),
-  settings: () => B.settings.get(), run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId),
+  settings: () => B.settings.get(), run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId), test: tryProposal,
+  changes: (since) => B.bots.list().flatMap((b) => B.learn.proposalsSince(b.id, since).map((c) => ({ ...c, name: b.name }))),
 });
 B.onChiefReview(() => chiefReview.due());
 const tools = toolsLib.create({ dataDir: B.DATA_DIR, bots: B.bots, asks, audit, starts: B.toolStarts, tellChief: (turn) => chief.tell(turn), notify: (text) => chief.post(text), ownerWrote: (chatId) => chief.ownerWrote(chatId) });
@@ -258,7 +278,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'workspace-folders', 'projects', 'account-computer'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'workspace-folders', 'projects', 'account-computer', 'workspace-search', 'file-mentions', 'files-explorer'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -462,14 +482,14 @@ const CHIEF_ROUTES = [
   ['GET', /^(bots|skills|connectors|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
   ['GET', /^runs\/[^/]+\/wait$/],
-  ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup$/],
+  ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)$/],
   ['GET', /^bots\/[^/]+\/(computer\/(status|logs)|files)$/],
   ['GET', /^computer\/status$/],
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
   ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|chief\/jobs|chief\/jobs\/[^/]+\/run|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|connectors\/session\/(actions|run|wait))$/],
-  ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
+  ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['PUT', /^(chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
-  ['DELETE', /^(chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/(call|notify)\/setup|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
+  ['DELETE', /^(chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
 const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method && re.test(parts.join('/')));
 
@@ -514,6 +534,9 @@ function heldTitle(method, parts, body) {
     [/^bots\/[^/]+\/jobs\/[^/]+$/, 'DELETE', () => `Remove the job ${jobName} of ${botName}`],
     [/^bots\/[^/]+\/jobs\/[^/]+\/run$/, 'POST', () => `Run the job ${jobName} of ${botName}`],
     [/^bots\/[^/]+\/jobs\/[^/]+\/call\/setup$/, null, () => `Change calls to the job ${jobName} of ${botName}`],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/shadow$/, 'POST', () => `Try a script beside the job ${jobName} of ${botName}`],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/shadow$/, 'DELETE', () => `End the script trial of the job ${jobName} of ${botName}`],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/back-to-ai$/, 'POST', () => `Turn the job ${jobName} of ${botName} back to AI`],
     [/^bots\/[^/]+\/jobs\/[^/]+\/notify\/setup$/, null, () => `Change the notify address of the job ${jobName} of ${botName}`],
     [/^skills$/, 'POST', () => `Make the skill ${quoted(body?.name)}`],
     [/^skills\/[^/]+$/, 'PUT', () => `Change the skill ${quoted(decoded(parts[1]))}`],
@@ -614,7 +637,7 @@ const ctx = { ACCOUNT, audit, secretFiles, callKeys, callRefusals, keys, vault, 
   UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, roomRuns, backups, connectedApps, tools, chiefReview, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, macApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
   chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; },
-  fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], ...shared };
+  fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
 ctx.computerRoutes = require('./lib/routes/computers').create(ctx);
 ctx.jobRoutes = require('./lib/routes/jobs').create(ctx);
@@ -624,6 +647,7 @@ const ROUTES = [
   require('./lib/routes/room-notice').create(ctx), // a new message in a shared room rings the owner, from the front door only (ADR 060)
   require('./lib/routes/group-router').create(ctx), // the admin's choice of the group router, from the front door only (#513)
   require('./lib/routes/boat').create(ctx), // the admin's boat.dev key, from the front door only (#529)
+  require('./lib/routes/usage-summary').create(ctx), // a day's usage as counts, for the front door only (ADR 105)
   ctx.computerRoutes.ofAccount, // the account's computer for every bot: its reset and update (#107)
   require('./lib/routes/backups').create(ctx),
   require('./lib/routes/files').create(ctx),
@@ -636,6 +660,7 @@ const ROUTES = [
   require('./lib/routes/room-bots').create(ctx), // the bots a shared room may ask, for the front door (#316)
   require('./lib/routes/pages').create(ctx), // every bot's pages in one list (#361)
   require('./lib/routes/projects').create(ctx), // shared projects on the account's computer (#578)
+  require('./lib/routes/replay').create(ctx), // a replay's computer tools, on its copy (ADR 104)
   require('./lib/routes/setup').create(ctx),
   require('./lib/routes/memory').create(ctx),
   require('./lib/routes/group-chats').create(ctx),
@@ -677,6 +702,10 @@ async function api(req, res, url, replay = null) {
 const BOT_PATHS = ['/api/self/session', '/api/vault/session', '/api/connectors/session'];
 const SCRIPT_PATH = '/api/vault/script/';
 const GIT_PATH = '/api/vault/git/'; // git's credential helper in a bot's AI run (ADR 090)
+// What a replay's tools use (ADR 102): its connected apps and saved logins, in a dry run.
+const REPLAY_PATHS = ['/api/connectors/session', '/api/vault/session/logins', '/api/vault/session/http'];
+const COPY_PATH = '/api/replay/session/'; // a replay's computer tools, on its copy of the bot's computer (ADR 104)
+const replayOf = (req, p) => (REPLAY_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) ? B.replaySession(req.headers['x-run-token'] || req.headers['x-vault-token']) : null);
 
 // A request's path, or '' for an address that is not one.
 function pathOf(req) {
@@ -707,8 +736,10 @@ function gate(req) {
     // A script job's botdot-request (ADR 085): its run's key, of this bot's job.
     if (p.startsWith(SCRIPT_PATH)) return B.scriptSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
     if (p.startsWith(GIT_PATH)) return B.gitSession(req.headers['x-run-token'])?.botId === who.bot ? null : "That run key isn't this bot's.";
+    // A replay's computer tools (ADR 104): the key of a copy made for one of this bot's replays.
+    if (p.startsWith(COPY_PATH)) return B.replayComputers.byKey(req.headers['x-replay-key'])?.botId === who.bot ? null : "That replay key isn't this bot's.";
     if (!BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`))) return "Bots can only use their own run's tools.";
-    const session = B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token']);
+    const session = B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token']) || replayOf(req, p);
     if (!session || session.botId !== who.bot) return "That run key isn't this bot's.";
     return null;
   }
@@ -719,6 +750,8 @@ function gate(req) {
   if (BOT_PATHS.some((pre) => p === pre || p.startsWith(`${pre}/`)) && B.runSession(req.headers['x-run-token'] || req.headers['x-vault-token'])) return null;
   if (p.startsWith(SCRIPT_PATH) && B.scriptSession(req.headers['x-run-token'])) return null;
   if (p.startsWith(GIT_PATH) && B.gitSession(req.headers['x-run-token'])) return null;
+  if (p.startsWith(COPY_PATH) && B.replayComputers.byKey(req.headers['x-replay-key'])) return null;
+  if (replayOf(req, p)) return null;
   // The tools of a Chief turn that has connected apps, with that turn's own token (ADR 047): only their routes.
   if ((p === '/api/connectors/session' || p.startsWith('/api/connectors/session/')) && connectorApprovals.chiefSession(req.headers['x-run-token'])) return null;
   if (p === '/api/version' && req.method === 'GET') return null;
@@ -804,6 +837,10 @@ async function handle(req, res) {
   if (called) return takeCall(req, res, called);
   // Custom header forces a CORS preflight (which we never approve) on cross-site writes.
   if (req.method !== 'GET' && req.headers['x-bot-dot'] !== '1') return send(res, 403, { error: 'Missing X-Bot-Dot header' });
+  // The owner's own request, through the front door: counted for the day's usage (ADR 105), never what it says. The
+  // Chief's tools and the bots never come in on the front door's socket, and it strips x-chief-key and x-botdot-room
+  // from what a person sends: one with x-botdot-room is the front door's own.
+  if (req.socket[FROM_FRONT_DOOR] && req.headers['x-botdot-room'] !== '1') activity.saw(req.method, url.pathname, req.headers['user-agent']);
   try {
     await api(req, res, url);
   } catch (e) {

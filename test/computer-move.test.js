@@ -24,6 +24,7 @@ function side(packed, { profile = Buffer.alloc(0), fail = null } = {}) {
     if (op === 'pack') return { code: 0, size: own[part].length };
     if (op === 'read') return { code: 0, data: own[part].subarray(offset, offset + length).toString('base64') };
     if (op === 'write') {
+      if (offset === 0) got[part] = Buffer.alloc(0); // the first piece starts the tar over, as on both sides
       if (offset !== got[part].length) return { code: 4, stderr: 'a piece came out of order' };
       got[part] = Buffer.concat([got[part], Buffer.from(data, 'base64')]);
       s.got = got.files;
@@ -165,6 +166,42 @@ test("this machine's side packs a profile as the browser user, without its cache
   assert.equal(fs.readFileSync(path.join(b, 'coder', 'cookies.sqlite'), 'utf8'), 'signed in', 'a refused profile changes nothing');
 });
 
+test("a pack gone from the old side's /tmp mid-copy is packed again and copied over from its start, at most twice (#586)", async () => {
+  const bytes = Buffer.from('a tar of the bot folder that outlives one machine start');
+  const repacked = Buffer.from('the same folder packed again, a little longer this time');
+  const old = side(bytes);
+  const read = old.moveFiles;
+  let gone = 1;
+  let packs = 0;
+  old.moveFiles = async (id, step) => {
+    if (step.op === 'pack' && step.part === 'files' && ++packs > 1) return { code: 0, size: repacked.length };
+    if (step.op === 'read' && step.offset >= 10 && gone > 0) { gone--; return { code: moveLib.GONE, stderr: moveLib.GONE_WORDS }; }
+    if (step.op === 'read' && packs > 1) return { code: 0, data: repacked.subarray(step.offset, step.offset + step.length).toString('base64') };
+    return read(id, step);
+  };
+  const boat = side(Buffer.alloc(0));
+  const totals = [];
+  const moves = moveLib.create(dir(), { sides: { linux: old, boat }, pieces, every: 0, onChange: (id) => totals.push(moves.of(id)?.total) });
+  await moves.start('coder', 'linux', 'boat');
+  assert.equal(moves.of('coder'), null, 'it finished');
+  assert.ok(totals.includes(bytes.length) && totals.includes(repacked.length), 'its total follows the new pack, a number with no profile');
+  assert.deepEqual(boat.unpacked, repacked, 'the new side holds the new pack alone, from its start');
+
+  const lost = side(bytes);
+  lost.moveFiles = async (id, step) => (step.op === 'read' ? { code: moveLib.GONE, stderr: moveLib.GONE_WORDS } : side(bytes).moveFiles(id, step));
+  const failing = moveLib.create(dir(), { sides: { linux: lost, boat: side(Buffer.alloc(0)) }, pieces });
+  await failing.start('coder', 'linux', 'boat');
+  assert.match(failing.of('coder').error, /^couldn't read its files on this machine: its packed folder is gone$/);
+});
+
+test("this machine's read says its pack is gone instead of handing out nothing", { skip: process.platform !== 'linux' }, () => {
+  const { execFileSync } = require('node:child_process');
+  const { PROFILE_SCRIPTS } = require('../lib/computers');
+  const r = (() => { try { execFileSync('sh', ['-c', PROFILE_SCRIPTS.read, 'sh', dir(), '/nonexistent/x.tgz', '0', '5', 'coder'], { stdio: 'pipe' }); return null; } catch (e) { return e; } })();
+  assert.equal(r?.status, moveLib.GONE);
+  assert.match(String(r.stderr), /its packed folder is gone/);
+});
+
 test('only a move between this machine and boat.dev copies', () => {
   assert.ok(moveLib.isMove('linux', 'boat'));
   assert.ok(moveLib.isMove('boat', 'linux'));
@@ -192,7 +229,7 @@ test("boat.dev's side packs /home/user without its caches, and takes pieces thro
     if (p.endsWith('/commands')) { commands.push(d.command); return reply(200, { ok: true, exitCode: 0, stdout: d.command.endsWith('stat -c %s /tmp/botdot-move-coder.tgz') ? '1234\n' : '' }); }
     return reply(200, { ok: true });
   };
-  const boat = boatLib.create(dir(), { fetch, sleep: async () => {} });
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch, sleep: async () => {} });
   const packed = await boat.moveFiles('coder', { op: 'pack' });
   assert.equal(packed.code, 0);
   assert.equal(packed.size, 1234);

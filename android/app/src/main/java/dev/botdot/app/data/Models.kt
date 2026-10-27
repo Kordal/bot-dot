@@ -194,6 +194,7 @@ data class Bot(
     val hotkey: Int? = null, // its own digit on the keypad, 1 to 9, 0 for none (#366); null from a server without it, which shows no setting
     val overrides: List<BotOverride> = emptyList(), // the rules the owner lifted for it with "Allow always for this bot" (#253)
     val alwaysAllowed: List<AlwaysAllowed> = emptyList(), // its lasting grants in connected apps, "Always allow" on their cards (#474)
+    val undo: String? = null, // the change a card made to its main assignment or rules that one tap undoes (#596); null when none, or from an older server
     val unread: Int = 0, // its new replies, as the botdot server counts them; 0 from a server without the feature
     val firstUnread: String? = null, // the run that is the first of them in its chat: the "New" line goes there
     // The owner's messages that wait for it (`message-waits`), kept as they came. Read them through [queued].

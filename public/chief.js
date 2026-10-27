@@ -120,7 +120,11 @@ function wireMentions(form, chat, grow) {
   list.setAttribute('role', 'listbox');
   $('.composer-wrap', form).append(list);
   let rows = [], sel = 0, picked = -1; // picked: where a bot mention just put in (and its new space) ends
+  // Files (#604): file-mentions.js finds them; its rows come first, and a folder opened has a header.
+  const files = FileMentions.picker(chat, () => { if (document.activeElement === ta) update(); });
+  let dir = null;
   const label = (r) => {
+    if (r.kind === 'file') return FileMentions.rowHTML(r);
     const bot = r.bot && mentionCtx(chat).bots.find((b) => b.id === r.bot);
     if (r.kind === 'bot') return botLabel(bot);
     if (r.kind === 'job') return `${botLabel(bot)} · ${esc(bot.jobs.find((j) => j.id === r.job)?.name || '')}`;
@@ -132,18 +136,28 @@ function wireMentions(form, chat, grow) {
     return esc(r.label);
   };
   const draw = () => {
-    list.classList.toggle('hidden', !rows.length);
-    list.innerHTML = rows.map((r, i) => `<button type="button" role="option" aria-selected="${i === sel}" data-i="${i}">${label(r)}</button>`).join('');
+    list.classList.toggle('hidden', !rows.length && !dir);
+    list.classList.toggle('files', rows.some((r) => r.kind === 'file') || !!dir);
+    list.innerHTML = (dir ? `<div class="fm-head">${FileMentions.headerHTML(dir)}</div>` : '')
+      + rows.map((r, i) => `<button type="button" role="option" class="${r.kind === 'file' ? 'fm-row' : ''}" aria-selected="${i === sel}" data-i="${i}">${label(r)}</button>`).join('');
   };
-  const close = () => { if (rows.length) { rows = []; draw(); } };
+  const close = () => { files.reset(); if (rows.length || dir) { rows = []; dir = null; draw(); } };
   const update = () => {
-    rows = ta.selectionStart === ta.selectionEnd ? Mentions.suggest(ta.value.slice(0, ta.selectionStart), mentionCtx(chat)) : [];
+    const typed = ta.selectionStart === ta.selectionEnd ? ta.value.slice(0, ta.selectionStart) : null;
+    const was = rows;
+    rows = typed != null ? Mentions.suggest(typed, mentionCtx(chat)) : [];
     if (!state.features.includes('skill-commands')) rows = rows.filter((r) => r.kind !== 'command'); // a botdot that runs no "/" (#237)
-    sel = 0;
+    const found = typed != null ? files.look(typed) : { rows: [], dir: null };
+    dir = found.dir;
+    rows = dir ? found.rows : [...found.rows, ...rows].slice(0, Math.max(Mentions.MAX_ROWS, found.rows.length));
+    if (rows.length !== was.length || rows.some((r, i) => r.text !== was[i]?.text)) sel = 0;
     draw();
   };
-  const pick = (r) => {
-    const done = Mentions.pick(ta.value, ta.selectionStart, r);
+  // A file mention's own steps: a folder opens, the header goes back up or mentions the folder opened.
+  const apply = (done) => { if (!done) return; ta.value = done.text; ta.setSelectionRange(done.cursor, done.cursor); grow(); update(); };
+  const pick = (r, { asMention = false } = {}) => {
+    if (r.kind === 'file' && r.type === 'folder' && !asMention) return apply(files.enter(ta.value, ta.selectionStart, r));
+    const done = r.kind === 'file' ? files.put(ta.value, ta.selectionStart, r) : Mentions.pick(ta.value, ta.selectionStart, r);
     if (!done) return close();
     ta.value = done.text;
     ta.setSelectionRange(done.cursor, done.cursor);
@@ -152,7 +166,17 @@ function wireMentions(form, chat, grow) {
     grow();
   };
   list.onmousedown = (e) => e.preventDefault(); // keep the cursor (and a phone's keyboard) in the box
-  list.onclick = (e) => { const b = e.target.closest('[data-i]'); if (b) { pick(rows[+b.dataset.i]); ta.focus(); } };
+  list.onclick = (e) => {
+    const f = e.target.closest('[data-fm]');
+    if (f) {
+      if (f.dataset.fm === 'back') apply(files.back(ta.value, ta.selectionStart));
+      else if (files.self()) pick(files.self(), { asMention: true });
+      ta.focus();
+      return;
+    }
+    const b = e.target.closest('[data-i]');
+    if (b) { pick(rows[+b.dataset.i]); ta.focus(); }
+  };
   ta.addEventListener('input', () => { picked = -1; update(); });
   ta.addEventListener('click', update);
   ta.addEventListener('keyup', (e) => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) update(); });
@@ -169,9 +193,11 @@ function wireMentions(form, chat, grow) {
         update();
         return true;
       }
-      if (!rows.length || e.isComposing) return false;
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { sel = (sel + (e.key === 'ArrowDown' ? 1 : rows.length - 1)) % rows.length; draw(); }
-      else if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') pick(rows[sel]);
+      if ((!rows.length && !dir) || e.isComposing) return false;
+      if (!rows.length && e.key !== 'Escape') return false;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { sel = (sel + (e.key === 'ArrowDown' ? 1 : rows.length - 1)) % rows.length; draw(); list.querySelector('[aria-selected="true"]')?.scrollIntoView?.({ block: 'nearest' }); }
+      else if (e.key === 'Enter' && !e.shiftKey) pick(rows[sel]);
+      else if (e.key === 'Tab') pick(rows[sel], { asMention: true }); // a folder too: mentioned, not opened
       else if (e.key === 'Escape') { close(); e.stopPropagation(); }
       else return false;
       e.preventDefault();
@@ -232,7 +258,11 @@ function wireComposer(form, onSend, uploadTo, chat) {
   const under = $('.ta-mark', form);
   const paint = () => {
     const m = chat ? markOf(ta.value, chat) : null;
-    if (under) under.innerHTML = m ? `${esc(ta.value.slice(0, m.start))}${markHTML(m)}` : '';
+    // A file mention (#604) is tinted behind its text the same way.
+    const marks = [...(m ? [m] : []), ...(chat && ta.value.includes('@[') ? Mentions.findFiles(ta.value).filter((f) => !m || f.start >= m.end) : [])];
+    let at = 0, html = '';
+    for (const x of marks) { html += `${esc(ta.value.slice(at, x.start))}${markHTML(x)}`; at = x.end; }
+    if (under) under.innerHTML = html;
     if (under) under.style.transform = `translateY(${-ta.scrollTop}px)`;
   };
   ta.addEventListener('scroll', paint);
@@ -379,6 +409,7 @@ function renderChief() {
           <div class="grow"><h2>${esc(chiefName())}</h2><div class="sub" id="chief-sub"></div></div>
         </button>
         <div class="actions-right">
+          ${state.features.includes('files-explorer') && state.features.includes('chief-files') ? `<button class="icon-btn" id="chief-files-btn" title="Files" aria-label="Files">${ICON.folder}</button>` : ''}
           <button class="icon-btn" id="chief-new" title="New chat">${ICON.compose}</button>
         </div>
       </div>
@@ -386,6 +417,7 @@ function renderChief() {
       ${composerHTML('Message the Chief…')}`;
     wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
+    if ($('#chief-files-btn')) $('#chief-files-btn').onclick = () => Files.open(chiefAsBot()); // files.js (#603)
     $('#chief-settings').onclick = () => setPanel('toggle');
     // Messenger feel: open the latest conversation unless a new one was asked for.
     if (!state.chatId && !state.chatNew && state.chats.length) state.chatId = state.chats[0].id;

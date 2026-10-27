@@ -71,7 +71,7 @@ import kotlinx.serialization.json.put
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null, onScreen: () -> Unit, onJobs: () -> Unit, onDeleted: () -> Unit, onCopied: (String) -> Unit = {}, onBack: () -> Unit) {
+fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null, onScreen: () -> Unit, onJobs: () -> Unit, onDeleted: () -> Unit, onCopied: (String) -> Unit = {}, onFiles: () -> Unit = {}, onBack: () -> Unit) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
@@ -199,6 +199,16 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             }
             Section("Its main assignment", "What it does when a job runs it without a task of its own, and its guide for your messages.") {
                 OutlinedTextField(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
+                // The change a card made to it or its rules, undone in one tap while nothing changed them since (#596).
+                b.undo?.let { change ->
+                    TextButton(onClick = {
+                        scope.launch {
+                            runCatching { api!!.undoChange(botId, change); api!!.bot(botId) }
+                                .onSuccess { fill(it); tell("Undone") }
+                                .onError { tell(it.message ?: "Couldn't undo") }
+                        }
+                    }) { Text("Undo last change", color = p.text) }
+                }
             }
             Section("What it can do") {
                 // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here
@@ -358,8 +368,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                     }
                 }
             }
+            // Its files (#603): every place of them in Files, full screen, in place of the Files and Workspace sections.
+            val explorer = dev.botdot.app.data.FilesExplorer.shows(server?.features)
+            if (explorer) FilesLink(onFiles)
             // Its files (#235): what you gave it. Tap one to open it; keep one in mind so it comes with every task.
-            if (keepsFiles) FilesSection(api, botId, name, viewer = dev.botdot.app.data.DocumentView.shows(server?.features),
+            if (keepsFiles && !explorer) FilesSection(api, botId, name, viewer = dev.botdot.app.data.DocumentView.shows(server?.features),
                 hint = "It sees this list in every task. A file kept in mind comes with every task.", empty = "None yet. Attach a file in its chat.", tell = ::tell)
             // Its pages (#346): what it made for you. Tap one to open it, and keep it up to date from there.
             pages?.let { list ->
@@ -376,7 +389,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
             }
             // Its workspace (#296): every file in its folder, and in its folder on the account's computer.
-            if (dev.botdot.app.data.WorkspaceFiles.shows(server?.features)) {
+            if (!explorer && dev.botdot.app.data.WorkspaceFiles.shows(server?.features)) {
                 WorkspaceSection(api, botId, b.name, usesComputer = b.computer == "linux", viewer = dev.botdot.app.data.DocumentView.shows(server?.features), tell = ::tell, folders = dev.botdot.app.data.WorkspaceFiles.folders(server?.features), projects = dev.botdot.app.data.Projects.shows(server?.features))
             }
             FoldSection("Advanced", "Model and more") {

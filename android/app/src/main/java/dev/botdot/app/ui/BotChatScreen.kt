@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -72,7 +73,7 @@ import kotlinx.coroutines.launch
  * opens it. Only against a botdot server that has groups, and with another bot to add.
  */
 @Composable
-fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: String, onJobs: () -> Unit, onSettings: () -> Unit, onScreen: () -> Unit, onNeeds: () -> Unit, onLearned: (skill: String?) -> Unit = { onSettings() }, onSignIn: () -> Unit = {}, onGroup: (String) -> Unit = {}, onBack: () -> Unit) {
+fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: String, onJobs: () -> Unit, onSettings: () -> Unit, onScreen: () -> Unit, onNeeds: () -> Unit, onLearned: (skill: String?) -> Unit = { onSettings() }, onSignIn: () -> Unit = {}, onGroup: (String) -> Unit = {}, onFiles: () -> Unit = {}, onBack: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
@@ -166,7 +167,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
     val api by app.api.collectAsState()
     // A path in its replies, and a file you sent it, open in the viewer (#251).
-    CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId), LocalQuote provides remember(botId) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "bot", botId) },
+    CompositionLocalProvider(LocalMentions provides rememberMentions(app, botId), LocalFileMentions provides rememberFileMentions(app, botId), LocalQuote provides remember(botId) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "bot", botId) },
         LocalPathActions provides rememberPathActions(botId, bot?.name.orEmpty()), LocalSiteIcons provides sitesShown(features)) {
         Scaffold(
             containerColor = p.bg,
@@ -176,6 +177,8 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     // The owner at the test of Milestone 10: the plus stands right of the bot's name, with no words beside it.
                     beside = if (bot != null && canMakeGroup(features, others.size)) ({ SmallPlus(ADD_A_BOT) { makingGroup = true } }) else null,
                 ) {
+                    // Its files (#603), as a file manager shows them.
+                    if (bot != null && dev.botdot.app.data.FilesExplorer.shows(features)) RoundButton(Icons.Filled.Folder, "Files", onClick = onFiles)
                     if (bot?.computer == "linux" || (bot?.computer == "boat" && "boat-desktop" in features.orEmpty())) RoundButton(Icons.Filled.DesktopWindows, "Its screen", onClick = onScreen)
                     val jobs = bot?.jobs.orEmpty()
                     if (jobs.isNotEmpty()) RoundButton(Icons.Filled.Schedule, "Scheduled jobs", dot = jobs.any { it.waits }, onClick = onJobs)

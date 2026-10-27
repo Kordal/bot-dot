@@ -253,6 +253,7 @@ function renderBotSettings(force = false) {
         </div>
         <label class="field">Main assignment <span class="hint">what it does when a job runs it, and its guide for your messages</span>
           <textarea name="prompt" rows="5" required>${esc(b.prompt)}</textarea></label>
+        <div id="bs-undo"></div>
       </div>
 
       <div class="card settings-card bs-rows">
@@ -302,17 +303,14 @@ function renderBotSettings(force = false) {
           <div class="grow"><b>Scheduled jobs</b><div class="faint" id="bs-jobs"></div></div>
           <span class="faint">›</span>
         </button>
-        ${state.features.includes('bot-files') ? `<div class="bs-row" id="bs-files">
-          <span class="bs-icon">📎</span>
-          <div class="grow"><b>Files</b><div class="faint">What you gave it. It sees this list in every task; a file kept in mind comes with every task.</div><div id="file-list" class="bs-files"><span class="faint">Loading…</span></div></div>
-        </div>` : ''}
+        ${state.features.includes('bot-files') ? `<button type="button" class="bs-row bs-link" id="bs-files" data-bs-files>
+          <span class="bs-icon">🗂</span>
+          <div class="grow"><b>Files</b></div>
+          <span class="faint">›</span>
+        </button>` : ''}
         ${state.features.includes('pages') ? `<div class="bs-row" id="bs-pages">
           <span class="bs-icon">📄</span>
           <div class="grow"><b>Pages</b><div class="faint">Reports, memos and overviews it made for you. Open one to keep it up to date.</div><div id="page-list" class="pg-list"><span class="faint">Loading…</span></div></div>
-        </div>` : ''}
-        ${state.features.includes('workspace-files') ? `<div class="bs-row" id="bs-workspace">
-          <span class="bs-icon">🗂</span>
-          <div class="grow"><b>Workspace</b><div class="faint">Every file in its folder: what it keeps, makes and clones.</div><div id="ws-box" class="ws"></div></div>
         </div>` : ''}
         <div class="bs-row" id="bs-always">
           <span class="bs-icon">✓</span>
@@ -502,12 +500,14 @@ function renderBotSettings(force = false) {
 
   drawBotSettingsLive(b); // and the rules you lifted
 
-  if ($('#file-list', root)) drawBotFiles(b);
+  // Its files: the Files view (#603, files.js), over the whole page.
+  const files = $('[data-bs-files]', root);
+  if (files) files.onclick = () => Files.open(b);
   if ($('#page-list', root) && typeof Pages !== 'undefined') Pages.drawList(b, $('#page-list', root)); // public/pages.js (#346)
-  if ($('#ws-box', root) && typeof Workspace !== 'undefined') Workspace.open(b, $('#ws-box', root)); // public/workspace.js (#296)
 
   const dup = $('#duplicate-bot', root);
   if (dup) dup.onclick = () => openDuplicate(b);
+  drawUndo(root, b);
 
   $('#delete-bot', root).onclick = async () => {
     // Its screen on the account's computer ends and its browser's logins go; the computer, which the other bots use,
@@ -530,35 +530,6 @@ function renderBotSettings(force = false) {
     leaveBot();
     await refresh();
   };
-}
-
-// Its files (#235): what the owner gave it, newest first, each to open, keep in mind (pin) or delete. The Chief's
-// (#383) the same, in its settings: `b` is then { name, base: '/chief' }.
-async function drawBotFiles(b, data = null, box = $('#file-list')) {
-  if (!box) return;
-  const base = b.base || `/bots/${b.id}`;
-  try { data = data || await api(`${base}/files`); } catch { box.innerHTML = '<span class="faint">Couldn\'t load its files.</span>'; return; }
-  if (!data.files.length) { box.innerHTML = '<span class="faint">None yet. Attach a file in its chat.</span>'; return; }
-  const one = (f) => `${base}/files/${encodeURIComponent(f.file.split('/').pop())}`; // its API path; its link is /api + that
-  box.innerHTML = data.files.map((f) => `
-    <div class="bs-file" data-file="${esc(f.file)}">
-      <a class="grow" href="/api${one(f)}" target="_blank" rel="noopener"${state.features.includes('document-viewer') ? ` data-view="${esc(one(f))}" data-view-name="${esc(f.name)}" data-view-from="${esc(b.name)}"` : ''} title="${esc(f.name)}">${esc(f.name)}</a>
-      <span class="bs-file-acts">
-        <span class="faint">${fmtSize(f.size)} · ${new Date(f.at).toLocaleDateString()}</span>
-        <button type="button" class="link-btn${f.pinned ? ' on' : ''}" data-file-pin aria-pressed="${f.pinned}">${f.pinned ? '📌 Kept in mind' : 'Keep in mind'}</button>
-        <button type="button" class="link-btn danger-text" data-file-delete>Delete</button>
-      </span>
-    </div>`).join('');
-  box.querySelectorAll('.bs-file').forEach((row) => {
-    const f = data.files.find((x) => x.file === row.dataset.file);
-    row.querySelector('[data-file-pin]').onclick = async () => {
-      try { drawBotFiles(b, await api(one(f), { method: 'PUT', body: { pinned: !f.pinned } }), box); } catch (e) { toast(e.message, true); }
-    };
-    row.querySelector('[data-file-delete]').onclick = async () => {
-      if (!confirm(`Delete ${f.name}? ${b.name} won't have it any more.`)) return;
-      try { drawBotFiles(b, await api(one(f), { method: 'DELETE' }), box); } catch (e) { toast(e.message, true); }
-    };
-  });
 }
 
 // "Duplicate" (#227): the server's list of what the copy gets, a name to change, then the copy, whose chat opens.
@@ -620,6 +591,18 @@ function wireMoveRetry(root, botId) {
     try { await api(`/bots/${botId}/computer/move`, { method: 'POST' }); } catch (e) { retry.disabled = false; toast(e.message, true); }
   };
 }
+// Undo of the change a card made to its main assignment or rules, while nothing changed them since (`undo`, #596).
+function drawUndo(root, bot) {
+  const box = $('#bs-undo', root);
+  if (!box) return;
+  box.innerHTML = bot.undo ? '<button type="button" class="link-btn" data-bs-undo>Undo last change</button>' : '';
+  const btn = $('[data-bs-undo]', box);
+  if (btn) btn.onclick = async () => {
+    btn.disabled = true;
+    try { await api(`/bots/${bot.id}/learning/undo`, { method: 'POST', body: { changeId: bot.undo } }); await refresh(); renderBotSettings(true); } catch (e) { btn.disabled = false; toast(e.message, true); }
+  };
+}
+
 // The Skills of a bot's settings, open, on the skill called name: its row open and in view. A skill it no longer
 // has, or none, leaves the Skills in view.
 function openSkill(root, name) {
@@ -631,6 +614,7 @@ function openSkill(root, name) {
 function drawBotSettingsLive(bot) {
   const root = $('#view-botsettings');
   drawOverrides(root, bot);
+  drawUndo(root, bot);
   const mv = $('#bs-move', root);
   if (mv) { mv.innerHTML = computerMoveLine(bot); wireMoveRetry(root, bot.id); }
   const jobs = bot.jobs || [];

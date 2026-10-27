@@ -131,7 +131,7 @@ Where the user keeps the secrets their bots may use without ever seeing them: bo
 _Avoid_: password manager, keychain, secrets store, credentials
 
 **Mention**:
-`@` plus the name of a bot, a bot's job, a bot's page, a tile of the Board or a skill in a message (`@FleetDoctor`, `@FleetDoctor/MorningCheck`, `@IssueList`, `@weekly-report`), saying the message is about it; it doesn't send anything to it or grant anything. A page or a tile mentioned comes to the run that answers with what it holds now ([ADR 078](docs/adr/078-a-mentioned-page-or-tile-is-handed-to-the-run.md)). In a group a mention of a member does one thing more: it gives that member the turn. The user's mention picks who answers, and a member's mention hands on. A mention of a bot that is no member gives nobody a turn. `@all` at the start of a message in a group is no mention: it gives every member its turn at once, and their replies hand on to nobody.
+`@` plus the name of a bot, a bot's job, a bot's page, a tile of the Board or a skill in a message (`@FleetDoctor`, `@FleetDoctor/MorningCheck`, `@IssueList`, `@weekly-report`), saying the message is about it; it doesn't send anything to it or grant anything. In a bot's own chat it can name one of that bot's files or folders too, picked from the list `@` shows (`@[botdot:reports/summary.md]`, drawn as a chip): the run is told where it is. A page or a tile mentioned comes to the run that answers with what it holds now ([ADR 078](docs/adr/078-a-mentioned-page-or-tile-is-handed-to-the-run.md)). In a group a mention of a member does one thing more: it gives that member the turn. The user's mention picks who answers, and a member's mention hands on. A mention of a bot that is no member gives nobody a turn. `@all` at the start of a message in a group is no mention: it gives every member its turn at once, and their replies hand on to nobody.
 _Avoid_: tag, ping
 
 **New reply**:
@@ -165,6 +165,10 @@ _Avoid_: proactive message, nudge, push, tip of the day
 **Checkup**:
 A Chief of Staff turn the botdot server starts by itself on the days and at the time the user set (weekday mornings unless they say otherwise), in which the Chief only reads how the bots did since the last checkup: the chats the user started, the jobs, the messages between bots and the Board. It asks no bot, and it searches the web only if the user switched that on. It ends with at most three proposals, each with its evidence, or with nothing. It is not a look: its message is not an unasked message, is not rated and does not count toward the three a day.
 _Avoid_: fleet checkup, healthcheck, fleet report, audit
+
+**Replay**:
+A past task of a bot run again by the botdot server to try a change before the user sees it: once with the bot as it is and once with the change, each with tools that only read, so it sends, saves and changes nothing. A judge picks the better reply, measured against what the user did with the reply then. A replay is no run of the bot: it is in no chat, no history and no Needs you.
+_Avoid_: eval, shadow run, benchmark, simulation
 
 **Proposal**:
 One change the Chief of Staff suggests after a checkup: a rule, a skill, a bot, a job or a tile, with the day and the words that show why. Nothing changes until the user picks it; their pick is the yes.

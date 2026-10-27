@@ -124,7 +124,7 @@ test('web: the small plus that makes a group stands right of the name in a bot\'
   const head = draw.slice(draw.indexOf('<div class="chat-head">'), draw.indexOf('<div class="chat-thread"'));
   // A sibling of the name's button, right after it and before the buttons on the right: a tap on it is no tap on the name.
   assert.match(head, /<button class="chat-title" id="bot-settings" title="Settings">(?:(?!<button)[\s\S])*<\/button>\s*<button type="button" class="icon-btn sm hidden" id="bot-add-to-chat" title="Add a bot to this chat" aria-label="Add a bot to this chat">＋<\/button>\s*<div class="actions-right">/);
-  assert.equal(head.match(/<button/g).length, 3, 'the name, the plus and its computer: no button inside another');
+  assert.equal(head.match(/<button/g).length, 4, 'the name, the plus, its Files (#603) and its computer: no button inside another');
   // Drawn hidden, and shown at every drawing only where a group can be made: a server without groups, or no other bot, never shows it.
   assert.ok(draw.includes("$('#bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));"));
   // It opens the picker, for the bot whose chat is open; the name still opens the settings.

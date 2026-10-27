@@ -76,8 +76,9 @@ fun rememberMentionables(app: BotDotApp): Pair<List<Mentions.PageRef>, List<Ment
 }
 
 /**
- * Your message with its mentions drawn: a bot as its small mark and name, a job or skill tinted. Text that matches
- * nothing stays as typed. For your bubble, drawn in ink; [tint] is the theme's `mention`. Show it with [figureInlines].
+ * Your message with its mentions drawn: a bot as its small mark and name, a job or skill tinted, a file as a chip (#604).
+ * Text that matches nothing stays as typed. For your bubble, drawn in ink; [tint] is the theme's `mention`. Show it with
+ * [figureInlines] and [fileInlines].
  */
 fun withMentions(text: String, w: Mentions.World?, tint: Color): AnnotatedString {
     val mark = w?.let { Mentions.mark(text, it) }
@@ -95,6 +96,8 @@ fun withMentions(text: String, w: Mentions.World?, tint: Color): AnnotatedString
             when (m.kind) {
                 Mentions.Kind.BOT -> w!!.bot(m.bot).let { b -> bot(b?.name ?: m.text, b?.color, b?.outfit) }
                 Mentions.Kind.JOB, Mentions.Kind.SKILL, Mentions.Kind.ALL, Mentions.Kind.COMMAND, Mentions.Kind.PAGE, Mentions.Kind.TILE -> withStyle(SpanStyle(color = tint)) { append(m.text) }
+                // A file (#604): a chip, which opens it in a bot's own chat.
+                Mentions.Kind.FILE -> fileChip(m.file!!, w!!.chat.takeIf { c -> c != Mentions.CHIEF && w.bots.any { it.id == c } }, Color.Black.copy(alpha = 0.08f))
             }
             at = m.end
         }
@@ -108,10 +111,13 @@ fun commandChip(tint: Color, wash: Float) = SpanStyle(color = tint, background =
 /** The message box with what its message invokes drawn as a chip ([Mentions.mark]); the text itself stays as typed. */
 class CommandChips(private val w: Mentions.World?, private val tint: Color) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
-        val m = w?.let { Mentions.mark(text.text, it) } ?: return TransformedText(text, OffsetMapping.Identity)
+        val m = w?.let { Mentions.mark(text.text, it) }
+        val files = Mentions.findFiles(text.text).filter { m == null || it.start >= m.end } // a file mentioned (#604) too
+        if (m == null && files.isEmpty()) return TransformedText(text, OffsetMapping.Identity)
         val shown = buildAnnotatedString {
             append(text)
-            addStyle(SpanStyle(background = tint.copy(alpha = 0.26f)), m.start, m.end)
+            m?.let { addStyle(SpanStyle(background = tint.copy(alpha = 0.26f)), it.start, it.end) }
+            files.forEach { addStyle(SpanStyle(background = tint.copy(alpha = 0.26f)), it.start, it.end) }
         }
         return TransformedText(shown, OffsetMapping.Identity)
     }
@@ -141,22 +147,27 @@ fun slashAfterPick(was: TextFieldValue, typed: TextFieldValue, picked: Int): Tex
 fun MentionList(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.Row) -> Unit) {
     val p = LocalPaper.current
     val shape = RoundedCornerShape(18.dp)
-    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) {
-        rows.forEach { r ->
-            val label = buildAnnotatedString {
-                when (r.kind) {
-                    Mentions.Kind.BOT, Mentions.Kind.JOB -> w.bot(r.bot).let { b -> bot(r.label, b?.color, b?.outfit) }
-                    // A page (#473): its bot's mark and "Bot · Title", or the title alone when its bot is not in this chat.
-                    Mentions.Kind.PAGE -> w.bot(r.bot)?.let { b -> bot(r.label, b.color, b.outfit) } ?: append(r.label)
-                    Mentions.Kind.COMMAND -> {
-                        append(r.text)
-                        if (r.about.isNotEmpty()) withStyle(SpanStyle(color = p.muted)) { append("  ${r.about}") }
-                    }
-                    else -> append(r.label)
+    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) { MentionRows(rows, w, onPick) }
+}
+
+/** The rows of [MentionList], also under the files found (#604, FileMentionList). */
+@Composable
+fun MentionRows(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.Row) -> Unit) {
+    val p = LocalPaper.current
+    rows.forEach { r ->
+        val label = buildAnnotatedString {
+            when (r.kind) {
+                Mentions.Kind.BOT, Mentions.Kind.JOB -> w.bot(r.bot).let { b -> bot(r.label, b?.color, b?.outfit) }
+                // A page (#473): its bot's mark and "Bot · Title", or the title alone when its bot is not in this chat.
+                Mentions.Kind.PAGE -> w.bot(r.bot)?.let { b -> bot(r.label, b.color, b.outfit) } ?: append(r.label)
+                Mentions.Kind.COMMAND -> {
+                    append(r.text)
+                    if (r.about.isNotEmpty()) withStyle(SpanStyle(color = p.muted)) { append("  ${r.about}") }
                 }
+                else -> append(r.label)
             }
-            FigureText(label, color = p.text, fontSize = 15.sp, maxLines = 1,
-                modifier = Modifier.fillMaxWidth().clickable { onPick(r) }.padding(horizontal = 16.dp, vertical = 11.dp))
         }
+        FigureText(label, color = p.text, fontSize = 15.sp, maxLines = 1,
+            modifier = Modifier.fillMaxWidth().clickable { onPick(r) }.padding(horizontal = 16.dp, vertical = 11.dp))
     }
 }

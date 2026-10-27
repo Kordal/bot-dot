@@ -182,7 +182,7 @@ function loadMentionPages() {
 }
 // The owner's own message with its mentions drawn: a bot as its small head and name, a job or a skill tinted; anything
 // else plain (escaped). Bot and Chief replies stay as they are.
-// A skill it runs or a "/btw" at its start is a chip (markOf).
+// A skill it runs or a "/btw" at its start is a chip (markOf); a file mentioned is one too (#604, file-mentions.js).
 function escMentions(text, chat) {
   const s = String(text ?? '');
   const mark = markOf(s, chat);
@@ -190,7 +190,7 @@ function escMentions(text, chat) {
   const ctx = mentionCtx(chat);
   let out = mark ? `${esc(s.slice(0, mark.start))}${markHTML(mark)}` : '', at = mark ? mark.end : 0;
   for (const m of s.includes('@') ? Mentions.findMentions(s, ctx).filter((x) => x.start >= at) : []) {
-    out += esc(s.slice(at, m.start)) + (m.kind === 'bot'
+    out += esc(s.slice(at, m.start)) + (m.kind === 'file' ? FileMentions.chipHTML(m, chat) : m.kind === 'bot'
       ? `<span class="mention" title="${esc(m.text)}">${botLabel(ctx.bots.find((b) => b.id === m.bot))}</span>`
       : `<span class="mention tint">${esc(m.text)}</span>`);
     at = m.end;
@@ -1079,6 +1079,7 @@ const ICON = {
   stop: '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" stroke="none"/></svg>',
   compose: '<svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
   screen: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
+  folder: '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
   play: '<svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z" fill="currentColor" stroke="none"/></svg>',
 };
 const BACK_BTN = `<button class="icon-btn back-btn" data-back aria-label="Back">${ICON.back}</button>`;

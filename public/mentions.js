@@ -9,6 +9,13 @@
 // Matching ignores case; for one name a bot wins, then a page (the chat's own bot's first), then a tile, then a skill; "@" inside a word (an email) isn't one;
 // anything that matches nothing stays plain text.
 //
+// Files (#604, feature `file-mentions`): "@[" its place and path "]", the form a pick from the "@" file picker puts in a
+// bot's own chat: @[botdot:reports/summary.md] (its workspace on botdot), @[computer:archive/a.csv] (its folder on the
+// account's computer), @[project:Website/index.html] (a shared project it is in: the project's name, then the path).
+// A path has no "]" and no line break; a file or folder is named the same way. The run gets its full path (lib/mentions.js).
+// While "@" and a word without spaces is typed (fileTyping), the apps look for files and folders of that name; a "/"
+// after a folder's name goes into it ("@reports/").
+//
 // Commands (#237): "/" and one of a bot's skills at the very start of a message in that bot's own chat runs the
 // skill, with the rest of the message as its arguments: /weekly-report for May. Typing "/" there lists the bot's
 // skills; a name the bot has no skill of is plain text. Not in the Chief chat or a group. The skills are the ones
@@ -28,6 +35,7 @@
 //   all: a group's chat, on a botdot that knows "@all" (#124, feature `group-all`): "@all" at the start of a message
 //     sends it to every member at once. It is offered first while it is typed there, and it is no member's mention:
 //     a member named All is neither matched nor suggested.
+//   files: the chat is a bot's own and its botdot hands files over (#604): "@" also looks for files (the apps do)
 // Skills in scope: the whole library in the Chief chat; the bot's picked skills in its own chat.
 // The apps follow the same rules, all checked against test/fixtures/mentions.json. The botdot server
 // (lib/mentions.js, which adds the note runs get) and the web page (a plain <script>, as
@@ -48,6 +56,12 @@ const WORD_REST = /^[\p{L}\p{N}_/-]*/u; // the rest of a mention's word after th
 const ALL = 'all'; // "@all" in a group (ctx.all): every member at once, no member's mention
 const COMMAND_TYPING = /^\/([\p{L}\p{N}_-]*)$/u; // the text before the cursor while a command's name is typed
 const COMMAND = /^\/([\p{L}\p{N}_-]+)(?:\s+([\s\S]*))?$/u; // a message that may run a skill
+
+// A file mention (#604): its place, its project and its path, and while one is typed, the "@" and what follows it.
+const FILE = /(?<![\p{L}\p{N}_])@\[(botdot|computer|project):([^\]\n]+)\]/gu;
+const FILE_TYPING = /(?<![\p{L}\p{N}_])@([^\s@[\]]*)$/u;
+const FILE_REST = /^[^\s@[\]]*/u; // the rest of a file mention's word after the cursor
+const PLACES = { botdot: 'server', computer: 'computer', project: 'project' }; // the word in the text → the API's root
 
 // "Fleet Doctor" → "FleetDoctor", "Chief of Staff" → "ChiefOfStaff", "Morning check" → "MorningCheck".
 function shortName(name) {
@@ -92,19 +106,59 @@ function resolve(a, b, ctx, skills) {
   return skill ? { kind: 'skill', skill: skill.name, whole: !b } : null;
 }
 
-// The mentions in a text, in order: [{ kind: 'bot'|'job'|'page'|'tile'|'skill', text, start, end, bot?, job?, page?, tile?, skill? }].
-// page is the page's slug, tile the tile's id.
+// A file's place and path as a mention puts them (#604): { root: 'server'|'computer'|'project', project?, path }, or null.
+function fileRef(place, rest) {
+  const root = PLACES[place];
+  let project = null, p = String(rest || '');
+  if (root === 'project') { const i = p.indexOf('/'); project = i < 0 ? p : p.slice(0, i); p = i < 0 ? '' : p.slice(i + 1); }
+  const parts = p.split('/').filter(Boolean);
+  if (!root || (root === 'project' && !project) || (!parts.length && root !== 'project') || parts.some((x) => x === '.' || x === '..')) return null;
+  return { root, ...(project ? { project } : {}), path: parts.join('/') };
+}
+// The text a file mention is: "@[botdot:reports/a.md]". null for a path it can't hold (a "]" or a line break in it).
+function fileText({ root, project, path }) {
+  const place = Object.keys(PLACES).find((k) => PLACES[k] === root);
+  const where = root === 'project' ? [project, path].filter(Boolean).join('/') : path;
+  if (!place || !where || /[\]\n]/.test(where) || (root === 'project' && (!project || project.includes('/')))) return null;
+  return `@[${place}:${where}]`;
+}
+// The file mentions in a text: [{ kind: 'file', text, start, end, root, project?, path, name }].
+function findFiles(text) {
+  const out = [];
+  for (const m of String(text || '').matchAll(FILE)) {
+    const ref = fileRef(m[1], m[2]);
+    if (ref) out.push({ kind: 'file', text: m[0], start: m.index, end: m.index + m[0].length, ...ref, name: (ref.path || ref.project).split('/').pop() });
+  }
+  return out;
+}
+
+// The mentions in a text, in order: [{ kind: 'bot'|'job'|'page'|'tile'|'skill'|'file', text, start, end, bot?, job?, page?, tile?, skill? }].
+// page is the page's slug, tile the tile's id; a file's are as findFiles has them. A name inside a file's mention is none.
 function findMentions(text, ctx) {
   const skills = skillsInScope(ctx);
+  const files = findFiles(text);
   const out = [];
   for (const m of String(text || '').matchAll(TOKEN)) {
+    if (files.some((f) => m.index >= f.start && m.index < f.end)) continue;
     const r = resolve(m[1], m[2], ctx, skills);
     if (!r) continue;
     const { whole, ...what } = r;
     const t = whole ? m[0] : `@${m[1]}`;
     out.push({ ...what, text: t, start: m.index, end: m.index + t.length });
   }
-  return out;
+  return [...out, ...files].sort((a, b) => a.start - b.start);
+}
+
+// What the file picker looks for while "@" and a word are typed up to the cursor (#604): { start (where the "@" is),
+// folders (the names before each "/"), q (what follows the last) }, or null. "@sum" → { folders: [], q: 'sum' };
+// "@reports/2026" → { folders: ['reports'], q: '2026' }. An empty name on the way ("@/", "@a//") is none.
+function fileTyping(typed) {
+  const m = String(typed || '').match(FILE_TYPING);
+  if (!m) return null;
+  const parts = m[1].split('/');
+  const q = parts.pop();
+  if (parts.some((x) => !x || x === '.' || x === '..')) return null;
+  return { start: m.index, folders: parts, q };
 }
 
 // The suggestion rows for text typed up to the cursor, when it ends in a word starting with "@".
@@ -165,11 +219,12 @@ function suggest(typed, ctx) {
 // text is the whole message; cursor where the cursor is in it.
 // Returns { text, cursor, jobsNext }, or null when no "@…" is being typed. jobsNext: a bot was picked
 // and the space is new, so a "/" typed next goes in its place and lists the bot's jobs.
+// A file row (#604) is { kind: 'file', text: fileText(…) }: it takes the place of the "@" and all typed after it.
 function pick(text, cursor, row) {
   const s = String(text || '');
-  const m = s.slice(0, cursor).match(row.kind === 'command' ? COMMAND_TYPING : TYPING);
+  const m = s.slice(0, cursor).match(row.kind === 'command' ? COMMAND_TYPING : row.kind === 'file' ? FILE_TYPING : TYPING);
   if (!m) return null;
-  const end = cursor + s.slice(cursor).match(WORD_REST)[0].length;
+  const end = cursor + s.slice(cursor).match(row.kind === 'file' ? FILE_REST : WORD_REST)[0].length;
   const spaced = s[end] === ' ';
   return {
     text: s.slice(0, m.index) + row.text + (spaced ? '' : ' ') + s.slice(end),
@@ -213,7 +268,7 @@ function commandMark(text, ctx) {
   return { kind: 'btw', text: b[1], start, end: start + b[1].length };
 }
 
-const api = { shortName, findMentions, suggest, pick, command, commandMark, skillsInScope, pagesInScope, tilesInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
+const api = { shortName, findMentions, findFiles, fileRef, fileText, fileTyping, suggest, pick, command, commandMark, skillsInScope, pagesInScope, tilesInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Mentions = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

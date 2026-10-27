@@ -58,6 +58,7 @@ const groupRouterStore = require('./lib/front-door/group-router');
 const groupRouterLib = require('./lib/group-router');
 const boatStore = require('./lib/front-door/boat');
 const boatLib = require('./lib/boat');
+const usageStore = require('./lib/front-door/usage');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -722,6 +723,23 @@ if (groupRouter) {
   setInterval(handRouter, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
 }
 
+// How the accounts use botdot (ADR 105): each account's counts of every finished day, asked for once a day (checked
+// every hour, so a day an account didn't answer is asked for again), for the admin page. Never on a machine of one
+// account, which has no admin page.
+const usage = ONE_ACCOUNT ? null : usageStore.open(DATA);
+let collecting = false;
+async function collectUsage() {
+  if (!usage || collecting) return;
+  collecting = true;
+  try {
+    await usage.collect(doors.listAccounts(), (name, day) => askAccount(name, 'GET', `/api/usage-summary?day=${day}`, null, 10_000));
+  } catch (e) { console.error(`[front door] couldn't collect the usage: ${e.message}`); } finally { collecting = false; }
+}
+if (usage) {
+  setTimeout(collectUsage, Number(process.env.BOT_DOT_USAGE_FIRST_MS) || 60_000).unref();
+  setInterval(collectUsage, Number(process.env.BOT_DOT_USAGE_EVERY_MS) || 3600_000).unref();
+}
+
 // The live events of rooms, per account: GET /front-door/rooms/events.
 const roomStreams = new Map(); // account → Set of responses
 function toAccount(account, event, data) {
@@ -955,8 +973,18 @@ async function adminRoutes(req, res, p, account) {
       if (checked === 'unreachable') return send(res, 502, { error: "OpenRouter can't be reached. Try again." });
     }
     let shown;
-    try { shown = groupRouter.set(body.router, key || undefined, typeof body.wakeGate === 'boolean' ? body.wakeGate : undefined); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
-    console.log(`[front door] the admin chose ${shown.router === 'jev' ? 'Jev' : 'Haiku'} as the decision model; the wake gate is ${shown.wakeGate ? 'on' : 'off'}`);
+    try { shown = groupRouter.set(body.router, key || undefined, typeof body.wakeGate === 'boolean' ? body.wakeGate : undefined, body.replaysPerHour); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
+    console.log(`[front door] the admin chose ${shown.router === 'jev' ? 'Jev' : 'Haiku'} as the decision model; the wake gate is ${shown.wakeGate ? 'on' : 'off'}; ${shown.replaysPerHour} replays an hour`);
+    handRouter();
+    return send(res, 200, shown);
+  }
+  // Replays an hour (ADR 101, #616): its own section on the admin page, kept beside the decision model's choice and
+  // handed to the accounts with it.
+  if (p === '/admin/replays' && req.method === 'GET') return send(res, 200, { replaysPerHour: groupRouter.shown().replaysPerHour });
+  if (p === '/admin/replays' && req.method === 'POST') {
+    let shown;
+    try { shown = groupRouter.setReplays(((await readJson(req)) || {}).replaysPerHour); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
+    console.log(`[front door] the admin set ${shown.replaysPerHour} replays an hour`);
     handRouter();
     return send(res, 200, shown);
   }
@@ -982,6 +1010,14 @@ async function adminRoutes(req, res, p, account) {
     return send(res, 200, { accounts: await listAccounts() });
   }
   // The shares of the machine: the default, and the machine's load.
+  // How the accounts use botdot (ADR 105): counts alone, from each account's daily summary.
+  if (p === '/admin/usage' && req.method === 'GET') return send(res, 200, usage ? usage.report(doors.listAccounts()) : { day: null, totals: null, accounts: [] });
+  if (p.startsWith('/admin/usage/') && req.method === 'GET') {
+    let name = '';
+    try { name = decodeURIComponent(p.slice('/admin/usage/'.length)); } catch { /* not a name */ }
+    const one = usage && usage.account(name, doors.listAccounts());
+    return one ? send(res, 200, one) : send(res, 404, { error: 'No such account.' });
+  }
   if (p === '/admin/share' && req.method === 'GET') return send(res, 200, { share: doors.defaultShare(), machine: load.machine() });
   if (p === '/admin/share' && req.method === 'POST') {
     const accounts = doors.setDefaultShare(await readJson(req));
@@ -1054,6 +1090,7 @@ async function accountAction(req, res, name, action) {
     if (body.name !== name) return send(res, 400, { error: `Type the account's name, ${name}, to delete it.` });
     doors.deleteAccount(name);
     roomsWithout(name);
+    usage?.forget(name);
     console.log(`[front door] the admin deleted the account ${name}; the machine erases it`);
     askMachine(name);
     return send(res, 200, { ok: true });

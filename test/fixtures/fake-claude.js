@@ -90,10 +90,46 @@ if (String(val('--system-prompt') || '').startsWith('You decide whether a messag
   });
   return;
 }
+// The sorting of the owner's message to a bot at work (lib/follow-up.js, ADR 106), told by its own system prompt: no
+// run. It writes what it was asked to $FAKE_OUT/follow-up-<n>.txt and answers $FAKE_OUT/follow-up.txt (or
+// '{"decision":"new"}'), late for the message $FAKE_OUT/follow-up-slow.txt names.
+if (String(val('--system-prompt') || '').startsWith("You sort the owner's messages")) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `follow-up-${at}.txt`), asked);
+    const read = (f, d) => { try { return fs.readFileSync(path.join(OUT, f), 'utf8'); } catch { return d; } };
+    // A message that holds $FAKE_OUT/follow-up-slow.txt's text is answered after 600 ms.
+    const slow = read('follow-up-slow.txt', '');
+    setTimeout(() => {
+      console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: read('follow-up.txt', '{"decision":"new"}'), session_id: `follow-up-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+      process.exit(0);
+    }, slow && asked.includes(`The message: ${slow}`) ? 600 : 0);
+  });
+  return;
+}
+// A replay's judge (lib/replay.js, ADR 101), told by its own system prompt: no run. It writes what it was asked to
+// $FAKE_OUT/judge-<n>.txt and picks the reply that holds the text of $FAKE_OUT/judge-picks.txt (or neither).
+if (String(val('--system-prompt') || '').startsWith('You compare two replies')) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `judge-${at}.txt`), asked);
+    let pick = '';
+    try { pick = fs.readFileSync(path.join(OUT, 'judge-picks.txt'), 'utf8').trim(); } catch { /* neither */ }
+    const reply = (k) => (asked.match(new RegExp(`<reply-${k}>([\\s\\S]*?)</reply-${k}>`)) || [])[1] || '';
+    const better = !pick ? 0 : reply(1).includes(pick) ? 1 : reply(2).includes(pick) ? 2 : 0;
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: JSON.stringify({ better, why: 'fake' }), session_id: `judge-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+    process.exit(0);
+  });
+  return;
+}
 let mcp = { mcpServers: {} };
 try { const mc = val('--mcp-config'); mcp = JSON.parse(mc.trim().startsWith('{') ? mc : fs.readFileSync(mc, 'utf8')); } catch { /* none */ }
 // system: the appended prompt, read now from its file: botdot removes the file when the run has ended.
-const rec = { n, who, args, self: mcp.mcpServers.self || null, botdot: mcp.mcpServers.botdot || null, connectors: mcp.mcpServers.connectors || null, system: promptFile === null ? val('--append-system-prompt') : fs.readFileSync(promptFile, 'utf8'), stdin: '', at: Date.now() };
+const rec = { n, who, args, self: mcp.mcpServers.self || null, botdot: mcp.mcpServers.botdot || null, connectors: mcp.mcpServers.connectors || null, vault: mcp.mcpServers.vault || null, computer: mcp.mcpServers.computer || null, system: promptFile === null ? val('--append-system-prompt') : fs.readFileSync(promptFile, 'utf8'), stdin: '', at: Date.now() };
 if (promptFile !== null) { const st = fs.statSync(promptFile); rec.promptFile = { path: promptFile, mode: st.mode & 0o777, uid: st.uid }; }
 // The settings it was given (--settings, a private file): botdot's hook for a steered message (ADR 040), and that file's mode.
 const settingsArg = val('--settings');
@@ -133,6 +169,10 @@ const finish = () => {
   if (fs.existsSync(path.join(OUT, 'no-result'))) process.exit(0); // like a Claude Code whose output botdot can't read
   let result = 'Done.';
   try { result = fs.readFileSync(path.join(OUT, own('result', '.txt')), 'utf8'); } catch { /* the default */ }
+  // A run that has the library skill <name> answers $FAKE_OUT/result-with-<name>.txt when there is one (a replay's candidate, ADR 101).
+  for (const k of skills) { try { result = fs.readFileSync(path.join(OUT, `result-with-${k.replace(/^[^:]*:/, '')}.txt`), 'utf8'); break; } catch { /* not this one */ } }
+  // A run whose instructions hold a key of $FAKE_OUT/result-if-told.json answers its value (a replay's proposed main assignment, #596).
+  try { for (const [told, reply] of Object.entries(JSON.parse(fs.readFileSync(path.join(OUT, 'result-if-told.json'), 'utf8')))) if (String(rec.system || '').includes(told)) { result = reply; break; } } catch { /* none */ }
   let denials = []; // the tools its settings refused, as Claude Code reports them: $FAKE_OUT/denials.json
   try { denials = JSON.parse(fs.readFileSync(path.join(OUT, 'denials.json'), 'utf8')); } catch { /* none */ }
   let failed = null;
@@ -142,7 +182,7 @@ const finish = () => {
   // A refused tool asks nobody by itself (#279): like a bot that follows its prompt, this one asks the owner for each
   // permission it was refused with ask_permission, once, before it ends; not while $FAKE_OUT/no-ask exists.
   // Its tool calls first, through the PreToolUse hooks its settings name, as Claude Code runs them (ADR 067).
-  const hooked = preToolHooks();
+  const hooked = replayShell().then(preToolHooks);
   const asked = hooked.then(() => (denials.length && !fs.existsSync(path.join(OUT, 'no-ask')) ? askFor(denials) : undefined));
   const end = () => {
     console.log(JSON.stringify(failed === null
@@ -156,6 +196,17 @@ const finish = () => {
   try { stream = JSON.parse(fs.readFileSync(path.join(OUT, own('stream', '.json')), 'utf8')); } catch { /* the reply comes whole */ }
   asked.then(() => (stream ? streamed(stream, result, end) : end()));
 };
+// A replay's run_shell (lib/replay-computer-mcp.js, ADR 104): with $FAKE_OUT/replay-command.txt, a run that has a copy
+// of its computer runs that command there through botdot, as its MCP server does, and what came back is on the
+// record, `replayShell`; $FAKE_OUT/replay-key.txt, when it exists, is the key it sends instead of its own.
+function replayShell() {
+  const env = rec.computer?.env;
+  if (!env?.REPLAY_URL || !has('replay-command.txt')) return Promise.resolve();
+  const key = has('replay-key.txt') ? fs.readFileSync(path.join(OUT, 'replay-key.txt'), 'utf8').trim() : env.REPLAY_KEY;
+  return fetch(`${env.REPLAY_URL}/shell`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1', 'X-Replay-Key': key }, body: JSON.stringify({ command: fs.readFileSync(path.join(OUT, 'replay-command.txt'), 'utf8') }) })
+    .then(async (r) => ({ status: r.status, ...(await r.json().catch(() => ({}))) }), (e) => ({ error: e.message }))
+    .then((r) => { rec.replayShell = r; save(); });
+}
 // The tool calls of $FAKE_OUT/tool-calls.json ([{ tool_name, tool_input }]), each handed to every PreToolUse command
 // hook of its settings on stdin, as Claude Code does: what each hook said is on the record, `hooks`: [{ tool, code,
 // stderr }]. Exit 2 blocks the call; the fake makes no call either way.

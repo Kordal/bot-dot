@@ -3,7 +3,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, makeBot, waitFor } = require('./helpers');
-const { shortName, findMentions, suggest, pick, command, commandMark, mentionsNote, MAX_ROWS } = require('../lib/mentions');
+const { shortName, findMentions, findFiles, fileText, fileTyping, suggest, pick, command, commandMark, mentionsNote, MAX_ROWS } = require('../lib/mentions');
 const table = require('./fixtures/mentions.json');
 
 test('the table and the module agree on the row limit', () => {
@@ -53,6 +53,27 @@ for (const c of table.commands) {
 for (const c of table.marks) {
   test(`table mark: ${c.name}`, () => {
     assert.deepEqual(commandMark(c.text, { chat: c.chat, ...table.worlds[c.world] }), c.mark);
+  });
+}
+
+// Files (#604).
+for (const c of table.files.found) {
+  test(`table file: ${JSON.stringify(c.text)}`, () => {
+    assert.deepEqual(findFiles(c.text).map(({ start, end, kind, ...f }) => { assert.equal(c.text.slice(start, end), f.text); assert.equal(kind, 'file'); return f; }), c.files);
+  });
+}
+test('table file texts', () => {
+  for (const c of table.files.texts) assert.equal(fileText(c.ref), c.text, JSON.stringify(c.ref));
+});
+test('table file typing', () => {
+  for (const c of table.files.typing) assert.deepEqual(fileTyping(c.typed), c.want, c.typed);
+});
+for (const c of table.files.picks) {
+  test(`table file pick: ${c.before}`, () => {
+    const [text, at] = caret(c.before);
+    const done = pick(text, at, { kind: 'file', text: fileText(c.ref) });
+    assert.equal(withCaret(done.text, done.cursor), c.after);
+    assert.equal(done.jobsNext, false);
   });
 }
 
