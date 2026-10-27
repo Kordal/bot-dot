@@ -37,6 +37,9 @@ object ChatOrder {
         return placed.sortedBy { it.second }.map { it.first } // stable: ties keep the runs' order
     }
 
+    /** The runs as blocks (#625), oldest first: each run is one block, where its reply ends; a run at work at the bottom. */
+    fun blocks(runs: List<Run>): List<Run> = pieces(runs).filterIsInstance<Piece.Reply>().map { it.run }
+
     /** The run whose reply is drawn last in the chat: its quick answers stand under it. */
     fun lastReply(pieces: List<Piece>): Run? = pieces.lastOrNull { it is Piece.Reply }?.run
 }

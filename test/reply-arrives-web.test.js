@@ -354,7 +354,7 @@ test('web: sent to a working bot, the bubble arrives at the end, under the messa
   p.drawBot(['r1']);
   p.ctx.sentAtOnce('bot:doctor', { key: KEY, text: 'And the disk?', attachments: [] });
   p.ctx.placeStatusLines();
-  assert.deepEqual(p.bot.names(), ['status-line', 'chat-queued']);
+  assert.deepEqual(p.bot.names(), ['chat-queued'], 'the working run says it in its block (#625): no line under the chat');
   assert.equal(p.moves(p.bot, 'chat-queued'), true);
 });
 

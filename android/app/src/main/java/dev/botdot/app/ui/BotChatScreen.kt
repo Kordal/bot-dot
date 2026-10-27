@@ -62,6 +62,7 @@ import dev.botdot.app.data.announces
 import dev.botdot.app.data.Plan
 import dev.botdot.app.data.PlanView
 import dev.botdot.app.data.Run
+import dev.botdot.app.data.RunSteps
 import dev.botdot.app.data.SentTo
 import dev.botdot.app.data.Unread
 import dev.botdot.app.data.str
@@ -98,7 +99,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
         app.jump = null
         val runId = j.runId ?: return@LaunchedEffect
         if (!vm.reach(runId)) return@LaunchedEffect
-        val i = vm.runs.indexOfFirst { it.id == runId }
+        val i = ChatOrder.blocks(vm.runs).asReversed().indexOfFirst { it.id == runId } // the chat's blocks, newest first
         if (i < 0) return@LaunchedEffect
         opened = opened + runId
         listState.scrollToItem(1 + (if (vm.waiting.isNotEmpty()) 1 else 0) + i) // below it: what waits for your OK, notes waiting
@@ -122,7 +123,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     NewReplies(app, chatKey, bot?.unread ?: 0, arrive = { vm.arrive() }, leave = { vm.leave() }) {
         if (app.jump != null || !vm.reachNew()) return@NewReplies // a search match is where the chat opens
         listState.showFromTop {
-            val i = vm.runs.indexOfFirst { it.id == vm.newFirst }
+            val i = ChatOrder.blocks(vm.runs).asReversed().indexOfFirst { it.id == vm.newFirst }
             val below = 1 + (if (vm.waiting.isNotEmpty()) 1 else 0) // what waits for your OK, notes waiting
             (below + i).takeIf { i >= 0 && listState.layoutInfo.totalItemsCount == below + vm.runs.size }
         }
@@ -137,7 +138,6 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
 
     val running = dev.botdot.app.data.OpeningLine.atWork(runs) // never a script job's: it has no run while its script runs
     val lines by app.store.lines.lines.collectAsState() // what its line reads while it works: the server's words
-    val waits by app.store.lines.waits.collectAsState() // the chats with a run that waits for the owner's OK
     val server by app.store.version.value.collectAsState() // its features: whether a message waits, and a run says who ended it
     val features = server?.features
     val stays = sendStays(features) // Send stays while it works, and Stop is the word on the working line
@@ -147,15 +147,10 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     var planFolded by remember(botId) { mutableStateOf(app.plans.folded(chatKey)) }
     var planDismissed by remember(botId) { mutableStateOf(0) } // a dismissal draws the chat again
     val planView = remember(runs, planDismissed) { PlanView.ofBot(runs, app.plans::dismissed) }
-    // Two or three runs going: a row each above the message box (#501), and no status line under the chat.
+    // Each run at work says what it is doing in its own block (#625): its line, its count of steps so far, and Stop.
     val runLines by app.store.lines.runLines.collectAsState()
     val heldRuns by app.store.lines.heldRuns.collectAsState()
-    val live = remember(runs, runLines, heldRuns, botId) {
-        dev.botdot.app.data.LiveRuns.listed(runs, botId).map { r ->
-            dev.botdot.app.data.LiveRuns.Row(r.id, dev.botdot.app.data.LiveRuns.ask(r), runLines[r.id].orEmpty(), r.waitsForOk || r.id in heldRuns, r.startedAt)
-        }
-    }
-    val liveRows = rememberLiveRows(chatKey, live)
+    val runSteps by app.store.lines.runSteps.collectAsState()
 
     // From the message box: a message that did not go comes back into it, with the line that says why.
     fun sendText(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments) }
@@ -188,7 +183,6 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                 PlanDock(planView, bot?.color, bot?.name ?: "It", planFolded,
                     onFold = { planFolded = it; app.plans.setFolded(chatKey, it) },
                     onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
-                LiveRunsDock(liveRows, bot?.color, bot?.name ?: "It", onStop = { vm.stop(it) }, onHeld = { scope.launch { listState.animateScrollToItem(0) } })
                 Composer(
                     placeholder = "Give ${bot?.name ?: "it"} a task…",
                     files = files,
@@ -212,19 +206,19 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
             ) {
                 // Last in the chat: the one line of a working bot (the server's words for what it is doing, "Working…", or "Waiting for your OK" while its
                 // run waits for it), then your messages that wait for it, then what it waits for your OK on (as on the web page).
-                // Where Send stays, the line is there for every run Stop can end, with Stop at its end; against a botdot
-                // from before, Stop is in the message box. A script job has no run while its script runs, and no line.
+                // A run at work has its line and Stop in its own block (#625); this line is for a bot with none of yours.
+                // A script job has no run while its script runs, and no line.
                 item(key = "needs") {
                     Column {
-                        val waiting = running != null && chatKey in waits
                         // The owner's message on its way: above the line of a bot that was free, which reads "Working…"
                         // until the server answers; under what waits already for a bot at work.
                         val sent = vm.sent
                         if (sent != null && running == null) SentBubble(sent, above = true, sentArrives)
-                        // Two or three runs going: the dock above the message box says them (LiveRunsDock).
-                        if (liveRows.isEmpty()) {
-                            if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.botLine(lines[chatKey], running, waiting), sent), bot?.color, still = waiting, onStop = if (running != null) ({ vm.stop() }) else null, room = true)
-                            else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines[chatKey], running != null, waiting), sent), bot?.color, still = waiting)
+                        // A run at work says it in its block (#625): the line here is only for the owner's message on its
+                        // way to a bot that was free ("Working…").
+                        if (running == null) {
+                            if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.botLine(lines[chatKey], null), sent), bot?.color, room = true)
+                            else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines[chatKey], false), sent), bot?.color)
                         }
                         WaitingMessages(vm.queued, bot?.name ?: "it", onSteer = if (canSteer(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                         if (sent != null && running != null) SentBubble(sent, above = false, sentArrives)
@@ -239,36 +233,35 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         Text("No messages yet. Give ${bot?.name ?: "it"} a task, or attach a file.", color = p.muted, textAlign = TextAlign.Center)
                     }
                 }
-                // A reply stands where it ended, below what came while its run worked (a "/btw", another run): ChatOrder (#460).
-                val pieces = ChatOrder.pieces(runs).asReversed()
-                val lastReply = ChatOrder.lastReply(pieces.asReversed())?.id
-                items(pieces.filter { it !is ChatOrder.Piece.Asked || drawsAsked(it.run) }, key = { it.key }) { piece ->
-                    val r = piece.run
-                    // The "New" line: above what started the run, or, below your own message, above its reply.
+                // Each run is one block (#625), where its reply ended: below what came while its run worked (a "/btw",
+                // another run, #460), and a run at work at the bottom.
+                val blocks = ChatOrder.blocks(runs)
+                val lastReply = blocks.lastOrNull()?.id
+                items(blocks.asReversed(), key = { it.id }) { r ->
+                    // The "New" line: above what started the run, or, below your own message, above the rest of the block.
                     val new = r.id == vm.newFirst
                     val mine = Unread.mine(r)
-                    when (piece) {
-                        is ChatOrder.Piece.Asked -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (new && !mine) NewLine(bot?.color)
-                            YourSide(r, open = r.id in opened)
-                        }
-                        is ChatOrder.Piece.Steered -> r.steered.getOrNull(piece.i)?.let { SteeredMessage(it) }
-                        is ChatOrder.Piece.Reply -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (new && (mine || !drawsAsked(r))) NewLine(bot?.color)
-                            val theirs = @Composable {
-                                TheirSide(r, open = r.id in opened, features = features, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
-                                    learned = r.learned.orEmpty().map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
-                                // Under the reply that is last in the chat, and under the run its open question is from when newer
-                                // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
-                                if ((r.id == lastReply || r.id == askedIn) && r.status == "success") {
-                                    Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key) }
-                                    Questions(r.questions) { text, key -> sendFrom(text, key) }
-                                }
+                    val asked = drawsAsked(r)
+                    RunBlock(r) {
+                        if (new && !mine && asked) NewLine(bot?.color)
+                        if (asked) YourSide(r, open = r.id in opened)
+                        r.steered.forEach { SteeredMessage(it) }
+                        if (new && (mine || !asked)) NewLine(bot?.color)
+                        if (RunSteps.shows(r)) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color)
+                        val theirs = @Composable {
+                            TheirSide(r, open = r.id in opened, features = features, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
+                                learned = r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
+                            // Under the reply that is last in the chat, and under the run its open question is from when newer
+                            // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
+                            if ((r.id == lastReply || r.id == askedIn) && r.status == "success") {
+                                Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key) }
+                                Questions(r.questions) { text, key -> sendFrom(text, key) }
                             }
-                            // Its reply, once the run ended: it arrives when it is new in this open chat, and what
-                            // started the run stands still above it. A run at work has no reply to arrive.
-                            if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(8.dp)) { theirs() }
                         }
+                        // Its reply, once the run ended: it arrives when it is new in this open chat, and what
+                        // started the run stands still above it. A run at work has no reply to arrive.
+                        if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(8.dp)) { theirs() }
+                        BlockFoot(r) { vm.stop(r.id) }
                     }
                 }
             }
@@ -314,13 +307,20 @@ private fun drawsAsked(r: Run): Boolean = !r.inbox.isNullOrEmpty() || when (Unre
 @Composable
 private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String>? = null, draft: String? = null, plan: Plan? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList()) {
     val p = LocalPaper.current
-    val footer = shortTime(r.endedAt ?: r.startedAt)
+    val footer = listOf(shortTime(r.endedAt ?: r.startedAt), RunSteps.took(r.startedAt, r.endedAt)).filter { it.isNotEmpty() }.joinToString(" · ")
     // What it learned is the server's line where the server writes it (`memory-chips`): printed whole. Before, cut as it was.
     val whole = announces(features, MEMORY_CHIPS)
     val to = r.sentToAll?.takeIf { it.isNotEmpty() } ?: listOfNotNull(r.sentTo)
+    // A long reply folds to its first paragraph and "More" (#625); a paragraph with a link is never folded.
+    val folded = remember(r.result) { RunSteps.folded(r.result) }
+    var more by remember(r.id) { mutableStateOf(false) }
     val reply: @Composable () -> Unit = {
         TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
-            Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) "Done." else "" }); OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect); PlanFold(plan) }
+            Column {
+                MarkdownText((if (folded != null && !more) folded else r.result.orEmpty()).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) "Done." else "" })
+                if (folded != null && !more) Text("More", color = p.muted, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { more = true }.padding(top = 8.dp, bottom = 4.dp))
+                OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect); PlanFold(plan)
+            }
         }
     }
     // Between bots (a run another bot or the Chief started) the reply folds as the message above it does (#413),
@@ -330,16 +330,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
         RunScreenshots(r)
         return
     }
-    if (to.isNotEmpty()) {
-        val one = to.size == 1
-        val how = when {
-            to.all { it.delivered == "queued" } -> if (one) " · it picks it up when free" else " · they pick it up when free"
-            to.all { it.delivered?.startsWith("inbox") == true } -> NotesWake.messagedHow(one)
-            else -> ""
-        }
-        val w = LocalMentions.current
-        FigureText(buildAnnotatedString { append("Messaged "); bots(to.map { named(w?.bot(it.id), it.name, it.color) }); append(how) }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
-    }
+    // Whom it messaged is in its block's step line (StepLine, #625).
     when (r.status) {
         // No bubble while it works: the status line says it; only what it attached so far. From a server with drafts,
         // the reply as it is written so far stands in the reply's place and grows there (ReplyDraft).

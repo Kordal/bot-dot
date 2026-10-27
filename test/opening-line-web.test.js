@@ -149,8 +149,9 @@ test('web: the page draws it under the chat and takes it away when the run ends'
   assert.match(app, /\} else if \(ev\.type === 'opening_line'\) \{\s*if \(openingLines\.say\(`chief:\$\{id\}`, ev\.text\)\) placeStatusLines\(\);/);
   assert.match(app, /openingLines\.end\(`chief:\$\{id\}`\);\s*chiefTurns\.delete\(id\);\s*placeStatusLines\(\);/, 'the Chief\'s stream ending removes it');
   // Drawn by OpeningLine.status only, in the bot's colour and the Chief's, above the cards that wait.
-  // With two or three runs going the card above the message box says them, and the line is not drawn (live-runs-web.test.js).
-  assert.match(app, /drawStatusLine\(\$\('#bot-thread'\), botId && !card \? `bot:\$\{botId\}` : null, botById\(botId\)\?\.color, card \? null : working\?\.id, !card && working\?\.waitingFor === 'ok'\);/);
+  // A bot's runs at work say it in their blocks (bot-chat.js, #625): the line under its chat is there only for the
+  // owner's message on its way to a bot that was free.
+  assert.match(app, /globalThis\.drawBlockLines\?\.\(\$\('#bot-thread'\)\);\n\s*drawStatusLine\(\$\('#bot-thread'\), botId && !working \? `bot:\$\{botId\}` : null, botById\(botId\)\?\.color, null\);/);
   assert.match(app, /const kept = chat \? openingLines\.of\(chat\) : '';\n\s*const html = OpeningLine\.status\(stop && typeof stop === 'object' \? OpeningLine\.chiefLine\(doing, kept\) : kept \|\| doing, color, stop, held\);/);
   assert.equal((app.match(/status-line/g) || []).length, 1, 'app.js only finds the line; its markup is OpeningLine\'s');
 });
@@ -180,16 +181,17 @@ test('web: a working bot is one line with Stop: its opening line, or "Working" u
   assert.match(css, /\.status-line button \{[^}]*color: var\(--faint\);/);
 });
 
-test('web: a running run draws no bubble: no typing dots, no steps, no Details, only what it attached', () => {
-  const running = app.slice(app.indexOf("if (r.status === 'running') {", app.indexOf('function botThreadHTML')), app.indexOf("const failed = ['error', 'stopped', 'interrupted']"));
+test('web: a running run draws no bubble: no typing dots, no Details, only what it attached, and Stop in its block\'s footer', () => {
+  const running = app.slice(app.indexOf("if (r.status === 'running') {", app.indexOf('function runParts')), app.indexOf("const failed = ['error', 'stopped', 'interrupted']"));
   // From a server with drafts the reply as it is written stands there too (test/reply-draft-web.test.js).
-  assert.match(running, /reply = `<div class="bubble-row from-bot" data-live="\$\{esc\(r\.id\)\}">\$\{draftHTML\(replyDrafts\.of\(r\.id\), true\)\}\$\{botFilesHTML\(r\.files\)\}<\/div>`;/);
-  assert.doesNotMatch(running, /bubble from-bot|typing|steps|data-details|data-stop-run|activity/);
+  assert.match(running, /reply = `<div class="bubble-row from-bot" data-live="\$\{esc\(r\.id\)\}">\$\{draftHTML\(replyDrafts\.of\(r\.id\), true\)\}\$\{botFilesHTML\(r\.files\)\}<\/div>/);
+  assert.match(running, /<button type="button" class="block-stop" data-stop-run="\$\{esc\(r\.id\)\}">Stop<\/button>/);
+  assert.doesNotMatch(running, /bubble from-bot|typing|data-details|activity/);
   assert.match(css, /\[data-live\]:empty \{ display: none; \}/);
   const follow = app.slice(app.indexOf('function followBotRun'), app.indexOf('function watchRun('));
   assert.doesNotMatch(follow, /stepsHTML|\.activity|\.steps/);
   assert.match(follow, /live\.insertAdjacentHTML\('beforeend', html\)/, 'a file it attaches shows at once');
-  assert.match(app, /\$\{r\.kind === 'reminder' \? '' : ` · <button data-details="\$\{esc\(r\.id\)\}">Details<\/button>`\}\$\{copyBtn\(body\)\}/, 'a finished reply keeps Details, a reminder that went off has none (#343)');
+  assert.match(app, /\$\{r\.kind === 'reminder' \? '' : ` <button data-details="\$\{esc\(r\.id\)\}">Details<\/button>`\}\$\{copyBtn\(body\)\}/, 'a finished reply keeps Details, a reminder that went off has none (#343)');
 });
 
 test('web: Stop stops the line\'s run, and a Stop that fails leaves the chat and says why', async () => {

@@ -13,7 +13,6 @@ function composerHTML(placeholder, ctx = '') {
     <form class="composer" autocomplete="off">
       <div class="composer-wrap">
         <div class="plan-slot"></div>
-        <div class="live-slot"></div>
         <div class="away-line${away.on ? '' : ' hidden'}" role="status">Can't reach botdot. Trying again…</div>
         <div class="claude-line${signedOut.on && !away.on ? '' : ' hidden'}" role="status">${signedOutHTML()}</div>
         ${ctx ? `<div class="ctx">${ctx}</div>` : ''}

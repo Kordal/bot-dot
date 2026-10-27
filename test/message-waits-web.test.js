@@ -81,29 +81,28 @@ function page({ features = ['message-waits'], reply = async () => ({}) } = {}) {
 const queued = (id, text, attachments = []) => ({ id, text, attachments, at });
 const working = { id: 'r1', botId: 'doctor', status: 'running', prompt: FIRST };
 
-test('web: a bot\'s waiting messages are drawn at the end of its chat: after the working line, before the cards', () => {
+test('web: a bot\'s waiting messages are drawn at the end of its chat, before the cards (its run says it is working in its block)', () => {
   const p = page();
   p.bot.thread.insertAdjacentHTML('beforeend', '<div class="bubble-row from-me">first</div>');
   p.bot.thread.append(p.bot.make('chat-needs'));
   p.state.runs = [working];
   p.doctor.queued = [queued('q1', SECOND, [{ name: 'backup.log', file: 'uploads/backup.log', size: 2048 }])];
   p.ctx.placeStatusLines();
-  assert.deepEqual(p.bot.names(), ['bubble-row', 'status-line', 'chat-queued', 'chat-needs']);
+  assert.deepEqual(p.bot.names(), ['bubble-row', 'chat-queued', 'chat-needs']);
   const html = p.waiting(p.bot).innerHTML;
   assert.match(html, /<div class="bubble-row from-me"><div class="stack mine">\s*<div class="bubble from-me waits">Also check that tonight&#39;s backup has enough room\./, 'the owner\'s bubble, faded');
   assert.match(html, /<div class="bubble-meta"><span>Waits until Fleet Doctor is free<\/span><button type="button" data-take-back="q1">Take back<\/button><\/div>/);
   assert.match(html, /<div class="bubble-files"><span class="file-chip [^>]*title="backup\.log · 2 KB">[^<]*<span class="fname">backup\.log<\/span><\/span><\/div>/, 'its files, as on a sent message');
   assert.doesNotMatch(html, /data-unattach|copy/, 'nothing to remove a file with, nothing to copy');
   // Drawn again only when something changed.
-  const box = p.waiting(p.bot), line = p.bot.thread.children[1];
+  const box = p.waiting(p.bot);
   p.ctx.placeStatusLines();
-  assert.equal(p.waiting(p.bot), box);
-  assert.equal(p.bot.thread.children[1], line, 'the line stays where it stands: it is not moved by each draw');
+  assert.equal(p.waiting(p.bot), box, 'it is not moved by each draw');
   // A new row and the cards put last again (updateChatNeeds): the line and what waits follow, in their order.
   p.bot.thread.insertAdjacentHTML('beforeend', '<div class="bubble-row from-bot">a reply</div>');
   p.bot.thread.append(p.bot.thread.children.find((n) => n.className === 'chat-needs'));
   p.ctx.placeStatusLines();
-  assert.deepEqual(p.bot.names(), ['bubble-row', 'bubble-row', 'status-line', 'chat-queued', 'chat-needs']);
+  assert.deepEqual(p.bot.names(), ['bubble-row', 'bubble-row', 'chat-queued', 'chat-needs']);
 });
 
 test('web: several wait in the order sent, and a bot that is not working has them without a line', () => {
@@ -227,14 +226,14 @@ test('web: a message sent to a working bot empties the box and is drawn among th
   assert.equal(p.said.bodies[0].prompt, SECOND);
   assert.match(p.said.bodies[0].key, /^[\w-]{8,}$/, 'with its key, as every message');
   assert.equal(p.said.refreshed, 1, 'the bots are read again: the list is the server\'s');
-  assert.deepEqual(p.bot.names(), ['bubble-row', 'status-line', 'chat-queued'], 'the waiting message the answer reports; no sent bubble and no working bubble of the page\'s own');
+  assert.deepEqual(p.bot.names(), ['bubble-row', 'chat-queued'], 'the waiting message the answer reports; no sent bubble and no working bubble of the page\'s own');
   assert.deepEqual(plain(p.doctor.queued), [{ id: 'q1', text: SECOND, attachments: [], at }]);
   assert.doesNotMatch(p.waiting(p.bot).innerHTML, /data-sent/);
   assert.equal(p.said.streams, 0, 'no stream on the id of a run that only waits');
   // The refresh brought the list: the same message, once.
   p.doctor.queued = [queued('q1', SECOND)];
   p.ctx.placeStatusLines();
-  assert.deepEqual(p.bot.names(), ['bubble-row', 'status-line', 'chat-queued']);
+  assert.deepEqual(p.bot.names(), ['bubble-row', 'chat-queued']);
   assert.equal((p.waiting(p.bot).innerHTML.match(/data-take-back=/g) || []).length, 1);
   const run = cut('async function runBot(botId', '// Every run of the bot that is going');
   assert.doesNotMatch(run, /EventSource|followBotRun|openRun|\/stream/);

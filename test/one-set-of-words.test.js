@@ -92,7 +92,7 @@ test('in a group each member\'s line follows its turn\'s work, one member after 
   play(say('Reading the diff.'), use('Read', { file_path: '/home/bot/a.js' }));
   await lineIs(first.runId, 'Reading the diff');
   const data = { chat: `group:${group.id}`, groupId: group.id, botId: coder.id, runId: first.runId, text: 'Reading the diff', at: undefined };
-  assert.deepEqual(of('group_working_line', first.runId).map((e) => ({ ...e.data, at: undefined })), [data]);
+  assert.deepEqual(of('group_working_line', first.runId).map((e) => ({ ...e.data, at: undefined })), [{ ...data, steps: 1 }], 'with its count of steps (#625)');
   assert.deepEqual(of('group_opening_line', first.runId).map((e) => ({ ...e.data, at: undefined })), [data], 'as before, for an app that does not know a turn\'s working line');
   const order = f.events.filter((e) => e.data.runId === first.runId).map((e) => e.type);
   assert.ok(order.indexOf('group_opening_line') < order.indexOf('group_working_line'), 'the opening line first');
@@ -104,7 +104,7 @@ test('in a group each member\'s line follows its turn\'s work, one member after 
   assert.deepEqual((await chatOf(group)).working, [{ botId: coder.id, runId: first.runId, messageId: sent.id, startedAt: first.startedAt, openingLine: 'Reading the diff', workingLine: 'Reading nytimes.com' }]);
   const run = (await srv.api(`/runs/${first.runId}?events=0`)).data;
   assert.deepEqual([run.workingLine, run.openingLine], ['Reading nytimes.com', 'Reading the diff']);
-  assert.match(await streamOf(`/runs/${first.runId}/stream`, /working_line/), /data: \{"type":"working_line","text":"Reading nytimes.com"\}/);
+  assert.match(await streamOf(`/runs/${first.runId}/stream`, /working_line/), /data: \{"type":"working_line","text":"Reading nytimes.com","steps":\d+\}/);
 
   // At most one change a second, and the last one always: two steps at once give one change.
   await sleep(1100);

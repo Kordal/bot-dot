@@ -295,7 +295,7 @@ test('the line reads the opening line first, then the server\'s words for each f
   play(use('WebSearch', { query: 'news today' }));
   await lineIs(run.id, 'Checking the news');
   const first = f.events.find((e) => e.type === 'working_line' && e.data.runId === run.id);
-  assert.deepEqual({ ...first.data, at: undefined }, { chat: `bot:${bot.id}`, botId: bot.id, runId: run.id, text: 'Checking the news', at: undefined });
+  assert.deepEqual({ ...first.data, at: undefined }, { chat: `bot:${bot.id}`, botId: bot.id, runId: run.id, text: 'Checking the news', steps: 1, at: undefined });
   // `opening_line` is sent as before, for an app that does not know the working line.
   assert.deepEqual(f.events.filter((e) => e.type === 'opening_line' && e.data.runId === run.id).map((e) => ({ ...e.data, at: undefined })), [{ chat: `bot:${bot.id}`, botId: bot.id, runId: run.id, text: 'Checking the news', at: undefined }]);
   await sleep(1200);
@@ -312,7 +312,7 @@ test('the line reads the opening line first, then the server\'s words for each f
   // A reconnect of the run's stream: what the line reads now, after what already happened, in both forms.
   for (const q of ['', '?simple']) {
     const got = await streamOf(`/runs/${run.id}/stream${q}`, /working_line/);
-    assert.match(got, /data: \{"type":"working_line","text":"Reading nytimes.com"\}/, `stream${q}`);
+    assert.match(got, /data: \{"type":"working_line","text":"Reading nytimes.com","steps":\d+\}/, `stream${q}`);
     assert.ok(got.indexOf('"type":"opening_line","text":"Checking the news"') < got.indexOf('"type":"working_line"'), `stream${q}: the opening line as before, then the line`);
   }
 
@@ -321,7 +321,7 @@ test('the line reads the opening line first, then the server\'s words for each f
   await sleep(1100);
   play(use('mcp__self__message_bot', { to: surfer.id, message: 'SECRET' }));
   await lineIs(run.id, 'Messaging Web Surfer');
-  assert.match(await live, /data: \{"type":"working_line","text":"Messaging Web Surfer"\}/);
+  assert.match(await live, /data: \{"type":"working_line","text":"Messaging Web Surfer","steps":\d+\}/);
   await sleep(1100);
   play(use('TodoWrite', { todos: [] }));
   await sleep(300);
@@ -337,7 +337,10 @@ test('the line reads the opening line first, then the server\'s words for each f
   assert.equal(done.workingLine, undefined);
   assert.equal((await srv.api(`/runs?botId=${bot.id}`)).data[0].workingLine, undefined);
   assert.doesNotMatch(await streamOf(`/runs/${run.id}/stream`, /run_end/), /working_line/, 'a finished run\'s stream has no line');
-  assert.doesNotMatch(JSON.stringify(done), /Reading nytimes\.com|Messaging Web Surfer/);
+  assert.equal(done.workingLine, undefined);
+  // Its steps stay on its record (run-steps.js, #625): the words of each, never what was sent.
+  assert.deepEqual(done.steps.rows.map((r) => r.text), ['Searching the web', 'Reading nytimes.com', 'Messaging Web Surfer']);
+  assert.equal(done.steps.count, 3, 'the plan is no step');
   srv.unhold();
 });
 
@@ -354,7 +357,8 @@ test('the run\'s log holds no more events than before: the line\'s changes are n
   assert.equal(log.some((e) => e.type === 'working_line' || e.type === 'opening_line'), false);
   // What Claude Code wrote (its start, the events played, its result) and the run's own start and end: nothing else.
   assert.deepEqual(log.map((e) => e.type), ['run_start', 'system', ...played.map((e) => e.type), 'result', 'run_end']);
-  for (const file of fs.readdirSync(path.join(srv.data, 'runs')).filter((x) => x.startsWith(run.id))) assert.doesNotMatch(fs.readFileSync(path.join(srv.data, 'runs', file), 'utf8'), /workingLine|working_line|Reading notes\.md/, `${file}: nor is it in what is stored of the run`);
+  for (const file of fs.readdirSync(path.join(srv.data, 'runs')).filter((x) => x.startsWith(run.id))) assert.doesNotMatch(fs.readFileSync(path.join(srv.data, 'runs', file), 'utf8'), /workingLine|working_line/, `${file}: nor is it in what is stored of the run`);
+  assert.deepEqual((await runOf(run.id)).steps.rows.map((r) => r.text), ['Searching the web', 'Reading example.com', 'Reading notes.md'], 'its steps are, in their words (#625)');
   srv.unhold();
 });
 
@@ -410,7 +414,7 @@ test('"Starting its computer" is the line while the bot\'s computer starts', asy
   const asked = srv.api('/vault/session/computer', { method: 'POST', headers: { 'X-Vault-Token': token } });
   await lineIs(run.id, 'Starting its computer');
   assert.equal((await runOf(run.id)).workingLine, 'Starting its computer');
-  assert.match(await streamOf(`/runs/${run.id}/stream?simple`, /working_line/), /data: \{"type":"working_line","text":"Starting its computer"\}/, 'in the simple form too, which has no `phase`');
+  assert.match(await streamOf(`/runs/${run.id}/stream?simple`, /working_line/), /data: \{"type":"working_line","text":"Starting its computer","steps":\d+\}/, 'in the simple form too, which has no `phase`');
   assert.equal((await asked).data.ok, false, 'the stand-in computer never starts');
   await lineIs(run.id, 'Opening nytimes.com'); // the start is over: the step it was for
   srv.release(rec);

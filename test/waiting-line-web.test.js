@@ -47,72 +47,69 @@ test('web: the dot stands still and no dots follow the words', () => {
   assert.match(css, /\.status-line button \{[^}]*color: var\(--faint\);/);
 });
 
-// The page's placeStatusLines and drawStatusLine over a bot's chat that stands in for the one on screen.
+// The page's placeStatusLines over a bot's chat that stands in for the one on screen, and the step line of a running
+// run's block (bot-chat.js, #625): a working bot's line is in its block, and the chat has no line under it.
 function chat(runs) {
-  const state = { runs };
-  const stops = [];
+  const state = { runs, features: ['opening-line', 'working-line'] };
   const openingLines = OpeningLine.keeper();
-  const button = { dataset: {}, onclick: null };
-  const thread = { dataset: {}, scrollHeight: 0, scrollTop: 0, clientHeight: 0, line: null, draws: 0,
-    insertAdjacentHTML(where, html) { this.draws++; this.line = { html, nextElementSibling: null, remove: () => { this.line = null; } }; button.dataset.stopRun = html.match(/data-stop-run="([^"]*)"/)?.[1]; },
+  const thread = { dataset: {}, scrollHeight: 0, scrollTop: 0, clientHeight: 0, line: null,
+    insertAdjacentHTML(where, html) { this.line = { html, nextElementSibling: null, remove: () => { this.line = null; } }; },
     get lastElementChild() { return this.line; } };
   const ctx = vm.createContext({ ...noDrafts,
     OpeningLine, Unread: lib.Unread, openingLines, state, CHIEF_COLOR: '#d85a30', botById: (id) => (id === MAIL.id ? MAIL : null),
-    stopRun: (id) => stops.push(id), updateChatQueued() {}, chiefTurns: new Map(), // what waits: test/message-waits-web.test.js
-    $: (sel, root) => (sel === '#view-bot' ? { dataset: { bot: MAIL.id } } : sel === '#bot-thread' ? thread : sel === '.status-line' ? root.line : sel === '[data-stop-run]' && root.line?.html.includes('data-stop-run') ? button : null),
+    stopRun() {}, updateChatQueued() {}, chiefTurns: new Map(), esc, sentTo: () => [], said: (v) => (typeof v === 'string' ? v.trim() : ''), plain: String, Date,
+    $: (sel, root) => (sel === '#view-bot' ? { dataset: { bot: MAIL.id } } : sel === '#bot-thread' ? thread : sel === '.status-line' ? root.line : null),
   });
-  vm.runInContext(`${cut('function placeStatusLines() {', '// Stop a run.')}\nthis.placeStatusLines = placeStatusLines;`, ctx);
-  const line = () => { ctx.placeStatusLines(); return thread.line?.html ?? null; };
-  return { state, openingLines, thread, button, stops, line };
+  vm.runInContext(`${cut('function placeStatusLines() {', '// Stop a run.')}\n${cut('const STEP_ICON = {', '// The running blocks\' lines')}\nObject.assign(this, { placeStatusLines, stepLineHTML });`, ctx);
+  // What the step line of its block says, or null with no run at work in this chat.
+  const line = () => {
+    ctx.placeStatusLines();
+    assert.equal(thread.line, null, 'no line under the chat of a working bot');
+    const r = state.runs.find((x) => x.botId === MAIL.id && x.status === 'running' && x.kind !== 'script');
+    return r ? ctx.stepLineHTML(r).match(/<span class="step-now">(.*?)<\/span>/)[1] : null;
+  };
+  return { state, openingLines, thread, line };
 }
-const said = (html) => html?.match(/<span>(.*?)<\/span>/)?.[1] ?? null;
 
 test('web: the line of a run with `waitingFor: "ok"` reads "Waiting for your OK", and returns to the opening line when the field goes', () => {
   const run = { id: 'r1', botId: 'mail', status: 'running', trigger: 'manual', prompt: 'Tell Anna I\'ll be late.', startedAt: '2026-10-05T11:40:00.000Z' };
   const c = chat([run]);
   c.openingLines.say('bot:mail', 'Writing to Anna', 'r1');
-  assert.equal(said(c.line()), 'Writing to Anna');
-  assert.doesNotMatch(c.line(), /held/);
+  assert.equal(c.line(), 'Writing to Anna');
   // Its connected-app action waits for the owner: the runs read with the next refresh say so.
   c.state.runs = [{ ...run, waitingFor: 'ok' }];
-  assert.equal(c.line(), '<div class="status-line held" role="status" style="--c:#9b59d0"><i></i><span>Waiting for your OK</span><button type="button" data-stop-run="r1">Stop</button></div>');
-  const draws = c.thread.draws;
-  c.line();
-  assert.equal(c.thread.draws, draws, 'nothing changed: not drawn again');
-  // Stop stays, and stops that run.
-  c.button.onclick();
-  assert.deepEqual(c.stops, ['r1']);
+  assert.equal(c.line(), 'Waiting for your OK');
   // The owner answered, or the wait ended: the field is gone, and the run's own line is back.
   c.state.runs = [run];
-  assert.equal(c.line(), '<div class="status-line" role="status" style="--c:#9b59d0"><i></i><span>Writing to Anna</span><button type="button" data-stop-run="r1">Stop</button></div>');
+  assert.equal(c.line(), 'Writing to Anna');
   // The run ended: no line.
   c.openingLines.end('bot:mail', 'r1');
   c.state.runs = [{ ...run, status: 'success' }];
   assert.equal(c.line(), null);
+  // The block keeps Stop in its footer, and its look while it waits (drawBlockLines).
+  assert.match(cut('function drawBlockLines(thread) {', '// On a phone a long reply folds'), /block\.classList\.toggle\('held', r\.waitingFor === 'ok'\);/);
+  assert.match(css, /\.run-block\.held \.plan-spin \{ animation: none;/);
 });
 
 test('web: a run that said no line waits and works with the page\'s own words', () => {
   const run = { id: 'r2', botId: 'mail', status: 'running' };
   const c = chat([{ ...run, waitingFor: 'ok' }]);
-  assert.equal(said(c.line()), 'Waiting for your OK');
+  assert.equal(c.line(), 'Waiting for your OK');
   c.state.runs = [run];
-  assert.equal(said(c.line()), 'Working');
+  assert.equal(c.line(), 'Working');
 });
 
 test('web: only "ok" on the chat\'s own running run holds the line', () => {
   const run = { id: 'r1', botId: 'mail', status: 'running' };
   for (const waitingFor of [undefined, null, '', 'OK', 'login', true, 1, {}, ['ok']]) {
     const c = chat([{ ...run, waitingFor }]);
-    assert.equal(said(c.line()), 'Working', JSON.stringify(waitingFor));
-    assert.doesNotMatch(c.line(), /held/);
+    assert.equal(c.line(), 'Working', JSON.stringify(waitingFor));
   }
   // Another bot's waiting run, a run that ended, and a script's run are not this chat's working run.
   const others = chat([{ id: 'r9', botId: 'coder', status: 'running', waitingFor: 'ok' }, { id: 'r8', botId: 'mail', status: 'success', waitingFor: 'ok' }, { id: 'r7', botId: 'mail', status: 'running', kind: 'script', waitingFor: 'ok' }]);
   assert.equal(others.line(), null);
   // The page reads the field with the runs, on every refresh. The feed's `run_waits` (docs/api.md, "An action in a
   // connected app") brings one when a run begins to wait and when it stops, and so does an ask that comes or goes.
-  // With two or three runs going each row says it instead (live-runs-web.test.js).
-  assert.match(app, /drawStatusLine\(\$\('#bot-thread'\), botId && !card \? `bot:\$\{botId\}` : null, botById\(botId\)\?\.color, card \? null : working\?\.id, !card && working\?\.waitingFor === 'ok'\);/);
   assert.match(app, /const \[bots, runs, activity, chief, computers, cfg\] = await Promise\.all\(\[api\('\/bots'\), api\('\/runs\?limit=200'\)/);
   assert.match(app, /\['run_started', 'run_finished', 'run_waits', 'bot_message', 'waiting', 'chief_reply', 'chief_suggestion', 'approvals', 'asks', 'bots', 'reset'\]\.forEach\(\(t\) => es\.addEventListener\(t, soon\)\);/);
   assert.match(cut('function renderBotChat() {', '// Rejects when the task did not go'), /placeStatusLines\(\);\n\}/, 'a bot\'s chat places its line each time it is drawn');
@@ -121,7 +118,7 @@ test('web: only "ok" on the chat\'s own running run holds the line', () => {
 // The page's botThreadHTML over a bot's runs, oldest first, with stand-ins for what a bubble holds.
 function threadHTML(runs, newFirst = null) {
   const ctx = vm.createContext({ ...noDrafts,
-    esc, Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
+    esc, Unread: lib.Unread, OpeningLine, said: (v) => (typeof v === 'string' ? v.trim() : ''), state: { keepOpen: null, features: [] }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '<script-run>', msgTime: () => '11:40', dur: () => '2 s',
     notesFoldHTML: (notes) => (notes?.length ? '<notes>' : ''), filesHTML: (f) => (f?.length ? '<files>' : ''), botFilesHTML: () => '', copyBtn: () => '',
     plain: (t) => String(t || ''), escMentions: (t) => esc(t), md: (t) => esc(t), friendlyProblem: () => 'It could not finish.', learnedChips: () => '', choicesHTML: () => '', questionsHTML: () => '',
@@ -142,7 +139,7 @@ test('web: a run that carries on draws no message of the owner: the request once
   assert.deepEqual(mine(working), [REQUEST], 'the request shows once');
   assert.deepEqual(replies(working), ['I can&#39;t look yet: I may not run commands.'], 'the first reply');
   assert.deepEqual(chips(working), [], 'and no "Ran its main assignment" in place of the request');
-  assert.match(working, /<div class="bubble-row from-bot" data-live="r2"><\/div>$/, 'while it works: its row of files, under which the status line stands');
+  assert.match(working, /<details class="run-steps now" data-steps="r2">[\s\S]*<div class="bubble-row from-bot" data-live="r2"><\/div>[\s\S]*data-stop-run="r2"[\s\S]*<\/section>$/, 'while it works: its step line, its row of files and Stop, in its block');
   assert.equal((working.match(/class="bubble-row from-me"/g) || []).length, 1);
 
   const done = threadHTML([STOPPED, { ...CARRIES, status: 'success', result: 'The disk was full at 02:10.', endedAt: '2026-10-05T11:43:00.000Z' }]);
@@ -182,7 +179,7 @@ test('web: a job\'s run and a teammate\'s request that carry on are drawn as the
   // Its reply to the teammate is folded too, behind one line with its first words (#413).
   assert.match(asked, /<details class="notes-fold theirs" ><summary class="fold-line"><span class="fold-who">Replied<\/span><span class="fold-peek">Done\.<\/span><\/summary>[\s\S]*?<div class="bubble from-bot "><div class="md">Done\.<\/div>[\s\S]*?<\/details>/);
   // The notes it read at its start still show above its reply.
-  assert.match(threadHTML([STOPPED, { ...CARRIES, inbox: [{ from: 'Coder', text: 'A note.' }] }]), /<notes><div class="bubble-row from-bot" data-live="r2">/);
+  assert.match(threadHTML([STOPPED, { ...CARRIES, inbox: [{ from: 'Coder', text: 'A note.' }] }]), /<notes><details class="run-steps now" data-steps="r2">[\s\S]*?<div class="bubble-row from-bot" data-live="r2">/);
 });
 
 test('web: runs without `continues` are drawn as before', () => {

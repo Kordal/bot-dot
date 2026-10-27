@@ -156,14 +156,29 @@ class OpeningLines {
     val lines: StateFlow<Map<String, String>> = _lines
     private val _waits = MutableStateFlow<Set<String>>(emptySet())
     val waits: StateFlow<Set<String>> = _waits
-    /** The line of each run that said one, by its id: the rows of a bot's live runs ([LiveRuns]). */
+    /** The line of each run that said one, by its id: the step line of its block (StepLine). */
     private val _runLines = MutableStateFlow<Map<String, String>>(emptyMap())
     val runLines: StateFlow<Map<String, String>> = _runLines
     /** The runs that wait for the owner's OK, by their ids. */
     private val _heldRuns = MutableStateFlow<Set<String>>(emptySet())
     val heldRuns: StateFlow<Set<String>> = _heldRuns
 
+    /** How many steps each running run took so far, by its id, as its last `working_line` said (docs/api.md, "A run's steps"). */
+    private val stepCounts = HashMap<String, Int>()
+    private val _runSteps = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val runSteps: StateFlow<Map<String, Int>> = _runSteps
+
+    /** A run's count of steps, as the feed said it. */
+    @Synchronized
+    fun counted(runId: String, steps: Int) {
+        if (runId.isEmpty() || runId in ended || stepCounts[runId] == steps) return
+        stepCounts[runId] = steps
+        _runSteps.value = HashMap(stepCounts)
+    }
+
     private fun publish() {
+        stepCounts.keys.retainAll { it !in ended }
+        _runSteps.value = HashMap(stepCounts)
         _lines.value = said.mapValues { it.value.values.last() }
         _waits.value = held.keys.toSet()
         _runLines.value = said.values.flatMap { it.entries }.filter { it.key.isNotEmpty() }.associate { it.key to it.value }
@@ -277,6 +292,7 @@ class OpeningLines {
             "opening_line", "working_line" -> d.str("chat").let { chat ->
                 val reads = if (chat.startsWith("bot:")) OpeningLine.says(ev.type, features) else ev.type == "opening_line"
                 if (reads) say(chat, d.str("text"), d.str("runId").ifEmpty { null })
+                if (ev.type == "working_line") d.str("steps").toIntOrNull()?.let { counted(d.str("runId"), it) }
             }
             "run_finished" -> end("bot:${d.str("botId")}", d.str("id").ifEmpty { return })
             // The Chief's own reply ended (also when it failed or was stopped); a bot's report in its chat doesn't end it.

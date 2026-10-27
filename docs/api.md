@@ -573,6 +573,15 @@ With `plan` in `features`, the botdot server keeps the plan of a bot's run and o
 - **It is not a reply.** It never counts as new: no `unread`, no dot, no "New" line and no notification.
 - **Without the feature** there is no `plan` field and no `plan` event, and an app shows no plan.
 
+## A run's steps
+
+A bot's run carries its steps, for the run's block in the chat (#625): how many tool calls it made, and a short timeline of them in the working line's words (see The working line).
+
+- **What it is.** `steps: { count, rows: [{ at, text, kind?, n? }] }`. `count` is every tool call of the run but the plan's (TodoWrite) and ToolSearch. A row is a step that has words: `at` is when it came, `text` is one line of plain text of at most 80 characters, never markup, `kind` is `"message"` for a message to a teammate and `"skill"` for a skill it used, and `n` is how many times it came in a row when it came more than once. A step without words is counted and has no row. `rows` holds the newest 60.
+- **Where it is.** On a running run in `GET /api/runs`, `GET /api/runs/:runId` and the feed's `hello` (as it reads now; kept in memory), and on the run's record once it ended (as it was last). A run that took no step, and every run from before this, has no `steps`. A turn in a group has them too.
+- **Its count while it goes on.** `working_line` on the feed and in the run's stream carries `steps`, the count as it was when that line was sent.
+- **What an app draws.** One folded line in the run's block: the count, the skills it changed (`learned` of kind `skill` or `skill-updated`) and the bots it messaged (`sentTo`, `sentToAll`); opened, the rows, with the messages it sent and the skills it changed among them. A running run's line is its working line and the count so far.
+
 ## Search
 
 `GET /api/search?q=…` finds messages in every chat (every word must match; the last may be half typed). Each hit has `at` and `snippet` (matched words in «…»), and either `runId`, `bot` (`{ id, name, color }`) and `fromBot` for a message between bots, or `chatId`, `index` (the message in that Chief chat) and `title`. With `groups` in `features`, `&groups=1` adds the turns in the groups that exist: such a hit has `runId`, `bot` and `group` (`{ id, name }`), and opens in the group. Without it no turn in a group is a hit.

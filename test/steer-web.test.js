@@ -11,7 +11,7 @@ function chat() {
   const lib = vm.createContext({});
   vm.runInContext(read('unread.js'), lib);
   const ctx = vm.createContext({ ...noDrafts,
-    esc, Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
+    esc, Unread: lib.Unread, state: { keepOpen: null, features: [] }, OpeningLine: { WAITING: 'Waiting for your OK', ofRun: () => '' }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: (at) => `t(${at})`, dur: () => '2 s',
     notesFoldHTML: () => '', filesHTML: (list) => (list?.length ? `<files ${list.map((f) => f.name).join(',')}>` : ''), botFilesHTML: () => '', copyBtn: () => '<copy>',
     escMentions: (t) => esc(t), md: (t) => esc(t), friendlyProblem: () => '', learnedChips: () => '', choicesHTML: () => '', questionsHTML: () => '',

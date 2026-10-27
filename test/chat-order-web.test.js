@@ -27,11 +27,12 @@ test('web: no runs, no pieces', () => {
 
 function page() {
   const ctx = vm.createContext({
-    esc, Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
+    esc, Unread, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: () => '11:45', dur: () => '6m',
     notesFoldHTML: () => '', filesHTML: () => '', botFilesHTML: () => '', copyBtn: () => '', draftHTML: () => '',
     replyDrafts: { of: () => '' }, escMentions: (t) => esc(t), md: (t) => esc(t), learnedChips: () => '', questionsHTML: () => '',
     choicesHTML: (c) => (c ? `<div class="choices">${c.map(esc).join('|')}</div>` : ''),
+    said: (v) => (typeof v === 'string' ? v.trim() : ''), plain: (t) => String(t || ''), OpeningLine: { WAITING: 'Waiting for your OK', ofRun: () => '' }, state: { keepOpen: null, features: [] },
   });
   vm.runInContext(`${cut('function messagedLabel(r) {', '// Notes other bots left')}\n${cut('function botThreadHTML(bot, runs, newFirst = null) {', '// "Run now" under the notes that wait')}\nthis.botThreadHTML = botThreadHTML;`, ctx);
   return ctx;
@@ -46,19 +47,38 @@ const order = (html, ...texts) => {
   assert.deepEqual([...at].sort((a, b) => a - b), at, `in this order: ${texts.join(' / ')}`);
 };
 
-test('web: a long run with /btw in the middle: its reply and its answers come after the /btw exchange', () => {
+// Each run is one block (#625): the blocks stand in the order their replies ended, so a block stays whole.
+const blocks = (html) => [...html.matchAll(/<section class="run-block[^"]*" data-run="([^"]+)">/g)].map((m) => m[1]);
+
+test('web: a long run with /btw in the middle: its block comes after the /btw block, whole, with its answers', () => {
   const html = page().botThreadHTML(bot, [long, btw]); // oldest first, as the chat hands them
-  order(html, 'Deploy now', '/btw status?', 'Still waiting', 'Deploy done.', 'data-details="long"', 'class="choices"');
+  assert.deepEqual(blocks(html), ['btw', 'long']);
+  order(html, '/btw status?', 'Still waiting', 'Deploy now', 'Deploy done.', 'class="choices"', 'data-details="long"');
   assert.equal((html.match(/class="choices"/g) || []).length, 1, 'the answers stand once, under the reply that is last');
 });
 
-test('web: while the long run works, its place stays at the bottom, below the /btw', () => {
-  const html = page().botThreadHTML(bot, [{ ...long, status: 'running', endedAt: null, result: null }, btw]);
-  order(html, 'Deploy now', '/btw status?', 'Still waiting', 'data-live="long"');
+test('web: while the long run works, its block stays at the bottom, below the /btw, with its line and Stop', () => {
+  const html = page().botThreadHTML(bot, [{ ...long, status: 'running', endedAt: null, result: null, steps: { count: 4, rows: [] } }, btw]);
+  assert.deepEqual(blocks(html), ['btw', 'long']);
+  order(html, '/btw status?', 'Still waiting', 'Deploy now', 'class="step-now">Working<', 'step-n">4 steps', 'data-live="long"', 'data-stop-run="long"');
 });
 
-test('web: the "New" line goes above the reply that ended last, below the owner\'s own message', () => {
+test('web: the "New" line goes in the block that ended last, below the owner\'s own message', () => {
   const html = page().botThreadHTML(bot, [long, btw], 'long');
-  order(html, 'Deploy now', '/btw status?', 'class="new-line"', 'Deploy done.');
+  order(html, '/btw status?', 'Deploy now', 'class="new-line"', 'Deploy done.');
   assert.equal((html.match(/class="new-line"/g) || []).length, 1);
+});
+
+test('web: a finished block folds its steps into one line: the count, the skills it changed and the bots it messaged; open, a row each', () => {
+  const done = run('done', { prompt: 'Try now', result: 'PR opened.', startedAt: '2026-10-23T11:28:00.000Z', endedAt: '2026-10-23T11:35:00.000Z',
+    steps: { count: 23, rows: [{ at: '2026-10-23T11:28:10.000Z', text: 'Reading a.js', n: 2 }, { at: '2026-10-23T11:31:00.000Z', text: 'Run the tests' }] },
+    learned: [{ kind: 'skill-updated', skill: 'buildr-pr-workflow', chip: 'Changed the skill buildr-pr-workflow', at: '2026-10-23T11:35:00.000Z' }, { kind: 'memory-pending', chip: 'Asked to add a note' }],
+    sentToAll: [{ id: 'ia', name: 'Infra Admin', text: 'Where is the token?\nThanks', at: '2026-10-23T11:30:00.000Z' }] });
+  const html = page().botThreadHTML(bot, [done]);
+  assert.match(html, /<details class="run-steps" data-steps="done"><summary aria-label="23 steps, the skill buildr-pr-workflow, Infra Admin">/);
+  order(html, 'Try now', '23 steps', 'buildr-pr-workflow', 'Infra Admin', 'Reading a.js', '×2', 'Messaged Infra Admin', 'Where is the token?', 'Run the tests', 'Changed the skill buildr-pr-workflow', 'PR opened.', 'data-details="done"');
+  assert.doesNotMatch(html, /Thanks/, 'a message\'s first line');
+  assert.doesNotMatch(html, /bot-msg-label">Messaged/, 'no loose "Messaged" row above the reply');
+  const plainBlock = page().botThreadHTML(bot, [run('quiet', { prompt: 'Hi', result: 'Hello.', startedAt: '2026-10-23T11:28:00.000Z', endedAt: '2026-10-23T11:28:05.000Z' })]);
+  assert.doesNotMatch(plainBlock, /run-steps/, 'a run without a step, a skill or a message has no step line');
 });
