@@ -47,13 +47,12 @@ class FilesExplorerTest {
     )
     private fun named(n: String) = entries.first { it.name == n }
 
-    @Test fun showsOnlyOnAServerThatHasItAndSearchesOnlyWithFileMentions() {
+    @Test fun showsOnlyOnAServerThatHasItAndSearchesOnlyWithTheSearch() {
         assertTrue(FilesExplorer.shows(listOf("files-explorer")))
         assertFalse(FilesExplorer.shows(listOf("workspace-files")))
         assertFalse(FilesExplorer.shows(null))
-        assertTrue(FilesExplorer.searches(listOf("file-mentions"), chief = false))
-        assertFalse(FilesExplorer.searches(listOf("file-mentions"), chief = true))
-        assertFalse(FilesExplorer.searches(listOf("files-explorer"), chief = false))
+        assertTrue(FilesExplorer.searches(listOf("workspace-search")))
+        assertFalse(FilesExplorer.searches(listOf("files-explorer")))
     }
 
     @Test fun itsPlacesAreBotdotTheComputerAndItsProjects() {
@@ -62,7 +61,7 @@ class FilesExplorerTest {
         assertEquals(listOf("server"), FilesExplorer.places("b1", "none", projects))
         assertEquals(listOf("On botdot", "Computer", "Website", "Kept in mind"), listOf("server", "computer", "project/Website", "kept").map { FilesExplorer.placeName(it) })
         assertEquals("server", FilesExplorer.rootOf(FilesExplorer.KEPT))
-        assertEquals("project/Website", FilesExplorer.placeOf(WorkspaceHit("a", "a", root = "project", project = "Website")))
+        assertEquals("project/Website", FilesExplorer.placeOf(FoundFile("a", "a", root = "project", project = "Website")))
     }
 
     @Test fun foldersFirstByNameDateOrSizeDotNamesToo() {
@@ -151,8 +150,5 @@ class FilesExplorerTest {
         assertEquals("/bots/b1/workspace/thumb?root=computer&path=a%20b.png", WorkspaceFiles.thumb("b1", "computer", "a b.png"))
         assertEquals("/chief/workspace/keep", WorkspaceFiles.keep(UploadedFiles.CHIEF))
 
-        server.enqueue(json("""{"results":[{"name":"prices.csv","path":"data/prices.csv","type":"file","root":"computer"}],"more":false}"""))
-        assertEquals("computer", api.searchWorkspace("b1", "price s").results[0].root)
-        assertEquals("/api/bots/b1/workspace/search?q=price%20s&root=all", server.takeRequest().target)
     }
 }

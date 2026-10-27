@@ -18,6 +18,12 @@ package dev.botdot.app.data
  * skills are the ones that reach the bot's runs: while its skills are on, its picked library skills, then the Claude
  * account's not switched off for it and not named like a library skill (#236).
  *
+ * Files (#604, feature [FILE_MENTIONS]): "@[" its place and path "]", the form a pick from the "@" file picker puts in
+ * a bot's own chat: @[botdot:reports/summary.md] (its workspace on botdot), @[computer:archive/a.csv] (its folder on the
+ * account's computer), @[project:Website/index.html] (a shared project it is in: the project's name, then the path). A
+ * path has no "]" and no line break. While "@" and a word without spaces is typed ([fileTyping]) the app looks for files
+ * and folders of that name (FileMentions); a "/" after a folder's name goes into it ("@reports/").
+ *
  * Chips: a message that runs a skill, or a "/btw" in a bot's own chat or the Chief chat, is drawn with that start as a
  * chip, in the message box and in the owner's bubble ([mark]). The text sent stays as typed.
  *
@@ -41,6 +47,66 @@ object Mentions {
     /** The text before the cursor while a command's name is typed, and a message that may run a skill (#237). */
     private val COMMAND_TYPING = Regex("^/($NAME*)\\z")
     private val COMMAND = Regex("^/($NAME+)(?:\\s+([\\s\\S]*))?\\z")
+
+    /** The feature of a botdot that finds a bot's files and hands a mentioned one to the run (#604). */
+    const val FILE_MENTIONS = "file-mentions"
+    private val FILE = Regex("(?<![\\p{L}\\p{N}_])@\\[(botdot|computer|project):([^\\]\\n]+)\\]")
+    private val FILE_TYPING = Regex("(?<![\\p{L}\\p{N}_])@([^\\s@\\[\\]]*)\\z")
+    private val FILE_REST = Regex("^[^\\s@\\[\\]]*") // the rest of a file mention's word after the cursor
+    /** The word in a mention's text → the API's root. */
+    private val PLACES = mapOf("botdot" to "server", "computer" to "computer", "project" to "project")
+
+    /** A file or folder a mention names (#604): [root] "server", "computer" or "project" (then [project] names it), [path]
+     *  in that place (empty: the project's folder itself). */
+    data class FileRef(val root: String, val path: String, val project: String? = null) {
+        val name: String get() = path.ifEmpty { project.orEmpty() }.substringAfterLast('/')
+    }
+
+    /** A file's place and path as a mention puts them, or null. */
+    fun fileRef(place: String, rest: String): FileRef? {
+        val root = PLACES[place] ?: return null
+        var project: String? = null
+        var p = rest
+        if (root == "project") { val i = p.indexOf('/'); project = if (i < 0) p else p.substring(0, i); p = if (i < 0) "" else p.substring(i + 1) }
+        val parts = p.split('/').filter { it.isNotEmpty() }
+        if ((root == "project" && project.isNullOrEmpty()) || (parts.isEmpty() && root != "project") || parts.any { it == "." || it == ".." }) return null
+        return FileRef(root, parts.joinToString("/"), project)
+    }
+
+    /** The text a file mention is: "@[botdot:reports/a.md]"; null for a path it can't hold (a "]" or a line break). */
+    fun fileText(f: FileRef): String? {
+        val place = PLACES.entries.firstOrNull { it.value == f.root }?.key ?: return null
+        val where = if (f.root == "project") listOfNotNull(f.project, f.path.ifEmpty { null }).joinToString("/") else f.path
+        if (where.isEmpty() || where.contains(']') || where.contains('\n') || (f.root == "project" && (f.project.isNullOrEmpty() || f.project.contains('/')))) return null
+        return "@[$place:$where]"
+    }
+
+    /** The file mentions in a text, in order. */
+    fun findFiles(text: String): List<Found> = if (!text.contains("@[")) emptyList() else FILE.findAll(text).mapNotNull { m ->
+        fileRef(m.groupValues[1], m.groupValues[2])?.let { Found(Kind.FILE, m.value, m.range.first, m.range.last + 1, file = it) }
+    }.toList()
+
+    /** What the file picker looks for while "@" and a word are typed: where the "@" is, the folder names before each "/",
+     *  and what follows the last. */
+    data class FileTyping(val start: Int, val folders: List<String>, val q: String)
+
+    fun fileTyping(typed: String): FileTyping? {
+        val m = FILE_TYPING.find(typed) ?: return null
+        val parts = m.groupValues[1].split('/')
+        val folders = parts.dropLast(1)
+        if (folders.any { it.isEmpty() || it == "." || it == ".." }) return null
+        return FileTyping(m.range.first, folders, parts.last())
+    }
+
+    /** The end of the word a file mention is typed in, from [cursor] on. */
+    fun fileWordEnd(text: String, cursor: Int): Int = cursor + (FILE_REST.find(text.substring(cursor))?.value?.length ?: 0)
+
+    /** Picking a file: [mention] and a space in place of what is from [at] (its "@") to the end of the word at [cursor]. */
+    fun putAt(text: String, at: Int, cursor: Int, mention: String): Picked {
+        val end = fileWordEnd(text, cursor)
+        val spaced = text.getOrNull(end) == ' '
+        return Picked(text.substring(0, at) + mention + (if (spaced) "" else " ") + text.substring(end), at + mention.length + 1, jobsNext = false)
+    }
 
     /** "Fleet Doctor" → "FleetDoctor", "Chief of Staff" → "ChiefOfStaff", "Morning check" → "MorningCheck". */
     fun shortName(name: String): String =
@@ -87,21 +153,22 @@ object Mentions {
         fun bot(id: String?) = bots.firstOrNull { it.id == id }
     }
 
-    enum class Kind { BOT, JOB, SKILL, ALL, COMMAND, PAGE, TILE }
+    enum class Kind { BOT, JOB, SKILL, ALL, COMMAND, PAGE, TILE, FILE }
 
-    /** One mention in a text: [start] until [end] is [text]. [bot] and [job] are ids, [skill] a name, [page] a slug, [tile] an id. */
+    /** One mention in a text: [start] until [end] is [text]. [bot] and [job] are ids, [skill] a name, [page] a slug, [tile] an id, [file] a file's place and path. */
     data class Found(val kind: Kind, val text: String, val start: Int, val end: Int, val bot: String? = null, val job: String? = null, val skill: String? = null,
-                     val page: String? = null, val tile: String? = null)
+                     val page: String? = null, val tile: String? = null, val file: FileRef? = null)
 
     /** One suggestion: picking it puts [text] plus a space in place of the "@…" (or the "/…") being typed. [about]: a
      *  skill to run's description. */
     data class Row(val kind: Kind, val text: String, val label: String, val bot: String? = null, val job: String? = null, val skill: String? = null, val about: String = "",
                    val page: String? = null, val tile: String? = null)
 
-    /** The mentions in a text, in order. */
+    /** The mentions in a text, in order; a file's among them, and a name inside a file's mention is none. */
     fun find(text: String, w: World): List<Found> {
         if ('@' !in text) return emptyList()
-        return TOKEN.findAll(text).mapNotNull { m ->
+        val files = findFiles(text)
+        return (TOKEN.findAll(text).filter { m -> files.none { m.range.first >= it.start && m.range.first < it.end } }.mapNotNull { m ->
             val a = m.groupValues[1]
             val b = m.groups[2]?.value
             val start = m.range.first
@@ -127,7 +194,7 @@ object Mentions {
                     }
                 }
             }
-        }.toList()
+        }.toList() + files).sortedBy { it.start }
     }
 
     /**

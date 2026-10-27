@@ -454,6 +454,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun downloadBotFile(botId: String, file: String, dest: java.io.File) = download(UploadedFiles.owner(botId) + "/files/${enc(file.substringAfterLast('/'))}", dest)
     /** A folder of a bot's workspace (#296): [root] is "server" or "computer", [path] relative to it. Only with `workspace-files`. */
     suspend fun workspace(botId: String, root: String, path: String): WorkspaceListing = json.decodeFromString(get(WorkspaceFiles.list(botId, root, path)))
+    /** The bot's files and folders whose name holds [q], in all its places, best first (#604). */
+    suspend fun searchFiles(botId: String, q: String): FileSearch = json.decodeFromString(get(WorkspaceFiles.search(botId, q)))
     /** What deleting [path] takes, for its confirmation. */
     suspend fun workspaceCount(botId: String, root: String, path: String): WorkspaceCount = json.decodeFromString(get(WorkspaceFiles.count(botId, root, path)))
     suspend fun deleteFromWorkspace(botId: String, root: String, path: String) { send("DELETE", WorkspaceFiles.list(botId, root, path)) }
@@ -477,9 +479,6 @@ class Api(val baseUrl: String, val session: Session? = null) {
         }))
     /** Keeps a file on botdot in mind (#603): one the owner gave the bot as it is, any other as a copy in uploads/. */
     suspend fun keepFromWorkspace(botId: String, path: String) { send("POST", WorkspaceFiles.keep(botId), buildJsonObject { put("path", path) }) }
-    /** Every file and folder of the bot whose name matches [q] (#604, `file-mentions`). */
-    suspend fun searchWorkspace(botId: String, q: String): WorkspaceFound =
-        json.decodeFromString(get(UploadedFiles.owner(botId) + "/workspace/search?q=${enc(q)}&root=all"))
     /** Uploads one file into folder [path] (another name when that one is taken); [made]: its missing folders are made first. */
     suspend fun uploadToWorkspace(resolver: ContentResolver, uri: Uri, botId: String, path: String, root: String = WorkspaceFiles.SERVER, made: Boolean = false) = withContext(Dispatchers.IO) {
         val (name, size) = describe(resolver, uri)

@@ -182,7 +182,7 @@ function loadMentionPages() {
 }
 // The owner's own message with its mentions drawn: a bot as its small head and name, a job or a skill tinted; anything
 // else plain (escaped). Bot and Chief replies stay as they are.
-// A skill it runs or a "/btw" at its start is a chip (markOf).
+// A skill it runs or a "/btw" at its start is a chip (markOf); a file mentioned is one too (#604, file-mentions.js).
 function escMentions(text, chat) {
   const s = String(text ?? '');
   const mark = markOf(s, chat);
@@ -190,7 +190,7 @@ function escMentions(text, chat) {
   const ctx = mentionCtx(chat);
   let out = mark ? `${esc(s.slice(0, mark.start))}${markHTML(mark)}` : '', at = mark ? mark.end : 0;
   for (const m of s.includes('@') ? Mentions.findMentions(s, ctx).filter((x) => x.start >= at) : []) {
-    out += esc(s.slice(at, m.start)) + (m.kind === 'bot'
+    out += esc(s.slice(at, m.start)) + (m.kind === 'file' ? FileMentions.chipHTML(m, chat) : m.kind === 'bot'
       ? `<span class="mention" title="${esc(m.text)}">${botLabel(ctx.bots.find((b) => b.id === m.bot))}</span>`
       : `<span class="mention tint">${esc(m.text)}</span>`);
     at = m.end;

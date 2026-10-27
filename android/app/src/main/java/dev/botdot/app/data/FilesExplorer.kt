@@ -1,6 +1,5 @@
 package dev.botdot.app.data
 
-import kotlinx.serialization.Serializable
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -16,12 +15,12 @@ import java.util.Locale
 object FilesExplorer {
     const val FEATURE = "files-explorer"
     /** #604: search by name across its places. */
-    const val SEARCH = "file-mentions"
+    const val SEARCH = "workspace-search"
     /** The place of what is kept in mind: files in uploads/ on botdot, listed from its Files. */
     const val KEPT = "kept"
 
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
-    fun searches(features: Collection<String>?, chief: Boolean): Boolean = !chief && features != null && SEARCH in features
+    fun searches(features: Collection<String>?): Boolean = features != null && SEARCH in features
 
     /** Every place of the bot, in the order the place sheet lists them; the Chief has its folder on botdot alone. */
     fun places(botId: String, computer: String, projects: List<Project>): List<String> =
@@ -161,13 +160,5 @@ object FilesExplorer {
     fun deleteManyWords(n: Int): String = "Delete $n items? Folders go with what they hold. This can't be undone."
 
     /** A search hit's place as a root string: "server", "computer" or "project/<name>". */
-    fun placeOf(hit: WorkspaceHit): String = if (hit.root == Projects.ROOT && hit.project != null) WorkspaceFiles.projectRoot(hit.project) else hit.root
+    fun placeOf(hit: FoundFile): String = if (hit.root == Projects.ROOT && hit.project != null) WorkspaceFiles.projectRoot(hit.project) else hit.root
 }
-
-/** One search hit (#604): a file or folder by name, in one of the bot's places. */
-@Serializable
-data class WorkspaceHit(val name: String = "", val path: String = "", val type: String = "file", val root: String = WorkspaceFiles.SERVER, val project: String? = null, val size: Long? = null, val at: String? = null)
-
-/** What a search answers: the hits, and whether there are [more]. */
-@Serializable
-data class WorkspaceFound(val results: List<WorkspaceHit> = emptyList(), val more: Boolean = false)

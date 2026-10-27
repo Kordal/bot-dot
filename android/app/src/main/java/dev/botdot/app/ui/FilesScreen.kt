@@ -164,7 +164,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
     val computer = if (chief) "none" else bot?.computer ?: "none"
     val viewer = DocumentView.shows(features)
     val withProjects = !chief && computer == "linux" && Projects.shows(features)
-    val searches = FilesExplorer.searches(features, chief)
+    val searches = FilesExplorer.searches(features)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snack = remember { SnackbarHostState() }
@@ -183,7 +183,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
     var allBots by remember { mutableStateOf<List<Bot>>(emptyList()) }
     var selected by remember(place, path) { mutableStateOf<Set<String>>(emptySet()) }
     var query by rememberSaveable { mutableStateOf("") }
-    var found by remember { mutableStateOf<List<dev.botdot.app.data.WorkspaceHit>?>(null) }
+    var found by remember { mutableStateOf<List<dev.botdot.app.data.FoundFile>?>(null) }
     var sheet by remember { mutableStateOf<FxSheet?>(null) }
     var ask by remember { mutableStateOf<FxAsk?>(null) }
     var answer by remember { mutableStateOf("") }
@@ -217,7 +217,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         val a = api ?: return@LaunchedEffect
         if (query.isBlank()) { found = null; return@LaunchedEffect }
         delay(250)
-        runCatching { a.searchWorkspace(ownerId, query.trim()) }.onSuccess { found = it.results }.onError { found = emptyList() }
+        runCatching { a.searchFiles(ownerId, query.trim()) }.onSuccess { found = it.results }.onError { found = emptyList() }
     }
 
     val places = FilesExplorer.places(ownerId, computer, projects)

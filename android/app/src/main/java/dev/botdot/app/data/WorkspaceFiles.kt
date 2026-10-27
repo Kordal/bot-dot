@@ -34,6 +34,8 @@ object WorkspaceFiles {
     /** A folder's listing, a count before a delete, and the delete itself. */
     fun list(botId: String, root: String, path: String) = base(botId) + query(root, path)
     fun count(botId: String, root: String, path: String) = base(botId) + "/count" + query(root, path)
+    /** Files and folders whose name holds [q], in every place of the bot (#604, `workspace-search`). */
+    fun search(botId: String, q: String) = base(botId) + "/search?root=all&q=${Api.enc(q)}"
     /** A file, for the viewer (DocumentView) and Save. */
     fun file(botId: String, root: String, path: String) = base(botId) + "/file" + query(root, path)
     /** [made]: the folders of [path] that are not there yet are made first (a folder's upload, #576). */

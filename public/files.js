@@ -759,7 +759,7 @@ const Files = (() => {
     }
   }
 
-  // ---------- searching (with #604's search, from a server whose features have `file-mentions`) ----------
+  // ---------- searching (with #604's search, from a server whose features have `workspace-search`) ----------
 
   let soon = null;
   function searchFor(c, q) {
@@ -921,7 +921,7 @@ const Files = (() => {
     const el = box();
     let view = 'list';
     try { view = localStorage.getItem('botdot-files-view') === 'grid' ? 'grid' : 'list'; } catch { /* none kept */ }
-    const c = { bot, place: { root: 'server' }, path: '', data: null, error: null, sort: 'name', view, sel: new Set(), anchor: null, focus: null, preview: null, back: [], fwd: [], projects: [], kept: [], pins: [], menu: null, sheet: null, dialog: null, selecting: false, query: '', results: null, drop: false, busy: null, searches: !bot.base && (state.features || []).includes('file-mentions') };
+    const c = { bot, place: { root: 'server' }, path: '', data: null, error: null, sort: 'name', view, sel: new Set(), anchor: null, focus: null, preview: null, back: [], fwd: [], projects: [], kept: [], pins: [], menu: null, sheet: null, dialog: null, selecting: false, query: '', results: null, drop: false, busy: null, searches: (state.features || []).includes('workspace-search') };
     c.pins = readPins(c);
     cur = c;
     if (el) {
