@@ -1,4 +1,4 @@
-// Files on the web page (#603): public/files.js run against stand-ins. Folders first and dot-names left out, sorted by
+// Files on the web page (#603): public/files.js run against stand-ins. Folders first, dot-names too, sorted by
 // name, date or size; an icon by kind and a folder's size as its items; what botdot keeps offers nothing that writes;
 // Shift and Ctrl select as a file manager does; names are text; a delete asks first and names what goes; a move into
 // another place names that place; a computer that is off is started only on a tap. The browser check is
@@ -55,11 +55,11 @@ test('web: index.html loads files.js and has its box; the chat head and the sett
   assert.match(read('settings.js'), /link\.onclick = \(\) => Files\.open\(chiefAsBot\(\)\)/);
 });
 
-test('web: folders first, dot-names left out but what botdot keeps; by name, newest or largest', () => {
+test('web: folders first, dot-names too; by name, newest or largest', () => {
   const { F } = page();
-  assert.deepEqual(F.sorted(LIST.entries.map((e) => ({ ...e }))).map((e) => e.name), ['.claude', 'notes', 'uploads', 'acme.png', 'away', 'b<script>.md', 'CLAUDE.md', 'prices.csv']);
+  assert.deepEqual(F.sorted(LIST.entries.map((e) => ({ ...e }))).map((e) => e.name), ['.cache', '.claude', 'notes', 'uploads', 'acme.png', 'away', 'b<script>.md', 'CLAUDE.md', 'prices.csv']);
   assert.deepEqual(F.sorted(LIST.entries.map((e) => ({ ...e })), 'date').filter((e) => e.type !== 'folder').map((e) => e.name), ['acme.png', 'b<script>.md', 'prices.csv', 'away', 'CLAUDE.md']);
-  assert.deepEqual(F.sorted(LIST.entries.map((e) => ({ ...e })), 'size').map((e) => e.name).slice(0, 3), ['notes', 'uploads', '.claude']);
+  assert.deepEqual(F.sorted(LIST.entries.map((e) => ({ ...e })), 'size').map((e) => e.name).slice(0, 3), ['notes', 'uploads', '.cache']);
   assert.equal(F.sizeOf(LIST.entries[0]), '14 items');
   assert.equal(F.sizeOf({ type: 'folder', items: 1 }), '1 item');
   assert.equal(F.sizeOf(LIST.entries[4]), '18 KB');

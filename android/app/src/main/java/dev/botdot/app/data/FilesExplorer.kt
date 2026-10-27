@@ -41,7 +41,7 @@ object FilesExplorer {
 
     /**
      * The entries as shown: folders first, then the rest by name, newest first or largest first (a folder by how many
-     * it holds). Names starting with a dot are left out as a file manager does, but what botdot keeps, which is marked.
+     * it holds). Names starting with a dot are listed too: a bot's .env or .gitignore is its owner's to open or change.
      */
     fun sorted(entries: List<WorkspaceEntry>, sort: Sort = Sort.NAME): List<WorkspaceEntry> {
         val byName = Comparator<WorkspaceEntry> { a, b -> natural(a.name, b.name) }
@@ -50,7 +50,7 @@ object FilesExplorer {
             Sort.DATE -> compareByDescending<WorkspaceEntry> { it.at.orEmpty() }.then(byName)
             Sort.SIZE -> compareByDescending<WorkspaceEntry> { if (it.type == "folder") (it.items ?: 0).toLong() else it.size ?: 0 }.then(byName)
         }
-        return entries.filter { !it.name.startsWith(".") || it.kept }.sortedWith(compareBy<WorkspaceEntry> { if (it.type == "folder") 0 else 1 }.then(order))
+        return entries.sortedWith(compareBy<WorkspaceEntry> { if (it.type == "folder") 0 else 1 }.then(order))
     }
 
     /** Names as people read them: case aside, and "w9" before "w10". */

@@ -89,6 +89,8 @@ test('keep in mind: a file anywhere on botdot is copied into uploads/ and pinned
   const again = await post('keep', { path: r.data.file });
   assert.equal(again.data.file, r.data.file, 'no second copy');
   assert.equal((await post('keep', { path: 'notes' })).data.state, 'not-file');
+  put('blank.md', '');
+  assert.equal((await post('keep', { path: 'blank.md' })).status, 400, 'an empty file has nothing to keep in mind');
   assert.equal(audit().at(-1).action, 'workspace-file.kept');
 });
 
@@ -135,9 +137,19 @@ test('between botdot and the computer: off it says so and nothing starts; on, a 
   assert.equal(r.status, 201, JSON.stringify(r.data));
   assert.deepEqual(r.data, { ok: true, path: 'out', root: 'server' });
   assert.equal(fs.readFileSync(path.join(ws(pc), 'out/a.txt'), 'utf8'), 'from box');
-  assert.match(lastExec().at(-1), /tar --format=ustar -cf "\$p"/);
+  assert.match(lastExec().at(-1), /tar --format=ustar --hard-dereference -cf "\$p"/);
   docker.answer('exec.txt', 'too-large\n');
   assert.equal((await post('copy', { from: 'big', into: '', place: { root: 'server' } }, '?root=computer', pc)).data.state, 'too-large');
+
+  // A move to another place never loses a link: botdot leaves links out of what it carries, so it refuses instead.
+  put('linked/f.md', 'f', pc);
+  fs.symlinkSync('f.md', path.join(ws(pc), 'linked', 'l'));
+  r = await post('move', { from: 'linked', into: '', place: { root: 'computer' } }, '', pc);
+  assert.equal(r.data.state, 'has-links');
+  assert.ok(fs.existsSync(path.join(ws(pc), 'linked', 'l')), 'nothing moved');
+  docker.answer('exec.txt', 'has-links\n');
+  assert.equal((await post('move', { from: 'proj/with-links', into: '', place: { root: 'server' } }, '?root=computer', pc)).data.state, 'has-links');
+  assert.match(lastExec().at(-1), /! -type f ! -type d -print -quit/, 'the computer looks for links first on a move');
 
   docker.answer('exec.txt', 'ok notes (2)\n');
   r = await post('copy', { from: 'notes', into: 'x' }, '?root=computer', pc);
@@ -180,6 +192,9 @@ test('the computer scripts copy, move, pack and unpack inside their folders, nev
   const got = tar.unpack(W.computerPacked(sh(W.packScript(a, 'proj'))));
   assert.deepEqual(got.filter((e) => e.type === 'file').map((e) => [e.name, String(e.data)]), [['proj/proj (2)/sub/f', 'hi'], ['proj/sub/f', 'hi']]);
   assert.equal(sh(W.packScript(a, 'proj', 10)), 'too-large');
+  fs.symlinkSync('f', path.join(a, 'proj', 'sub', 'l'));
+  assert.equal(sh(W.packScript(a, 'proj', undefined, { move: true })), 'has-links', 'a move would lose the link');
+  assert.notEqual(sh(W.packScript(a, 'proj')).split('\n')[0], 'has-links', 'a copy leaves it out');
   const packed = tar.pack([{ name: 'site', type: 'folder' }, { name: 'site/i.html', type: 'file', data: Buffer.from('<p>') }]);
   assert.equal(sh(W.unpackScript(b, '', 'site'), packed), 'ok site');
   assert.equal(sh(W.unpackScript(b, '', 'site'), packed), 'ok site (2)');

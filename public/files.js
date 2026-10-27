@@ -75,7 +75,7 @@ const Files = (() => {
   }
 
   // The entries as shown: folders first, then the rest by name, newest first or largest first. Names that start with
-  // a dot (but what botdot keeps, which is marked) are left out of a listing as a file manager does.
+  // a dot are listed too: a bot's .env or .gitignore is its owner's to open, change or delete.
   function sorted(entries, sort = 'name') {
     const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
     const by = {
@@ -84,11 +84,13 @@ const Files = (() => {
       size: (a, b) => (b.type === 'folder' ? b.items || 0 : b.size || 0) - (a.type === 'folder' ? a.items || 0 : a.size || 0) || byName(a, b),
     }[sort] || byName;
     const folder = (e) => (e.type === 'folder' ? 0 : 1);
-    return entries.filter((e) => !e.name.startsWith('.') || e.protected).sort((a, b) => folder(a) - folder(b) || by(a, b));
+    return entries.slice().sort((a, b) => folder(a) - folder(b) || by(a, b));
   }
 
   // What can be done to an entry where it is: { open, rename, move, copy, download, keep, unpin, del }.
   function canDo(c, e) {
+    // A search's hits are in every place: they are opened and downloaded there, and changed from their folder.
+    if (c.results) return { open: e.type === 'folder' || e.type === 'file', rename: false, move: false, copy: false, download: e.type === 'file', keep: false, unpin: false, del: false };
     const kept = c.place.root === 'kept';
     const listing = c.data || {};
     const computer = c.place.root === 'computer' || c.place.root === 'project';

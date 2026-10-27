@@ -2043,7 +2043,7 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .fx-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
 .fx-dot.on { background: var(--ok); }
 .fx-count { color: var(--faint); font-size: 12px; }
-.fx-folder, .fx-folder.fx-folder { color: var(--warn) !important; }
+.fx-folder, .fx-folder.fx-folder { color: var(--warn-text) !important; }
 .fx-pin { color: var(--dot) !important; }
 .fx-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
 .fx-bar { display: flex; align-items: center; gap: 8px; padding: 12px 18px; flex: none; }
@@ -2068,8 +2068,8 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .fx-check.on { background: var(--mention); border-color: var(--mention); color: #fff; }
 .fx-check svg { width: 14px; height: 14px; stroke-width: 2.4; }
 .fx-ic { display: grid; place-items: center; color: var(--text); flex: none; }
-.fx-k-folder { color: var(--warn); }
-.fx-k-sheet { color: var(--ok); }
+.fx-k-folder { color: var(--warn-text); }
+.fx-k-sheet { color: var(--ok-text); }
 .fx-k-image { color: var(--mention); }
 .fx-k-lock, .fx-k-link { color: var(--muted); }
 .fx-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 18px; padding: 8px 18px 18px; }

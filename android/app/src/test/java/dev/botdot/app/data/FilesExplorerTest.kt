@@ -14,7 +14,7 @@ import java.time.ZoneOffset
 
 /**
  * Files (#603): only from a server that has it; its places; folders first, sorted by name, date or size, dot-names
- * left out but what botdot keeps; an icon by kind and a folder's size as its items; what botdot keeps offers nothing
+ * too; an icon by kind and a folder's size as its items; what botdot keeps offers nothing
  * that writes; Move to… never offers the folder the items are in or one of them; a move or copy into another place
  * names that place; a file on botdot is kept in mind by its path.
  */
@@ -65,10 +65,10 @@ class FilesExplorerTest {
         assertEquals("project/Website", FilesExplorer.placeOf(WorkspaceHit("a", "a", root = "project", project = "Website")))
     }
 
-    @Test fun foldersFirstByNameDateOrSizeAndDotNamesOnlyWhatBotdotKeeps() {
-        assertEquals(listOf(".claude", "notes", "uploads", "acme.png", "away", "CLAUDE.md", "prices.csv", "w9.md", "w10.md"), FilesExplorer.sorted(entries).map { it.name })
+    @Test fun foldersFirstByNameDateOrSizeDotNamesToo() {
+        assertEquals(listOf(".cache", ".claude", "notes", "uploads", "acme.png", "away", "CLAUDE.md", "prices.csv", "w9.md", "w10.md"), FilesExplorer.sorted(entries).map { it.name })
         assertEquals(listOf("acme.png", "w10.md", "prices.csv", "CLAUDE.md", "w9.md", "away"), FilesExplorer.sorted(entries, FilesExplorer.Sort.DATE).filter { it.type != "folder" }.map { it.name })
-        assertEquals(listOf("notes", "uploads", ".claude"), FilesExplorer.sorted(entries, FilesExplorer.Sort.SIZE).take(3).map { it.name })
+        assertEquals(listOf("notes", "uploads", ".cache"), FilesExplorer.sorted(entries, FilesExplorer.Sort.SIZE).take(3).map { it.name })
         assertEquals("acme.png", FilesExplorer.sorted(entries, FilesExplorer.Sort.SIZE).first { it.type == "file" }.name)
     }
 

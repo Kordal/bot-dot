@@ -142,5 +142,13 @@ test('the Files view walks a tree for a copy and reads a small picture in one ca
     assert.deepEqual(api.readSmallSync(path.join(dir, 'a.png'), 2), { size: 3 });
     assert.equal(api.readSmallSync(path.join(dir, 'b'), 10), null);
     assert.throws(() => api.readSmallSync(path.join(dir, 'z-link', 'x'), 10), { code: 'EACCES' });
+    // The bytes come with the walk, and a whole folder is copied, each in one call (#603 review).
+    const read = api.walkTreeSync(dir, 100, 1000);
+    assert.equal(Buffer.from(read.entries.find((e) => e.rel === 'b/inner/x.txt').data, 'base64').toString(), 'x');
+    assert.equal(api.walkTreeSync(dir, 100, 2).tooLarge, true);
+    assert.deepEqual(api.copyTreeSync(path.join(dir, 'b'), path.join(dir, 'b-copy'), 100), { copied: 2, capped: false });
+    assert.equal(api.readFileSync(path.join(dir, 'b-copy', 'inner', 'x.txt'), 'utf8'), 'x');
+    assert.deepEqual(api.copyTreeSync(dir, path.join(dir, 'too-many'), 2), { copied: 0, capped: true });
+    assert.ok(!fs.existsSync(path.join(dir, 'too-many')), 'nothing made past the cap');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
