@@ -47,6 +47,12 @@ test('the outcome and the error kind are botdot words, never the error text', ()
   assert.equal(errorKind({ status: 'error', error: "It didn't start: no room" }), 'no_start');
   assert.equal(errorKind({ status: 'error', error: 'Your page at https://x says SECRET' }), 'error');
   assert.equal(errorKind({ status: 'interrupted' }), 'restart');
+  assert.equal(errorKind({ status: 'error', error: 'Claude AI usage limit reached|1761580800' }), 'claude_limit');
+  assert.equal(errorKind({ status: 'error', error: 'API Error: 429 {"type":"error","error":{"type":"rate_limit_error"}}' }), 'rate_limit');
+  assert.equal(errorKind({ status: 'error', error: 'API Error: 529 {"type":"error","error":{"type":"overloaded_error"}}' }), 'api_error');
+  assert.equal(errorKind({ status: 'error', error: 'Prompt is too long' }), 'too_long');
+  assert.equal(errorKind({ status: 'error', error: 'Invalid API key · Please run /login' }), 'auth');
+  assert.equal(errorKind({ status: 'error', error: 'error_max_turns' }), 'max_turns');
   assert.equal(errorKind({ status: 'success' }), null);
 });
 
@@ -144,4 +150,19 @@ test('counts: one day of every bot as counts alone, for the usage summary (ADR 1
   assert.deepEqual(m.outcomes.counts('2026-10-20T00:00:00.000Z', '2026-10-21T00:00:00.000Z'),
     { runs: { done: 1, failed: 2 }, errors: { exit: 1, timeout: 1 }, counted: 1, reasked: 1, corrected: 1 });
   assert.deepEqual(m.outcomes.counts('2026-10-22T00:00:00.000Z', '2026-10-23T00:00:00.000Z'), { runs: {}, errors: {}, counted: 0, reasked: 0, corrected: 0 });
+});
+
+test('failures: each failed run of a day, by kind, bot number and source, without text (#615)', (t) => {
+  const { memory: m } = scratchMemory(t);
+  const at = '2026-10-20T10:00:00.000Z';
+  const tools = toolWatch();
+  tools.see({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash' }] } });
+  tools.see({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', is_error: true, content: 'Secret output' }] } });
+  m.outcomes.record(ended({ startedAt: at, status: 'error', error: 'timed out with Secret', jobName: 'Secret job', jobId: 'j1', durationMs: 300000 }), { tools });
+  m.outcomes.record(ended({ startedAt: at, botId: 'beta' }));
+  m.outcomes.record(ended({ startedAt: '2026-10-21T00:00:00.000Z', status: 'error' }));
+  const f = m.outcomes.failures('2026-10-20T00:00:00.000Z', '2026-10-21T00:00:00.000Z', (id) => (id === 'alpha' ? 1 : null));
+  assert.equal(f.length, 1);
+  assert.deepEqual({ ...f[0], at: null }, { at: null, kind: 'timeout', bot: 1, source: 'job', run: 'claude', durationMs: 300000, turns: f[0].turns, retries: 0, toolErrors: 1, tools: ['Bash'] });
+  assert.ok(!JSON.stringify(f).includes('Secret'));
 });
