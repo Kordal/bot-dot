@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const passkey = require('./fixtures/soft-passkey');
-const { startFrontDoor, standIn } = require('./front-door-helpers');
+const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
 
 let door, requests;
 const stands = {};
@@ -36,7 +36,7 @@ async function signUp(name, link) {
 
 let annB = null;
 const admin = async () => (annB ||= await signUp('ann', door.firstLink));
-const seen = () => Object.values(stands).map((s) => s.seen.length).join();
+const seen = () => seenOf(stands);
 
 test("the admin's session gets the admin page, web only, from the front door itself", async () => {
   const b = await admin();

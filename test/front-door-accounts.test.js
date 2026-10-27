@@ -10,7 +10,7 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const passkey = require('./fixtures/soft-passkey');
-const { startFrontDoor, standIn } = require('./front-door-helpers');
+const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
 
 // What every stand-in botdot server answers with: anything from inside an account carries it.
 const INSIDE = 'inside-the-account-7f3c';
@@ -56,7 +56,7 @@ async function signIn(key) {
   const r = await b.post('/sign-in', { credential: key.signIn(options.data.publicKey) });
   return { b, r };
 }
-const seen = () => Object.values(stands).map((s) => s.seen.length).join();
+const seen = () => seenOf(stands);
 const asked = (name) => fs.existsSync(path.join(requests, name));
 const listed = async (name) => (await browsers.ann.get('/admin/accounts')).data.accounts.find((a) => a.name === name);
 
