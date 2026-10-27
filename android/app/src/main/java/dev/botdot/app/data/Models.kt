@@ -414,7 +414,12 @@ data class Run(
     @SerialName("pages") val pagesValue: JsonElement? = null,
     // The connected apps it found signed out, a Reconnect card each (#431), kept as they came. Read them through [reconnect].
     @SerialName("reconnect") val reconnectValue: JsonElement? = null,
+    // Its steps (docs/api.md, "A run's steps"; #625), kept as they came. Read them through [steps].
+    @SerialName("steps") val stepsValue: JsonElement? = null,
 ) {
+    /** Its steps, for its block's step line ([RunSteps]); null from a server without them, or for a run that took none. */
+    val steps: RunSteps? get() = RunSteps.of(stepsValue)
+
     val isRunning get() = status == "running"
 
     /** The pages it saved with save_page, once each; none from a server without `pages`. */
@@ -468,7 +473,7 @@ internal fun JsonElement?.textOrNull(): String? = (this as? JsonPrimitive)?.take
  * botdot server wrote it (`memory-chips`, docs/api.md "What a run learned"); kept as it came, read through [line].
  */
 @Serializable
-data class Learned(val kind: String = "", val text: String = "", @SerialName("chip") val chipValue: JsonElement? = null, val skill: String? = null) {
+data class Learned(val kind: String = "", val text: String = "", @SerialName("chip") val chipValue: JsonElement? = null, val skill: String? = null, val at: String? = null) {
     /**
      * What the chip reads. Against a server that announces `memory-chips`, the item's `chip`, whole, with no word
      * of the app's own. An item without one (a job, a connected app, a note in a run from before the chips), and
@@ -536,7 +541,7 @@ data class MailDraft(
 )
 
 @Serializable
-data class SentTo(val id: String = "", val name: String = "", val emoji: String = "🤖", val color: String? = null, val delivered: String? = null, val text: String? = null) // text: the latest it sent that bot
+data class SentTo(val id: String = "", val name: String = "", val emoji: String = "🤖", val color: String? = null, val delivered: String? = null, val text: String? = null, val at: String? = null) // text: the latest it sent that bot; at: when (its row among the run's steps)
 
 @Serializable
 data class InboxNote(val fromId: String? = null, val from: String = "", val emoji: String? = null, val color: String? = null, val text: String = "", val at: String? = null, val call: Boolean = false, val later: Boolean = false) // call: a job's call, `from` its job; later: the wake gate held it for the next run (ADR 083)

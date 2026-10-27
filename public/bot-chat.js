@@ -1,5 +1,6 @@
 // ---------- a bot's conversation ----------
-// Each run is what started it, then its reply: in the order they happened (Unread.order).
+// Each run is one block (#625): what started it, one folded line of its steps, its reply and a footer with its time
+// and Details. The blocks stand in the order their replies ended (Unread.order): a run at work at the bottom.
 
 // newFirst: the run the "New" line goes above (the server's firstUnread when the chat was opened), or null.
 // The answers of a reply stand under the reply that is last in the chat, and under the run its open question is from (bot.asks) when
@@ -13,35 +14,118 @@ function botThreadHTML(bot, runs, newFirst = null) {
         <p class="muted">${esc(bot.description || '')}</p>
       </div>`;
   }
-  // A reply stands where it ended, below what came while its run worked (a "/btw", another run): Unread.order (#460).
-  const pieces = Unread.order(runs);
-  const lastReply = pieces.filter((p) => p.part === 'reply').pop()?.run.id;
+  // A block stands where its reply ended, below what came while its run worked (a "/btw", another run): Unread.order (#460).
+  const blocks = Unread.order(runs).filter((p) => p.part === 'reply').map((p) => p.run);
+  const lastReply = blocks[blocks.length - 1]?.id;
   const newest = runs[runs.length - 1]?.id;
-  const parts = new Map();
-  const partsOf = (r) => {
-    if (!parts.has(r.id)) parts.set(r.id, runParts(bot, r, r.id === lastReply, r.id === newest));
-    return parts.get(r.id);
-  };
   let lastDay = '';
-  return pieces.map(({ run: r, part, i }) => {
+  return blocks.map((r) => {
     const line = newFirst !== null && r.id === newFirst ? Unread.line(bot.color) : '';
-    let html;
-    if (r.kind === 'script') html = part === 'reply' ? line + scriptRunHTML(r) : '';
-    else {
-      const { asked, steered, reply, mine } = partsOf(r);
-      // The "New" line: above what started the run, or, below the owner's own message (Unread.exchange), above its
-      // reply. With nothing drawn for what started it, above the reply.
-      html = part === 'asked' ? (asked ? Unread.exchange({ asked, mine }, mine ? '' : line) : '')
-        : part === 'steered' ? steered[i] || ''
-        : (mine || !asked ? line : '') + reply;
-    }
-    const when = !html ? null : part === 'asked' ? r.startedAt : part === 'steered' ? r.steered[i]?.at || r.startedAt : r.status === 'running' ? null : r.endedAt || r.startedAt;
-    if (!when) return html;
+    const html = r.kind === 'script' ? line + scriptRunHTML(r) : runBlockHTML(bot, r, line, r.id === lastReply, r.id === newest);
+    const when = r.status === 'running' ? r.startedAt : r.endedAt || r.startedAt;
+    if (!html || !when) return html;
     const day = new Date(when).toDateString();
     const sep = day !== lastDay ? `<div class="day">${esc(new Date(when).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
     lastDay = day;
     return sep + html;
   }).join('');
+}
+
+// One run's block: what started it, what the owner steered into it, its step line and its reply with its footer.
+// line: the "New" line, when it goes in this block: above what started the run, or, below the owner's own message
+// (Unread.exchange), above the rest. With nothing drawn for what started it, above the rest.
+function runBlockHTML(bot, r, line, last, newest) {
+  const { asked, steered, reply, mine } = runParts(bot, r, last, newest);
+  const top = asked ? Unread.exchange({ asked, mine }, mine ? '' : line) : '';
+  return `<section class="run-block${r.status === 'running' ? ' live' : ''}" data-run="${esc(r.id)}">${top}${steered.join('')}${mine || !asked ? line : ''}${stepLineHTML(r)}${reply}</section>`;
+}
+
+const STEP_ICON = {
+  open: '<svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+  done: '<svg class="ic ok" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
+  skill: '<svg class="ic sk" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></svg>',
+  message: '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg>',
+};
+// The skills a run wrote or changed (what it learned, of a skill's kind): their names, each once.
+const SKILL_KINDS = ['skill', 'skill-updated'];
+const skillsChanged = (r) => [...new Set((r.learned || []).filter((x) => SKILL_KINDS.includes(x.kind)).map((x) => said(x.skill) || said(x.chip) || said(x.text)).filter(Boolean))];
+// A time of a step: its hour and minute.
+const stepTime = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
+const firstLine = (t) => plain(String(t || '').split('\n').find((l) => l.trim()) || '').slice(0, 160);
+// A run's step rows, less the last step that messaged each bot it has a row for (with what it said): that message is
+// not drawn twice. Earlier messages to the same bot keep their step.
+function shownSteps(r, sent) {
+  const rows = Array.isArray(r.steps?.rows) ? [...r.steps.rows] : [];
+  for (const t of sent) {
+    const i = rows.findLastIndex((x) => x.kind === 'message' && x.text.endsWith(t.name || '\u0000'));
+    if (i >= 0) rows.splice(i, 1);
+  }
+  return rows;
+}
+// The open blocks' step lines, by run: they stay open as the chat is drawn again.
+const openSteps = new Set();
+
+// A run's step line (docs/api.md, "A run's steps"): folded, how many steps it took, the skills it changed and the
+// bots it messaged; open, a row per step, with the messages it sent and the skills it changed among them. A run at
+// work shows what it is doing now (its working line, the server's words) and its count so far. '' for a run that
+// ended without a step, a skill or a message.
+function stepLineHTML(r) {
+  const running = r.status === 'running';
+  const count = Number(r.steps?.count) || 0;
+  const skills = skillsChanged(r);
+  const to = sentTo(r);
+  if (!running && !count && !skills.length && !to.length) return '';
+  const n = count ? `<span class="step-n">${count} step${count === 1 ? '' : 's'}</span>` : '';
+  const sep = '<span class="step-dot">·</span>';
+  const head = running
+    ? `<i class="plan-spin"></i><span class="step-now">${esc(runLine(r))}</span>${n ? sep + n : ''}`
+    : [`${STEP_ICON.done}${n}`, ...skills.map((k) => `<span class="step-pip">${STEP_ICON.skill}<span>${esc(k)}</span></span>`), ...to.map((t) => `<span class="step-pip">${STEP_ICON.message}<span>${esc(t.name || '')}</span></span>`)].join(sep);
+  const label = [count ? `${count} step${count === 1 ? '' : 's'}` : '', ...skills.map((k) => `the skill ${k}`), ...to.map((t) => t.name)].filter(Boolean).join(', ');
+  const sent = to.filter((t) => t.text);
+  const rows = [
+    ...shownSteps(r, sent).map((x) => ({ at: x.at, icon: x.kind === 'message' ? STEP_ICON.message : x.kind === 'skill' ? STEP_ICON.skill : STEP_ICON.done, text: `${esc(x.text)}${x.n > 1 ? ` <span class="step-x">×${x.n}</span>` : ''}` })),
+    ...sent.map((t) => ({ at: t.at, icon: STEP_ICON.message, text: `<b>Messaged ${esc(t.name || '')}</b><span class="step-q">${esc(firstLine(t.text))}</span>` })),
+    ...(r.learned || []).filter((x) => SKILL_KINDS.includes(x.kind)).map((x) => ({ at: x.at, icon: STEP_ICON.skill, text: `<b>${esc(said(x.chip) || said(x.text))}</b>` })),
+  ].map((x, i) => ({ ...x, i, t: Date.parse(x.at) })).sort((a, b) => (Number.isFinite(a.t) ? a.t : Infinity) - (Number.isFinite(b.t) ? b.t : Infinity) || a.i - b.i);
+  return `<details class="run-steps${running ? ' now' : ''}" data-steps="${esc(r.id)}"${openSteps.has(r.id) ? ' open' : ''}>`
+    + `<summary${label ? ` aria-label="${esc(label)}"` : ''}>${STEP_ICON.open}${head}</summary>`
+    + (rows.length ? `<div class="step-rows">${rows.map((x) => `<div class="step-row"><time>${esc(stepTime(x.at))}</time>${x.icon}<span>${x.text}</span></div>`).join('')}</div>` : '')
+    + '</details>';
+}
+// What a running run's step line says now: "Waiting for your OK" while it waits for the owner's answer, else its
+// line in the server's words, else "Working".
+function runLine(r) {
+  if (r.waitingFor === 'ok') return OpeningLine.WAITING;
+  return (typeof openingLines !== 'undefined' && openingLines.ofRun(`bot:${r.botId}`, r.id)) || OpeningLine.ofRun(r, state.features) || 'Working';
+}
+// The running blocks' lines as the server says them, in place: no redraw of the chat.
+function drawBlockLines(thread) {
+  if (!thread) return;
+  $$('.run-block.live', thread).forEach((block) => {
+    const r = state.runs.find((x) => x.id === block.dataset.run);
+    if (!r || r.status !== 'running') return;
+    const now = $('.step-now', block);
+    if (now && now.textContent !== runLine(r)) now.textContent = runLine(r);
+    block.classList.toggle('held', r.waitingFor === 'ok');
+    if (now) now.onclick = r.waitingFor === 'ok' ? (e) => { e.preventDefault(); if (!toHeldCard(thread, r.botId)) setView('needs'); } : null; // to the card it waits for
+    const count = Number(r.steps?.count) || 0;
+    const n = $('.step-n', block);
+    if (count && !n) $('.run-steps summary', block)?.insertAdjacentHTML('beforeend', `<span class="step-dot">·</span><span class="step-n">${count} step${count === 1 ? '' : 's'}</span>`);
+    else if (n) n.textContent = `${count} step${count === 1 ? '' : 's'}`;
+  });
+}
+
+// On a phone a long reply folds to its first paragraph and "More" (the style draws the fold in a narrow chat only). What
+// links somewhere stays: a paragraph with a link is never folded, nor are its questions, which stand under it.
+const LONG_REPLY = 600;
+function foldLongReplies(thread) {
+  $$('.run-block .bubble.from-bot:not(.problem) > .md', thread).forEach((el) => {
+    if (el.children.length < 2 || el.textContent.length < LONG_REPLY || el.classList.contains('long') || $('pre', el)) return; // a code block is never cut
+    el.classList.add('long');
+    [...el.children].forEach((c) => { if ($('a[href]', c) || /https?:\/\//.test(c.textContent)) c.classList.add('keep'); }); // a link is never folded
+    el.insertAdjacentHTML('afterend', '<button type="button" class="reply-more">More</button>');
+    el.nextElementSibling.onclick = (e) => { e.stopPropagation(); el.classList.add('more'); e.currentTarget.remove(); };
+  });
 }
 
 // What a bot's chat draws of one run: what started it, each message steered into it, its reply. last: its reply is
@@ -67,9 +151,10 @@ function runParts(bot, r, last, newest) {
   const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(String(x.text || ''), r.botId)}</div>${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `bot:${r.botId}`)}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`);
   let reply;
   if (r.status === 'running') {
-    // No bubble while it works: the status line under the chat says it (placeStatusLines). Only what it attached so far.
-    // From a server with drafts, the reply as it is written so far stands here, and grows in place (replyDrafts).
-    reply = `<div class="bubble-row from-bot" data-live="${esc(r.id)}">${draftHTML(replyDrafts.of(r.id), true)}${botFilesHTML(r.files)}</div>`;
+    // No bubble while it works: its step line says it. Only what it attached so far. From a server with drafts, the
+    // reply as it is written so far stands here, and grows in place (replyDrafts). Its footer: when it started, and Stop.
+    reply = `<div class="bubble-row from-bot" data-live="${esc(r.id)}">${draftHTML(replyDrafts.of(r.id), true)}${botFilesHTML(r.files)}</div>
+      <div class="bubble-meta block-foot"><span>${esc(msgTime(r.startedAt))}</span><span class="grow"></span><button type="button" class="block-stop" data-stop-run="${esc(r.id)}">Stop</button></div>`;
   } else {
     const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
     const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || 'Done. (No written reply.)';
@@ -78,19 +163,21 @@ function runParts(bot, r, last, newest) {
     // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open,
     // and so does a reply that addresses the owner: a teammate's request whose reply only the owner reads (#465).
     const outgoing = sentTo(r).filter((t) => t.text);
+    // What it learned stands under it, but the skills it changed: those are in its step line (stepLineHTML).
     const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, newest) || ''}</div>
-        ${learnedChips(r)}`;
+        ${learnedChips({ ...r, learned: (r.learned || []).filter((x) => !SKILL_KINDS.includes(x.kind)) })}`;
     const shown = sender(r) && !failed && r.notificationAudience !== 'owner'
       ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(exchangeLabel(r), body)}
           ${outgoing.map((t) => `<div class="note"><div class="bot-msg-label">To ${botLabel(t)}</div><div class="bubble from-bot"><div class="md">${md(t.text)}</div></div></div>`).join('')}
           <div class="note">${bubble}</div>
         </details>`
-      : messagedLabel(r) + bubble;
+      : bubble; // whom it messaged is in its step line (stepLineHTML)
+    // Its questions are never folded: under the reply, above the block's footer.
     reply = `
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
-        <div class="bubble-meta">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` · <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
         ${(last || r.id === bot.asks?.runId) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions) : ''}
+        <div class="bubble-meta block-foot">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}</div>
       </div></div>`;
   }
   return { asked, steered, reply, mine };
@@ -211,7 +298,7 @@ function renderBotChat() {
 
   // Re-render the thread only when something changed, so live bits and scroll survive refreshes.
   const waiting = state.inbox[bot.id] || [];
-  const sig = runs.map((r) => `${r.id}:${r.status}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
+  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${r.steps?.rows?.length ?? 0}:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
   const thread = $('#bot-thread');
   if (root.dataset.sig !== sig) {
     const atBottom = !root.dataset.sig || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
@@ -221,6 +308,10 @@ function renderBotChat() {
     scrollToNew(thread);
     $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
     $$('[data-details]', thread).forEach((el) => (el.onclick = () => openRun(el.dataset.details)));
+    // A block's step line opens and closes, and stays so; Stop in a running block's footer ends that run.
+    $$('details.run-steps', thread).forEach((el) => el.addEventListener('toggle', () => { if (el.open) openSteps.add(el.dataset.steps); else openSteps.delete(el.dataset.steps); }));
+    $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
+    foldLongReplies(thread);
     $$('[data-run-notes]', thread).forEach((el) => (el.onclick = () => runNotes(el.dataset.runNotes, el)));
     wireChoices(thread, (t, key) => sendFrom($('form', root), () => runBot(bot.id, t, [], key)));
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));

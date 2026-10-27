@@ -36,6 +36,8 @@ class ChatOrderTest {
             assertEquals(c.name, c.pieces, pieces.map(::name))
             assertEquals(c.name, c.last, ChatOrder.lastReply(pieces)?.id)
             assertEquals(c.name, pieces.size, pieces.map { it.key }.toSet().size)
+            // A run's block stands where its reply stands (#625).
+            assertEquals(c.name, c.pieces.filter { it.startsWith("r:") }.map { it.drop(2) }, ChatOrder.blocks(runs).map { it.id })
         }
     }
 

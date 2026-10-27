@@ -122,9 +122,9 @@ test('web: on Send the bubble and "Working" are in a bot\'s chat before the requ
   // The answer is the run: it is drawn from the answer itself, before any list is read again.
   h.answer(run('r2', 'Check the backup', 'running', { attachments: [FILE] }));
   await sending;
-  assert.deepEqual(p.bot.names(), ['run-row', 'run-row', 'status-line'], 'one message stands, the server\'s');
+  assert.deepEqual(p.bot.names(), ['run-row', 'run-row'], 'one message stands, the server\'s');
   assert.deepEqual(plain(p.state.runs.map((r) => r.id)), ['r2', 'r1'], 'on top of the runs the page holds');
-  assert.match(p.lineOf(p.bot), /<span>Working<\/span><button type="button" data-stop-run="r2">Stop<\/button>/, 'the line is the run\'s own, with Stop');
+  assert.equal(p.lineOf(p.bot), null, 'the run says it in its own block, with Stop (#625)');
   assert.deepEqual(p.said.drawn.pop(), { asked: ['POST /bots/doctor/run'], refreshed: 0 }, 'drawn with nothing read again first');
   assert.equal(p.said.refreshed, 1, 'the lists follow after it, and the send does not wait for them');
   assert.equal(p.boxes.bot.btn.disabled, false, 'Send works again');
@@ -150,7 +150,7 @@ test('web: a repeat of the same send makes no second message', async () => {
   h.answer({ ...run('r1', 'Check the backup', 'running'), again: true });
   await sending;
   assert.equal(p.said.bodies[1].key, p.said.bodies[0].key);
-  assert.deepEqual(p.bot.names(), ['run-row', 'status-line']);
+  assert.deepEqual(p.bot.names(), ['run-row']);
   assert.equal(p.state.runs.length, 1);
   // A run the page holds already, further on than the answer, stays as it is.
   const q = page({ reply: async () => run('r1', 'Check the backup', 'running') });
@@ -168,12 +168,12 @@ test('web: a message sent to a working bot stands under those that wait, and bec
   p.boxes.bot.type('And the disk');
   p.boxes.bot.attach(FILE);
   const sending = p.boxes.bot.submit();
-  assert.deepEqual(p.bot.names(), ['run-row', 'status-line', 'chat-queued'], 'at the end, under the messages that already wait');
+  assert.deepEqual(p.bot.names(), ['run-row', 'chat-queued'], 'at the end, under the messages that already wait');
   const waits = p.one(p.bot, 'chat-queued').innerHTML;
   assert.ok(waits.indexOf('data-take-back="q1"') < waits.indexOf('data-sent'), 'after them');
   assert.match(p.local(p.bot), /<div class="bubble from-me waits">And the disk<div class="bubble-files">/);
   assert.doesNotMatch(p.local(p.bot), /data-take-back|Waits until/, 'nothing says yet that it waits');
-  assert.match(p.lineOf(p.bot), /<span>Working<\/span><button type="button" data-stop-run="r1">Stop<\/button>/, 'the line stays the working run\'s');
+  assert.equal(p.lineOf(p.bot), null, 'the working run says it in its block (#625)');
   // The answer is a run that waits: its id is what "Take back" names.
   h.answer({ id: 'r2', botId: 'doctor', status: 'queued', prompt: 'And the disk', attachments: [FILE], queuedAt: at });
   await sending;
@@ -213,10 +213,10 @@ test('web: the server\'s message brought by the feed before the request answers 
   assert.equal(p.local(p.bot), null);
   const rows = () => p.bot.names().filter((n) => n !== 'chat-queued'); // the box of what waits stays, empty
   assert.equal(p.one(p.bot, 'chat-queued').innerHTML, '');
-  assert.deepEqual(rows(), ['run-row', 'run-row', 'status-line']);
+  assert.deepEqual(rows(), ['run-row', 'run-row']);
   h.answer(run('r2', 'Check the backup', 'running', { attachments: [FILE] }));
   await sending;
-  assert.deepEqual(rows(), ['run-row', 'run-row', 'status-line']);
+  assert.deepEqual(rows(), ['run-row', 'run-row']);
   assert.deepEqual(plain(p.state.runs.map((r) => r.id)), ['r2', 'r1']);
   // Nor twice when the feed brought it as a message that waits.
   const w = page({ reply: h.reply });
@@ -252,7 +252,7 @@ test('web: a failed send leaves no bubble in the chat and restores the box as be
   assert.ok(p.local(p.bot));
   h.answer(run('r2', 'Do the thing', 'running', { attachments: [FILE] }));
   await again;
-  assert.deepEqual(p.bot.names(), ['run-row', 'run-row', 'status-line']);
+  assert.deepEqual(p.bot.names(), ['run-row', 'run-row']);
 });
 
 test('web: a quick answer is there at once like a typed message, and one that failed leaves the chat with the box as it was', async () => {
@@ -275,7 +275,7 @@ test('web: a quick answer is there at once like a typed message, and one that fa
   assert.ok(p.local(p.bot));
   h.answer(run('r2', 'A', 'running'));
   assert.equal(await sending, true);
-  assert.deepEqual(p.bot.names(), ['run-row', 'run-row', 'status-line']);
+  assert.deepEqual(p.bot.names(), ['run-row', 'run-row']);
   assert.equal(p.said.bodies[1].key, p.said.bodies[0].key);
   // Every answer, card, starter and plan approval goes through the two senders, which draw it (test/failed-send-web.test.js).
   const calls = [...app.matchAll(/(?<!function )\b(sendToChief|runBot)\(/g)];

@@ -7,7 +7,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, noDrafts } = require('./web-page');
+const { app, read, cut, noDrafts, esc } = require('./web-page');
 
 const lib = vm.createContext({});
 vm.runInContext(read('unread.js'), lib);
@@ -52,7 +52,8 @@ function page(features, runs = [RUN]) {
   const streams = [];
   class EventSource { constructor(url) { this.url = url; this.closed = false; streams.push(this); } close() { this.closed = true; } }
   const ctx = vm.createContext({ ...noDrafts,
-    JSON, OpeningLine, Unread: lib.Unread, openingLines, state, es, EventSource, CHIEF_COLOR: '#d85a30', chiefTurns: new Map(),
+    JSON, OpeningLine, Unread: lib.Unread, openingLines, state, es, EventSource, esc,
+    sentTo: () => [], said: (v) => (typeof v === 'string' ? v.trim() : ''), plain: (t) => String(t || ''), Date, CHIEF_COLOR: '#d85a30', chiefTurns: new Map(),
     botById: (id) => state.bots.find((b) => b.id === id) || null, stopRun() {}, updateChatQueued() {},
     renderContacts: () => { drawn.contacts++; }, refresh: () => { drawn.refreshed++; },
     $: (sel, root) => (sel === '#view-bot' ? { dataset: { bot: NEWS.id } } : sel === '#bot-thread' ? thread : sel === '.status-line' ? root.line : sel === '[data-stop-run]' ? { dataset: {} } : null),
@@ -61,15 +62,21 @@ function page(features, runs = [RUN]) {
     ${cut('function followBotRun(run) {', '// ---------- live screen preview')}
     ${cut('  // A working bot said its opening line:', '  // Its run ended, with an answer or without')}
     ${cut('  // Its run ended, with an answer or without', '  // A tile\'s new value')}
-    Object.assign(this, { placeStatusLines, followBotRun });`, ctx);
+    ${cut('const STEP_ICON = {', '// The running blocks\' lines')}
+    Object.assign(this, { placeStatusLines, followBotRun, runLine, stepLineHTML });`, ctx);
+  // The step line of the running run's block, as it is drawn.
+  const block = () => ctx.stepLineHTML(state.runs.find((x) => x.status === 'running'));
+  // What the step line of the running run's block says (bot-chat.js, #625): a working bot has no line under its chat.
   const line = () => {
     ctx.placeStatusLines();
-    return thread.line?.html.match(/<span>(.*?)<\/span>/)?.[1] ?? null;
+    assert.equal(thread.line, null, 'no line under the chat of a working bot');
+    const r = state.runs.find((x) => x.status === 'running');
+    return r ? ctx.runLine(r) : null;
   };
   // The bot's row while it works, as drawContacts words it.
   const row = () => OpeningLine.preview(openingLines.of(`bot:${NEWS.id}`)) || 'Working…';
   const feed = (type, data) => heard[type]({ data: JSON.stringify(data) });
-  return { ctx, state, openingLines, thread, heard, feed, streams, drawn, line, row };
+  return { ctx, state, openingLines, thread, heard, feed, streams, drawn, line, row, block };
 }
 const lineEvent = (text, more = {}) => ({ chat: 'bot:news', botId: 'news', runId: 'r1', text, ...more });
 
@@ -84,7 +91,7 @@ test('web: the line under a bot\'s chat and in its row is the server\'s text, an
   assert.equal(p.line(), 'Reading nytimes.com');
   assert.equal(p.row(), 'Reading nytimes.com…');
   p.feed('working_line', lineEvent('Starting its computer'));
-  assert.equal(p.thread.line.html, '<div class="status-line" role="status" style="--c:#378add"><i></i><span>Starting its computer</span><button type="button" data-stop-run="r1">Stop</button></div>', 'still one line with Stop');
+  assert.match(p.block(), /<span class="step-now">Starting its computer<\/span>/, 'one line in its block, whose footer has Stop');
   assert.equal(p.drawn.contacts, 3, 'the list is drawn again with each change');
   const draws = p.drawn.contacts;
   p.feed('working_line', lineEvent('Starting its computer'));
@@ -104,9 +111,8 @@ test('web: the line under a bot\'s chat and in its row is the server\'s text, an
 test('web: the server\'s text is drawn as text, and what is no line is not drawn', () => {
   const p = page(WITH);
   p.feed('working_line', lineEvent('Reading <img src=x onerror=alert(1)>'));
-  p.ctx.placeStatusLines();
-  assert.doesNotMatch(p.thread.line.html, /<img/);
-  assert.match(p.thread.line.html, /Reading &lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.doesNotMatch(p.block(), /<img/);
+  assert.match(p.block(), /Reading &lt;img src=x onerror=alert\(1\)&gt;/);
   for (const junk of [5, null, {}, ['x'], '   ']) p.feed('working_line', lineEvent(junk));
   assert.equal(p.openingLines.of('bot:news'), 'Reading <img src=x onerror=alert(1)>', 'the line stays as it was');
   p.heard.working_line({ data: 'not json' });
@@ -184,13 +190,13 @@ test('web: "Waiting for your OK" keeps its words and its place over the working 
   const p = page(WITH, [{ ...RUN, waitingFor: 'ok' }]);
   p.feed('working_line', lineEvent('Using gmail'));
   assert.equal(p.line(), OpeningLine.WAITING);
-  assert.match(p.thread.line.html, /class="status-line held"/);
+  assert.match(p.block(), /<span class="step-now">Waiting for your OK<\/span>/, 'in its block, whose footer keeps Stop');
   p.state.runs = [RUN];
   assert.equal(p.line(), 'Using gmail');
 });
 
 test('web: the page listens for the line on the feed, and a running run\'s steps are still thrown away', () => {
-  assert.match(app, /es\.addEventListener\('working_line', \(e\) => \{[\s\S]{0,200}openingLines\.say\(d\.chat, d\.text, d\.runId \?\? null\)\) \{ renderContacts\(\); placeStatusLines\(\); \}/);
+  assert.match(app, /es\.addEventListener\('working_line', \(e\) => \{[\s\S]{0,500}openingLines\.say\(d\.chat, d\.text, d\.runId \?\? null\)\) \{ renderContacts\(\); placeStatusLines\(\); \} else if \(held\) placeStatusLines\(\);/);
   assert.match(app, /const es = watchRun\(run\.id, /);
 });
 

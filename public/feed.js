@@ -91,7 +91,10 @@ function followFeed() {
   es.addEventListener('working_line', (e) => {
     let d = {};
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
-    if (openingLines.say(d.chat, d.text, d.runId ?? null)) { renderContacts(); placeStatusLines(); }
+    // How many steps it took so far (docs/api.md, "A run's steps"), for its block's step line.
+    const held = Number.isInteger(d.steps) && state.runs.find((r) => r.id === d.runId && r.steps?.count !== d.steps);
+    if (held) held.steps = { ...(held.steps || {}), count: d.steps };
+    if (openingLines.say(d.chat, d.text, d.runId ?? null)) { renderContacts(); placeStatusLines(); } else if (held) placeStatusLines();
   });
   // Its run ended, with an answer or without: the line goes, before the refresh that shows the reply.
   es.addEventListener('run_finished', (e) => {
