@@ -182,6 +182,7 @@ function renderBotChat() {
         </button>
         <button type="button" class="icon-btn sm hidden" id="bot-add-to-chat" title="Add a bot to this chat" aria-label="Add a bot to this chat">＋</button>
         <div class="actions-right">
+          <button class="icon-btn hidden" id="bot-files" title="Files" aria-label="Files">${ICON.folder}</button>
           <button class="icon-btn hidden" id="bot-screen" title="Its computer">${ICON.screen}</button>
         </div>
       </div>
@@ -194,6 +195,7 @@ function renderBotChat() {
     // A group grown from this chat (groups.js): this bot and those picked. Its own chat stays as it is.
     $('#bot-add-to-chat').onclick = () => { const b = state.bots.find((x) => x.id === state.botId); if (b && canMakeGroup(b)) openGroupMaker(b); };
     $('#bot-screen').onclick = () => openScreen(state.botId);
+    $('#bot-files').onclick = () => { const b = state.bots.find((x) => x.id === state.botId); if (b) Files.open(b); }; // files.js (#603)
     loadInbox(bot.id);
   }
   const av = $('#bot-avatar');
@@ -203,6 +205,7 @@ function renderBotChat() {
   // Only what's happening now; its skills, jobs and computer are in its settings, behind its figure and name.
   $('#bot-sub').textContent = !bot.running ? '' : bot.runningCount > 1 ? `working ×${bot.runningCount}…` : 'working…';
   $('#bot-screen').classList.toggle('hidden', bot.computer !== 'linux' && bot.computer !== 'boat');
+  $('#bot-files').classList.toggle('hidden', !state.features.includes('files-explorer'));
   // The small plus right of the name (the owner at the test of Milestone 10): only where a group can be made.
   $('#bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));
 

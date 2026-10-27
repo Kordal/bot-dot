@@ -175,14 +175,11 @@ function renderChiefSettings() {
     </div>` : ''}${state.features.includes('chief-files') ? `
     <h3 class="page-sub">Files</h3>
     <div class="card settings-card bs-rows">
-      <div class="bs-row" id="chief-files">
-        <span class="bs-icon">📎</span>
-        <div class="grow"><b>Files</b><div class="faint">What you attached in its chats. It sees this list in every reply; a file kept in mind comes with every reply.</div><div id="chief-file-list" class="bs-files"><span class="faint">Loading…</span></div></div>
-      </div>
-      <div class="bs-row" id="chief-workspace">
+      <button type="button" class="bs-row bs-link" id="chief-files" data-chief-files>
         <span class="bs-icon">🗂</span>
-        <div class="grow"><b>Workspace</b><div class="faint">Every file in its folder.</div><div id="chief-ws-box" class="ws"></div></div>
-      </div>
+        <div class="grow"><b>Files</b></div>
+        <span class="faint">›</span>
+      </button>
     </div>` : ''}${CHECKUP_HTML}
     <h3 class="page-sub">Previous chats</h3>
     <div class="card settings-card settings-links" id="chief-chats"></div>`;
@@ -239,13 +236,11 @@ async function loadChiefAlways(root) {
   });
 }
 
-// Its files and workspace (#383), drawn by the code of a bot's (bots.js drawBotFiles, workspace.js).
+// Its files and workspace (#383): the Files view (#603, files.js), as a bot's.
+const chiefAsBot = () => ({ id: '_chief', name: chiefName(), base: '/chief', computer: 'none' });
 function drawChiefFiles(root) {
-  const chief = { id: '_chief', name: chiefName(), base: '/chief', computer: 'none' };
-  const list = $('#chief-file-list', root);
-  if (list) drawBotFiles(chief, null, list);
-  const box = $('#chief-ws-box', root);
-  if (box && typeof Workspace !== 'undefined') Workspace.open(chief, box);
+  const link = $('[data-chief-files]', root);
+  if (link) link.onclick = () => Files.open(chiefAsBot());
 }
 
 // Renames the Chief from its settings, as a bot is renamed (#379): empty gives back the role's own name. The feed's
