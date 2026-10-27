@@ -638,3 +638,67 @@ test('a GitHub App is saved only with an App ID and a key it can sign with; a ch
   await assert.rejects(bw.update(made.id, { username: 'app' }), /App ID/);
   assert.equal(writes().length, 1, 'only the item made; the refused change was not sent');
 });
+
+// ---------- a login only the bot's computer has, and a no that holds (#611) ----------
+
+test("a bot's login request for its own computer is refused, with no pop-up; the Chief's still opens one", async () => {
+  const before_ = (await srv.api('/vault/requests')).data.length;
+  for (const site of ['127.0.0.1', '127.0.0.1:1143', 'localhost', 'imap.localhost', '[::1]']) {
+    const r = await asBot('request', { site, name: 'Bridge IMAP', reason: 'The saved password is rejected.' });
+    assert.equal(r.status, 200, site);
+    assert.equal(r.data.ok, false, site);
+    assert.match(r.data.error, /^That address is your own computer\..*never ask the owner for it\.$/, site);
+  }
+  assert.equal((await srv.api('/vault/requests')).data.length, before_, 'no pop-up opened');
+  const id = await chiefAsks('127.0.0.1');
+  assert.equal((await open(id)).site, '127.0.0.1');
+  await answer(id, { action: 'decline' });
+});
+
+test("the owner's no to a bot's login holds for a week: its runs don't open the pop-up again, another site still asks", async () => {
+  const id = await botAsks('mail.example.com', { name: 'Mail' });
+  assert.equal((await answer(id, { action: 'decline' })).status, 200);
+  const again = await asBot('request', { site: 'https://mail.example.com/login', name: 'Mail' });
+  assert.deepEqual(again.data, { ok: false, error: "The owner said no to a login for this site recently, so nothing was asked. Do what you can without it, or explain what's missing. Only if the owner has since asked you in a message to ask for it again, call request_login with again: true." });
+  assert.equal((await srv.api('/vault/requests')).data.filter((r) => r.site === 'mail.example.com').length, 0, 'no pop-up');
+  const other = await botAsks('other-mail.example.com');
+  assert.ok(await open(other), 'another site still asks');
+  await answer(other, { action: 'decline' });
+  const kept = readJson(path.join(srv.data, 'asks-declined.json'));
+  assert.deepEqual(kept.filter((d) => d.vaultLogin === 'mail.example.com').map((d) => d.botId), [bot.id]);
+  // A week later, the bot may ask again.
+  fs.writeFileSync(path.join(srv.data, 'asks-declined.json'), JSON.stringify(kept.map((d) => ({ ...d, at: new Date(Date.now() - 8 * 864e5).toISOString() }))));
+  const later = await botAsks('mail.example.com');
+  assert.ok(await open(later));
+  await answer(later, { action: 'decline' });
+});
+
+test('a kept no is per bot and site', () => {
+  const { declineLogin, loginDeclined } = require('../lib/asks').create(scratch());
+  assert.equal(loginDeclined('bot1', 'shop.example.com'), null);
+  declineLogin('bot1', 'shop.example.com');
+  assert.equal(loginDeclined('bot1', 'shop.example.com').vaultLogin, 'shop.example.com');
+  assert.equal(loginDeclined('bot1', 'other.example.com'), null, 'per site');
+  assert.equal(loginDeclined('bot2', 'shop.example.com'), null, 'per bot');
+});
+
+test("a no given by mistake is undone at once: a login the owner saves for the site, or the owner's message and the bot asking again on purpose", async () => {
+  const held = async (site, body = {}) => assert.equal((await asBot('request', { site, reason: 'r', ...body })).data.ok, false, `${site} is held`);
+  const declined = async (site) => { await answer(await botAsks(site), { action: 'decline' }); await held(site); };
+  // The owner saves a login there (or adds the site to one's hosts): every bot may ask again.
+  await declined('shop.example.com');
+  await save({ name: 'Shop', site: 'shop.example.com', password: 'shop-secret' });
+  await answer(await botAsks('shop.example.com'), { action: 'decline' });
+  const kept = await save({ name: 'Wiki', site: 'wiki.example.com', password: 'wiki-secret' });
+  await declined('docs.example.com');
+  assert.equal((await srv.api(`/vault/${kept.id}`, { method: 'PUT', body: { allowedHosts: ['docs.example.com'] } })).status, 200);
+  await answer(await botAsks('docs.example.com'), { action: 'decline' });
+  // again: true before the owner wrote is refused: a scheduled run can't use it.
+  await declined('forum.example.com');
+  await held('forum.example.com', { again: true });
+  // After the owner's message, the bot may ask again only on purpose, and a new no holds again.
+  await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Sorry, I declined that by mistake, ask again' } });
+  await held('forum.example.com');
+  await answer(await botAsks('forum.example.com', { again: true }), { action: 'decline' });
+  await held('forum.example.com', { again: true });
+});
