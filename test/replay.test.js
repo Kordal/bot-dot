@@ -39,12 +39,16 @@ test('a bot\'s tasks are its own chat\'s, its jobs\' and the Chief\'s, one per r
 
 // ---------- what a replay is ----------
 
-test('a replay may only read: no MCP server, no commands, and it is told it is a replay', () => {
+test('a replay may only read: no commands, its apps and logins in a dry run, and it is told it is a replay', () => {
   const args = replay.args({ llm: ['--model', 'm'], plugins: ['/kit', '/pack'], promptFile: '/p', flag: '--append-system-prompt-file', deny: ['SendMessage'] });
   assert.equal(args[args.indexOf('--tools') + 1], 'Read,Grep,Glob,WebSearch,WebFetch,Skill');
   assert.ok(!args.join(' ').includes('Bash') && !args.includes('mcp__vault'));
   assert.deepEqual(JSON.parse(args[args.indexOf('--mcp-config') + 1]), { mcpServers: {} });
   assert.ok(args.includes('--strict-mcp-config') && args.includes('--no-session-persistence'));
+  const dry = replay.args({ promptFile: '/p', flag: '--append-system-prompt-file', mcpFile: '/mcp.json', mcp: ['mcp__vault', 'mcp__connectors'] });
+  assert.equal(dry[dry.indexOf('--mcp-config') + 1], '/mcp.json');
+  assert.deepEqual(dry.slice(dry.indexOf('--allowedTools') + 1, dry.indexOf('--mcp-config')), [...replay.TOOLS, 'mcp__vault', 'mcp__connectors']);
+  assert.ok(!dry.join(' ').includes('Bash'));
   assert.deepEqual(args.filter((a, i) => args[i - 1] === '--plugin-dir'), ['/kit', '/pack']);
   assert.equal(args[args.indexOf('--permission-mode') + 1], 'dontAsk');
   const text = replay.instructions({
@@ -52,7 +56,10 @@ test('a replay may only read: no MCP server, no commands, and it is told it is a
     pinned: '- likes soup', notes: [{ id: 'n1', text: 'The sheet is KESTREL', source: 'owner', at: '2026-10-01T00:00:00Z' }], skills: [{ plugin: 'botdot', name: 'expense-filing', description: 'Filing' }], job: 'Morning',
   });
   assert.match(text, /This run is a replay/);
-  assert.match(text, /You cannot run commands, use connected apps, saved logins, a computer or your memory tools, or message anyone/);
+  assert.match(text, /read with your saved logins \(api_request, GET only\)\. A call that would send, post, change, delete or pay is not done: it answers "dry run: not done"/);
+  assert.match(text, /You cannot run commands, use a computer or your memory tools, or message anyone/);
+  assert.match(replay.instructions({ bot: { name: 'Cook' }, apps: ['Gmail', 'Slack'] }), /and read in your connected apps \(Gmail, Slack\)\. An app action that would send/);
+  assert.match(replay.notDone({ app: 'gmail', action: 'GMAIL_SEND_EMAIL', arguments: { to: 'a@example.com' } }), /^dry run: not done\. .*It would have sent: \{"app":"gmail","action":"GMAIL_SEND_EMAIL","arguments":\{"to":"a@example\.com"\}\}$/);
   assert.match(text, /Plan the &lt;meals>\./, 'what others wrote writes no tag');
   assert.match(text, /KESTREL/);
   assert.match(text, /- botdot:expense-filing: Filing/);
@@ -168,7 +175,8 @@ test('the Chief\'s skill proposal is tried on the bot\'s past task before its ca
   for (const r of [a, b]) {
     assert.equal(r.stdin, 'File my taxi expense from Monday');
     assert.equal(r.self, null, 'no tools of its own');
-    assert.equal(r.connectors, null, 'no connected apps');
+    assert.equal(r.connectors, null, 'no connected apps: the bot has none');
+    assert.equal(r.vault.env.VAULT_REPLAY, '1', 'its saved logins, in a dry run (ADR 102)');
     assert.equal(r.args[r.args.indexOf('--tools') + 1], 'Read,Grep,Glob,WebSearch,WebFetch,Skill');
     assert.match(r.system, /KESTREL/, 'the shared notes');
   }
