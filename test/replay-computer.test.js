@@ -1,4 +1,4 @@
-// A replay's computer (#595, ADR 102): a bot with a computer is replayed with commands on a throwaway copy of it, a
+// A replay's computer (#595, ADR 103): a bot with a computer is replayed with commands on a throwaway copy of it, a
 // container made from the account's computer here or a fork of its External Virtual PC on boat.dev. The copy has no
 // network, its commands never reach the bot's own computer, and it goes when the replay ends. lib/replay-computer.js.
 const { test } = require('node:test');
@@ -168,15 +168,16 @@ test('a fork left by a botdot that stopped is deleted before the next copy', asy
 
 // ---------- in the replay ----------
 
-test('a replay with a copy has its one MCP server and is told the copy has no network', () => {
-  const args = replay.args({ promptFile: '/p', flag: '--append-system-prompt-file', mcpFile: '/run/mcp.json', mcpTools: ['mcp__computer'] });
+test('a replay with a copy has its computer server and is told the copy has no network', () => {
+  const args = replay.args({ promptFile: '/p', flag: '--append-system-prompt-file', mcpFile: '/run/mcp.json', mcp: ['mcp__vault', 'mcp__computer'] });
   assert.equal(args[args.indexOf('--mcp-config') + 1], '/run/mcp.json');
   assert.ok(args.includes('--strict-mcp-config'));
   assert.ok(args.includes('mcp__computer'));
-  assert.ok(!replay.args({ promptFile: '/p', flag: '-f', mcpTools: ['mcp__computer'] }).includes('mcp__computer'), 'no server, no tool');
+  assert.ok(!replay.args({ promptFile: '/p', flag: '-f', mcp: ['mcp__computer'] }).includes('mcp__computer'), 'no server, no tool');
   const text = replay.instructions({ bot: { name: 'Cook', prompt: 'Cook.' }, computer: true });
-  assert.match(text, /run commands and read and write files on a copy of your computer made for this replay: it has no network, and it is removed when the replay ends/);
-  assert.match(text, /You cannot use connected apps, saved logins, the screen or your memory tools, or message anyone/);
+  assert.match(text, /You can run commands and read and write files on a copy of your computer made for this replay: it has no network, and it is removed when the replay ends/);
+  assert.match(text, /You cannot use its screen or your memory tools, or message anyone/);
+  assert.match(replay.instructions({ bot: { name: 'Cook', prompt: 'Cook.' } }), /You cannot run commands, use a computer/, 'without a copy, as before');
 });
 
 test("a scoring's copies share one scope, which ends when the scoring does, also when a replay fails", async () => {
@@ -250,7 +251,7 @@ test("on a real botdot a replay's command goes to its copy through botdot, and t
   const replays = srv.runs().filter((x) => /This run is a replay/.test(x.system || ''));
   assert.equal(replays.length, 2);
   for (const r of replays) {
-    assert.equal(r.computer.args[0], path.join(__dirname, '..', 'lib', 'replay-computer-mcp.js'), 'its one MCP server is the copy\'s');
+    assert.equal(r.computer.args[0], path.join(__dirname, '..', 'lib', 'replay-computer-mcp.js'), 'its computer server is the copy\'s');
     assert.equal(r.self, null);
     assert.ok(r.args.includes('mcp__computer'));
     assert.match(r.system, /a copy of your computer made for this replay/);

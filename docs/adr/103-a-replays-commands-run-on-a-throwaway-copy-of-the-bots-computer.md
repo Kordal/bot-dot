@@ -1,4 +1,4 @@
-# ADR-102: A replay's commands run on a throwaway copy of the bot's computer
+# ADR-103: A replay's commands run on a throwaway copy of the bot's computer
 
 - **Status:** Accepted (2026-10-26)
 - **Owning task:** [#595](https://github.com/Kordal/bot-dot/issues/595), part of [#592](https://github.com/Kordal/bot-dot/issues/592)
@@ -6,7 +6,7 @@
 
 ## Context
 
-ADR 101 replays a bot's past tasks with no hands: no commands, no computer. For a bot whose work is on its computer (a disk check, a build, a script it keeps there), both replays then answer from memory, and the tally says little about the change. Running a replay's commands on the bot's own computer is ruled out: a replay must change nothing the owner has, and a command can change anything there.
+ADR 101 replays a bot's past tasks with no commands and no computer, and ADR 102 gives them connected apps and saved logins that only read. For a bot whose work is on its computer (a disk check, a build, a script it keeps there), both replays then answer from memory, and the tally says little about the change. Running a replay's commands on the bot's own computer is ruled out: a replay must change nothing the owner has, and a command can change anything there.
 
 ## Decision
 
@@ -14,7 +14,7 @@ ADR 101 replays a bot's past tasks with no hands: no commands, no computer. For 
 - **On this machine** the account's computer is committed to an image once per scoring (`docker commit --pause=false`, so its bots carry on), with what apt and the bots installed in it. Each replay gets a container from that image with the bot's folder copied in, and nothing else: none of the volumes, so not `/home/box`, not the other bots' folders, not the browsers' logins and not Tailscale. It has **no network** (`--network none`). The container goes with its replay, the image with its scoring. Only the Docker helper makes them, by fixed steps on ids botdot drew (`lib/docker-helper.js`).
 - **On boat.dev** the External Virtual PC the bot works on is forked (`POST /sandboxes/:id/fork`): boat.dev copies its disk into a new machine and leaves it as it was. Before the first command botdot cuts the fork's network (new connections out are dropped, the loopback and what is already open stay) and checks that a connection out fails. A fork that can't be cut, or still reaches out, is deleted, and the replay has no computer. The fork is deleted with its disk when the replay ends; it is kept in `boat-replays.json` until boat.dev has it, so a botdot that stopped deletes it at its next replay. A machine that is off is forked off: it is not started for a replay.
 - **No secret goes there.** The copy has no Vault tool, botdot hands it nothing, and nothing comes back from it: what a replay writes there ends with it.
-- **When no copy can be made** (no computer yet, Docker or boat.dev failing), the replay runs as ADR 101 has it, without a computer, and says so in its instructions.
+- **When no copy can be made** (no computer yet, Docker or boat.dev failing), the replay runs without a computer, as before, and says so in its instructions.
 
 ## Alternatives
 

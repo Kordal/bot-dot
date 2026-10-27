@@ -110,7 +110,7 @@ if (String(val('--system-prompt') || '').startsWith('You compare two replies')) 
 let mcp = { mcpServers: {} };
 try { const mc = val('--mcp-config'); mcp = JSON.parse(mc.trim().startsWith('{') ? mc : fs.readFileSync(mc, 'utf8')); } catch { /* none */ }
 // system: the appended prompt, read now from its file: botdot removes the file when the run has ended.
-const rec = { n, who, args, self: mcp.mcpServers.self || null, botdot: mcp.mcpServers.botdot || null, connectors: mcp.mcpServers.connectors || null, computer: mcp.mcpServers.computer || null, system: promptFile === null ? val('--append-system-prompt') : fs.readFileSync(promptFile, 'utf8'), stdin: '', at: Date.now() };
+const rec = { n, who, args, self: mcp.mcpServers.self || null, botdot: mcp.mcpServers.botdot || null, connectors: mcp.mcpServers.connectors || null, vault: mcp.mcpServers.vault || null, computer: mcp.mcpServers.computer || null, system: promptFile === null ? val('--append-system-prompt') : fs.readFileSync(promptFile, 'utf8'), stdin: '', at: Date.now() };
 if (promptFile !== null) { const st = fs.statSync(promptFile); rec.promptFile = { path: promptFile, mode: st.mode & 0o777, uid: st.uid }; }
 // The settings it was given (--settings, a private file): botdot's hook for a steered message (ADR 040), and that file's mode.
 const settingsArg = val('--settings');
@@ -175,9 +175,9 @@ const finish = () => {
   try { stream = JSON.parse(fs.readFileSync(path.join(OUT, own('stream', '.json')), 'utf8')); } catch { /* the reply comes whole */ }
   asked.then(() => (stream ? streamed(stream, result, end) : end()));
 };
-// A replay's run_shell (lib/replay-computer-mcp.js, #595): with $FAKE_OUT/replay-command.txt, a run that has a copy of
-// its computer runs that command there through botdot, as its MCP server does, and what came back is on the record,
-// `replayShell`; $FAKE_OUT/replay-key.txt, when it exists, is the key it sends instead of its own.
+// A replay's run_shell (lib/replay-computer-mcp.js, ADR 103): with $FAKE_OUT/replay-command.txt, a run that has a copy
+// of its computer runs that command there through botdot, as its MCP server does, and what came back is on the
+// record, `replayShell`; $FAKE_OUT/replay-key.txt, when it exists, is the key it sends instead of its own.
 function replayShell() {
   const env = rec.computer?.env;
   if (!env?.REPLAY_URL || !has('replay-command.txt')) return Promise.resolve();
