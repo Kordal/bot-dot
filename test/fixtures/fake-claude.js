@@ -152,6 +152,8 @@ const finish = () => {
   try { result = fs.readFileSync(path.join(OUT, own('result', '.txt')), 'utf8'); } catch { /* the default */ }
   // A run that has the library skill <name> answers $FAKE_OUT/result-with-<name>.txt when there is one (a replay's candidate, ADR 101).
   for (const k of skills) { try { result = fs.readFileSync(path.join(OUT, `result-with-${k.replace(/^[^:]*:/, '')}.txt`), 'utf8'); break; } catch { /* not this one */ } }
+  // A run whose instructions hold a key of $FAKE_OUT/result-if-told.json answers its value (a replay's proposed main assignment, #596).
+  try { for (const [told, reply] of Object.entries(JSON.parse(fs.readFileSync(path.join(OUT, 'result-if-told.json'), 'utf8')))) if (String(rec.system || '').includes(told)) { result = reply; break; } } catch { /* none */ }
   let denials = []; // the tools its settings refused, as Claude Code reports them: $FAKE_OUT/denials.json
   try { denials = JSON.parse(fs.readFileSync(path.join(OUT, 'denials.json'), 'utf8')); } catch { /* none */ }
   let failed = null;
@@ -175,7 +177,7 @@ const finish = () => {
   try { stream = JSON.parse(fs.readFileSync(path.join(OUT, own('stream', '.json')), 'utf8')); } catch { /* the reply comes whole */ }
   asked.then(() => (stream ? streamed(stream, result, end) : end()));
 };
-// A replay's run_shell (lib/replay-computer-mcp.js, ADR 103): with $FAKE_OUT/replay-command.txt, a run that has a copy
+// A replay's run_shell (lib/replay-computer-mcp.js, ADR 104): with $FAKE_OUT/replay-command.txt, a run that has a copy
 // of its computer runs that command there through botdot, as its MCP server does, and what came back is on the
 // record, `replayShell`; $FAKE_OUT/replay-key.txt, when it exists, is the key it sends instead of its own.
 function replayShell() {

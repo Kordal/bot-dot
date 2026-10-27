@@ -1,4 +1,4 @@
-# ADR-103: A replay's commands run on a throwaway copy of the bot's computer
+# ADR-104: A replay's commands run on a throwaway copy of the bot's computer
 
 - **Status:** Accepted (2026-10-26)
 - **Owning task:** [#595](https://github.com/Kordal/bot-dot/issues/595), part of [#592](https://github.com/Kordal/bot-dot/issues/592)

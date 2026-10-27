@@ -1,4 +1,4 @@
-// A replay's computer (#595, ADR 103): a bot with a computer is replayed with commands on a throwaway copy of it, a
+// A replay's computer (#595, ADR 104): a bot with a computer is replayed with commands on a throwaway copy of it, a
 // container made from the account's computer here or a fork of its External Virtual PC on boat.dev. The copy has no
 // network, its commands never reach the bot's own computer, and it goes when the replay ends. lib/replay-computer.js.
 const { test } = require('node:test');

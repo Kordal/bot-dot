@@ -196,6 +196,16 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, onScreen: () -> Unit, onJob
             }
             Section("Its main assignment", "What it does when a job runs it without a task of its own, and its guide for your messages.") {
                 OutlinedTextField(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
+                // The change a card made to it or its rules, undone in one tap while nothing changed them since (#596).
+                b.undo?.let { change ->
+                    TextButton(onClick = {
+                        scope.launch {
+                            runCatching { api!!.undoChange(botId, change); api!!.bot(botId) }
+                                .onSuccess { fill(it); tell("Undone") }
+                                .onError { tell(it.message ?: "Couldn't undo") }
+                        }
+                    }) { Text("Undo last change", color = p.text) }
+                }
             }
             Section("What it can do") {
                 // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here
