@@ -14,7 +14,7 @@ class SettingsFoldTest {
         val settings = source("SettingsScreen.kt")
         assertEquals(emptyList<String>(), Regex("""(?<![A-Za-z])Section\(""").findAll(settings).map { it.value }.toList())
         for (title in listOf("Computer", "Claude", "Backups", "Updates", "Sign-ins")) {
-            assertTrue(title, "FoldSection(\"$title\"" in settings)
+            assertTrue(title, "FoldSection(\"$title\"" in settings || "FoldSection(tr(\"$title\")" in settings) // its label in the account's language (#645)
         }
         assertTrue("Usage folds too", "FoldSection(\"Usage\")" in source("UsageSection.kt"))
         assertTrue("saved by itself, said in the top bar", "SavedMark(" in settings)
