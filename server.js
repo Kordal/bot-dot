@@ -124,6 +124,7 @@ B.onWaitingOnCards((bot) => [...asks.list(), ...changeTrials.list()].filter((a) 
   : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`] : [])));
 // The owner's OK for a write in a connected app: the run waits for it, and a late yes starts the bot again (ADR 010).
 // The Chief is a caller too, in the turns the owner started, and a late yes on its card starts its turn (ADR 047).
+const irreversibleStepsLib = require('./lib/irreversible-steps');
 const connectorApprovals = require('./lib/connector-approvals').create(B.DATA_DIR, {
   asks, active: B.isActive, bot: B.bots.get, whatCarriesOn: (ask) => B.whatCarriesOn(ask), carryOn: (found, answers) => B.carryOn(found, answers), appName: B.appName, groupOfRun: B.groupOfRun,
   chiefApps: () => B.connectors.knownApps(), chiefFits: (ask) => chief.lateYesFits(ask.chatId, ask.at), chiefCarryOn: (ask, grant) => chief.doAgain(ask, grant), chiefName: () => chief.named().name,
@@ -132,8 +133,14 @@ const connectorApprovals = require('./lib/connector-approvals').create(B.DATA_DI
 // and what goes to a room on a card, collected by the front door from the outbox.
 const roomRuns = require('./lib/room-runs').create(B.DATA_DIR, { asks, bot: B.bots.get, mayPost: (bot) => B.bots.roomSettings(bot.id)?.allowRooms === true, runMeta: B.runMeta, going: (id) => !!B.runMeta(id) || !!B.waitingRun(id) });
 B.onRoomsOf((botId) => roomRuns.roomsOf(botId));
-B.onRunStarted((meta, carried) => connectorApprovals.runStarted(meta, carried));
-B.onRunEnded((meta) => { connectorApprovals.runEnded(meta); roomRuns.runEnded(meta); });
+// An irreversible step on a bot's computer waits for the owner's OK on a card; a no is final for its run and the run
+// that carries it on, and a step on a connected app's site goes through that app's card instead (ADR 107).
+const irreversibleSteps = irreversibleStepsLib.create(B.DATA_DIR, {
+  asks, active: B.isActive, groupOfRun: B.groupOfRun,
+  connectedApp: (botId, site) => { const app = irreversibleStepsLib.appOfSite(B.bots.get(botId)?.connectors, site); return app ? B.appName(app) || app : null; },
+});
+B.onRunStarted((meta, carried) => { connectorApprovals.runStarted(meta, carried); irreversibleSteps.runStarted(meta); });
+B.onRunEnded((meta) => { connectorApprovals.runEnded(meta); irreversibleSteps.runEnded(meta); roomRuns.runEnded(meta); });
 // A Chief turn gets connected apps when the owner started it, or when a late yes on its card did (ADR 047): every
 // app with a working connection as the turn starts, and none when Composio is not set up or nothing is connected.
 chief.connectorsWith({
@@ -153,11 +160,12 @@ chief.connectorsWith({
 if (B.connectors.configured()) B.connectors.connections().catch((e) => console.error(`[connectors] ${e.message}`));
 // What the route modules share (lib/routes/shared.js): how an ask, a job and a run are shown, and what follows the
 // owner's answer. Made before anything describes an ask (asks above).
-const shared = require('./lib/routes/shared').create({ asks, connectorApprovals, audit, roomRuns });
+const shared = require('./lib/routes/shared').create({ asks, connectorApprovals, irreversibleSteps, audit, roomRuns });
 const { askBrief, changeOf, noOfWaiting, thenOfWaiting, groupOfCard, askedOf, withLine, chiefTurn } = shared;
 B.chatOfRun((runId) => chief.chatOfRun(runId));
 B.chatToTell((chatId) => chief.chatToTell(chatId));
 connectorApprovals.start(); // no run of before the start waits for an answer any more
+irreversibleSteps.start();
 const backups = require('./lib/backup').create({ dataDir: B.DATA_DIR, memory: B.memory, revision: process.env.BOT_DOT_REVISION, account: ACCOUNT || null, audit });
 // Tools installed on the botdot server for one bot, on the owner's OK (ADR 007).
 const connectedApps = connectedAppsLib.create({ tellChief: (turn) => chief.tell(turn) });
@@ -634,7 +642,7 @@ function tellChiefOfHeld(a, { answer, error }) {
 // feed above reads it too. The Board goes by its own word, board: "dashboard" stays the name of its module and
 // of the calls to it (test/board.test.js).
 const ctx = { ACCOUNT, audit, secretFiles, callKeys, callRefusals, keys, vault, bitwarden, store, readyForSecrets, setup, updates,
-  UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, roomRuns, backups, connectedApps, tools, chiefReview, PORT,
+  UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, irreversibleSteps, roomRuns, backups, connectedApps, tools, chiefReview, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, macApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
   chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; },
   fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, ...shared };
@@ -786,6 +794,9 @@ async function serveScreen(req, res, { botId, rest }) {
     return res.end(screenNote(why));
   }
   if (req.method === 'HEAD') { res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' }); return res.end(); }
+  // The owner's app opens the viewer with its mouse and keyboard (view_only=0) when the owner takes control: an
+  // irreversible step that waits or is on the bot's page then counts as declined (ADR 107).
+  if (file === path.join(NOVNC, 'vnc.html') && /[?&]view_only=0(&|$)/.test(rest)) irreversibleSteps.tookControl(botId);
   sendFile(res, file, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
 }
 

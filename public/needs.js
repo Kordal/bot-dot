@@ -182,8 +182,9 @@ function needCardHTML(x, here = null) {
   // switch as rows, the warning of "Usable in its computer", and the server's word on the yes. A Vault entry a bot asks
   // to remove (`vault-remove`) is drawn the same way: its rows name the entry, the bot and Bitwarden's Trash. So are
   // secrets a bot asks to keep in a file (`vault-file`, #253): the secrets, the file, and who can read it there. A rule a bot
-  // asks to lift (`override`) too, with the server's second yes, `always`, between the two.
-  if (x.kind === 'ask' && (x.a.kind === 'vault-switch' || x.a.kind === 'vault-remove' || x.a.kind === 'vault-file' || x.a.kind === 'override')) {
+  // asks to lift (`override`) too, with the server's second yes, `always`, between the two. And an irreversible step on
+  // a bot's computer (`computer-step`, ADR 107): the site, the control and what the page says of it.
+  if (x.kind === 'ask' && (x.a.kind === 'vault-switch' || x.a.kind === 'vault-remove' || x.a.kind === 'vault-file' || x.a.kind === 'override' || x.a.kind === 'computer-step')) {
     const warning = said(x.a.warning);
     const always = x.a.kind === 'override' ? said(x.a.always) : '';
     return card(esc(said(x.a.title)), esc(said(x.a.reason)),
@@ -676,6 +677,6 @@ function answeredWord(x, yes, always, answer) {
 
 async function refreshNeeds() {
   state.memPending = await api(MEMORY_WAITS).catch(() => state.memPending);
-  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1').catch(() => state.asks);
+  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').catch(() => state.asks);
   await refresh();
 }
