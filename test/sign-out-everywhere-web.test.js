@@ -17,7 +17,8 @@ function page({ features = ['accounts'], fetch = answer(200, { ok: true, ended: 
     fetch: async (url, opts) => { calls.push([url, opts]); return fetch(url, opts); },
     location: { assign: (to) => went.push(to) },
   });
-  vm.runInContext(`${cut('// ---------- signing out everywhere ----------', '// ---------- backups ----------')}
+  vm.runInContext(`${cut('const CHEV = ', '// A change on a settings screen saves by itself')}
+    ${cut('// ---------- signing out everywhere ----------', '// ---------- backups ----------')}
     Object.assign(this, { signOutCardHTML, signOutEverywhere });`, ctx);
   return { ctx, calls, toasts, went };
 }

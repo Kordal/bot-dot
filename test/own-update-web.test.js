@@ -20,7 +20,7 @@ function page({ features = ['accounts'], session = { updates: true }, update = R
   const ctx = vm.createContext({
     state: { features },
     esc: (s) => String(s).replace(/</g, '&lt;'),
-    toast: (text, bad = false) => toasts.push([text, bad]),
+    toast: (text, bad = false) => toasts.push([text, bad]), flashSaved() {},
     confirm: () => confirmed,
     setTimeout: () => 0, clearTimeout: () => {},
     $: (sel, root) => (sel === '#update-card' ? card : root ? root.querySelector(sel) : null),
@@ -33,6 +33,7 @@ function page({ features = ['accounts'], session = { updates: true }, update = R
     },
   });
   vm.runInContext(`${read('whats-new.js')}
+    ${cut('const CHEV = ', '// A change on a settings screen saves by itself')}
     ${cut('// ---------- when this account switches to a new version ----------', '// ---------- signing out everywhere ----------')}
     Object.assign(this, { loadUpdateCard, drawUpdateCard, updateCardText });`, ctx);
   return { ctx, calls, toasts, card, box, now };
@@ -94,7 +95,9 @@ test('web: the card says what became of the last move, and that it moves now', (
 test("web: the switch says what On and Off do, and no line follows while nothing waits", async () => {
   const { ctx, card } = page({ update: { autoUpdate: true, asked: false, canUpdate: false, ready: null, last: null } });
   await ctx.loadUpdateCard();
-  assert.match(card.innerHTML, /On: Always use the latest botdot version\.[\s\S]*Off: Update when you're ready, before the admin's deadline\./);
+  // As its tooltip and its description for a screen reader, not lines under it (#635).
+  assert.match(card.innerHTML, /<label class="bs-row" title="On: always use the latest botdot version\. Off: update when you're ready, before the admin's deadline\." aria-description="On: [^"]*"><b>Update automatically<\/b>/);
+  assert.match(card.innerHTML, /<summary><b>Updates<\/b><span class="bs-val">Automatic<\/span>/, 'its row says how it is');
   assert.doesNotMatch(card.innerHTML, /id="update-said"/);
   assert.doesNotMatch(card.innerHTML, /What's new/);
 });

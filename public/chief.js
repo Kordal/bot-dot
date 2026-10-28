@@ -1,12 +1,5 @@
 // ---------- chief of staff ----------
 
-const CHIEF_SUGGESTIONS = [
-  'What bots do I have, and what is each one good at?',
-  'Create a bot that checks the news on a topic every morning and sends me the highlights.',
-  'Make a bot that uses the computer to work on websites for me.',
-  'Make a research bot that finds fresh game design ideas on the web.',
-];
-
 // A shared composer: textarea that grows, Enter sends, Shift+Enter adds a line.
 function composerHTML(placeholder, ctx = '') {
   return `
@@ -21,12 +14,18 @@ function composerHTML(placeholder, ctx = '') {
         <div class="composer-box">
           <button class="attach-btn" type="button" aria-label="Attach files" title="Attach files (or drop them here)">${ICON.clip}</button>
           <input type="file" name="files" multiple hidden>
-          <div class="ta-wrap"><div class="ta-mark" aria-hidden="true"></div><textarea name="text" rows="1" placeholder="${esc(placeholder)}"></textarea></div>
+          <div class="ta-wrap"><div class="ta-mark" aria-hidden="true"></div><textarea name="text" rows="1" placeholder="${esc(boxWords(placeholder))}" data-placeholder="${esc(placeholder)}"></textarea></div>
           <button class="send-btn" type="submit" aria-label="Send">${ICON.send}</button>
         </div>
       </div>
     </form>`;
 }
+// The words in an empty message box (#635): "Message <whom>", and on a phone, where the head names the chat, "Message".
+const PHONE_WIDTH = '(max-width: 479px)';
+const boxWords = (placeholder) => (placeholder && globalThis.matchMedia?.(PHONE_WIDTH).matches ? 'Message' : placeholder);
+globalThis.matchMedia?.(PHONE_WIDTH).addEventListener?.('change', () => {
+  for (const ta of document.querySelectorAll('textarea[data-placeholder]')) ta.placeholder = boxWords(ta.dataset.placeholder);
+});
 
 // Files attached in a composer: uploaded right away into the bot's (or the Chief's) workspace, and
 // sent with the message. uploadTo() says where: 'bot:<id>' or 'chief'.
@@ -405,7 +404,7 @@ function renderChief() {
         ${BACK_BTN}
         <button class="chat-title" id="chief-settings" title="Its settings">
           <div id="chief-avatar">${chiefFigure('sm')}</div>
-          <div class="grow"><h2>${esc(chiefName())}</h2><div class="sub" id="chief-sub"></div></div>
+          <div class="grow"><h2>${esc(chiefName())}</h2></div>
         </button>
         <div class="actions-right">
           ${state.features.includes('files-explorer') && state.features.includes('chief-files') ? `<button class="icon-btn" id="chief-files-btn" title="Files" aria-label="Files">${ICON.folder}</button>` : ''}
@@ -413,7 +412,7 @@ function renderChief() {
         </div>
       </div>
       <div class="chat-thread" id="chat-thread"></div>
-      ${composerHTML('Message the Chief…')}`;
+      ${composerHTML(`Message ${chiefName()}`)}`;
     wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
     if ($('#chief-files-btn')) $('#chief-files-btn').onclick = () => Files.open(chiefAsBot()); // files.js (#603)
@@ -426,8 +425,6 @@ function renderChief() {
   // Mentions in your messages follow renamed bots, jobs and skills (the bot thread does the same).
   const drawn = $('#chat-thread').dataset.mentions;
   if (state.chatId && drawn && drawn !== mentionSig()) showChat(state.chatId);
-  const working = state.bots.filter((b) => b.running).length;
-  $('#chief-sub').textContent = `${state.bots.length} bots${working ? ` · ${working} working` : ''}`;
   renderChatList();
 }
 
@@ -526,7 +523,7 @@ function chiefBubble(m, last = false, index = null) {
         ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}">${body}${plan}</div>` : m.pending ? draftHTML(replyDrafts.of(`chief:${state.chatId}`)) : ''}
         ${mail}
         <div class="actions">${(m.actions || []).filter((a) => !mailChip(m, a)).map(actionChip).join('')}</div>
-        ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
+        ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta${Ratings.shows(m, state.features, index) ? '' : ' on-hover'}">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
         ${last && !m.pending && !m.draft ? choicesHTML(m.choices, m.yes, CHIEF_COLOR) + questionsHTML(m.questions) : ''}
       </div>
     </div>`;
@@ -554,7 +551,7 @@ const suggestionBubble = (m) => `
   <div class="bubble-row from-me"><div class="stack from-bot-msg">
     <div class="bot-msg-label">Suggestion from ${m.from ? botLabel(m.from) : 'a bot'}</div>
     <div class="bubble from-other-bot suggestion-msg" data-expand><div class="md clamp">${md(m.text)}</div></div>
-    <div class="bubble-meta">${copyBtn(m.text)}</div>
+    <div class="bubble-meta on-hover">${copyBtn(m.text)}</div>
     ${m.status === 'pending' ? `<div class="suggestion-actions"><button class="btn" data-sug-dismiss>Decline</button><button class="btn primary" data-sug-build>Approve</button></div>` : m.status === 'dismissed' ? '<div class="bot-msg-label">You declined it</div>' : ''}
   </div></div>`;
 
@@ -563,15 +560,15 @@ const reportBubble = (m, at = null) => `
   <div class="bubble-row from-me"><div class="stack from-bot-msg">
     <div class="bot-msg-label">Message from ${m.from ? botLabel(m.from) : 'a bot'}</div>
     ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text)}</div>${at != null ? globalThis.docButton?.({ chat: state.chatId, at }, m.text) || '' : ''}${botFilesHTML(m.files)}</div>
-    <div class="bubble-meta">${copyBtn(m.text)}</div>` : `<div class="bubble from-other-bot report-msg">${botFilesHTML(m.files)}</div>`}
+    <div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : `<div class="bubble from-other-bot report-msg">${botFilesHTML(m.files)}</div>`}
   </div></div>`;
 
 // at: the message's place in the whole chat (the chat may have come in part, from `offset` on).
 const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m, at) : steeredBubbles(m.steered) + chiefBubble(m, i === all.length - 1, at));
 // What the owner steered into a reply while the Chief worked (ADR 040): their messages, before that reply, without buttons.
-const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
+const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta on-hover"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
 
-const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta">${copyBtn(m.text)}</div>` : ''}</div></div>`;
+const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : ''}</div></div>`;
 
 function wireActions(root) {
   wireMail(root);
@@ -618,14 +615,8 @@ async function showChat(id) {
   if (!id) {
     delete thread.dataset.mentions;
     delete thread.dataset.chat;
-    thread.innerHTML = `
-      <div class="chief-empty">
-        ${chiefFigure('lg')}
-        <h3>What should the team work on?</h3>
-        <p class="muted">Ask for anything. I'll hand it to the right bot, or build a new one.</p>
-        <div class="suggestions">${CHIEF_SUGGESTIONS.map((t) => `<button class="suggestion">${esc(t)}</button>`).join('')}</div>
-      </div>`;
-    $$('.suggestion', thread).forEach((b) => (b.onclick = withKey((key) => sendFrom(form, () => sendToChief(b.textContent, [], key)))));
+    // A new chat is the Chief's head and the message box (#635): no tagline, no example requests.
+    thread.innerHTML = `<div class="chief-empty">${chiefFigure('lg')}</div>`;
     setSendBusy(form, false);
     globalThis.drawChiefPlan?.(null, null);
     placeStatusLines(); // a line of the chat that was here goes

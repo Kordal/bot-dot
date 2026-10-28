@@ -87,7 +87,7 @@ function pin(bots, groups, item, at) {
   others.forEach((x, i) => { x.pinned = i + 1; });
 }
 
-// A key's status pill (#397): { kind, text }, the first that holds of
+// A key's status (#397): { kind, text }, the first that holds of
 //   working  a run is going ("Working"; "Working ×2" while `runs`, the runs going, is 2 or more: ADR 062)
 //   needs    it asks the owner something, or a card of its waits in Needs you ("Needs you")
 //   unread   new replies the owner has not read ("2 unread")
@@ -95,7 +95,8 @@ function pin(bots, groups, item, at) {
 //   failed   its last run did not, as the list says it ("Couldn't finish")
 //   idle     anything else ("Idle"): no run yet, or the owner stopped the last one.
 // last: the status of its newest run ("success", "error", "stopped"…), null for none.
-// kind is also the pill's colour on every app: working info, needs warn, unread plan, done ok, failed err, idle none.
+// On the web a key shows it as one dot on its head (#635): working green, needs amber, unread blue with the count, and
+// no dot for the rest; text is the dot's name for a screen reader. The Android app draws the pill of #397.
 function status({ running = false, runs = 0, needs = false, unread = 0, last = null } = {}) {
   if (running) return { kind: 'working', text: runs > 1 ? `Working ×${runs}` : 'Working' };
   if (needs) return { kind: 'needs', text: 'Needs you' };
@@ -105,15 +106,7 @@ function status({ running = false, runs = 0, needs = false, unread = 0, last = n
   return { kind: 'idle', text: 'Idle' };
 }
 
-// How long a run has been going, beside a Working pill: "<1 min", "2 min", "1 h 5 min". ms: since its start.
-function since(ms) {
-  const m = Math.floor(Math.max(ms, 0) / 60000);
-  if (m < 1) return '<1 min';
-  if (m < 60) return `${m} min`;
-  return `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
-}
-
-const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, since };
+const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Keypad = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

@@ -227,7 +227,7 @@ function chooseAppBots(slug, justConnected = false) {
     <form id="app-bots">
       <div class="modal-head"><h2>${justConnected ? `${esc(app.name)} is connected` : `Bots that may use ${esc(app.name)}`}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <p class="muted" style="margin:0">They act on your real account. They'll read freely, but only send, post, change or delete things when you (or their task) ask for it.</p>
+        <p class="muted" style="margin:0" title="They'll read freely, but only send, post, change or delete things when you (or their task) ask for it.">They act on your real account.</p>
         ${botCheckboxes(used).replaceAll(' disabled title="Skills are turned off for this bot"', '')}
       </div>
       <div class="modal-foot"><button type="button" class="btn" data-dismiss>Cancel</button><button class="btn primary">Save</button></div>

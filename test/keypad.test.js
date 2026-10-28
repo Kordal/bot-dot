@@ -242,12 +242,3 @@ test('status: Working, then Needs you, then unread, then the last run: Done, Cou
   assert.deepEqual(S({}), { kind: 'idle', text: 'Idle' });
   assert.deepEqual(S(), { kind: 'idle', text: 'Idle' });
 });
-
-test('since: how long a run has been going, in minutes and hours', () => {
-  assert.equal(Keypad.since(0), '<1 min');
-  assert.equal(Keypad.since(-5000), '<1 min', 'a clock a little ahead');
-  assert.equal(Keypad.since(59_999), '<1 min');
-  assert.equal(Keypad.since(2 * 60_000 + 5000), '2 min');
-  assert.equal(Keypad.since(60 * 60_000), '1 h');
-  assert.equal(Keypad.since(65 * 60_000), '1 h 5 min');
-});

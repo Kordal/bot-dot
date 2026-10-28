@@ -94,7 +94,7 @@ function glideContacts(draw) {
 // says what it does.
 function contactLine(b, r, working) {
   const asks = Unread.asks(b, b.running || r?.status === 'running');
-  const prev = asks ? `Asks: ${asks}` : b.running ? working : r ? (r.status === 'success' ? plain(r.result) : r.status === 'running' ? working : "Couldn't finish") : b.description || 'No messages yet';
+  const prev = asks ? `Asks: ${asks}` : b.running ? working : r ? (r.status === 'success' ? plain(r.result) : r.status === 'running' ? working : "Couldn't finish") : b.description || '';
   return { prev, cls: asks ? 'asks' : b.running ? 'working' : '', after: asks ? Unread.mark(b.color) : Unread.dots(Unread.count(b), b.color) };
 }
 
@@ -118,7 +118,7 @@ function drawContacts() {
       <button class="contact ${state.view === 'chief' ? 'active' : ''}" data-contact="chief" title="${esc(chiefName())}">
         ${chiefFigure()}
         <div class="grow"><div class="top"><span class="name">${esc(chiefName())}</span><span class="time">${esc(shortTime(chat?.updatedAt))}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}</div>
-        <div class="prev">${esc(plain(chat?.preview) || 'Your team of bots. Ask for anything.')}</div></div>
+        <div class="prev">${esc(plain(chat?.preview))}</div></div>
       </button>`);
   }
   const contact = (b) => {
@@ -183,11 +183,11 @@ function drawContacts() {
 
 // ---------- the keypad (keypad.js, ADR 029) ----------
 // Where the window is wide enough the stylesheet shows the keypad in place of the list: the Board's values and Needs
-// you on top, then every page one under the other (#508), its name over its bots and groups as keys, with the list's
-// own heads and lines. The chat on the right is the one open chat. Both are drawn every time; the stylesheet decides
-// which is seen.
+// you on top, then the Chief's key and the pinned keys in one row, then every category, side by side where they fit
+// (#508, #635). A key is a head and a name; its state is one dot on the head. The chat on the right is the one open
+// chat. Both are drawn every time; the stylesheet decides which is seen.
 
-// The Chief's row, its key (Esc) and the keypad's last place: the chat with new replies, else the one its preview shows.
+// The Chief's row and its key (Esc): the chat with new replies, else the one its preview shows.
 const openChief = () => openChiefChat((state.chats.find((c) => Unread.count(c)) || state.chats[0])?.id || null);
 
 const keypadPages = () => Keypad.pages(state.bots, state.groups);
@@ -201,49 +201,48 @@ const keypadKeys = (pages) => { const folded = foldedGroups(); return pages.flat
 // Which key each digit opens (Keypad.digits, #366): a bot's own hotkey, else a free digit by its place among `all`.
 const keypadDigits = (pages, all) => Keypad.digits(pages, all.map((k) => k.x));
 const keypadShown = () => getComputedStyle($('#keypad')).display !== 'none';
-// A key's line, its class and what stands after its name: the list's; a bot that asks shows its question alone, as its
-// pill says Needs you (#397).
-function keyLine(x) {
-  if (x.members) return groupLine(x);
-  const line = botLine(x);
-  return line.cls === 'asks' ? { ...line, prev: line.prev.replace(/^Asks: /, '') } : line;
-}
-// The colour of the dot on a page's heading: the first bot on it that asks, or the member that asks in a group.
-const askColor = (x) => (keyLine(x).cls !== 'asks' ? '' : x.members ? memberColor(x.asks.botId) : x.color);
+// Whether a key's bot or group asks the owner something: the list's line says so.
+const keyAsks = (x) => (x.members ? groupLine(x) : botLine(x)).cls === 'asks';
+// The colour of the dot on a folded page's heading: the first bot on it that asks, or the member that asks in a group.
+const askColor = (x) => (!keyAsks(x) ? '' : x.members ? memberColor(x.asks.botId) : x.color);
 const openKey = (x) => (x.members ? setView('group', x.id) : setView('bot', x.id));
-// The bots a card in Needs you waits for (needs.js): their keys say "Needs you". Kept as drawKeypadNeeds last saw them.
+// The bots a card in Needs you waits for (needs.js): their keys have the amber dot. Kept as drawKeypadNeeds last saw them.
 let keysWaiting = new Set();
-// A key's status (Keypad.status, #397): its pill, the time of its last action beside it (how long it has worked, while
-// it works) and whether a run is going, which draws a thin line along its foot.
+// A key's status (Keypad.status, #397), which decides its dot.
 function keyStatus(x) {
   if (x.members) {
     const cls = groupLine(x).cls;
-    return { ...Keypad.status({ running: cls === 'working', needs: cls === 'asks', unread: Unread.count(x), last: x.last?.status ?? null }), time: shortTime(x.last?.at) };
+    return Keypad.status({ running: cls === 'working', needs: cls === 'asks', unread: Unread.count(x), last: x.last?.status ?? null });
   }
   const r = state.runs.find((y) => y.botId === x.id);
   const running = !!x.running || r?.status === 'running';
   const runs = x.runningCount ?? state.runs.filter((y) => y.botId === x.id && y.status === 'running').length; // a server without it: the list's
-  const s = Keypad.status({ running, runs, needs: keyLine(x).cls === 'asks' || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null });
-  // How long it has worked, from the run that is going; a run not in the list yet: no time.
-  return { ...s, time: running ? (r?.status === 'running' && r.startedAt ? Keypad.since(Date.now() - Date.parse(r.startedAt)) : '') : shortTime(r?.startedAt) };
+  return Keypad.status({ running, runs, needs: keyAsks(x) || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null });
 }
-// The pill's colour by its kind: the block kit's levels, and two of the keys' own (unread, idle).
-const PILL = { working: 'info', needs: 'warn', unread: 'unread', done: 'ok', failed: 'err', idle: 'idle' };
-const statusHTML = (s) => `<div class="key-status"><span class="kit-pill ${PILL[s.kind]}">${esc(s.text)}</span>${s.time ? `<span class="key-time">${esc(s.time)}</span>` : ''}</div>${s.kind === 'working' ? '<i class="key-run" aria-hidden="true"></i>' : ''}`;
-// section: on a phone, the place of the key's page; there the key has no digit. digit: the key's (0: none).
-// A key: its digit, the head, the name, the line and its status; the mark of a bot that asks beside its name. A pinned
-// key is larger (style.css).
+// A key's state as one dot on its head's corner (#635): green while it works, amber while it needs the owner, blue with
+// the count of its new replies; the status's words are its name for a screen reader. A finished, failed or idle bot has
+// none: its chat says how its last run went. n: its new replies.
+const KEY_DOTS = new Set(['working', 'needs', 'unread']);
+const keyDot = (s, n = 0) => (KEY_DOTS.has(s.kind) ? `<i class="key-dot ${s.kind}" role="img" aria-label="${esc(s.text)}">${s.kind === 'unread' ? (n > 9 ? '9+' : n) : ''}</i>` : '');
+// The line under a key's name, only while it works: what a bot says it is doing (its opening line), or which member of a
+// group works and on what. Nothing else: the dot is its state, Needs you holds its question.
+function liveLine(x) {
+  if (x.members) { const line = groupLine(x); return line.cls === 'working' ? `${line.who}: ${line.prev}` : ''; }
+  return botLine(x).cls === 'working' ? OpeningLine.preview(openingLines.of(`bot:${x.id}`)) || '' : '';
+}
+// section: on a phone, the place of the key's page; there the key has no digit. digit: the key's (0: none), in its
+// title and its keyboard shortcut, not on its face.
 function keyHTML(x, i, section = null, digit = 0) {
   const group = !!x.members;
-  const line = keyLine(x);
   const on = group ? state.view === 'group' && state.groupId === x.id : state.view === 'bot' && state.botId === x.id;
   const where = section === null ? `data-key="${i}"` : `data-section-key="${section}.${i}"`;
   const s = keyStatus(x);
-  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}${Motion.justDone(x.id, s.kind) ? ' just-done' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(x.name)}">${section === null && digit ? `<span class="key-n">${digit}</span>` : ''}${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit)}<div class="grow"><div class="top"><span class="name">${esc(x.name)}</span>${line.cls === 'asks' ? line.after : ''}</div><div class="prev ${line.cls}">${line.who ? `${esc(line.who)}: ` : ''}${esc(line.prev)}</div>${statusHTML(s)}</div></button>`;
+  const line = liveLine(x);
+  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}${Motion.justDone(x.id, s.kind) ? ' just-done' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(digit ? `${x.name} · ${digit}` : x.name)}"${digit ? ` aria-keyshortcuts="${digit}"` : ''}><span class="key-head">${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit)}${keyDot(s, Unread.count(x))}</span><span class="name">${esc(x.name)}</span>${line ? `<span class="prev working">${esc(line)}</span>` : ''}</button>`;
 }
-// A tile as a card of the strip over the keys (#397): the block kit's kpi with the tile's title over its first number
-// (a value, a kpi, a bar or a gauge on its face) and that block's sparkline and bar; a switch says On or Off, any other
-// tile its dot. Live: it is drawn again whenever the Board is read or a value arrives on the feed.
+// A tile in the strip over the keys (#397): the block kit's kpi with the tile's title over its first number (a value, a
+// kpi, a bar or a gauge on its face) and that block's sparkline or bar beside it (#635); a switch says On or Off, any
+// other tile its dot. Live: it is drawn again whenever the Board is read or a value arrives on the feed.
 function stripKpi(t) {
   const find = (list) => { for (const b of list || []) { if (['kpi', 'value', 'progress', 'gauge'].includes(b.type)) return b; const y = b.blocks && find(b.blocks); if (y) return y; } return null; };
   const b = find(t.look?.face);
@@ -255,9 +254,9 @@ function stripKpi(t) {
     : `<div class="kit-kpi"><div class="kit-kpi-main"><div class="kit-label">${esc(t.title)}</div><div class="kit-num kp-card-dot">${tileMark(t)}${dot && dot.big ? `<span>${dot.filled === true ? 'On' : dot.filled === false ? 'Off' : '·'}</span>` : ''}</div></div></div>`;
   return `<span class="kp-card">${card}</span>`;
 }
-// The Board's strip: one small kpi card per tile on home, as many as fit and the rest sideways (on a phone too). A tap,
-// or Enter on it, opens the Board. A box and not a button, which would not scroll. Not there until the Board is read.
-// Beside it, a pencil on hover chooses its tiles (#447); on a touch screen a long press does.
+// The Board's strip: one plain number per tile on home, in as many lines as they take, never cut (#635). A tap, or
+// Enter on it, opens the Board. Not there until the Board is read. Beside it, a pencil on hover chooses its tiles (#447);
+// on a touch screen a long press does.
 function boardLine() {
   if (!state.dash) return '';
   const edit = canHome() ? `<button type="button" class="kp-board-edit" data-home-edit aria-label="Tiles on home">${PEN}</button>` : '';
@@ -279,17 +278,15 @@ function drawBoardLine(el) {
   });
   $$('[data-home-edit]', el).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); homePickOpen() ? closeHomePick() : openHomePick(el); }));
 }
-// The Chief of Staff's key, first on Pinned: its row in the list as a key, with Esc where a bot's key has its digit,
-// and its status: Working while it replies, its new replies, else Idle, and when it last wrote.
+// The Chief of Staff's key, first in the top row: its head and name, Esc in its title, and its dot: green while it
+// replies, blue with its new replies.
 function chiefKeyHTML() {
-  const chat = state.chats[0];
-  const s = { ...Keypad.status({ running: !!state.chiefBusy, unread: state.chiefUnread || 0 }), time: shortTime(chat?.updatedAt) };
-  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}${Motion.justDone('chief', s.kind) ? ' just-done' : ''}" data-key-chief title="${esc(chiefName())}"><span class="key-n">Esc</span>${chiefFigure()}<div class="grow"><div class="top"><span class="name">${esc(chiefName())}</span></div><div class="prev">${esc(plain(chat?.preview) || 'Your team of bots. Ask for anything.')}</div>${statusHTML(s)}</div></button>`;
+  const s = Keypad.status({ running: !!state.chiefBusy, unread: state.chiefUnread || 0 });
+  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}${Motion.justDone('chief', s.kind) ? ' just-done' : ''}" data-key-chief title="${esc(chiefName())} · Esc" aria-keyshortcuts="Escape"><span class="key-head">${chiefFigure()}${keyDot(s, state.chiefUnread || 0)}</span><span class="name">${esc(chiefName())}</span></button>`;
 }
-// Every page as a section: its heading (name, count, dot) over its keys in rows of three. Pinned is always first, right
-// under the Board, set apart from the categories on a panel of its own, with the Chief's key before the pinned bots,
-// also when nothing is pinned. A key's number counts
-// across the pages; the last place, after the last page's keys, asks the Chief for a bot.
+// The top row: the Chief's key, then the pinned bots and groups, also when nothing is pinned; the row itself is Pinned's
+// drop place (pinned last). Under it every category, side by side where they fit: its name over its keys. A key's
+// digit counts across the pages.
 function drawKeypad() {
   if (!$('#keypad') || keyDrag) return; // redrawing would cancel the drag; its end draws it again
   const found = keypadPages();
@@ -298,56 +295,64 @@ function drawKeypad() {
   const digits = keypadDigits(pages, all);
   const keys = $('#kp-keys');
   drawBoardLine($('#kp-board'));
-  const ask = '<button class="key key-ask" data-key-ask>Ask the Chief for a bot</button>';
   const keysOf = (i) => all.map((k, n) => (k.page === i ? keyHTML(k.x, n, null, Keypad.digitOf(digits, k.x)) : '')).join('');
-  keys.innerHTML = pages.map((p, i) => `<section class="kp-page${i === 0 ? ' kp-pinned' : ''}${pageFolded(p) ? ' folded' : ''}"><h3 class="kp-page-head" data-page="${i}">${pageHead(p, `data-page-fold="${i}"`)}</h3><div class="kp-page-keys">${i === 0 ? chiefKeyHTML() : ''}${keysOf(i)}${i === pages.length - 1 ? ask : ''}</div></section>`).join('');
+  const cats = pages.slice(1).map((p, n) => `<section class="kp-page${pageFolded(p) ? ' folded' : ''}"><h3 class="kp-page-head" data-page="${n + 1}">${pageHead(p, `data-page-fold="${n + 1}"`)}</h3><div class="kp-page-keys">${keysOf(n + 1)}</div></section>`).join('');
+  keys.innerHTML = `<section class="kp-page kp-pinned" data-page="0" aria-label="Pinned"><div class="kp-page-keys">${chiefKeyHTML()}${keysOf(0)}</div></section>${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
   $$('[data-key]', keys).forEach((el) => (el.onclick = () => openKey(all[Number(el.dataset.key)].x)));
   $$('[data-page-fold]', keys).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.pageFold)])));
   $$('[data-key-chief]', keys).forEach((el) => (el.onclick = openChief));
-  $$('[data-key-ask]', keys).forEach((el) => (el.onclick = askChief));
   wireKeyDrags(pages, all, keys);
   drawKeypadSections(found);
   if (typeof drawRoomsKeys === 'function') drawRoomsKeys(); // shared rooms, beside Needs you (rooms.js)
 }
-// A page's dot, on its heading on the keypad or on a phone: in the colour of the first bot on it that asks.
+// A folded page's dot, on its heading on the keypad or on a phone: in the colour of the first bot on it that asks.
 function pageDot(p) {
   const dot = p.keys.map(askColor).find(Boolean);
   return dot ? `<i class="kp-dot" style="--c:${Unread.tint(dot)}"></i>` : '';
 }
-// What a page's heading holds: its name, its count and its dot. A category's is a button that folds it (#171), with the
-// list's chevron, and folded it also shows the list's busy dot while one of its bots works. `fold`: the button's data.
+// A category's heading: its name, a button that folds it (#171). Folded, a chevron says so, with the dot of a bot on
+// it that asks and the list's busy dot while one of its bots works: its keys, which show both, are hidden. `fold`: the
+// button's data.
 function pageHead(p, fold) {
-  const head = `${esc(p.name)} <b>${p.keys.length}</b>${pageDot(p)}`;
-  if (p.kind === 'pinned') return head;
   const folded = pageFolded(p);
   const busy = folded && p.keys.some((x) => !x.members && x.running);
-  return `<button class="kp-fold" ${fold} aria-expanded="${!folded}" title="${folded ? 'Show' : 'Hide'} this category"><span class="chev${folded ? ' closed' : ''}">▾</span>${head}${busy ? '<i class="kp-busy"></i>' : ''}</button>`;
+  return `<button class="kp-fold" ${fold} aria-expanded="${!folded}" title="${folded ? 'Show' : 'Hide'} this category">${esc(p.name)}${folded ? `<span class="chev closed">▾</span>${pageDot(p)}${busy ? '<i class="kp-busy"></i>' : ''}` : ''}</button>`;
 }
 const foldPage = (p) => { if (p) { toggleGroupFold(pageFoldName(p)); renderContacts(); } };
 // The Chief's chat, ready to write in.
 const askChief = () => { openChief(); requestAnimationFrame(() => $('#view-chief textarea')?.focus()); };
-// A phone's home (#498): the Board line, every page as a section of keys under its name and count, and the Chief's
-// message box. A key opens its chat full screen, as a row of the list does, and Back returns here. No digits, no keys.
+// A send arrow, on the Chief's field of a phone's home.
+const SEND_ARROW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5.5 11.5L12 5l6.5 6.5"/></svg>';
+// A phone's home (#498): the Board line, the pinned keys, the categories side by side where they fit, and the Chief's
+// field. A key opens its chat full screen, as a row of the list does, and Back returns here. No digits, no keys.
 function drawKeypadSections(pages) {
   const sections = $('#kp-sections'), chief = $('#kp-chief');
   if (!sections) return;
   drawBoardLine($('#kp-phone-board'));
-  sections.innerHTML = pages.map((p, n) => `<section class="kp-section${p.kind === 'pinned' ? ' kp-sec-pinned' : ''}${pageFolded(p) ? ' folded' : ''}" data-section="${n}"><h3 class="kp-sec-head">${pageHead(p, `data-section-fold="${n}"`)}</h3><div class="kp-sec-keys">${pageFolded(p) ? '' : p.keys.map((x, i) => keyHTML(x, i, n)).join('')}</div></section>`).join('');
+  const section = (p, n) => `<section class="kp-section${p.kind === 'pinned' ? ' kp-sec-pinned' : ''}${pageFolded(p) ? ' folded' : ''}" data-section="${n}">${p.kind === 'pinned' ? '' : `<h3 class="kp-sec-head">${pageHead(p, `data-section-fold="${n}"`)}</h3>`}<div class="kp-sec-keys">${pageFolded(p) ? '' : p.keys.map((x, i) => keyHTML(x, i, n)).join('')}</div></section>`;
+  const pinned = pages[0]?.kind === 'pinned' ? 1 : 0;
+  const cats = pages.slice(pinned).map((p, n) => section(p, n + pinned)).join('');
+  sections.innerHTML = `${pinned ? section(pages[0], 0) : ''}${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
   $$('[data-section-fold]', sections).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.sectionFold)])));
   $$('[data-section-key]', sections).forEach((el) => (el.onclick = () => { const [n, i] = el.dataset.sectionKey.split('.').map(Number); openKey(pages[n].keys[i]); }));
-  chief.innerHTML = `<span>Ask the Chief…</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}`;
+  // The Chief's field: its head, its name where the message goes, and the send arrow. A tap opens its chat, ready to write in.
+  chief.innerHTML = `${chiefFigure()}<span>${esc(chiefName())}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}<i class="kp-send">${SEND_ARROW}</i>`;
+  chief.title = `Message ${chiefName()}`;
   chief.onclick = askChief;
 }
-// Drag a key (#499): onto another key it takes that key's place, on its page or another; onto the last place it
-// goes last on the last page; onto the Chief's key it is pinned first; onto a page's heading it goes last there (Keypad.move): Pinned pins it, a category
-// moves it there, Other takes it out of its category. It is saved as the list's drag saves it (pinBot, moveBot, pinGroup, moveGroup), with the same updates.
+// Drag a key (#499): onto another key it takes that key's place, on its page or another; onto the Chief's key it is
+// pinned first; onto the top row it is pinned last; onto a category's name it goes last there (Keypad.move), Other's
+// taking it out of its category. It is saved as the list's drag saves it (pinBot, moveBot, pinGroup, moveGroup), with
+// the same updates.
 const KEY_DRAG = 'application/x-botdot-key';
 let keyDrag = null; // the bot or the group whose key is dragged
 function wireKeyDrags(pages, all, keys) {
   if (!pages.length) return;
+  // A key stands inside the top row, which takes drops too: what a key takes stops there.
   const over = (el) => (e) => {
     if (!keyDrag || !e.dataTransfer.types.includes(KEY_DRAG)) return;
     e.preventDefault();
+    e.stopPropagation?.();
     e.dataTransfer.dropEffect = 'move';
     el.classList.add('drop-on');
   };
@@ -355,6 +360,7 @@ function wireKeyDrags(pages, all, keys) {
   const drop = (to, n) => (e) => {
     if (!keyDrag) return;
     e.preventDefault();
+    e.stopPropagation?.();
     const x = keyDrag;
     keyDrag = null;
     const spot = Keypad.move(pages, x, to, n);
@@ -375,21 +381,33 @@ function wireKeyDrags(pages, all, keys) {
     target(el, page, at);
   });
   $$('[data-key-chief]', keys).forEach((el) => target(el, 0, 0)); // onto the Chief: pinned first, as on its row in the list
-  $$('[data-key-ask]', keys).forEach((el) => target(el, pages.length - 1, pages.at(-1).keys.length));
   $$('[data-page]', keys).forEach((el) => target(el, Number(el.dataset.page)));
 }
-// Needs you on the keypad and on a phone (#397): one warm card, "N need you", what waits in one line, and Review,
-// which opens as the banner's does. The keys of the bots `waits` holds (all that waits, also while the card is not
-// shown on the Needs you page) say Needs you, so they are drawn again when those bots change.
-function drawKeypadNeeds(items, review, waits = items) {
-  const lines = [...new Set(items.map(needLine).filter(Boolean))];
-  const html = items.length ? `<svg class="kp-needs-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></svg><span class="kp-needs-text"><b>${items.length} need${items.length === 1 ? 's' : ''} you</b><span>${esc(lines.join(' · '))}</span></span><span class="kp-review">Review</span>` : '';
+// Needs you on the keypad and on a phone (#635): one row per thing that waits, at most three, then "+N more", which
+// opens the Needs you page. A row has its bot's head, its name and what it wants (needLine). A plain yes or no that the
+// row says whole (answersInline, needs.js) has No and Allow, answered as its card's buttons answer it; anything else
+// has Review, which opens it as its card does (`open`: needs.js, openNeed). The keys of the bots `waits` holds (all that
+// waits, also while the rows are not shown on the Needs you page) have the amber dot, so they are drawn again when
+// those bots change.
+const NEED_ROWS = 3;
+function drawKeypadNeeds(items, open, waits = items) {
+  const shown = items.slice(0, NEED_ROWS);
+  const head = (x) => (x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure());
+  const acts = (x, i) => (answersInline(x)
+    ? `<button type="button" class="kp-no" data-kp-no="${i}">No</button><button type="button" class="kp-allow" data-kp-yes="${i}">Allow</button>`
+    : `<button type="button" class="kp-allow" data-kp-open="${i}">Review</button>`);
+  const more = items.length - shown.length;
+  const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefName())}</b> <span>${esc(needLine(x))}</span></span>${acts(x, i)}</div>`).join('')
+    + (more ? `<button type="button" class="kp-needs-more" data-kp-more>+${more} more</button>` : '');
   for (const id of ['#kp-needs', '#kp-phone-needs']) {
     const el = $(id);
     if (!el) continue;
     el.classList.toggle('hidden', !items.length);
     el.innerHTML = html;
-    el.onclick = review;
+    $$('[data-kp-yes]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpYes)], true, b)));
+    $$('[data-kp-no]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpNo)], false, b)));
+    $$('[data-kp-open]', el).forEach((b) => (b.onclick = () => open(shown[Number(b.dataset.kpOpen)])));
+    $$('[data-kp-more]', el).forEach((b) => (b.onclick = () => setView('needs')));
   }
   const waiting = needsBots(waits);
   if ([...waiting].join() !== [...keysWaiting].join()) { keysWaiting = waiting; renderContacts(); }
@@ -406,7 +424,34 @@ function onKeypadKey(e) {
   e.preventDefault();
   if (act.action === 'open') openKey(digits.get(act.digit));
   else if (act.action === 'chief') openChief();
-  else if (act.action === 'search') { $('#contact-search').focus(); $('#contact-search').select(); }
+  else if (act.action === 'search') openSearch();
+}
+
+// ---------- the search field: an icon in the top bar (#635) ----------
+// The field opens from the icon, or Ctrl+K on the keypad, and closes when it is left empty; Esc in it clears the query
+// and closes it. While there is a query it stays open.
+function openSearch() {
+  $('.sidebar')?.classList.add('search-open');
+  $('#search-btn')?.setAttribute('aria-expanded', 'true');
+  $('#contact-search').focus();
+  $('#contact-search').select();
+}
+function closeSearch() {
+  $('.sidebar')?.classList.remove('search-open');
+  $('#search-btn')?.setAttribute('aria-expanded', 'false');
+}
+function initSearch() {
+  const field = $('#contact-search'), button = $('#search-btn');
+  button.onmousedown = (e) => e.preventDefault(); // the open field keeps its focus, so a second tap closes it
+  button.onclick = () => ($('.sidebar').classList.contains('search-open') && !field.value.trim() ? closeSearch() : openSearch());
+  field.addEventListener('blur', () => { if (!field.value.trim()) closeSearch(); });
+  field.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault(); // not the keypad's Esc
+    if (field.value) { field.value = ''; field.dispatchEvent(new Event('input')); }
+    closeSearch();
+    field.blur();
+  });
 }
 
 // ---------- search in every chat ----------
@@ -648,7 +693,7 @@ function groupPicker(box, input, onChange) {
     box.innerHTML = [
       `<button type="button" class="gchip ${!input.value ? 'on' : ''}" data-g="">None</button>`,
       ...names.map((g) => `<button type="button" class="gchip ${input.value === g ? 'on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`),
-      adding ? '<input type="text" class="gchip-input" maxlength="40" placeholder="Category name" aria-label="New category name">' : '<button type="button" class="gchip add" data-new>＋ New category</button>',
+      adding ? '<input type="text" class="gchip-input" maxlength="40" placeholder="Category name" aria-label="New category name">' : '<button type="button" class="gchip add" data-new title="New category" aria-label="New category">＋</button>',
     ].join('');
     $$('[data-g]', box).forEach((c) => (c.onclick = () => { input.value = c.dataset.g; draw(); onChange?.(); }));
     const add = $('[data-new]', box);

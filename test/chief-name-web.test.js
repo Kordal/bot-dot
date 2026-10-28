@@ -119,6 +119,7 @@ function rename({ answers = [], had = 'Chief of Staff' } = {}) {
   const CHIEF_BOT = { name: had };
   const ctx = vm.createContext({
     CHIEF_BOT, CHIEF_ROLE: 'Chief of Staff', toast: (...a) => toasts.push(a),
+    $: () => null, flashSaved: () => drawn.push('saved'), // "Saved" at the panel's top right
     chiefName: () => CHIEF_BOT.name,
     takeChiefName: (n) => { const v = n && n.trim() ? n.trim() : 'Chief of Staff'; if (v === CHIEF_BOT.name) return false; CHIEF_BOT.name = v; return true; },
     renderContacts: () => drawn.push('list'), drawChiefName: () => drawn.push('head'), drawPanelHead: () => drawn.push('panel'),
@@ -140,8 +141,9 @@ test('the Chief\'s settings rename it, as a bot is renamed, and every place says
   await t.ctx.renameChief(t.field);
   assert.deepEqual(t.calls, [['PUT', '/settings/chief-name', { name: 'Ada' }]]);
   assert.equal(t.CHIEF_BOT.name, 'Ada');
-  assert.deepEqual(t.drawn, ['list', 'head', 'panel']);
+  assert.deepEqual(t.drawn, ['list', 'head', 'panel', 'saved']);
   assert.equal(t.field.value, 'Ada');
+  assert.deepEqual(t.toasts, [], 'no toast: "Saved" says it');
 });
 
 test('an emptied name gives back Chief of Staff, and the field shows its placeholder', async () => {

@@ -21,8 +21,8 @@ function settings({ features = ['chief', 'checkup'], checkup = null, answers = [
   const calls = [], toasts = [], listeners = {};
   const state = { features, checkup };
   const ctx = vm.createContext({
-    ...finders(element({ '#chief-checkup': box })), state, JSON,
-    toast: (...a) => toasts.push(a),
+    ...finders(element({ '#chief-checkup': box })), state, JSON, esc,
+    toast: (...a) => toasts.push(a), flashSaved() {},
     api: async (path, opts = {}) => {
       calls.push([opts.method || 'GET', path, opts.body && JSON.parse(JSON.stringify(opts.body))]); // an object of this side
       const a = answers.shift();
@@ -31,7 +31,8 @@ function settings({ features = ['chief', 'checkup'], checkup = null, answers = [
     },
     es: { addEventListener: (type, fn) => { listeners[type] = fn; } },
   });
-  vm.runInContext(`${cut('const CHECKUP_HTML = `', "// The Chief's settings (its figure and name in its chat)")}
+  vm.runInContext(`${cut('const CHEV = ', '// A change on a settings screen saves by itself')}
+    ${cut('const CHECKUP_HTML = `', "// The Chief's settings (its figure and name in its chat)")}
     ${cut("es.addEventListener('checkup'", '\n}\n\n// ---------- boot')}
     this.CHECKUP_HTML = CHECKUP_HTML; this.drawCheckup = drawCheckup; this.loadCheckup = loadCheckup; this.setCheckup = setCheckup;`, ctx);
   const hears = (data) => listeners.checkup({ data: typeof data === 'string' ? data : JSON.stringify(data) });
@@ -39,22 +40,24 @@ function settings({ features = ['chief', 'checkup'], checkup = null, answers = [
   return { ctx, state, on, web, when, calls, toasts, hears, shown };
 }
 
-test('web: two switches, "Checkup" and "Web search", each with its line, and no control for the days or the time', () => {
+test('web: two switch rows, "Checkup" with when it runs as its value and "Web search", and no control for the days or the time', () => {
   const html = settings().ctx.CHECKUP_HTML;
-  const rows = html.match(/<div class="bs-row">[\s\S]*?<\/label>\s*<\/div>/g);
+  const rows = html.match(/<label class="bs-row"[\s\S]*?<\/label>/g);
   assert.equal(rows.length, 2);
-  assert.match(rows[0], /<b>Checkup<\/b><div class="faint" data-checkup-when><\/div>/);
-  assert.match(rows[0], /<label class="switch"><input type="checkbox" data-checkup="on" aria-label="Checkup"><span><\/span><\/label>/);
-  assert.match(rows[1], /<b>Web search<\/b><div class="faint">Lets a checkup search the web to check a proposal\. It never opens a page\.<\/div>/);
-  assert.match(rows[1], /<label class="switch"><input type="checkbox" data-checkup="webSearch" aria-label="Web search"><span><\/span><\/label>/);
+  assert.match(rows[0], /^<label class="bs-row" title="Ask the Chief to change when\."><b>Checkup<\/b><span class="bs-val" data-checkup-when><\/span>/);
+  assert.match(rows[0], /<span class="switch"><input type="checkbox" data-checkup="on" aria-label="Checkup"><span><\/span><\/span><\/label>/);
+  // What Web search does is no line under it (#635): its tooltip, and its description for a screen reader.
+  assert.match(rows[1], /title="Lets a checkup search the web to check a proposal\. It never opens a page\." aria-description="Lets a checkup[^"]*"><b>Web search<\/b>/);
+  assert.match(rows[1], /<span class="switch"><input type="checkbox" data-checkup="webSearch" aria-label="Web search"><span><\/span><\/span><\/label>/);
   assert.equal((html.match(/<input|<select|<button|<textarea/g) || []).length, 2, 'the two switches and nothing else');
-  assert.match(html, /^\s*<div class="card settings-card bs-rows hidden" id="chief-checkup">/, 'not shown until the server said how it is');
+  assert.match(html, /^\s*<div class="bs-group hidden" id="chief-checkup">/, 'not shown until the server said how it is');
   assert.doesNotMatch(html, /cost|budget|usage/i);
 });
 
-test('web: the card is in the Chief\'s settings, outside the form that saves its model and rules, and each switch saves itself', () => {
+test('web: the rows are in the Chief\'s settings, saved apart from its model and rules, and each switch saves itself', () => {
   const draw = cut('function renderChiefSettings()', '// The pages that open from Settings.');
-  assert.match(draw, /<\/form>[\s\S]*?\$\{CHECKUP_HTML\}\s*<h3 class="page-sub">Previous chats<\/h3>/);
+  assert.match(draw, /\$\{CHECKUP_HTML\}\s*<details class="bs-row bs-more" id="chief-chats-row">/);
+  assert.match(draw, /form\.onchange = async \(e\) => \{\s*if \(!String\(e\.target\.name \|\| ''\)\.startsWith\('chief'\)\) return;/, 'the form saves only its own fields');
   assert.match(draw, /\$\$\('\[data-checkup\]', root\)\.forEach\(\(box\) => \(box\.onchange = \(\) => setCheckup\(box\.dataset\.checkup, box\.checked\)\)\);\s*loadCheckup\(\);/);
 });
 
@@ -77,10 +80,10 @@ test('web: with checkup the setting is read and both switches show, with the ser
   assert.deepEqual(s.calls, [['GET', '/settings/checkup', undefined]]);
   assert.equal(s.shown(), true);
   assert.deepEqual([s.on.checked, s.web.checked, s.web.disabled], [true, false, false]);
-  assert.equal(s.when.textContent, 'Weekdays at 08:00. Ask the Chief to change it.');
+  assert.equal(s.when.textContent, 'Weekdays at 08:00');
   const other = settings({ answers: [{ ...SETTING, webSearch: true, when: 'Mondays and Thursdays at 07:30' }] });
   await other.ctx.loadCheckup();
-  assert.equal(other.when.textContent, 'Mondays and Thursdays at 07:30. Ask the Chief to change it.');
+  assert.equal(other.when.textContent, 'Mondays and Thursdays at 07:30');
   assert.equal(other.web.checked, true);
   assert.doesNotMatch(cut('const CHECKUP_HTML = `', "// The Chief's settings (its figure"), /\.days|\.time\b|Weekdays/, 'the page composes no days and no time');
 });
@@ -133,12 +136,12 @@ test('web: a change made in another app or by the Chief moves the switches and t
   s.ctx.drawCheckup();
   s.hears({ ...SETTING, on: true, webSearch: true, days: [1, 4], time: '07:30', when: 'Mondays and Thursdays at 07:30' });
   assert.deepEqual([s.on.checked, s.web.checked, s.web.disabled], [true, true, false]);
-  assert.equal(s.when.textContent, 'Mondays and Thursdays at 07:30. Ask the Chief to change it.');
+  assert.equal(s.when.textContent, 'Mondays and Thursdays at 07:30');
   s.hears({ ...SETTING, on: false, webSearch: true });
   assert.deepEqual([s.on.checked, s.web.checked, s.web.disabled], [false, true, true]);
   // What is no setting changes nothing.
   for (const junk of ['not json', {}, { when: 'Never' }]) s.hears(junk);
-  assert.deepEqual([s.on.checked, s.web.checked, s.when.textContent], [false, true, 'Weekdays at 08:00. Ask the Chief to change it.']);
+  assert.deepEqual([s.on.checked, s.web.checked, s.when.textContent], [false, true, 'Weekdays at 08:00']);
   assert.deepEqual(s.calls, [], 'the feed carries the setting: nothing is asked again');
 });
 
@@ -169,7 +172,7 @@ test('web: a checkup\'s message shows its answer buttons and no 👍 and 👎', 
   assert.deepEqual([...html.matchAll(/<button class="btn" data-choice="([^"]*)">([^<]*)<\/button>/g)].map((m) => [m[1], m[2]]), [['Do 1', 'Do 1'], ['Do all', 'Do all'], ['Not now', 'Not now']]);
   assert.doesNotMatch(html, /class="rate|data-rating/, 'it is no unasked message');
   assert.match(html, /<strong>Rule, Web Surfer:<\/strong>/, 'its text is an ordinary reply');
-  assert.match(html, /<div class="bubble-meta">08:00<copy><\/div>/);
+  assert.match(html, /<div class="bubble-meta on-hover">08:00<copy><\/div>/);
   // One proposal: its two answers.
   assert.equal((page.chiefBubble({ ...MESSAGE, choices: ['Do it', 'Not now'] }, true, 0).match(/data-choice=/g) || []).length, 2);
   // The same message, were it unasked, would have the thumbs: it is `unasked` that draws them, not the place.

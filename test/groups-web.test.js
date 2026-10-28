@@ -47,6 +47,7 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     signedOut: { on: false }, newLine: lib.Unread.lineKeeper(), failedSends: new Map(), openingLines: lib.OpeningLine.keeper(),
     api: async (path, opts = {}) => { said.calls.push([opts.method || 'GET', path, ...(opts.body ? [plain(opts.body)] : [])]); const a = await answer(path, opts); if (a instanceof Error) throw a; return a; },
     toast: (text, bad) => said.toasts.push([text, !!bad]), refresh: async () => { said.refreshed++; }, renderContacts: () => { said.contacts++; },
+    flashSaved: () => { said.saved = (said.saved || 0) + 1; }, // "Saved" at the panel's top right (settings.js)
     setView: (v, sub) => said.views.push([v, sub]), setPanel() {}, leaveBot: () => { said.left++; }, setUnread: (chat, d) => said.unread.push([chat, d.unread]),
     confirm: (t) => { said.confirms.push(t); return true; }, updateChatNeeds: (thread, scope) => said.needs.push(scope),
     showBoxNote: (form, text) => said.notes.push(text), openModal: (h) => { said.modals.push(h); return said.modal(h); },
@@ -118,23 +119,25 @@ test('web: against a server without `groups` in `features` nothing of a group is
   assert.equal(page({ bots: [CODER] }).ctx.canMakeGroup(CODER), false, 'with no other bot there is nobody to add');
 });
 
-// The owner at the test of Milestone 10 (GRP-011): "Move this plus on the top of the chat on the right side of the bot name."
-test('web: the small plus that makes a group stands right of the name in a bot\'s chat, and no longer in its settings', () => {
+// The owner at the test of Milestone 10 (GRP-011) put a plus right of the bot's name; Quiet keys (#635) keeps the head
+// to the figure, the name, Files and ⋯, and "Add a bot to this chat" is in the ⋯ menu.
+test('web: "Add a bot to this chat" is in the ⋯ menu of a bot\'s chat head, and not in its settings', () => {
   const draw = cut('function renderBotChat() {', '// Re-render the thread only when something changed');
   const head = draw.slice(draw.indexOf('<div class="chat-head">'), draw.indexOf('<div class="chat-thread"'));
-  // A sibling of the name's button, right after it and before the buttons on the right: a tap on it is no tap on the name.
-  assert.match(head, /<button class="chat-title" id="bot-settings" title="Settings">(?:(?!<button)[\s\S])*<\/button>\s*<button type="button" class="icon-btn sm hidden" id="bot-add-to-chat" title="Add a bot to this chat" aria-label="Add a bot to this chat">＋<\/button>\s*<div class="actions-right">/);
-  assert.equal(head.match(/<button/g).length, 4, 'the name, the plus, its Files (#603) and its computer: no button inside another');
+  assert.match(head, /<button class="chat-title" id="bot-settings" title="Settings">(?:(?!<button)[\s\S])*<\/button>\s*<div class="actions-right">/, 'nothing between the name and the buttons on the right');
+  assert.match(head, /<button type="button" class="icon-btn" id="bot-more" title="More" aria-label="More" aria-haspopup="menu" aria-expanded="false">\$\{MORE_ICON\}<\/button>\s*<div class="chat-menu" role="menu" hidden>/);
+  assert.match(head, /<div class="chat-menu" role="menu" hidden>[\s\S]*<button type="button" role="menuitem" class="hidden" id="bot-add-to-chat">Add a bot to this chat<\/button>\s*<\/div>/);
+  assert.match(head, /<button type="button" role="menuitem" data-more="settings">Settings<\/button>/, 'its settings are in the menu too');
   // Drawn hidden, and shown at every drawing only where a group can be made: a server without groups, or no other bot, never shows it.
   assert.ok(draw.includes("$('#bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));"));
   // It opens the picker, for the bot whose chat is open; the name still opens the settings.
   assert.ok(draw.includes("$('#bot-add-to-chat').onclick = () => { const b = state.bots.find((x) => x.id === state.botId); if (b && canMakeGroup(b)) openGroupMaker(b); };"));
   assert.ok(draw.includes("$('#bot-settings').onclick = () => setPanel('toggle');"));
   // Only there: not in the bot's settings, the Chief's chat or a group's.
-  assert.equal(app.split('bot-add-to-chat').length - 1, 3, 'the head, its click and its showing');
+  assert.equal(app.split('bot-add-to-chat').length - 1, 3, 'the menu, its click and its showing');
   assert.ok(!src.includes('bot-add-to-chat'));
   assert.ok(!app.includes('bs-add') && !css.includes('bs-add'));
-  // A long name is cut, the plus keeps its size.
+  // A long name is cut, the buttons keep their size.
   assert.match(css, /#view-bot \.chat-head h2 \{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; \}/);
   assert.match(css, /\.chat-title \{[^}]*min-width: 0;/);
   assert.ok(css.includes('#view-bot .chat-head .back-btn { flex: none; }'), 'a long name does not squeeze the back button');
@@ -245,9 +248,10 @@ test('web: the panel has the name, the members each with a way to take it out, "
   const p = page({ reply: async (path, opts) => (opts.method === 'PUT' && opts.body.members?.length < 2 ? refused('A group has at least two bots. Add another, or delete the group.') : {}) });
   const { root, parts } = panelPage(p);
   p.ctx.renderGroupSettings();
-  assert.match(root.innerHTML, /<label class="field">Name<input type="text" id="gs-name" maxlength="60"/);
-  assert.match(root.innerHTML, /<button type="button" class="btn sm" id="gs-add">＋ Add a bot<\/button>/);
-  assert.match(root.innerHTML, /<button type="button" class="btn danger" id="gs-delete">Delete this group<\/button><\/div>/, 'no hint under it: the confirmation says what it erases');
+  // As a bot's settings (#635): the name on top, a row per member, "Add a bot" a row, Delete a red row at the end.
+  assert.match(root.innerHTML, /<div class="set-head"><div id="gs-pic"><\/div><div class="set-name"><input type="text" id="gs-name" maxlength="60" autocomplete="off" aria-label="Name"><\/div><\/div>/);
+  assert.match(root.innerHTML, /<button type="button" class="bs-row bs-link" id="gs-add"><b>Add a bot<\/b>/);
+  assert.match(root.innerHTML, /<div class="set-list"><button type="button" class="bs-row bs-link bs-danger" id="gs-delete"><b>Delete this group<\/b><\/button><\/div>/, 'no hint under it: the confirmation says what it erases');
   assert.equal(parts['#gs-name'].value, 'Dev');
   assert.deepEqual([...parts['#gs-members'].innerHTML.matchAll(/<span class="grow">(.*?)<\/span>\s*<button type="button" class="icon-btn sm" data-take-out="(\w+)" title="(.*?)"/g)].map((m) => m.slice(1)),
     [['Coder', 'coder', 'Take Coder out of the group'], ['Reviewer', 'reviewer', 'Take Reviewer out of the group'], ['Issue Writer', 'writer', 'Take Issue Writer out of the group']]);
@@ -262,6 +266,7 @@ test('web: the panel has the name, the members each with a way to take it out, "
   await parts['out:writer'].onclick();
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(p.said.calls, [['PUT', '/group-chats/g1', { name: 'Dev team' }], ['PUT', '/group-chats/g1', { members: ['coder', 'reviewer'] }]]);
+  assert.equal(p.said.saved, 2, 'each change says "Saved"');
   // What the server refuses is said in its words.
   p.state.groups[0].members = ['coder'];
   await p.ctx.changeGroup(p.state.groups[0], { members: [] });
@@ -406,10 +411,10 @@ test("web: the row has the members' heads with the faces of their states, the na
   // Five new replies are three dots, and a reply that failed is its problem, or that it could not finish.
   Object.assign(g, { unread: 5, last: { ...g.last, botId: 'gone', botName: 'Old Bot', status: 'error', text: '' } });
   assert.deepEqual(plain(p.ctx.groupLine(g)), { who: 'Old Bot', prev: "Couldn't finish", cls: '', after: p.ctx.Unread.dots(3, '#1d9e75') });
-  // A group with four members shows three heads; one whose bots are gone a grey one; one without a reply says so.
+  // A group with four members shows three heads; one whose bots are gone a grey one; one without a reply no line.
   assert.equal((p.ctx.groupPicture({ members: ['coder', 'reviewer', 'writer', 'weather'] }).match(/<svg/g) || []).length, 3);
   assert.match(p.ctx.groupPicture({ members: ['gone'] }), /<div class="group-pic  n1"><i><svg class="fig" data-st="idle" data-c="#888780">/);
-  assert.deepEqual(plain(p.ctx.groupLine({ ...DEV })), { who: '', prev: 'No messages yet', cls: '', after: '' });
+  assert.deepEqual(plain(p.ctx.groupLine({ ...DEV })), { who: '', prev: '', cls: '', after: '' });
   assert.match(css, /\.group-pic > i:nth-child\(3\) \{/);
 });
 
@@ -508,7 +513,7 @@ test('web: the gap opens where the dragged row would land: a group among the gro
 });
 
 test('web: a folder of bots is called a category wherever the page said group', () => {
-  for (const said of [/Rename or remove this category/, /<h2>Category: \$\{esc\(group\)\}<\/h2>/, />Remove category<\/button>/, /'Category removed'/, /<div class="field">Category\s*<div class="group-picker"/, /placeholder="Category name" aria-label="New category name"/, />＋ New category<\/button>/, /title="\$\{isFolded \? 'Show' : 'Hide'\} this category"/]) assert.match(app, said);
+  for (const said of [/Rename or remove this category/, /<h2>Category: \$\{esc\(group\)\}<\/h2>/, />Remove category<\/button>/, /'Category removed'/, /<div class="field">Category\s*<div class="group-picker"/, /placeholder="Category name" aria-label="New category name"/, /data-new title="New category" aria-label="New category">＋<\/button>/, /title="\$\{isFolded \? 'Show' : 'Hide'\} this category"/]) assert.match(app, said);
   for (const gone of [/Rename or remove this group/, /<h2>Group: /, /Remove group/, /Group removed/, /<div class="field">Group\b/, /New group name/, /＋ New group/, /Group name/]) assert.doesNotMatch(app, gone);
   // What the page calls a group now is the chat with several bots.
   assert.match(src, /title: 'New group'/);

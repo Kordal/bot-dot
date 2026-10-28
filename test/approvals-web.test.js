@@ -119,7 +119,9 @@ test('web: a job and a tile that wait for their first approval have the server\'
   }
   // No browser question: the button says what it does.
   assert.equal(p.asksBeforeNo(p.item('job:j3')), false);
-  assert.match(cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat'), /if \(no\) no\.onclick = \(\) => \{ if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) whileBusy\(no, 'Declining…', \(\) => decide\(x, false\)\); \};/);
+  const wiring = cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat');
+  assert.match(wiring, /if \(no\) no\.onclick = \(\) => answerNeed\(x, false, no\);/, 'a card\'s no, as its row on the keypad answers it');
+  assert.match(wiring, /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) return whileBusy\(button, 'Declining…', \(\) => decide\(x, false\)\);/);
 });
 
 test('web: the server\'s words are text, never markup', async () => {
@@ -372,7 +374,7 @@ test('web: the jobs panel shows a job with a change as running, with "A change w
   assert.match(html, /<div class="job-body">\s*<div class="req-note job-change">A change waits for your OK\. Runs as you approved it until you answer\. <button type="button" class="btn sm primary" data-review>Review the change<\/button><\/div>/);
   assert.match(html, /<details class="job-card" [^>]* open>/, 'its card is open: the note is seen');
   assert.doesNotMatch(html, /set this up, so it waits for your OK before it runs/);
-  assert.match(html, /name="jobPrompt" rows="3">Send me the three biggest tech stories\.</, 'the fields are the approved job\'s');
+  assert.match(html, /name="jobPrompt" rows="3" placeholder="[^"]*">Send me the three biggest tech stories\.</, 'the fields are the approved job\'s');
   assert.equal(p.jobChangeNote(APPROVED), '');
   assert.doesNotMatch(p.jobCardHTML(APPROVED), /job-change|<details class="job-card" [^>]* open>/);
   assert.match(p.jobCardHTML({ ...AI, changedBy: 'bot' }), /The bot set this up, so it waits for your OK before it runs\./, 'a job before its first OK is as before');

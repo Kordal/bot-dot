@@ -31,6 +31,8 @@ const effortLabel = (id) => (!id ? "Claude Code's default" : state.efforts?.find
 // Whether a model takes a reasoning level (from Anthropic's model list; unknown names are assumed to).
 const takesEffort = (id) => { const m = state.models?.find((x) => x.id === id); return m ? m.effort !== false : !/haiku/i.test(id || ''); };
 const llmSummary = (model, effort) => (model || effort ? `${modelLabel(model)}${effort && takesEffort(model) ? ` · ${effortLabel(effort)}` : ''}` : "Claude Code's choice");
+// The value of a Model row of the Chief or a bot, which nothing set follows the default.
+const llmValue = (model, effort) => (model || effort ? llmSummary(model, effort) : 'Default');
 
 // Model + reasoning selects. inherit: label for the "use the default" choice ('' = Claude Code's default).
 function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
@@ -50,15 +52,16 @@ function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
         <label class="field">Reasoning level<select name="${prefix}Effort">${effortOpts}</select></label>
       </div>
       <input type="text" class="mono ${model && !known ? '' : 'hidden'}" name="${prefix}ModelCustom" value="${model && !known ? esc(model) : ''}" placeholder="Full model name, e.g. claude-opus-4-8" autocomplete="off" spellcheck="false">
-      <div class="llm-note" data-llm-note></div>
     </div>`;
 }
 
+// What a model and a reasoning level are like is no line under them (#635): it is each select's tooltip, and its
+// description for a screen reader.
 function wireLlmFields(form, prefix) {
-  const box = $(`[data-llm="${prefix}"]`, form);
   const m = form[`${prefix}Model`];
   const e = form[`${prefix}Effort`];
   const custom = form[`${prefix}ModelCustom`];
+  const describe = (el, text) => { el.title = text; el.setAttribute('aria-description', text); };
   const update = () => {
     custom.classList.toggle('hidden', m.value !== '__custom');
     const id = m.value === '__custom' ? custom.value.trim() : m.value;
@@ -66,11 +69,8 @@ function wireLlmFields(form, prefix) {
     const noEffort = !!id && !takesEffort(id);
     e.disabled = noEffort;
     const effort = state.efforts?.find((x) => x.id === e.value);
-    const bits = [];
-    if (info?.note) bits.push(esc(info.note));
-    if (noEffort) bits.push(`${esc(info?.label || id)} doesn't use reasoning levels.`);
-    else if (effort) bits.push(`<b>${esc(effort.label)}:</b> ${esc(effort.note)}`);
-    $('[data-llm-note]', box).innerHTML = bits.join(' ');
+    describe(m, info?.note || '');
+    describe(e, noEffort ? `${info?.label || id} doesn't use reasoning levels.` : effort ? `${effort.label}: ${effort.note}` : '');
   };
   m.onchange = update;
   e.onchange = update;
@@ -84,28 +84,56 @@ function readLlmFields(form, prefix) {
   return { model, effort: model && !takesEffort(model) ? '' : form[`${prefix}Effort`].value };
 }
 
+// ---------- the rows of a settings screen ----------
+
+// Every settings screen is one flat list of rows (#635): a label left, its value right and muted, a › where the row
+// opens something, a switch where it is on or off. A blank gap parts two lists. What a row is about, when its label
+// alone may not say it, is its tooltip and its description for a screen reader, never a line under it.
+const CHEV = '<span class="bs-chev" aria-hidden="true">›</span>';
+const tipAttrs = (tip) => (tip ? ` title="${esc(tip)}" aria-description="${esc(tip)}"` : '');
+
+// A change on a settings screen saves by itself: "Saved" stands at the screen's top right for two seconds after it,
+// in the panel's head for a chat's settings and its jobs, beside the title on Settings. A status, so a screen
+// reader says it too. root: the screen's section.
+function flashSaved(root) {
+  const head = root.closest('#panel') ? $('#panel .panel-head') : $('.set-title', root);
+  if (!head) return;
+  let note = $('.saved-note', head);
+  if (!note) {
+    note = document.createElement('span');
+    note.className = 'saved-note';
+    note.setAttribute('role', 'status');
+    head.insertBefore(note, $('.panel-close', head)); // left of the panel's close; at the end of Settings' title
+  }
+  note.textContent = 'Saved';
+  note.classList.add('on');
+  clearTimeout(flashSaved.timer);
+  flashSaved.timer = setTimeout(() => note.classList.remove('on'), 2000);
+}
+
 // ---------- settings ----------
 
+// Under the model list's "Check for new models": only a check that failed says so. Where the list comes from is
+// the button's tooltip.
 function catalogLine() {
   const c = state.catalog || {};
   if (c.error) return `<span class="warn-text">${esc(c.error)}</span>`;
-  if (c.source === 'docs') return `Model list from Anthropic's docs, checked ${esc(ago(c.checkedAt))}. Reasoning levels from your Claude Code.`;
-  return 'Built-in model list (not checked online yet).';
+  return '';
+}
+function catalogTip() {
+  const c = state.catalog || {};
+  return c.source === 'docs' ? `Model list from Anthropic's docs, checked ${ago(c.checkedAt)}. Reasoning levels from your Claude Code.` : 'Built-in model list, not checked online yet.';
 }
 
 // The checkup's two switches in the Chief's settings (docs/api.md, The Chief's checkup), from a server that has
-// it. Its days and its time have no control: the line says them in the server's words, and the Chief changes them.
+// it. Its days and its time have no control: the row shows them in the server's words, and the Chief changes them.
 const CHECKUP_HTML = `
-    <div class="card settings-card bs-rows hidden" id="chief-checkup">
-      <div class="bs-row">
-        <div class="grow"><b>Checkup</b><div class="faint" data-checkup-when></div></div>
-        <label class="switch"><input type="checkbox" data-checkup="on" aria-label="Checkup"><span></span></label>
-      </div>
-      <div class="bs-row">
-        <div class="grow"><b>Web search</b><div class="faint">Lets a checkup search the web to check a proposal. It never opens a page.</div></div>
-        <label class="switch"><input type="checkbox" data-checkup="webSearch" aria-label="Web search"><span></span></label>
-      </div>
-    </div>`;
+      <div class="bs-group hidden" id="chief-checkup">
+        <label class="bs-row" title="Ask the Chief to change when."><b>Checkup</b><span class="bs-val" data-checkup-when></span>
+          <span class="switch"><input type="checkbox" data-checkup="on" aria-label="Checkup"><span></span></span></label>
+        <label class="bs-row"${tipAttrs('Lets a checkup search the web to check a proposal. It never opens a page.')}><b>Web search</b>
+          <span class="switch"><input type="checkbox" data-checkup="webSearch" aria-label="Web search"><span></span></span></label>
+      </div>`;
 
 // The switches as the server has them; Web search is there but can't be used while checkups are off.
 function drawCheckup() {
@@ -118,7 +146,7 @@ function drawCheckup() {
   on.checked = !!c.on;
   web.checked = !!c.webSearch;
   web.disabled = !c.on;
-  $('[data-checkup-when]', box).textContent = `${c.when}. Ask the Chief to change it.`;
+  $('[data-checkup-when]', box).textContent = c.when;
 }
 
 async function loadCheckup() {
@@ -129,7 +157,7 @@ async function loadCheckup() {
 
 // A refused or failed change puts the switch back: it is drawn again from what the server last said.
 async function setCheckup(key, value) {
-  try { state.checkup = (await api('/settings/checkup', { method: 'PUT', body: { [key]: value } })).checkup; }
+  try { state.checkup = (await api('/settings/checkup', { method: 'PUT', body: { [key]: value } })).checkup; flashSaved($('#view-chiefsettings')); }
   catch (err) { toast(err.message, true); }
   drawCheckup();
 }
@@ -143,57 +171,46 @@ function renderChiefSettings() {
   if (!state.settings || root.dataset.ready) return;
   root.dataset.ready = '1';
   const s = state.settings;
+  // One form for what PUT /settings takes (its fields are named chief…): the rules at the top, the model in its row.
   root.innerHTML = `
-    <div class="section-head"><div><h1>Settings</h1><p>Changes save by themselves.</p></div></div>
-    ${state.features.includes('chief-name') ? `<div class="card settings-card">
-      <label class="field">Name<input type="text" id="chief-rename" maxlength="40" placeholder="${esc(CHIEF_ROLE)}" autocomplete="off" value="${esc(chiefName() === CHIEF_ROLE ? '' : chiefName())}"></label>
-    </div>` : ''}
-    <form class="card settings-card" id="chief-form" autocomplete="off">
-      <h3 class="page-sub" style="margin-top:0">Model and reasoning</h3>
-      <p class="muted settings-hint">What the Chief uses to plan, create and manage your bots.</p>
-      ${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort }, 'Same as the default')}
-      <h3 class="page-sub">Your rules for it</h3>
-      <textarea name="chiefRules" rows="4" maxlength="4000" placeholder="e.g. Always ask me before creating a bot. Talk to me like a colleague: short and direct.">${esc(s.chiefRules || '')}</textarea>
-    </form>
-    <h3 class="page-sub">Skills</h3>
-    <div class="card settings-card bs-rows">
-      <div class="bs-row" id="chief-skills">
-        <span class="bs-icon">✦</span>
-        <div class="grow"><b>Your skills for it</b><div class="faint">From your library, beside its own. Only you change them.</div><div id="chief-skill-picks"><span class="faint">Loading…</span></div></div>
-        <span class="faint bs-chev">›</span>
+    <form id="chief-form" autocomplete="off">
+      <div class="set-head">
+        ${chiefFigure('lg')}
+        <div class="set-name">${state.features.includes('chief-name')
+          ? `<input type="text" id="chief-rename" maxlength="40" placeholder="${esc(CHIEF_ROLE)}" autocomplete="off" aria-label="Name" value="${esc(chiefName() === CHIEF_ROLE ? '' : chiefName())}">`
+          : `<b>${esc(chiefName())}</b>`}</div>
       </div>
-      <div class="bs-row hidden" id="chief-always">
-        <span class="bs-icon">✓</span>
-        <div class="grow"><b>Always approved</b><div class="faint">What you said to always allow on its cards. Revoke one and it asks you again.</div><div id="chief-always-picks"></div></div>
-        <span class="faint bs-chev">›</span>
+      <label class="field">Your rules for it<textarea name="chiefRules" rows="4" maxlength="4000" placeholder="e.g. Always ask me before creating a bot. Talk to me like a colleague: short and direct.">${esc(s.chiefRules || '')}</textarea></label>
+      <div class="set-list">
+        <details class="bs-row bs-more" id="chief-model">
+          <summary${tipAttrs('What the Chief uses to plan, create and manage your bots.')}><b>Model</b><span class="bs-val" data-llm-val>${esc(llmValue(s.chiefModel, s.chiefEffort))}</span>${CHEV}</summary>
+          <div class="bs-body">${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort }, 'Same as the default')}</div>
+        </details>
+        <div class="bs-row" id="chief-skills"${tipAttrs('From your library, beside its own. Only you change them.')}>
+          <div class="grow"><b>Skills</b><div id="chief-skill-picks"><span class="faint">Loading…</span></div></div>${CHEV}
+        </div>
+        <div class="bs-row hidden" id="chief-always"${tipAttrs('What you said to always allow on its cards. Revoke one and it asks you again.')}>
+          <div class="grow"><b>Always approved</b><div id="chief-always-picks"></div></div>${CHEV}
+        </div>${state.features.includes('chief-jobs') ? `
+        <details class="bs-row bs-more" id="chief-jobs">
+          <summary${tipAttrs('It looks things up on a schedule and tells you here; it changes nothing. Easiest: ask it, e.g. "every weekday at 8 tell me what\'s new on Hacker News".')}><b>Jobs</b><span class="bs-val" id="chief-jobs-val"></span>${CHEV}</summary>
+          <div class="bs-body" id="chief-job-list"><span class="faint">Loading…</span></div>
+        </details>` : ''}${typeof Pages !== 'undefined' && Pages.showsChief() ? `
+        <details class="bs-row bs-more" id="chief-pages">
+          <summary${tipAttrs('Reports, memos and overviews it made for you. Open one to keep it up to date.')}><b>Pages</b><span class="bs-val" id="chief-pages-val"></span>${CHEV}</summary>
+          <div class="bs-body pg-list" id="chief-page-list"><span class="faint">Loading…</span></div>
+        </details>` : ''}${state.features.includes('chief-files') ? `
+        <button type="button" class="bs-row bs-link" id="chief-files" data-chief-files><b>Files</b>${CHEV}</button>` : ''}${CHECKUP_HTML}
+        <details class="bs-row bs-more" id="chief-chats-row">
+          <summary><b>Previous chats</b>${CHEV}</summary>
+          <div class="bs-body settings-links" id="chief-chats"></div>
+        </details>
       </div>
-    </div>${typeof Pages !== 'undefined' && Pages.showsChief() ? `
-    <h3 class="page-sub">Pages</h3>
-    <div class="card settings-card bs-rows">
-      <div class="bs-row" id="chief-pages">
-        <span class="bs-icon">📄</span>
-        <div class="grow"><b>Its pages</b><div class="faint">Reports, memos and overviews it made for you. Open one to keep it up to date.</div><div id="chief-page-list" class="pg-list"><span class="faint">Loading…</span></div></div>
-      </div>
-    </div>` : ''}${state.features.includes('chief-jobs') ? `
-    <h3 class="page-sub">Scheduled jobs</h3>
-    <div class="card settings-card bs-rows" id="chief-jobs">
-      <div class="bs-row"><span class="bs-icon">⏰</span><div class="grow"><b>Its own jobs</b><div class="faint">It looks things up on a schedule and tells you here; it changes nothing. Easiest: ask it, e.g. "every weekday at 8 tell me what's new on Hacker News".</div></div></div>
-      <div id="chief-job-list"><span class="faint">Loading…</span></div>
-    </div>` : ''}${state.features.includes('chief-files') ? `
-    <h3 class="page-sub">Files</h3>
-    <div class="card settings-card bs-rows">
-      <button type="button" class="bs-row bs-link" id="chief-files" data-chief-files>
-        <span class="bs-icon">🗂</span>
-        <div class="grow"><b>Files</b></div>
-        <span class="faint">›</span>
-      </button>
-    </div>` : ''}${CHECKUP_HTML}
-    <h3 class="page-sub">Previous chats</h3>
-    <div class="card settings-card settings-links" id="chief-chats"></div>`;
+    </form>`;
   renderChatList();
   drawChiefSkills(root);
   loadChiefAlways(root);
-  if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefName() }, $('#chief-page-list', root)); // public/pages.js (#384)
+  if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefName() }, $('#chief-page-list', root), $('#chief-pages-val', root)); // public/pages.js (#384)
   drawChiefFiles(root);
   drawChiefJobs();
   $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
@@ -203,12 +220,15 @@ function renderChiefSettings() {
   const form = $('#chief-form', root);
   wireLlmFields(form, 'chief');
   form.onsubmit = (e) => e.preventDefault();
-  form.onchange = async () => {
+  // Only the fields PUT /settings takes: the switches and picks in the rows save on their own.
+  form.onchange = async (e) => {
+    if (!String(e.target.name || '').startsWith('chief')) return;
     const c = readLlmFields(form, 'chief');
     try {
       const r = await api('/settings', { method: 'PUT', body: { chiefModel: c.model, chiefEffort: c.effort, chiefRules: form.chiefRules.value } });
       state.settings = r.settings;
-      toast('Saved. The Chief uses it from its next reply.');
+      $('[data-llm-val]', root).textContent = llmValue(r.settings.chiefModel, r.settings.chiefEffort);
+      flashSaved(root);
     } catch (err) { toast(err.message, true); }
   };
 }
@@ -257,7 +277,7 @@ async function renameChief(field) {
     const { name } = await api('/settings/chief-name', { method: 'PUT', body: { name: field.value.trim() } });
     if (takeChiefName(name)) { renderContacts(); drawChiefName(); drawPanelHead(); }
     field.value = chiefName() === CHIEF_ROLE ? '' : chiefName();
-    toast('Renamed.');
+    flashSaved($('#view-chiefsettings'));
   } catch (err) {
     field.value = chiefName() === CHIEF_ROLE ? '' : chiefName();
     toast(err.message, true);
@@ -272,14 +292,16 @@ async function drawChiefJobs(jobs = null) {
   try { jobs ||= (await api('/chief/jobs')).jobs; } catch { box.innerHTML = '<span class="faint">Couldn\'t load its jobs.</span>'; return; }
   box.innerHTML = jobs.length ? jobs.map((j) => `
       <div class="bs-row" data-chief-job="${esc(j.id)}">
-        <div class="grow"><b>${esc(j.name)}</b><div class="faint">${esc(j.when)}${j.on ? '' : ' · paused'}</div><div class="faint">${esc(j.task.length > 160 ? `${j.task.slice(0, 160)}…` : j.task)}</div>
+        <div class="grow"><b>${esc(j.name)}</b><span class="bs-val">${esc(j.when)}${j.on ? '' : ' · paused'}</span><div class="faint">${esc(j.task.length > 160 ? `${j.task.slice(0, 160)}…` : j.task)}</div>
           <button type="button" class="link-btn danger-text" data-chief-job-remove>Remove</button></div>
         <label class="switch"><input type="checkbox" data-chief-job-on ${j.on ? 'checked' : ''} aria-label="${esc(j.name)} on"><span></span></label>
       </div>`).join('') : '<div class="faint">None yet.</div>';
+  const count = $('#chief-jobs-val');
+  if (count) count.textContent = jobs.length ? String(jobs.length) : '';
   $$('[data-chief-job]', box).forEach((row) => {
     const id = row.dataset.chiefJob;
     $('[data-chief-job-on]', row).onchange = (e) => api(`/chief/jobs/${encodeURIComponent(id)}`, { method: 'PUT', body: { on: e.target.checked } })
-      .catch((err) => { toast(err.message, true); drawChiefJobs(); });
+      .then(() => flashSaved($('#view-chiefsettings'))).catch((err) => { toast(err.message, true); drawChiefJobs(); });
     $('[data-chief-job-remove]', row).onclick = () => api(`/chief/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' })
       .then(() => { toast('Removed.'); drawChiefJobs(); }).catch((err) => toast(err.message, true));
   });
@@ -296,32 +318,27 @@ function drawChiefSkills(root) {
       try {
         const r = await api('/settings', { method: 'PUT', body: { chiefSkills: [...has] } });
         state.settings = r.settings;
-        toast('Saved. The Chief uses it from its next reply.');
+        flashSaved($('#view-chiefsettings'));
       } catch (err) { toast(err.message, true); }
     }, { empty: 'No skills in your library yet.' });
   }).catch(() => { box.innerHTML = '<span class="faint">Couldn\'t load skills.</span>'; });
 }
 
-// The pages that open from Settings.
-const SETTINGS_PAGES = [
-  ['runs', 'Activity', '<svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>'],
-  ['skills', 'Skills', '<svg viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></svg>'],
-  ['pages', 'Pages', '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6"/></svg>'], // every bot's pages (#361)
-  ['connectors', 'Connectors', '<svg viewBox="0 0 24 24"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0V7zM12 16v5"/></svg>'],
-  ['vault', 'Vault', '<svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'],
-];
+// The pages that open from Settings. They are its first rows; Pages is every bot's pages (#361).
+const SETTINGS_PAGES = [['runs', 'Activity'], ['skills', 'Skills'], ['pages', 'Pages'], ['connectors', 'Connectors'], ['vault', 'Vault']];
 
-// The links to the pages above. Drawn again on every refresh, also while the form below keeps its edits, so that
-// "Activity" always shows the tasks running now.
+// The rows to the pages above. Drawn again on every refresh, also while the rows below keep their edits, so that
+// Activity always shows the tasks running now.
 function drawSettingsLinks(root) {
   const box = $('#settings-links', root);
   if (!box) return;
   const running = runningTasks();
-  box.innerHTML = SETTINGS_PAGES.filter(([view]) => view !== 'pages' || (typeof Pages !== 'undefined' && Pages.showsAll())).map(([view, label, icon]) => `
-      <button type="button" class="settings-link" data-go="${view}">${icon}<span class="grow">${label}</span>${view === 'runs' && running ? `<span class="pill accent pulse">${tasksRunning(running)}</span>` : ''}<span class="faint">›</span></button>`).join('');
+  box.innerHTML = SETTINGS_PAGES.filter(([view]) => view !== 'pages' || (typeof Pages !== 'undefined' && Pages.showsAll())).map(([view, label]) => `
+      <button type="button" class="bs-row bs-link" data-go="${view}"><b>${label}</b>${view === 'runs' && running ? `<span class="bs-val">${running} running</span>` : ''}${CHEV}</button>`).join('');
   $$('[data-go]', box).forEach((b) => (b.onclick = () => setView(b.dataset.go)));
 }
 
+// Settings: the pages it opens, then the account's own settings, a row each; a row with more to it opens under it.
 function renderSettings() {
   const root = $('#view-settings');
   if (!state.settings) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
@@ -329,36 +346,36 @@ function renderSettings() {
   const s = state.settings;
   const custom = state.bots.filter((b) => b.model || b.effort);
   root.innerHTML = `
-    ${PAGE_BACK}
-    <div class="section-head"><div><h1>Settings</h1><p>Defaults for your team. Each bot can override them in its own settings.</p></div></div>
-    <div class="card settings-card settings-links" id="settings-links"></div>
-    <form id="settings-form" autocomplete="off">
-      <details class="card settings-card settings-fold">
-        <summary><h3 class="page-sub">Default model and reasoning</h3></summary>
-        ${llmFieldsHTML('default', { model: s.defaultModel, effort: s.defaultEffort })}
-        <div class="catalog-line">${catalogLine()} <button type="button" class="link-btn" id="refresh-models">Check for new models</button></div>
+    <div class="section-head set-title">${BACK_BTN}<h1>Settings</h1><span class="saved-note" role="status"></span></div>
+    <div class="set-list" id="settings-links"></div>
+    <div class="set-list">
+      <details class="bs-row bs-more" id="settings-model">
+        <summary${tipAttrs('The model and reasoning level of every bot without a choice of its own.')}><b>Model</b><span class="bs-val" data-llm-val>${esc(llmSummary(s.defaultModel, s.defaultEffort))}</span>${CHEV}</summary>
+        <form class="bs-body" id="settings-form" autocomplete="off">
+          ${llmFieldsHTML('default', { model: s.defaultModel, effort: s.defaultEffort })}
+          <div class="catalog-line">${catalogLine()} <button type="button" class="link-btn" id="refresh-models"${tipAttrs(catalogTip())}>Check for new models</button></div>
+        </form>
       </details>
-    </form>
-    ${state.features.includes('boat-size') && state.status?.boat ? `<details class="card settings-card settings-fold" id="boat-size-card">
-      <summary><h3 class="page-sub">Computer</h3></summary>
-      ${state.features.includes('account-computer') ? `<label class="field">Where<select id="computer-place" disabled><option value="linux">This machine</option><option value="boat">External Virtual PC</option></select></label>` : ''}
-      <label class="field" id="boat-size-field">Size<select id="boat-size" disabled><option>Loading…</option></select></label>
-    </details>` : ''}
-    <details class="card settings-card settings-fold">
-      <summary><h3 class="page-sub">Bots with their own choice</h3></summary>
-      ${custom.length
-        ? custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')
-        : '<p class="muted settings-hint" style="margin:0">None: every bot uses the default. Change a bot in its settings (⚙ in its chat).</p>'}
-    </details>
-    ${state.features.includes('token-usage') ? '<details class="card settings-card settings-fold" id="usage-card"></details>' : ''}
-    <div class="card settings-card bs-rows" id="install-card" hidden></div>
-    ${pushCardHTML()}
-    <details class="card settings-card settings-fold" id="backups-card">
-      <summary><h3 class="page-sub">Backups</h3></summary>
-      <p class="muted settings-hint" style="margin:0">Checking…</p>
-    </details>
-    <details class="card settings-card settings-fold" id="update-card" hidden></details>
-    ${signOutCardHTML()}`;
+      ${custom.length ? `<details class="bs-row bs-more">
+        <summary><b>Bots with their own model</b><span class="bs-val">${custom.length}</span>${CHEV}</summary>
+        <div class="bs-body">${custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')}</div>
+      </details>` : `<div class="bs-row"${tipAttrs('Every bot uses the default. Change a bot in its settings.')}><b>Bots with their own model</b><span class="bs-val">None</span></div>`}
+      ${state.features.includes('boat-size') && state.status?.boat ? `<details class="bs-row bs-more" id="boat-size-card">
+        <summary><b>Computer</b><span class="bs-val" id="computer-place-val"></span>${CHEV}</summary>
+        <div class="bs-body">
+          ${state.features.includes('account-computer') ? `<label class="field">Where<select id="computer-place" disabled><option value="linux">This machine</option><option value="boat">External Virtual PC</option></select></label>` : ''}
+          <label class="field" id="boat-size-field">Size<select id="boat-size" disabled${tipAttrs('Each machine takes it when it starts next.')}><option>Loading…</option></select></label>
+        </div>
+      </details>` : ''}
+      ${state.features.includes('token-usage') ? '<details class="bs-row bs-more" id="usage-card"></details>' : ''}
+      ${pushCardHTML()}
+      <div class="bs-group" id="install-card" hidden></div>
+      <details class="bs-row bs-more" id="backups-card">
+        <summary><b>Backups</b><span class="bs-val">Checking…</span>${CHEV}</summary>
+      </details>
+      <details class="bs-row bs-more" id="update-card" hidden></details>
+      ${signOutCardHTML()}
+    </div>`;
   drawInstallCard();
   loadUpdateCard();
   wirePushCard(root);
@@ -380,7 +397,7 @@ function renderSettings() {
     } catch (err) { toast(err.message, true); }
     root.innerHTML = '';
     renderSettings();
-    $('#settings-form details', root).open = true; // the fold the button is in stays open
+    $('#settings-model', root).open = true; // the row the button is in stays open
   };
   $$('[data-edit-bot]', root).forEach((b) => (b.onclick = () => setView('botsettings', b.dataset.editBot)));
   // Saves by itself, like a bot's settings.
@@ -390,7 +407,8 @@ function renderSettings() {
     try {
       const r = await api('/settings', { method: 'PUT', body: { defaultModel: d.model, defaultEffort: d.effort } });
       state.settings = r.settings;
-      toast('Saved. New runs use it.');
+      $('[data-llm-val]', root).textContent = llmSummary(r.settings.defaultModel, r.settings.defaultEffort);
+      flashSaved(root);
     } catch (err) { toast(err.message, true); }
   };
 }
@@ -402,7 +420,11 @@ async function loadComputerPlace(root) {
   if (!pick) return;
   let place;
   try { ({ place } = await api('/settings/computer')); } catch { return; }
-  const show = () => { pick.value = place; $('#boat-size-field', root).hidden = place !== 'boat'; };
+  const show = () => {
+    pick.value = place;
+    $('#boat-size-field', root).hidden = place !== 'boat';
+    $('#computer-place-val', root).textContent = pick.selectedOptions[0]?.textContent || '';
+  };
   show();
   pick.disabled = false;
   pick.onchange = async () => {
@@ -413,6 +435,7 @@ async function loadComputerPlace(root) {
     try {
       ({ place } = await api('/settings/computer', { method: 'PUT', body: { place: to, moveFiles: copy } }));
       show();
+      flashSaved($('#view-settings'));
       await refresh();
     } catch (err) { toast(err.message, true); }
   };
@@ -430,7 +453,7 @@ async function loadBoatSize(root) {
   pick.onchange = async () => {
     try {
       await api('/settings/boat-size', { method: 'PUT', body: { size: pick.value } });
-      toast('Saved. Each machine takes it when it starts next.');
+      flashSaved($('#view-settings'));
     } catch (err) { toast(err.message, true); }
   };
 }
@@ -449,12 +472,10 @@ function drawInstallCard() {
   const how = Install.state(window);
   card.hidden = !how;
   if (!how) { card.innerHTML = ''; return; }
-  card.innerHTML = `
-      <div class="bs-row">
-        <span class="bs-icon">📲</span>
-        <div class="grow"><b>Install app</b><div class="faint">${how === 'button' ? 'botdot in its own window, with its own icon.' : esc(INSTALL_HINTS[how])}</div></div>
-        ${how === 'button' ? '<button type="button" class="btn sm" id="install-app">Install</button>' : ''}
-      </div>`;
+  // The way in Safari is what the row opens: without it the row can't be followed.
+  card.innerHTML = how === 'button' ? `
+      <div class="bs-row"${tipAttrs('botdot in its own window, with its own icon.')}><b>Install app</b><button type="button" class="btn sm" id="install-app">Install</button></div>` : `
+      <details class="bs-row bs-more"><summary><b>Install app</b>${CHEV}</summary><div class="bs-body">${esc(INSTALL_HINTS[how])}</div></details>`;
   const button = $('#install-app', card);
   if (button) button.onclick = () => Install.install(window).catch(() => false);
 }
@@ -467,22 +488,16 @@ Install.onChange(window, drawInstallCard);
 // switch is replaced by the way there: Web Push comes only to botdot added to the Home Screen.
 function pushCardHTML() {
   if (!state.features.includes('web-push')) return '';
-  const head = '<h3 class="page-sub" style="margin-top:0">Notifications on this device</h3>';
+  // The switch is for this device only: its label says "Notifications", its name for a screen reader says the rest.
   if (Push.needsHomeScreen(navigator)) {
-    return `<div class="card settings-card" id="push-card">${head}
-      <p class="muted settings-hint" style="margin:0">Add to Home Screen first: tap Share, then “Add to Home Screen”, and open botdot from there. Then turn this on in its Settings.</p></div>`;
+    return `<details class="bs-row bs-more" id="push-card"><summary><b>Notifications</b><span class="bs-val">Home Screen first</span>${CHEV}</summary>
+      <div class="bs-body">Tap Share, then “Add to Home Screen”, and open botdot from there. Then turn this on in its Settings.</div></details>`;
   }
   if (!Push.supported(window)) {
-    return `<div class="card settings-card" id="push-card">${head}
-      <p class="muted settings-hint" style="margin:0">This browser can't show botdot's notifications.</p></div>`;
+    return `<div class="bs-row" id="push-card"${tipAttrs("This browser can't show botdot's notifications.")}><b>Notifications</b><span class="bs-val">Not in this browser</span></div>`;
   }
-  return `<div class="card settings-card bs-rows" id="push-card">
-      <div class="bs-row">
-        <span class="bs-icon">🔔</span>
-        <div class="grow"><b>Notifications on this device</b></div>
-        <label class="switch"><input type="checkbox" id="push-on" disabled aria-label="Notifications on this device"><span></span></label>
-      </div>
-    </div>`;
+  return `<label class="bs-row" id="push-card" title="On this device"><b>Notifications</b>
+      <span class="switch"><input type="checkbox" id="push-on" disabled aria-label="Notifications on this device"><span></span></span></label>`;
 }
 
 function wirePushCard(root) {
@@ -494,7 +509,7 @@ function wirePushCard(root) {
     box.disabled = true;
     try {
       await (on ? Push.turnOn(window, api) : Push.turnOff(window, api));
-      toast(on ? 'Notifications are on for this device.' : 'Notifications are off for this device.');
+      flashSaved($('#view-settings'));
     } catch (err) {
       toast(err.message || "Couldn't change notifications.", true);
     }
@@ -549,19 +564,20 @@ function drawUpdateCard(u) {
   if (!card) return;
   card.hidden = !u;
   if (!u) { card.innerHTML = ''; return; }
+  // What the switch's two ways mean is its tooltip; what is happening now (a version waits, a move failed) is said.
   card.innerHTML = `
-      <summary><h3 class="page-sub">Updates</h3></summary>
-      <div class="bs-rows"><div class="bs-row">
-        <div class="grow"><b>Update automatically</b><div class="faint">On: Always use the latest botdot version.</div><div class="faint">Off: Update when you're ready, before the admin's deadline.</div></div>
-        <label class="switch"><input type="checkbox" id="auto-update" aria-label="Update automatically"${u.autoUpdate ? ' checked' : ''}><span></span></label>
-      </div></div>
-      ${updateCardText(u) ? `<p class="muted settings-hint" id="update-said">${esc(updateCardText(u))}</p>` : ''}
-      ${u.canUpdate ? '<button type="button" class="btn" id="update-now">Update now</button>' : ''}
-      ${updateNotesHTML(u)}`;
+      <summary><b>Updates</b><span class="bs-val">${u.ready ? 'New version' : u.autoUpdate ? 'Automatic' : ''}</span>${CHEV}</summary>
+      <div class="bs-body">
+        <label class="bs-row"${tipAttrs("On: always use the latest botdot version. Off: update when you're ready, before the admin's deadline.")}><b>Update automatically</b>
+          <span class="switch"><input type="checkbox" id="auto-update" aria-label="Update automatically"${u.autoUpdate ? ' checked' : ''}><span></span></span></label>
+        ${updateCardText(u) ? `<p class="muted" id="update-said">${esc(updateCardText(u))}</p>` : ''}
+        ${u.canUpdate ? '<div><button type="button" class="btn" id="update-now">Update now</button></div>' : ''}
+        ${updateNotesHTML(u)}
+      </div>`;
   const box = $('#auto-update', card);
   box.onchange = async () => {
     box.disabled = true;
-    try { drawUpdateCard(await frontDoorPost('/front-door/update', { autoUpdate: box.checked })); toast(box.checked ? 'Your account updates automatically.' : 'You choose when your account updates.'); } catch (err) {
+    try { drawUpdateCard(await frontDoorPost('/front-door/update', { autoUpdate: box.checked })); flashSaved($('#view-settings')); } catch (err) {
       toast(err.message, true);
       box.checked = !box.checked;
       box.disabled = false;
@@ -594,10 +610,9 @@ async function frontDoorPost(path, body) {
 // Settings → "Sign out everywhere" (ADR 028): the front door ends every session of the account, in every browser
 // and app, this one too, and the page opens its sign-in. Only behind a front door (`accounts` in features).
 const signOutCardHTML = () => (state.features.includes('accounts') ? `
-    <details class="card settings-card settings-fold" id="sign-out-card">
-      <summary><h3 class="page-sub">Sign-ins</h3></summary>
-      <p class="muted settings-hint">Signs out this browser and every browser and app signed in to your account. Each signs in again with your passkey.</p>
-      <button type="button" class="btn" id="sign-out-everywhere">Sign out everywhere</button>
+    <details class="bs-row bs-more" id="sign-out-card">
+      <summary><b>Sign-ins</b>${CHEV}</summary>
+      <div class="bs-body"><div><button type="button" class="btn" id="sign-out-everywhere">Sign out everywhere</button></div></div>
     </details>` : '');
 
 async function signOutEverywhere() {
@@ -735,16 +750,19 @@ async function loadBackupsCard() {
   const card = $('#backups-card');
   if (!card) return;
   let b;
-  try { b = await api('/backups'); } catch (e) { card.querySelector('p').textContent = e.message; return; }
-  const head = '<summary><h3 class="page-sub">Backups</h3></summary>';
+  try { b = await api('/backups'); } catch (e) { card.querySelector('.bs-val').textContent = e.message; return; }
+  const head = (value) => `<summary><b>Backups</b><span class="bs-val">${esc(value)}</span>${CHEV}</summary>`;
+  // Off: a passphrase turns them on. The one line kept says what losing it costs.
   if (!b.configured) {
-    card.innerHTML = `${head}
-      <p class="muted settings-hint">Set a passphrase and botdot backs up every night. Keep it safe, e.g. in Bitwarden: without it a backup can't be opened.</p>
+    card.innerHTML = `${head('Off')}
+      <div class="bs-body">
+      <p class="muted">Without the passphrase a backup can't be opened: keep it safe.</p>
       <form id="backup-pass" class="backup-pass" autocomplete="off">
         <input type="password" name="p1" placeholder="Passphrase" minlength="8" required autocomplete="new-password">
         <input type="password" name="p2" placeholder="Again" minlength="8" required autocomplete="new-password">
         <button class="btn primary sm">Turn on</button>
-      </form>`;
+      </form>
+      </div>`;
     $('#backup-pass', card).onsubmit = async (e) => {
       e.preventDefault();
       const f = e.target;
@@ -755,13 +773,15 @@ async function loadBackupsCard() {
     return;
   }
   const last = b.last ? `Last backup ${esc(ago(b.last.at))} · ${b.count} kept` : 'No backup yet';
-  card.innerHTML = `${head}
-    <p class="muted settings-hint" style="margin:0">${b.running ? 'Backing up…' : last}. Every night at 03:00.</p>
+  card.innerHTML = `${head('03:00 daily')}
+    <div class="bs-body">
+    <p class="muted">${b.running ? 'Backing up…' : last}</p>
     ${b.error ? `<div class="req-note">${esc(b.error)}</div>` : ''}
     <div class="backup-actions">
       <button class="btn sm" id="backup-now" ${b.running ? 'disabled' : ''}>Back up now</button>
       ${b.last ? `<a class="btn sm" href="/api/backups/${encodeURIComponent(b.last.name)}" download>Download</a>` : ''}
       <button class="link-btn" id="backup-change">Change passphrase</button>
+    </div>
     </div>`;
   $('#backup-now', card).onclick = async (e) => {
     e.target.disabled = true;

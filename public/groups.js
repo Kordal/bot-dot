@@ -57,7 +57,7 @@ const groupLook = (g) => JSON.stringify(groupMembers(g).slice(0, 3).map((b) => [
 
 // A group's row in the list: the line under its name, the class that colours it, and what stands after its time.
 // While a member works: who, and what it says it is doing. Else "… asks" when a member asks the owner something,
-// with the mark in place of the dots. Else its newest reply, with the bot's name before it.
+// with the mark in place of the dots. Else its newest reply, with the bot's name before it; before the first, nothing.
 function groupLine(g) {
   const at = (Array.isArray(g.working) ? g.working : []).map(botById).find(Boolean);
   const dots = Unread.dots(Unread.count(g), memberColor(g.last?.botId, groupMembers(g)[0]?.color));
@@ -67,7 +67,7 @@ function groupLine(g) {
     return { who: '', prev: `${memberName(g.asks.botId, g.asks.botName)} asks${text ? `: ${text}` : ''}`, cls: 'asks', after: Unread.mark(memberColor(g.asks.botId)) };
   }
   if (g.last && typeof g.last === 'object') return { who: memberName(g.last.botId, g.last.botName), prev: plain(g.last.text) || (g.last.status === 'success' ? 'Done.' : "Couldn't finish"), cls: '', after: dots };
-  return { who: '', prev: 'No messages yet', cls: '', after: dots };
+  return { who: '', prev: '', cls: '', after: dots };
 }
 function groupContactHTML(g) {
   const line = groupLine(g);
@@ -188,7 +188,7 @@ function openGroupMaker(bot) {
 
 // A change to the open group, saved at once. What the server refuses is said in its words.
 async function changeGroup(g, body) {
-  try { await api(`/group-chats/${encodeURIComponent(g.id)}`, { method: 'PUT', body }); } catch (e) { toast(e.message, true); }
+  try { await api(`/group-chats/${encodeURIComponent(g.id)}`, { method: 'PUT', body }); flashSaved($('#view-groupsettings')); } catch (e) { toast(e.message, true); }
   await refresh();
 }
 
@@ -201,16 +201,15 @@ function renderGroupSettings() {
   if (root.dataset.group !== g.id || !$('#gs-name', root)) {
     root.dataset.group = g.id;
     delete root.dataset.sig;
+    // As a bot's settings (#635): its picture and name on top, then a row per member, and Delete in red at the end.
     root.innerHTML = `
       <div class="group-panel">
-        <div id="gs-pic"></div>
-        <label class="field">Name<input type="text" id="gs-name" maxlength="60" autocomplete="off"></label>
-        <div class="card settings-card">
-          <h3 class="page-sub" style="margin-top:0">Members</h3>
-          <div id="gs-members"></div>
-          <div><button type="button" class="btn sm" id="gs-add">＋ Add a bot</button></div>
+        <div class="set-head"><div id="gs-pic"></div><div class="set-name"><input type="text" id="gs-name" maxlength="60" autocomplete="off" aria-label="Name"></div></div>
+        <div class="set-list" aria-label="Members">
+          <div class="bs-group" id="gs-members"></div>
+          <button type="button" class="bs-row bs-link" id="gs-add"><b>Add a bot</b><span class="bs-chev" aria-hidden="true">›</span></button>
         </div>
-        <div class="bs-foot"><button type="button" class="btn danger" id="gs-delete">Delete this group</button></div>
+        <div class="set-list"><button type="button" class="bs-row bs-link bs-danger" id="gs-delete"><b>Delete this group</b></button></div>
       </div>`;
     const name = $('#gs-name', root);
     name.value = g.name;
@@ -251,7 +250,7 @@ function renderGroupSettings() {
   root.dataset.sig = sig;
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
   $('#gs-members', root).innerHTML = members.map((b) => `
-    <div class="member-row">${botFigure(b.color, b.state, 'sm', b.outfit)}<span class="grow">${esc(b.name)}</span>
+    <div class="bs-row member-row">${botFigure(b.color, b.state, 'sm', b.outfit)}<span class="grow">${esc(b.name)}</span>
       <button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="Take ${esc(b.name)} out of the group" aria-label="Take ${esc(b.name)} out of the group">✕</button></div>`).join('')
     || '<p class="faint">Its bots are all gone. Add one, or delete the group.</p>';
   $$('[data-take-out]', root).forEach((b) => (b.onclick = () => {
@@ -353,7 +352,7 @@ function groupMessageHTML(m, chat) {
   const waits = waitsLine(m);
   return `<div class="bubble-row from-me" data-gmsg="${esc(m.id)}"><div class="stack mine">
     <div class="bubble from-me" data-expand><div class="clamp">${escMentions(text, chat)}</div>${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
-    <div class="bubble-meta">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
+    <div class="bubble-meta${waits ? '' : ' on-hover'}">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
   </div></div>`;
 }
 // One waiting message, at the end of the chat: the owner's bubble, faded, for whom it waits, and the way back.
@@ -379,7 +378,7 @@ function groupReplyHTML(r, asks = null) {
       <div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(r.botId, r.botName))}</div>
       <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}</div>
       ${learnedChips(r)}
-      <div class="bubble-meta">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
+      <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
       ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions) : ''}
     </div></div>`;
 }
@@ -514,7 +513,7 @@ function renderGroupChat() {
         </button>
       </div>
       <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-drafts"></div><div class="g-tail"></div></div>
-      ${composerHTML(`Message ${g.name}…`)}`;
+      ${composerHTML(`Message ${g.name}`)}`;
     wireComposer($('form', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
     $('#group-settings').onclick = () => setPanel('toggle');
     if (groupChat?.id !== g.id) loadGroupChat(g.id);

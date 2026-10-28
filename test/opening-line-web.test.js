@@ -181,7 +181,7 @@ test('web: a working bot is one line with Stop: its opening line, or "Working" u
   assert.match(css, /\.status-line button \{[^}]*color: var\(--faint\);/);
 });
 
-test('web: a running run draws no bubble: no typing dots, no Details, only what it attached, and Stop in its block\'s footer', () => {
+test('web: a running run draws no bubble: no typing dots, no Details, only what it attached, and Stop at the end of its step line', () => {
   const running = app.slice(app.indexOf("if (r.status === 'running') {", app.indexOf('function runParts')), app.indexOf("const failed = ['error', 'stopped', 'interrupted']"));
   // From a server with drafts the reply as it is written stands there too (test/reply-draft-web.test.js).
   assert.match(running, /reply = `<div class="bubble-row from-bot" data-live="\$\{esc\(r\.id\)\}">\$\{draftHTML\(replyDrafts\.of\(r\.id\), true\)\}\$\{botFilesHTML\(r\.files\)\}<\/div>/);

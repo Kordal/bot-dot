@@ -201,13 +201,18 @@ test('web: a narrow window\'s compact list is the same layout as a list dragged 
 });
 
 test('web: a list of figures only has no search, a mark for the Board, and a line for a category', () => {
-  const SEARCH = [...SIDE, { tag: 'div', classes: ['search'], index: 2 }];
+  // The search (#635): its icon in the top bar, and its field once opened.
+  const OPEN = [SIDE[0], { ...SIDE[1], classes: ['sidebar', 'search-open'] }];
+  const HEAD = (side) => [...side, { tag: 'div', classes: ['side-head'], index: 1 }];
+  const FIELD = [...HEAD(OPEN), { tag: 'div', classes: ['search'], index: 4 }];
+  const ICON = [...HEAD(SIDE), { tag: 'nav', classes: ['side-tools'], index: 5 }, { tag: 'button', classes: ['more-btn'], index: 1, id: 'search-btn' }];
   const STRIP = [...SIDE, { tag: 'div', classes: ['contacts'], index: 3 }, { tag: 'button', classes: ['dash-strip'], index: 1 }];
   const mark = [...STRIP, { tag: 'svg', classes: ['board-ico'], index: 1 }], tiles = [...STRIP, { tag: 'span', classes: ['tiles'], index: 2 }];
   const heading = [...SIDE, { tag: 'div', classes: ['contacts'], index: 3 }, { tag: 'div', classes: ['group-head'], index: 4 }, { tag: 'button', classes: ['group-toggle'], index: 1 }];
   for (const [side, rail] of [[300, false], [200, false], [140, false], [139, true], [72, true]]) {
     const rules = cssAt(1000, side);
-    assert.equal(shown(rules, SEARCH), !rail, `${side}: the search`);
+    assert.equal(shown(rules, ICON), !rail, `${side}: the search's icon`);
+    assert.equal(shown(rules, FIELD), !rail, `${side}: its field, opened`);
     assert.equal(shown(rules, tiles), !rail, `${side}: the Board's tiles`);
     assert.equal(shown(rules, mark), rail, `${side}: the Board's mark`);
     assert.equal(shown(rules, heading), !rail, `${side}: a category's name`);

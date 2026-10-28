@@ -46,11 +46,12 @@ const ENV = { BOT_DOT_LOOK_ON_DEMAND: '1' };
 
     // As the server starts: on, weekdays at 08:00, no web search.
     assert.deepEqual(await state(), [true, false, false]);
-    assert.deepEqual((await rows.nth(0).innerText()).split('\n').map((l) => l.trim()).filter(Boolean), ['Checkup', 'Weekdays at 08:00. Ask the Chief to change it.']);
-    assert.deepEqual((await rows.nth(1).innerText()).split('\n').map((l) => l.trim()).filter(Boolean), ['Web search', 'Lets a checkup search the web to check a proposal. It never opens a page.']);
+    assert.deepEqual((await rows.nth(0).innerText()).split('\n').map((l) => l.trim()).filter(Boolean), ['Checkup', 'Weekdays at 08:00']);
+    assert.deepEqual((await rows.nth(1).innerText()).split('\n').map((l) => l.trim()).filter(Boolean), ['Web search']);
+    assert.equal(await rows.nth(1).getAttribute('title'), 'Lets a checkup search the web to check a proposal. It never opens a page.', 'what it does is its tooltip');
     assert.equal(await card.locator('input, select, button, textarea').count(), 2, 'no control for the days or the time');
     // In the panel between the Chief's rules and its previous chats, and inside the card's width.
-    const order = await page.evaluate(() => ['#chief-form', '#chief-checkup', '#chief-chats'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().top)));
+    const order = await page.evaluate(() => ['[name=chiefRules]', '#chief-checkup .bs-row', '#chief-chats-row'].map((s) => Math.round(document.querySelector(s).getBoundingClientRect().top)));
     assert.ok(order[0] < order[1] && order[1] < order[2], `rules, checkup, chats: ${order}`);
     const fits = await card.evaluate((el) => el.scrollWidth <= el.clientWidth);
     assert.ok(fits, 'nothing runs out of the card at phone width');
@@ -77,7 +78,7 @@ const ENV = { BOT_DOT_LOOK_ON_DEMAND: '1' };
 
     // Changed elsewhere (another app, or the Chief in a chat): shows within a moment, without a reload.
     await srv.api('/settings/checkup', { method: 'PUT', body: { days: ['Monday', 'Thursday'], time: '07:30', webSearch: false } });
-    await waitFor(async () => (await rows.nth(0).innerText()).includes('Mondays and Thursdays at 07:30. Ask the Chief to change it.'), { what: "the feed's line" });
+    await waitFor(async () => (await rows.nth(0).innerText()).includes('Mondays and Thursdays at 07:30'), { what: "the feed's line" });
     assert.deepEqual(await state(), [true, false, false]);
 
     // Refused: back as it was, with the server's sentence.
@@ -115,7 +116,7 @@ const ENV = { BOT_DOT_LOOK_ON_DEMAND: '1' };
     await page.goto(`${srv.base}/#chiefsettings`);
     await page.reload();
     await page.locator('#chief-form').waitFor();
-    await page.locator('#chief-chats .settings-link, #chief-chats *').first().waitFor();
+    await page.locator('#chief-chats .settings-link, #chief-chats *').first().waitFor({ state: 'attached' });
     assert.equal(await card.isVisible(), false, 'no switches against an older server');
 
     assert.deepEqual(errors, []);

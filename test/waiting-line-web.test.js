@@ -139,7 +139,7 @@ test('web: a run that carries on draws no message of the owner: the request once
   assert.deepEqual(mine(working), [REQUEST], 'the request shows once');
   assert.deepEqual(replies(working), ['I can&#39;t look yet: I may not run commands.'], 'the first reply');
   assert.deepEqual(chips(working), [], 'and no "Ran its main assignment" in place of the request');
-  assert.match(working, /<details class="run-steps now" data-steps="r2">[\s\S]*<div class="bubble-row from-bot" data-live="r2"><\/div>[\s\S]*data-stop-run="r2"[\s\S]*<\/section>$/, 'while it works: its step line, its row of files and Stop, in its block');
+  assert.match(working, /<div class="steps-row"><details class="run-steps now" data-steps="r2">[\s\S]*data-stop-run="r2"[\s\S]*<div class="bubble-row from-bot" data-live="r2"><\/div>[\s\S]*<\/section>$/, 'while it works: its step line with Stop at its end, then its row of files, in its block');
   assert.equal((working.match(/class="bubble-row from-me"/g) || []).length, 1);
 
   const done = threadHTML([STOPPED, { ...CARRIES, status: 'success', result: 'The disk was full at 02:10.', endedAt: '2026-10-05T11:43:00.000Z' }]);
@@ -179,7 +179,7 @@ test('web: a job\'s run and a teammate\'s request that carry on are drawn as the
   // Its reply to the teammate is folded too, behind one line with its first words (#413).
   assert.match(asked, /<details class="notes-fold theirs" ><summary class="fold-line"><span class="fold-who">Replied<\/span><span class="fold-peek">Done\.<\/span><\/summary>[\s\S]*?<div class="bubble from-bot "><div class="md">Done\.<\/div>[\s\S]*?<\/details>/);
   // The notes it read at its start still show above its reply.
-  assert.match(threadHTML([STOPPED, { ...CARRIES, inbox: [{ from: 'Coder', text: 'A note.' }] }]), /<notes><details class="run-steps now" data-steps="r2">[\s\S]*?<div class="bubble-row from-bot" data-live="r2">/);
+  assert.match(threadHTML([STOPPED, { ...CARRIES, inbox: [{ from: 'Coder', text: 'A note.' }] }]), /<notes><div class="steps-row"><details class="run-steps now" data-steps="r2">[\s\S]*?<div class="bubble-row from-bot" data-live="r2">/);
 });
 
 test('web: runs without `continues` are drawn as before', () => {
