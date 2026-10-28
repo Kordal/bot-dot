@@ -100,8 +100,8 @@ function pin(bots, groups, item, at) {
 //   failed   its last run did not, as the list says it ("Couldn't finish")
 //   idle     anything else ("Idle"): no run yet, or the owner stopped the last one.
 // last: the status of its newest run ("success", "error", "stopped"…), null for none.
-// On the web a key shows it as one dot on its head (#635): working green, needs amber, unread blue with the count, and
-// no dot for the rest; text is the dot's name for a screen reader. The Android app draws the pill of #397.
+// A key shows it as one line under its name (#664): a dot in the state's colour and its text; while it works, what it
+// does now in place of "Working". The Android app draws the same line.
 function status({ running = false, runs = 0, needs = false, unread = 0, last = null } = {}) {
   if (running) return { kind: 'working', text: runs > 1 ? tr('Working ×{n}', { n: runs }) : tr('Working') };
   if (needs) return { kind: 'needs', text: tr('Needs you') };

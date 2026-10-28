@@ -221,17 +221,14 @@ function keyStatus(x) {
   const runs = x.runningCount ?? state.runs.filter((y) => y.botId === x.id && y.status === 'running').length; // a server without it: the list's
   return Keypad.status({ running, runs, needs: keyAsks(x) || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null });
 }
-// A key's state as one dot on its head's corner (#635): green while it works, amber while it needs the owner, blue with
-// the count of its new replies; the status's words are its name for a screen reader. A finished, failed or idle bot has
-// none: its chat says how its last run went. n: its new replies.
-const KEY_DOTS = new Set(['working', 'needs', 'unread']);
-const keyDot = (s, n = 0) => (KEY_DOTS.has(s.kind) ? `<i class="key-dot ${s.kind}" role="img" aria-label="${esc(s.text)}">${s.kind === 'unread' ? (n > 9 ? '9+' : n) : ''}</i>` : '');
-// The line under a key's name, only while it works: what a bot says it is doing (its opening line), or which member of a
-// group works and on what. Nothing else: the dot is its state, Needs you holds its question.
+// A key's state as one line under its name (#664): a coloured dot and the status's words: green while it works, where
+// the words are what it does now (its opening line, or which member of a group works and on what), amber while it needs
+// the owner, blue with its new replies, red when its last run did not finish, muted when done or idle.
 function liveLine(x) {
-  if (x.members) { const line = groupLine(x); return line.cls === 'working' ? `${line.who}: ${line.prev}` : ''; }
+  if (x.members) { const line = groupLine(x); return line.cls === 'working' && line.prev ? `${line.who}: ${line.prev}` : ''; }
   return botLine(x).cls === 'working' ? OpeningLine.preview(openingLines.of(`bot:${x.id}`)) || '' : '';
 }
+const keyState = (s, live = '') => `<span class="key-st ${s.kind}" title="${esc(s.text)}"><span>${esc(s.kind === 'working' && live ? live : s.text)}</span></span>`;
 // section: on a phone, the place of the key's page; there the key has no digit. digit: the key's (0: none), in its
 // title and its keyboard shortcut, not on its face.
 function keyHTML(x, i, section = null, digit = 0) {
@@ -239,8 +236,7 @@ function keyHTML(x, i, section = null, digit = 0) {
   const on = group ? state.view === 'group' && state.groupId === x.id : state.view === 'bot' && state.botId === x.id;
   const where = section === null ? `data-key="${i}"` : `data-section-key="${section}.${i}"`;
   const s = keyStatus(x);
-  const line = liveLine(x);
-  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}${Motion.justDone(x.id, s.kind) ? ' just-done' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(digit ? `${x.name} · ${digit}` : x.name)}"${digit ? ` aria-keyshortcuts="${digit}"` : ''}><span class="key-head">${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit)}${keyDot(s, Unread.count(x))}</span><span class="name">${esc(x.name)}</span>${line ? `<span class="prev working">${esc(line)}</span>` : ''}</button>`;
+  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}${Motion.justDone(x.id, s.kind) ? ' just-done' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(digit ? `${x.name} · ${digit}` : x.name)}"${digit ? ` aria-keyshortcuts="${digit}"` : ''}><span class="key-head">${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit)}</span><span class="name">${esc(x.name)}</span>${keyState(s, s.kind === 'working' ? liveLine(x) : '')}</button>`;
 }
 // A tile in the strip over the keys (#397): the block kit's kpi with the tile's title over its first number (a value, a
 // kpi, a bar or a gauge on its face) and that block's sparkline or bar beside it (#635); a switch says On or Off, any
@@ -280,11 +276,11 @@ function drawBoardLine(el) {
   });
   $$('[data-home-edit]', el).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); homePickOpen() ? closeHomePick() : openHomePick(el); }));
 }
-// The Chief of Staff's key, first in the top row: its head and name, Esc in its title, and its dot: green while it
-// replies, blue with its new replies.
+// The Chief of Staff's key, first in the top row: its head and name, Esc in its title, and its status line: Working
+// while it replies, its new replies, else Idle.
 function chiefKeyHTML() {
   const s = Keypad.status({ running: !!state.chiefBusy, unread: state.chiefUnread || 0 });
-  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}${Motion.justDone('chief', s.kind) ? ' just-done' : ''}" data-key-chief title="${esc(chiefTitle())} · Esc" aria-keyshortcuts="Escape"><span class="key-head">${chiefFigure()}${keyDot(s, state.chiefUnread || 0)}</span><span class="name">${esc(chiefTitle())}</span></button>`;
+  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}${Motion.justDone('chief', s.kind) ? ' just-done' : ''}" data-key-chief title="${esc(chiefTitle())} · Esc" aria-keyshortcuts="Escape"><span class="key-head">${chiefFigure()}</span><span class="name">${esc(chiefTitle())}</span>${keyState(s)}</button>`;
 }
 // The top row: the Chief's key, then the pinned bots and groups, also when nothing is pinned; the row itself is Pinned's
 // drop place (pinned last). Under it every category, side by side where they fit: its name over its keys. A key's

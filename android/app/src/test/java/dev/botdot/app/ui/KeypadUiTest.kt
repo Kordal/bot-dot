@@ -245,7 +245,7 @@ class KeypadUiTest {
     }
 
     @Test @Config(qualifiers = "w840dp-h600dp")
-    fun eachKeySaysItsStateByOneDotAndItsLineOnlyWhileItWorks() {
+    fun eachKeySaysItsStateInOneLineUnderItsNameWhatItDoesWhileItWorks() {
         fun status(k: Keypad.Key) = (k as Keypad.Key.OfBot).bot.let {
             when (it.id) {
                 "cook" -> KeyLook(it.name, "Dinner at 7", it.color, status = Keypad.status(last = "success"), time = "18:02")
@@ -254,17 +254,31 @@ class KeypadUiTest {
             }
         }
         rule.setContent { KeypadView(pages, active = null, look = ::status, onKey = {}, onAsk = {}, modifier = Modifier.fillMaxSize()) }
-        // No pill and no time on a key (#636): one dot on the head, which TalkBack reads with its time.
-        rule.onNodeWithText("Done").assertDoesNotExist()
+        // One status line per key (#664): its words, and while it works what it does now; no pill, no time on its face.
+        rule.onAllNodesWithTag(KEY_STATE, useUnmergedTree = true).assertCountEquals(3)
+        rule.onNodeWithText("Done", useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithText("Needs you", useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithText("Fixing the build", useUnmergedTree = true).assertIsDisplayed()
         rule.onNodeWithText("18:02").assertDoesNotExist()
-        rule.onNodeWithText("Working").assertDoesNotExist()
-        rule.onNodeWithContentDescription("Working, 2 min", useUnmergedTree = true).assertExists()
-        rule.onNodeWithContentDescription("Needs you", useUnmergedTree = true).assertExists()
-        rule.onAllNodesWithTag(KEY_DOT, useUnmergedTree = true).assertCountEquals(2) // Cook is done: its face says it
-        // The line only while it works: what Coder does now; not what Cook last said, nor what Reviewer asks.
-        rule.onNodeWithText("Fixing the build").assertIsDisplayed()
+        rule.onNodeWithContentDescription("Working, 2 min: Fixing the build", useUnmergedTree = true).assertExists()
+        // Not what Cook last said, nor what Reviewer asks: Needs you holds that.
         rule.onNodeWithText("Dinner at 7").assertDoesNotExist()
         rule.onNodeWithText("Which branch?").assertDoesNotExist()
+    }
+
+    @Test @Config(qualifiers = "w840dp-h600dp")
+    fun anIdleKeySaysIdleAndOneThatFailedSaysSo() {
+        fun status(k: Keypad.Key) = (k as Keypad.Key.OfBot).bot.let {
+            when (it.id) {
+                "cook" -> KeyLook(it.name, "", it.color, status = Keypad.status())
+                "coder" -> KeyLook(it.name, "", it.color, status = Keypad.status(last = "error"))
+                else -> KeyLook(it.name, "", it.color, unread = 2, status = Keypad.status(unread = 2))
+            }
+        }
+        rule.setContent { KeypadView(pages, active = null, look = ::status, onKey = {}, onAsk = {}, modifier = Modifier.fillMaxSize()) }
+        rule.onNodeWithText("Idle", useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithText("Couldn't finish", useUnmergedTree = true).assertIsDisplayed()
+        rule.onNodeWithText("2 unread", useUnmergedTree = true).assertIsDisplayed()
     }
 
     /** A phone's home, as MainActivity lays it out below 600 dp: the sections are the NavHost's home, and a chat takes the whole screen. */
