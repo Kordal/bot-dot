@@ -122,12 +122,26 @@ test('the owner taking control of the screen while the card waits, or while the 
   assert.match(other.gate.before(other.session, click).refused, /took control/);
 });
 
-test('a step on the site of a connected app stays on the connector path: no card of its own', () => {
+test('a step on the site of a connected app is sent to its connector first, and only tried again waits on a card', () => {
   const { asks, gate, session } = setup({ connected: 'Stripe' });
   const r = gate.before(session, click);
   assert.match(r.refused, /Stripe is connected/);
   assert.match(r.refused, /connector_run/);
-  assert.equal(asks.list().length, 0);
+  assert.equal(asks.list().length, 0, 'no card beside the connector\'s');
+  assert.ok(gate.before(session, click).waits, 'tried again, as the app has no action for it: never through without a yes');
+});
+
+test('screen input is checked against the page afresh only while a step of the run is declined or waits', () => {
+  const { asks, gate, session } = setup();
+  assert.equal(gate.checks(session, 'left_click'), false, 'nothing held: no extra read');
+  gate.before(session, click);
+  assert.equal(gate.checks(session, 'left_click'), true, 'a card waits');
+  assert.equal(gate.checks(session, 'screenshot'), false, 'looking is no input');
+  gate.declined(asks.take(asks.list()[0].id, { declined: true }));
+  gate.seen(session, 'Page: Elsewhere (https://example.com/)\n- button "Next" [ref=e1]');
+  assert.equal(gate.screenCmd(session, 'left_click'), null, 'on another page the screen is free');
+  gate.seen(session, DIALOG); // came back by the screen: the fresh read shows the step again
+  assert.match(gate.screenCmd(session, 'left_click'), /declined/);
 });
 
 test('a card whose run stopped waiting cannot be allowed, and goes', () => {

@@ -179,10 +179,11 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   "cannot be reversed" waits on a card of its own; any other click, typing or browsing does not. A
   no on either is final for that run and the run that carries it on, and taking control of the
   bot's screen while such a step waits or is on its page counts as a no. A chat message asking for
-  the step is no yes. A step on the site of an app the bot has connected goes through that app's
-  card instead, never both ([ADR 107](docs/adr/107-an-irreversible-step-on-a-bots-computer-waits-for-a-card.md)).
-  The computer gate reads English words on the page only, and taking control of a machine on
-  boat.dev is not yet seen as a no.
+  the step is no yes. A step on the site of an app the bot has connected is sent to that app's
+  card first, and gets a card of its own only if the bot tries it again; never both ([ADR 107](docs/adr/107-an-irreversible-step-on-a-bots-computer-waits-for-a-card.md)).
+  The computer gate reads English words on the page only, sees no step confirmed by screen clicks
+  alone before any browser tool asked about it, and does not yet see taking control of a machine
+  on boat.dev as a no.
 - **Text from memory is never markup.** A note, a topic, a chat message or a past run printed into a
   prompt cannot close its block or open another: every `<` that could start a tag is written `&lt;`
   there.
