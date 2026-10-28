@@ -4,13 +4,14 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { cut, answer } = require('./web-page');
+const { cut, answer, words } = require('./web-page');
 
 function page({ features = ['accounts'], fetch = answer(200, { ok: true, ended: 2 }), confirmed = true } = {}) {
   const calls = [];
   const toasts = [];
   const went = [];
   const ctx = vm.createContext({
+    ...words,
     state: { features },
     toast: (text, bad = false) => toasts.push([text, bad]),
     confirm: () => confirmed,

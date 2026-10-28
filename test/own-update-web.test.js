@@ -4,7 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { cut, read, answer, element } = require('./web-page');
+const { cut, read, answer, element, words } = require('./web-page');
 
 const READY = { autoUpdate: false, asked: false, canUpdate: true, ready: { version: 'abc1234', from: '0123456', since: '2026-10-21T10:00:00.000Z', deadline: '2026-10-28T10:00:00.000Z' }, last: null };
 
@@ -18,6 +18,7 @@ function page({ features = ['accounts'], session = { updates: true }, update = R
   const card = element({ '#auto-update': box, '#update-now': now }, {});
   card.hidden = true;
   const ctx = vm.createContext({
+    ...words,
     state: { features },
     esc: (s) => String(s).replace(/</g, '&lt;'),
     toast: (text, bad = false) => toasts.push([text, bad]), flashSaved() {},

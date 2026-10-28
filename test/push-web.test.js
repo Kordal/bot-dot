@@ -95,7 +95,7 @@ test('Safari on an iPhone or iPad needs the Home Screen app; the Home Screen app
   // The card: the hint in Safari on iOS, the switch elsewhere, nothing against a server without web-push; the
   // permission is asked in the switch's handler alone, never as the page loads.
   const card = cut('function pushCardHTML()', '\nfunction wirePushCard');
-  assert.match(card, /<span class="bs-val">Home Screen first<\/span>/);
+  assert.match(card, /<span class="bs-val">\$\{tr\('Home Screen first'\)\}<\/span>/);
   assert.match(card, /Tap Share, then “Add to Home Screen”, and open botdot from there/, 'the way there opens under its row');
   assert.match(card, /needsHomeScreen\(navigator\)/);
   assert.match(card, /features\.includes\('web-push'\)/);

@@ -26,13 +26,13 @@ function openLearned(el, botId) {
 
 // ---------- model & reasoning ----------
 
-const modelLabel = (id) => (!id ? "Claude Code's default" : state.models?.find((x) => x.id === id)?.label || id);
-const effortLabel = (id) => (!id ? "Claude Code's default" : state.efforts?.find((x) => x.id === id)?.label || id);
+const modelLabel = (id) => (!id ? tr("Claude Code's default") : state.models?.find((x) => x.id === id)?.label || id);
+const effortLabel = (id) => (!id ? tr("Claude Code's default") : state.efforts?.find((x) => x.id === id)?.label || id);
 // Whether a model takes a reasoning level (from Anthropic's model list; unknown names are assumed to).
 const takesEffort = (id) => { const m = state.models?.find((x) => x.id === id); return m ? m.effort !== false : !/haiku/i.test(id || ''); };
-const llmSummary = (model, effort) => (model || effort ? `${modelLabel(model)}${effort && takesEffort(model) ? ` · ${effortLabel(effort)}` : ''}` : "Claude Code's choice");
+const llmSummary = (model, effort) => (model || effort ? `${modelLabel(model)}${effort && takesEffort(model) ? ` · ${effortLabel(effort)}` : ''}` : tr("Claude Code's choice"));
 // The value of a Model row of the Chief or a bot, which nothing set follows the default.
-const llmValue = (model, effort) => (model || effort ? llmSummary(model, effort) : 'Default');
+const llmValue = (model, effort) => (model || effort ? llmSummary(model, effort) : tr('Default'));
 
 // Model + reasoning selects. inherit: label for the "use the default" choice ('' = Claude Code's default).
 function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
@@ -105,7 +105,7 @@ function flashSaved(root) {
     note.setAttribute('role', 'status');
     head.insertBefore(note, $('.panel-close', head)); // left of the panel's close; at the end of Settings' title
   }
-  note.textContent = 'Saved';
+  note.textContent = tr('Saved');
   note.classList.add('on');
   clearTimeout(flashSaved.timer);
   flashSaved.timer = setTimeout(() => note.classList.remove('on'), 2000);
@@ -122,7 +122,7 @@ function catalogLine() {
 }
 function catalogTip() {
   const c = state.catalog || {};
-  return c.source === 'docs' ? `Model list from Anthropic's docs, checked ${ago(c.checkedAt)}. Reasoning levels from your Claude Code.` : 'Built-in model list, not checked online yet.';
+  return c.source === 'docs' ? tr("Model list from Anthropic's docs, checked {ago}. Reasoning levels from your Claude Code.", { ago: ago(c.checkedAt) }) : tr('Built-in model list, not checked online yet.');
 }
 
 // The checkup's two switches in the Chief's settings (docs/api.md, The Chief's checkup), from a server that has
@@ -325,7 +325,7 @@ function drawChiefSkills(root) {
 }
 
 // The pages that open from Settings. They are its first rows; Pages is every bot's pages (#361).
-const SETTINGS_PAGES = [['runs', 'Activity'], ['skills', 'Skills'], ['pages', 'Pages'], ['connectors', 'Connectors'], ['vault', 'Vault']];
+const SETTINGS_PAGES = [['runs', tr('Activity')], ['skills', tr('Skills')], ['pages', tr('Pages')], ['connectors', tr('Connectors')], ['vault', tr('Vault')]];
 
 // The rows to the pages above. Drawn again on every refresh, also while the rows below keep their edits, so that
 // Activity always shows the tasks running now.
@@ -334,44 +334,45 @@ function drawSettingsLinks(root) {
   if (!box) return;
   const running = runningTasks();
   box.innerHTML = SETTINGS_PAGES.filter(([view]) => view !== 'pages' || (typeof Pages !== 'undefined' && Pages.showsAll())).map(([view, label]) => `
-      <button type="button" class="bs-row bs-link" data-go="${view}"><b>${label}</b>${view === 'runs' && running ? `<span class="bs-val">${running} running</span>` : ''}${CHEV}</button>`).join('');
+      <button type="button" class="bs-row bs-link" data-go="${view}"><b>${label}</b>${view === 'runs' && running ? `<span class="bs-val">${trn(running, '{n} running', '{n} running')}</span>` : ''}${CHEV}</button>`).join('');
   $$('[data-go]', box).forEach((b) => (b.onclick = () => setView(b.dataset.go)));
 }
 
 // Settings: the pages it opens, then the account's own settings, a row each; a row with more to it opens under it.
 function renderSettings() {
   const root = $('#view-settings');
-  if (!state.settings) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
+  if (!state.settings) { root.innerHTML = `<div class="empty">${tr('Loading…')}</div>`; return; }
   if (root.querySelector('#settings-form')) return drawSettingsLinks(root); // don't wipe unsaved edits on refresh
   const s = state.settings;
   const custom = state.bots.filter((b) => b.model || b.effort);
   root.innerHTML = `
-    <div class="section-head set-title">${BACK_BTN}<h1>Settings</h1><span class="saved-note" role="status"></span></div>
+    <div class="section-head set-title">${BACK_BTN}<h1>${tr('Settings')}</h1><span class="saved-note" role="status"></span></div>
     <div class="set-list" id="settings-links"></div>
     <div class="set-list">
       <details class="bs-row bs-more" id="settings-model">
-        <summary${tipAttrs('The model and reasoning level of every bot without a choice of its own.')}><b>Model</b><span class="bs-val" data-llm-val>${esc(llmSummary(s.defaultModel, s.defaultEffort))}</span>${CHEV}</summary>
+        <summary${tipAttrs(tr('The model and reasoning level of every bot without a choice of its own.'))}><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmSummary(s.defaultModel, s.defaultEffort))}</span>${CHEV}</summary>
         <form class="bs-body" id="settings-form" autocomplete="off">
           ${llmFieldsHTML('default', { model: s.defaultModel, effort: s.defaultEffort })}
-          <div class="catalog-line">${catalogLine()} <button type="button" class="link-btn" id="refresh-models"${tipAttrs(catalogTip())}>Check for new models</button></div>
+          <div class="catalog-line">${catalogLine()} <button type="button" class="link-btn" id="refresh-models"${tipAttrs(catalogTip())}>${tr('Check for new models')}</button></div>
         </form>
       </details>
       ${custom.length ? `<details class="bs-row bs-more">
-        <summary><b>Bots with their own model</b><span class="bs-val">${custom.length}</span>${CHEV}</summary>
+        <summary><b>${tr('Bots with their own model')}</b><span class="bs-val">${custom.length}</span>${CHEV}</summary>
         <div class="bs-body">${custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')}</div>
-      </details>` : `<div class="bs-row"${tipAttrs('Every bot uses the default. Change a bot in its settings.')}><b>Bots with their own model</b><span class="bs-val">None</span></div>`}
+      </details>` : `<div class="bs-row"${tipAttrs(tr('Every bot uses the default. Change a bot in its settings.'))}><b>${tr('Bots with their own model')}</b><span class="bs-val">${tr('None')}</span></div>`}
       ${state.features.includes('boat-size') && state.status?.boat ? `<details class="bs-row bs-more" id="boat-size-card">
-        <summary><b>Computer</b><span class="bs-val" id="computer-place-val"></span>${CHEV}</summary>
+        <summary><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span>${CHEV}</summary>
         <div class="bs-body">
-          ${state.features.includes('account-computer') ? `<label class="field">Where<select id="computer-place" disabled><option value="linux">This machine</option><option value="boat">External Virtual PC</option></select></label>` : ''}
-          <label class="field" id="boat-size-field">Size<select id="boat-size" disabled${tipAttrs('Each machine takes it when it starts next.')}><option>Loading…</option></select></label>
+          ${state.features.includes('account-computer') ? `<label class="field">${tr('Where')}<select id="computer-place" disabled><option value="linux">${tr('This machine')}</option><option value="boat">${tr('External Virtual PC')}</option></select></label>` : ''}
+          <label class="field" id="boat-size-field">${tr('Size')}<select id="boat-size" disabled${tipAttrs(tr('Each machine takes it when it starts next.'))}><option>${tr('Loading…')}</option></select></label>
         </div>
       </details>` : ''}
       ${state.features.includes('token-usage') ? '<details class="bs-row bs-more" id="usage-card"></details>' : ''}
+      <label class="bs-row"><b>${tr('Language')}</b><select id="settings-language" aria-label="${esc(tr('Language'))}">${LANGUAGE_NAMES.map(([id, name]) => `<option value="${id}"${id === (s.language || 'en') ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
       ${pushCardHTML()}
       <div class="bs-group" id="install-card" hidden></div>
       <details class="bs-row bs-more" id="backups-card">
-        <summary><b>Backups</b><span class="bs-val">Checking…</span>${CHEV}</summary>
+        <summary><b>${tr('Backups')}</b><span class="bs-val">${tr('Checking…')}</span>${CHEV}</summary>
       </details>
       <details class="bs-row bs-more" id="update-card" hidden></details>
       ${signOutCardHTML()}
@@ -386,14 +387,15 @@ function renderSettings() {
   loadComputerPlace(root);
   loadBoatSize(root);
   if ($('#usage-card', root) && typeof Usage !== 'undefined') Usage.open($('#usage-card', root)); // public/usage.js (#301)
+  wireLanguage(root);
   const form = $('#settings-form', root);
   wireLlmFields(form, 'default');
   $('#refresh-models', root).onclick = async (e) => {
-    e.target.textContent = 'Checking…';
+    e.target.textContent = tr('Checking…');
     try {
       const r = await api('/settings/refresh-models', { method: 'POST' });
       Object.assign(state, { models: r.models, efforts: r.efforts, catalog: r.catalog });
-      toast(r.catalog.error ? r.catalog.error : 'Model list is up to date', !!r.catalog.error);
+      toast(r.catalog.error ? r.catalog.error : tr('Model list is up to date'), !!r.catalog.error);
     } catch (err) { toast(err.message, true); }
     root.innerHTML = '';
     renderSettings();
@@ -410,6 +412,25 @@ function renderSettings() {
       $('[data-llm-val]', root).textContent = llmSummary(r.settings.defaultModel, r.settings.defaultEffort);
       flashSaved(root);
     } catch (err) { toast(err.message, true); }
+  };
+}
+
+// The interface's language (#645, ADR 108): saved by itself; the page then loads again in it. A language's own name
+// is never translated.
+const LANGUAGE_NAMES = [['en', 'English'], ['pl', 'Polski']];
+function wireLanguage(root) {
+  const pick = $('#settings-language', root);
+  if (!pick) return;
+  if (!state.features.includes('language')) { pick.closest('.bs-row').hidden = true; return; }
+  pick.onchange = async () => {
+    const to = pick.value;
+    pick.disabled = true;
+    try {
+      state.settings = (await api('/settings', { method: 'PUT', body: { language: to } })).settings;
+      flashSaved(root);
+      await I18n.sync(api, state.features);
+    } catch (err) { toast(err.message, true); pick.value = state.settings.language || 'en'; }
+    pick.disabled = false;
   };
 }
 
@@ -463,8 +484,8 @@ async function loadBoatSize(root) {
 // Settings → "Install app" (issue #163, install.js): the browser's own install dialog where it offers one (Chrome,
 // Edge), the way to do it in Safari, and nothing once botdot is installed or opened as the app.
 const INSTALL_HINTS = {
-  ios: 'Tap Share, then “Add to Home Screen”.',
-  'mac-safari': 'In Safari’s menu: File, then “Add to Dock”.',
+  ios: tr('Tap Share, then “Add to Home Screen”.'),
+  'mac-safari': tr('In Safari’s menu: File, then “Add to Dock”.'),
 };
 function drawInstallCard() {
   const card = $('#install-card');
@@ -474,8 +495,8 @@ function drawInstallCard() {
   if (!how) { card.innerHTML = ''; return; }
   // The way in Safari is what the row opens: without it the row can't be followed.
   card.innerHTML = how === 'button' ? `
-      <div class="bs-row"${tipAttrs('botdot in its own window, with its own icon.')}><b>Install app</b><button type="button" class="btn sm" id="install-app">Install</button></div>` : `
-      <details class="bs-row bs-more"><summary><b>Install app</b>${CHEV}</summary><div class="bs-body">${esc(INSTALL_HINTS[how])}</div></details>`;
+      <div class="bs-row"${tipAttrs(tr('botdot in its own window, with its own icon.'))}><b>${tr('Install app')}</b><button type="button" class="btn sm" id="install-app">${tr('Install')}</button></div>` : `
+      <details class="bs-row bs-more"><summary><b>${tr('Install app')}</b>${CHEV}</summary><div class="bs-body">${esc(INSTALL_HINTS[how])}</div></details>`;
   const button = $('#install-app', card);
   if (button) button.onclick = () => Install.install(window).catch(() => false);
 }
@@ -490,14 +511,14 @@ function pushCardHTML() {
   if (!state.features.includes('web-push')) return '';
   // The switch is for this device only: its label says "Notifications", its name for a screen reader says the rest.
   if (Push.needsHomeScreen(navigator)) {
-    return `<details class="bs-row bs-more" id="push-card"><summary><b>Notifications</b><span class="bs-val">Home Screen first</span>${CHEV}</summary>
-      <div class="bs-body">Tap Share, then “Add to Home Screen”, and open botdot from there. Then turn this on in its Settings.</div></details>`;
+    return `<details class="bs-row bs-more" id="push-card"><summary><b>${tr('Notifications')}</b><span class="bs-val">${tr('Home Screen first')}</span>${CHEV}</summary>
+      <div class="bs-body">${tr('Tap Share, then “Add to Home Screen”, and open botdot from there. Then turn this on in its Settings.')}</div></details>`;
   }
   if (!Push.supported(window)) {
-    return `<div class="bs-row" id="push-card"${tipAttrs("This browser can't show botdot's notifications.")}><b>Notifications</b><span class="bs-val">Not in this browser</span></div>`;
+    return `<div class="bs-row" id="push-card"${tipAttrs(tr("This browser can't show botdot's notifications."))}><b>${tr('Notifications')}</b><span class="bs-val">${tr('Not in this browser')}</span></div>`;
   }
-  return `<label class="bs-row" id="push-card" title="On this device"><b>Notifications</b>
-      <span class="switch"><input type="checkbox" id="push-on" disabled aria-label="Notifications on this device"><span></span></span></label>`;
+  return `<label class="bs-row" id="push-card" title="${esc(tr('On this device'))}"><b>${tr('Notifications')}</b>
+      <span class="switch"><input type="checkbox" id="push-on" disabled aria-label="${esc(tr('Notifications on this device'))}"><span></span></span></label>`;
 }
 
 function wirePushCard(root) {
@@ -511,7 +532,7 @@ function wirePushCard(root) {
       await (on ? Push.turnOn(window, api) : Push.turnOff(window, api));
       flashSaved($('#view-settings'));
     } catch (err) {
-      toast(err.message || "Couldn't change notifications.", true);
+      toast(err.message || tr("Couldn't change notifications."), true);
     }
     box.checked = await Push.isOn(window).catch(() => false);
     box.disabled = false;
@@ -548,14 +569,14 @@ async function loadUpdateCard() {
 
 function updateNotesHTML(u) {
   if (!u.ready || !updateNotes.length) return '';
-  return `<div class="whats-new update-notes"><h3 class="page-sub">What's new</h3>${whatsNewNotesHTML(updateNotes)}</div>`;
+  return `<div class="whats-new update-notes"><h3 class="page-sub">${tr("What's new")}</h3>${whatsNewNotesHTML(updateNotes)}</div>`;
 }
 
 function updateCardText(u) {
-  const day = (iso) => new Date(iso).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
-  if (u.asked || u.last?.state === 'switching') return 'Moving to the new version. Your bots restart in a minute or two.';
-  if (u.ready) return `A new version${u.ready.version ? ` (${u.ready.version})` : ''} is ready. Your account moves to it by itself on ${day(u.ready.deadline)}, or now if you choose.`;
-  if (u.last && (u.last.state === 'kept' || u.last.state === 'failed')) return `The last move to a new version didn't happen: ${u.last.error || 'the admin can see why'}.`;
+  const day = (iso) => new Date(iso).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' });
+  if (u.asked || u.last?.state === 'switching') return tr('Moving to the new version. Your bots restart in a minute or two.');
+  if (u.ready) return tr('A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.', { version: u.ready.version ? ` (${u.ready.version})` : '', day: day(u.ready.deadline) });
+  if (u.last && (u.last.state === 'kept' || u.last.state === 'failed')) return tr("The last move to a new version didn't happen: {why}.", { why: u.last.error || tr('the admin can see why') });
   return '';
 }
 
@@ -566,12 +587,12 @@ function drawUpdateCard(u) {
   if (!u) { card.innerHTML = ''; return; }
   // What the switch's two ways mean is its tooltip; what is happening now (a version waits, a move failed) is said.
   card.innerHTML = `
-      <summary><b>Updates</b><span class="bs-val">${u.ready ? 'New version' : u.autoUpdate ? 'Automatic' : ''}</span>${CHEV}</summary>
+      <summary><b>${tr('Updates')}</b><span class="bs-val">${u.ready ? tr('New version') : u.autoUpdate ? tr('Automatic') : ''}</span>${CHEV}</summary>
       <div class="bs-body">
-        <label class="bs-row"${tipAttrs("On: always use the latest botdot version. Off: update when you're ready, before the admin's deadline.")}><b>Update automatically</b>
-          <span class="switch"><input type="checkbox" id="auto-update" aria-label="Update automatically"${u.autoUpdate ? ' checked' : ''}><span></span></span></label>
+        <label class="bs-row"${tipAttrs(tr("On: always use the latest botdot version. Off: update when you're ready, before the admin's deadline."))}><b>${tr('Update automatically')}</b>
+          <span class="switch"><input type="checkbox" id="auto-update" aria-label="${esc(tr('Update automatically'))}"${u.autoUpdate ? ' checked' : ''}><span></span></span></label>
         ${updateCardText(u) ? `<p class="muted" id="update-said">${esc(updateCardText(u))}</p>` : ''}
-        ${u.canUpdate ? '<div><button type="button" class="btn" id="update-now">Update now</button></div>' : ''}
+        ${u.canUpdate ? `<div><button type="button" class="btn" id="update-now">${tr('Update now')}</button></div>` : ''}
         ${updateNotesHTML(u)}
       </div>`;
   const box = $('#auto-update', card);
@@ -585,7 +606,7 @@ function drawUpdateCard(u) {
   };
   const now = $('#update-now', card);
   if (now) now.onclick = async () => {
-    if (!confirm('Update now? Your account moves to the new version: your bots restart, and work still running stops.')) return;
+    if (!confirm(tr('Update now? Your account moves to the new version: your bots restart, and work still running stops.'))) return;
     now.disabled = true;
     try { drawUpdateCard(await frontDoorPost('/front-door/update/now', {})); } catch (err) { toast(err.message, true); now.disabled = false; }
   };
@@ -611,12 +632,12 @@ async function frontDoorPost(path, body) {
 // and app, this one too, and the page opens its sign-in. Only behind a front door (`accounts` in features).
 const signOutCardHTML = () => (state.features.includes('accounts') ? `
     <details class="bs-row bs-more" id="sign-out-card">
-      <summary><b>Sign-ins</b>${CHEV}</summary>
-      <div class="bs-body"><div><button type="button" class="btn" id="sign-out-everywhere">Sign out everywhere</button></div></div>
+      <summary><b>${tr('Sign-ins')}</b>${CHEV}</summary>
+      <div class="bs-body"><div><button type="button" class="btn" id="sign-out-everywhere">${tr('Sign out everywhere')}</button></div></div>
     </details>` : '');
 
 async function signOutEverywhere() {
-  if (!confirm('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.')) return;
+  if (!confirm(tr('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.'))) return;
   let res;
   // The front door's own route, not botdot's: no botdot server, and so no Chief or bot, reaches a session.
   try { res = await fetch('/sign-out-everywhere', { method: 'POST', headers: { 'X-Bot-Dot': '1' } }); } catch { toast("Can't reach botdot.", true); return; }
@@ -751,48 +772,48 @@ async function loadBackupsCard() {
   if (!card) return;
   let b;
   try { b = await api('/backups'); } catch (e) { card.querySelector('.bs-val').textContent = e.message; return; }
-  const head = (value) => `<summary><b>Backups</b><span class="bs-val">${esc(value)}</span>${CHEV}</summary>`;
+  const head = (value) => `<summary><b>${tr('Backups')}</b><span class="bs-val">${esc(value)}</span>${CHEV}</summary>`;
   // Off: a passphrase turns them on. The one line kept says what losing it costs.
   if (!b.configured) {
-    card.innerHTML = `${head('Off')}
+    card.innerHTML = `${head(tr('Off'))}
       <div class="bs-body">
-      <p class="muted">Without the passphrase a backup can't be opened: keep it safe.</p>
+      <p class="muted">${tr("Without the passphrase a backup can't be opened: keep it safe.")}</p>
       <form id="backup-pass" class="backup-pass" autocomplete="off">
-        <input type="password" name="p1" placeholder="Passphrase" minlength="8" required autocomplete="new-password">
-        <input type="password" name="p2" placeholder="Again" minlength="8" required autocomplete="new-password">
-        <button class="btn primary sm">Turn on</button>
+        <input type="password" name="p1" placeholder="${esc(tr('Passphrase'))}" minlength="8" required autocomplete="new-password">
+        <input type="password" name="p2" placeholder="${esc(tr('Again'))}" minlength="8" required autocomplete="new-password">
+        <button class="btn primary sm">${tr('Turn on')}</button>
       </form>
       </div>`;
     $('#backup-pass', card).onsubmit = async (e) => {
       e.preventDefault();
       const f = e.target;
-      if (f.p1.value !== f.p2.value) return toast("The two don't match", true);
-      try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: f.p1.value } }); f.reset(); toast('Backups are on'); await api('/backups/now', { method: 'POST' }); } catch (err) { toast(err.message, true); }
+      if (f.p1.value !== f.p2.value) return toast(tr("The two don't match"), true);
+      try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: f.p1.value } }); f.reset(); toast(tr('Backups are on')); await api('/backups/now', { method: 'POST' }); } catch (err) { toast(err.message, true); }
       loadBackupsCard();
     };
     return;
   }
-  const last = b.last ? `Last backup ${esc(ago(b.last.at))} · ${b.count} kept` : 'No backup yet';
-  card.innerHTML = `${head('03:00 daily')}
+  const last = b.last ? esc(tr('Last backup {ago} · {count} kept', { ago: ago(b.last.at), count: b.count })) : tr('No backup yet');
+  card.innerHTML = `${head(tr('03:00 daily'))}
     <div class="bs-body">
-    <p class="muted">${b.running ? 'Backing up…' : last}</p>
+    <p class="muted">${b.running ? tr('Backing up…') : last}</p>
     ${b.error ? `<div class="req-note">${esc(b.error)}</div>` : ''}
     <div class="backup-actions">
-      <button class="btn sm" id="backup-now" ${b.running ? 'disabled' : ''}>Back up now</button>
-      ${b.last ? `<a class="btn sm" href="/api/backups/${encodeURIComponent(b.last.name)}" download>Download</a>` : ''}
-      <button class="link-btn" id="backup-change">Change passphrase</button>
+      <button class="btn sm" id="backup-now" ${b.running ? 'disabled' : ''}>${tr('Back up now')}</button>
+      ${b.last ? `<a class="btn sm" href="/api/backups/${encodeURIComponent(b.last.name)}" download>${tr('Download')}</a>` : ''}
+      <button class="link-btn" id="backup-change">${tr('Change passphrase')}</button>
     </div>
     </div>`;
   $('#backup-now', card).onclick = async (e) => {
     e.target.disabled = true;
-    e.target.textContent = 'Backing up…';
-    try { await api('/backups/now', { method: 'POST' }); toast('Backed up'); } catch (err) { toast(err.message, true); }
+    e.target.textContent = tr('Backing up…');
+    try { await api('/backups/now', { method: 'POST' }); toast(tr('Backed up')); } catch (err) { toast(err.message, true); }
     loadBackupsCard();
   };
   $('#backup-change', card).onclick = async () => {
-    const p = prompt('New backup passphrase (at least 8 characters). Older backups still need the old one.');
+    const p = prompt(tr('New backup passphrase (at least 8 characters). Older backups still need the old one.'));
     if (!p) return;
-    try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: p } }); toast('Passphrase changed. The next backups use it.'); } catch (err) { toast(err.message, true); }
+    try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: p } }); toast(tr('Passphrase changed. The next backups use it.')); } catch (err) { toast(err.message, true); }
   };
 }
 

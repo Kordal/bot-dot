@@ -197,6 +197,12 @@ class Api(val baseUrl: String, val session: Session? = null) {
     // ---------- version, bots, runs ----------
 
     /** What's new (#219): the notes this account has not seen, newest first, every one (#380). Asked only when `features` has `whats-new`. */
+    /** The account's language (#645): "en" or "pl", from `language` of GET /api/settings; "en" when it has none. */
+    suspend fun language(): String = ((json.parseToJsonElement(get("/settings")) as? JsonObject)?.get("settings") as? JsonObject)
+        ?.get("language")?.let { (it as? JsonPrimitive)?.content } ?: "en"
+    suspend fun setLanguage(language: String) { send("PUT", "/settings", buildJsonObject { put("language", language) }) }
+    /** The dictionary of [language] (GET /api/i18n/:language): English text to its translation. */
+    suspend fun dictionary(language: String): JsonObject = (json.parseToJsonElement(get("/i18n/${enc(language)}")) as JsonObject)["strings"] as? JsonObject ?: JsonObject(emptyMap())
     suspend fun whatsNew(): List<WhatsNew.Entry> = WhatsNew.shown(json.decodeFromString<WhatsNew.Answer>(get("/whats-new")))
     /** The What's new dialog was closed: these notes count as seen, here and on the web page. */
     suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) { send("POST", "/whats-new/seen", WhatsNew.seenBody(entries)) }

@@ -95,4 +95,11 @@ function thread() {
 // The page's own whileBusy (app.js), for the code that answers a press with it.
 const whileBusy = require('vm').runInNewContext(`${cut('// A button whose answer waits on the server', 'function toast(')}; whileBusy`);
 
-module.exports = { noDrafts, app, read, cut, esc, element, finders, answer, thread, whileBusy };
+// The page's words (public/i18n.js) as an English page has them: tr() and trn() for code run against stand-ins.
+const words = (() => {
+  const ctx = { document: { documentElement: {}, querySelectorAll: () => [] }, localStorage: { getItem: () => null }, Intl, JSON };
+  require('vm').runInNewContext(`${read('i18n.js')}\nthis.words = { I18n, tr, trn };`, ctx);
+  return ctx.words;
+})();
+
+module.exports = { noDrafts, app, read, cut, esc, element, finders, answer, thread, whileBusy, words };
