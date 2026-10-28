@@ -710,7 +710,7 @@ data class ChatHit(
 @Serializable
 data class Ask(
     val id: String,
-    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "override" | "chief-action" | "room-tool" | "room-post"
+    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "override" | "chief-action" | "room-tool" | "room-post" | "computer-step"
     val permission: String? = null,
     val reason: String = "",
     val bot: BotRef? = null,

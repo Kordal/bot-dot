@@ -218,7 +218,7 @@ On the botdot server, yes: each bot runs as its own Linux user and reaches only 
 
 ### What stops a bot from doing something harmful?
 
-Its tools and permissions, which you set (the safe default denies anything not allowed), and **Needs you**: scripts, recurring jobs set up by a bot, writes in connected apps, payments, installs, and a forget or a removal from the shared memory after reading outside content all wait for your OK. A note saved after outside content is saved, marked as such, and shown under the reply. A bot's instructions are guidance for the AI, not an enforced limit, so give each bot only the tools and apps it needs.
+Its tools and permissions, which you set (the safe default denies anything not allowed), and **Needs you**: scripts, recurring jobs set up by a bot, writes in connected apps, payments, installs, and a forget or a removal from the shared memory after reading outside content all wait for your OK. A note saved after outside content is saved, marked as such, and shown under the reply. A bot's instructions are guidance for the AI, not an enforced limit, so give each bot only the tools and apps it needs. On a bot's computer, a click that confirms something the page marks irreversible ("cannot be undone") waits for your OK too, even if you asked for it in chat; a no, or taking control of its screen, is final for that task ([ADR 107](adr/107-an-irreversible-step-on-a-bots-computer-waits-for-a-card.md)). A project's `AGENTS.md` or `CLAUDE.md` changes none of this.
 
 ### Can a web page trick the Chief?
 

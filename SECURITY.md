@@ -170,6 +170,19 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   it. What a bot knows from one run to the next is what botdot's memory holds, which you can read,
   change and forget. A bot working in a cloned repository is told to read that repository's
   instruction file itself; it is that project's text, not yours.
+- **A project's `AGENTS.md` or `CLAUDE.md` does not change what a bot may do.** Approval rules
+  written there neither loosen nor tighten anything: they are that project's text. Put stricter
+  rules in the bot's own rules (tell the Chief), and rely on the cards below, which are in code.
+- **Connector cards and the computer gate are two gates.** A write in a connected app (send, post,
+  change, delete, pay through `connector_run`) waits for your OK on a card. On a bot's computer, a
+  click or Enter that confirms a control the page marks "irreversible", "cannot be undone" or
+  "cannot be reversed" waits on a card of its own; any other click, typing or browsing does not. A
+  no on either is final for that run and the run that carries it on, and taking control of the
+  bot's screen while such a step waits or is on its page counts as a no. A chat message asking for
+  the step is no yes. A step on the site of an app the bot has connected goes through that app's
+  card instead, never both ([ADR 107](docs/adr/107-an-irreversible-step-on-a-bots-computer-waits-for-a-card.md)).
+  The computer gate reads English words on the page only, and taking control of a machine on
+  boat.dev is not yet seen as a no.
 - **Text from memory is never markup.** A note, a topic, a chat message or a past run printed into a
   prompt cannot close its block or open another: every `<` that could start a tag is written `&lt;`
   there.
