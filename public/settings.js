@@ -415,7 +415,7 @@ function renderSettings() {
   };
 }
 
-// The interface's language (#645, ADR 107): saved by itself; the page then loads again in it. A language's own name
+// The interface's language (#645, ADR 108): saved by itself; the page then loads again in it. A language's own name
 // is never translated.
 const LANGUAGE_NAMES = [['en', 'English'], ['pl', 'Polski']];
 function wireLanguage(root) {

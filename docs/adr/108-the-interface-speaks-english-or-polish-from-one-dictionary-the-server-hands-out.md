@@ -1,4 +1,4 @@
-# ADR-107: The interface speaks English or Polish, from one dictionary the server hands out
+# ADR-108: The interface speaks English or Polish, from one dictionary the server hands out
 
 - **Status:** Accepted
 - **Owning task:** #645 (spec #644)

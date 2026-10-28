@@ -1,4 +1,4 @@
-// The interface's language (#645, ADR 107): the account's setting, the Polish dictionary the apps draw their words
+// The interface's language (#645, ADR 108): the account's setting, the Polish dictionary the apps draw their words
 // with, and that every string the code passes to tr() and trn() has its Polish, with the same placeholders.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');

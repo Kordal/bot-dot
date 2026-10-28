@@ -1,6 +1,6 @@
 # The interface's language
 
-English, or Polish when the account chose it in Settings ([ADR 107](../../docs/adr/107-the-interface-speaks-english-or-polish-from-one-dictionary-the-server-hands-out.md)).
+English, or Polish when the account chose it in Settings ([ADR 108](../../docs/adr/108-the-interface-speaks-english-or-polish-from-one-dictionary-the-server-hands-out.md)).
 
 ## Adding a string
 

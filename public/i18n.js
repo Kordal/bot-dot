@@ -1,4 +1,4 @@
-// The interface's language (#645, ADR 107): the page's words in English, or in Polish when the account chose it in
+// The interface's language (#645, ADR 108): the page's words in English, or in Polish when the account chose it in
 // Settings. A string is keyed by its English text: tr('Saved') is "Saved" in English and "Zapisano" in Polish, and a
 // string without a translation stays English. trn(n, '{n} bot', '{n} bots') picks the plural form by the language's
 // rules. The dictionary comes from the server (GET /api/i18n/pl) and is kept in this browser, so that the words are

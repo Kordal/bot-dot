@@ -128,7 +128,7 @@ The one program on a machine that people reach (`front-door.js`, [ADR 028](adr/0
 
 ### The interface's language
 
-When `features` has `language` ([#645](https://github.com/Kordal/bot-dot/issues/645), [ADR 107](adr/107-the-interface-speaks-english-or-polish-from-one-dictionary-the-server-hands-out.md)): the words the apps draw, in English or in Polish, for the whole account.
+When `features` has `language` ([#645](https://github.com/Kordal/bot-dot/issues/645), [ADR 108](adr/108-the-interface-speaks-english-or-polish-from-one-dictionary-the-server-hands-out.md)): the words the apps draw, in English or in Polish, for the whole account.
 
 - `language` in `GET /api/settings` is `"en"` (how it starts) or `"pl"`. `PUT /api/settings` with `{ language }` changes it, the owner's alone as every key of that route; another value is `400` with `error`. A change is announced on the feed as `language` with `{ language }`, so every app of the account follows.
 - `GET /api/i18n/pl` → `{ language: "pl", strings }`: the Polish dictionary. Each key is a string as the apps write it in English, each value its Polish with the same `{placeholders}`; a count's key is its English plural ("{n} bots") and its value `{ one, few, many }`, picked by the Polish rules. A string with no key stays English. `404` for a language botdot has not. English has no dictionary: its words are the keys.

@@ -9,7 +9,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 /**
- * The interface's language (#645, ADR 107): the app's words in English, or in Polish when the account chose it in
+ * The interface's language (#645, ADR 108): the app's words in English, or in Polish when the account chose it in
  * Settings. A string is keyed by its English text: tr("Saved") is "Saved" in English and "Zapisano" in Polish, and a
  * string without a translation stays English. trn(n, "{n} bot", "{n} bots") picks the plural form by the language's
  * rules. The dictionary is the server's (GET /api/i18n/pl), kept on the phone so the words are there from the first

@@ -6,7 +6,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** The interface's language (#645, ADR 107): the words in Polish where the dictionary has them, English otherwise. */
+/** The interface's language (#645, ADR 108): the words in Polish where the dictionary has them, English otherwise. */
 class I18nTest {
     private val polish = JsonObject(mapOf(
         "Saved" to JsonPrimitive("Zapisano"),
