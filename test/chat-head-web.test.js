@@ -31,7 +31,7 @@ test('web: the Chief\'s figure and name open its settings the same way, and its 
 
 test('web: the Chief\'s previous chats are in its settings', () => {
   const settings = app.slice(app.indexOf('function renderChiefSettings()'), app.indexOf('// The pages that open from Settings.'));
-  assert.match(settings, /Previous chats<\/h3>\s*<div[^>]*id="chief-chats"/);
+  assert.match(settings, /<summary><b>Previous chats<\/b>\$\{CHEV\}<\/summary>\s*<div[^>]*id="chief-chats"/, "a row that opens them under it");
   assert.match(app, /const el = \$\('#chief-chats'\);/);
 });
 

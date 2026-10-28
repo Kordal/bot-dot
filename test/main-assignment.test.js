@@ -132,9 +132,10 @@ test("the Chief's tools: the prompt is the bot's main assignment", () => {
 test('the web page says "Main assignment", and its empty chat has no button to run it', () => {
   const app = webSource();
   for (const text of [
-    'Main assignment <span class="hint">what it does when a job runs it, and its guide for your messages</span>',
+    // What it is stands in the field's tooltip, not in a line under it (#635).
+    "Main assignment\n        <textarea name=\"prompt\" rows=\"4\" required${tipAttrs('What it does when a job runs it, and its guide for your messages')}>",
     'Ran its main assignment',
-    "leave empty for the bot's main assignment",
+    "Empty: the bot's main assignment",
   ]) assert.ok(app.includes(text), text);
   assert.doesNotMatch(app, OLD);
   assert.doesNotMatch(app, /data-run-default/);

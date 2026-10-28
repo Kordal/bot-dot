@@ -109,7 +109,7 @@ async function renderVault() {
   root.innerHTML = `
     ${SUB_BACK}
     <div class="section-head">
-      <div><h1>Vault</h1><p>${bw.configured ? `Your Bitwarden's <b>bot-dot</b> folder: logins, cards, identities, SSH keys and files your bots can use without ever seeing them.` : 'Saved logins your bots can use without ever seeing the password.'}</p></div>
+      <div><h1 title="${bw.configured ? "Your Bitwarden's bot-dot folder: logins, cards, identities, SSH keys and files your bots can use without ever seeing them." : 'Saved logins your bots can use without ever seeing the password.'}">Vault</h1></div>
       ${locked ? '' : `<div class="vault-add">${bw.unlocked ? '<button class="btn" id="add-file">＋ File</button><button class="btn" id="add-ssh-key">＋ SSH key</button>' : ''}<button class="btn primary" id="add-login">＋ Add</button></div>`}
     </div>
     ${!bw.configured ? (bw.installed === false ? '<div class="req-note">To use Bitwarden, install its command-line tool first: <span class="mono">brew install bitwarden-cli</span>, then reload.</div>' : bitwardenSetupHTML()) : `
@@ -176,11 +176,11 @@ function openLoginEditor(login) {
         ${vaultTypeControl(l.type)}
         <div class="row">
           <label class="field">Name<input type="text" name="name" value="${esc(l.name)}" placeholder="e.g. Recipes"></label>
-          <label class="field">Website or server <span class="hint">the secret is only used with this address</span><input type="text" name="site" value="${esc(l.site)}" placeholder="recipes.example.com or pve.example.ts.net" required></label>
+          <label class="field" title="The secret is only used with this address">Website or server<input type="text" name="site" value="${esc(l.site)}" placeholder="recipes.example.com or pve.example.ts.net" required></label>
         </div>
         ${vaultTypeFields(l.type, { username: l.username, isNew })}
-        <label class="field">Additional exact hosts <input name="allowedHosts" value="${esc((l.allowedHosts || []).join(', '))}" placeholder="api.example.com, auth.example.com"><span class="hint">Only these hosts may receive this login. Subdomains are not included automatically.</span></label>
-        <label class="toggle"><input type="checkbox" name="insecureTls" ${l.insecureTls ? 'checked' : ''}> Accept a self-signed certificate <span class="hint muted" style="font-weight:400">for your own servers, e.g. Proxmox or a NAS</span></label>
+        <label class="field" title="Only these hosts may receive this login. Subdomains are not included automatically.">Additional exact hosts<input name="allowedHosts" value="${esc((l.allowedHosts || []).join(', '))}" placeholder="api.example.com, auth.example.com"></label>
+        <label class="toggle" title="For your own servers, e.g. Proxmox or a NAS"><input type="checkbox" name="insecureTls" ${l.insecureTls ? 'checked' : ''}> Accept a self-signed certificate</label>
         <label class="toggle"><input type="checkbox" name="inComputer" ${l.inComputer ? 'checked' : ''}> Usable in its computer <span class="hint muted" style="font-weight:400">bots may use it in a command on the account's computer, e.g. for Proton Bridge there. Every bot on that computer could then read it: only for secrets that guard something on it</span></label>
         <div class="req-note">Bots can use this login to sign in on the website, or to call its API: they write <span class="mono">{{username}}</span> and <span class="mono">{{password}}</span> in the request and botdot fills them in, so they never see the secret.</div>
         <fieldset>
@@ -406,7 +406,7 @@ function openSshKeyEditor() {
       <div class="modal-head"><h2>🗝️ Add an SSH key</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         <label class="field">Name<input type="text" name="name" placeholder="e.g. Home servers" maxlength="100" required></label>
-        <label class="field">Private key <span class="hint">OpenSSH format, without a passphrase. Leave empty to generate a new key</span><textarea name="privateKey" class="mono" rows="6" spellcheck="false" autocapitalize="off" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea></label>
+        <label class="field" title="OpenSSH format, without a passphrase">Private key<textarea name="privateKey" class="mono" rows="6" spellcheck="false" autocapitalize="off" placeholder="Leave empty to generate a new key"></textarea></label>
         <label class="field">Or pick its file <input type="file" name="keyFile"></label>
         <div class="req-note">Saved in your Bitwarden's bot-dot folder as an SSH key. Bots use it for SSH from the account's computer and never see it, and you can't see it here again.</div>
         <fieldset>
@@ -483,7 +483,7 @@ function openFileEditor() {
       <div class="modal-head"><h2>📄 Add a file</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         <label class="field">File <span class="hint">any file, at most 64 KB</span><input type="file" name="file" required></label>
-        <label class="field">Name <span class="hint">optional, the file's name if empty</span><input type="text" name="name" placeholder="e.g. GitHub App key" maxlength="100"></label>
+        <label class="field">Name<input type="text" name="name" placeholder="Optional: the file's name" maxlength="100"></label>
         <div class="req-note">Saved in your Bitwarden's bot-dot folder. Bots never see what is in it, and you can't see it here again.</div>
         <fieldset>
           <legend>Bots that may use it</legend>

@@ -47,6 +47,7 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     signedOut: { on: false }, newLine: lib.Unread.lineKeeper(), failedSends: new Map(), openingLines: lib.OpeningLine.keeper(),
     api: async (path, opts = {}) => { said.calls.push([opts.method || 'GET', path, ...(opts.body ? [plain(opts.body)] : [])]); const a = await answer(path, opts); if (a instanceof Error) throw a; return a; },
     toast: (text, bad) => said.toasts.push([text, !!bad]), refresh: async () => { said.refreshed++; }, renderContacts: () => { said.contacts++; },
+    flashSaved: () => { said.saved = (said.saved || 0) + 1; }, // "Saved" at the panel's top right (settings.js)
     setView: (v, sub) => said.views.push([v, sub]), setPanel() {}, leaveBot: () => { said.left++; }, setUnread: (chat, d) => said.unread.push([chat, d.unread]),
     confirm: (t) => { said.confirms.push(t); return true; }, updateChatNeeds: (thread, scope) => said.needs.push(scope),
     showBoxNote: (form, text) => said.notes.push(text), openModal: (h) => { said.modals.push(h); return said.modal(h); },
@@ -247,9 +248,10 @@ test('web: the panel has the name, the members each with a way to take it out, "
   const p = page({ reply: async (path, opts) => (opts.method === 'PUT' && opts.body.members?.length < 2 ? refused('A group has at least two bots. Add another, or delete the group.') : {}) });
   const { root, parts } = panelPage(p);
   p.ctx.renderGroupSettings();
-  assert.match(root.innerHTML, /<label class="field">Name<input type="text" id="gs-name" maxlength="60"/);
-  assert.match(root.innerHTML, /<button type="button" class="btn sm" id="gs-add">＋ Add a bot<\/button>/);
-  assert.match(root.innerHTML, /<button type="button" class="btn danger" id="gs-delete">Delete this group<\/button><\/div>/, 'no hint under it: the confirmation says what it erases');
+  // As a bot's settings (#635): the name on top, a row per member, "Add a bot" a row, Delete a red row at the end.
+  assert.match(root.innerHTML, /<div class="set-head"><div id="gs-pic"><\/div><div class="set-name"><input type="text" id="gs-name" maxlength="60" autocomplete="off" aria-label="Name"><\/div><\/div>/);
+  assert.match(root.innerHTML, /<button type="button" class="bs-row bs-link" id="gs-add"><b>Add a bot<\/b>/);
+  assert.match(root.innerHTML, /<div class="set-list"><button type="button" class="bs-row bs-link bs-danger" id="gs-delete"><b>Delete this group<\/b><\/button><\/div>/, 'no hint under it: the confirmation says what it erases');
   assert.equal(parts['#gs-name'].value, 'Dev');
   assert.deepEqual([...parts['#gs-members'].innerHTML.matchAll(/<span class="grow">(.*?)<\/span>\s*<button type="button" class="icon-btn sm" data-take-out="(\w+)" title="(.*?)"/g)].map((m) => m.slice(1)),
     [['Coder', 'coder', 'Take Coder out of the group'], ['Reviewer', 'reviewer', 'Take Reviewer out of the group'], ['Issue Writer', 'writer', 'Take Issue Writer out of the group']]);
@@ -264,6 +266,7 @@ test('web: the panel has the name, the members each with a way to take it out, "
   await parts['out:writer'].onclick();
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(p.said.calls, [['PUT', '/group-chats/g1', { name: 'Dev team' }], ['PUT', '/group-chats/g1', { members: ['coder', 'reviewer'] }]]);
+  assert.equal(p.said.saved, 2, 'each change says "Saved"');
   // What the server refuses is said in its words.
   p.state.groups[0].members = ['coder'];
   await p.ctx.changeGroup(p.state.groups[0], { members: [] });
@@ -510,7 +513,7 @@ test('web: the gap opens where the dragged row would land: a group among the gro
 });
 
 test('web: a folder of bots is called a category wherever the page said group', () => {
-  for (const said of [/Rename or remove this category/, /<h2>Category: \$\{esc\(group\)\}<\/h2>/, />Remove category<\/button>/, /'Category removed'/, /<div class="field">Category\s*<div class="group-picker"/, /placeholder="Category name" aria-label="New category name"/, />＋ New category<\/button>/, /title="\$\{isFolded \? 'Show' : 'Hide'\} this category"/]) assert.match(app, said);
+  for (const said of [/Rename or remove this category/, /<h2>Category: \$\{esc\(group\)\}<\/h2>/, />Remove category<\/button>/, /'Category removed'/, /<div class="field">Category\s*<div class="group-picker"/, /placeholder="Category name" aria-label="New category name"/, /data-new title="New category" aria-label="New category">＋<\/button>/, /title="\$\{isFolded \? 'Show' : 'Hide'\} this category"/]) assert.match(app, said);
   for (const gone of [/Rename or remove this group/, /<h2>Group: /, /Remove group/, /Group removed/, /<div class="field">Group\b/, /New group name/, /＋ New group/, /Group name/]) assert.doesNotMatch(app, gone);
   // What the page calls a group now is the chat with several bots.
   assert.match(src, /title: 'New group'/);

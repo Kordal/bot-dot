@@ -5,7 +5,7 @@ function renderRuns() {
   if (!root.querySelector('.runs-layout')) {
     root.innerHTML = `
       ${SUB_BACK}
-      <div class="section-head"><div><h1>Activity</h1><p>Every bot run, live and past.</p></div>
+      <div class="section-head"><div><h1 title="Every bot run, live and past">Activity</h1></div>
         <select id="run-filter" style="width:auto"><option value="">All bots</option></select></div>
       <div class="runs-layout">
         <div class="card run-list" id="run-list"></div>

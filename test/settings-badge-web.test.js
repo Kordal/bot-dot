@@ -18,7 +18,8 @@ function page(runs) {
     $$: (sel, r) => r.querySelectorAll(sel),
     setView() {},
   });
-  vm.runInContext(`${cut('// The running tasks, shown beside Activity', '// The Settings button: marked')}
+  vm.runInContext(`${cut('const CHEV = ', '// A change on a settings screen saves by itself')}
+    ${cut('// The running tasks, shown beside Activity', '// The Settings button: marked')}
     ${cut('// The pages that open from Settings.', '  const s = state.settings;')} }
     Object.assign(this, { renderSettings });`, ctx);
   return { ctx, links };
@@ -33,7 +34,7 @@ test('web: the Settings button has no number', () => {
 test('web: Settings shows the running tasks beside Activity, also on a refresh that keeps the form', () => {
   const { ctx, links } = page([{ status: 'running' }, { status: 'success' }]);
   ctx.renderSettings(); // the form is already there: the links are drawn again all the same
-  assert.match(links.innerHTML, /data-go="runs"[\s\S]*1 task running/);
+  assert.match(links.innerHTML, /data-go="runs"><b>Activity<\/b><span class="bs-val">1 running<\/span>/, 'its value, right of it');
   const idle = page([{ status: 'success' }]);
   idle.ctx.renderSettings();
   assert.doesNotMatch(idle.links.innerHTML, /running/);

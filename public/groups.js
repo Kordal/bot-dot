@@ -188,7 +188,7 @@ function openGroupMaker(bot) {
 
 // A change to the open group, saved at once. What the server refuses is said in its words.
 async function changeGroup(g, body) {
-  try { await api(`/group-chats/${encodeURIComponent(g.id)}`, { method: 'PUT', body }); } catch (e) { toast(e.message, true); }
+  try { await api(`/group-chats/${encodeURIComponent(g.id)}`, { method: 'PUT', body }); flashSaved($('#view-groupsettings')); } catch (e) { toast(e.message, true); }
   await refresh();
 }
 
@@ -201,16 +201,15 @@ function renderGroupSettings() {
   if (root.dataset.group !== g.id || !$('#gs-name', root)) {
     root.dataset.group = g.id;
     delete root.dataset.sig;
+    // As a bot's settings (#635): its picture and name on top, then a row per member, and Delete in red at the end.
     root.innerHTML = `
       <div class="group-panel">
-        <div id="gs-pic"></div>
-        <label class="field">Name<input type="text" id="gs-name" maxlength="60" autocomplete="off"></label>
-        <div class="card settings-card">
-          <h3 class="page-sub" style="margin-top:0">Members</h3>
-          <div id="gs-members"></div>
-          <div><button type="button" class="btn sm" id="gs-add">＋ Add a bot</button></div>
+        <div class="set-head"><div id="gs-pic"></div><div class="set-name"><input type="text" id="gs-name" maxlength="60" autocomplete="off" aria-label="Name"></div></div>
+        <div class="set-list" aria-label="Members">
+          <div class="bs-group" id="gs-members"></div>
+          <button type="button" class="bs-row bs-link" id="gs-add"><b>Add a bot</b><span class="bs-chev" aria-hidden="true">›</span></button>
         </div>
-        <div class="bs-foot"><button type="button" class="btn danger" id="gs-delete">Delete this group</button></div>
+        <div class="set-list"><button type="button" class="bs-row bs-link bs-danger" id="gs-delete"><b>Delete this group</b></button></div>
       </div>`;
     const name = $('#gs-name', root);
     name.value = g.name;
@@ -251,7 +250,7 @@ function renderGroupSettings() {
   root.dataset.sig = sig;
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
   $('#gs-members', root).innerHTML = members.map((b) => `
-    <div class="member-row">${botFigure(b.color, b.state, 'sm', b.outfit)}<span class="grow">${esc(b.name)}</span>
+    <div class="bs-row member-row">${botFigure(b.color, b.state, 'sm', b.outfit)}<span class="grow">${esc(b.name)}</span>
       <button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="Take ${esc(b.name)} out of the group" aria-label="Take ${esc(b.name)} out of the group">✕</button></div>`).join('')
     || '<p class="faint">Its bots are all gone. Add one, or delete the group.</p>';
   $$('[data-take-out]', root).forEach((b) => (b.onclick = () => {

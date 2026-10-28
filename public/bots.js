@@ -188,7 +188,7 @@ function foldPicker(box, items, selected, onChange, { none = 'None', empty = 'No
     const text = (x) => `<span class="grow"><span class="skill-name">${esc(x.label)}</span>${x.desc ? `<span class="desc">${esc(x.desc)}</span>` : ''}${x.more ? `<span class="pick-more">${x.more}</span>` : ''}</span>`;
     // Items can come in groups (a heading where the group changes), and with more to show when their name is clicked.
     const head = (x, i) => (x.group && x.group !== items[i - 1]?.group ? `<div class="pick-group">${esc(x.group)}</div>` : '');
-    box.innerHTML = `<div class="faint bs-sum">${esc(summary())}</div>${open ? `<div class="pick-list">${items.length ? items.map((x, i) => head(x, i) + (action
+    box.innerHTML = `<div class="bs-sum">${esc(summary())}</div>${open ? `<div class="pick-list">${items.length ? items.map((x, i) => head(x, i) + (action
       ? `<div class="skill-pick static-row">${text(x)}<button type="button" class="btn sm" data-pick-action="${esc(x.id)}">${esc(action.label)}</button></div>`
       : x.more
         ? `<div class="skill-pick has-more"><input type="checkbox" value="${esc(x.id)}" ${selected.has(x.id) ? 'checked' : ''} aria-label="${esc(x.label)}">${text(x)}</div>`
@@ -202,6 +202,7 @@ function foldPicker(box, items, selected, onChange, { none = 'None', empty = 'No
   };
   const toggle = () => { open = !open; draw(); };
   row.classList.add('bs-fold');
+  box.classList.add('bs-picks'); // its summary right of the label, its list under the row (style.css)
   row.tabIndex = 0;
   row.setAttribute('role', 'button');
   row.onclick = (e) => { if (!e.target.closest('.pick-list')) toggle(); };
@@ -214,11 +215,9 @@ function foldPicker(box, items, selected, onChange, { none = 'None', empty = 'No
 function hotkeyRow(b) {
   const holder = (d) => state.bots.find((x) => x.id !== b.id && x.hotkey === d);
   const option = (d) => `<option value="${d}" ${(b.hotkey || 0) === d ? 'selected' : ''}>${d}${holder(d) ? ` (now ${esc(holder(d).name)})` : ''}</option>`;
-  return `<div class="bs-row">
-          <span class="bs-icon">⌨</span>
-          <div class="grow"><b>Key on the keypad</b><div class="faint">Its digit in a wide window, wherever it stands. Without one it gets a free digit by its place.</div></div>
-          <select name="hotkey" aria-label="Key on the keypad"><option value="0" ${b.hotkey ? '' : 'selected'}>By its place</option>${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(option).join('')}</select>
-        </div>`;
+  return `<label class="bs-row"${tipAttrs('Its digit on the keypad in a wide window, wherever it stands. Without one it gets a free digit by its place.')}><b>Key</b>
+          <select name="hotkey" aria-label="Key on the keypad"><option value="0" ${b.hotkey ? '' : 'selected'}>By its place</option>${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(option).join('')}</select>${CHEV}
+        </label>`;
 }
 function renderBotSettings(force = false) {
   const root = $('#view-botsettings');
@@ -240,108 +239,89 @@ function renderBotSettings(force = false) {
   const mayHave = docker || hasComputer || (accountComputer && !!state.status?.boat);
   const knownTools = new Set(PERMS.flatMap((p) => p.tools));
   const has = (p) => p.tools.every((t) => b.allowedTools.includes(t));
+  // Its head (figure, name, what it does), colour, category and main assignment, then one row per setting.
   root.innerHTML = `
     <form id="bot-form" class="bot-settings" autocomplete="off">
-      <div class="section-head"><div><h1>Settings</h1><p>Changes save by themselves. <span class="faint" id="bs-saved"></span></p></div></div>
-      <div class="card settings-card">
-        <label class="field">Name<input type="text" name="name" value="${esc(b.name)}" required maxlength="60"></label>
-        <div class="field">Colour<div class="swatches">${BOT_COLORS.map(([c, n]) => `<label class="swatch" title="${n}"><input type="radio" name="color" value="${c}" ${b.color === c ? 'checked' : ''} aria-label="${n}"><i style="--c:${c}"></i></label>`).join('')}</div></div>
-        <label class="field">What it does<input type="text" name="description" value="${esc(b.description)}" placeholder="One line, shown in the list"></label>
-        <div class="field">Category
-          <div class="group-picker" id="group-picker"></div>
-          <input type="hidden" name="group" value="${esc(b.group || '')}">
+      <div class="set-head">
+        <span id="bs-figure"></span>
+        <div class="set-name">
+          <input type="text" name="name" value="${esc(b.name)}" required maxlength="60" aria-label="Name">
+          <input type="text" name="description" value="${esc(b.description)}" placeholder="What it does" aria-label="What it does"${tipAttrs('One line, shown in the list')}>
         </div>
-        <label class="field">Main assignment <span class="hint">what it does when a job runs it, and its guide for your messages</span>
-          <textarea name="prompt" rows="5" required>${esc(b.prompt)}</textarea></label>
-        <div id="bs-undo"></div>
       </div>
+      <div class="swatches" role="radiogroup" aria-label="Colour">${BOT_COLORS.map(([c, n]) => `<label class="swatch" title="${n}"><input type="radio" name="color" value="${c}" ${b.color === c ? 'checked' : ''} aria-label="${n}"><i style="--c:${c}"></i></label>`).join('')}</div>
+      <div class="field">Category
+        <div class="group-picker" id="group-picker"></div>
+        <input type="hidden" name="group" value="${esc(b.group || '')}">
+      </div>
+      <label class="field">Main assignment
+        <textarea name="prompt" rows="4" required${tipAttrs('What it does when a job runs it, and its guide for your messages')}>${esc(b.prompt)}</textarea></label>
+      <div id="bs-undo"></div>
 
-      <div class="card settings-card bs-rows">
-        ${boatChoice ? `<div class="bs-row">
-          <span class="bs-icon">🖥</span>
-          <div class="grow"><b>Computer</b>${b.computer === 'linux' || b.computer === 'boat' ? '<div><button type="button" class="link-btn" data-bs-screen>See its screen</button></div>' : ''}<div class="faint" id="bs-move">${computerMoveLine(b)}</div></div>
-          <select name="computer" aria-label="Computer"><option value="none">None</option><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>This machine</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>External Virtual PC</option></select>
-        </div>` : `<div class="bs-row ${mayHave ? '' : 'hidden'}">
-          <span class="bs-icon">🖥</span>
-          <div class="grow"><b>Uses the computer</b>${accountComputer ? `${hasComputer ? '<div><button type="button" class="link-btn" data-bs-screen>See its screen</button></div>' : ''}<div class="faint" id="bs-move">${computerMoveLine(b)}</div>` : `<div class="faint">Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.${b.computer === 'linux' ? ' <button type="button" class="link-btn" data-bs-screen>See its screen</button>' : ''}</div>`}</div>
-          <label class="switch"><input type="checkbox" name="computer" ${hasComputer ? 'checked' : ''} ${mayHave ? '' : 'disabled'} aria-label="Uses the computer"><span></span></label>
-        </div>`}
-        <div class="bs-row">
-          <span class="bs-icon">📌</span>
-          <div class="grow"><b>Pinned below the Chief</b></div>
-          <label class="switch"><input type="checkbox" id="bs-pinned" ${b.pinned > 0 ? 'checked' : ''} aria-label="Pinned below the Chief"><span></span></label>
-        </div>
+      <div class="set-list">
+        <label class="bs-row" title="Pinned below the Chief"><b>Pinned</b>
+          <span class="switch"><input type="checkbox" id="bs-pinned" ${b.pinned > 0 ? 'checked' : ''} aria-label="Pinned below the Chief"><span></span></span></label>
         ${state.features.includes('bot-hotkeys') ? hotkeyRow(b) : ''}
         <div class="bs-row" id="bs-skills">
-          <span class="bs-icon">✦</span>
-          <div class="grow"><b>Skills</b>${b.useSkills === false ? '<div class="faint">Skills are off for this bot. <button type="button" class="link-btn" data-skills-on>Turn them on</button></div>' : '<div id="skill-picks"><span class="faint">Loading…</span></div>'}</div>
-          ${b.useSkills === false ? '' : '<span class="faint bs-chev">›</span>'}
+          <div class="grow"><b>Skills</b>${b.useSkills === false ? '<span class="bs-val">Off <button type="button" class="link-btn" data-skills-on>Turn on</button></span>' : '<div id="skill-picks"><span class="faint">Loading…</span></div>'}</div>
+          ${b.useSkills === false ? '' : CHEV}
         </div>
         <div class="bs-row hidden" id="bs-apps">
-          <span class="bs-icon">🔌</span>
-          <div class="grow"><b>Apps</b><div id="app-picks"></div></div>
-          <span class="faint bs-chev">›</span>
+          <div class="grow"><b>Apps</b><div id="app-picks"></div></div>${CHEV}
         </div>
         <div class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}">
-          <span class="bs-icon">💬</span>
-          <div class="grow"><b>May message</b><div id="bot-picks"></div></div>
-          <span class="faint bs-chev">›</span>
+          <div class="grow"><b>May message</b><div id="bot-picks"></div></div>${CHEV}
         </div>
-        <div class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}">
-          <span class="bs-icon">🔓</span>
-          <div class="grow"><b>Other bots may ask it</b><div class="faint">Off keeps it to you: other bots don't see it among their teammates and can't message it.</div></div>
-          <label class="switch"><input type="checkbox" name="othersMayAsk" ${b.othersMayAsk !== false ? 'checked' : ''} aria-label="Other bots may ask it"><span></span></label>
-        </div>
-        ${showsRoomSettings(b) ? `<div class="bs-row" id="bs-rooms">
-          <span class="bs-icon">🚪</span>
-          <div class="grow"><b>Shared rooms</b><div class="faint">It may join rooms with other accounts on this machine. There it only talks: no tools, no notes, nothing of yours.</div>
-            <label class="field bs-rooms-who ${b.rooms.allowRooms ? '' : 'hidden'}">Who may mention it<select name="roomsWho">${ROOM_WHO.map(([v, label]) => `<option value="${v}" ${b.rooms.whoMayMention === v ? 'selected' : ''}>${label}</option>`).join('')}</select></label></div>
-          <label class="switch"><input type="checkbox" name="allowRooms" ${b.rooms.allowRooms ? 'checked' : ''} aria-label="Shared rooms"><span></span></label>
-        </div>` : ''}
-        <button type="button" class="bs-row bs-link" data-bs-jobs>
-          <span class="bs-icon">⏰</span>
-          <div class="grow"><b>Scheduled jobs</b><div class="faint" id="bs-jobs"></div></div>
-          <span class="faint">›</span>
-        </button>
-        ${state.features.includes('bot-files') ? `<button type="button" class="bs-row bs-link" id="bs-files" data-bs-files>
-          <span class="bs-icon">🗂</span>
-          <div class="grow"><b>Files</b></div>
-          <span class="faint">›</span>
-        </button>` : ''}
-        ${state.features.includes('pages') ? `<div class="bs-row" id="bs-pages">
-          <span class="bs-icon">📄</span>
-          <div class="grow"><b>Pages</b><div class="faint">Reports, memos and overviews it made for you. Open one to keep it up to date.</div><div id="page-list" class="pg-list"><span class="faint">Loading…</span></div></div>
-        </div>` : ''}
+        <label class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}"${tipAttrs("Off keeps it to you: other bots don't see it among their teammates and can't message it.")}><b>Other bots may ask it</b>
+          <span class="switch"><input type="checkbox" name="othersMayAsk" ${b.othersMayAsk !== false ? 'checked' : ''} aria-label="Other bots may ask it"><span></span></span></label>
+        <button type="button" class="bs-row bs-link" data-bs-jobs><b>Jobs</b><span class="bs-val" id="bs-jobs"></span>${CHEV}</button>
+        ${boatChoice ? `<label class="bs-row"><b>Computer</b>
+          <select name="computer" aria-label="Computer"><option value="none">None</option><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>This machine</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>External Virtual PC</option></select>${CHEV}
+        </label>` : `<label class="bs-row ${mayHave ? '' : 'hidden'}"${accountComputer ? '' : tipAttrs("Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.")}><b>Uses the computer</b>
+          <span class="switch"><input type="checkbox" name="computer" ${hasComputer ? 'checked' : ''} ${mayHave ? '' : 'disabled'} aria-label="Uses the computer"><span></span></span></label>`}
+        <div class="bs-row bs-note" id="bs-move">${computerMoveLine(b)}</div>
+        ${hasComputer ? `<button type="button" class="bs-row bs-link" data-bs-screen><b>Its screen</b>${CHEV}</button>` : ''}
+        <details class="bs-row bs-more" id="bs-model">
+          <summary><b>Model</b><span class="bs-val" data-llm-val>${esc(llmValue(b.model, b.effort))}</span>${CHEV}</summary>
+          <div class="bs-body">${llmFieldsHTML('bot', { model: b.model, effort: b.effort }, `Default (${llmSummary(state.settings?.defaultModel, state.settings?.defaultEffort)})`)}</div>
+        </details>
+        ${showsRoomSettings(b) ? `<label class="bs-row" id="bs-rooms"${tipAttrs('It may join rooms with other accounts on this machine. There it only talks: no tools, no notes, nothing of yours.')}><b>Shared rooms</b>
+          <span class="switch"><input type="checkbox" name="allowRooms" ${b.rooms.allowRooms ? 'checked' : ''} aria-label="Shared rooms"><span></span></span></label>
+        <label class="bs-row bs-rooms-who ${b.rooms.allowRooms ? '' : 'hidden'}"><b>Who may mention it</b>
+          <select name="roomsWho" aria-label="Who may mention it">${ROOM_WHO.map(([v, label]) => `<option value="${v}" ${b.rooms.whoMayMention === v ? 'selected' : ''}>${label}</option>`).join('')}</select>${CHEV}</label>` : ''}
+        ${state.features.includes('bot-files') ? `<button type="button" class="bs-row bs-link" id="bs-files" data-bs-files><b>Files</b>${CHEV}</button>` : ''}
+        ${state.features.includes('pages') ? `<details class="bs-row bs-more" id="bs-pages">
+          <summary${tipAttrs('Reports, memos and overviews it made for you. Open one to keep it up to date.')}><b>Pages</b><span class="bs-val" id="bs-pages-val"></span>${CHEV}</summary>
+          <div class="bs-body pg-list" id="page-list"><span class="faint">Loading…</span></div>
+        </details>` : ''}
         <div class="bs-row" id="bs-always">
-          <span class="bs-icon">✓</span>
-          <div class="grow"><b>Always approved</b><div id="always-picks"></div></div>
-          <span class="faint bs-chev">›</span>
+          <div class="grow"><b>Always approved</b><div id="always-picks"></div></div>${CHEV}
         </div>
-        <div class="bs-row" id="bs-overrides">
-          <span class="bs-icon">🔓</span>
-          <div class="grow"><b>Rules you lifted</b><div class="faint">It may do these though its rules say no. Revoke one and it asks you again.</div><div id="override-picks"></div></div>
-          <span class="faint bs-chev">›</span>
+        <div class="bs-row" id="bs-overrides"${tipAttrs('It may do these though its rules say no. Revoke one and it asks you again.')}>
+          <div class="grow"><b>Rules you lifted</b><div id="override-picks"></div></div>${CHEV}
         </div>
+        <details class="bs-row bs-more" id="bs-advanced">
+          <summary><b>What it may do</b>${CHEV}</summary>
+          <div class="bs-body">
+            ${PERMS.map((p) => `<label class="toggle"${tipAttrs(p.hint)}><input type="checkbox" data-perm="${p.key}" ${has(p) ? 'checked' : ''}> ${p.label}</label>`).join('')}
+            <details class="bs-exact" ${b.allowedTools.some((t) => !knownTools.has(t) && !['Read', 'Grep', 'Glob'].includes(t)) || !['dontAsk', 'acceptEdits'].includes(b.permissionMode) ? 'open' : ''}>
+              <summary class="faint">Exact tools and permission mode</summary>
+              <label class="field">Allowed tools
+                <textarea class="mono" name="tools" rows="4" placeholder="One per line, e.g. Bash(pytest:*) or mcp__github">${esc(b.allowedTools.join('\n'))}</textarea></label>
+              <label class="field">Permission mode<select name="permissionMode">${Object.entries(MODE_INFO).map(([k, v]) => `<option value="${k}" ${k === b.permissionMode ? 'selected' : ''}>${k}: ${v}</option>`).join('')}</select></label>
+            </details>
+          </div>
+        </details>
+        <details class="bs-row bs-more" id="bs-rules">
+          <summary${tipAttrs("Its personality and rules, added to Claude Code's system prompt.")}><b>Rules</b><span class="bs-val">${esc(b.systemPrompt.split('\n')[0])}</span>${CHEV}</summary>
+          <div class="bs-body"><textarea name="systemPrompt" rows="3" aria-label="Personality and rules">${esc(b.systemPrompt)}</textarea></div>
+        </details>
       </div>
 
-      <details class="card settings-card bs-advanced" id="bs-advanced">
-        <summary><h3 class="page-sub" style="margin:0">Advanced</h3><span class="faint">What it may do, model, rules</span></summary>
-        <div class="field">What it may do
-          ${PERMS.map((p) => `<label class="toggle"><input type="checkbox" data-perm="${p.key}" ${has(p) ? 'checked' : ''}> ${p.label} <span class="hint muted" style="font-weight:400">${p.hint}</span></label>`).join('')}
-          <details class="bs-exact" ${b.allowedTools.some((t) => !knownTools.has(t) && !['Read', 'Grep', 'Glob'].includes(t)) || !['dontAsk', 'acceptEdits'].includes(b.permissionMode) ? 'open' : ''}>
-            <summary class="faint">Exact tools and permission mode</summary>
-            <label class="field">Allowed tools <span class="hint">one per line, e.g. Bash(pytest:*) or mcp__github</span>
-              <textarea class="mono" name="tools" rows="4">${esc(b.allowedTools.join('\n'))}</textarea></label>
-            <label class="field">Permission mode<select name="permissionMode">${Object.entries(MODE_INFO).map(([k, v]) => `<option value="${k}" ${k === b.permissionMode ? 'selected' : ''}>${k}: ${v}</option>`).join('')}</select></label>
-          </details>
-        </div>
-        <div class="field">Model and reasoning
-          ${llmFieldsHTML('bot', { model: b.model, effort: b.effort }, `Default (${llmSummary(state.settings?.defaultModel, state.settings?.defaultEffort)})`)}
-        </div>
-        <label class="field">Personality / rules <span class="hint">added to Claude Code's system prompt</span>
-          <textarea name="systemPrompt" rows="3">${esc(b.systemPrompt)}</textarea></label>
-      </details>
-      <div class="bs-foot">${state.features.includes('duplicate-bot') ? `<button type="button" class="link-btn" id="duplicate-bot">Duplicate ${esc(b.name)}</button>` : ''}<button type="button" class="link-btn danger-text" id="delete-bot">Delete ${esc(b.name)}</button></div>
+      <div class="set-list">
+        ${state.features.includes('duplicate-bot') ? `<button type="button" class="bs-row bs-link" id="duplicate-bot"><b>Duplicate</b>${CHEV}</button>` : ''}
+        <button type="button" class="bs-row bs-link bs-danger" id="delete-bot" aria-label="Delete ${esc(b.name)}"><b>Delete bot</b></button>
+      </div>
     </form>`;
 
   const form = $('#bot-form', root);
@@ -361,18 +341,17 @@ function renderBotSettings(force = false) {
       if (!Object.keys(changes).length) return;
       const copy = 'computer' in changes && moveFiles; // its files go along (#556)
       moveFiles = false;
-      const note = $('#bs-saved', root);
-      note.textContent = 'Saving…';
       try {
         const updated = await api(`/bots/${b.id}`, { method: 'PUT', body: { ...changes, ...(copy ? { moveFiles: true } : {}) } });
         saved = { ...saved, ...changes };
         const i = state.bots.findIndex((x) => x.id === b.id);
         if (i >= 0) state.bots[i] = { ...state.bots[i], ...updated };
-        note.textContent = 'Saved.';
+        flashSaved(root);
+        $('[data-llm-val]', root).textContent = llmValue(saved.model, saved.effort);
         renderContacts();
         drawPanelHead(); // its name is the back button's
         if (state.view === 'bot' && state.botId === b.id) renderBotChat(); // and the chat's, beside the panel
-      } catch (e) { note.textContent = ''; toast(e.message, true); }
+      } catch (e) { toast(e.message, true); }
     });
   };
   const saveSoon = () => { clearTimeout(timer); timer = setTimeout(save, 300); };
@@ -412,7 +391,10 @@ function renderBotSettings(force = false) {
   if (scr) scr.onclick = () => openScreen(b.id);
   groupPicker($('#group-picker', root), form.group, saveSoon);
   // Saved on its own (not with the form), so a stale form never moves it.
-  $('#bs-pinned', root).onchange = (e) => pinBot(state.bots.find((x) => x.id === b.id) || b, e.target.checked ? state.bots.filter((x) => x.pinned > 0 && x.id !== b.id).length + 1 : 0);
+  $('#bs-pinned', root).onchange = async (e) => {
+    await pinBot(state.bots.find((x) => x.id === b.id) || b, e.target.checked ? state.bots.filter((x) => x.pinned > 0 && x.id !== b.id).length + 1 : 0);
+    flashSaved(root);
+  };
   wireLlmFields(form, 'bot');
 
   // The switches under "What it may do" add or remove their tools in the exact list (and the mode for files).
@@ -433,11 +415,6 @@ function renderBotSettings(force = false) {
     saveSoon();
   }));
   form.tools.addEventListener('input', syncPerms);
-
-  // Advanced stays open or closed as you last left it (this browser).
-  const adv = $('#bs-advanced', root);
-  try { adv.open = localStorage.getItem('botdot.bs.advanced') === '1'; } catch { /* private mode */ }
-  adv.addEventListener('toggle', () => { try { localStorage.setItem('botdot.bs.advanced', adv.open ? '1' : '0'); } catch { /* private mode */ } });
 
   const on = $('[data-skills-on]', root);
   if (on) on.onclick = async () => {
@@ -503,7 +480,7 @@ function renderBotSettings(force = false) {
   // Its files: the Files view (#603, files.js), over the whole page.
   const files = $('[data-bs-files]', root);
   if (files) files.onclick = () => Files.open(b);
-  if ($('#page-list', root) && typeof Pages !== 'undefined') Pages.drawList(b, $('#page-list', root)); // public/pages.js (#346)
+  if ($('#page-list', root) && typeof Pages !== 'undefined') Pages.drawList(b, $('#page-list', root), $('#bs-pages-val', root)); // public/pages.js (#346)
 
   const dup = $('#duplicate-bot', root);
   if (dup) dup.onclick = () => openDuplicate(b);
@@ -613,6 +590,9 @@ function openSkill(root, name) {
 }
 function drawBotSettingsLive(bot) {
   const root = $('#view-botsettings');
+  const fig = $('#bs-figure', root);
+  const look = JSON.stringify([bot.color, bot.state, bot.outfit || null]);
+  if (fig && fig.dataset.look !== look) { fig.dataset.look = look; fig.innerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit); }
   drawOverrides(root, bot);
   drawUndo(root, bot);
   const mv = $('#bs-move', root);
@@ -620,9 +600,10 @@ function drawBotSettingsLive(bot) {
   const jobs = bot.jobs || [];
   const waiting = jobs.filter(jobWaits).length;
   const jl = $('#bs-jobs', root);
-  if (jl) jl.textContent = !jobs.length ? 'None. Ask it, or the Chief, e.g. "check the news every morning at 8".'
-    : waiting ? `${waiting} waiting for your OK`
-      : `${jobs.length} job${jobs.length === 1 ? '' : 's'}${bot.nextRunAt ? ` · next ${shortTime(bot.nextRunAt)}` : ''}`;
+  if (jl) jl.textContent = !jobs.length ? '' : waiting ? `${waiting} waiting for your OK` : `${jobs.length}${bot.nextRunAt ? ` · next ${shortTime(bot.nextRunAt)}` : ''}`;
+  const row = jl?.closest('.bs-row');
+  if (row && !jobs.length) row.title = 'None yet. Ask it, or the Chief, e.g. "check the news every morning at 8".';
+  else if (row) row.removeAttribute('title');
 }
 
 // ---------- a bot's scheduled jobs (their own page; each change saves by itself) ----------
@@ -639,7 +620,7 @@ function renderBotJobs(force = false) {
   root.dataset.bot = bot.id;
   const jobs = bot.jobs || [];
   root.innerHTML = `
-    <div class="section-head"><div><h1>Scheduled jobs</h1><p>${botLabel(bot)} runs these on its own. Changes save by themselves. Easiest: ask it or the Chief, e.g. "check the news every morning at 8".</p></div></div>
+    <div class="section-head"><h1${tipAttrs(`${bot.name} runs these on its own. Easiest: ask it or the Chief, e.g. "check the news every morning at 8".`)}>Jobs</h1></div>
     <div class="job-list" id="job-list">${jobs.map((j) => jobCardHTML(j)).join('') || `<div class="card empty" style="padding:28px 20px" id="jobs-empty">No jobs yet.</div>`}</div>
     <div style="margin-top:12px"><button type="button" class="btn" id="job-add">＋ Add job</button></div>`;
   $$('.job-card', root).forEach((card) => wireJobCard(card, bot));

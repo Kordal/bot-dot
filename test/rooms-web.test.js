@@ -329,7 +329,7 @@ test("web: a bot's settings have the Shared rooms row with room-settings and roo
   const draw = cut('function renderBotSettings(', '// The bits of the settings page that follow');
   assert.ok(draw.includes('${showsRoomSettings(b) ?'));
   assert.match(draw, /name="allowRooms" \$\{b\.rooms\.allowRooms \? 'checked' : ''\}/);
-  assert.match(draw, /<select name="roomsWho">/);
+  assert.match(draw, /<select name="roomsWho" aria-label="Who may mention it">/, "a row of its own, shown while it is on");
   assert.match(bots, /const ROOM_WHO = \[\['owner', 'Only you'\], \['anyone', 'Anyone in the room'\]\];/);
   const ctx = vm.createContext({ readDisabledSkills: () => [], readLlmFields: () => ({}), state: { features: ['room-settings'] }, rooms: { on: true } });
   vm.runInContext(`${cut('const ROOM_WHO = ', '// The page\'s form, in the shape the API takes.')}\n${cut('function readBotForm(', '// Switched-off machine/built-in skills')}\nthis.readBotForm = readBotForm; this.showsRoomSettings = showsRoomSettings;`, ctx);

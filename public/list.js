@@ -693,7 +693,7 @@ function groupPicker(box, input, onChange) {
     box.innerHTML = [
       `<button type="button" class="gchip ${!input.value ? 'on' : ''}" data-g="">None</button>`,
       ...names.map((g) => `<button type="button" class="gchip ${input.value === g ? 'on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`),
-      adding ? '<input type="text" class="gchip-input" maxlength="40" placeholder="Category name" aria-label="New category name">' : '<button type="button" class="gchip add" data-new>＋ New category</button>',
+      adding ? '<input type="text" class="gchip-input" maxlength="40" placeholder="Category name" aria-label="New category name">' : '<button type="button" class="gchip add" data-new title="New category" aria-label="New category">＋</button>',
     ].join('');
     $$('[data-g]', box).forEach((c) => (c.onclick = () => { input.value = c.dataset.g; draw(); onChange?.(); }));
     const add = $('[data-new]', box);
