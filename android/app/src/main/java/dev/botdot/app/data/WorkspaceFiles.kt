@@ -83,7 +83,8 @@ object WorkspaceFiles {
     /** The confirmation of a delete: what goes, counted (at most 10,000). */
     fun deleteWords(name: String, c: WorkspaceCount, project: Boolean = false): String {
         if (c.type != "folder") return tr("Delete {name}? This can't be undone.", "name" to name)
-        val what = listOfNotNull(if (c.files > 0) trn(c.files, "{n} file", "{n} files") else null, if (c.folders > 0) trn(c.folders, "{n} folder", "{n} folders") else null).joinToString(" " + tr("and") + " ")
+        fun count(n: Int) = String.format(I18n.locale, "%,d", n)
+        val what = listOfNotNull(if (c.files > 0) trn(c.files, "{count} file", "{count} files", "count" to count(c.files)) else null, if (c.folders > 0) trn(c.folders, "{count} folder", "{count} folders", "count" to count(c.folders)) else null).joinToString(" " + tr("and") + " ")
         val held = if (c.files + c.folders == 0) tr("It is empty.")
             else if (c.capped) tr("It holds more than {what}, which go with it.", "what" to what) else tr("It holds {what}, which go with it.", "what" to what)
         return if (project) tr("Delete the project {name}? {held} This can't be undone.", "name" to name, "held" to held)

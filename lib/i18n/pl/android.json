@@ -299,11 +299,6 @@
   "{n} changes, newest first. Tap a title for more.": "Zmiany: {n}, od najnowszych. Stuknij tytuł, by zobaczyć więcej.",
   "A link: botdot doesn't follow it": "Link: botdot za nim nie podąża",
   "Delete {name}? This can't be undone.": "Usunąć {name}? Tego nie da się cofnąć.",
-  "{n} folders": {
-    "one": "{n} folder",
-    "few": "{n} foldery",
-    "many": "{n} folderów"
-  },
   "and": "i",
   "It is empty.": "Jest pusty.",
   "It holds more than {what}, which go with it.": "Zawiera ponad {what}, które znikną razem z nim.",
@@ -1261,5 +1256,15 @@
   "To which folder? A path in its folder, such as notes/old. Empty for the top.": "Do którego folderu? Ścieżka w jego folderze, np. notes/old. Puste oznacza górę.",
   "Folder": "Folder",
   "A name can't have / in it. To put it in another folder, use Move.": "Nazwa nie może zawierać /. Żeby przenieść do innego folderu, użyj Przenieś.",
-  "Kept by botdot": "Trzymane przez botdot"
+  "Kept by botdot": "Trzymane przez botdot",
+  "{count} files": {
+    "one": "{count} plik",
+    "few": "{count} pliki",
+    "many": "{count} plików"
+  },
+  "{count} folders": {
+    "one": "{count} folder",
+    "few": "{count} foldery",
+    "many": "{count} folderów"
+  }
 }
