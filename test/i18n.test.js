@@ -46,6 +46,24 @@ test("every Polish string of the web page and the Android app is used, and two a
   assert.deepEqual(problems, []);
 });
 
+test('every Polish string of the server is one its code writes: a tr() key, or the literal of a sentence said() passes on', () => {
+  const used = new Set(collect('server').map((k) => k.key));
+  const { dirs, ext, skip } = AREAS.server;
+  const walk = (rel) => {
+    if (skip.some((x) => rel === x || rel.startsWith(`${x}/`))) return [];
+    const abs = path.join(ROOT, rel);
+    if (fs.statSync(abs).isFile()) return ext.includes(path.extname(rel)) ? [fs.readFileSync(abs, 'utf8')] : [];
+    return fs.readdirSync(abs).flatMap((f) => walk(path.join(rel, f)));
+  };
+  const code = dirs.flatMap(walk).join('\n');
+  const written = (k) => [JSON.stringify(k), `'${k.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`].some((lit) => code.includes(lit));
+  const table = JSON.parse(fs.readFileSync(path.join(i18n.DIR, 'pl', 'server.json'), 'utf8'));
+  assert.deepEqual(Object.keys(table).filter((k) => !used.has(k) && !written(k)), []);
+  assert.equal(i18n.said('pl', 'Bot not found'), 'Nie znaleziono bota');
+  assert.equal(i18n.said('en', 'Bot not found'), 'Bot not found');
+  assert.equal(i18n.said('pl', 'Not in the dictionary'), 'Not in the dictionary');
+});
+
 test('tr() and trn(): Polish where there is one, English otherwise, placeholders filled, Polish plural forms', () => {
   const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'i18n-'));
   fs.mkdirSync(path.join(dir, 'pl'));

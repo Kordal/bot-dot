@@ -42,6 +42,7 @@ async function readyForSecrets(botId) {
 const loginRequests = require('./lib/login-requests');
 const connectedAppsLib = require('./lib/connected-apps');
 const asksLib = require('./lib/asks');
+const { tr } = require('./lib/i18n');
 const { waitingWords } = require('./lib/bot-changes');
 const learningWords = require('./lib/learning'); // what a chip, a memory card and a memory tool's answer say
 const { CHIEF_NOTES } = require('./lib/chief-tools'); // the Chief's own place for notes (ADR 017)
@@ -50,7 +51,7 @@ const feed = require('./lib/events');
 // Web Push (issue #87): a browser that turned on "Notifications on this device" is sent what the phone shows, by
 // botdot itself, through the browser's push service (lib/push.js). http endpoints only for the tests' stand-in.
 const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.BOT_DOT_PUSH_HTTP === '1' });
-push.follow(feed, { onScreen: (chat) => B.read.onScreen(chat), chiefName: () => chief.named().name });
+push.follow(feed, { onScreen: (chat) => B.read.onScreen(chat), chiefName: () => chief.named().name, language: () => B.settings.get().language });
 const { signedIn } = require('./lib/setup');
 const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN });
 const updates = require('./lib/updates').create({ busy: () => B.activeCount() + chief.activeCount(), computerImage: process.env.BOT_DOT_COMPUTER_IMAGE });
@@ -63,7 +64,7 @@ const vaultHttp = require('./lib/vault-http');
 const pageBlocks = require('./lib/page-blocks');
 // The owner's Board. Its tiles read and act through a saved login, a script or their bot (see dashboard.js).
 // A bot's page reads tiles too (#395): their kpis and charts keep the recent values the page shows.
-const dashboard = require('./lib/dashboard').create(B.DATA_DIR, { feed, run: runTileSource, pageKeeps: (id) => B.pages.keepsOf(id) });
+const dashboard = require('./lib/dashboard').create(B.DATA_DIR, { feed, run: runTileSource, pageKeeps: (id) => B.pages.keepsOf(id), language: () => B.settings.get().language });
 B.pages.inspectWith((markdown, botId) => pageBlocks.inspect(markdown, { tile: (ref) => dashboard.forPage(ref, botId) }));
 dashboard.pagesWith((botId, ref) => require('./lib/routes/pages').pageTileInfo(botId, ref)); // a page's tile on the Board (#451)
 B.tilesOf((botId) => dashboard.pushable(botId));
@@ -342,6 +343,7 @@ async function attention() {
   const botOf = (id) => (id && B.bots.get(id)) || null;
   const jobs = [];
   const memory = B.memory.pending();
+  const lang = B.settings.get().language; // what the feed and a notification say (ADR 108)
   for (const b of B.bots.list()) for (const j of b.jobs || []) if (!j.approved || j.change) {
     // kind, when and text: what its notification says; a script is approved on its card, where the script shows.
     // A change to an approved job (`change: true`) says what the job would be: its kind and schedule as proposed.
@@ -349,9 +351,9 @@ async function attention() {
     const waits = change ? { ...j, ...change.job, name: j.name } : j; // by the name the owner knows it by
     const when = cronWords.describe(waits.cron);
     const script = j.kind === 'script' || waits.kind === 'script';
-    jobs.push({ botId: b.id, botName: b.name, botEmoji: b.emoji, botColor: b.color, jobId: j.id, jobName: j.name, kind: waits.kind === 'script' ? 'script' : 'ai', when, text: (change ? asksLib.jobChangeText : asksLib.jobText)(waits, when), ...(change ? { change: true } : {}), ...(script ? { yesOn: 'card' } : {}), ...noOfWaiting(j), ...thenOfWaiting(j, b.id), ...groupOfCard(askedOf(j)?.runId) });
+    jobs.push({ botId: b.id, botName: b.name, botEmoji: b.emoji, botColor: b.color, jobId: j.id, jobName: j.name, kind: waits.kind === 'script' ? 'script' : 'ai', when, text: (change ? asksLib.jobChangeText : asksLib.jobText)(waits, when, lang), ...(change ? { change: true } : {}), ...(script ? { yesOn: 'card' } : {}), ...noOfWaiting(j, lang), ...thenOfWaiting(j, b.id, lang), ...groupOfCard(askedOf(j)?.runId) });
   }
-  const tiles = dashboard.pending().map((t) => ({ tileId: t.id, title: t.title, botId: t.bot, botName: botOf(t.bot)?.name || null, botColor: botOf(t.bot)?.color || null, by: t.change ? t.change.by : t.changedBy || t.createdBy, text: t.change ? asksLib.tileChangeText(t) : asksLib.tileText(t), ...(t.change ? { change: true } : {}), yesOn: 'card', ...(t.no ? { no: t.no } : {}), ...(t.yes ? { yes: t.yes } : {}), ...thenOfWaiting(dashboard.get(t.id) || t), ...groupOfCard(askedOf(dashboard.get(t.id) || t)?.runId) }));
+  const tiles = dashboard.pending().map((t) => ({ tileId: t.id, title: t.title, botId: t.bot, botName: botOf(t.bot)?.name || null, botColor: botOf(t.bot)?.color || null, by: t.change ? t.change.by : t.changedBy || t.createdBy, text: t.change ? asksLib.tileChangeText(t, lang) : asksLib.tileText(t, lang), ...(t.change ? { change: true } : {}), yesOn: 'card', ...(t.no ? { no: t.no } : {}), ...(t.yes ? { yes: t.yes } : {}), ...thenOfWaiting(dashboard.get(t.id) || t), ...groupOfCard(askedOf(dashboard.get(t.id) || t)?.runId) }));
   return {
     loginRequests: loginRequests.pending().map((r) => {
       const b = B.bots.get(r.botId);
@@ -364,7 +366,7 @@ async function attention() {
       // Every waiting change, guarded ones too, each with its card's words: a connection that did not ask for
       // guarded changes is sent the list without them (unguarded, below).
       memory: memory.length,
-      memoryChanges: memory.map((p) => ({ id: p.id, action: p.action, botId: p.botId || null, botName: botOf(p.botId)?.name || (p.by === CHIEF_NOTES ? chief.named().name : null), botColor: botOf(p.botId)?.color || (p.by === CHIEF_NOTES ? chief.CHIEF.color : null), text: feed.clip(p.action === 'remove' ? p.current?.text : p.text, 200), ...learningWords.cardOf(p), ...(p.guarded ? { guarded: true } : {}), ...groupOfCard(p.runId), at: p.at })),
+      memoryChanges: memory.map((p) => ({ id: p.id, action: p.action, botId: p.botId || null, botName: botOf(p.botId)?.name || (p.by === CHIEF_NOTES ? chief.named().name : null), botColor: botOf(p.botId)?.color || (p.by === CHIEF_NOTES ? chief.CHIEF.color : null), text: feed.clip(p.action === 'remove' ? p.current?.text : p.text, 200), ...learningWords.cardOf(p, lang), ...(p.guarded ? { guarded: true } : {}), ...groupOfCard(p.runId), at: p.at })),
     },
     asks: ((list) => list.map((a) => askBrief(a, list)))(asks.list()),
     update: { available: !!updates.lastStatus().available },
@@ -466,6 +468,15 @@ function actor(req) {
   return B.identity.identify(req.socket) === 'chief' || chief.isKey(req.headers['x-chief-key']) ? 'chief' : 'you';
 }
 
+// The language a request is answered in (ADR 108, #649): the account's for a person, English for the Chief's tools and
+// a bot's, which read what botdot answers. send() puts an error in it; the routes draw their cards in it.
+function readerLanguage(req) {
+  const who = B.identity.identify(req.socket);
+  const tool = who === 'chief' || (who && typeof who === 'object') || chief.isKey(req.headers['x-chief-key'])
+    || ['x-run-token', 'x-vault-token', 'x-replay-key'].some((h) => req.headers[h]) || req.headers['x-botdot-room'] === '1';
+  return tool ? 'en' : B.settings.get().language;
+}
+
 // The Chief chat a call of the Chief's tools comes from: they send it with every call (lib/mcp-server.js). It
 // says where botdot tells the Chief of the owner's answer on what the call leaves waiting (ADR 009), and nothing
 // else: who is asking is decided by actor() alone, and a chat that does not exist is no chat.
@@ -524,51 +535,54 @@ const ownersJobAfterWeb = (method, parts, turn) => turn?.startedBy === 'owner' &
   && ((method === 'POST' && parts.length === 3) || (method === 'PUT' && parts.length === 4));
 // What the held request does, as the title of its card: "Make the bot “Leaker”", "Give Scout a task".
 function heldTitle(method, parts, body) {
+  const lang = B.settings.get().language; // a card drawn for the owner, made now (ADR 108)
   const quoted = (s) => `“${String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, 60)}”`;
   const bot = parts[0] === 'bots' && parts[1] ? B.bots.get(parts[1]) : null;
-  const botName = bot?.name || 'a bot';
+  const botName = bot?.name || tr(lang, 'a bot');
   const job = bot && parts[2] === 'jobs' && parts[3] ? (bot.jobs || []).find((j) => j.id === parts[3]) : null;
   const jobName = quoted(job?.name || body?.name || parts[3]);
   const decoded = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+  const name = () => quoted(body?.name);
+  const chiefJob = () => quoted(chief.chiefJobs.list().find((j) => j.id === parts[2])?.name || parts[2]);
   const titles = [
-    [/^bots$/, 'POST', () => `Make the bot ${quoted(body?.name)}`],
-    [/^bots\/[^/]+$/, 'PUT', () => `Change ${botName}`],
-    [/^bots\/[^/]+$/, 'DELETE', () => `Delete ${botName}`],
-    [/^bots\/[^/]+\/files\/[^/]+$/, 'DELETE', () => `Delete the file ${quoted(botFiles.nameOf(decoded(parts[3])))} of ${botName}`],
-    [/^bots\/[^/]+\/run$/, 'POST', () => `Give ${botName} a task`],
-    [/^bots\/[^/]+\/duplicate$/, 'POST', () => `Make a copy of ${botName}${body?.name ? ` called ${quoted(body.name)}` : ''}`],
-    [/^bots\/[^/]+\/jobs$/, 'POST', () => `Add the job ${quoted(body?.name)} to ${botName}`],
-    [/^bots\/[^/]+\/jobs\/[^/]+$/, 'PUT', () => `Change the job ${jobName} of ${botName}`],
-    [/^bots\/[^/]+\/jobs\/[^/]+$/, 'DELETE', () => `Remove the job ${jobName} of ${botName}`],
-    [/^bots\/[^/]+\/jobs\/[^/]+\/run$/, 'POST', () => `Run the job ${jobName} of ${botName}`],
-    [/^bots\/[^/]+\/jobs\/[^/]+\/call\/setup$/, null, () => `Change calls to the job ${jobName} of ${botName}`],
-    [/^bots\/[^/]+\/jobs\/[^/]+\/shadow$/, 'POST', () => `Try a script beside the job ${jobName} of ${botName}`],
-    [/^bots\/[^/]+\/jobs\/[^/]+\/shadow$/, 'DELETE', () => `End the script trial of the job ${jobName} of ${botName}`],
-    [/^bots\/[^/]+\/jobs\/[^/]+\/back-to-ai$/, 'POST', () => `Turn the job ${jobName} of ${botName} back to AI`],
-    [/^bots\/[^/]+\/jobs\/[^/]+\/notify\/setup$/, null, () => `Change the notify address of the job ${jobName} of ${botName}`],
-    [/^skills$/, 'POST', () => `Make the skill ${quoted(body?.name)}`],
-    [/^skills\/[^/]+$/, 'PUT', () => `Change the skill ${quoted(decoded(parts[1]))}`],
-    [/^group-chats$/, 'POST', () => `Make the group ${quoted(body?.name)}`],
-    [/^group-chats\/[^/]+$/, 'PUT', () => `Change the group ${quoted(B.groups.get(parts[1])?.name || parts[1])}`],
-    [/^vault\/ssh-keys$/, 'POST', () => `Make the SSH key ${quoted(body?.name)}`],
-    [/^vault\/[^/]+$/, 'PUT', () => `Change the SSH key ${quoted(bitwarden.list().find((i) => i.id === parts[1])?.name || parts[1])}`],
-    [/^chief\/reminders$/, 'POST', () => `Set a reminder: ${quoted(body?.text)}`],
-    [/^chief\/jobs$/, 'POST', () => `Give the Chief the job ${quoted(body?.name)}`],
-    [/^chief\/jobs\/[^/]+$/, 'PUT', () => `Change the Chief's job ${quoted(chief.chiefJobs.list().find((j) => j.id === parts[2])?.name || parts[2])}`],
-    [/^chief\/jobs\/[^/]+$/, 'DELETE', () => `Remove the Chief's job ${quoted(chief.chiefJobs.list().find((j) => j.id === parts[2])?.name || parts[2])}`],
-    [/^chief\/jobs\/[^/]+\/run$/, 'POST', () => `Run the Chief's job ${quoted(chief.chiefJobs.list().find((j) => j.id === parts[2])?.name || parts[2])} now`],
-    [/^chief\/reminders\/[^/]+$/, 'DELETE', () => 'Cancel a reminder'],
-    [/^(bots\/[^/]+\/)?computer\/restart$/, 'POST', () => "Restart the account's computer"],
-    [/^dashboard/, null, () => 'Change your Board'],
-    [/^memory/, null, () => 'Change how memory works'],
-    [/^settings\/quiet-hours$/, null, () => 'Change your quiet hours'],
-    [/^settings\/writing-first$/, null, () => 'Change when the Chief writes first'],
-    [/^settings\/checkup$/, null, () => 'Change the checkup'],
-    [/^settings\/chief-name$/, null, () => `Rename the Chief to ${quoted(body?.name)}`],
-    [/^tools\/[^/]+\/[^/]+$/, 'DELETE', () => `Remove ${quoted(decoded(parts[2]))} from ${B.bots.get(parts[1])?.name || 'a bot'}`],
+    [/^bots$/, 'POST', () => tr(lang, 'Make the bot {name}', { name: name() })],
+    [/^bots\/[^/]+$/, 'PUT', () => tr(lang, 'Change {bot}', { bot: botName })],
+    [/^bots\/[^/]+$/, 'DELETE', () => tr(lang, 'Delete {bot}', { bot: botName })],
+    [/^bots\/[^/]+\/files\/[^/]+$/, 'DELETE', () => tr(lang, 'Delete the file {file} of {bot}', { file: quoted(botFiles.nameOf(decoded(parts[3]))), bot: botName })],
+    [/^bots\/[^/]+\/run$/, 'POST', () => tr(lang, 'Give {bot} a task', { bot: botName })],
+    [/^bots\/[^/]+\/duplicate$/, 'POST', () => (body?.name ? tr(lang, 'Make a copy of {bot} called {name}', { bot: botName, name: name() }) : tr(lang, 'Make a copy of {bot}', { bot: botName }))],
+    [/^bots\/[^/]+\/jobs$/, 'POST', () => tr(lang, 'Add the job {job} to {bot}', { job: name(), bot: botName })],
+    [/^bots\/[^/]+\/jobs\/[^/]+$/, 'PUT', () => tr(lang, 'Change the job {job} of {bot}', { job: jobName, bot: botName })],
+    [/^bots\/[^/]+\/jobs\/[^/]+$/, 'DELETE', () => tr(lang, 'Remove the job {job} of {bot}', { job: jobName, bot: botName })],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/run$/, 'POST', () => tr(lang, 'Run the job {job} of {bot}', { job: jobName, bot: botName })],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/call\/setup$/, null, () => tr(lang, 'Change calls to the job {job} of {bot}', { job: jobName, bot: botName })],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/shadow$/, 'POST', () => tr(lang, 'Try a script beside the job {job} of {bot}', { job: jobName, bot: botName })],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/shadow$/, 'DELETE', () => tr(lang, 'End the script trial of the job {job} of {bot}', { job: jobName, bot: botName })],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/back-to-ai$/, 'POST', () => tr(lang, 'Turn the job {job} of {bot} back to AI', { job: jobName, bot: botName })],
+    [/^bots\/[^/]+\/jobs\/[^/]+\/notify\/setup$/, null, () => tr(lang, 'Change the notify address of the job {job} of {bot}', { job: jobName, bot: botName })],
+    [/^skills$/, 'POST', () => tr(lang, 'Make the skill {name}', { name: name() })],
+    [/^skills\/[^/]+$/, 'PUT', () => tr(lang, 'Change the skill {name}', { name: quoted(decoded(parts[1])) })],
+    [/^group-chats$/, 'POST', () => tr(lang, 'Make the group {name}', { name: name() })],
+    [/^group-chats\/[^/]+$/, 'PUT', () => tr(lang, 'Change the group {name}', { name: quoted(B.groups.get(parts[1])?.name || parts[1]) })],
+    [/^vault\/ssh-keys$/, 'POST', () => tr(lang, 'Make the SSH key {name}', { name: name() })],
+    [/^vault\/[^/]+$/, 'PUT', () => tr(lang, 'Change the SSH key {name}', { name: quoted(bitwarden.list().find((i) => i.id === parts[1])?.name || parts[1]) })],
+    [/^chief\/reminders$/, 'POST', () => tr(lang, 'Set a reminder: {text}', { text: quoted(body?.text) })],
+    [/^chief\/jobs$/, 'POST', () => tr(lang, 'Give the Chief the job {name}', { name: name() })],
+    [/^chief\/jobs\/[^/]+$/, 'PUT', () => tr(lang, "Change the Chief's job {name}", { name: chiefJob() })],
+    [/^chief\/jobs\/[^/]+$/, 'DELETE', () => tr(lang, "Remove the Chief's job {name}", { name: chiefJob() })],
+    [/^chief\/jobs\/[^/]+\/run$/, 'POST', () => tr(lang, "Run the Chief's job {name} now", { name: chiefJob() })],
+    [/^chief\/reminders\/[^/]+$/, 'DELETE', () => tr(lang, 'Cancel a reminder')],
+    [/^(bots\/[^/]+\/)?computer\/restart$/, 'POST', () => tr(lang, "Restart the account's computer")],
+    [/^dashboard/, null, () => tr(lang, 'Change your Board')],
+    [/^memory/, null, () => tr(lang, 'Change how memory works')],
+    [/^settings\/quiet-hours$/, null, () => tr(lang, 'Change your quiet hours')],
+    [/^settings\/writing-first$/, null, () => tr(lang, 'Change when the Chief writes first')],
+    [/^settings\/checkup$/, null, () => tr(lang, 'Change the checkup')],
+    [/^settings\/chief-name$/, null, () => tr(lang, 'Rename the Chief to {name}', { name: name() })],
+    [/^tools\/[^/]+\/[^/]+$/, 'DELETE', () => tr(lang, 'Remove {tool} from {bot}', { tool: quoted(decoded(parts[2])), bot: B.bots.get(parts[1])?.name || tr(lang, 'a bot') })],
   ];
   const found = titles.find(([re, m]) => re.test(parts.join('/')) && (!m || m === method));
-  return found ? found[2]() : 'Change something in botdot';
+  return found ? found[2]() : tr(lang, 'Change something in botdot');
 }
 // The request waits on a card in Needs you (an ask of kind "chief-action"), and the Chief is told so: nothing was
 // done. Its answer has `held: true`, which the Chief's tools pass on as it is (mcp-server.js).
@@ -853,6 +867,7 @@ async function handle(req, res) {
   // Chief's tools and the bots never come in on the front door's socket, and it strips x-chief-key and x-botdot-room
   // from what a person sends: one with x-botdot-room is the front door's own.
   if (req.socket[FROM_FRONT_DOOR] && req.headers['x-botdot-room'] !== '1') activity.saw(req.method, url.pathname, req.headers['user-agent']);
+  req.lang = readerLanguage(req);
   try {
     await api(req, res, url);
   } catch (e) {
