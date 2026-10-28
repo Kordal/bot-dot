@@ -69,7 +69,7 @@ test('web: "Can\'t reach botdot" wins when both hold, and the signed-out line is
 });
 
 test('web: the line is on the page in both places, drawn as Claude is at that moment, its last words a button', () => {
-  assert.match(html, /<span class="away hidden" id="signed-out" role="status">Claude is signed out: bots can't work\. <button type="button" data-sign-in>Sign in<\/button><\/span>\s*<\/div>/, 'beside the logo, in the place of "Can\'t reach botdot"');
+  assert.match(html, /<span class="away hidden" id="signed-out" role="status">Claude is signed out: bots can't work\. <button type="button" data-sign-in>Sign in<\/button><\/span>\s*(?:<!--[\s\S]*?-->\s*)?<div class="search">/, 'beside the logo, in the place of "Can\'t reach botdot"');
   assert.ok(html.indexOf('id="away"') < html.indexOf('id="signed-out"') && html.indexOf('id="signed-out"') < html.indexOf('class="search"'), 'in the list\'s head');
   const { ctx } = page();
   assert.equal(ctx.SIGNED_OUT, LINE);
@@ -108,6 +108,7 @@ test('web: the look: the warning colour in both places; above the box only where
   assert.match(css, /\.claude-line:has\(~ \.send-note:not\(\.hidden\)\) \{ display: none; \}/, 'a send that failed says more: its line stands alone');
   // Beside the logo the sentence is longer than "Can't reach botdot": it wraps inside the head, and never pushes the logo out.
   assert.match(css, /\.away \{[^}]*color: var\(--warn-text\);[^}]*text-align: right;[^}]*min-width: 0;[^}]*overflow-wrap: anywhere;/);
-  assert.match(css, /\.side-head \{ display: flex; align-items: center; justify-content: space-between;/);
+  assert.match(css, /\.side-head \{ display: flex; align-items: center;/);
+  assert.match(css, /\.away \{ flex: 1;/, 'between the logo and the top bar\'s tools (#635)');
   assert.match(css, /\.away button, \.claude-line button \{[^}]*color: inherit;[^}]*font-weight: 600;[^}]*text-decoration: underline;/, '"Sign in" reads as the line\'s last words');
 });

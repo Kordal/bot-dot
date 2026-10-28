@@ -122,7 +122,7 @@ test('web: a gateway answering in botdot\'s place, with botdot down behind it, s
 });
 
 test('web: the line is on the page: beside the logo, and above every message box, drawn as botdot is at that moment', () => {
-  assert.match(html, /<div class="brand" id="brand"[^>]*>.*<\/div>\s*(<!--.*-->\s*)?<span class="away hidden" id="away" role="status">Can't reach botdot<\/span>\s*(<!--.*-->\s*)?<span class="away hidden" id="signed-out" role="status">.*<\/span>\s*<\/div>/, 'with the line for a signed-out Claude after it (test/signed-out-web.test.js)');
+  assert.match(html, /<div class="brand" id="brand"[^>]*>.*<\/div>\s*(<!--.*-->\s*)?<span class="away hidden" id="away" role="status">Can't reach botdot<\/span>\s*(<!--.*-->\s*)?<span class="away hidden" id="signed-out" role="status">.*<\/span>\s*(<!--.*-->\s*)?<div class="search">/, 'with the line for a signed-out Claude after it (test/signed-out-web.test.js), before the search (#635)');
   const composer = cut('function composerHTML(placeholder', '// Files attached in a composer');
   assert.match(composer, /<div class="away-line\$\{away\.on \? '' : ' hidden'\}" role="status">Can't reach botdot\. Trying again…<\/div>/);
   assert.ok(composer.indexOf('away-line') < composer.indexOf('composer-box'), 'above the box');

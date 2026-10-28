@@ -38,12 +38,12 @@ test('web: any other session, an odd answer or no front door shows no Admin icon
   assert.deepEqual(none.calls, [], 'a botdot server without a front door is not asked');
 });
 
-test('web: the Admin icon sits beside Settings, opens /admin in the same tab, and is asked for at the start', () => {
+test('web: the Admin icon sits beside Settings in the top bar, opens /admin in the same tab, and is asked for at the start', () => {
   const html = read('index.html');
-  const foot = html.slice(html.indexOf('<nav class="side-foot">'), html.indexOf('</nav>', html.indexOf('<nav class="side-foot">')));
-  assert.match(foot, /id="more-btn"/);
-  const a = foot.match(/<a [^>]*id="admin-link"[^>]*>/);
-  assert.ok(a, 'the icon is in the sidebar foot');
+  const tools = html.slice(html.indexOf('<nav class="side-tools">'), html.indexOf('</nav>', html.indexOf('<nav class="side-tools">')));
+  assert.match(tools, /id="more-btn"/);
+  const a = tools.match(/<a [^>]*id="admin-link"[^>]*>/);
+  assert.ok(a, 'the icon is in the top bar\'s tools (#635)');
   assert.match(a[0], /href="\/admin"/);
   assert.match(a[0], /class="more-btn hidden"/, 'the gear\'s look, hidden until the front door says so');
   assert.match(a[0], /title="Admin"/);

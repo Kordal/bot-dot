@@ -95,12 +95,12 @@ test("web: a refused or failed send keeps the form and its text, and says why", 
 
 test('web: the Feedback icon sits beside Settings, after the Admin icon, hidden until the front door says so', () => {
   const html = read('index.html');
-  const foot = html.slice(html.indexOf('<nav class="side-foot">'), html.indexOf('</nav>', html.indexOf('<nav class="side-foot">')));
-  const b = foot.match(/<button [^>]*id="feedback-btn"[^>]*>/);
-  assert.ok(b, 'the icon is in the sidebar foot');
+  const tools = html.slice(html.indexOf('<nav class="side-tools">'), html.indexOf('</nav>', html.indexOf('<nav class="side-tools">')));
+  const b = tools.match(/<button [^>]*id="feedback-btn"[^>]*>/);
+  assert.ok(b, 'the icon is in the top bar\'s tools (#635)');
   assert.match(b[0], /class="more-btn hidden"/);
   assert.match(b[0], /aria-label="Feedback"/);
-  assert.ok(foot.indexOf('id="more-btn"') < foot.indexOf('id="admin-link"') && foot.indexOf('id="admin-link"') < foot.indexOf('id="feedback-btn"'));
+  assert.ok(tools.indexOf('id="admin-link"') < tools.indexOf('id="feedback-btn"') && tools.indexOf('id="feedback-btn"') < tools.indexOf('id="more-btn"'), 'Settings last, at the right');
   assert.match(read('boot.js'), /\$\('#feedback-btn'\)\.onclick = \(\) => openFeedback\(\)/);
 });
 

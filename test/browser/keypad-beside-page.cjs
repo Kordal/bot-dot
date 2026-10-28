@@ -1,6 +1,6 @@
 // Optional browser check of the keypad beside an open page: NODE_PATH=<directory containing playwright> node test/browser/keypad-beside-page.cjs [shots dir]
 // A page open beside a bot's chat leaves the keypad about 320px at 1280 and 1440. At 1920, 1440, 1280 and 1100 every
-// key keeps its name and its status pill inside it, nothing scrolls sideways and the strip over the keys fits. Scratch
+// key keeps its name inside it, nothing scrolls sideways and the strip over the keys fits. Scratch
 // data and the stand-in Claude only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -41,10 +41,9 @@ const { startServer, makeBot, heldRun, self } = require('../helpers');
         const side = document.querySelector('.sidebar').getBoundingClientRect().width;
         const bad = [...keys.querySelectorAll('.key')].filter((k) => k.offsetParent).map((k) => {
           const name = k.querySelector('.name');
-          const pill = k.querySelector('.kit-pill');
           const kr = k.getBoundingClientRect();
           const out = (el) => el && (el.getBoundingClientRect().right > kr.right + 0.5 || el.getBoundingClientRect().width < 30);
-          return (out(name) || out(pill) || k.scrollWidth > k.clientWidth + 1) ? k.title : null;
+          return (out(name) || k.scrollWidth > k.clientWidth + 1) ? k.title : null;
         }).filter(Boolean);
         const head = document.querySelector('.kp-head');
         return { side: Math.round(side), sideways: keys.scrollWidth > keys.clientWidth + 1, headOver: head.scrollWidth > head.clientWidth + 1, bad };
