@@ -486,3 +486,24 @@ test("a boat bot's screen that boat.dev can't start says why on the next ask", a
   await assert.rejects(boat.desktop('coder'), /plan or a payment method/);
   assert.deepEqual(await boat.desktop('coder'), { starting: true }, 'the next ask tries again');
 });
+
+test("a desktop ask boat.dev is slow to answer is still starting, and no way through says why (#666)", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat();
+  let fail = null;
+  const fetch = async (url, opts) => (fail && new URL(url).pathname.endsWith('/desktop') ? fail() : b.fetch(url, opts));
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch, sleep: async () => {}, account: '' });
+  const err = console.error;
+  const logged = [];
+  console.error = (...a) => logged.push(a.join(' '));
+  t.after(() => { console.error = err; });
+  await boat.runShell('coder', { command: 'ls' });
+  fail = () => { throw new DOMException('The operation was aborted due to timeout', 'TimeoutError'); };
+  assert.deepEqual(await boat.desktop('coder'), { starting: true }, 'boat.dev readies the desktop on the first ask');
+  fail = () => { throw new TypeError('fetch failed', { cause: Object.assign(new Error('getaddrinfo ENOTFOUND boat.dev'), { code: 'ENOTFOUND' }) }); };
+  await assert.rejects(boat.desktop('coder'), /boat.dev can't be reached \(ENOTFOUND\)/);
+  assert.ok(logged.some((l) => l.includes('ENOTFOUND')), 'the cause is in the log');
+  fail = null;
+  assert.ok((await boat.desktop('coder')).url);
+});
