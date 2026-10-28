@@ -169,7 +169,7 @@ test('web: a checkup\'s message shows its answer buttons and no 👍 and 👎', 
   assert.deepEqual([...html.matchAll(/<button class="btn" data-choice="([^"]*)">([^<]*)<\/button>/g)].map((m) => [m[1], m[2]]), [['Do 1', 'Do 1'], ['Do all', 'Do all'], ['Not now', 'Not now']]);
   assert.doesNotMatch(html, /class="rate|data-rating/, 'it is no unasked message');
   assert.match(html, /<strong>Rule, Web Surfer:<\/strong>/, 'its text is an ordinary reply');
-  assert.match(html, /<div class="bubble-meta">08:00<copy><\/div>/);
+  assert.match(html, /<div class="bubble-meta on-hover">08:00<copy><\/div>/);
   // One proposal: its two answers.
   assert.equal((page.chiefBubble({ ...MESSAGE, choices: ['Do it', 'Not now'] }, true, 0).match(/data-choice=/g) || []).length, 2);
   // The same message, were it unasked, would have the thumbs: it is `unasked` that draws them, not the place.

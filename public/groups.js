@@ -353,7 +353,7 @@ function groupMessageHTML(m, chat) {
   const waits = waitsLine(m);
   return `<div class="bubble-row from-me" data-gmsg="${esc(m.id)}"><div class="stack mine">
     <div class="bubble from-me" data-expand><div class="clamp">${escMentions(text, chat)}</div>${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
-    <div class="bubble-meta">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
+    <div class="bubble-meta${waits ? '' : ' on-hover'}">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
   </div></div>`;
 }
 // One waiting message, at the end of the chat: the owner's bubble, faded, for whom it waits, and the way back.
@@ -379,7 +379,7 @@ function groupReplyHTML(r, asks = null) {
       <div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(r.botId, r.botName))}</div>
       <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}</div>
       ${learnedChips(r)}
-      <div class="bubble-meta">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
+      <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
       ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions) : ''}
     </div></div>`;
 }
@@ -514,7 +514,7 @@ function renderGroupChat() {
         </button>
       </div>
       <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-drafts"></div><div class="g-tail"></div></div>
-      ${composerHTML(`Message ${g.name}…`)}`;
+      ${composerHTML(`Message ${g.name}`)}`;
     wireComposer($('form', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
     $('#group-settings').onclick = () => setPanel('toggle');
     if (groupChat?.id !== g.id) loadGroupChat(g.id);

@@ -30,7 +30,7 @@ test('web: the messages a run read stand after its request, in order, as the own
   const html = chat().botThreadHTML(bot, [run({ steered })]);
   const at = (s) => html.indexOf(s);
   assert.ok(at('Move the build to staging-vm') < at('staging-vm access mozesz') && at('staging-vm access mozesz') < at('&lt;b&gt;and port 2222') && at('&lt;b&gt;and port 2222') < at('Moved.'));
-  assert.match(html, /<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">staging-vm access mozesz dostac od Homelab Admin<\/div><files where\.txt><\/div><div class="bubble-meta"><span>Steered · t\(2026-10-20T10:01:00\.000Z\)<\/span><copy><\/div><\/div><\/div>/);
+  assert.match(html, /<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">staging-vm access mozesz dostac od Homelab Admin<\/div><files where\.txt><\/div><div class="bubble-meta on-hover"><span>Steered · t\(2026-10-20T10:01:00\.000Z\)<\/span><copy><\/div><\/div><\/div>/);
   assert.doesNotMatch(html, /<b>and port/, 'no markup');
   assert.doesNotMatch(html, /data-take-back|data-steer|waits/);
   // While the run is still going, they stand there too.
@@ -55,7 +55,7 @@ test('web: in a Chief chat the messages a reply read stand before it, as the own
   const html = all.map((m, i) => ctx.messageHTML(m, i, all)).join('');
   const at = (x) => html.indexOf(x);
   assert.ok(at('<user Plan my week>') < at('staging-vm access') && at('staging-vm access') < at('&lt;b&gt;and port 2222') && at('&lt;b&gt;and port 2222') < at('<chief Done.>'));
-  assert.match(html, /<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">staging-vm access mozesz dostac od Homelab Admin<files where\.txt><\/div><div class="bubble-meta"><span>Steered · t\(2026-10-20T10:01:00\.000Z\)<\/span><copy><\/div><\/div><\/div>/);
+  assert.match(html, /<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">staging-vm access mozesz dostac od Homelab Admin<files where\.txt><\/div><div class="bubble-meta on-hover"><span>Steered · t\(2026-10-20T10:01:00\.000Z\)<\/span><copy><\/div><\/div><\/div>/);
   assert.doesNotMatch(html, /<b>and port|data-take-back|data-steer=/);
   for (const none of [undefined, null, 'x']) assert.equal(ctx.messageHTML({ role: 'chief', text: 'Hi', steered: none }, 0, [{}]), '<chief Hi>');
 });
