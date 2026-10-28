@@ -13,14 +13,18 @@ const whatsNew = require('../lib/whats-new');
 const note = (title) => `${title}\n- Point one\n- Point two\n`;
 let door, requests, status, notes, stand, owner;
 let version = { version: '0123456', whatsNew: '2026-10-20-old' };
+let settings = null; // what the account's /api/settings answers: none, an older server
+
 before(async () => {
   requests = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-requests-'));
   status = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-status-'));
   notes = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-notes-'));
   for (const id of ['2026-10-20-old', '2026-10-21-first', '2026-10-22-second']) fs.writeFileSync(path.join(notes, `${id}.md`), note(`Note ${id}`));
+  fs.mkdirSync(path.join(notes, 'pl'));
+  fs.writeFileSync(path.join(notes, 'pl', '2026-10-22-second.md'), 'Notatka druga\n- Punkt pierwszy\n- Punkt drugi\n');
   fs.writeFileSync(path.join(notes, '2026-10-22-zz-broken.md'), 'No points');
   door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', FRONT_DOOR_REQUESTS: requests, FRONT_DOOR_STATUS: status, BOT_DOT_WHATS_NEW_DIR: notes } });
-  stand = await standIn(door, 'ann', { answer: (req) => (req.url === '/api/version' ? [200, version] : null) });
+  stand = await standIn(door, 'ann', { answer: (req) => (req.url === '/api/version' ? [200, version] : req.url === '/api/settings' ? (settings ? [200, settings] : [404, { error: 'Not found' }]) : null) });
   owner = door.browser();
   const key = passkey.create({ rpId: door.rpId, origin: door.origin });
   const options = await owner.post(`${door.firstLink.path}/options`, { name: 'ann' });
@@ -42,10 +46,29 @@ test('the notes after the newest one the account runs, newest first; a broken no
     { id: '2026-10-22-second', title: 'Note 2026-10-22-second', points: ['Point one', 'Point two'] },
     { id: '2026-10-21-first', title: 'Note 2026-10-21-first', points: ['Point one', 'Point two'] },
   ]);
-  const asked = stand.seen.at(-1);
-  assert.equal(asked.url, '/api/version');
+  const asked = stand.seen.findLast((r) => r.url === '/api/version');
+  assert.ok(asked, "the account's server is asked for its version");
   assert.equal(asked.headers['x-botdot-account'], 'ann');
   assert.equal(asked.headers.cookie, undefined, "the owner's cookie isn't passed on");
+});
+
+test("in the account's language: a Polish account gets each note's Polish twin, English where a note has none", async () => {
+  waiting();
+  version = { version: '0123456', whatsNew: '2026-10-20-old' };
+  try {
+    settings = { settings: { language: 'pl' } };
+    assert.deepEqual((await owner.get('/front-door/update/notes')).data.entries, [
+      { id: '2026-10-22-second', title: 'Notatka druga', points: ['Punkt pierwszy', 'Punkt drugi'] },
+      { id: '2026-10-21-first', title: 'Note 2026-10-21-first', points: ['Point one', 'Point two'] },
+    ]);
+    const asked = stand.seen.findLast((r) => r.url === '/api/settings');
+    assert.equal(asked.headers['x-botdot-account'], 'ann');
+    assert.equal(asked.headers.cookie, undefined, "the owner's cookie isn't passed on");
+    for (const s of [{ settings: { language: 'en' } }, { settings: { language: 'xx' } }, { settings: {} }]) {
+      settings = s;
+      assert.equal((await owner.get('/front-door/update/notes')).data.entries[0].title, 'Note 2026-10-22-second', JSON.stringify(s));
+    }
+  } finally { settings = null; }
 });
 
 test("none while nothing waits, when the account's server doesn't say, or for nobody signed in", async () => {
