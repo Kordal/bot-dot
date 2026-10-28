@@ -9,6 +9,11 @@
 
 (function (root) {
 
+// The page's words (i18n.js, #645); English where they are not loaded (the tests require this file).
+const fill = (text, vars) => String(text).replace(/\{(\w+)\}/g, (m, k) => (vars && k in vars ? String(vars[k]) : m));
+const tr = typeof I18n === 'object' ? I18n.tr : fill;
+const trn = typeof I18n === 'object' ? I18n.trn : (n, one, other, vars) => fill(n === 1 ? one : other, { n, ...vars });
+
 const AZ = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' });
 // The order the owner gave: by `order` in a category, A to Z where it is 0 (before the first move, like the server).
 const byPlace = (a, b) => (a.order || Infinity) - (b.order || Infinity) || AZ(a.name, b.name);
@@ -25,9 +30,9 @@ function pages(bots, groups) {
   const loose = placed.filter((b) => !isPinned(b)), looseGroups = groups.filter((g) => !isPinned(g));
   const inside = (cat) => [...loose.filter((b) => (b.group || '') === cat), ...looseGroups.filter((g) => (g.category || '') === cat).sort(byPlace)];
   const all = [
-    { name: 'Pinned', kind: 'pinned', keys: [...placed.filter(isPinned), ...groups.filter(isPinned)].sort(byPin) },
+    { name: tr('Pinned'), kind: 'pinned', keys: [...placed.filter(isPinned), ...groups.filter(isPinned)].sort(byPin) },
     ...categoryNames(loose, looseGroups).map((name) => ({ name, kind: 'category', keys: inside(name) })),
-    { name: 'Other', kind: 'other', keys: inside('') },
+    { name: tr('Other'), kind: 'other', keys: inside('') },
   ];
   return all.filter((p) => p.keys.length);
 }
@@ -98,12 +103,12 @@ function pin(bots, groups, item, at) {
 // On the web a key shows it as one dot on its head (#635): working green, needs amber, unread blue with the count, and
 // no dot for the rest; text is the dot's name for a screen reader. The Android app draws the pill of #397.
 function status({ running = false, runs = 0, needs = false, unread = 0, last = null } = {}) {
-  if (running) return { kind: 'working', text: runs > 1 ? `Working ×${runs}` : 'Working' };
-  if (needs) return { kind: 'needs', text: 'Needs you' };
-  if (unread > 0) return { kind: 'unread', text: `${unread} unread` };
-  if (last === 'success') return { kind: 'done', text: 'Done' };
-  if (last && last !== 'stopped' && last !== 'running') return { kind: 'failed', text: "Couldn't finish" };
-  return { kind: 'idle', text: 'Idle' };
+  if (running) return { kind: 'working', text: runs > 1 ? tr('Working ×{n}', { n: runs }) : tr('Working') };
+  if (needs) return { kind: 'needs', text: tr('Needs you') };
+  if (unread > 0) return { kind: 'unread', text: trn(unread, '{n} unread', '{n} unread') };
+  if (last === 'success') return { kind: 'done', text: tr('Done') };
+  if (last && last !== 'stopped' && last !== 'running') return { kind: 'failed', text: tr("Couldn't finish") };
+  return { kind: 'idle', text: tr('Idle') };
 }
 
 const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status };

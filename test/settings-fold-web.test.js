@@ -16,7 +16,7 @@ test('web: every row of Settings with more to it opens under itself, its label a
     assert.match(settings, new RegExp(`<summary[^>]*><b>\\$\\{tr\\('${title}'\\)\\}</b>`), title);
   }
   assert.match(settings, /'<details class="bs-row bs-more" id="usage-card"><\/details>'/);
-  assert.match(read('usage.js'), /<summary [^>]*><b>Usage<\/b><span class="bs-chev" aria-hidden="true">›<\/span><\/summary>/);
+  assert.match(read('usage.js'), /<summary [^>]*><b>\$\{tr\('Usage'\)\}<\/b><span class="bs-chev" aria-hidden="true">›<\/span><\/summary>/);
   assert.doesNotMatch(settings, /<details[^>]*bs-more[^>]*\sopen/, 'closed when Settings opens');
   assert.match(read('style.css'), /\.bs-more\[open\] > summary > \.bs-chev \{ transform: rotate\(90deg\); \}|\.bs-more\[open\] > summary > \.bs-chev/);
 });

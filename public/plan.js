@@ -50,10 +50,10 @@ function liveHTML(plan, { who = '', fold = false, showDone = false } = {}) {
   const p = progress(plan);
   const now = list[p.step - 1];
   const bar = `<div class="plan-bar" aria-hidden="true"><span style="width:${Math.round((p.done / p.total) * 100)}%"></span></div>`;
-  const label = `${who ? `${who}'s plan` : 'Plan'}`;
+  const label = who ? tr("{who}'s plan", { who }) : tr('Plan');
   if (fold) {
     return `<section class="plan-card folded" aria-label="${esc(label)}">
-      <button type="button" class="plan-head" data-plan-fold aria-expanded="false"><i class="plan-spin" aria-hidden="true"></i><b>Plan</b><span class="plan-count">step ${p.step} of ${p.total}</span><span class="plan-now">${esc(now?.doing || now?.text || '')}</span>${CHEVRON}</button>
+      <button type="button" class="plan-head" data-plan-fold aria-expanded="false"><i class="plan-spin" aria-hidden="true"></i><b>${tr('Plan')}</b><span class="plan-count">${tr('step {step} of {total}', { step: p.step, total: p.total })}</span><span class="plan-now">${esc(now?.doing || now?.text || '')}</span>${CHEVRON}</button>
       ${bar}
     </section>`;
   }
@@ -61,10 +61,10 @@ function liveHTML(plan, { who = '', fold = false, showDone = false } = {}) {
   const hide = !showDone && list.length > MANY && p.done > 1;
   const shown = hide ? list.filter((s) => s.status !== 'done') : list;
   return `<section class="plan-card" aria-label="${esc(label)}">
-    <button type="button" class="plan-head" data-plan-fold aria-expanded="true"><b>Plan</b><span class="plan-count">${p.done} of ${p.total} done</span>${CHEVRON}</button>
+    <button type="button" class="plan-head" data-plan-fold aria-expanded="true"><b>${tr('Plan')}</b><span class="plan-count">${tr('{done} of {total} done', { done: p.done, total: p.total })}</span>${CHEVRON}</button>
     ${bar}
     <ol class="plan-steps${list.length > MANY ? ' long' : ''}">
-      ${hide ? `<li class="plan-step done"><span class="plan-mark">${CHECK}</span><button type="button" class="plan-show" data-plan-show>${p.done} steps done · show</button></li>` : ''}
+      ${hide ? `<li class="plan-step done"><span class="plan-mark">${CHECK}</span><button type="button" class="plan-show" data-plan-show>${trn(p.done, '{n} step done · show', '{n} steps done · show')}</button></li>` : ''}
       ${shown.map(row).join('')}
     </ol>
   </section>`;
@@ -77,15 +77,15 @@ function stoppedHTML(plan, { who = '' } = {}) {
   const p = progress(plan);
   const now = list[p.step - 1];
   const left = list.slice(p.step).filter((s) => s.status !== 'done').length;
-  const label = `${who ? `${who}'s plan` : 'Plan'}, stopped`;
+  const label = who ? tr("{who}'s plan, stopped", { who }) : tr('Plan, stopped');
   return `<section class="plan-card stopped" aria-label="${esc(label)}">
-    <div class="plan-head"><b>Plan</b><span class="plan-count">Stopped at step ${p.step} of ${p.total}</span></div>
+    <div class="plan-head"><b>${tr('Plan')}</b><span class="plan-count">${tr('Stopped at step {step} of {total}', { step: p.step, total: p.total })}</span></div>
     <ol class="plan-steps">
-      ${p.done ? `<li class="plan-step done"><span class="plan-mark">${CHECK}</span><span>${p.done === 1 ? '1 step done' : `${p.done} steps done`}</span></li>` : ''}
+      ${p.done ? `<li class="plan-step done"><span class="plan-mark">${CHECK}</span><span>${trn(p.done, '{n} step done', '{n} steps done')}</span></li>` : ''}
       ${now && now.status !== 'done' ? `<li class="plan-step cut"><span class="plan-mark">${CROSS}</span><span>${esc(now.text)}</span></li>` : ''}
-      ${left ? `<li class="plan-step left"><span class="plan-mark"><i aria-hidden="true"></i></span><span>${left === 1 ? '1 step not started' : `${left} steps not started`}</span></li>` : ''}
+      ${left ? `<li class="plan-step left"><span class="plan-mark"><i aria-hidden="true"></i></span><span>${trn(left, '{n} step not started', '{n} steps not started')}</span></li>` : ''}
     </ol>
-    <div class="plan-actions"><button type="button" class="btn" data-plan-dismiss>Dismiss</button></div>
+    <div class="plan-actions"><button type="button" class="btn" data-plan-dismiss>${tr('Dismiss')}</button></div>
   </section>`;
 }
 
@@ -94,7 +94,7 @@ function replyHTML(plan) {
   const list = steps(plan);
   if (!list.length) return '';
   const p = progress(plan);
-  return `<details class="plan-fold"><summary>${finished(plan) ? CHECK : ''}Plan · ${p.done} of ${p.total} done</summary><ol>${list.map((s) => `<li class="${s.status}">${esc(s.text)}</li>`).join('')}</ol></details>`;
+  return `<details class="plan-fold"><summary>${finished(plan) ? CHECK : ''}${tr('Plan · {done} of {total} done', { done: p.done, total: p.total })}</summary><ol>${list.map((s) => `<li class="${s.status}">${esc(s.text)}</li>`).join('')}</ol></details>`;
 }
 
 // Draw a chat's plan into its slot above the message box. view: null for none, or { kind: 'live' | 'stopped', plan,

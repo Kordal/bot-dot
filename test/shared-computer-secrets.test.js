@@ -57,6 +57,6 @@ test('the bot\'s prompt says it, and that botdot puts no secret on a command lin
 });
 
 test('the Vault\'s hint says it, on the web and in the Android app', () => {
-  assert.match(read('public', 'vault.js'), /Usable in its computer <span class="hint muted"[^>]*>[^<]*Every bot on that computer could then read it/);
+  assert.match(read('public', 'vault.js'), /\$\{tr\('Usable in its computer'\)\} <span class="hint muted"[^>]*>\$\{tr\("[^"]*Every bot on that computer could then read it/);
   assert.match(read('android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'data', 'VaultTypes.kt'), /IN_COMPUTER_HINT: String get\(\) = tr\("[^"]*Every bot on that computer could then read it/);
 });

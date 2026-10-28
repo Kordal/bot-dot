@@ -40,7 +40,7 @@ function groupOfNeed(x) {
     : x.kind === 'tile' ? fed(state.approvals?.tiles, (t) => t.tileId === x.t?.id) : null;
   if (typeof from?.groupId !== 'string' || !from.groupId) return null;
   const name = (state.groups || []).find((g) => g.id === from.groupId)?.name || (typeof from.groupName === 'string' ? from.groupName : '');
-  return { id: from.groupId, name: name || 'a group' };
+  return { id: from.groupId, name: name || tr('a group') };
 }
 
 // One card per run (docs/api.md, "One card per run"): the asks that share a `batch` are one card, where the first of
@@ -81,20 +81,20 @@ const needsFigures = (items) => `<span class="needs-figs">${items.map((x, i) => 
 function needLine(x) {
   const a = x.a || {};
   switch (x.kind) {
-    case 'batch': return x.title || 'Several actions';
+    case 'batch': return x.title || tr('Several actions');
     case 'job': return jobCard(x.job).title;
     case 'tile': return tileCard(x.t).title;
-    case 'memory': return said(x.p.title) || 'A memory change';
-    case 'suggestion': return `A plan: ${x.chat.title}`;
-    case 'tilesug': return `“${x.s.tile.title}” on the Board`;
-    case 'bitwarden': return 'Bitwarden is locked';
-    case 'pay': return `Pay on ${x.r.site}`;
-    case 'login': return `A login for ${x.r.site}`;
+    case 'memory': return said(x.p.title) || tr('A memory change');
+    case 'suggestion': return tr('A plan: {title}', { title: x.chat.title });
+    case 'tilesug': return tr('“{title}” on the Board', { title: x.s.tile.title });
+    case 'bitwarden': return tr('Bitwarden is locked');
+    case 'pay': return tr('Pay on {site}', { site: x.r.site });
+    case 'login': return tr('A login for {site}', { site: x.r.site });
     default:
-      if (a.kind === 'permission') return `wants to ${a.what?.label || a.permission}`;
-      if (ToolCard.is(a)) return said(a.title) || 'A tool to install';
-      if (a.kind === 'skill' && !a.written) return `The skill “${a.skill?.name || ''}”`;
-      return said(a.title) || said(a.text) || 'An OK';
+      if (a.kind === 'permission') return tr('wants to {what}', { what: a.what?.label || a.permission });
+      if (ToolCard.is(a)) return said(a.title) || tr('A tool to install');
+      if (a.kind === 'skill' && !a.written) return tr('The skill “{name}”', { name: a.skill?.name || '' });
+      return said(a.title) || said(a.text) || tr('An OK');
   }
 }
 // The bots something waits for: a key of theirs says "Needs you".
@@ -113,7 +113,7 @@ function showNeeds() {
   const review = () => (items.length === 1 ? openNeed(items[0]) : setView('needs'));
   banner.classList.toggle('hidden', !items.length || state.view === 'needs');
   if (items.length) {
-    banner.innerHTML = `${needsFigures(items)}<span>Waiting for your OK</span><button class="btn sm primary" id="needs-open">Review</button>`;
+    banner.innerHTML = `${needsFigures(items)}<span>${tr('Waiting for your OK')}</span><button class="btn sm primary" id="needs-open">${tr('Review')}</button>`;
     $('#needs-open').onclick = review;
   }
   drawKeypadNeeds(state.view === 'needs' ? [] : items, openNeed, items); // the same, on the keypad, a row each
@@ -139,11 +139,11 @@ const needsOpen = new Set(); // cards clicked open (the rest show a few lines ea
 function needCardHTML(x, here = null) {
   if (x.kind === 'batch') return batchCardHTML(x, here);
   // Whose it is, and for a card asked in a group, in which: the group's own chat says only the bot.
-  const who = x.bot ? `${botLabel(x.bot)}${x.group && here !== `group:${x.group.id}` ? ` <span class="need-in">in ${esc(x.group.name)}</span>` : ''}` : '';
+  const who = x.bot ? `${botLabel(x.bot)}${x.group && here !== `group:${x.group.id}` ? ` <span class="need-in">${tr('in {group}', { group: esc(x.group.name) })}</span>` : ''}` : '';
   // Under the body, one line that says who carries on after a yes, when the server says something does.
   const then = thenLine(x.then, here);
   const card = (title, meta, body, actions, cls = '') => `
-    <div class="${['card', 'need-card', cls, needsOpen.has(x.key) ? 'open' : ''].filter(Boolean).join(' ')}" data-need="${esc(x.key)}" title="Click to see it all">
+    <div class="${['card', 'need-card', cls, needsOpen.has(x.key) ? 'open' : ''].filter(Boolean).join(' ')}" data-need="${esc(x.key)}" title="${tr('Click to see it all')}">
       ${who ? `<div class="need-who">${who}</div>` : ''}
       <div class="need-title">${title}</div>
       ${meta ? `<div class="need-meta">${meta}</div>` : ''}
@@ -156,7 +156,7 @@ function needCardHTML(x, here = null) {
     const m = jobCard(x.job);
     return card(esc(m.title), esc(m.meta),
       `${summedHTML(m.summary, `${alsoHTML(m.also)}${changeBlocks([[m.scriptWas, m.script, 'pre'], [m.promptWas, m.prompt, 'div']])}`)}${m.assessment ? `<div class="job-why">${esc(m.assessment)}</div>` : ''}${untilHTML(m.line)}`,
-      `<button class="btn sm" data-need-no>${esc(m.no)}</button><button class="btn sm" data-need-always>Always approve</button><button class="btn sm primary" data-need-yes>${esc(m.yes)}</button>`, [m.change ? 'need-changed' : '', m.summary ? 'need-summed' : ''].filter(Boolean).join(' '));
+      `<button class="btn sm" data-need-no>${esc(m.no)}</button><button class="btn sm" data-need-always>${tr('Always approve')}</button><button class="btn sm primary" data-need-yes>${esc(m.yes)}</button>`, [m.change ? 'need-changed' : '', m.summary ? 'need-summed' : ''].filter(Boolean).join(' '));
   }
   // A memory change: the title, why it waits and both buttons are the server's words (docs/api.md, "A waiting
   // memory change"), the same in every app. The body is the note: for a change one block, what goes, struck,
@@ -168,15 +168,15 @@ function needCardHTML(x, here = null) {
       p.action === 'edit' ? changeBlock(was, now, 'div') : `<div class="need-body"><div class="nb">${esc(p.action === 'remove' ? was : now)}</div></div>`,
       `<button class="btn sm" data-need-no>${esc(said(p.no))}</button><button class="btn sm primary" data-need-yes>${esc(said(p.yes))}</button>`);
   }
-  if (x.kind === 'ask' && x.a.kind === 'permission') return card(`Let it ${esc(x.a.what?.label || x.a.permission)}?`, x.a.reason ? esc(x.a.reason) : '',
-    `<div class="need-body"><div class="nb">${esc((x.a.what?.hint || '').replace(/^./, (c) => c.toUpperCase()))}. It can't until you allow it; you can change this in its settings.</div></div>`,
-    `<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>Allow</button>`);
+  if (x.kind === 'ask' && x.a.kind === 'permission') return card(tr('Let it {what}?', { what: esc(x.a.what?.label || x.a.permission) }), x.a.reason ? esc(x.a.reason) : '',
+    `<div class="need-body"><div class="nb">${tr("{hint}. It can't until you allow it; you can change this in its settings.", { hint: esc((x.a.what?.hint || '').replace(/^./, (c) => c.toUpperCase())) })}</div></div>`,
+    `<button class="btn sm" data-need-no>${tr('Decline')}</button><button class="btn sm primary" data-need-yes>${tr('Allow')}</button>`);
   // A changed bot: the server's title, and what changes as its `parts`. Without them, the details as they were written.
   // The yes button reads the server's `yes` where it sends one ("Allow", for a change that only gives permissions).
   if (x.kind === 'ask' && x.a.kind === 'bot-change') {
     const parts = partsHTML(x.a.parts);
     return card(esc(x.a.title), esc(x.a.reason || ''), parts || `<div class="need-body"><pre class="nb">${esc(x.a.details)}</pre></div>`,
-      `<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || 'Approve')}</button>`, parts ? 'need-rows' : '');
+      `<button class="btn sm" data-need-no>${tr('Decline')}</button><button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || tr('Approve'))}</button>`, parts ? 'need-rows' : '');
   }
   // A switch of a saved login a bot asks for (`vault-switch`): the server's title, the bot's reason, the login and the
   // switch as rows, the warning of "Usable in its computer", and the server's word on the yes. A Vault entry a bot asks
@@ -189,7 +189,7 @@ function needCardHTML(x, here = null) {
     const always = x.a.kind === 'override' ? said(x.a.always) : '';
     return card(esc(said(x.a.title)), esc(said(x.a.reason)),
       `${partsHTML(x.a.parts)}${warning ? `<div class="need-body need-warn" role="note"><div class="nb">⚠️ ${esc(warning)}</div></div>` : ''}`,
-      `<button class="btn sm" data-need-no>Decline</button>${always ? `<button class="btn sm" data-need-always>${esc(always)}</button>` : ''}<button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || 'Allow')}</button>`, 'need-rows');
+      `<button class="btn sm" data-need-no>${tr('Decline')}</button>${always ? `<button class="btn sm" data-need-always>${esc(always)}</button>` : ''}<button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || tr('Allow'))}</button>`, 'need-rows');
   }
   // An action in a connected app: the server's title, whether its run still waits for the answer, and the action's
   // `rows`, drawn as a tool's facts: every row, and every value in full on an opened card. Without them, the
@@ -203,9 +203,9 @@ function needCardHTML(x, here = null) {
     const cut = !!rows && rowsCut(x.a);
     const long = !cut && tooLong(x.a);
     const details = () => (said(x.a.details) || !rows ? `<div class="need-body"><pre class="nb">${esc(x.a.details)}</pre></div>` : '');
-    const body = long ? `${rows}<div class="need-meta">Too long to show in full.</div>` : rows ? `${rows}${cut ? details() : ''}` : details();
+    const body = long ? `${rows}<div class="need-meta">${tr('Too long to show in full.')}</div>` : rows ? `${rows}${cut ? details() : ''}` : details();
     return card(esc(x.a.title), esc(heldLine(x.a) || x.a.reason || ''), body,
-      `<button class="btn sm" data-need-no>Decline</button>${cut ? '' : `<button class="btn sm" data-need-always>${esc(said(x.a.always) || 'Always allow')}</button>${long ? '' : '<button class="btn sm primary" data-need-yes>Allow once</button>'}`}`, rows ? 'need-rows' : '');
+      `<button class="btn sm" data-need-no>${tr('Decline')}</button>${cut ? '' : `<button class="btn sm" data-need-always>${esc(said(x.a.always) || tr('Always allow'))}</button>${long ? '' : `<button class="btn sm primary" data-need-yes>${tr('Allow once')}</button>`}`}`, rows ? 'need-rows' : '');
   }
   // A shared room's cards (docs/api.md, "Shared rooms: the owner's mention"): a tool a run from a room wants to use,
   // and what would go to a room. The server's title, why it waits (`meta`), the rows and the yes word. Rows cut short
@@ -213,8 +213,8 @@ function needCardHTML(x, here = null) {
   if (x.kind === 'ask' && (x.a.kind === 'room-tool' || x.a.kind === 'room-post')) {
     const rows = ToolCard.rows(x.a.rows);
     const shut = rowsCut(x.a) || tooLong(x.a);
-    return card(esc(said(x.a.title)), esc(said(x.a.meta)), `${rows}${shut && !rowsCut(x.a) ? '<div class="need-meta">Too long to show in full.</div>' : ''}`,
-      `<button class="btn sm" data-need-no>Decline</button>${shut ? '' : `<button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || 'Allow')}</button>`}`, rows ? 'need-rows' : '');
+    return card(esc(said(x.a.title)), esc(said(x.a.meta)), `${rows}${shut && !rowsCut(x.a) ? `<div class="need-meta">${tr('Too long to show in full.')}</div>` : ''}`,
+      `<button class="btn sm" data-need-no>${tr('Decline')}</button>${shut ? '' : `<button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || tr('Allow'))}</button>`}`, rows ? 'need-rows' : '');
   }
   // What the Chief asked to do after it read the web in a chat (docs/api.md, "The Chief reads the web"): the server's
   // title, why it waits (`meta`), and what it sent as `rows`, drawn as an action in a connected app's are. Rows cut
@@ -224,8 +224,8 @@ function needCardHTML(x, here = null) {
     // A request of a type the owner may let through for good (#280) has the server's second yes, `always`.
     const shut = rowsCut(x.a) || tooLong(x.a);
     const always = shut ? '' : said(x.a.always);
-    return card(esc(x.a.title), esc(said(x.a.meta)), `${rows}${tooLong(x.a) ? '<div class="need-meta">Too long to show in full.</div>' : ''}`,
-      `<button class="btn sm" data-need-no>Decline</button>${always ? `<button class="btn sm" data-need-always>${esc(always)}</button>` : ''}${shut ? '' : '<button class="btn sm primary" data-need-yes>Approve</button>'}`, rows ? 'need-rows' : '');
+    return card(esc(x.a.title), esc(said(x.a.meta)), `${rows}${tooLong(x.a) ? `<div class="need-meta">${tr('Too long to show in full.')}</div>` : ''}`,
+      `<button class="btn sm" data-need-no>${tr('Decline')}</button>${always ? `<button class="btn sm" data-need-always>${esc(always)}</button>` : ''}${shut ? '' : `<button class="btn sm primary" data-need-yes>${tr('Approve')}</button>`}`, rows ? 'need-rows' : '');
   }
   // A tool the Chief asks to install for a bot: the server's own fields (tool-card.js), no wording from here.
   if (x.kind === 'ask' && ToolCard.is(x.a)) {
@@ -236,19 +236,19 @@ function needCardHTML(x, here = null) {
   // whole text a yes would save.
   if (x.kind === 'ask' && x.a.kind === 'skill' && x.a.written) return card(esc(said(x.a.text)), esc(said(x.a.reason)),
     `<div class="need-body"><pre class="nb">${esc(x.a.skill?.instructions)}</pre></div>`,
-    `<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>Approve</button>`);
+    `<button class="btn sm" data-need-no>${tr('Decline')}</button><button class="btn sm primary" data-need-yes>${tr('Approve')}</button>`);
   if (x.kind === 'ask') {
     const k = x.a.skill || {};
-    const who = x.a.forBots?.length ? ` · for ${x.a.forBots.map((b) => b.name).join(', ')}` : '';
-    return card(`Install the skill "${esc(k.name)}"?`, `${esc(x.a.url.replace(/^https?:\/\/(www\.)?/, ''))}${esc(who)}`,
-      `<div class="need-body"><div class="nb">${esc(k.description || 'No description.')}${k.files > 1 ? ` (${k.files} files)` : ''}${k.exists ? ' It replaces your skill of the same name.' : ''}${x.a.reason ? `\n\nWhy: ${esc(x.a.reason)}` : ''}</div></div>`,
-      `<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>Install</button>`);
+    const who = x.a.forBots?.length ? ` · ${tr('for {bots}', { bots: x.a.forBots.map((b) => b.name).join(', ') })}` : '';
+    return card(tr('Install the skill "{name}"?', { name: esc(k.name) }), `${esc(x.a.url.replace(/^https?:\/\/(www\.)?/, ''))}${esc(who)}`,
+      `<div class="need-body"><div class="nb">${esc(k.description || tr('No description.'))}${k.files > 1 ? ` (${trn(k.files, '{n} file', '{n} files')})` : ''}${k.exists ? ` ${tr('It replaces your skill of the same name.')}` : ''}${x.a.reason ? `\n\n${tr('Why: {reason}', { reason: esc(x.a.reason) })}` : ''}</div></div>`,
+      `<button class="btn sm" data-need-no>${tr('Decline')}</button><button class="btn sm primary" data-need-yes>${tr('Install')}</button>`);
   }
   if (x.kind === 'tilesug') {
     const t = x.s.tile;
-    return card(`Put “${esc(t.title)}” on your Board?`, esc(x.s.reason),
+    return card(tr('Put “{title}” on your Board?', { title: esc(t.title) }), esc(x.s.reason),
       (t.scripts || []).map((sc) => `<div class="need-body"><pre class="nb">${esc(sc)}</pre></div>`).join(''),
-      `<button class="btn sm" data-need-no>No</button><button class="btn sm primary" data-need-yes>Add</button>`);
+      `<button class="btn sm" data-need-no>${tr('No')}</button><button class="btn sm primary" data-need-yes>${tr('Add')}</button>`);
   }
   // A tile: one that waits for its first OK, or a change to the scripts of an approved one (tileCard).
   if (x.kind === 'tile') {
@@ -258,26 +258,26 @@ function needCardHTML(x, here = null) {
       changeBlocks(Array.from({ length: rows }, (_, i) => [m.scriptsWas[i] ?? null, m.scripts[i] ?? null, 'pre'])) + untilHTML(m.line),
       `<button class="btn sm" data-need-no>${esc(m.no)}</button><button class="btn sm primary" data-need-yes>${esc(m.yes)}</button>`, m.change ? 'need-changed' : '');
   }
-  if (x.kind === 'suggestion') return card(`A plan for the Chief: ${esc(x.chat.title)}`, 'Nothing happens until you approve it', `<div class="need-body"><div class="nb">${esc(plain(x.chat.waiting.text))}</div></div>`,
-    `<button class="link-btn need-link" data-need-open>Open chat</button><button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>Approve</button>`);
-  if (x.kind === 'bitwarden') return card('Bitwarden is locked', "Bots can't use your saved logins until you unlock it.", '', `<button class="btn sm primary" data-need-open>Unlock</button>`);
-  if (x.kind === 'pay') return card(`Pay on ${esc(x.r.site)}`, x.r.amount ? esc(x.r.amount) : '', '', `<button class="btn sm primary" data-need-open>Review</button>`);
-  return card(`A login for ${esc(x.r.site)}`, x.r.reason ? esc(x.r.reason) : '', '', `<button class="btn sm primary" data-need-open>Add it</button>`);
+  if (x.kind === 'suggestion') return card(tr('A plan for the Chief: {title}', { title: esc(x.chat.title) }), tr('Nothing happens until you approve it'), `<div class="need-body"><div class="nb">${esc(plain(x.chat.waiting.text))}</div></div>`,
+    `<button class="link-btn need-link" data-need-open>${tr('Open chat')}</button><button class="btn sm" data-need-no>${tr('Decline')}</button><button class="btn sm primary" data-need-yes>${tr('Approve')}</button>`);
+  if (x.kind === 'bitwarden') return card(tr('Bitwarden is locked'), tr("Bots can't use your saved logins until you unlock it."), '', `<button class="btn sm primary" data-need-open>${tr('Unlock')}</button>`);
+  if (x.kind === 'pay') return card(tr('Pay on {site}', { site: esc(x.r.site) }), x.r.amount ? esc(x.r.amount) : '', '', `<button class="btn sm primary" data-need-open>${tr('Review')}</button>`);
+  return card(tr('A login for {site}', { site: esc(x.r.site) }), x.r.reason ? esc(x.r.reason) : '', '', `<button class="btn sm primary" data-need-open>${tr('Add it')}</button>`);
 }
 
 // The card of what one run waits on: whose, the server's title, "Decline all" and "Allow all", and each ask's own
 // card under them, with its own buttons. An ask whose yes is its own (ownYes) says so above the buttons.
 function batchCardHTML(x, here = null) {
-  const who = x.bot ? `${botLabel(x.bot)}${x.group && here !== `group:${x.group.id}` ? ` <span class="need-in">in ${esc(x.group.name)}</span>` : ''}` : '';
+  const who = x.bot ? `${botLabel(x.bot)}${x.group && here !== `group:${x.group.id}` ? ` <span class="need-in">${tr('in {group}', { group: esc(x.group.name) })}</span>` : ''}` : '';
   const own = x.items.filter(ownYes).map((s) => `“${said(s.a.title) || said(s.a.text)}”`);
-  const line = !own.length ? '' : own.length === 1 ? `Allow all leaves ${own[0]} to its own Allow.` : `Allow all leaves ${own.slice(0, -1).join(', ')} and ${own.at(-1)} to their own Allow.`;
+  const line = !own.length ? '' : own.length === 1 ? tr('Allow all leaves {one} to its own Allow.', { one: own[0] }) : tr('Allow all leaves {some} and {last} to their own Allow.', { some: own.slice(0, -1).join(', '), last: own.at(-1) });
   const yes = x.items.some((s) => !ownYes(s) && !rowsCut(s.a));
   return `
     <div class="card need-batch" data-batch="${esc(x.key)}">
       ${who ? `<div class="need-who">${who}</div>` : ''}
-      <div class="need-title">${esc(x.title || `${x.items.length} things wait for your OK`)}</div>
+      <div class="need-title">${esc(x.title || trn(x.items.length, '{n} thing waits for your OK', '{n} things wait for your OK'))}</div>
       ${line ? `<div class="need-meta need-own">${esc(line)}</div>` : ''}
-      <div class="need-actions"><button class="btn sm" data-batch-no>Decline all</button>${yes ? '<button class="btn sm primary" data-batch-yes>Allow all</button>' : ''}</div>
+      <div class="need-actions"><button class="btn sm" data-batch-no>${tr('Decline all')}</button>${yes ? `<button class="btn sm primary" data-batch-yes>${tr('Allow all')}</button>` : ''}</div>
       <div class="need-batch-items">${x.items.map((s) => needCardHTML(s, here)).join('')}</div>
     </div>`;
 }
@@ -286,10 +286,10 @@ function batchCardHTML(x, here = null) {
 const said = (v) => (typeof v === 'string' ? v.trim() : '');
 
 // The line of a change's card: the approved job or tile is the one that works meanwhile.
-const RUNS_AS_APPROVED = 'Runs as you approved it until you answer.';
-const kindWords = (script) => (script ? 'a script, no AI' : 'uses AI');
-const NOTIFY_WORDS = { always: 'after every run', 'report-only': 'only when it has something to report' };
-const changedBy = (by) => (by === 'chief' ? 'changed by the Chief' : by === 'bot' ? 'changed by itself' : 'changed');
+const RUNS_AS_APPROVED = tr('Runs as you approved it until you answer.');
+const kindWords = (script) => (script ? tr('a script, no AI') : tr('uses AI'));
+const NOTIFY_WORDS = { always: tr('after every run'), 'report-only': tr('only when it has something to report') };
+const changedBy = (by) => (by === 'chief' ? tr('changed by the Chief') : by === 'bot' ? tr('changed by itself') : tr('changed'));
 // "<label>: <was> → <now>" for a setting a change changes, '' for one it leaves. words: a value in words.
 // The Vault logins a script job's script may use (ADR 085), as one line of their names; '' for none.
 const loginNames = (list) => (Array.isArray(list) ? list.filter((n) => typeof n === 'string').join(', ') : '');
@@ -307,9 +307,9 @@ function jobCard(j) {
   const c = changeOf(j);
   if (!c) {
     const script = j.kind === 'script';
-    const by = j.changedBy === 'bot' ? 'added by itself' : j.changedBy === 'chief' ? 'added by the Chief' : 'changed';
+    const by = j.changedBy === 'bot' ? tr('added by itself') : j.changedBy === 'chief' ? tr('added by the Chief') : tr('changed');
     return { change: false, summary: '', title: j.name, name: j.name, when: j.when, meta: `${j.when} · ${kindWords(script)} · ${by}`, isScript: script, script: script ? j.script || '' : null, scriptWas: null,
-      prompt: j.prompt || '', promptWas: null, also: script && loginNames(j.logins) ? [`Logins: ${loginNames(j.logins)}`] : [], aiWhen: j.aiWhen, assessment: j.assessment || '', line: '', no: said(j.no) || 'Decline', yes: 'Approve' };
+      prompt: j.prompt || '', promptWas: null, also: script && loginNames(j.logins) ? [tr('Logins: {names}', { names: loginNames(j.logins) })] : [], aiWhen: j.aiWhen, assessment: j.assessment || '', line: '', no: said(j.no) || tr('Decline'), yes: tr('Approve') };
   }
   const text = (v, or) => (typeof v === 'string' ? v : or); // a field the server left out did not change
   const script = text(c.kind, j.kind) === 'script';
@@ -320,16 +320,16 @@ function jobCard(j) {
   const prompt = text(c.prompt, j.prompt || '');
   const aiWhen = script ? text(c.aiWhen, j.aiWhen) : null;
   return {
-    change: true, title: `${j.name}: a change`, name, when, isScript: script, summary: said(c.summary),
-    meta: [when === j.when ? j.when : `now ${j.when} → ${when}`, name === j.name ? '' : `renamed “${name}”`, kindWords(script), changedBy(c.by)].filter(Boolean).join(' · '),
+    change: true, title: tr('{name}: a change', { name: j.name }), name, when, isScript: script, summary: said(c.summary),
+    meta: [when === j.when ? j.when : tr('now {was} → {now}', { was: j.when, now: when }), name === j.name ? '' : tr('renamed “{name}”', { name }), kindWords(script), changedBy(c.by)].filter(Boolean).join(' · '),
     script: scriptNow, scriptWas: scriptWas === scriptNow ? null : scriptWas,
     prompt, promptWas: (j.prompt || '').trim() && j.prompt !== prompt ? j.prompt : null,
     also: [
-      changedLine('Tells you', j.notify || 'report-only', c.notify, (v) => NOTIFY_WORDS[v] || v),
-      changedLine('Asks the AI', j.kind === 'script' ? j.aiWhen : '', aiWhen, (v) => (AI_WHEN_TEXT[v] || v).toLowerCase()),
-      changedLine('Logins', loginNames(j.logins), script ? loginNames(c.logins) || (loginNames(j.logins) ? 'none' : '') : null, (v) => v),
+      changedLine(tr('Tells you'), j.notify || 'report-only', c.notify, (v) => NOTIFY_WORDS[v] || v),
+      changedLine(tr('Asks the AI'), j.kind === 'script' ? j.aiWhen : '', aiWhen, (v) => (AI_WHEN_TEXT[v] || v).toLowerCase()),
+      changedLine(tr('Logins'), loginNames(j.logins), script ? loginNames(c.logins) || (loginNames(j.logins) ? 'none' : '') : null, (v) => (v === 'none' ? tr('none') : v)),
     ].filter(Boolean),
-    aiWhen, assessment: text(c.assessment, j.assessment) || '', line: RUNS_AS_APPROVED, no: said(j.no) || 'Keep as it is', yes: said(j.yes) || 'Approve the change',
+    aiWhen, assessment: text(c.assessment, j.assessment) || '', line: RUNS_AS_APPROVED, no: said(j.no) || tr('Keep as it is'), yes: said(j.yes) || tr('Approve the change'),
   };
 }
 
@@ -338,16 +338,16 @@ function jobCard(j) {
 function tileCard(t) {
   const c = changeOf(t);
   const strings = (list) => (Array.isArray(list) ? list.filter((sc) => typeof sc === 'string') : null);
-  if (!c) return { change: false, title: `Put “${t.title}” on your Board?`, meta: `${t.section ? `${t.section} · ` : ''}a script, no AI · ${t.changedBy === 'bot' ? 'added by itself' : 'added by the Chief'}`,
-    scripts: tileScripts(t), scriptsWas: [], line: '', no: said(t.no) || 'Decline', yes: 'Approve' };
+  if (!c) return { change: false, title: tr('Put “{title}” on your Board?', { title: t.title }), meta: `${t.section ? `${t.section} · ` : ''}${tr('a script, no AI')} · ${t.changedBy === 'bot' ? tr('added by itself') : tr('added by the Chief')}`,
+    scripts: tileScripts(t), scriptsWas: [], line: '', no: said(t.no) || tr('Decline'), yes: tr('Approve') };
   const own = strings(t.scripts) || tileScripts(t);
   const scripts = strings(c.scripts) || tileScripts(c); // a change that lists none: those of the tile as proposed, never the approved ones
   const title = said(c.title);
   return {
-    change: true, title: `${t.title}: a change`,
-    meta: [t.section, title && title !== t.title ? `renamed “${title}”` : '', scripts.length ? 'a script, no AI' : '', changedBy(c.by)].filter(Boolean).join(' · '),
+    change: true, title: tr('{name}: a change', { name: t.title }),
+    meta: [t.section, title && title !== t.title ? tr('renamed “{name}”', { name: title }) : '', scripts.length ? tr('a script, no AI') : '', changedBy(c.by)].filter(Boolean).join(' · '),
     scripts, scriptsWas: own.length === scripts.length && own.every((sc, i) => sc === scripts[i]) ? [] : own,
-    line: RUNS_AS_APPROVED, no: said(t.no) || 'Keep as it is', yes: said(t.yes) || 'Approve the change',
+    line: RUNS_AS_APPROVED, no: said(t.no) || tr('Keep as it is'), yes: said(t.yes) || tr('Approve the change'),
   };
 }
 
@@ -369,7 +369,7 @@ const changeBlocks = (pairs) => [...pairs.filter(([was, now]) => goes(was, now) 
 const alsoHTML = (lines) => lines.map((l) => `<div class="need-meta need-also">${esc(l)}</div>`).join('');
 // A change with its proposer's sentence (`summary`): the sentence, and behind the click what goes and what comes
 // (`full`), which a closed card leaves out. Without a sentence the card is `full` alone, as before.
-const summedHTML = (summary, full) => (summary ? `<div class="need-summary">${esc(summary)}</div><div class="need-meta need-more">Click to see the full change</div><div class="need-full">${full}</div>` : full);
+const summedHTML = (summary, full) => (summary ? `<div class="need-summary">${esc(summary)}</div><div class="need-meta need-more">${tr('Click to see the full change')}</div><div class="need-full">${full}</div>` : full);
 const untilHTML = (line) => (line ? `<div class="need-meta need-until">${esc(line)}</div>` : '');
 
 // What "Approve all" takes of the cards that wait (open: not answered on this page yet): AI jobs and changes to
@@ -381,9 +381,9 @@ function approveAll(open) {
   const takes = open.filter((x) => (x.kind === 'memory' && x.p.guarded !== true) || (x.kind === 'job' && !touchesScript(x.job)));
   const left = open.flatMap((x) => (x.kind === 'job' && touchesScript(x.job) ? [x.job.name] : x.kind === 'tile' ? [`“${x.t.title}”`] : []));
   const on = takes.length > 1;
-  const line = !on || !left.length ? '' : left.length === 1 ? `${left[0]} runs a script: approve it on its card.`
-    : `${left.slice(0, -1).join(', ')} and ${left[left.length - 1]} run scripts: approve them on their cards.`;
-  return { takes: on ? takes : [], label: on ? `Approve ${takes.length}` : '', line };
+  const line = !on || !left.length ? '' : left.length === 1 ? tr('{name} runs a script: approve it on its card.', { name: left[0] })
+    : tr('{some} and {last} run scripts: approve them on their cards.', { some: left.slice(0, -1).join(', '), last: left[left.length - 1] });
+  return { takes: on ? takes : [], label: on ? tr('Approve {n}', { n: takes.length }) : '', line };
 }
 
 // Whether the page asks before it sends a no: only for a job whose no removes it and whose button does not say
@@ -422,9 +422,9 @@ function partsHTML(parts) {
 // Whether the run of a connected-app action still waits for the owner's answer, as the line under the card's
 // title: `held`, or since when it does not (`stoppedAt`). '' for an ask that says neither.
 function heldLine(a) {
-  const name = said(a.bot?.name) || (a.chief ? CHIEF_BOT.name : 'The bot');
-  if (a.held === true) return `${name} waits for your answer`;
-  if (a.held === false && typeof a.stoppedAt === 'string' && Number.isFinite(Date.parse(a.stoppedAt))) return `${name} stopped waiting at ${msgTime(a.stoppedAt)}`;
+  const name = said(a.bot?.name) || (a.chief ? chiefTitle() : tr('The bot'));
+  if (a.held === true) return tr('{name} waits for your answer', { name });
+  if (a.held === false && typeof a.stoppedAt === 'string' && Number.isFinite(Date.parse(a.stoppedAt))) return tr('{name} stopped waiting at {time}', { name, time: msgTime(a.stoppedAt) });
   return '';
 }
 
@@ -471,7 +471,7 @@ function renderNeeds() {
   const drawn = batched(open);
   // An answered card moves to its place among the answered ones and the rest close up; a new one arrives (motion.js).
   Motion.flip(root, '.need-grid > .need-card', 'data-need', () => (root.innerHTML = `
-    <div class="section-head"><div>${needsBack()}<h1>Needs you</h1>${open.length ? '' : '<p>All done.</p>'}${all.line ? `<p class="needs-left">${esc(all.line)}</p>` : ''}</div>
+    <div class="section-head"><div>${needsBack()}<h1>${tr('Needs you')}</h1>${open.length ? '' : `<p>${tr('All done.')}</p>`}${all.line ? `<p class="needs-left">${esc(all.line)}</p>` : ''}</div>
       ${all.label ? `<button class="btn primary" id="needs-all">${esc(all.label)}</button>` : ''}</div>
     <div class="need-grid">${drawn.map((x) => needCardHTML(x)).join('')}${[...needsDone.values()].join('')}</div>`));
   wireNeedCards(root, items);
@@ -492,7 +492,7 @@ function wireNeedCards(root, items) {
     // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a yes that turns on a call or
     // a notify address says "Creating connection…" with a spinner.
     if (yes) yes.onclick = () => answerNeed(x, true, yes);
-    if (always) always.onclick = () => { if (x.a?.kind === 'chief-action') { if (confirm(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(said(x.a.warning) || (x.a.chief ? `Let ${CHIEF_BOT.name} do this from now on, whatever the details?` : 'Let this bot do this from now on, whatever the details?'))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
+    if (always) always.onclick = () => { if (x.a?.kind === 'chief-action') { if (confirm(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(said(x.a.warning) || (x.a.chief ? tr('Let {name} do this from now on, whatever the details?', { name: chiefTitle() }) : tr('Let this bot do this from now on, whatever the details?')))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => answerNeed(x, false, no);
     if (op) op.onclick = () => openNeed(x);
     el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
@@ -503,7 +503,7 @@ function wireNeedCards(root, items) {
 // answer comes. A job's no asks first where it removes the job.
 function answerNeed(x, yes, button) {
   if (yes) return whileApproving(button, x.job, () => decide(x, true));
-  if (!asksBeforeNo(x) || confirm('Remove this job?')) return whileBusy(button, 'Declining…', () => decide(x, false));
+  if (!asksBeforeNo(x) || confirm(tr('Remove this job?'))) return whileBusy(button, tr('Declining…'), () => decide(x, false));
 }
 
 // Allow all and Decline all on the cards of several (batchCardHTML). drawn: the cards as they were drawn.
@@ -513,8 +513,8 @@ function wireBatchCards(root, drawn) {
     const b = batches.get(el.dataset.batch);
     if (!b) return;
     const yes = $('[data-batch-yes]', el), no = $('[data-batch-no]', el);
-    if (yes) yes.onclick = () => whileBusy(yes, 'Allowing…', () => decideBatch(b, true));
-    if (no) no.onclick = () => whileBusy(no, 'Declining…', () => decideBatch(b, false));
+    if (yes) yes.onclick = () => whileBusy(yes, tr('Allowing…'), () => decideBatch(b, true));
+    if (no) no.onclick = () => whileBusy(no, tr('Declining…'), () => decideBatch(b, false));
   });
 }
 
@@ -598,10 +598,10 @@ function updateChatNeeds(thread, scope) {
 }
 
 // "Always approve" a script job: its later changes run without you seeing them, so say what that means first.
-const scriptWarning = (bot, job) => `Always approve "${job}" from ${bot}?\n\nIt's a script: it runs as commands on this computer with your permissions, without AI and without the bot's tool limits. If a web page or email ever tricks ${bot} into changing it, the new version would run on its schedule without you seeing it first.\n\nYou can take this back in ${bot}'s settings.`;
+const scriptWarning = (bot, job) => tr("Always approve \"{job}\" from {bot}?\n\nIt's a script: it runs as commands on this computer with your permissions, without AI and without the bot's tool limits. If a web page or email ever tricks {bot} into changing it, the new version would run on its schedule without you seeing it first.\n\nYou can take this back in {bot}'s settings.", { bot, job });
 
 // A job in one line: when it runs and what kind it is.
-const jobLine = (j) => `${j.when} · ${j.kind === 'script' ? 'a script, no AI' : 'uses AI'}`;
+const jobLine = (j) => `${j.when} · ${j.kind === 'script' ? tr('a script, no AI') : tr('uses AI')}`;
 
 // Approve or decline one card; it fades and says so. always: approve the job and trust its later changes.
 // After a yes the server may say who carries on (`carriesOn` in its answer, docs/api.md "What follows a yes"):
@@ -633,7 +633,7 @@ async function decideBatch(b, yes) {
   for (const one of Array.isArray(answer?.answers) ? answer.answers : []) {
     const x = b.items.find((s) => s.a.id === one?.id);
     if (!x) continue;
-    if (one.ok === false) { failed.push(said(one.error) || 'It could not be answered.'); continue; }
+    if (one.ok === false) { failed.push(said(one.error) || tr('It could not be answered.')); continue; }
     markAnswered(x, yes, false, one, chats.get(x.a.id) || []);
   }
   if (failed.length) toast(failed.join(' '), true);
@@ -665,14 +665,14 @@ function markAnswered(x, yes, always, answer, chats) {
 // tile the server's (`text` of the answer: "Declined and removed", "Kept as it was: …", "Changed: …") in place of
 // "Declined", and of "Approved" on a change. A memory change always reads the server's: "Forgotten", "Kept".
 function answeredWord(x, yes, always, answer) {
-  if (always) return x.a?.kind === 'chief-action' ? 'Always allowed' : 'Always approved';
-  if (x.kind === 'tilesug') return yes ? 'On your Board' : 'Not added';
+  if (always) return x.a?.kind === 'chief-action' ? tr('Always allowed') : tr('Always approved');
+  if (x.kind === 'tilesug') return yes ? tr('On your Board') : tr('Not added');
   const waits = x.kind === 'job' ? x.job : x.kind === 'tile' ? x.t : null;
   const servers = x.kind === 'memory' || (waits && (!yes || changeOf(waits))) ? said(answer?.text) : '';
   if (servers) return servers;
-  if (!yes) return 'Declined';
-  if (x.kind === 'ask') return ToolCard.is(x.a) ? 'Installing' : x.a.kind === 'skill' ? (x.a.written ? 'Approved' : 'Installed') : 'Allowed';
-  return x.kind === 'suggestion' ? 'Approved · the Chief is on it' : 'Approved';
+  if (!yes) return tr('Declined');
+  if (x.kind === 'ask') return ToolCard.is(x.a) ? tr('Installing') : x.a.kind === 'skill' ? (x.a.written ? tr('Approved') : tr('Installed')) : tr('Allowed');
+  return x.kind === 'suggestion' ? tr('Approved · the Chief is on it') : tr('Approved');
 }
 
 async function refreshNeeds() {

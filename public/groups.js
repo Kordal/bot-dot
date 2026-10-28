@@ -19,7 +19,7 @@ function loadGroups() {
   return api('/group-chats').then((list) => { state.groupsKnown = true; return Array.isArray(list) ? list.filter((g) => g && typeof g.id === 'string') : []; }).catch(() => state.groups);
 }
 // A member's name and colour now, or as the server said them for a bot that is gone.
-const memberName = (botId, said = '') => botById(botId)?.name || said || 'A bot';
+const memberName = (botId, said = '') => botById(botId)?.name || said || tr('A bot');
 const memberColor = (botId, said = '') => botById(botId)?.color || said || '#888780';
 
 // The line of each member at work, by its run: { groupId, botId, text, held, works }. The feed says it
@@ -61,12 +61,12 @@ const groupLook = (g) => JSON.stringify(groupMembers(g).slice(0, 3).map((b) => [
 function groupLine(g) {
   const at = (Array.isArray(g.working) ? g.working : []).map(botById).find(Boolean);
   const dots = Unread.dots(Unread.count(g), memberColor(g.last?.botId, groupMembers(g)[0]?.color));
-  if (at) return { who: at.name, prev: `${turnLineOf(g.id, at.id) || 'Working'}…`, cls: 'working', after: dots };
+  if (at) return { who: at.name, prev: `${turnLineOf(g.id, at.id) || tr('Working')}…`, cls: 'working', after: dots };
   if (g.asks && typeof g.asks === 'object') {
     const text = typeof g.asks.text === 'string' ? plain(g.asks.text) : '';
-    return { who: '', prev: `${memberName(g.asks.botId, g.asks.botName)} asks${text ? `: ${text}` : ''}`, cls: 'asks', after: Unread.mark(memberColor(g.asks.botId)) };
+    return { who: '', prev: text ? tr('{name} asks: {text}', { name: memberName(g.asks.botId, g.asks.botName), text }) : tr('{name} asks', { name: memberName(g.asks.botId, g.asks.botName) }), cls: 'asks', after: Unread.mark(memberColor(g.asks.botId)) };
   }
-  if (g.last && typeof g.last === 'object') return { who: memberName(g.last.botId, g.last.botName), prev: plain(g.last.text) || (g.last.status === 'success' ? 'Done.' : "Couldn't finish"), cls: '', after: dots };
+  if (g.last && typeof g.last === 'object') return { who: memberName(g.last.botId, g.last.botName), prev: plain(g.last.text) || (g.last.status === 'success' ? tr('Done.') : tr("Couldn't finish")), cls: '', after: dots };
   return { who: '', prev: '', cls: '', after: dots };
 }
 function groupContactHTML(g) {
@@ -108,7 +108,7 @@ function moveGroup(g, category, at) {
   g.category = category;
   others.forEach((x, i) => { x.order = i + 1; });
   if (from !== category) groupsIn(from).forEach((x, i) => { x.order = i + 1; });
-  return placeGroup(g, { category, order: at, ...(wasPinned ? { pinned: 0 } : {}) }, from !== category ? `${g.name} moved to ${category || 'Other'}` : '');
+  return placeGroup(g, { category, order: at, ...(wasPinned ? { pinned: 0 } : {}) }, from !== category ? tr('{name} moved to {category}', { name: g.name, category: category || tr('Other') }) : '');
 }
 
 // ---------- making and changing a group ----------
@@ -124,7 +124,7 @@ function openBotPicker({ title, bots, max, name = null, hint, action, done }) {
     <form id="bot-picker" autocomplete="off">
       <div class="modal-head"><h2>${esc(title)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        ${name === null ? '' : `<label class="field">Name<input type="text" name="name" maxlength="60" value="${esc(name)}" placeholder="What the group is called"></label>`}
+        ${name === null ? '' : `<label class="field">${tr('Name')}<input type="text" name="name" maxlength="60" value="${esc(name)}" placeholder="${esc(tr('What the group is called'))}"></label>`}
         <div class="pick-bots">${bots.map((b) => `
           <button type="button" class="pick-bot" data-pick="${esc(b.id)}" aria-pressed="false">
             ${botFigure(b.color, 'idle', 'sm', b.outfit)}
@@ -135,7 +135,7 @@ function openBotPicker({ title, bots, max, name = null, hint, action, done }) {
         <div class="send-note hidden" role="alert"></div>
       </div>
       <div class="modal-foot">
-        <button type="button" class="btn" data-dismiss>Cancel</button>
+        <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>
         <button class="btn primary" disabled>${esc(action)}</button>
       </div>
     </form>`);
@@ -172,12 +172,12 @@ function openBotPicker({ title, bots, max, name = null, hint, action, done }) {
 // that bot's category, and open.
 function openGroupMaker(bot) {
   openBotPicker({
-    title: 'New group',
+    title: tr('New group'),
     name: '',
     bots: state.bots.filter((b) => b.id !== bot.id).sort((x, y) => ((y.group || '') === (bot.group || '')) - ((x.group || '') === (bot.group || '')) || byPlace(x, y)), // its category's bots first
     max: GROUP_MAX - 1,
-    action: 'Create',
-    hint: (n) => (n ? `${n + 1} bots in the group, with ${bot.name}.` : `Pick one to five bots to join ${bot.name}. Its own chat stays as it is.`),
+    action: tr('Create'),
+    hint: (n) => (n ? trn(n + 1, '{n} bot in the group, with {name}.', '{n} bots in the group, with {name}.', { name: bot.name }) : tr('Pick one to five bots to join {name}. Its own chat stays as it is.', { name: bot.name })),
     done: async (picked, name) => {
       const made = await api('/group-chats', { method: 'POST', body: { name, members: [bot.id, ...picked] } });
       await refresh();
@@ -204,12 +204,12 @@ function renderGroupSettings() {
     // As a bot's settings (#635): its picture and name on top, then a row per member, and Delete in red at the end.
     root.innerHTML = `
       <div class="group-panel">
-        <div class="set-head"><div id="gs-pic"></div><div class="set-name"><input type="text" id="gs-name" maxlength="60" autocomplete="off" aria-label="Name"></div></div>
-        <div class="set-list" aria-label="Members">
+        <div class="set-head"><div id="gs-pic"></div><div class="set-name"><input type="text" id="gs-name" maxlength="60" autocomplete="off" aria-label="${esc(tr('Name'))}"></div></div>
+        <div class="set-list" aria-label="${esc(tr('Members'))}">
           <div class="bs-group" id="gs-members"></div>
-          <button type="button" class="bs-row bs-link" id="gs-add"><b>Add a bot</b><span class="bs-chev" aria-hidden="true">›</span></button>
+          <button type="button" class="bs-row bs-link" id="gs-add"><b>${tr('Add a bot')}</b><span class="bs-chev" aria-hidden="true">›</span></button>
         </div>
-        <div class="set-list"><button type="button" class="bs-row bs-link bs-danger" id="gs-delete"><b>Delete this group</b></button></div>
+        <div class="set-list"><button type="button" class="bs-row bs-link bs-danger" id="gs-delete"><b>${tr('Delete this group')}</b></button></div>
       </div>`;
     const name = $('#gs-name', root);
     name.value = g.name;
@@ -225,18 +225,18 @@ function renderGroupSettings() {
       const now = groupById(root.dataset.group);
       if (!now) return;
       openBotPicker({
-        title: 'Add a bot',
+        title: tr('Add a bot'),
         bots: state.bots.filter((b) => !now.members.includes(b.id)).sort(byPlace),
         max: GROUP_MAX - now.members.length,
-        action: 'Add',
-        hint: (n) => (n ? `${now.members.length + n} bots in ${now.name}.` : 'A group has two to six bots.'),
+        action: tr('Add'),
+        hint: (n) => (n ? trn(now.members.length + n, '{n} bot in {name}.', '{n} bots in {name}.', { name: now.name }) : tr('A group has two to six bots.')),
         done: async (picked) => { await api(`/group-chats/${encodeURIComponent(now.id)}`, { method: 'PUT', body: { members: [...now.members, ...picked] } }); await refresh(); },
       });
     };
     $('#gs-delete', root).onclick = async () => {
       const now = groupById(root.dataset.group);
-      if (!now || !confirm(`Delete the group ${now.name}?\n\nIts chat is erased. No bot is deleted: each keeps its own chat.`)) return;
-      try { await api(`/group-chats/${encodeURIComponent(now.id)}`, { method: 'DELETE' }); toast(`${now.name} deleted`); } catch (e) { toast(e.message, true); return; }
+      if (!now || !confirm(tr('Delete the group {name}?\n\nIts chat is erased. No bot is deleted: each keeps its own chat.', { name: now.name }))) return;
+      try { await api(`/group-chats/${encodeURIComponent(now.id)}`, { method: 'DELETE' }); toast(tr('{name} deleted', { name: now.name })); } catch (e) { toast(e.message, true); return; }
       state.groups = state.groups.filter((x) => x.id !== now.id);
       leaveBot();
       refresh();
@@ -251,8 +251,8 @@ function renderGroupSettings() {
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
   $('#gs-members', root).innerHTML = members.map((b) => `
     <div class="bs-row member-row">${botFigure(b.color, b.state, 'sm', b.outfit)}<span class="grow">${esc(b.name)}</span>
-      <button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="Take ${esc(b.name)} out of the group" aria-label="Take ${esc(b.name)} out of the group">✕</button></div>`).join('')
-    || '<p class="faint">Its bots are all gone. Add one, or delete the group.</p>';
+      <button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="${esc(tr('Take {name} out of the group', { name: b.name }))}" aria-label="${esc(tr('Take {name} out of the group', { name: b.name }))}">✕</button></div>`).join('')
+    || `<p class="faint">${tr('Its bots are all gone. Add one, or delete the group.')}</p>`;
   $$('[data-take-out]', root).forEach((b) => (b.onclick = () => {
     const now = groupById(root.dataset.group);
     if (now) changeGroup(now, { members: now.members.filter((id) => id !== b.dataset.takeOut) });
@@ -335,11 +335,11 @@ async function loadEarlier(button) {
 }
 
 // "Coder", "Coder and Reviewer", "Coder, Reviewer and Issue Writer".
-const namesList = (names) => (names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0] || '');
+const namesList = (names) => (names.length > 1 ? tr('{names} and {last}', { names: names.slice(0, -1).join(', '), last: names[names.length - 1] }) : names[0] || '');
 // A message of the owner's waits for busy members: for whom. '' when it waits for nobody.
 function waitsLine(m) {
   const names = (Array.isArray(m.waitsFor) ? m.waitsFor : []).map((id) => memberName(id));
-  return names.length ? `Waits until ${namesList(names)} ${names.length > 1 ? 'are' : 'is'} free` : '';
+  return names.length ? trn(names.length, 'Waits until {names} is free', 'Waits until {names} are free', { names: namesList(names) }) : '';
 }
 // A message none of whose turns has started, and that waits: for a busy member, or for Claude to be signed in.
 // It is drawn at the end of the chat, faded, with "Take back", as a waiting message in a bot's chat is.
@@ -360,7 +360,7 @@ function groupWaitingHTML(m, chat) {
   const text = typeof m.text === 'string' ? m.text : '';
   return `<div class="bubble-row from-me"><div class="stack mine">
     <div class="bubble from-me waits">${escMentions(text, chat)}${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
-    <div class="bubble-meta"><span>${esc(waitsLine(m) || 'Waits until Claude is signed in')}</span><button type="button" data-take-back="${esc(m.id)}">Take back</button></div>
+    <div class="bubble-meta"><span>${esc(waitsLine(m) || tr('Waits until Claude is signed in'))}</span><button type="button" data-take-back="${esc(m.id)}">${tr('Take back')}</button></div>
   </div></div>`;
 }
 // One reply: its bot's head beside it and its bot's name above it, in the bot's colour. A reply that failed, was
@@ -368,7 +368,7 @@ function groupWaitingHTML(m, chat) {
 // the reply that asked (asks: that run's id).
 function groupReplyHTML(r, asks = null) {
   const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
-  const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || 'Done. (No written reply.)';
+  const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || tr('Done. (No written reply.)');
   const color = memberColor(r.botId, r.botColor);
   const bot = botById(r.botId);
   const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
@@ -378,7 +378,7 @@ function groupReplyHTML(r, asks = null) {
       <div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(r.botId, r.botName))}</div>
       <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}</div>
       ${learnedChips(r)}
-      <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">Details</button>${copyBtn(body)}</div>
+      <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">${tr('Details')}</button>${copyBtn(body)}</div>
       ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions) : ''}
     </div></div>`;
 }
@@ -388,7 +388,7 @@ function groupEmptyHTML(g) {
   return `<div class="chat-empty">
     ${groupPicture(g, 'lg')}
     <h3>${esc(g.name)}</h3>
-    <p class="muted">${names.length ? `${esc(namesList(names))}.<br>What you write here, all of them read.` : 'Its bots are all gone. Add one, or delete the group.'}</p>
+    <p class="muted">${names.length ? `${esc(namesList(names))}.<br>${tr('What you write here, all of them read.')}` : tr('Its bots are all gone. Add one, or delete the group.')}</p>
   </div>`;
 }
 // The chat's rows, oldest first: the owner's messages and the replies, with the "New" line above the first new
@@ -398,9 +398,9 @@ function groupThreadHTML(g, chat, newFirst = null) {
   const rows = chatItems(chat).filter((x) => x.type !== 'message' || !waitsWhole(x));
   if (!rows.length && !chatItems(chat).length) return groupEmptyHTML(g);
   let lastDay = '';
-  return (chat.more ? '<div class="g-earlier"><button type="button" class="btn sm" data-earlier>Earlier messages</button></div>' : '') + rows.map((x) => {
+  return (chat.more ? `<div class="g-earlier"><button type="button" class="btn sm" data-earlier>${tr('Earlier messages')}</button></div>` : '') + rows.map((x) => {
     const day = new Date(x.at).toDateString();
-    const sep = day !== lastDay ? `<div class="day">${esc(new Date(x.at).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
+    const sep = day !== lastDay ? `<div class="day">${esc(new Date(x.at).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
     lastDay = day;
     if (x.type === 'message') return sep + groupMessageHTML(x, key);
     return sep + (newFirst !== null && x.id === newFirst ? Unread.line(memberColor(x.run.botId, x.run.botColor)) : '') + groupReplyHTML(x.run, chat.asks?.runId || null);
@@ -413,14 +413,14 @@ function groupThreadHTML(g, chat, newFirst = null) {
 // The cards stand after it (updateChatNeeds).
 function groupLimitHTML(limit) {
   const text = typeof limit?.text === 'string' ? limit.text.trim() : '';
-  return limit ? `<div class="g-limit" role="status"><span>${esc(text || 'The group stopped.')}</span><button type="button" class="btn sm" data-go-on>Go on</button></div>` : '';
+  return limit ? `<div class="g-limit" role="status"><span>${esc(text || tr('The group stopped.'))}</span><button type="button" class="btn sm" data-go-on>${tr('Go on')}</button></div>` : '';
 }
 function groupWorkingHTML(working) {
   const lines = working.map((w, i) => {
     const said = turnLines.get(w.runId) || {};
     const held = said.held === true; // its run waits for the owner's OK
-    const doing = held ? OpeningLine.WAITING : OpeningLine.text(said.text) || OpeningLine.ofRun(w, state.features) || 'Working';
-    return `<div class="status-line${held ? ' held' : ''}" role="status" style="--c:${Unread.tint(memberColor(w.botId))}"><i></i><span><b>${esc(memberName(w.botId))}</b> · ${esc(doing)}</span>${i === working.length - 1 ? '<button type="button" data-stop-all>Stop all</button>' : ''}</div>`;
+    const doing = held ? OpeningLine.WAITING : OpeningLine.text(said.text) || OpeningLine.ofRun(w, state.features) || tr('Working');
+    return `<div class="status-line${held ? ' held' : ''}" role="status" style="--c:${Unread.tint(memberColor(w.botId))}"><i></i><span><b>${esc(memberName(w.botId))}</b> · ${esc(doing)}</span>${i === working.length - 1 ? `<button type="button" data-stop-all>${tr('Stop all')}</button>` : ''}</div>`;
   });
   return lines.length ? `<div class="g-working">${lines.join('')}</div>` : '';
 }
@@ -444,7 +444,7 @@ function groupHeads(next) {
 // nobody is next.
 function groupNextHTML(chat) {
   const heads = groupHeads(groupNext(chatItems(chat).filter((x) => x.type === 'message'), chat.working));
-  return heads.length ? `<div class="g-next" role="img" aria-label="Next: ${esc(namesList(heads.map((b) => b.name)))}">${heads.map((b) => `<i>${botMark(b)}</i>`).join('')}</div>` : '';
+  return heads.length ? `<div class="g-next" role="img" aria-label="${esc(tr('Next: {names}', { names: namesList(heads.map((b) => b.name)) }))}">${heads.map((b) => `<i>${botMark(b)}</i>`).join('')}</div>` : '';
 }
 // The owner's messages a group's chat holds, as the server has them: what a message on its way is looked for in.
 const groupWords = (chat) => [...chat.items.values()].filter((x) => x.type === 'message');
@@ -461,7 +461,7 @@ function groupTailHTML(g, chat) {
   const last = !!sent && (chat.working.length > 0 || waiting.length > 0);
   const mine = sent ? sentHTML(sent, key) : '';
   return groupLimitHTML(chat.limit)
-    + (sent && !last ? `<div class="chat-sent">${mine}</div><div class="g-working">${OpeningLine.status('Working', null, null)}</div>` : groupWorkingHTML(chat.working))
+    + (sent && !last ? `<div class="chat-sent">${mine}</div><div class="g-working">${OpeningLine.status(tr('Working'), null, null)}</div>` : groupWorkingHTML(chat.working))
     + groupNextHTML(chat)
     + (waiting.length || last ? `<div class="chat-queued">${waiting.map((m) => groupWaitingHTML(m, key)).join('')}${last ? mine : ''}</div>` : '');
 }
@@ -507,13 +507,13 @@ function renderGroupChat() {
     root.innerHTML = `
       <div class="chat-head">
         ${BACK_BTN}
-        <button class="chat-title" id="group-settings" title="Its name and its members">
+        <button class="chat-title" id="group-settings" title="${esc(tr('Its name and its members'))}">
           <div id="group-pic"></div>
           <div class="grow"><h2 id="group-name"></h2><div class="sub" id="group-sub"></div></div>
         </button>
       </div>
       <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-drafts"></div><div class="g-tail"></div></div>
-      ${composerHTML(`Message ${g.name}`)}`;
+      ${composerHTML(tr('Message {name}', { name: g.name }))}`;
     wireComposer($('form', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
     $('#group-settings').onclick = () => setPanel('toggle');
     if (groupChat?.id !== g.id) loadGroupChat(g.id);
@@ -524,7 +524,7 @@ function renderGroupChat() {
   $('#group-name').textContent = g.name;
   $('#group-sub').textContent = groupMembers(g).map((b) => b.name).join(', ');
   const form = $('form', root);
-  form.text.placeholder = `Message ${g.name}…`;
+  form.text.placeholder = tr('Message {name}…', { name: g.name });
   const thread = $('#group-thread');
   const chat = groupChat?.id === g.id && groupChat.loaded ? groupChat : null;
   if (!chat) return; // not read yet: nothing is drawn in its place
@@ -699,7 +699,7 @@ async function sendToGroup(id, text, attachments = [], key = messageKey()) {
 // "Stop all": every run of the group at work ends, and the turns that would have followed never start.
 async function stopGroup(id, button) {
   if (button) button.disabled = true;
-  try { await api(`/group-chats/${encodeURIComponent(id)}/stop`, { method: 'POST' }); toast('Stopping…'); }
+  try { await api(`/group-chats/${encodeURIComponent(id)}/stop`, { method: 'POST' }); toast(tr('Stopping…')); }
   catch (e) { toast(e.message, true); if (button) button.disabled = false; }
   loadGroupChat(id);
 }
@@ -730,7 +730,7 @@ async function takeBackInGroup(id, messageId, button) {
     }
   } catch (e) {
     if (button) button.disabled = false;
-    if (e.status === 409) showBoxNote(here() ? form : null, 'It has already started.');
+    if (e.status === 409) showBoxNote(here() ? form : null, tr('It has already started.'));
     else toast(e.message, true);
     loadGroupChat(id);
   }

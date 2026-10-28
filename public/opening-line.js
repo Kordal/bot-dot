@@ -18,7 +18,7 @@ const text = (x) => (typeof x === 'string' ? x.trim() : '');
 const esc = (s) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // What the line of a run says while it waits for the owner's answer.
-const WAITING = 'Waiting for your OK';
+const WAITING = tr('Waiting for your OK');
 
 // The status line under a chat: '' when there is nothing to say. The ellipsis after it is drawn by the style.
 // The colour is the server's and is checked like the dots' (unread.js, loaded before this file).
@@ -32,9 +32,9 @@ function status(line, color, stop, held = false) {
   const run = text(stop);
   const chief = stop && typeof stop === 'object' ? text(stop.chief) : '';
   const waits = held === true && !!run;
-  const t = waits ? WAITING : text(line) || (run ? 'Working' : chief ? 'Thinking' : '');
-  const button = run ? `<button type="button" data-stop-run="${esc(run)}">Stop</button>`
-    : chief ? `<button type="button" data-stop-chief="${esc(chief)}">Stop</button>` : '';
+  const t = waits ? WAITING : text(line) || (run ? tr('Working') : chief ? tr('Thinking') : '');
+  const button = run ? `<button type="button" data-stop-run="${esc(run)}">${tr('Stop')}</button>`
+    : chief ? `<button type="button" data-stop-chief="${esc(chief)}">${tr('Stop')}</button>` : '';
   return t ? `<div class="status-line${waits ? ' held' : ''}" role="status" style="--c:${root.Unread.tint(color)}"><i></i><span>${esc(t)}</span>${button}</div>` : '';
 }
 
@@ -56,7 +56,7 @@ const NO_WORDS = 'Working';
 // `activity`, which is the whole line as it reads now: its opening line first, then the words of the steps that
 // follow. opener: its opening line, which is still sent apart. The page draws what it is doing; where that has no
 // words (none came yet, or a server from before) the opening line stands, as it always did.
-const chiefLine = (doing, opener) => { const d = text(doing); return d && d !== NO_WORDS ? d : text(opener) || d; };
+const chiefLine = (doing, opener) => { const d = text(doing); return d && d !== NO_WORDS ? d : text(opener) || (d && tr('Working')); };
 
 // The bot's preview in the list while it works: its line, or '' for the usual "Working…".
 const preview = (line) => (text(line) ? `${text(line)}…` : '');

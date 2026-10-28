@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { startServer, makeBot, waitFor, ROOT } = require('./helpers');
-const { esc } = require('./web-page');
+const { esc, words } = require('./web-page');
 const { parseSkillMd, kitSkills, KIT_DIR } = require('../lib/skills');
 const { chiefSkills } = require('../lib/chief');
 const { TOOLS: CHIEF_TOOLS } = require('../lib/mcp-server');
@@ -50,7 +50,7 @@ test('the skill parses, is named pages, ships as the plugin "kit" and is listed 
 test('its examples draw with every block: no block that cannot be drawn, on the server and on the web page', () => {
   const pages = examples();
   assert.equal(pages.length, 3, 'a project overview, a server status page and a weekly report');
-  const ctx = vm.createContext({ esc, md: (s) => `<p>${esc(s)}</p>`, $$: () => [], $: () => null });
+  const ctx = vm.createContext({ ...words, esc, md: (s) => `<p>${esc(s)}</p>`, $$: () => [], $: () => null });
   vm.runInContext(`${fs.readFileSync(path.join(ROOT, 'public', 'blocks.js'), 'utf8')}\nthis.pageHTML = pageHTML;`, ctx);
   for (const [i, md] of pages.entries()) {
     assert.deepEqual(pb.inspect(md, board).problems, [], `example ${i + 1}`);

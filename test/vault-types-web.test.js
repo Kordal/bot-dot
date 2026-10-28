@@ -18,7 +18,8 @@ const cut = (from, to) => {
   return app.slice(a, b);
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const page = vm.createContext({ esc });
+const { words } = require('./web-page');
+const page = vm.createContext({ ...words, esc });
 const NAMES = ['VAULT_TYPES', 'vaultType', 'vaultItemAddr', 'vaultItemLine', 'vaultTypeControl', 'vaultTypeFields', 'wireSecretFile', 'wireVaultType', 'vaultTypeBody'];
 vm.runInContext(`${cut('const VAULT_TYPES = {', 'async function renderVault()')}\n${NAMES.map((n) => `this.${n} = ${n};`).join(' ')}`, page);
 const list = cut('async function renderVault()', 'function openLoginEditor(login)');
@@ -76,10 +77,10 @@ test('web: the address and the username of an item are escaped', () => {
 
 test('web: the list draws a login-kind item with these two lines, and a card and an identity as before', () => {
   assert.match(list, /: vaultItemLine\(l\);/);
-  assert.match(list, /<div class="addr">\$\{kind === 'login' \? vaultItemAddr\(l\) : kind === 'card' \? 'Payment card' : kind === 'ssh-key' \? 'SSH key' : kind === 'file' \? 'File' : 'Identity'\}<\/div>/);
+  assert.match(list, /<div class="addr">\$\{kind === 'login' \? vaultItemAddr\(l\) : kind === 'card' \? tr\('Payment card'\) : kind === 'ssh-key' \? tr\('SSH key'\) : kind === 'file' \? tr\('File'\) : tr\('Identity'\)\}<\/div>/);
   assert.match(list, /const line = kind === 'card' \? `💳 /, 'a card keeps its line');
   assert.match(list, /: kind === 'identity' \? `🪪 /, 'an identity keeps its line');
-  assert.match(list, /<button class="btn primary" id="add-login">＋ Add<\/button>/, 'the button is "＋ Add"');
+  assert.match(list, /<button class="btn primary" id="add-login">＋ \$\{tr\('Add'\)\}<\/button>/, 'the button is "＋ Add"');
   assert.doesNotMatch(list, /Add login/);
 });
 
@@ -215,7 +216,7 @@ test('web: Other sends no username; Login and API token send the type and the us
 // ---------- the editor ----------
 
 test('web: the editor is "Add to the Vault", Type is its first control, and the fields follow it', () => {
-  assert.match(editor, /<h2>\$\{isNew \? 'Add to the Vault' : `Edit \$\{esc\(l\.name\)\}`\}<\/h2>/);
+  assert.match(editor, /<h2>\$\{isNew \? tr\('Add to the Vault'\) : esc\(tr\('Edit \{name\}', \{ name: l\.name \}\)\)\}<\/h2>/);
   assert.doesNotMatch(editor, /Add login/);
   const body = editor.slice(at(editor, '<div class="modal-body">'));
   assert.match(body, /^<div class="modal-body">\s*\$\{vaultTypeControl\(l\.type\)\}/, 'the first control');
@@ -230,7 +231,7 @@ test('web: the editor is "Add to the Vault", Type is its first control, and the 
 
 test('web: the editor has "Usable in its computer", off for a new item, and sends it; the dialog of a bot\'s request has none', () => {
   const body = editor.slice(at(editor, '<div class="modal-body">'));
-  assert.match(body, /<label class="toggle"><input type="checkbox" name="inComputer" \$\{l\.inComputer \? 'checked' : ''\}> Usable in its computer /);
+  assert.match(body, /<label class="toggle"><input type="checkbox" name="inComputer" \$\{l\.inComputer \? 'checked' : ''\}> \$\{tr\('Usable in its computer'\)\} /);
   assert.ok(at(body, 'name="insecureTls"') < at(body, 'name="inComputer"'), 'right under the certificate');
   const submit = editor.slice(at(editor, 'form.onsubmit = async (e) => {'));
   assert.match(submit, /insecureTls: form\.insecureTls\.checked,\s*inComputer: form\.inComputer\.checked,/);
@@ -240,7 +241,7 @@ test('web: the editor has "Usable in its computer", off for a new item, and send
 
 test('web: the note of the editor no longer explains where a token ID goes', () => {
   const note = editor.slice(at(editor, '<div class="req-note">'), at(editor, '<fieldset>'));
-  assert.match(note, /so they never see the secret\.<\/div>/);
+  assert.match(note, /so they never see the secret\.', \{ username: '<span class="mono">\{\{username\}\}<\/span>', password: '<span class="mono">\{\{password\}\}<\/span>' \}\)\}<\/div>/);
   assert.doesNotMatch(editor, /token ID in the first field|put the token ID/i);
 });
 
@@ -251,10 +252,10 @@ test('web: the editor sends the chosen type, and for Other no username', () => {
 });
 
 test('web: the words of the editor fit every type', () => {
-  assert.match(editor, /<button class="btn primary" type="submit">Save<\/button>/);
-  assert.match(editor, /: 'Saved' \}\)\)/);
-  assert.match(editor, /toast\('Deleted'\);/);
-  assert.match(editor, /`Delete "\$\{l\.name\}" from the Vault\?`/);
+  assert.match(editor, /<button class="btn primary" type="submit">\$\{tr\('Save'\)\}<\/button>/);
+  assert.match(editor, /: tr\('Saved'\) \}\)\)/);
+  assert.match(editor, /toast\(tr\('Deleted'\)\);/);
+  assert.match(editor, /tr\('Delete "\{name\}" from the Vault\?', \{ name: l\.name \}\)/);
   assert.doesNotMatch(editor, /Save login|Login saved|Login deleted|the saved login/);
 });
 
@@ -262,7 +263,7 @@ test("web: a save sets the editor aside; refused, it comes back with the server'
   assert.match(editor, /<div class="req-error" role="alert" hidden><\/div>\s*<\/div>\s*<div class="modal-foot">/, 'room for the sentence, in the form');
   const submit = editor.slice(at(editor, 'form.onsubmit = async (e) => {'));
   assert.ok(at(submit, "form.password.value = '';") < at(submit, 'setAside(m,'), 'the secret is gone before the answer');
-  assert.match(submit, /if \(await setAside\(m, 'Saving…', \(\) => api\(/, 'set aside (app.js), which brings it back with the sentence in its .req-error');
+  assert.match(submit, /if \(await setAside\(m, tr\('Saving…'\), \(\) => api\(/, 'set aside (app.js), which brings it back with the sentence in its .req-error');
   assert.match(submit, /const refused = \$\('\.req-error', form\);\s*refused\.hidden = true;/, 'an earlier sentence goes with the next try');
   assert.match(css, /\.req-error \{[^}]*color: var\(--err\);/);
 });
@@ -270,12 +271,12 @@ test("web: a save sets the editor aside; refused, it comes back with the server'
 // ---------- the "needs a login" dialog ----------
 
 test('web: the dialog has the Type control above its new-login fields, set from the type of the request', () => {
-  assert.ok(at(dialog, 'or save a new one:') < at(dialog, '${vaultTypeControl(r.type)}'));
+  assert.ok(at(dialog, "tr('or save a new one:')") < at(dialog, '${vaultTypeControl(r.type)}'));
   assert.match(dialog, /\$\{vaultTypeControl\(r\.type\)\}\s*\$\{vaultTypeFields\(r\.type, \{ username: r\.username \}\)\}/, 'the fields right under it');
   assert.ok(at(dialog, '${vaultTypeFields(r.type') < at(dialog, 'name="insecureTls"'));
   assert.match(dialog, /wireVaultType\(form, \{ username: r\.username \}\);/, 'and they follow the choice');
   assert.doesNotMatch(dialog, /Username, email or token ID|Password, token or key/);
-  assert.match(dialog, /needs a login<\/h2>/, 'the heading stays');
+  assert.match(dialog, /tr\('\{bot\} needs a login', \{ bot: botLabel\(r\.bot\) \}\)\}<\/h2>/, 'the heading stays');
 });
 
 test('web: Save in the dialog sends the chosen type, and for Other no username', () => {

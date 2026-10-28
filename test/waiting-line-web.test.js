@@ -8,11 +8,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, noDrafts } = require('./web-page');
+const { app, read, cut, esc, noDrafts, words } = require('./web-page');
 
 const css = read('style.css');
 const MAIL = { id: 'mail', name: 'Mail Writer', color: '#9b59d0' };
-const lib = vm.createContext({});
+const lib = vm.createContext({ ...words });
 vm.runInContext(read('unread.js'), lib);
 vm.runInContext(read('opening-line.js'), lib);
 const { OpeningLine } = lib;
@@ -55,7 +55,7 @@ function chat(runs) {
   const thread = { dataset: {}, scrollHeight: 0, scrollTop: 0, clientHeight: 0, line: null,
     insertAdjacentHTML(where, html) { this.line = { html, nextElementSibling: null, remove: () => { this.line = null; } }; },
     get lastElementChild() { return this.line; } };
-  const ctx = vm.createContext({ ...noDrafts,
+  const ctx = vm.createContext({ ...words, ...noDrafts,
     OpeningLine, Unread: lib.Unread, openingLines, state, CHIEF_COLOR: '#d85a30', botById: (id) => (id === MAIL.id ? MAIL : null),
     stopRun() {}, updateChatQueued() {}, chiefTurns: new Map(), esc, sentTo: () => [], said: (v) => (typeof v === 'string' ? v.trim() : ''), plain: String, Date,
     $: (sel, root) => (sel === '#view-bot' ? { dataset: { bot: MAIL.id } } : sel === '#bot-thread' ? thread : sel === '.status-line' ? root.line : null),
@@ -117,7 +117,7 @@ test('web: only "ok" on the chat\'s own running run holds the line', () => {
 
 // The page's botThreadHTML over a bot's runs, oldest first, with stand-ins for what a bubble holds.
 function threadHTML(runs, newFirst = null) {
-  const ctx = vm.createContext({ ...noDrafts,
+  const ctx = vm.createContext({ ...words, ...noDrafts,
     esc, Unread: lib.Unread, OpeningLine, said: (v) => (typeof v === 'string' ? v.trim() : ''), state: { keepOpen: null, features: [] }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '<script-run>', msgTime: () => '11:40', dur: () => '2 s',
     notesFoldHTML: (notes) => (notes?.length ? '<notes>' : ''), filesHTML: (f) => (f?.length ? '<files>' : ''), botFilesHTML: () => '', copyBtn: () => '',

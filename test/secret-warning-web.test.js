@@ -39,5 +39,5 @@ test('web: ordinary sentences send without a question', () => {
 });
 
 test('web: the message box asks before it sends one, and says where a password belongs', () => {
-  assert.match(app, /if \(looksLikeSecret\(text\) && !confirm\('This looks like it contains a password\.\\n\\nMessages are sent to the AI and saved on disk\./);
+  assert.match(app, /if \(looksLikeSecret\(text\) && !confirm\(tr\('This looks like it contains a password\.\\n\\nMessages are sent to the AI and saved on disk\./);
 });

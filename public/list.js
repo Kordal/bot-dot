@@ -94,14 +94,14 @@ function glideContacts(draw) {
 // says what it does.
 function contactLine(b, r, working) {
   const asks = Unread.asks(b, b.running || r?.status === 'running');
-  const prev = asks ? `Asks: ${asks}` : b.running ? working : r ? (r.status === 'success' ? plain(r.result) : r.status === 'running' ? working : "Couldn't finish") : b.description || '';
+  const prev = asks ? tr('Asks: {question}', { question: asks }) : b.running ? working : r ? (r.status === 'success' ? plain(r.result) : r.status === 'running' ? working : tr("Couldn't finish")) : b.description || '';
   return { prev, cls: asks ? 'asks' : b.running ? 'working' : '', after: asks ? Unread.mark(b.color) : Unread.dots(Unread.count(b), b.color) };
 }
 
 // A bot's line in the list and on its key: from its newest run, and while it works its line in the server's words when
 // it has one.
 function botLine(b) {
-  const working = OpeningLine.preview(openingLines.of(`bot:${b.id}`)) || 'Working…'; // its line, in the server's words, when it has one
+  const working = OpeningLine.preview(openingLines.of(`bot:${b.id}`)) || tr('Working…'); // its line, in the server's words, when it has one
   return contactLine(b, state.runs.find((r) => r.botId === b.id), working);
 }
 
@@ -115,9 +115,9 @@ function drawContacts() {
   if (!q) items.push(dashStrip());
   if (!q || chiefMatches(q)) {
     top.push(`
-      <button class="contact ${state.view === 'chief' ? 'active' : ''}" data-contact="chief" title="${esc(chiefName())}">
+      <button class="contact ${state.view === 'chief' ? 'active' : ''}" data-contact="chief" title="${esc(chiefTitle())}">
         ${chiefFigure()}
-        <div class="grow"><div class="top"><span class="name">${esc(chiefName())}</span><span class="time">${esc(shortTime(chat?.updatedAt))}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}</div>
+        <div class="grow"><div class="top"><span class="name">${esc(chiefTitle())}</span><span class="time">${esc(shortTime(chat?.updatedAt))}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}</div>
         <div class="prev">${esc(plain(chat?.preview))}</div></div>
       </button>`);
   }
@@ -155,16 +155,16 @@ function drawContacts() {
       const busy = p.keys.some((x) => !x.members && x.running);
       items.push(`
         <div class="group-head" data-group-head="${esc(g)}">
-          <button class="group-toggle" data-fold="${esc(g)}" title="${isFolded ? 'Show' : 'Hide'} this category"><span class="chev ${isFolded ? 'closed' : ''}">▾</span>${esc(p.name)} <span class="faint">${p.keys.length}</span>${isFolded && busy ? '<span class="dot busy inline"></span>' : ''}</button>
-          ${g ? `<button class="icon-btn sm group-menu" data-group-menu="${esc(g)}" title="Rename or remove this category">⋯</button>` : ''}
+          <button class="group-toggle" data-fold="${esc(g)}" title="${isFolded ? tr('Show this category') : tr('Hide this category')}"><span class="chev ${isFolded ? 'closed' : ''}">▾</span>${esc(pageName(p))} <span class="faint">${p.keys.length}</span>${isFolded && busy ? '<span class="dot busy inline"></span>' : ''}</button>
+          ${g ? `<button class="icon-btn sm group-menu" data-group-menu="${esc(g)}" title="${tr('Rename or remove this category')}">⋯</button>` : ''}
         </div>`);
       if (!isFolded) items.push(...p.keys.map(row));
     }
   }
   // Messages that match, in every chat (see searchChats).
   const hits = q.length >= 2 && state.search?.q === q ? state.search.hits : [];
-  if (hits.length) items.push('<div class="contact-sep"></div><div class="hits-head">Messages</div>', ...hits.map(hitHTML));
-  $('#contacts').innerHTML = items.join('') || '<div class="faint" style="padding:16px;font-size:13px">No matches</div>';
+  if (hits.length) items.push(`<div class="contact-sep"></div><div class="hits-head">${tr('Messages')}</div>`, ...hits.map(hitHTML));
+  $('#contacts').innerHTML = items.join('') || `<div class="faint" style="padding:16px;font-size:13px">${tr('No matches')}</div>`;
   $('.sidebar')?.classList.toggle('searching', !!q); // a wide window shows the results in place of the keys
   fitStrip();
   $$('[data-hit]').forEach((el) => (el.onclick = () => openHit(hits[Number(el.dataset.hit)])));
@@ -191,6 +191,8 @@ function drawContacts() {
 const openChief = () => openChiefChat((state.chats.find((c) => Unread.count(c)) || state.chats[0])?.id || null);
 
 const keypadPages = () => Keypad.pages(state.bots, state.groups);
+// A page's name as shown: Other's in the page's language, a category's as the owner wrote it.
+const pageName = (p) => (p.kind === 'other' ? tr('Other') : p.name);
 // A category's page folds as the list's category does (#171), with the list's folded names: folding it in one folds it
 // in the other. Pinned never folds; while searching nothing is folded.
 const pageFoldName = (p) => (p.kind === 'other' ? '\u0000' : p.name);
@@ -251,7 +253,7 @@ function stripKpi(t) {
   if (!num && t.kind === 'page' && t.at) return `<span class="kp-card">${kitKpi({ label: t.title, text: pageAge(t.at) }, c)}</span>`; // a page without a number: its age (#451)
   const dot = t.look?.dot;
   const card = num ? kitKpi({ label: t.title, ...num }, c)
-    : `<div class="kit-kpi"><div class="kit-kpi-main"><div class="kit-label">${esc(t.title)}</div><div class="kit-num kp-card-dot">${tileMark(t)}${dot && dot.big ? `<span>${dot.filled === true ? 'On' : dot.filled === false ? 'Off' : '·'}</span>` : ''}</div></div></div>`;
+    : `<div class="kit-kpi"><div class="kit-kpi-main"><div class="kit-label">${esc(t.title)}</div><div class="kit-num kp-card-dot">${tileMark(t)}${dot && dot.big ? `<span>${dot.filled === true ? tr('On') : dot.filled === false ? tr('Off') : '·'}</span>` : ''}</div></div></div>`;
   return `<span class="kp-card">${card}</span>`;
 }
 // The Board's strip: one plain number per tile on home, in as many lines as they take, never cut (#635). A tap, or
@@ -259,8 +261,8 @@ function stripKpi(t) {
 // on a touch screen a long press does.
 function boardLine() {
   if (!state.dash) return '';
-  const edit = canHome() ? `<button type="button" class="kp-board-edit" data-home-edit aria-label="Tiles on home">${PEN}</button>` : '';
-  return `<div class="kp-board-line ${state.view === 'dashboard' ? 'active' : ''}" role="button" tabindex="0" data-board title="Board">${boardTiles().map(stripKpi).join('') || BOARD_EMPTY}</div>${edit}`;
+  const edit = canHome() ? `<button type="button" class="kp-board-edit" data-home-edit aria-label="${tr('Tiles on home')}">${PEN}</button>` : '';
+  return `<div class="kp-board-line ${state.view === 'dashboard' ? 'active' : ''}" role="button" tabindex="0" data-board title="${tr('Board')}">${boardTiles().map(stripKpi).join('') || BOARD_EMPTY}</div>${edit}`;
 }
 // The Board's line drawn in `el`: the keypad's, or a phone's.
 function drawBoardLine(el) {
@@ -282,7 +284,7 @@ function drawBoardLine(el) {
 // replies, blue with its new replies.
 function chiefKeyHTML() {
   const s = Keypad.status({ running: !!state.chiefBusy, unread: state.chiefUnread || 0 });
-  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}${Motion.justDone('chief', s.kind) ? ' just-done' : ''}" data-key-chief title="${esc(chiefName())} · Esc" aria-keyshortcuts="Escape"><span class="key-head">${chiefFigure()}${keyDot(s, state.chiefUnread || 0)}</span><span class="name">${esc(chiefName())}</span></button>`;
+  return `<button class="key key-chief${state.view === 'chief' ? ' active' : ''}${Motion.justDone('chief', s.kind) ? ' just-done' : ''}" data-key-chief title="${esc(chiefTitle())} · Esc" aria-keyshortcuts="Escape"><span class="key-head">${chiefFigure()}${keyDot(s, state.chiefUnread || 0)}</span><span class="name">${esc(chiefTitle())}</span></button>`;
 }
 // The top row: the Chief's key, then the pinned bots and groups, also when nothing is pinned; the row itself is Pinned's
 // drop place (pinned last). Under it every category, side by side where they fit: its name over its keys. A key's
@@ -297,7 +299,7 @@ function drawKeypad() {
   drawBoardLine($('#kp-board'));
   const keysOf = (i) => all.map((k, n) => (k.page === i ? keyHTML(k.x, n, null, Keypad.digitOf(digits, k.x)) : '')).join('');
   const cats = pages.slice(1).map((p, n) => `<section class="kp-page${pageFolded(p) ? ' folded' : ''}"><h3 class="kp-page-head" data-page="${n + 1}">${pageHead(p, `data-page-fold="${n + 1}"`)}</h3><div class="kp-page-keys">${keysOf(n + 1)}</div></section>`).join('');
-  keys.innerHTML = `<section class="kp-page kp-pinned" data-page="0" aria-label="Pinned"><div class="kp-page-keys">${chiefKeyHTML()}${keysOf(0)}</div></section>${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
+  keys.innerHTML = `<section class="kp-page kp-pinned" data-page="0" aria-label="${tr('Pinned')}"><div class="kp-page-keys">${chiefKeyHTML()}${keysOf(0)}</div></section>${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
   $$('[data-key]', keys).forEach((el) => (el.onclick = () => openKey(all[Number(el.dataset.key)].x)));
   $$('[data-page-fold]', keys).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.pageFold)])));
   $$('[data-key-chief]', keys).forEach((el) => (el.onclick = openChief));
@@ -316,7 +318,7 @@ function pageDot(p) {
 function pageHead(p, fold) {
   const folded = pageFolded(p);
   const busy = folded && p.keys.some((x) => !x.members && x.running);
-  return `<button class="kp-fold" ${fold} aria-expanded="${!folded}" title="${folded ? 'Show' : 'Hide'} this category">${esc(p.name)}${folded ? `<span class="chev closed">▾</span>${pageDot(p)}${busy ? '<i class="kp-busy"></i>' : ''}` : ''}</button>`;
+  return `<button class="kp-fold" ${fold} aria-expanded="${!folded}" title="${folded ? tr('Show this category') : tr('Hide this category')}">${esc(pageName(p))}${folded ? `<span class="chev closed">▾</span>${pageDot(p)}${busy ? '<i class="kp-busy"></i>' : ''}` : ''}</button>`;
 }
 const foldPage = (p) => { if (p) { toggleGroupFold(pageFoldName(p)); renderContacts(); } };
 // The Chief's chat, ready to write in.
@@ -336,8 +338,8 @@ function drawKeypadSections(pages) {
   $$('[data-section-fold]', sections).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.sectionFold)])));
   $$('[data-section-key]', sections).forEach((el) => (el.onclick = () => { const [n, i] = el.dataset.sectionKey.split('.').map(Number); openKey(pages[n].keys[i]); }));
   // The Chief's field: its head, its name where the message goes, and the send arrow. A tap opens its chat, ready to write in.
-  chief.innerHTML = `${chiefFigure()}<span>${esc(chiefName())}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}<i class="kp-send">${SEND_ARROW}</i>`;
-  chief.title = `Message ${chiefName()}`;
+  chief.innerHTML = `${chiefFigure()}<span>${esc(chiefTitle())}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}<i class="kp-send">${SEND_ARROW}</i>`;
+  chief.title = messageChief();
   chief.onclick = askChief;
 }
 // Drag a key (#499): onto another key it takes that key's place, on its page or another; onto the Chief's key it is
@@ -394,11 +396,11 @@ function drawKeypadNeeds(items, open, waits = items) {
   const shown = items.slice(0, NEED_ROWS);
   const head = (x) => (x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure());
   const acts = (x, i) => (answersInline(x)
-    ? `<button type="button" class="kp-no" data-kp-no="${i}">No</button><button type="button" class="kp-allow" data-kp-yes="${i}">Allow</button>`
-    : `<button type="button" class="kp-allow" data-kp-open="${i}">Review</button>`);
+    ? `<button type="button" class="kp-no" data-kp-no="${i}">${tr('No')}</button><button type="button" class="kp-allow" data-kp-yes="${i}">${tr('Allow')}</button>`
+    : `<button type="button" class="kp-allow" data-kp-open="${i}">${tr('Review')}</button>`);
   const more = items.length - shown.length;
-  const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefName())}</b> <span>${esc(needLine(x))}</span></span>${acts(x, i)}</div>`).join('')
-    + (more ? `<button type="button" class="kp-needs-more" data-kp-more>+${more} more</button>` : '');
+  const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></span>${acts(x, i)}</div>`).join('')
+    + (more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : '');
   for (const id of ['#kp-needs', '#kp-phone-needs']) {
     const el = $(id);
     if (!el) continue;
@@ -679,7 +681,7 @@ async function moveBot(bot, group, at) {
   renderContacts(); // right away; the save follows
   try {
     await api(`/bots/${bot.id}`, { method: 'PUT', body: { group, order: at, ...(wasPinned ? { pinned: 0 } : {}) } });
-    if (from !== group) toast(group ? `${bot.name} moved to ${group}` : `${bot.name} moved to Other`);
+    if (from !== group) toast(tr('{name} moved to {category}', { name: bot.name, category: group || tr('Other') }));
   } catch (err) { toast(err.message, true); }
   refresh();
 }
@@ -691,9 +693,9 @@ function groupPicker(box, input, onChange) {
     if (input.value) typed.add(input.value);
     const names = [...new Set([...groupNames(), ...typed].filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     box.innerHTML = [
-      `<button type="button" class="gchip ${!input.value ? 'on' : ''}" data-g="">None</button>`,
+      `<button type="button" class="gchip ${!input.value ? 'on' : ''}" data-g="">${tr('None')}</button>`,
       ...names.map((g) => `<button type="button" class="gchip ${input.value === g ? 'on' : ''}" data-g="${esc(g)}">${esc(g)}</button>`),
-      adding ? '<input type="text" class="gchip-input" maxlength="40" placeholder="Category name" aria-label="New category name">' : '<button type="button" class="gchip add" data-new title="New category" aria-label="New category">＋</button>',
+      adding ? `<input type="text" class="gchip-input" maxlength="40" placeholder="${tr('Category name')}" aria-label="${tr('New category name')}">` : `<button type="button" class="gchip add" data-new title="${tr('New category')}" aria-label="${tr('New category')}">＋</button>`,
     ].join('');
     $$('[data-g]', box).forEach((c) => (c.onclick = () => { input.value = c.dataset.g; draw(); onChange?.(); }));
     const add = $('[data-new]', box);
@@ -721,20 +723,20 @@ function openGroupMenu(group) {
   const members = [...state.bots.filter((b) => b.group === group), ...state.groups.filter((g) => g.category === group)];
   const m = openModal(`
     <form id="group-form" autocomplete="off">
-      <div class="modal-head"><h2>Category: ${esc(group)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>${tr('Category: {name}', { name: esc(group) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <label class="field">Name<input type="text" name="name" value="${esc(group)}" maxlength="40" required></label>
+        <label class="field">${tr('Name')}<input type="text" name="name" value="${esc(group)}" maxlength="40" required></label>
         <div class="muted" style="font-size:12.5px">${members.map((b) => (b.members ? esc(b.name) : botLabel(b))).join(', ')}</div>
       </div>
       <div class="modal-foot">
-        <button type="button" class="btn danger left" id="group-remove">Remove category</button>
-        <button type="button" class="btn" data-dismiss>Cancel</button>
-        <button class="btn primary">Rename</button>
+        <button type="button" class="btn danger left" id="group-remove">${tr('Remove category')}</button>
+        <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>
+        <button class="btn primary">${tr('Rename')}</button>
       </div>
     </form>`);
   const rename = async (to, msg) => {
     try { await api('/groups/rename', { method: 'POST', body: { from: group, to } }); m.close(); toast(msg); await refresh(); } catch (e) { toast(e.message, true); }
   };
-  $('#group-form', m).onsubmit = (e) => { e.preventDefault(); const to = e.target.name.value.trim(); if (to && to !== group) rename(to, `Renamed to ${to}`); else m.close(); };
-  $('#group-remove', m).onclick = () => rename('', 'Category removed'); // no question: its bots and groups move to Other, and a category is made again by naming it
+  $('#group-form', m).onsubmit = (e) => { e.preventDefault(); const to = e.target.name.value.trim(); if (to && to !== group) rename(to, tr('Renamed to {name}', { name: to })); else m.close(); };
+  $('#group-remove', m).onclick = () => rename('', tr('Category removed')); // no question: its bots and groups move to Other, and a category is made again by naming it
 }

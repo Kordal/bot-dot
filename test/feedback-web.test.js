@@ -5,7 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { cut, read, element, answer } = require('./web-page');
+const { cut, read, element, answer, words } = require('./web-page');
 
 function page({ fetch = answer(201, { ok: true }), session = answer(200, { admin: false, feedback: true }), kind = 'bug', text = 'Approve button does nothing on my phone' } = {}) {
   const calls = [];
@@ -25,6 +25,7 @@ function page({ fetch = answer(201, { ok: true }), session = answer(200, { admin
     open: false, close() { modal.open = false; for (const fn of modal.listeners.close || []) fn(); modal.listeners.close = []; },
   });
   const ctx = vm.createContext({
+    ...words,
     state: { features: ['accounts'] },
     esc: (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
     btoa: (b) => Buffer.from(b, 'latin1').toString('base64'),

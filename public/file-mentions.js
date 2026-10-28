@@ -35,7 +35,7 @@ const FileMentions = (() => {
     if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'heic', 'bmp'].includes(ext)) return 'image';
     return 'doc';
   }
-  const placeName = (root, project) => (root === 'server' ? 'On botdot' : root === 'computer' ? 'Computer' : project || '');
+  const placeName = (root, project) => (root === 'server' ? tr('On botdot') : root === 'computer' ? tr('Computer') : project || '');
   const dirKey = (d) => `${d.root}|${d.project || ''}|${d.path}`;
   const parentOf = (p) => (p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '');
   const baseOf = (p) => p.split('/').pop();
@@ -71,8 +71,8 @@ const FileMentions = (() => {
   // The header of a folder opened: back, its place, and the folders on the way.
   function headerHTML(d) {
     const trail = [placeName(d.root, d.project), ...(d.path ? d.path.split('/') : [])];
-    return `<button type="button" class="fm-back" data-fm="back" aria-label="Back">${BACK}</button>${PLACE_ICONS[d.root] || ''}`
-      + `<button type="button" class="fm-trail" data-fm="this" title="Mention this folder">${trail.map((t, i) => (i === trail.length - 1 ? `<b>${esc(t)}</b>` : `${esc(t)}<span class="fm-sep">/</span>`)).join('')}</button>`;
+    return `<button type="button" class="fm-back" data-fm="back" aria-label="${esc(tr('Back'))}">${BACK}</button>${PLACE_ICONS[d.root] || ''}`
+      + `<button type="button" class="fm-trail" data-fm="this" title="${esc(tr('Mention this folder'))}">${trail.map((t, i) => (i === trail.length - 1 ? `<b>${esc(t)}</b>` : `${esc(t)}<span class="fm-sep">/</span>`)).join('')}</button>`;
   }
 
   // The picker of one message box. redraw() is called when an answer came in.

@@ -14,7 +14,8 @@ const cut = (from, to) => {
   return app.slice(a, b);
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const page = vm.createContext({ esc });
+const { words } = require('./web-page');
+const page = vm.createContext({ ...words, esc });
 vm.runInContext(`${cut('const vaultSshKeyLine =', 'async function renderVault()')}\n${cut('const KIND_ICON =', '\n\n')}\nthis.vaultSshKeyLine = vaultSshKeyLine; this.KIND_ICON = KIND_ICON; this.ITEM_BOTS_HINT = ITEM_BOTS_HINT;`, page);
 const list = cut('async function renderVault()', 'function openLoginEditor(login)');
 const bots = cut('function openItemBots(item)', '// ---------- Needs you');
@@ -28,8 +29,8 @@ test('web: an SSH key reads as one, with its fingerprint, escaped', () => {
 
 test('web: the list draws an SSH key with its own line and "SSH key", and opens the Bots… dialog for it', () => {
   assert.match(list, /: kind === 'ssh-key' \? vaultSshKeyLine\(l\)/);
-  assert.match(list, /kind === 'ssh-key' \? 'SSH key'/);
-  assert.match(list, /\$\{kind === 'login' \? 'Edit' : 'Bots…'\}/, 'only a login has the editor');
+  assert.match(list, /kind === 'ssh-key' \? tr\('SSH key'\)/);
+  assert.match(list, /\$\{kind === 'login' \? tr\('Edit'\) : tr\('Bots…'\)\}/, 'only a login has the editor');
   assert.match(page.ITEM_BOTS_HINT['ssh-key'], /every bot on that computer could read it/);
   assert.match(bots, /ITEM_BOTS_HINT\[item\.kind\] \|\| ITEM_BOTS_HINT\.identity/);
   assert.equal(page.ITEM_BOTS_HINT.card, 'Bots that may pay with this card. You still approve every payment in a pop-up.', 'a card keeps its words');

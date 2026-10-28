@@ -6,10 +6,10 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element } = require('./web-page');
+const { app, read, cut, esc, element, words } = require('./web-page');
 
 const css = read('style.css');
-const lib = vm.createContext({});
+const lib = vm.createContext({ ...words });
 vm.runInContext(read('unread.js'), lib);
 vm.runInContext(read('opening-line.js'), lib);
 const BOT = { id: 'doctor', name: 'Fleet Doctor' };
@@ -40,7 +40,7 @@ function page({ reply = async () => ({}) } = {}) {
   const timers = [];
   const state = { bots: [{ ...BOT, jobs: [] }], botId: BOT.id };
   const said = { calls: [], toasts: [], refreshed: 0 };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     esc, OpeningLine: lib.OpeningLine, state, Date,
     $: (sel, root) => root.querySelector(sel), $$: (sel, root) => root.querySelectorAll(sel),
     botById: (id) => state.bots.find((b) => b.id === id),
@@ -207,7 +207,7 @@ function board(reply) {
   const draws = [];
   const timers = [];
   const ctx = vm.createContext({
-    state, tapped: new Map(), popped: new Set(), botById: (id) => (id === 'doctor' ? BOT : null),
+    ...words, state, tapped: new Map(), popped: new Set(), botById: (id) => (id === 'doctor' ? BOT : null),
     renderDashboard: () => draws.push(ctx.tapped.get('t1') ?? null), setTimeout: (fn) => timers.push(fn), openTilePanel() {}, setView() {}, loadDash() {},
     toast: () => assert.fail('no toast'), api: async () => reply(),
   });
@@ -226,7 +226,7 @@ test('web: a Board tile that asks a busy bot says "<Bot> will do it when it is f
   // The note goes after its moment, as "Asked" does.
   b.timers.forEach((fn) => fn());
   assert.equal(b.ctx.tapped.has('t1'), false);
-  assert.match(cut('function tileHTML(t, waiting, sourced = false) {', 'function renderDashboard() {'), /const note = waiting \? 'Waiting for your OK' : tapped\.get\(t\.id\)/, 'drawn as the tile\'s line, as text');
+  assert.match(cut('function tileHTML(t, waiting, sourced = false) {', 'function renderDashboard() {'), /const note = waiting \? tr\('Waiting for your OK'\) : tapped\.get\(t\.id\)/, 'drawn as the tile\'s line, as text');
 });
 
 test('web: a tile whose bot was free says "Asked <Bot>", as before; a bot the page does not know is "Its bot"', async () => {

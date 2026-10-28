@@ -63,15 +63,15 @@ const Files = (() => {
   const iconOf = (e) => `<span class="fx-ic fx-k-${kindOf(e)}">${I[kindOf(e)]}</span>`;
   const KB = (n) => (typeof fmtSize === 'function' ? fmtSize(n) : `${n} B`);
   // A folder's size is how many entries it holds.
-  const sizeOf = (e) => (e.type === 'folder' ? (Number.isFinite(e.items) ? `${e.items.toLocaleString('en')} item${e.items === 1 ? '' : 's'}` : '') : e.type === 'file' ? KB(e.size || 0) : '');
+  const sizeOf = (e) => (e.type === 'folder' ? (Number.isFinite(e.items) ? trn(e.items, '{n} item', '{n} items', { n: e.items.toLocaleString(I18n.locale || 'en') }) : '') : e.type === 'file' ? KB(e.size || 0) : '');
   // "Today 07:20", "Yesterday", "20 Oct"; on a phone "07:20" today.
   function whenOf(iso, short = false) {
     if (!iso) return '';
     const d = new Date(iso); const now = new Date();
-    const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
-    if (d.toDateString() === now.toDateString()) return short ? time : `Today ${time}`;
-    if (d.toDateString() === new Date(now - 864e5).toDateString()) return 'Yesterday';
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
+    const time = d.toLocaleTimeString(I18n.locale || 'en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    if (d.toDateString() === now.toDateString()) return short ? time : tr('Today {time}', { time });
+    if (d.toDateString() === new Date(now - 864e5).toDateString()) return tr('Yesterday');
+    return d.toLocaleDateString(I18n.locale || 'en-GB', { day: 'numeric', month: 'short', ...(d.getFullYear() !== now.getFullYear() ? { year: 'numeric' } : {}) });
   }
 
   // The entries as shown: folders first, then the rest by name, newest first or largest first. Names that start with
@@ -117,9 +117,9 @@ const Files = (() => {
   const sameKey = (a, b) => a.root === b.root && (a.project || null) === (b.project || null);
   const placeKey = (p) => (p.root === 'project' ? `project:${p.project}` : p.root);
   function placeName(p) {
-    if (p.root === 'server') return 'On botdot';
-    if (p.root === 'computer') return 'Computer';
-    if (p.root === 'kept') return 'Kept in mind';
+    if (p.root === 'server') return tr('On botdot');
+    if (p.root === 'computer') return tr('Computer');
+    if (p.root === 'kept') return tr('Kept in mind');
     return p.project;
   }
   const placeIcon = (p) => (p.root === 'server' ? I.server : p.root === 'computer' ? I.computer : p.root === 'kept' ? I.pin : I.project);
@@ -161,14 +161,14 @@ const Files = (() => {
     const bot = c.bot;
     const face = typeof botFigure === 'function' && !isChief(c) ? botFigure(bot.color, bot.state, 'sm', bot.outfit) : typeof chiefFigure === 'function' && isChief(c) ? chiefFigure('sm') : '';
     const trail = crumbs(c.path, placeName(c.place));
-    const crumb = c.results ? `<b>Search</b>` : trail.map((x, i) => (i === trail.length - 1 ? `<b>${esc(x.name)}</b>` : `<button type="button" class="fx-crumb" data-fx="go" data-path="${esc(x.path)}">${esc(x.name)}</button><span class="fx-sep">/</span>`)).join('');
-    const search = c.searches ? `<label class="fx-search">${I.search}<input type="search" data-fx-search placeholder="Search in ${esc(bot.name)}" aria-label="Search in ${esc(bot.name)}" value="${esc(c.query)}"></label>` : '';
+    const crumb = c.results ? `<b>${tr('Search')}</b>` : trail.map((x, i) => (i === trail.length - 1 ? `<b>${esc(x.name)}</b>` : `<button type="button" class="fx-crumb" data-fx="go" data-path="${esc(x.path)}">${esc(x.name)}</button><span class="fx-sep">/</span>`)).join('');
+    const search = c.searches ? `<label class="fx-search">${I.search}<input type="search" data-fx-search placeholder="${tr('Search in {name}', { name: esc(bot.name) })}" aria-label="${tr('Search in {name}', { name: esc(bot.name) })}" value="${esc(c.query)}"></label>` : '';
     return `<header class="fx-top">
-      <button type="button" class="icon-btn" data-fx="close" aria-label="Back to the chat" title="Back to the chat">${I.back}</button>
+      <button type="button" class="icon-btn" data-fx="close" aria-label="${tr('Back to the chat')}" title="${tr('Back to the chat')}">${I.back}</button>
       <div class="fx-who"><span class="fx-face">${face}</span><b>${esc(bot.name)}</b></div>
-      <button type="button" class="icon-btn" data-fx="hist-back" aria-label="Back" title="Back"${c.back.length ? '' : ' disabled'}>${I.back}</button>
-      <button type="button" class="icon-btn" data-fx="hist-fwd" aria-label="Forward" title="Forward"${c.fwd.length ? '' : ' disabled'}>${I.fwd}</button>
-      <nav class="fx-trail" aria-label="Folder">${crumb}</nav>
+      <button type="button" class="icon-btn" data-fx="hist-back" aria-label="${tr('Back')}" title="${tr('Back')}"${c.back.length ? '' : ' disabled'}>${I.back}</button>
+      <button type="button" class="icon-btn" data-fx="hist-fwd" aria-label="${tr('Forward')}" title="${tr('Forward')}"${c.fwd.length ? '' : ' disabled'}>${I.fwd}</button>
+      <nav class="fx-trail" aria-label="${tr('Folder')}">${crumb}</nav>
       ${search}
     </header>`;
   }
@@ -181,27 +181,27 @@ const Files = (() => {
     const dot = hasComputer(c) ? `<i class="fx-dot${state.computers?.[c.bot.id] === 'running' ? ' on' : ''}"></i>` : '';
     const kept = (c.kept || []).filter((f) => f.pinned).length;
     const projects = !isChief(c) && hasComputer(c) && (state.features || []).includes('projects')
-      ? `<div class="fx-head">Projects</div>${mine(c).map((p) => row({ root: 'project', project: p.name })).join('')}<button type="button" class="fx-place" data-fx="new-project">${I.plus}<span>New project</span></button>` : '';
+      ? `<div class="fx-head">${tr('Projects')}</div>${mine(c).map((p) => row({ root: 'project', project: p.name })).join('')}<button type="button" class="fx-place" data-fx="new-project">${I.plus}<span>${tr('New project')}</span></button>` : '';
     const pins = c.pins.map((p, i) => `<button type="button" class="fx-place" data-fx="pinned" data-i="${i}" data-drop-pin="${i}">${I.folder.replace('<svg', '<svg class="fx-folder"')}<span>${esc(nameOf(p.path))}</span></button>`).join('');
     return `<aside class="fx-side">
       ${row({ root: 'server' })}
       ${hasComputer(c) ? row({ root: 'computer' }, dot) : ''}
       ${projects}
-      <div class="fx-head">Pinned</div>
-      <button type="button" class="fx-place${c.place.root === 'kept' && !c.results ? ' on' : ''}" data-fx="place" data-root="kept">${I.pin.replace('<svg', '<svg class="fx-pin"')}<span>Kept in mind</span>${kept ? `<span class="fx-count">${kept}</span>` : ''}</button>
+      <div class="fx-head">${tr('Pinned')}</div>
+      <button type="button" class="fx-place${c.place.root === 'kept' && !c.results ? ' on' : ''}" data-fx="place" data-root="kept">${I.pin.replace('<svg', '<svg class="fx-pin"')}<span>${tr('Kept in mind')}</span>${kept ? `<span class="fx-count">${kept}</span>` : ''}</button>
       ${pins}
     </aside>`;
   }
 
   function barHTML(c) {
     const writes = writesHere(c);
-    const sort = { name: 'Name', date: 'Date', size: 'Size' }[c.sort];
+    const sort = { name: tr('Name'), date: tr('Date'), size: tr('Size') }[c.sort];
     return `<div class="fx-bar">
-      ${writes ? `<button type="button" class="btn primary" data-fx="upload">${I.upload}Upload</button><button type="button" class="btn" data-fx="new-folder">${I.plus}New folder</button>` : ''}
+      ${writes ? `<button type="button" class="btn primary" data-fx="upload">${I.upload}${tr('Upload')}</button><button type="button" class="btn" data-fx="new-folder">${I.plus}${tr('New folder')}</button>` : ''}
       ${c.busy ? `<span class="faint fx-busy">${esc(c.busy)}</span>` : ''}
       <span class="grow"></span>
-      <button type="button" class="btn" data-fx="sort" aria-label="Sort by ${sort}">${I.sort}${sort}</button>
-      <div class="fx-seg" role="group" aria-label="View"><button type="button" data-fx="view" data-show="list" class="${c.view === 'list' ? 'on' : ''}" aria-label="List" aria-pressed="${c.view === 'list'}">${I.list}</button><button type="button" data-fx="view" data-show="grid" class="${c.view === 'grid' ? 'on' : ''}" aria-label="Grid" aria-pressed="${c.view === 'grid'}">${I.grid}</button></div>
+      <button type="button" class="btn" data-fx="sort" aria-label="${tr('Sort by {sort}', { sort })}">${I.sort}${sort}</button>
+      <div class="fx-seg" role="group" aria-label="${tr('View')}"><button type="button" data-fx="view" data-show="list" class="${c.view === 'list' ? 'on' : ''}" aria-label="${tr('List')}" aria-pressed="${c.view === 'list'}">${I.list}</button><button type="button" data-fx="view" data-show="grid" class="${c.view === 'grid' ? 'on' : ''}" aria-label="${tr('Grid')}" aria-pressed="${c.view === 'grid'}">${I.grid}</button></div>
     </div>`;
   }
   const writesHere = (c) => !c.results && c.place.root !== 'kept' && !!c.data && !c.data.readOnly;
@@ -214,7 +214,7 @@ const Files = (() => {
 
   function entryHTML(c, e, grid, phone) {
     const sel = c.sel.has(e.path);
-    const box = `<span class="fx-check${sel ? ' on' : ''}" data-fx="check" role="checkbox" aria-checked="${sel}" aria-label="Select ${esc(e.name)}">${sel ? I.check : ''}</span>`;
+    const box = `<span class="fx-check${sel ? ' on' : ''}" data-fx="check" role="checkbox" aria-checked="${sel}" aria-label="${tr('Select {name}', { name: esc(e.name) })}">${sel ? I.check : ''}</span>`;
     const where = e.place && c.results ? `<span class="fx-where">${esc([placeName(e.place), parentOf(e.path)].filter(Boolean).join(' / '))}</span>` : '';
     const drag = canDo(c, e).move ? ' draggable="true"' : '';
     const attrs = `data-path="${esc(e.path)}"${e.type === 'folder' ? ' data-folder="1"' : ''}${e.place ? ` data-place="${esc(placeKey(e.place))}"` : ''}${drag}`;
@@ -223,7 +223,7 @@ const Files = (() => {
     }
     if (phone) {
       const meta = [sizeOf(e), whenOf(e.at, true)].filter(Boolean).join(' · ');
-      return `<div class="fx-row${sel ? ' sel' : ''}" ${attrs}>${c.selecting ? box : ''}${iconOf(e)}<span class="fx-two"><span class="fx-name">${esc(e.name)}</span><span class="fx-meta">${esc(meta)}</span>${where}</span>${c.selecting ? '' : `<button type="button" class="icon-btn fx-more" data-fx="more" aria-label="More for ${esc(e.name)}">${I.more}</button>`}</div>`;
+      return `<div class="fx-row${sel ? ' sel' : ''}" ${attrs}>${c.selecting ? box : ''}${iconOf(e)}<span class="fx-two"><span class="fx-name">${esc(e.name)}</span><span class="fx-meta">${esc(meta)}</span>${where}</span>${c.selecting ? '' : `<button type="button" class="icon-btn fx-more" data-fx="more" aria-label="${tr('More for {name}', { name: esc(e.name) })}">${I.more}</button>`}</div>`;
     }
     return `<div class="fx-row${sel ? ' sel' : ''}${c.focus === e.path ? ' focus' : ''}" ${attrs}>${box}${iconOf(e)}<span class="fx-name">${esc(e.name)}${where}</span><span class="fx-size">${esc(sizeOf(e))}</span><span class="fx-when">${esc(whenOf(e.at))}</span></div>`;
   }
@@ -232,18 +232,18 @@ const Files = (() => {
     if (c.error) {
       const e = c.error;
       const body = e.state === 'computer-off'
-        ? `<p class="muted">The computer is off.</p><button type="button" class="btn" data-fx="start">Start the computer</button>`
-        : e.status === 404 ? `<p class="muted">This folder is gone.</p><button type="button" class="btn" data-fx="go" data-path="">Back to the top</button>`
-          : `<p class="muted">${esc(e.message || "Couldn't load it.")}</p>`;
+        ? `<p class="muted">${tr('The computer is off.')}</p><button type="button" class="btn" data-fx="start">${tr('Start the computer')}</button>`
+        : e.status === 404 ? `<p class="muted">${tr('This folder is gone.')}</p><button type="button" class="btn" data-fx="go" data-path="">${tr('Back to the top')}</button>`
+          : `<p class="muted">${esc(e.message || tr("Couldn't load it."))}</p>`;
       return `<div class="fx-state">${body}</div>`;
     }
-    if (!c.results && !c.data && c.place.root !== 'kept') return '<div class="fx-state faint">Loading…</div>';
+    if (!c.results && !c.data && c.place.root !== 'kept') return `<div class="fx-state faint">${tr('Loading…')}</div>`;
     const list = visible(c);
-    if (!list.length) return `<div class="fx-state faint">${c.results ? 'Nothing found.' : 'Empty.'}</div>`;
+    if (!list.length) return `<div class="fx-state faint">${c.results ? tr('Nothing found.') : tr('Empty.')}</div>`;
     const grid = c.view === 'grid';
     const all = list.length && list.every((e) => c.sel.has(e.path));
-    const head = grid || phone ? '' : `<div class="fx-row fx-heads"><span class="fx-check${all ? ' on' : ''}" data-fx="all" role="checkbox" aria-checked="${all}" aria-label="Select all">${all ? I.check : ''}</span><span class="fx-name">Name</span><span class="fx-size">Size</span><span class="fx-when">Changed</span></div>`;
-    const more = c.data?.more && !c.results ? `<div class="fx-state faint">${c.data.more.toLocaleString('en')} more not listed.</div>` : '';
+    const head = grid || phone ? '' : `<div class="fx-row fx-heads"><span class="fx-check${all ? ' on' : ''}" data-fx="all" role="checkbox" aria-checked="${all}" aria-label="${tr('Select all')}">${all ? I.check : ''}</span><span class="fx-name">${tr('Name')}</span><span class="fx-size">${tr('Size')}</span><span class="fx-when">${tr('Changed')}</span></div>`;
+    const more = c.data?.more && !c.results ? `<div class="fx-state faint">${trn(c.data.more, '{n} more not listed.', '{n} more not listed.', { n: c.data.more.toLocaleString(I18n.locale || 'en') })}</div>` : '';
     return `${head}<div class="${grid ? 'fx-grid' : 'fx-rows'}">${list.map((e) => entryHTML(c, e, grid, phone)).join('')}</div>${more}`;
   }
 
@@ -254,10 +254,10 @@ const Files = (() => {
     const can = (k) => chosen.length && chosen.every((e) => canDo(c, e)[k]);
     if (phone) {
       const b = (k, what, icon, label, cls = '') => `<button type="button" class="fx-act${cls}" data-fx="${what}"${can(k) ? '' : ' disabled'}>${icon}<span>${label}</span></button>`;
-      return `<nav class="fx-selbar">${b('move', 'move-to', I.move, 'Move')}${b('copy', 'copy-to', I.file, 'Copy')}${b('download', 'download', I.down, 'Download')}${b('del', 'delete', I.trash, 'Delete', ' danger')}</nav>`;
+      return `<nav class="fx-selbar">${b('move', 'move-to', I.move, tr('Move'))}${b('copy', 'copy-to', I.file, tr('Copy'))}${b('download', 'download', I.down, tr('Download'))}${b('del', 'delete', I.trash, tr('Delete'), ' danger')}</nav>`;
     }
     const b = (k, what, label, cls = '') => (can(k) ? `<button type="button" class="btn${cls}" data-fx="${what}">${label}</button>` : '');
-    return `<div class="fx-float"><b>${chosen.length} selected</b>${b('move', 'move-to', 'Move to…')}${b('copy', 'copy-to', 'Copy to…')}${b('download', 'download', 'Download')}${b('del', 'delete', 'Delete', ' danger')}<button type="button" class="icon-btn" data-fx="clear" aria-label="Clear the selection">${I.close}</button></div>`;
+    return `<div class="fx-float"><b>${trn(chosen.length, '{n} selected', '{n} selected')}</b>${b('move', 'move-to', tr('Move to…'))}${b('copy', 'copy-to', tr('Copy to…'))}${b('download', 'download', tr('Download'))}${b('del', 'delete', tr('Delete'), ' danger')}<button type="button" class="icon-btn" data-fx="clear" aria-label="${tr('Clear the selection')}">${I.close}</button></div>`;
   }
   const selected = (c) => visible(c).filter((e) => c.sel.has(e.path));
 
@@ -266,8 +266,8 @@ const Files = (() => {
     const e = selected(c).length === 1 ? selected(c)[0] : null;
     if (!e || e.type !== 'file') return '';
     const p = c.preview?.path === e.path ? c.preview : null;
-    let body = '<p class="faint">Loading…</p>';
-    if (p?.error) body = `<p class="muted">${esc(p.error.state === 'computer-off' ? 'The computer is off.' : p.error.message || "Couldn't open it.")}</p>`;
+    let body = `<p class="faint">${tr('Loading…')}</p>`;
+    if (p?.error) body = `<p class="muted">${esc(p.error.state === 'computer-off' ? tr('The computer is off.') : p.error.message || tr("Couldn't open it."))}</p>`;
     else if (p?.view) {
       const v = p.view;
       if (v.kind === 'image') body = `<img class="fx-pv-img" src="/api${esc(at(c, 'file', e.path, e.place || c.place))}" alt="${esc(e.name)}">`;
@@ -276,13 +276,13 @@ const Files = (() => {
         const t = DocViewer.tableOf(v.text || '', /\.tsv$/i.test(e.name) ? '\t' : ',');
         body = `<div class="fx-pv-table"><table><thead><tr>${t.head.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${t.rows.slice(0, 50).map((r) => `<tr>${r.cells.map((x) => `<td>${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
       } else if (v.kind === 'text' || v.kind === 'csv') body = `<pre class="fx-pv-text">${esc(String(v.text || '').slice(0, 20000))}</pre>`;
-      else body = '<p class="faint">No preview for this kind of file.</p>';
+      else body = `<p class="faint">${tr('No preview for this kind of file.')}</p>`;
     }
     const place = e.place || c.place;
     return `<aside class="fx-pv">
-      <div class="fx-pv-head">${iconOf(e)}<b>${esc(e.name)}</b><button type="button" class="icon-btn" data-fx="clear" aria-label="Close">${I.close}</button></div>
+      <div class="fx-pv-head">${iconOf(e)}<b>${esc(e.name)}</b><button type="button" class="icon-btn" data-fx="clear" aria-label="${tr('Close')}">${I.close}</button></div>
       <div class="fx-pv-body">${body}</div>
-      <dl class="fx-pv-facts"><dt>Size</dt><dd>${esc(KB(e.size || 0))}</dd><dt>Changed</dt><dd>${esc(whenOf(e.at))}</dd><dt>Where</dt><dd>${esc([placeName(place), parentOf(e.path)].filter(Boolean).join(' / '))}</dd></dl>
+      <dl class="fx-pv-facts"><dt>${tr('Size')}</dt><dd>${esc(KB(e.size || 0))}</dd><dt>${tr('Changed')}</dt><dd>${esc(whenOf(e.at))}</dd><dt>${tr('Where')}</dt><dd>${esc([placeName(place), parentOf(e.path)].filter(Boolean).join(' / '))}</dd></dl>
     </aside>`;
   }
 
@@ -292,16 +292,16 @@ const Files = (() => {
     if (!m) return '';
     const spot = `style="left:${Math.round(m.x)}px;top:${Math.round(m.y)}px"`;
     // A shared project's own (#578): its bots, and its delete.
-    if (m.project) return `<div class="fx-menu" role="menu" ${spot}><button type="button" role="menuitem" class="fx-mi" data-fx="members">Bots…</button><hr><button type="button" role="menuitem" class="fx-mi danger" data-fx="delete-project">Delete project</button></div>`;
+    if (m.project) return `<div class="fx-menu" role="menu" ${spot}><button type="button" role="menuitem" class="fx-mi" data-fx="members">${tr('Bots…')}</button><hr><button type="button" role="menuitem" class="fx-mi danger" data-fx="delete-project">${tr('Delete project')}</button></div>`;
     const e = visible(c).find((x) => x.path === m.path);
     if (!e) return '';
     const can = canDo(c, e);
     const key = (k) => `<kbd>${k}</kbd>`;
     const item = (ok, what, label, k = '', cls = '') => (ok ? `<button type="button" role="menuitem" class="fx-mi${cls}" data-fx="${what}">${label}${k ? key(k) : ''}</button>` : '');
-    const folderPin = e.type === 'folder' && c.place.root !== 'kept' ? item(true, 'pin-folder', c.pins.some((p) => sameKey(p, c.place) && p.path === e.path) ? 'Unpin' : 'Pin to the side') : '';
+    const folderPin = e.type === 'folder' && c.place.root !== 'kept' ? item(true, 'pin-folder', c.pins.some((p) => sameKey(p, c.place) && p.path === e.path) ? tr('Unpin') : tr('Pin to the side')) : '';
     return `<div class="fx-menu" role="menu" ${spot}>
-      ${item(can.open, 'open', 'Open', 'Enter')}${item(can.rename, 'rename', 'Rename', 'F2')}${item(can.move, 'move-to', 'Move to…')}${item(can.copy, 'copy-to', 'Copy to…')}${item(can.download, 'download', 'Download')}${item(can.keep, 'keep', 'Keep in mind')}${item(can.unpin, 'unpin', 'Unpin')}${folderPin}
-      ${can.del ? `<hr>${item(true, 'delete', 'Delete', 'Del', ' danger')}` : ''}
+      ${item(can.open, 'open', tr('Open'), 'Enter')}${item(can.rename, 'rename', tr('Rename'), 'F2')}${item(can.move, 'move-to', tr('Move to…'))}${item(can.copy, 'copy-to', tr('Copy to…'))}${item(can.download, 'download', tr('Download'))}${item(can.keep, 'keep', tr('Keep in mind'))}${item(can.unpin, 'unpin', tr('Unpin'))}${folderPin}
+      ${can.del ? `<hr>${item(true, 'delete', tr('Delete'), 'Del', ' danger')}` : ''}
     </div>`;
   }
 
@@ -319,11 +319,11 @@ const Files = (() => {
       const can = canDo(c, e);
       const meta = [sizeOf(e), whenOf(e.at, true)].filter(Boolean).join(' · ');
       body = `<div class="fx-sheet-title">${iconOf(e)}<span class="fx-two"><b>${esc(e.name)}</b><span class="fx-meta">${esc(meta)}</span></span></div>
-        ${can.open ? row('open', I.file, 'Open') : ''}${can.rename ? row('rename', I.edit, 'Rename') : ''}${can.move ? row('move-to', I.move, 'Move to…') : ''}${can.copy ? row('copy-to', I.file, 'Copy to…') : ''}${can.download ? row('download', I.down, 'Download') : ''}${can.keep ? row('keep', I.pin, 'Keep in mind') : ''}${can.unpin ? row('unpin', I.pin, 'Unpin') : ''}${can.del ? row('delete', I.trash, 'Delete', '', ' danger') : ''}`;
+        ${can.open ? row('open', I.file, tr('Open')) : ''}${can.rename ? row('rename', I.edit, tr('Rename')) : ''}${can.move ? row('move-to', I.move, tr('Move to…')) : ''}${can.copy ? row('copy-to', I.file, tr('Copy to…')) : ''}${can.download ? row('download', I.down, tr('Download')) : ''}${can.keep ? row('keep', I.pin, tr('Keep in mind')) : ''}${can.unpin ? row('unpin', I.pin, tr('Unpin')) : ''}${can.del ? row('delete', I.trash, tr('Delete'), '', ' danger') : ''}`;
     } else if (s.kind === 'add') {
-      body = `${row('upload', I.upload, 'Upload files')}${row('upload-folder', I.folder, 'Upload folder')}${row('new-folder', I.plus, 'New folder')}`;
+      body = `${row('upload', I.upload, tr('Upload files'))}${row('upload-folder', I.folder, tr('Upload folder'))}${row('new-folder', I.plus, tr('New folder'))}`;
     } else if (s.kind === 'sort') {
-      body = [['name', 'Name'], ['date', 'Date'], ['size', 'Size']].map(([k, label]) => `<button type="button" class="fx-sheet-row" data-fx="sort-by" data-sort="${k}"><span>${label}</span>${c.sort === k ? I.check : ''}</button>`).join('');
+      body = [['name', tr('Name')], ['date', tr('Date')], ['size', tr('Size')]].map(([k, label]) => `<button type="button" class="fx-sheet-row" data-fx="sort-by" data-sort="${k}"><span>${label}</span>${c.sort === k ? I.check : ''}</button>`).join('');
     }
     return `<div class="fx-scrim" data-fx="sheet-close"></div><div class="fx-sheet" role="dialog"><i class="fx-grip"></i>${body}</div>`;
   }
@@ -333,10 +333,10 @@ const Files = (() => {
     const p = (c.projects || []).find((x) => x.name === d.project);
     if (!p) return '';
     const all = (state.bots || []).filter((b) => b.computer === 'linux');
-    return `<div class="fx-scrim" data-fx="dialog-close"></div><div class="fx-dialog" role="dialog" aria-label="Bots in ${esc(p.name)}">
+    return `<div class="fx-scrim" data-fx="dialog-close"></div><div class="fx-dialog" role="dialog" aria-label="${tr('Bots in {name}', { name: esc(p.name) })}">
       <h3>${esc(p.name)}</h3>
       <div class="fx-tree">${all.map((b) => `<label class="fx-node"><input type="checkbox" data-fx-member="${esc(b.id)}"${p.bots.includes(b.id) ? ' checked' : ''}><span>${esc(b.name)}</span></label>`).join('')}</div>
-      <div class="fx-dialog-acts"><span class="grow"></span><button type="button" class="btn" data-fx="dialog-close">Cancel</button><button type="button" class="btn primary" data-fx="members-save">Save</button></div>
+      <div class="fx-dialog-acts"><span class="grow"></span><button type="button" class="btn" data-fx="dialog-close">${tr('Cancel')}</button><button type="button" class="btn primary" data-fx="members-save">${tr('Save')}</button></div>
     </div>`;
   }
 
@@ -358,25 +358,26 @@ const Files = (() => {
     };
     const tree = places(c).map((p) => node(p, '', placeName(p), 0, placeIcon(p))).join('');
     const n = d.items.length;
-    const what = n === 1 ? d.items[0].name : `${n} items`;
-    return `<div class="fx-scrim" data-fx="dialog-close"></div><div class="fx-dialog" role="dialog" aria-label="${d.mode === 'move' ? 'Move' : 'Copy'} ${esc(what)}">
-      <h3>${d.mode === 'move' ? 'Move' : 'Copy'} ${esc(what)}</h3>
+    const what = n === 1 ? d.items[0].name : trn(n, '{n} item', '{n} items');
+    const title = d.mode === 'move' ? tr('Move {what}', { what }) : tr('Copy {what}', { what });
+    return `<div class="fx-scrim" data-fx="dialog-close"></div><div class="fx-dialog" role="dialog" aria-label="${esc(title)}">
+      <h3>${esc(title)}</h3>
       <div class="fx-tree">${tree}</div>
-      <div class="fx-dialog-acts"><button type="button" class="btn" data-fx="dialog-folder"${d.to ? '' : ' disabled'}>New folder</button><span class="grow"></span><button type="button" class="btn" data-fx="dialog-close">Cancel</button><button type="button" class="btn primary" data-fx="dialog-go"${d.to && !d.busy ? '' : ' disabled'}>${d.mode === 'move' ? 'Move here' : 'Copy here'}</button></div>
+      <div class="fx-dialog-acts"><button type="button" class="btn" data-fx="dialog-folder"${d.to ? '' : ' disabled'}>${tr('New folder')}</button><span class="grow"></span><button type="button" class="btn" data-fx="dialog-close">${tr('Cancel')}</button><button type="button" class="btn primary" data-fx="dialog-go"${d.to && !d.busy ? '' : ' disabled'}>${d.mode === 'move' ? tr('Move here') : tr('Copy here')}</button></div>
     </div>`;
   }
 
   function phoneTopHTML(c) {
     if (c.selecting) {
-      return `<header class="fx-ptop"><button type="button" class="icon-btn" data-fx="clear" aria-label="Stop selecting">${I.close}</button><b class="fx-ptitle">${c.sel.size} selected</b><span class="grow"></span><button type="button" class="btn" data-fx="all">All</button></header>`;
+      return `<header class="fx-ptop"><button type="button" class="icon-btn" data-fx="clear" aria-label="${tr('Stop selecting')}">${I.close}</button><b class="fx-ptitle">${trn(c.sel.size, '{n} selected', '{n} selected')}</b><span class="grow"></span><button type="button" class="btn" data-fx="all">${tr('All')}</button></header>`;
     }
-    const title = c.results ? 'Search' : c.path ? nameOf(c.path) : placeName(c.place);
+    const title = c.results ? tr('Search') : c.path ? nameOf(c.path) : placeName(c.place);
     return `<header class="fx-ptop">
-      <button type="button" class="icon-btn" data-fx="close" aria-label="Back to the chat">${I.back}</button>
+      <button type="button" class="icon-btn" data-fx="close" aria-label="${tr('Back to the chat')}">${I.back}</button>
       <div class="fx-ptitle"><b>${esc(title)}</b><button type="button" class="fx-pplace" data-fx="places">${esc(placeName(c.place))} ▾</button></div>
       <span class="grow"></span>
-      <button type="button" class="icon-btn" data-fx="sort-sheet" aria-label="Sort">${I.sort}</button>
-      <button type="button" class="icon-btn" data-fx="view" data-show="${c.view === 'grid' ? 'list' : 'grid'}" aria-label="${c.view === 'grid' ? 'List' : 'Grid'}">${c.view === 'grid' ? I.list : I.grid}</button>
+      <button type="button" class="icon-btn" data-fx="sort-sheet" aria-label="${tr('Sort')}">${I.sort}</button>
+      <button type="button" class="icon-btn" data-fx="view" data-show="${c.view === 'grid' ? 'list' : 'grid'}" aria-label="${c.view === 'grid' ? tr('List') : tr('Grid')}">${c.view === 'grid' ? I.list : I.grid}</button>
     </header>`;
   }
 
@@ -384,12 +385,12 @@ const Files = (() => {
     const phone = narrow();
     if (phone) {
       const trail = crumbs(c.path, c.bot.name);
-      const crumb = c.results || c.place.root === 'kept' ? '' : `<nav class="fx-trail" aria-label="Folder">${trail.map((x, i) => (i === trail.length - 1 ? `<b>${esc(x.name)}</b>` : `<button type="button" class="fx-crumb" data-fx="go" data-path="${esc(x.path)}">${esc(x.name)}</button><span class="fx-sep">/</span>`)).join('')}</nav>`;
-      const search = c.searches && !c.selecting ? `<label class="fx-search">${I.search}<input type="search" data-fx-search placeholder="Search" aria-label="Search" value="${esc(c.query)}"></label>` : '';
-      const fab = writesHere(c) && !c.selecting ? `<button type="button" class="fx-fab" data-fx="add" aria-label="Add">${I.plus}</button>` : '';
+      const crumb = c.results || c.place.root === 'kept' ? '' : `<nav class="fx-trail" aria-label="${tr('Folder')}">${trail.map((x, i) => (i === trail.length - 1 ? `<b>${esc(x.name)}</b>` : `<button type="button" class="fx-crumb" data-fx="go" data-path="${esc(x.path)}">${esc(x.name)}</button><span class="fx-sep">/</span>`)).join('')}</nav>`;
+      const search = c.searches && !c.selecting ? `<label class="fx-search">${I.search}<input type="search" data-fx-search placeholder="${tr('Search')}" aria-label="${tr('Search')}" value="${esc(c.query)}"></label>` : '';
+      const fab = writesHere(c) && !c.selecting ? `<button type="button" class="fx-fab" data-fx="add" aria-label="${tr('Add')}">${I.plus}</button>` : '';
       return `<div class="fx-phone">${phoneTopHTML(c)}${search}${crumb}<div class="fx-main" data-drop-main>${listHTML(c, true)}</div>${fab}${selBarHTML(c, true)}${sheetHTML(c)}${dialogHTML(c)}</div>${inputsHTML()}`;
     }
-    const drop = c.drop ? `<div class="fx-drop">${I.upload}<span>Drop to upload into ${esc(c.path ? nameOf(c.path) : placeName(c.place))}</span></div>` : '';
+    const drop = c.drop ? `<div class="fx-drop">${I.upload}<span>${tr('Drop to upload into {name}', { name: esc(c.path ? nameOf(c.path) : placeName(c.place)) })}</span></div>` : '';
     return `${topHTML(c)}<div class="fx-body">${sideHTML(c)}<section class="fx-main" data-drop-main>${barHTML(c)}<div class="fx-list">${listHTML(c, false)}</div>${drop}${selBarHTML(c, false)}</section>${previewHTML(c)}</div>${menuHTML(c)}${dialogHTML(c)}${inputsHTML()}`;
   }
   const inputsHTML = () => '<input type="file" multiple hidden data-fx-files><input type="file" webkitdirectory hidden data-fx-folder>';
@@ -448,14 +449,14 @@ const Files = (() => {
   async function sendFile(c, dir, file, made = false) {
     const r = await fetch(`/api${at(c, 'upload', dir)}${made ? '&folders=1' : ''}`, { method: 'POST', headers: { 'X-Bot-Dot': '1', 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, body: file });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || `Upload failed (${r.status})`);
+    if (!r.ok) throw new Error(d.error || tr('Upload failed ({status})', { status: r.status }));
   }
   async function upload(c, files) {
-    if (files.length > MAX_FILES) toast(`Upload at most ${MAX_FILES} files at a time.`, true);
+    if (files.length > MAX_FILES) toast(tr('Upload at most {n} files at a time.', { n: MAX_FILES }), true);
     const list = [...files].slice(0, MAX_FILES);
     for (const [i, file] of list.entries()) {
-      c.busy = `Uploading ${i + 1} of ${list.length}`; draw(c);
-      if (file.size > MAX_BYTES) { toast(`${file.name} is over 25 MB.`, true); continue; }
+      c.busy = tr('Uploading {i} of {n}', { i: i + 1, n: list.length }); draw(c);
+      if (file.size > MAX_BYTES) { toast(tr('{name} is over 25 MB.', { name: file.name }), true); continue; }
       try { await sendFile(c, c.path, file); } catch (e) { toast(`${file.name}: ${e.message}`, true); }
     }
     c.busy = null;
@@ -470,18 +471,18 @@ const Files = (() => {
   async function uploadFolder(c, items) {
     if (!items.length) return undefined;
     const top = String(items[0].rel || items[0].file.webkitRelativePath || '').split('/')[0] || 'folder';
-    if (items.length > MAX_FOLDER_FILES) return toast(`${top} has ${items.length.toLocaleString('en')} files: upload at most ${MAX_FOLDER_FILES.toLocaleString('en')} at a time.`, true);
+    if (items.length > MAX_FOLDER_FILES) return toast(tr('{name} has {n} files: upload at most {max} at a time.', { name: top, n: items.length.toLocaleString(I18n.locale || 'en'), max: MAX_FOLDER_FILES.toLocaleString(I18n.locale || 'en') }), true);
     let made;
     try { made = await api(at(c, 'folder', null), { method: 'POST', body: { path: c.path, name: top, free: true } }); } catch (e) { return toast(e.message, true); }
     let failed = 0;
     const plan = folderPlan(items, made.path);
     for (const [i, { file, dir }] of plan.entries()) {
-      c.busy = `Uploading ${top}: ${i + 1} of ${plan.length}`; draw(c);
+      c.busy = tr('Uploading {name}: {i} of {n}', { name: top, i: i + 1, n: plan.length }); draw(c);
       if (file.size > MAX_BYTES) { failed++; continue; }
       try { await sendFile(c, dir, file, true); } catch { failed++; }
     }
     c.busy = null;
-    toast(failed ? `${top}: ${failed} of ${plan.length} files didn't upload.` : `Uploaded ${top}`, !!failed);
+    toast(failed ? trn(plan.length, "{name}: {failed} of {n} file didn't upload.", "{name}: {failed} of {n} files didn't upload.", { name: top, failed }) : tr('Uploaded {name}', { name: top }), !!failed);
     return load(c);
   }
   // What was dropped from the desktop: files, and folders read with what they hold.
@@ -514,11 +515,19 @@ const Files = (() => {
 
   // ---------- actions ----------
 
-  function deleteWords(e, n) {
-    if (n.type !== 'folder') return `Delete ${e.name}? This can't be undone.`;
-    const many = (k, one) => `${k.toLocaleString('en')} ${one}${k === 1 ? '' : 's'}`;
-    const held = n.files + n.folders === 0 ? 'It is empty.' : `It holds ${n.capped ? 'more than ' : ''}${[n.files ? many(n.files, 'file') : '', n.folders ? many(n.folders, 'folder') : ''].filter(Boolean).join(' and ')}, which go with it.`;
-    return `Delete the folder ${e.name}? ${held} This can't be undone.`;
+  // `project`: the words of a shared project's delete, which holds as a folder does.
+  function deleteWords(e, n, project = false) {
+    if (n.type !== 'folder') return tr("Delete {name}? This can't be undone.", { name: e.name });
+    if (n.files + n.folders === 0) return project ? tr("Delete the project {name}? It is empty. This can't be undone.", { name: e.name }) : tr("Delete the folder {name}? It is empty. This can't be undone.", { name: e.name });
+    const files = n.files ? trn(n.files, '{n} file', '{n} files', { n: n.files.toLocaleString(I18n.locale || 'en') }) : '';
+    const folders = n.folders ? trn(n.folders, '{n} folder', '{n} folders', { n: n.folders.toLocaleString(I18n.locale || 'en') }) : '';
+    const what = files && folders ? tr('{files} and {folders}', { files, folders }) : files || folders;
+    if (project) {
+      return n.capped ? tr("Delete the project {name}? It holds more than {what}, which go with it. This can't be undone.", { name: e.name, what })
+        : tr("Delete the project {name}? It holds {what}, which go with it. This can't be undone.", { name: e.name, what });
+    }
+    return n.capped ? tr("Delete the folder {name}? It holds more than {what}, which go with it. This can't be undone.", { name: e.name, what })
+      : tr("Delete the folder {name}? It holds {what}, which go with it. This can't be undone.", { name: e.name, what });
   }
 
   // The entries an action is for: the selection when the entry is in it, else the entry alone.
@@ -554,24 +563,24 @@ const Files = (() => {
       let n;
       try { n = await api(at(c, 'count', list[0].path)); } catch (err) { return toast(err.message, true); }
       if (!confirm(deleteWords(list[0], n))) return undefined;
-    } else if (!confirm(`Delete ${list.length} items? Folders go with what they hold. This can't be undone.`)) return undefined;
+    } else if (!confirm(trn(list.length, "Delete {n} item? Folders go with what they hold. This can't be undone.", "Delete {n} items? Folders go with what they hold. This can't be undone."))) return undefined;
     let failed = 0;
     for (const e of list) { try { await api(at(c, '', e.path), { method: 'DELETE' }); } catch (err) { failed++; toast(`${e.name}: ${err.message}`, true); } }
-    if (!failed) toast(list.length === 1 ? `Deleted ${list[0].name}` : `Deleted ${list.length} items`);
+    if (!failed) toast(list.length === 1 ? tr('Deleted {name}', { name: list[0].name }) : trn(list.length, 'Deleted {n} item', 'Deleted {n} items'));
     return load(c);
   }
 
   async function rename(c, e) {
-    const name = prompt(`New name for ${e.name}`, e.name);
+    const name = prompt(tr('New name for {name}', { name: e.name }), e.name);
     if (name === null || !name.trim() || name.trim() === e.name) return undefined;
-    if (name.includes('/')) return toast("A name can't have / in it. To put it in another folder, use Move to.", true);
+    if (name.includes('/')) return toast(tr("A name can't have / in it. To put it in another folder, use Move to."), true);
     const to = parentOf(e.path) ? `${parentOf(e.path)}/${name.trim()}` : name.trim();
     try { await api(at(c, 'move', null), { method: 'POST', body: { from: e.path, to } }); } catch (err) { return toast(err.message, true); }
     return load(c);
   }
 
   async function newFolder(c, place = c.place, dir = c.path) {
-    const name = prompt('Name of the new folder');
+    const name = prompt(tr('Name of the new folder'));
     if (!name?.trim()) return null;
     try { return (await api(at(c, 'folder', null, place), { method: 'POST', body: { path: dir, name: name.trim() } })).path; } catch (e) { toast(e.message, true); return null; }
   }
@@ -581,7 +590,7 @@ const Files = (() => {
       if (pinned) await api(`${base(c)}/keep`, { method: 'POST', body: { path: e.path } });
       else await api(`${filesBase(c)}/${encodeURIComponent(nameOf(e.path))}`, { method: 'PUT', body: { pinned: false } });
     } catch (err) { return toast(err.message, true); }
-    toast(pinned ? `Keeping ${e.name} in mind` : `${e.name} is no longer kept in mind`);
+    toast(pinned ? tr('Keeping {name} in mind', { name: e.name }) : tr('{name} is no longer kept in mind', { name: e.name }));
     await loadKept(c);
     return c.place.root === 'kept' ? draw(c) : load(c);
   }
@@ -594,7 +603,10 @@ const Files = (() => {
       try { await api(at(c, mode, null, from), { method: 'POST', body }); } catch (err) { failed++; toast(`${e.name}: ${err.message}`, true); }
     }
     const where = [placeName(to), to.path ? nameOf(to.path) : ''].filter(Boolean).join(' / ');
-    if (!failed) toast(`${mode === 'move' ? 'Moved' : 'Copied'} ${items.length === 1 ? items[0].name : `${items.length} items`} to ${where}`);
+    if (!failed) {
+      const what = items.length === 1 ? items[0].name : trn(items.length, '{n} item', '{n} items');
+      toast(mode === 'move' ? tr('Moved {what} to {where}', { what, where }) : tr('Copied {what} to {where}', { what, where }));
+    }
     return load(c);
   }
 
@@ -690,7 +702,7 @@ const Files = (() => {
       case 'upload-folder': return box()?.querySelector('[data-fx-folder]')?.click();
       case 'new-folder': { if (await newFolder(c)) return load(c); return draw(c); }
       case 'new-project': {
-        const name = prompt('Name of the new project');
+        const name = prompt(tr('Name of the new project'));
         if (!name?.trim()) return undefined;
         let made;
         try { made = await api('/projects', { method: 'POST', body: { name: name.trim(), bots: [c.bot.id] } }); } catch (e) { return toast(e.message, true); }
@@ -716,7 +728,7 @@ const Files = (() => {
       case 'members-save': {
         const d = c.dialog;
         const bots = [...box().querySelectorAll('[data-fx-member]')].filter((x) => x.checked).map((x) => x.dataset.fxMember);
-        if (!bots.length) return toast('Keep at least one bot in the project, or delete it.', true);
+        if (!bots.length) return toast(tr('Keep at least one bot in the project, or delete it.'), true);
         try { await api(`/projects/${encodeURIComponent(d.project)}`, { method: 'PUT', body: { bots } }); } catch (e) { return toast(e.message, true); }
         c.dialog = null;
         await loadProjects(c);
@@ -727,9 +739,9 @@ const Files = (() => {
         const name = c.menuProject;
         let n;
         try { n = await api(at(c, 'count', '', { root: 'project', project: name })); } catch (err) { return toast(err.message, true); }
-        if (!confirm(deleteWords({ name }, n).replace('Delete the folder', 'Delete the project'))) return undefined;
+        if (!confirm(deleteWords({ name }, n, true))) return undefined;
         try { await api(`/projects/${encodeURIComponent(name)}`, { method: 'DELETE' }); } catch (err) { return toast(err.message, true); }
-        toast(`Deleted ${name}`);
+        toast(tr('Deleted {name}', { name }));
         await loadProjects(c);
         return c.place.project === name ? go(c, { root: 'computer' }, '') : draw(c);
       }

@@ -105,7 +105,7 @@ async function drawBlock(pre) {
     pre.dataset.diagram = 'failed';
     const note = doc.createElement('div');
     note.className = 'diagram-note';
-    note.textContent = 'Diagram could not be drawn';
+    note.textContent = tr('Diagram could not be drawn');
     if (pre.isConnected) pre.after(note);
     return;
   }
@@ -125,12 +125,12 @@ async function drawBlock(pre) {
   const toggle = doc.createElement('button');
   toggle.type = 'button';
   toggle.className = 'diagram-toggle';
-  toggle.textContent = 'Show code';
+  toggle.textContent = tr('Show code');
   toggle.addEventListener('click', () => {
     const showCode = pre.hidden;
     pre.hidden = !showCode;
     picture.hidden = showCode;
-    toggle.textContent = showCode ? 'Show diagram' : 'Show code';
+    toggle.textContent = showCode ? tr('Show diagram') : tr('Show code');
   });
   pre.replaceWith(figure);
   pre.hidden = true;

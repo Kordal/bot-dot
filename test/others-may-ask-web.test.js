@@ -10,7 +10,7 @@ const { cut } = require('./web-page');
 
 test('web: the settings have the switch, and saving sends othersMayAsk as it is ticked', () => {
   const settings = cut('function renderBotSettings(', '// The bits of the settings page that follow');
-  assert.match(settings, /<b>Other bots may ask it<\/b>/);
+  assert.match(settings, /<b>\$\{tr\('Other bots may ask it'\)\}<\/b>/);
   assert.match(settings, /name="othersMayAsk" \$\{b\.othersMayAsk !== false \? 'checked' : ''\}/);
   const ctx = vm.createContext({ readDisabledSkills: () => [], readLlmFields: () => ({}) });
   vm.runInContext(`${cut('function readBotForm(', '// Switched-off machine/built-in skills')}\nthis.readBotForm = readBotForm;`, ctx);

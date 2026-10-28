@@ -133,7 +133,7 @@ test('the web page says "Main assignment", and its empty chat has no button to r
   const app = webSource();
   for (const text of [
     // What it is stands in the field's tooltip, not in a line under it (#635).
-    "Main assignment\n        <textarea name=\"prompt\" rows=\"4\" required${tipAttrs('What it does when a job runs it, and its guide for your messages')}>",
+    "${tr('Main assignment')}\n        <textarea name=\"prompt\" rows=\"4\" required${tipAttrs(tr('What it does when a job runs it, and its guide for your messages'))}>",
     'Ran its main assignment',
     "Empty: the bot's main assignment",
   ]) assert.ok(app.includes(text), text);

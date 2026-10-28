@@ -4,7 +4,7 @@
 // this file fills it.
 
 const Usage = (() => {
-  const PRESETS = [['today', 'Today'], ['7', '7 days'], ['30', '30 days'], ['custom', 'Custom']];
+  const PRESETS = [['today', tr('Today')], ['7', trn(7, '{n} day', '{n} days')], ['30', trn(30, '{n} day', '{n} days')], ['custom', tr('Custom')]];
   let cur = null; // { box, preset, from, to, today, keepDays, data, error }
 
   // Day arithmetic on YYYY-MM-DD, by the calendar alone.
@@ -22,31 +22,31 @@ const Usage = (() => {
     n = Number(n) || 0;
     if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
     if (n >= 1e4) return `${(n / 1e3).toFixed(n >= 1e5 ? 0 : 1)}k`;
-    return n.toLocaleString('en');
+    return n.toLocaleString(I18n.locale || 'en');
   }
-  const dayLabel = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const dayLabel = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString(I18n.locale || 'en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
 
   function pickerHTML(c) {
     const custom = c.preset === 'custom';
     const min = c.today ? addDays(c.today, -((c.keepDays || 400) - 1)) : '';
     return `
-      <div class="usage-picker" role="group" aria-label="Timeframe">
+      <div class="usage-picker" role="group" aria-label="${tr('Timeframe')}">
         ${PRESETS.map(([id, label]) => `<button type="button" class="btn sm${c.preset === id ? ' primary' : ''}" data-usage-preset="${id}" aria-pressed="${c.preset === id}">${label}</button>`).join('')}
       </div>
       ${custom ? `<div class="usage-custom">
-        <label class="field">From<input type="date" data-usage-day="from" value="${esc(c.from || '')}" min="${min}" max="${esc(c.today || '')}"></label>
-        <label class="field">To<input type="date" data-usage-day="to" value="${esc(c.to || '')}" min="${min}" max="${esc(c.today || '')}"></label>
+        <label class="field">${tr('From')}<input type="date" data-usage-day="from" value="${esc(c.from || '')}" min="${min}" max="${esc(c.today || '')}"></label>
+        <label class="field">${tr('To')}<input type="date" data-usage-day="to" value="${esc(c.to || '')}" min="${min}" max="${esc(c.today || '')}"></label>
       </div>` : ''}`;
   }
 
   function totalsHTML(t) {
     const cell = (label, value) => `<div class="usage-stat"><div class="faint">${label}</div><b>${esc(value)}</b></div>`;
     return `<div class="usage-totals">
-      ${cell('Input tokens', tokens(t.inputTokens))}
-      ${cell('Output tokens', tokens(t.outputTokens))}
-      ${cell('Cache read', tokens(t.cacheReadTokens))}
-      ${cell('Cache write', tokens(t.cacheWriteTokens))}
-      ${cell('All tokens', tokens(t.totalTokens))}
+      ${cell(tr('Input tokens'), tokens(t.inputTokens))}
+      ${cell(tr('Output tokens'), tokens(t.outputTokens))}
+      ${cell(tr('Cache read'), tokens(t.cacheReadTokens))}
+      ${cell(tr('Cache write'), tokens(t.cacheWriteTokens))}
+      ${cell(tr('All tokens'), tokens(t.totalTokens))}
     </div>`;
   }
 
@@ -55,19 +55,19 @@ const Usage = (() => {
     const top = Math.max(0, ...days.map((d) => d.totalTokens));
     const bars = days.map((d) => {
       const h = top ? Math.max(d.totalTokens ? 3 : 0, Math.round((d.totalTokens / top) * 100)) : 0;
-      const tip = `${dayLabel(d.day)}: ${tokens(d.totalTokens)} tokens`;
+      const tip = tr('{day}: {count} tokens', { day: dayLabel(d.day), count: tokens(d.totalTokens) });
       return `<div class="usage-bar" title="${esc(tip)}" aria-label="${esc(tip)}"><i style="height:${h}%"></i></div>`;
     }).join('');
     const ends = days.length > 1 ? `<div class="usage-axis faint"><span>${esc(dayLabel(days[0].day))}</span><span>${esc(dayLabel(days[days.length - 1].day))}</span></div>` : '';
-    return `<div class="usage-chart" role="img" aria-label="Tokens per day">${bars}</div>${ends}`;
+    return `<div class="usage-chart" role="img" aria-label="${tr('Tokens per day')}">${bars}</div>${ends}`;
   }
 
   function botsHTML(bots) {
-    if (!bots.length) return '<p class="muted" style="margin:0">No tokens used in this timeframe.</p>';
+    if (!bots.length) return `<p class="muted" style="margin:0">${tr('No tokens used in this timeframe.')}</p>`;
     const top = Math.max(...bots.map((b) => b.totalTokens), 1);
     return `<div class="usage-bots">${bots.map((b) => `
       <div class="usage-bot">
-        <div class="usage-bot-head"><span class="grow">${esc(b.name)}${b.gone ? ' <span class="faint">(deleted)</span>' : ''}</span><span class="muted">${tokens(b.totalTokens)}</span></div>
+        <div class="usage-bot-head"><span class="grow">${esc(b.name)}${b.gone ? ` <span class="faint">${tr('(deleted)')}</span>` : ''}</span><span class="muted">${tokens(b.totalTokens)}</span></div>
         <div class="usage-bot-bar"><i style="width:${Math.round((b.totalTokens / top) * 100)}%"></i></div>
       </div>`).join('')}</div>`;
   }
@@ -77,15 +77,15 @@ const Usage = (() => {
     if (!c) return;
     const d = c.data;
     // A row of Settings (#635): what the counts are is its tooltip, not a line under it.
-    const tip = 'Tokens as Claude Code reports them, for your bots and the Chief of Staff, counted from this update on.';
+    const tip = tr('Tokens as Claude Code reports them, for your bots and the Chief of Staff, counted from this update on.');
     c.box.innerHTML = `
-      <summary title="${tip}" aria-description="${tip}"><b>Usage</b><span class="bs-chev" aria-hidden="true">›</span></summary>
+      <summary title="${tip}" aria-description="${tip}"><b>${tr('Usage')}</b><span class="bs-chev" aria-hidden="true">›</span></summary>
       <div class="bs-body">
       ${pickerHTML(c)}
-      ${c.error ? `<div class="req-note">${esc(c.error)}</div>` : !d ? '<p class="muted" style="margin:0">Loading…</p>' : `
+      ${c.error ? `<div class="req-note">${esc(c.error)}</div>` : !d ? `<p class="muted" style="margin:0">${tr('Loading…')}</p>` : `
         ${totalsHTML(d.totals)}
         ${d.days.length > 1 ? chartHTML(d.days) : ''}
-        <h4 class="usage-sub">By bot</h4>
+        <h4 class="usage-sub">${tr('By bot')}</h4>
         ${botsHTML(d.bots)}`}
       </div>`;
     c.box.querySelectorAll('[data-usage-preset]').forEach((b) => (b.onclick = () => pick(b.dataset.usagePreset)));

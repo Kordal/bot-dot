@@ -4,7 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, esc, element } = require('./web-page');
+const { read, esc, element, words } = require('./web-page');
 
 const answerFor = (from, to) => {
   const days = [];
@@ -24,7 +24,7 @@ const answerFor = (from, to) => {
 
 function page({ fail = null } = {}) {
   const calls = [];
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     api: async (url) => {
       calls.push(url);
       if (fail) throw new Error(fail);

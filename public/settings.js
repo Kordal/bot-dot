@@ -40,18 +40,18 @@ function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
   const known = models.some((x) => x.id === model);
   const groups = [...new Set(models.map((x) => x.group))];
   const modelOpts = [
-    `<option value="" ${!model ? 'selected' : ''}>${esc(inherit || "Claude Code's default")}</option>`,
+    `<option value="" ${!model ? 'selected' : ''}>${esc(inherit || tr("Claude Code's default"))}</option>`,
     ...groups.map((g) => `<optgroup label="${esc(g)}">${models.filter((x) => x.group === g).map((x) => `<option value="${esc(x.id)}" ${x.id === model ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`),
-    `<option value="__custom" ${model && !known ? 'selected' : ''}>Another model…</option>`,
+    `<option value="__custom" ${model && !known ? 'selected' : ''}>${tr('Another model…')}</option>`,
   ].join('');
-  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(inherit || "Claude Code's default")}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
+  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(inherit || tr("Claude Code's default"))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
   return `
     <div class="llm-fields" data-llm="${prefix}">
       <div class="row">
-        <label class="field">Model<select name="${prefix}Model">${modelOpts}</select></label>
-        <label class="field">Reasoning level<select name="${prefix}Effort">${effortOpts}</select></label>
+        <label class="field">${tr('Model')}<select name="${prefix}Model">${modelOpts}</select></label>
+        <label class="field">${tr('Reasoning level')}<select name="${prefix}Effort">${effortOpts}</select></label>
       </div>
-      <input type="text" class="mono ${model && !known ? '' : 'hidden'}" name="${prefix}ModelCustom" value="${model && !known ? esc(model) : ''}" placeholder="Full model name, e.g. claude-opus-4-8" autocomplete="off" spellcheck="false">
+      <input type="text" class="mono ${model && !known ? '' : 'hidden'}" name="${prefix}ModelCustom" value="${model && !known ? esc(model) : ''}" placeholder="${esc(tr('Full model name, e.g. claude-opus-4-8'))}" autocomplete="off" spellcheck="false">
     </div>`;
 }
 
@@ -70,7 +70,7 @@ function wireLlmFields(form, prefix) {
     e.disabled = noEffort;
     const effort = state.efforts?.find((x) => x.id === e.value);
     describe(m, info?.note || '');
-    describe(e, noEffort ? `${info?.label || id} doesn't use reasoning levels.` : effort ? `${effort.label}: ${effort.note}` : '');
+    describe(e, noEffort ? tr("{model} doesn't use reasoning levels.", { model: info?.label || id }) : effort ? `${effort.label}: ${effort.note}` : '');
   };
   m.onchange = update;
   e.onchange = update;
@@ -129,10 +129,10 @@ function catalogTip() {
 // it. Its days and its time have no control: the row shows them in the server's words, and the Chief changes them.
 const CHECKUP_HTML = `
       <div class="bs-group hidden" id="chief-checkup">
-        <label class="bs-row" title="Ask the Chief to change when."><b>Checkup</b><span class="bs-val" data-checkup-when></span>
-          <span class="switch"><input type="checkbox" data-checkup="on" aria-label="Checkup"><span></span></span></label>
-        <label class="bs-row"${tipAttrs('Lets a checkup search the web to check a proposal. It never opens a page.')}><b>Web search</b>
-          <span class="switch"><input type="checkbox" data-checkup="webSearch" aria-label="Web search"><span></span></span></label>
+        <label class="bs-row" title="${esc(tr('Ask the Chief to change when.'))}"><b>${tr('Checkup')}</b><span class="bs-val" data-checkup-when></span>
+          <span class="switch"><input type="checkbox" data-checkup="on" aria-label="${esc(tr('Checkup'))}"><span></span></span></label>
+        <label class="bs-row"${tipAttrs(tr('Lets a checkup search the web to check a proposal. It never opens a page.'))}><b>${tr('Web search')}</b>
+          <span class="switch"><input type="checkbox" data-checkup="webSearch" aria-label="${esc(tr('Web search'))}"><span></span></span></label>
       </div>`;
 
 // The switches as the server has them; Web search is there but can't be used while checkups are off.
@@ -177,32 +177,32 @@ function renderChiefSettings() {
       <div class="set-head">
         ${chiefFigure('lg')}
         <div class="set-name">${state.features.includes('chief-name')
-          ? `<input type="text" id="chief-rename" maxlength="40" placeholder="${esc(CHIEF_ROLE)}" autocomplete="off" aria-label="Name" value="${esc(chiefName() === CHIEF_ROLE ? '' : chiefName())}">`
-          : `<b>${esc(chiefName())}</b>`}</div>
+          ? `<input type="text" id="chief-rename" maxlength="40" placeholder="${esc(tr('Chief of Staff'))}" autocomplete="off" aria-label="${esc(tr('Name'))}" value="${esc(chiefName() === CHIEF_ROLE ? '' : chiefName())}">`
+          : `<b>${esc(chiefTitle())}</b>`}</div>
       </div>
-      <label class="field">Your rules for it<textarea name="chiefRules" rows="4" maxlength="4000" placeholder="e.g. Always ask me before creating a bot. Talk to me like a colleague: short and direct.">${esc(s.chiefRules || '')}</textarea></label>
+      <label class="field">${tr('Your rules for it')}<textarea name="chiefRules" rows="4" maxlength="4000" placeholder="${esc(tr('e.g. Always ask me before creating a bot. Talk to me like a colleague: short and direct.'))}">${esc(s.chiefRules || '')}</textarea></label>
       <div class="set-list">
         <details class="bs-row bs-more" id="chief-model">
-          <summary${tipAttrs('What the Chief uses to plan, create and manage your bots.')}><b>Model</b><span class="bs-val" data-llm-val>${esc(llmValue(s.chiefModel, s.chiefEffort))}</span>${CHEV}</summary>
-          <div class="bs-body">${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort }, 'Same as the default')}</div>
+          <summary${tipAttrs(tr('What the Chief uses to plan, create and manage your bots.'))}><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmValue(s.chiefModel, s.chiefEffort))}</span>${CHEV}</summary>
+          <div class="bs-body">${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort }, tr('Same as the default'))}</div>
         </details>
-        <div class="bs-row" id="chief-skills"${tipAttrs('From your library, beside its own. Only you change them.')}>
-          <div class="grow"><b>Skills</b><div id="chief-skill-picks"><span class="faint">Loading…</span></div></div>${CHEV}
+        <div class="bs-row" id="chief-skills"${tipAttrs(tr('From your library, beside its own. Only you change them.'))}>
+          <div class="grow"><b>${tr('Skills')}</b><div id="chief-skill-picks"><span class="faint">${tr('Loading…')}</span></div></div>${CHEV}
         </div>
-        <div class="bs-row hidden" id="chief-always"${tipAttrs('What you said to always allow on its cards. Revoke one and it asks you again.')}>
-          <div class="grow"><b>Always approved</b><div id="chief-always-picks"></div></div>${CHEV}
+        <div class="bs-row hidden" id="chief-always"${tipAttrs(tr('What you said to always allow on its cards. Revoke one and it asks you again.'))}>
+          <div class="grow"><b>${tr('Always approved')}</b><div id="chief-always-picks"></div></div>${CHEV}
         </div>${state.features.includes('chief-jobs') ? `
         <details class="bs-row bs-more" id="chief-jobs">
-          <summary${tipAttrs('It looks things up on a schedule and tells you here; it changes nothing. Easiest: ask it, e.g. "every weekday at 8 tell me what\'s new on Hacker News".')}><b>Jobs</b><span class="bs-val" id="chief-jobs-val"></span>${CHEV}</summary>
-          <div class="bs-body" id="chief-job-list"><span class="faint">Loading…</span></div>
+          <summary${tipAttrs(tr('It looks things up on a schedule and tells you here; it changes nothing. Easiest: ask it, e.g. "every weekday at 8 tell me what\'s new on Hacker News".'))}><b>${tr('Jobs')}</b><span class="bs-val" id="chief-jobs-val"></span>${CHEV}</summary>
+          <div class="bs-body" id="chief-job-list"><span class="faint">${tr('Loading…')}</span></div>
         </details>` : ''}${typeof Pages !== 'undefined' && Pages.showsChief() ? `
         <details class="bs-row bs-more" id="chief-pages">
-          <summary${tipAttrs('Reports, memos and overviews it made for you. Open one to keep it up to date.')}><b>Pages</b><span class="bs-val" id="chief-pages-val"></span>${CHEV}</summary>
-          <div class="bs-body pg-list" id="chief-page-list"><span class="faint">Loading…</span></div>
+          <summary${tipAttrs(tr('Reports, memos and overviews it made for you. Open one to keep it up to date.'))}><b>${tr('Pages')}</b><span class="bs-val" id="chief-pages-val"></span>${CHEV}</summary>
+          <div class="bs-body pg-list" id="chief-page-list"><span class="faint">${tr('Loading…')}</span></div>
         </details>` : ''}${state.features.includes('chief-files') ? `
-        <button type="button" class="bs-row bs-link" id="chief-files" data-chief-files><b>Files</b>${CHEV}</button>` : ''}${CHECKUP_HTML}
+        <button type="button" class="bs-row bs-link" id="chief-files" data-chief-files><b>${tr('Files')}</b>${CHEV}</button>` : ''}${CHECKUP_HTML}
         <details class="bs-row bs-more" id="chief-chats-row">
-          <summary><b>Previous chats</b>${CHEV}</summary>
+          <summary><b>${tr('Previous chats')}</b>${CHEV}</summary>
           <div class="bs-body settings-links" id="chief-chats"></div>
         </details>
       </div>
@@ -210,7 +210,7 @@ function renderChiefSettings() {
   renderChatList();
   drawChiefSkills(root);
   loadChiefAlways(root);
-  if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefName() }, $('#chief-page-list', root), $('#chief-pages-val', root)); // public/pages.js (#384)
+  if ($('#chief-page-list', root)) Pages.drawList({ id: Pages.CHIEF, name: chiefTitle() }, $('#chief-page-list', root), $('#chief-pages-val', root)); // public/pages.js (#384)
   drawChiefFiles(root);
   drawChiefJobs();
   $$('[data-checkup]', root).forEach((box) => (box.onchange = () => setCheckup(box.dataset.checkup, box.checked)));
@@ -238,9 +238,9 @@ function renderChiefSettings() {
 // (the Chief may have removed one by chat, a card may have added one); hidden while there is none. app.js
 // clears root.dataset.always while they are closed.
 const CHIEF_ALWAYS = [
-  { feature: 'chief-connectors', path: '/chief/connector-actions', key: 'action', desc: 'In a connected app, with any details.',
+  { feature: 'chief-connectors', path: '/chief/connector-actions', key: 'action', desc: tr('In a connected app, with any details.'),
     list: (r) => (r.grants || (r.actions || []).map((action) => ({ action, label: action }))).map((g) => ({ id: g.action, label: g.label })) },
-  { feature: 'more-always', path: '/chief/after-web', key: 'type', desc: 'Also after it read the web in a chat.',
+  { feature: 'more-always', path: '/chief/after-web', key: 'type', desc: tr('Also after it read the web in a chat.'),
     list: (r) => (r.types || []).map((t) => ({ id: t.type, label: t.label[0].toUpperCase() + t.label.slice(1) })) },
 ];
 async function loadChiefAlways(root) {
@@ -253,10 +253,10 @@ async function loadChiefAlways(root) {
   if (!items.length) return;
   const on = new Set(items.map((x) => x.id));
   foldPicker($('#chief-always-picks', root), items, on, () => {}, {
-    action: { label: 'Revoke', run: async (id) => {
+    action: { label: tr('Revoke'), run: async (id) => {
       const k = CHIEF_ALWAYS.find((x) => id.startsWith(`${x.path} `));
       try { await api(k.path, { method: 'DELETE', body: { [k.key]: id.slice(k.path.length + 1) } }); } catch (e) { toast(e.message, true); return false; }
-      toast('Revoked: it asks you again');
+      toast(tr('Revoked: it asks you again'));
       if (on.size <= 1) row.classList.add('hidden');
       return true;
     } },
@@ -264,7 +264,7 @@ async function loadChiefAlways(root) {
 }
 
 // Its files and workspace (#383): the Files view (#603, files.js), as a bot's.
-const chiefAsBot = () => ({ id: '_chief', name: chiefName(), base: '/chief', computer: 'none' });
+const chiefAsBot = () => ({ id: '_chief', name: chiefTitle(), base: '/chief', computer: 'none' });
 function drawChiefFiles(root) {
   const link = $('[data-chief-files]', root);
   if (link) link.onclick = () => Files.open(chiefAsBot());
@@ -289,13 +289,13 @@ async function renameChief(field) {
 async function drawChiefJobs(jobs = null) {
   const box = $('#chief-job-list');
   if (!box) return;
-  try { jobs ||= (await api('/chief/jobs')).jobs; } catch { box.innerHTML = '<span class="faint">Couldn\'t load its jobs.</span>'; return; }
+  try { jobs ||= (await api('/chief/jobs')).jobs; } catch { box.innerHTML = `<span class="faint">${tr("Couldn't load its jobs.")}</span>`; return; }
   box.innerHTML = jobs.length ? jobs.map((j) => `
       <div class="bs-row" data-chief-job="${esc(j.id)}">
-        <div class="grow"><b>${esc(j.name)}</b><span class="bs-val">${esc(j.when)}${j.on ? '' : ' · paused'}</span><div class="faint">${esc(j.task.length > 160 ? `${j.task.slice(0, 160)}…` : j.task)}</div>
-          <button type="button" class="link-btn danger-text" data-chief-job-remove>Remove</button></div>
-        <label class="switch"><input type="checkbox" data-chief-job-on ${j.on ? 'checked' : ''} aria-label="${esc(j.name)} on"><span></span></label>
-      </div>`).join('') : '<div class="faint">None yet.</div>';
+        <div class="grow"><b>${esc(j.name)}</b><span class="bs-val">${esc(j.when)}${j.on ? '' : ` · ${tr('paused')}`}</span><div class="faint">${esc(j.task.length > 160 ? `${j.task.slice(0, 160)}…` : j.task)}</div>
+          <button type="button" class="link-btn danger-text" data-chief-job-remove>${tr('Remove')}</button></div>
+        <label class="switch"><input type="checkbox" data-chief-job-on ${j.on ? 'checked' : ''} aria-label="${esc(tr('{name} on', { name: j.name }))}"><span></span></label>
+      </div>`).join('') : `<div class="faint">${tr('None yet.')}</div>`;
   const count = $('#chief-jobs-val');
   if (count) count.textContent = jobs.length ? String(jobs.length) : '';
   $$('[data-chief-job]', box).forEach((row) => {
@@ -303,7 +303,7 @@ async function drawChiefJobs(jobs = null) {
     $('[data-chief-job-on]', row).onchange = (e) => api(`/chief/jobs/${encodeURIComponent(id)}`, { method: 'PUT', body: { on: e.target.checked } })
       .then(() => flashSaved($('#view-chiefsettings'))).catch((err) => { toast(err.message, true); drawChiefJobs(); });
     $('[data-chief-job-remove]', row).onclick = () => api(`/chief/jobs/${encodeURIComponent(id)}`, { method: 'DELETE' })
-      .then(() => { toast('Removed.'); drawChiefJobs(); }).catch((err) => toast(err.message, true));
+      .then(() => { toast(tr('Removed.')); drawChiefJobs(); }).catch((err) => toast(err.message, true));
   });
 }
 
@@ -320,8 +320,8 @@ function drawChiefSkills(root) {
         state.settings = r.settings;
         flashSaved($('#view-chiefsettings'));
       } catch (err) { toast(err.message, true); }
-    }, { empty: 'No skills in your library yet.' });
-  }).catch(() => { box.innerHTML = '<span class="faint">Couldn\'t load skills.</span>'; });
+    }, { empty: tr('No skills in your library yet.') });
+  }).catch(() => { box.innerHTML = `<span class="faint">${tr("Couldn't load skills.")}</span>`; });
 }
 
 // The pages that open from Settings. They are its first rows; Pages is every bot's pages (#361).
@@ -451,7 +451,7 @@ async function loadComputerPlace(root) {
   pick.onchange = async () => {
     const to = pick.value;
     pick.value = place; // back at the saved one until the answer
-    const copy = state.bots.some((b) => b.computer === 'linux' || b.computer === 'boat') ? await askMoveFiles(to, 'the bots\'') : false;
+    const copy = state.bots.some((b) => b.computer === 'linux' || b.computer === 'boat') ? await askMoveFiles(to, true) : false;
     if (copy === null) return;
     try {
       ({ place } = await api('/settings/computer', { method: 'PUT', body: { place: to, moveFiles: copy } }));
@@ -618,11 +618,11 @@ function drawUpdateCard(u) {
 // A POST to one of the front door's own routes: its answer, or throws its sentence.
 async function frontDoorPost(path, body) {
   let res;
-  try { res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: JSON.stringify(body) }); } catch { throw new Error("Can't reach botdot."); }
+  try { res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: JSON.stringify(body) }); } catch { throw new Error(tr("Can't reach botdot.")); }
   const data = await res.json().catch(() => ({}));
   // A session that ended signs in again, as every other call does.
-  if (res.status === 401) { location.assign('/sign-in'); throw new Error('Sign in first.'); }
-  if (!res.ok) throw new Error(typeof data.error === 'string' && data.error.trim() ? data.error : `botdot answered ${res.status}`);
+  if (res.status === 401) { location.assign('/sign-in'); throw new Error(tr('Sign in first.')); }
+  if (!res.ok) throw new Error(typeof data.error === 'string' && data.error.trim() ? data.error : tr('botdot answered {status}', { status: res.status }));
   return data;
 }
 
@@ -640,10 +640,10 @@ async function signOutEverywhere() {
   if (!confirm(tr('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.'))) return;
   let res;
   // The front door's own route, not botdot's: no botdot server, and so no Chief or bot, reaches a session.
-  try { res = await fetch('/sign-out-everywhere', { method: 'POST', headers: { 'X-Bot-Dot': '1' } }); } catch { toast("Can't reach botdot.", true); return; }
+  try { res = await fetch('/sign-out-everywhere', { method: 'POST', headers: { 'X-Bot-Dot': '1' } }); } catch { toast(tr("Can't reach botdot."), true); return; }
   if (res.ok || res.status === 401) { location.assign('/sign-in'); return; }
   const data = await res.json().catch(() => ({}));
-  toast(typeof data.error === 'string' && data.error.trim() ? data.error : `Couldn't sign out (${res.status}).`, true);
+  toast(typeof data.error === 'string' && data.error.trim() ? data.error : tr("Couldn't sign out ({status}).", { status: res.status }), true);
 }
 
 // ---------- the way to the admin page ----------
@@ -669,24 +669,24 @@ async function showAdminLink() {
 // Beside Settings (#216, ADR 048): a bug or a feature request for the admin of this machine, who reads it on the admin
 // page. It goes to the front door, never to botdot, and holds only what is typed and added here: since #223 (ADR 048)
 // up to three screenshots, when the front door says it takes them. A failed send keeps the text and the screenshots.
-const FEEDBACK_KINDS = [['bug', 'Bug'], ['feature', 'Feature request']];
+const FEEDBACK_KINDS = [['bug', tr('Bug')], ['feature', tr('Feature request')]];
 const FEEDBACK_SHOTS = { max: 3, bytes: 5 * 1024 * 1024, types: ['image/png', 'image/jpeg', 'image/webp'] };
 let feedbackShots = false; // whether the front door takes screenshots (its session's feedbackScreenshots)
 function openFeedback() {
   const m = openModal(`
     <form id="feedback-form" autocomplete="off">
-      <div class="modal-head"><h2>Feedback</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>${tr('Feedback')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <p class="muted" style="margin:0">${feedbackShots ? 'The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.' : 'The admin of this machine reads it. Only what you write here is sent.'}</p>
+        <p class="muted" style="margin:0">${feedbackShots ? tr('The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.') : tr('The admin of this machine reads it. Only what you write here is sent.')}</p>
         <div class="feedback-kinds">${FEEDBACK_KINDS.map(([v, label], i) => `<label><input type="radio" name="kind" value="${v}"${i ? '' : ' checked'}> ${label}</label>`).join('')}</div>
-        <label class="field">What happened, or what you would like<textarea name="text" rows="6" required></textarea></label>
+        <label class="field">${tr('What happened, or what you would like')}<textarea name="text" rows="6" required></textarea></label>
         ${feedbackShots ? `<div class="feedback-shots hidden" id="feedback-shots"></div>
-        <div><button type="button" class="btn sm" id="feedback-add">Add screenshot</button><input type="file" id="feedback-file" accept="${FEEDBACK_SHOTS.types.join(',')}" multiple hidden></div>` : ''}
+        <div><button type="button" class="btn sm" id="feedback-add">${tr('Add screenshot')}</button><input type="file" id="feedback-file" accept="${FEEDBACK_SHOTS.types.join(',')}" multiple hidden></div>` : ''}
         <p class="req-note hidden" id="feedback-said" role="alert"></p>
       </div>
       <div class="modal-foot">
-        <button type="button" class="btn" data-dismiss>Cancel</button>
-        <button class="btn primary" id="feedback-send">Send</button>
+        <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>
+        <button class="btn primary" id="feedback-send">${tr('Send')}</button>
       </div>
     </form>`);
   m._shots = [];
@@ -705,9 +705,9 @@ function openFeedback() {
 function addFeedbackShots(m, files) {
   const refused = [];
   for (const file of files) {
-    if (m._shots.length >= FEEDBACK_SHOTS.max) { refused.push(`At most ${FEEDBACK_SHOTS.max} screenshots go in one report.`); break; }
-    if (!FEEDBACK_SHOTS.types.includes(file.type)) refused.push(`${file.name} isn't a PNG, JPEG or WebP picture.`);
-    else if (file.size > FEEDBACK_SHOTS.bytes) refused.push(`${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB: each screenshot can be at most 5 MB.`);
+    if (m._shots.length >= FEEDBACK_SHOTS.max) { refused.push(trn(FEEDBACK_SHOTS.max, 'At most {n} screenshot goes in one report.', 'At most {n} screenshots go in one report.')); break; }
+    if (!FEEDBACK_SHOTS.types.includes(file.type)) refused.push(tr("{name} isn't a PNG, JPEG or WebP picture.", { name: file.name }));
+    else if (file.size > FEEDBACK_SHOTS.bytes) refused.push(tr('{name} is {size} MB: each screenshot can be at most 5 MB.', { name: file.name, size: (file.size / 1024 / 1024).toLocaleString(I18n.locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }));
     else m._shots.push({ file, url: URL.createObjectURL(file) });
   }
   drawFeedbackShots(m);
@@ -720,7 +720,7 @@ function drawFeedbackShots(m) {
   const box = $('#feedback-shots', m);
   if (!box) return;
   box.classList.toggle('hidden', !m._shots.length);
-  box.innerHTML = m._shots.map((s, i) => `<span class="feedback-shot"><img src="${esc(s.url)}" alt="Screenshot ${i + 1}"><button type="button" data-unshot="${i}" aria-label="Remove screenshot ${i + 1}" title="Remove">×</button></span>`).join('');
+  box.innerHTML = m._shots.map((s, i) => `<span class="feedback-shot"><img src="${esc(s.url)}" alt="${esc(tr('Screenshot {n}', { n: i + 1 }))}"><button type="button" data-unshot="${i}" aria-label="${esc(tr('Remove screenshot {n}', { n: i + 1 }))}" title="${esc(tr('Remove'))}">×</button></span>`).join('');
   $$('[data-unshot]', box).forEach((b) => (b.onclick = () => {
     const [gone] = m._shots.splice(Number(b.dataset.unshot), 1);
     if (gone) URL.revokeObjectURL(gone.url);
@@ -745,22 +745,22 @@ async function sendFeedback(m) {
   const said = $('#feedback-said', m);
   // The form may have been closed meanwhile, and another dialog opened in its place: that one is left alone.
   const shown = () => $('#feedback-form', m) === f;
-  const kept = m._shots?.length ? 'Your text and screenshots are still here.' : 'Your text is still here.';
+  const kept = m._shots?.length;
   const fail = (text) => { if (!shown()) return toast(text, true); said.textContent = text; said.classList.remove('hidden'); };
   go.disabled = true;
   said.classList.add('hidden');
   try {
     const body = { kind: f.kind.value, text: f.text.value };
     if (m._shots?.length) {
-      try { body.screenshots = await Promise.all(m._shots.map(async (s) => ({ data: await fileBase64(s.file) }))); } catch { return fail(`Couldn't read a screenshot. Remove it and add it again.`); }
+      try { body.screenshots = await Promise.all(m._shots.map(async (s) => ({ data: await fileBase64(s.file) }))); } catch { return fail(tr("Couldn't read a screenshot. Remove it and add it again.")); }
     }
     let res;
     try {
       res = await fetch('/front-door/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: JSON.stringify(body) });
-    } catch { return fail(`Couldn't send: can't reach botdot. ${kept}`); }
-    if (res.ok) { if (shown()) m.close(); toast('Sent'); return; }
+    } catch { return fail(kept ? tr("Couldn't send: can't reach botdot. Your text and screenshots are still here.") : tr("Couldn't send: can't reach botdot. Your text is still here.")); }
+    if (res.ok) { if (shown()) m.close(); toast(tr('Sent')); return; }
     const data = await res.json().catch(() => ({}));
-    fail(typeof data.error === 'string' && data.error.trim() ? data.error : `Couldn't send (${res.status}). ${kept}`);
+    fail(typeof data.error === 'string' && data.error.trim() ? data.error : kept ? tr("Couldn't send ({status}). Your text and screenshots are still here.", { status: res.status }) : tr("Couldn't send ({status}). Your text is still here.", { status: res.status }));
   } finally { go.disabled = false; }
 }
 
@@ -821,15 +821,15 @@ async function loadBackupsCard() {
 function openRestoreDialog() {
   const m = openModal(`
     <form id="restore-form" autocomplete="off">
-      <div class="modal-head"><h2>Restore a backup</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>${tr('Restore a backup')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <p class="muted" style="margin:0">Your bots, chats, memory, vault and settings come back. Afterwards, sign in to Claude (and Bitwarden) again. What's here now is kept aside, not deleted.</p>
-        <label class="field">Backup file<input type="file" name="file" accept=".bdb" required></label>
-        <label class="field">Its passphrase<input type="password" name="passphrase" required autocomplete="off"></label>
+        <p class="muted" style="margin:0">${tr("Your bots, chats, memory, vault and settings come back. Afterwards, sign in to Claude (and Bitwarden) again. What's here now is kept aside, not deleted.")}</p>
+        <label class="field">${tr('Backup file')}<input type="file" name="file" accept=".bdb" required></label>
+        <label class="field">${tr('Its passphrase')}<input type="password" name="passphrase" required autocomplete="off"></label>
       </div>
       <div class="modal-foot">
-        <button type="button" class="btn" data-dismiss>Cancel</button>
-        <button class="btn primary" id="restore-go">Restore</button>
+        <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>
+        <button class="btn primary" id="restore-go">${tr('Restore')}</button>
       </div>
     </form>`);
   $('#restore-form', m).onsubmit = async (e) => {
@@ -838,15 +838,15 @@ function openRestoreDialog() {
     const go = $('#restore-go', m);
     go.disabled = true;
     try {
-      go.textContent = 'Uploading…';
-      const up = await fetch('/api/backups/upload', { method: 'POST', headers: { 'X-Bot-Dot': '1', 'Content-Type': 'application/octet-stream' }, body: f.file.files[0] }).then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || 'Upload failed'); return d; });
-      go.textContent = 'Checking…';
+      go.textContent = tr('Uploading…');
+      const up = await fetch('/api/backups/upload', { method: 'POST', headers: { 'X-Bot-Dot': '1', 'Content-Type': 'application/octet-stream' }, body: f.file.files[0] }).then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || tr('Upload failed')); return d; });
+      go.textContent = tr('Checking…');
       const r = await api('/backups/restore', { method: 'POST', body: { file: up.file, passphrase: f.passphrase.value } });
       f.passphrase.value = '';
-      go.textContent = 'Restarting…';
-      toast(`Restoring ${r.bots} bot${r.bots === 1 ? '' : 's'} from ${new Date(r.createdAt).toLocaleString()}. botdot restarts.`);
+      go.textContent = tr('Restarting…');
+      toast(trn(r.bots, 'Restoring {n} bot from {date}. botdot restarts.', 'Restoring {n} bots from {date}. botdot restarts.', { date: new Date(r.createdAt).toLocaleString(I18n.locale) }));
       // Back up again: reload then (to the setup page, to sign in to Claude).
       const wait = setInterval(async () => { try { await api('/version'); clearInterval(wait); location.reload(); } catch { /* still restarting */ } }, 2000);
-    } catch (err) { toast(err.message, true); go.disabled = false; go.textContent = 'Restore'; }
+    } catch (err) { toast(err.message, true); go.disabled = false; go.textContent = tr('Restore'); }
   };
 }

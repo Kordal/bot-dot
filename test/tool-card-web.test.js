@@ -9,10 +9,11 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { webSource } = require('./web-source');
+const { words } = require('./web-page');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
-const page = vm.createContext({});
+const page = vm.createContext({ ...words });
 vm.runInContext(read('tool-card.js'), page);
 const { ToolCard } = page;
 const app = webSource();
@@ -132,7 +133,7 @@ test('web: an ask with fields this app does not know, or without some it knows, 
 
 // The page's needCardHTML, with stand-ins for what it uses.
 function cards(open = []) {
-  const box = vm.createContext({ ToolCard, esc, needsOpen: new Set(open), botLabel: (b) => (b ? `<svg class="fig fig-small"></svg>${esc(b.name)}` : '') });
+  const box = vm.createContext({ ...words, ToolCard, esc, needsOpen: new Set(open), botLabel: (b) => (b ? `<svg class="fig fig-small"></svg>${esc(b.name)}` : '') });
   vm.runInContext(`${cut('function needCardHTML(x, here = null) {', 'function renderNeeds() {')}; this.needCardHTML = needCardHTML;`, box);
   return box.needCardHTML;
 }
@@ -174,7 +175,7 @@ test('web: the other asks are drawn as before', () => {
 
 test('web: the card is in the chat of the bot it is for and in the Chief\'s, and in no other bot\'s', () => {
   const asks = [GH, { id: 'p1', kind: 'permission', botId: 'coder', bot: CODER, permission: 'bash' }, { id: 's1', kind: 'skill', botId: null, bot: null, url: 'https://x' }, { ...STRIPE, botId: 'gone', bot: null }];
-  const box = vm.createContext({ ToolCard, state: { dash: null }, botById: () => null, CHIEF_COLOR: '#d85a30', needsItems: () => asks.map(item) });
+  const box = vm.createContext({ ...words, ToolCard, state: { dash: null }, botById: () => null, CHIEF_COLOR: '#d85a30', needsItems: () => asks.map(item) });
   vm.runInContext(`${cut('const fromChief = (x) =>', '// Put the cards')}; this.chatNeeds = chatNeeds;`, box);
   const keys = (scope) => plain(box.chatNeeds(scope).map((x) => x.key));
   assert.deepEqual(keys('coder'), ['ask:a1', 'ask:p1'], "the bot's own chat: its tool, and its permission as before");
@@ -186,7 +187,7 @@ test('web: the card is in the chat of the bot it is for and in the Chief\'s, and
 
 test('web: the banner has a head for a tool ask, in its bot\'s colour and hat', () => {
   const marks = [];
-  const box = vm.createContext({
+  const box = vm.createContext({ ...words,
     state: { bw: null, asks: [GH, { ...STRIPE, botId: 'gone', bot: null }], memPending: [], dash: null, chats: [] }, loginReq: { pending: [] }, pendingJobs: () => [],
     botById: (id) => (id === 'coder' ? CODER : null), colorOf: (b) => b.color, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, CHIEF_COLOR: '#d85a30',
     botMark: (b) => { marks.push(b.id); return `<svg data-bot="${b.id}"></svg>`; }, Figure: { CHIEF: { hat: 'chief' }, small: (color) => `<svg data-chief="${color}"></svg>` },
@@ -215,7 +216,7 @@ function decider({ fail = null, where = [null] } = {}) {
   });
   const [el] = els, { actions } = el;
   let refreshed = 0;
-  const box = vm.createContext({
+  const box = vm.createContext({ ...words,
     ToolCard, esc, CSS: { escape: (s) => s }, needsDone: new Map(), chatDecided: new Map(), PLAN_APPROVAL: '', loadDash() {},
     answeredAway: new Map(), chatsOfAsk: () => [], // the chats a card answered on the page says so in: test/chat-approvals-web.test.js
     api: async (url, opts) => { calls.push([url, opts.method, opts.body]); if (fail) throw new Error(fail); return { ok: true, installing: true }; },

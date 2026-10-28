@@ -5,7 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, cut, esc, element } = require('./web-page');
+const { read, cut, esc, element, words } = require('./web-page');
 
 const html = read('index.html');
 const src = read('rooms.js');
@@ -33,7 +33,7 @@ function page({ answer = () => [200, { rooms: [ROOM], invites: [INVITE] }], myBo
   }
   const store = {};
   const ctx = vm.createContext({
-    state, esc, console, JSON, encodeURIComponent, EventSource,
+    state, esc, ...words, console, JSON, encodeURIComponent, EventSource,
     localStorage: { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = v; } },
     document: { hidden: false }, getSelection: () => ({ isCollapsed: true }),
     fetch: async (url, opts = {}) => {
@@ -329,9 +329,9 @@ test("web: a bot's settings have the Shared rooms row with room-settings and roo
   const draw = cut('function renderBotSettings(', '// The bits of the settings page that follow');
   assert.ok(draw.includes('${showsRoomSettings(b) ?'));
   assert.match(draw, /name="allowRooms" \$\{b\.rooms\.allowRooms \? 'checked' : ''\}/);
-  assert.match(draw, /<select name="roomsWho" aria-label="Who may mention it">/, "a row of its own, shown while it is on");
-  assert.match(bots, /const ROOM_WHO = \[\['owner', 'Only you'\], \['anyone', 'Anyone in the room'\]\];/);
-  const ctx = vm.createContext({ readDisabledSkills: () => [], readLlmFields: () => ({}), state: { features: ['room-settings'] }, rooms: { on: true } });
+  assert.match(draw, /<select name="roomsWho" aria-label="\$\{esc\(tr\('Who may mention it'\)\)\}">/, "a row of its own, shown while it is on");
+  assert.match(bots, /const ROOM_WHO = \[\['owner', tr\('Only you'\)\], \['anyone', tr\('Anyone in the room'\)\]\];/);
+  const ctx = vm.createContext({ ...words, readDisabledSkills: () => [], readLlmFields: () => ({}), state: { features: ['room-settings'] }, rooms: { on: true } });
   vm.runInContext(`${cut('const ROOM_WHO = ', '// The page\'s form, in the shape the API takes.')}\n${cut('function readBotForm(', '// Switched-off machine/built-in skills')}\nthis.readBotForm = readBotForm; this.showsRoomSettings = showsRoomSettings;`, ctx);
   const field = (value, checked = false) => ({ value, checked });
   const base = { name: field('Coder'), color: field('#1d9e75'), description: field(''), group: field(''), prompt: field(''), systemPrompt: field(''), computer: field(''), othersMayAsk: field('', true), tools: field(''), permissionMode: field('dontAsk') };

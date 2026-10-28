@@ -23,7 +23,7 @@ const rowsOf = (list) => (Array.isArray(list) ? list : [])
 // Other cards whose rows the server hands out are drawn by it too: a connected-app action, a changed bot (needs.js).
 const rows = (list) => { const r = rowsOf(list); return r.length ? `<div class="need-body"><dl class="nb need-facts">${r.map((f) => `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join('')}</dl></div>` : ''; };
 
-const BUTTONS = '<button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>Install</button>';
+const BUTTONS = `<button class="btn sm" data-need-no>${tr('Decline')}</button><button class="btn sm primary" data-need-yes>${tr('Install')}</button>`;
 
 // The card's parts as markup, for the page's own card: the title, the meta line, the body (what the tool is and
 // why, then the warning of a tool from a link, then the facts) and the buttons. A part the ask lacks is left out.

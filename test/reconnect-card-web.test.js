@@ -4,7 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, esc } = require('./web-page');
+const { read, esc, words } = require('./web-page');
 
 // The page with one card of each run on it: a click is the document's click listener, the cards are redrawn in place.
 function page({ connect = { redirectUrl: 'https://connect.example/gmail', connectionId: 'ca_1' }, statuses = ['ACTIVE'] } = {}) {
@@ -14,7 +14,7 @@ function page({ connect = { redirectUrl: 'https://connect.example/gmail', connec
   let onClick = null;
   const waits = [];
   const cards = [];
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     state: { view: 'bot', bots: [] }, esc, encodeURIComponent, toast: (m) => toasts.push(m), confirm: () => true, location: {},
     $: () => ({ dataset: {} }),
     window: { open: () => tab },
@@ -112,7 +112,7 @@ test('web: the Connectors page draws a connection without a status, and says why
   const root = { dataset: {}, innerHTML: '' };
   const el = () => ({ dataset: {}, focus() {}, setSelectionRange() {} });
   const data = { configured: true, account: 'own', keyHint: '…1234', connections: [{ id: 'ca_1', toolkit: 'github', app: { name: 'GitHub MCP' }, usedBy: [] }], reconnect: [] };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     state: { view: 'connectors', bots: [] }, esc, encodeURIComponent, URLSearchParams, toast() {}, SUB_BACK: '', botLabel: () => '',
     $: (q) => (q === '#view-connectors' ? root : el()), $$: () => [], document: { addEventListener() {} },
     api: async (p) => (p === '/connectors' ? data : p.startsWith('/connectors/catalog') ? { items: [], nextOffset: null, total: 0 } : []),

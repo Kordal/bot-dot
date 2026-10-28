@@ -7,6 +7,10 @@
 
 (function (root) {
 
+// The page's words (i18n.js, #647); without them (the tests load this file alone) English.
+const words = typeof I18n === 'object' ? I18n : null;
+const tr = (text, vars) => (words ? words.tr(text, vars) : text);
+
 // An iPhone or iPad (an iPad says it is a Mac, with a touch screen).
 const isIos = (nav) => /iPad|iPhone|iPod/.test(String(nav?.userAgent || '')) || (nav?.platform === 'MacIntel' && nav?.maxTouchPoints > 1);
 // In Safari on iOS, not the Home Screen app: push needs the Home Screen app.
@@ -54,8 +58,8 @@ async function turnOn(win, api) {
   const allowed = await win.Notification.requestPermission();
   if (allowed !== 'granted') {
     throw new Error(allowed === 'denied'
-      ? 'Notifications are blocked for botdot in this browser. Allow them in its settings, then turn this on again.'
-      : 'Notifications were not allowed.');
+      ? tr('Notifications are blocked for botdot in this browser. Allow them in its settings, then turn this on again.')
+      : tr('Notifications were not allowed.'));
   }
   const nav = win.navigator;
   await nav.serviceWorker.register('/sw.js');

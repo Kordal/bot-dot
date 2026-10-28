@@ -5,7 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, cut, esc, noDrafts } = require('./web-page');
+const { read, cut, esc, noDrafts, words } = require('./web-page');
 
 const notes = [
   { fromId: 'ia', from: 'Infra Admin', color: '#d85a30', text: 'Add my key to authorized_keys on the OVH server.', at: '2026-10-21T06:00:00.000Z' },
@@ -13,7 +13,7 @@ const notes = [
 ];
 
 function page(features) {
-  const ctx = vm.createContext({ esc, state: { features }, botLabel: (b) => esc(b?.name || ''), msgTime: (at) => `t(${at})`, ago: (at) => `ago(${at})` });
+  const ctx = vm.createContext({ ...words, esc, state: { features }, botLabel: (b) => esc(b?.name || ''), msgTime: (at) => `t(${at})`, ago: (at) => `ago(${at})` });
   vm.runInContext(`${cut('function notesFoldHTML(notes, heading, foot = \'\') {', '// A run\'s bot:')}\nthis.waitingNotesHTML = waitingNotesHTML; this.notesFoldHTML = notesFoldHTML;`, ctx);
   return ctx;
 }
@@ -41,7 +41,7 @@ test('web: "Run now" asks botdot to start the bot with its notes', () => {
 function chat() {
   const lib = vm.createContext({});
   vm.runInContext(read('unread.js'), lib);
-  const ctx = vm.createContext({ ...noDrafts,
+  const ctx = vm.createContext({ ...words, ...noDrafts,
     esc, Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: (at) => `t(${at})`, dur: () => '2 s',
     notesFoldHTML: (list, heading) => (list?.length ? `<notes ${heading}>` : ''), filesHTML: () => '', botFilesHTML: () => '', copyBtn: () => '<copy>',

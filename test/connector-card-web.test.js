@@ -369,5 +369,5 @@ test("web: the Chief's own action in a connected app (ADR 047) is the Chief's ca
   assert.deepEqual(buttonsOf(html), ['Decline', 'Always allow', 'Allow once']);
   assert.deepEqual(plain(p.chatNeeds('chief').map((x) => x.key)), ['ask:c1'], "in the Chief's chat");
   assert.deepEqual(plain(p.chatNeeds('mail')), [], "in no bot's chat");
-  assert.match(app, /Let \$\{CHIEF_BOT\.name\} do this from now on, whatever the details\?/);
+  assert.match(app, /tr\('Let \{name\} do this from now on, whatever the details\?', \{ name: chiefTitle\(\) \}\)/);
 });

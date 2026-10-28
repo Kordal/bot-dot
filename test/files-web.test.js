@@ -6,7 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, esc } = require('./web-page');
+const { read, esc, words } = require('./web-page');
 
 const LIST = {
   root: 'server', path: '', more: 0, readOnly: false,
@@ -36,7 +36,7 @@ function page({ answers = {}, features = ['files-explorer', 'document-viewer', '
     esc, toast: (t, bad) => toasts.push([t, !!bad]), confirm: (t) => { asked.push(t); return confirmed; }, prompt: (t) => { asked.push(t); return prompted; },
     fmtSize: (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`),
     state: { features, bots, computers }, Date, encodeURIComponent, setTimeout, clearTimeout, localStorage: { getItem: () => null, setItem() {} },
-    matchMedia: () => ({ matches: false }),
+    matchMedia: () => ({ matches: false }), ...words,
   });
   vm.runInContext(`${read('files.js')}\nthis.Files = Files;`, ctx);
   return { F: ctx.Files, calls, toasts, asked };
@@ -46,7 +46,7 @@ const settle = () => new Promise((r) => setTimeout(r, 0));
 
 test('web: index.html loads files.js and has its box; the chat head and the settings open it', () => {
   const html = read('index.html');
-  assert.match(html, /<div id="files" class="fx hidden" aria-label="Files"><\/div>/);
+  assert.match(html, /<div id="files" class="fx hidden" aria-label="Files" data-t-aria-label><\/div>/);
   const scripts = [...html.matchAll(/<script src="\/([^"]+)"><\/script>/g)].map((m) => m[1]);
   assert.ok(scripts.indexOf('files.js') > scripts.indexOf('viewer.js'));
   assert.ok(!scripts.includes('workspace.js'), 'the old Workspace section is gone');

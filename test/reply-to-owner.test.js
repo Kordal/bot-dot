@@ -10,7 +10,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { startServer, makeBot, heldRun, self, waitFor } = require('./helpers');
-const { read, cut, esc, noDrafts } = require('./web-page');
+const { read, cut, esc, noDrafts, words } = require('./web-page');
 
 let srv, lead, tester;
 before(async () => {
@@ -69,7 +69,7 @@ test("a late answer to the bot that asked: nobody waits for a reply to it, and t
 function chat() {
   const lib = vm.createContext({});
   vm.runInContext(read('unread.js'), lib);
-  const ctx = vm.createContext({ ...noDrafts,
+  const ctx = vm.createContext({ ...words, ...noDrafts,
     esc, plain: (t) => String(t || ''), Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: (at) => `t(${at})`, dur: () => '2 s',
     notesFoldHTML: () => '', filesHTML: () => '', botFilesHTML: () => '', copyBtn: () => '<copy>',

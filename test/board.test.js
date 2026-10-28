@@ -11,6 +11,7 @@ const { startServer, makeBot, heldRun, self, waitFor, ROOT } = require('./helper
 const { rpcClient } = require('./memory-helpers');
 const { TOOLS } = require('../lib/mcp-server');
 const { webSource } = require('./web-source');
+const { words } = require('./web-page');
 
 let srv;
 before(async () => { srv = await startServer(); });
@@ -184,7 +185,7 @@ const EMPTY_STRIP = 'Board · Nothing on it yet›';
 
 // dashStrip() of app.js, run against a stand-in state: what the list shows above the Chief of Staff.
 function strip(dash, view = 'chief') {
-  const page = vm.createContext({ esc, state: { dash, view }, tintOf: (c) => c || 'var(--c)' });
+  const page = vm.createContext({ ...words, esc, state: { dash, view }, tintOf: (c) => c || 'var(--c)' });
   vm.runInContext(`${cut('// The tiles of the Board that', '// The tiles that don\'t fit whole')}\nthis.dashStrip = dashStrip;`, page);
   return page.dashStrip();
 }
@@ -233,22 +234,22 @@ test('web: with tiles the strip is as before, and its hover title reads "Board"'
 
 test('web: the empty page is headed "Board" and teaches in two lines, with suggestions under them', () => {
   const page = cut('function renderDashboard() {', '// A tile a bot suggested');
-  assert.ok(page.includes('<h1>Board</h1>'));
-  const empty = page.slice(page.indexOf('<div class="dash-empty">'), page.indexOf('</div>`}'));
+  assert.ok(page.includes("<h1>${tr('Board')}</h1>"));
+  const empty = page.slice(page.indexOf('<div class="dash-empty">'), page.indexOf('</div>`}', page.indexOf('<div class="dash-empty">')));
   assert.deepEqual(empty.match(/<p>.*<\/p>/g), [
-    '<p>Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.</p>',
-    '<p>Nothing is on it yet. Tell the Chief or any bot, for example: <i>“Put a shopping list on my board.”</i></p>',
+    "<p>${tr('Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.')}</p>",
+    "<p>${tr('Nothing is on it yet. Tell the Chief or any bot, for example: {example}', { example: `<i>${tr('“Put a shopping list on my board.”')}</i>` })}</p>",
   ]);
   assert.match(page, /\$\{d\.tiles\.length \? '' : `<div class="dash-empty">/, 'only with zero tiles');
-  assert.ok(page.indexOf('<h3 class="dash-sec">Suggested</h3>') > page.indexOf('<div class="dash-empty">'), 'what bots suggested comes after the two lines');
+  assert.ok(page.indexOf(`<h3 class="dash-sec">${'$'}{tr('Suggested')}</h3>`) > page.indexOf('<div class="dash-empty">'), 'what bots suggested comes after the two lines');
   assert.match(css, /\.dash-empty i \{ color: var\(--text\); font-style: normal; \}/, 'the example in the text colour');
 });
 
 test("web: the cards, the answered label and the confirmation say \"your Board\"", () => {
-  assert.equal(times(app, /Put “\$\{esc\(t\.title\)\}” on your Board\?/), 1, 'a suggested tile');
-  assert.equal(times(app, /title: `Put “\$\{t\.title\}” on your Board\?`/), 1, 'a tile whose script waits: its card\'s title, escaped where it is drawn (tileCard)');
-  assert.ok(app.includes("if (x.kind === 'tilesug') return yes ? 'On your Board' : 'Not added';"));
-  assert.ok(app.includes('confirm(`Remove “${t.title}” from your Board?`)'));
+  assert.equal(times(app, /tr\('Put “\{title\}” on your Board\?', \{ title: esc\(t\.title\) \}\)/), 1, 'a suggested tile');
+  assert.equal(times(app, /title: tr\('Put “\{title\}” on your Board\?', \{ title: t\.title \}\)/), 1, 'a tile whose script waits: its card\'s title, escaped where it is drawn (tileCard)');
+  assert.ok(app.includes("if (x.kind === 'tilesug') return yes ? tr('On your Board') : tr('Not added');"));
+  assert.ok(app.includes("confirm(tr('Remove “{title}” from your Board?', { title: t.title }))"));
   assert.doesNotMatch(app, /your dashboard/i);
   assert.doesNotMatch(app, />Dashboard</);
   assert.doesNotMatch(app, /title="Dashboard"/);

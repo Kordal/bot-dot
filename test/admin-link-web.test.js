@@ -4,12 +4,12 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { cut, read, element, answer } = require('./web-page');
+const { cut, read, element, answer, words } = require('./web-page');
 
 function page({ features = ['accounts'], fetch = answer(200, { admin: true }) } = {}) {
   const calls = [];
   const link = element({}, { classes: ['hidden'] });
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     state: { features },
     $: (sel) => (sel === '#admin-link' ? link : null),
     fetch: async (url, opts) => { calls.push([url, opts]); return fetch(url, opts); },

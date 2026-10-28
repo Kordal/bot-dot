@@ -4,9 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#000000" />
-  <title>No connection · botdot</title>
+  <title data-t>No connection · botdot</title>
   <!-- What the service worker (sw.js) shows when a page of botdot can't be loaded (issue #163): kept by it, so no
-       file of its own beyond this one. -->
+       file of its own beyond this one and i18n.js, which the worker keeps with it: that draws the marked words in the
+       account's language, from the dictionary the page keeps in this browser (#647). -->
   <style>
     :root { color-scheme: dark; }
     body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #000; color: #ecebe8; font: 16px/1.5 system-ui, sans-serif; }
@@ -19,8 +20,9 @@
 <body>
   <main>
     <h1>bot<span>·</span>dot</h1>
-    <p>No connection to botdot. Check this device's internet, then try again.</p>
-    <a href="">Try again</a>
+    <p data-t>No connection to botdot. Check this device's internet, then try again.</p>
+    <a href="" data-t>Try again</a>
   </main>
+  <script src="/i18n.js"></script>
 </body>
 </html>

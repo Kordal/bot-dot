@@ -4,9 +4,9 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, cut, esc, noDrafts } = require('./web-page');
+const { read, cut, esc, noDrafts, words } = require('./web-page');
 
-const page = vm.createContext({ ...noDrafts,
+const page = vm.createContext({ ...noDrafts, ...words,
   esc, state: { features: [], bots: [{ id: 'mail', name: 'E-mail Assistant', computer: 'linux' }, { id: 'web', name: 'Web Surfer', computer: 'none' }], runs: [] }, CHIEF_COLOR: '#d85a30',
   msgTime: () => '07:31', copyBtn: () => '', choicesHTML: (c) => (c?.length ? `<choices:${c.join('|')}>` : ''), questionsHTML: () => '', botLabel: (b) => b.name,
 });

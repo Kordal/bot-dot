@@ -4,7 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, esc, element } = require('./web-page');
+const { read, esc, element, words } = require('./web-page');
 
 const ENTRIES = [
   { id: '2026-10-21-b', title: 'Newer <b>note</b>', points: ['One <img src=x onerror=alert(1)>', 'Two'] },
@@ -20,7 +20,7 @@ function page({ features = ['whats-new'], entries = ENTRIES, open = false } = {}
     addEventListener: (type, fn) => { (listeners[type] ||= []).push(fn); },
     close() { modal.open = false; (listeners.close || []).forEach((fn) => fn()); },
   });
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     state: { features },
     esc,
     $: (sel) => (sel === '#modal' ? modal : null),

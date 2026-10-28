@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
 const Motion = require('../public/motion.js');
-const { read, cut, esc, element } = require('./web-page');
+const { read, cut, esc, element, words } = require('./web-page');
 const { rulesAt, winner } = require('./css-rules');
 
 const css = read('style.css');
@@ -46,14 +46,14 @@ function holder() {
 function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 'chief', botId = null, shown = true, features = ['groups'], folded = [] } = {}) {
   const state = { features, bots: JSON.parse(JSON.stringify(bots)), groups: JSON.parse(JSON.stringify(groups)), runs, dash, view, botId, groupId: null, chats: [{ id: 'c1' }] };
   const said = { views: [], chief: [], focused: 0, puts: [], toasts: [], answers: [], opened: [] };
-  const lib = vm.createContext({});
+  const lib = vm.createContext({ ...words });
   for (const f of ['unread.js', 'opening-line.js', 'keypad.js']) vm.runInContext(read(f), lib);
   const pad = element({}, { display: shown ? 'flex' : 'none' });
   const doc = { '#keypad': pad, '#kp-board': holder(), '#kp-keys': holder(), '#modal': { open: false },
     '#kp-phone-board': holder(), '#kp-sections': holder(), '#kp-chief': holder(), '#kp-needs': holder(), '#kp-phone-needs': holder(),
     '#contact-search': element({}, { focus: () => said.focused++, select() {} }) };
   const ctx = vm.createContext({
-    Motion, state, esc, JSON, Unread: lib.Unread, OpeningLine: lib.OpeningLine, Keypad: lib.Keypad, openingLines: lib.OpeningLine.keeper(),
+    Motion, state, esc, ...words, JSON, Unread: lib.Unread, OpeningLine: lib.OpeningLine, Keypad: lib.Keypad, openingLines: lib.OpeningLine.keeper(),
     Figure: { svg: (st, color) => `<svg class="fig" data-st="${st}" data-c="${color}"></svg>` },
     botFigure: (color, st = 'idle') => `<div class="avatar head" data-st="${st}" data-c="${color}"></div>`,
     tintOf: (c) => c || '#888', CHIEF_COLOR: '#d85a30', chiefFigure: () => '<div class="avatar head chief"></div>', outfitOf: () => null,
@@ -506,7 +506,7 @@ test('web: on a phone the home draws the pinned keys, then every category with i
   assert.equal((group.match(/<i><svg class="fig"/g) || []).length, 3, 'a group\'s key: three of its four members');
   assert.equal(texts(p.chief()), 'Chief of Staff', 'the Chief\'s field: its head, its name and the send arrow');
   assert.match(p.chief(), /<i class="kp-send"><svg/);
-  assert.equal(p.doc['#kp-chief'].title, 'Message Chief of Staff');
+  assert.equal(p.doc['#kp-chief'].title, 'Message the Chief of Staff');
 });
 
 test('web: on a phone the Board line is on top, as on the wide keypad', () => {

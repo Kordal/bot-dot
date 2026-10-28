@@ -5,7 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, element, finders, answer } = require('./web-page');
+const { app, read, cut, element, finders, answer, words } = require('./web-page');
 
 const css = read('style.css');
 const html = read('index.html');
@@ -15,7 +15,7 @@ function page(fetch) {
   const beside = element({}, { classes: ['hidden'] });
   const above = element({}, { classes: ['hidden'] });
   const doc = element({ '#away': beside, '.away-line': [above] });
-  const ctx = vm.createContext({ ...finders(doc), fetch, console: { warn() {} }, JSON, Object, Error, Promise });
+  const ctx = vm.createContext({ ...words, ...finders(doc), fetch, console: { warn() {} }, JSON, Object, Error, Promise });
   vm.runInContext(`${cut('const away = { on: false };', 'function esc(s)')}\nthis.api = api; this.away = away; this.setAway = setAway;`, ctx);
   const shown = () => [!beside.classList.contains('hidden'), !above.classList.contains('hidden')];
   return { ctx, shown };
@@ -122,9 +122,9 @@ test('web: a gateway answering in botdot\'s place, with botdot down behind it, s
 });
 
 test('web: the line is on the page: beside the logo, and above every message box, drawn as botdot is at that moment', () => {
-  assert.match(html, /<div class="brand" id="brand"[^>]*>.*<\/div>\s*(<!--.*-->\s*)?<span class="away hidden" id="away" role="status">Can't reach botdot<\/span>\s*(<!--.*-->\s*)?<span class="away hidden" id="signed-out" role="status">.*<\/span>\s*(<!--.*-->\s*)?<div class="search">/, 'with the line for a signed-out Claude after it (test/signed-out-web.test.js), before the search (#635)');
+  assert.match(html, /<div class="brand" id="brand"[^>]*>.*<\/div>\s*(<!--.*-->\s*)?<span class="away hidden" id="away" role="status" data-t>Can't reach botdot<\/span>\s*(<!--.*-->\s*)?<span class="away hidden" id="signed-out" role="status">.*<\/span>\s*(<!--.*-->\s*)?<div class="search">/, 'with the line for a signed-out Claude after it (test/signed-out-web.test.js), before the search (#635)');
   const composer = cut('function composerHTML(placeholder', '// Files attached in a composer');
-  assert.match(composer, /<div class="away-line\$\{away\.on \? '' : ' hidden'\}" role="status">Can't reach botdot\. Trying again…<\/div>/);
+  assert.match(composer, /<div class="away-line\$\{away\.on \? '' : ' hidden'\}" role="status">\$\{tr\("Can't reach botdot\. Trying again…"\)\}<\/div>/);
   assert.ok(composer.indexOf('away-line') < composer.indexOf('composer-box'), 'above the box');
 });
 

@@ -4,11 +4,11 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, noDrafts } = require('./web-page');
+const { app, read, cut, esc, noDrafts, words } = require('./web-page');
 
 const css = read('style.css');
 const state = { features: ['chief', 'unread', 'ratings'], bots: [{ id: 'news', name: 'News Watcher', computer: 'none' }, { id: 'coder', name: 'Coder', computer: 'linux' }], runs: [{ id: 'r1', botId: 'coder' }] };
-const page = vm.createContext({ ...noDrafts,
+const page = vm.createContext({ ...noDrafts, ...words,
   esc, state, CHIEF_COLOR: '#d85a30',
   msgTime: () => '09:12', copyBtn: (t) => `<copy:${t}>`,
   choicesHTML: (c) => (c?.length ? '<choices>' : ''), questionsHTML: (q) => (q?.length ? '<questions>' : ''),

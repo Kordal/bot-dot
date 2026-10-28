@@ -5,7 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element } = require('./web-page');
+const { app, read, cut, esc, element, words } = require('./web-page');
 const cards = require('./need-cards');
 
 const css = read('style.css');
@@ -36,10 +36,10 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
   class EventSource { constructor(url) { this.url = url; this.closed = false; said.streams.push(this); } close() { this.closed = true; } }
   const doc = {};
   const stores = {};
-  const lib = vm.createContext({});
+  const lib = vm.createContext({ ...words });
   for (const f of ['mentions.js', 'unread.js', 'opening-line.js', 'panel.js', 'keypad.js']) vm.runInContext(read(f), lib);
   const ctx = vm.createContext({
-    state, esc, console, JSON, encodeURIComponent, setTimeout, clearTimeout, crypto: globalThis.crypto,
+    state, esc, ...words, console, JSON, encodeURIComponent, setTimeout, clearTimeout, crypto: globalThis.crypto,
     Mentions: lib.Mentions, Unread: lib.Unread, OpeningLine: lib.OpeningLine, Panel: lib.Panel, Keypad: lib.Keypad,
     Figure: { svg: (st, color) => `<svg class="fig" data-st="${st}" data-c="${color}"></svg>`, small: (color) => `<svg class="fig fig-small" data-c="${color}"></svg>`, CHIEF: null },
     CHIEF_BOT: { id: 'chief', name: 'Chief of Staff', color: '#d85a30', jobs: [] }, CHIEF_COLOR: '#d85a30', BACK_BTN: '<back>', ICON: {},
@@ -124,10 +124,10 @@ test('web: against a server without `groups` in `features` nothing of a group is
 test('web: "Add a bot to this chat" is in the ⋯ menu of a bot\'s chat head, and not in its settings', () => {
   const draw = cut('function renderBotChat() {', '// Re-render the thread only when something changed');
   const head = draw.slice(draw.indexOf('<div class="chat-head">'), draw.indexOf('<div class="chat-thread"'));
-  assert.match(head, /<button class="chat-title" id="bot-settings" title="Settings">(?:(?!<button)[\s\S])*<\/button>\s*<div class="actions-right">/, 'nothing between the name and the buttons on the right');
-  assert.match(head, /<button type="button" class="icon-btn" id="bot-more" title="More" aria-label="More" aria-haspopup="menu" aria-expanded="false">\$\{MORE_ICON\}<\/button>\s*<div class="chat-menu" role="menu" hidden>/);
-  assert.match(head, /<div class="chat-menu" role="menu" hidden>[\s\S]*<button type="button" role="menuitem" class="hidden" id="bot-add-to-chat">Add a bot to this chat<\/button>\s*<\/div>/);
-  assert.match(head, /<button type="button" role="menuitem" data-more="settings">Settings<\/button>/, 'its settings are in the menu too');
+  assert.match(head, /<button class="chat-title" id="bot-settings" title="\$\{tr\('Settings'\)\}">(?:(?!<button)[\s\S])*<\/button>\s*<div class="actions-right">/, 'nothing between the name and the buttons on the right');
+  assert.match(head, /<button type="button" class="icon-btn" id="bot-more" title="\$\{tr\('More'\)\}" aria-label="\$\{tr\('More'\)\}" aria-haspopup="menu" aria-expanded="false">\$\{MORE_ICON\}<\/button>\s*<div class="chat-menu" role="menu" hidden>/);
+  assert.match(head, /<div class="chat-menu" role="menu" hidden>[\s\S]*<button type="button" role="menuitem" class="hidden" id="bot-add-to-chat">\$\{tr\('Add a bot to this chat'\)\}<\/button>\s*<\/div>/);
+  assert.match(head, /<button type="button" role="menuitem" data-more="settings">\$\{tr\('Settings'\)\}<\/button>/, 'its settings are in the menu too');
   // Drawn hidden, and shown at every drawing only where a group can be made: a server without groups, or no other bot, never shows it.
   assert.ok(draw.includes("$('#bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));"));
   // It opens the picker, for the bot whose chat is open; the name still opens the settings.
@@ -513,10 +513,10 @@ test('web: the gap opens where the dragged row would land: a group among the gro
 });
 
 test('web: a folder of bots is called a category wherever the page said group', () => {
-  for (const said of [/Rename or remove this category/, /<h2>Category: \$\{esc\(group\)\}<\/h2>/, />Remove category<\/button>/, /'Category removed'/, /<div class="field">Category\s*<div class="group-picker"/, /placeholder="Category name" aria-label="New category name"/, /data-new title="New category" aria-label="New category">＋<\/button>/, /title="\$\{isFolded \? 'Show' : 'Hide'\} this category"/]) assert.match(app, said);
+  for (const said of [/Rename or remove this category/, /<h2>\$\{tr\('Category: \{name\}', \{ name: esc\(group\) \}\)\}<\/h2>/, />\$\{tr\('Remove category'\)\}<\/button>/, /tr\('Category removed'\)/, /<div class="field">\$\{tr\('Category'\)\}\s*<div class="group-picker"/, /placeholder="\$\{tr\('Category name'\)\}" aria-label="\$\{tr\('New category name'\)\}"/, /data-new title="\$\{tr\('New category'\)\}" aria-label="\$\{tr\('New category'\)\}">＋<\/button>/, /title="\$\{isFolded \? tr\('Show this category'\) : tr\('Hide this category'\)\}"/]) assert.match(app, said);
   for (const gone of [/Rename or remove this group/, /<h2>Group: /, /Remove group/, /Group removed/, /<div class="field">Group\b/, /New group name/, /＋ New group/, /Group name/]) assert.doesNotMatch(app, gone);
   // What the page calls a group now is the chat with several bots.
-  assert.match(src, /title: 'New group'/);
+  assert.match(src, /title: tr\('New group'\)/);
 });
 
 // ---------- the chat ----------

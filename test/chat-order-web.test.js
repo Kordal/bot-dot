@@ -5,9 +5,9 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
 const table = require('./fixtures/chat-order.json');
-const { read, cut, esc } = require('./web-page');
+const { read, cut, esc, words } = require('./web-page');
 
-const lib = vm.createContext({});
+const lib = vm.createContext({ ...words });
 vm.runInContext(read('unread.js'), lib);
 const { Unread } = lib;
 const name = (p) => (p.part === 'asked' ? `a:${p.run.id}` : p.part === 'steered' ? `s:${p.run.id}:${p.i}` : `r:${p.run.id}`);
@@ -26,7 +26,7 @@ test('web: no runs, no pieces', () => {
 });
 
 function page() {
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     esc, Unread, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: () => '11:45', dur: () => '6m',
     notesFoldHTML: () => '', filesHTML: () => '', botFilesHTML: () => '', copyBtn: () => '', draftHTML: () => '',

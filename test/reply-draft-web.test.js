@@ -8,13 +8,13 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { cut, esc } = require('./web-page');
+const { cut, esc, words } = require('./web-page');
 const { webSource } = require('./web-source');
 
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'markdown-cases.json'), 'utf8'));
 const app = webSource();
 const plain = (v) => JSON.parse(JSON.stringify(v));
-const mdPage = vm.createContext({ esc });
+const mdPage = vm.createContext({ ...words, esc });
 vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')} this.md = md; this.mdBlocks = mdBlocks; this.draftSource = draftSource;`, mdPage);
 const { md, mdBlocks, draftSource } = mdPage;
 
@@ -49,7 +49,7 @@ test('web: a draft cut mid-table, inside a fence or at an unclosed ** or [ never
 // The drafts' part of the page, with a frame the test lets go.
 function drafts(features = ['reply-draft']) {
   const frames = [];
-  const ctx = vm.createContext({ state: { features }, md, draftSource, requestAnimationFrame: (fn) => frames.push(fn), $: (sel, root) => root.querySelector(sel) });
+  const ctx = vm.createContext({ ...words, state: { features }, md, draftSource, requestAnimationFrame: (fn) => frames.push(fn), $: (sel, root) => root.querySelector(sel) });
   vm.runInContext(`${cut('// ---------- the reply draft ----------', '// ---------- data ----------')} this.replyDrafts = replyDrafts; this.showsDrafts = showsDrafts; this.draftHTML = draftHTML;`, ctx);
   return { ctx, frame: () => frames.splice(0).forEach((fn) => fn()), frames };
 }
@@ -115,9 +115,9 @@ test('web: drafts are shown only when the server lists reply-draft', () => {
 function watched(features) {
   const sources = [];
   class EventSource { constructor(url) { this.url = url; this.closed = false; sources.push(this); } close() { this.closed = true; } }
-  const lib = vm.createContext({});
+  const lib = vm.createContext({ ...words });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'opening-line.js'), 'utf8'), lib);
-  const ctx = vm.createContext({ EventSource, JSON, String, state: { features }, OpeningLine: lib.OpeningLine, showsDrafts: () => features.includes('reply-draft') });
+  const ctx = vm.createContext({ ...words, EventSource, JSON, String, state: { features }, OpeningLine: lib.OpeningLine, showsDrafts: () => features.includes('reply-draft') });
   vm.runInContext(`${cut('function watchRun(', '// ---------- live screen preview')} this.watchRun = watchRun;`, ctx);
   const got = { drafts: [], ended: 0, lines: [] };
   ctx.watchRun('r1', () => got.ended++, null, (l) => got.lines.push(l), (d) => got.drafts.push(d));

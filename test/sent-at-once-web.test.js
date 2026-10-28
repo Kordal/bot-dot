@@ -9,7 +9,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, thread } = require('./web-page');
+const { app, read, cut, esc, element, thread, words } = require('./web-page');
 
 const css = read('style.css');
 const at = '2026-10-09T09:00:00.000Z';
@@ -52,10 +52,10 @@ function page({ features = ['message-waits', 'message-key'], reply = async () =>
   const doc = { '#view-bot': { dataset: { bot: 'doctor' } }, '#bot-thread': bot.thread, '#chat-thread': chief.thread, '#view-bot form': boxes.bot.form, '#view-chief form': boxes.chief.form };
   const of = (root) => (root === bot.thread ? bot : root === chief.thread ? chief : root.buttons ? bot : null);
   const said = { calls: [], bodies: [], toasts: [], refreshed: 0, shown: [], followed: [], drawn: [] };
-  const lib = vm.createContext({});
+  const lib = vm.createContext({ ...words });
   vm.runInContext(read('unread.js'), lib);
   vm.runInContext(read('opening-line.js'), lib);
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     crypto: globalThis.crypto, esc, state, console: { error: (e) => { throw e; }, warn() {} }, OpeningLine: lib.OpeningLine, Unread: lib.Unread, openingLines: lib.OpeningLine.keeper(),
     CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, CHIEF_COLOR: '#d85a30', ICON: { stop: '<stop>', send: '<send>' },
     chiefTurns: new Map(), chiefQueued: new Map(),

@@ -5,7 +5,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
 const pages = require('../lib/front-door/pages');
-const { cut, esc, element, finders } = require('./web-page');
+const { cut, esc, element, finders, words } = require('./web-page');
 
 // The paused page's script (/front-door/passkey.js) against a stand-in page, front door and browser.
 function pausedPage(answer) {
@@ -56,7 +56,7 @@ test('web: the front door\'s paused answer reloads the page, which is then the p
   const doc = element({ '#away': hidden(), '.away-line': [hidden()] });
   let reloads = 0;
   const ctx = vm.createContext({
-    ...finders(doc), esc, console: { warn() {} },
+    ...finders(doc), ...words, esc, console: { warn() {} },
     location: { reload: () => { reloads++; }, assign() {} },
     fetch: async () => ({ ok: false, status: 503, json: async () => ({ error: 'Your account is paused by the admin.', paused: true }) }),
   });

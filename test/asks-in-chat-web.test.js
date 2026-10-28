@@ -5,7 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, cut, esc } = require('./web-page');
+const { read, cut, esc, words } = require('./web-page');
 
 const at = (m) => `2026-10-23T09:${String(m).padStart(2, '0')}:00.000Z`;
 const run = (id, m, more = {}) => ({ id, botId: 'iw', trigger: 'manual', prompt: 'Hi', customPrompt: true, status: 'success', result: `Reply ${id}`, startedAt: at(m), endedAt: at(m), ...more });
@@ -13,7 +13,7 @@ const run = (id, m, more = {}) => ({ id, botId: 'iw', trigger: 'manual', prompt:
 function page() {
   const lib = vm.createContext({});
   vm.runInContext(read('unread.js'), lib);
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     esc, Unread: lib.Unread, state: { keepOpen: null, runs: [], view: 'bot', botId: 'iw' }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: () => '09:41', dur: () => '2 s',
     notesFoldHTML: () => '', filesHTML: () => '', botFilesHTML: () => '', copyBtn: () => '',

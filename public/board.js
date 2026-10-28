@@ -23,14 +23,14 @@ function boardTiles() {
   return state.dash.home.map((id) => byId.get(id)).filter(Boolean);
 }
 const tileMark = (t) => { const dot = t.look?.dot; return `<i${dot && dot.filled !== true ? ' class="off"' : ''} style="--c:${tintOf(dot?.color, t)}"></i>`; };
-const BOARD_EMPTY = '<span class="none"><b>Board</b> · Nothing on it yet</span>';
+const BOARD_EMPTY = `<span class="none"><b>${tr('Board')}</b> · ${tr('Nothing on it yet')}</span>`;
 // The strip at the top of the list: each tile's dot and name, and a value's value (a switch's dot is filled
 // when it's on). As many as fit; a tap opens the Board. With no tile to show, it says so beside the Board's
 // name. Not there until the Board has loaded.
 function dashStrip() {
   if (!state.dash) return '';
   const tile = (t) => `<span class="t">${tileMark(t)}${esc(t.title)}${t.look?.short ? ` <b>${esc(t.look.short)}</b>` : ''}</span>`;
-  return `<button class="dash-strip ${state.view === 'dashboard' ? 'active' : ''}" data-contact="dashboard" title="Board">
+  return `<button class="dash-strip ${state.view === 'dashboard' ? 'active' : ''}" data-contact="dashboard" title="${tr('Board')}">
     <svg class="board-ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg>
     <span class="tiles">${boardTiles().map(tile).join('') || BOARD_EMPTY}</span><span class="more">›</span></button>`;
 }
@@ -144,8 +144,8 @@ function blockHTML(b, t, where) {
       return `<label class="b-slider ${b.value == null ? 'unset' : ''}" data-ctl-wrap><span class="lbl">${b.label ? `<span>${esc(b.label)}</span>` : ''}<b data-show>${b.value == null ? '·' : esc(sliderText(b, b.value))}</b></span><input type="range" min="${b.min}" max="${b.max}" step="${b.step}" value="${v}" ${ctl('slider')} aria-label="${esc(b.label || t.title)}"></label>`;
     }
     case 'color':
-      if (where === 'face') return `<button class="b-swatch" ${ctl('color-open')} style="--c:${b.value || 'var(--line-2)'}" aria-label="${esc(b.label || 'Colour')}"></button>`;
-      return `<div class="b-color" data-ctl-wrap>${b.label ? `<span class="lbl">${esc(b.label)}</span>` : ''}<div class="wheel" ${ctl('color')} role="slider" aria-label="${esc(b.label || 'Colour')}" tabindex="0">${b.value ? `<i class="mark" style="${wheelSpot(b.value)};--c:${b.value}"></i>` : ''}</div></div>`;
+      if (where === 'face') return `<button class="b-swatch" ${ctl('color-open')} style="--c:${b.value || 'var(--line-2)'}" aria-label="${esc(b.label || tr('Colour'))}"></button>`;
+      return `<div class="b-color" data-ctl-wrap>${b.label ? `<span class="lbl">${esc(b.label)}</span>` : ''}<div class="wheel" ${ctl('color')} role="slider" aria-label="${esc(b.label || tr('Colour'))}" tabindex="0">${b.value ? `<i class="mark" style="${wheelSpot(b.value)};--c:${b.value}"></i>` : ''}</div></div>`;
     case 'choice':
       return `<div class="b-choice" data-ctl-wrap>${b.label ? `<span class="lbl">${esc(b.label)}</span>` : ''}<div class="seg">${b.options.map((o) => `<button class="${String(o.value) === String(b.value) ? 'on' : ''}" ${ctl('choice')} data-v="${esc(JSON.stringify(o.value))}">${esc(o.label)}</button>`).join('')}</div></div>`;
     case 'row':
@@ -199,14 +199,14 @@ function tileHTML(t, waiting, sourced = false) {
     }).join('') || '<span class="faint">·</span>'}</div>`;
   }
   if (t.kind === 'page') dot = `<span class="tile-page">${PAGE_ICON}</span>`; // a page on the Board (#451)
-  const note = waiting ? 'Waiting for your OK' : tapped.get(t.id) || (t.error ? "Couldn't update" : '');
+  const note = waiting ? tr('Waiting for your OK') : tapped.get(t.id) || (t.error ? tr("Couldn't update") : '');
   const pressed = look.tap === 'toggle' ? ` aria-pressed="${look.dot?.filled === true}"` : '';
   const open = t.kind === 'group' && openGroups.has(t.id);
   const size = t.size || (t.wide ? 'wide' : 'small');
   const kpi = isKpiTile(t);
   // Quietly at the end of its head: that a bot or the Chief wrote it, or how long ago it last read its value
   // ("1 min ago"; where it reads from stays in its title). A note says when it was written.
-  const aside = t.ai && hasMarkdown(look.face) ? '<span class="tile-ai">written by AI</span>' : t.source && !kpi && !sourced ? ageHTML(Date.parse(t.at || '') || 0, t.source) : '';
+  const aside = t.ai && hasMarkdown(look.face) ? `<span class="tile-ai">${tr('written by AI')}</span>` : t.source && !kpi && !sourced ? ageHTML(Date.parse(t.at || '') || 0, t.source) : '';
   const age = t.kind === 'page' && t.at ? `<span class="tile-src" data-age="${Date.parse(t.at)}" data-short>${esc(pageAge(t.at))}</span>` : '';
   const when = t.kind === 'note' && t.at ? `<span class="tile-when">${esc(kitClock(Date.parse(t.at)))}</span>` : '';
   return `<div role="button" tabindex="0" class="tile kind-${t.kind} size-${size} ${kpi ? 'kpi-tile' : ''} ${kpi && size === 'small' ? 'compact' : ''} ${look.dot?.big ? 'big-dot' : ''} ${waiting ? 'waiting' : ''} ${open ? 'open' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${pressed}${t.kind === 'group' ? ` aria-expanded="${open}"` : ''} title="${esc(t.error || '')}">
@@ -218,18 +218,18 @@ function tileHTML(t, waiting, sourced = false) {
 
 // A page's tile (#451): a page mark before its title, and the page's age ("2 h") at its end. A tap opens the page.
 const PAGE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z M14 3v5h5 M10 13h6 M10 17h6"/></svg>';
-const pageAge = (at) => ageWords((Date.now() - Date.parse(at)) / 1000).replace(/ ago$/, '');
+const pageAge = (at) => ageWords((Date.now() - Date.parse(at)) / 1000, true);
 
 // The pencil on a tile (#430), shown on hover: it opens the ask for a change. Only when the server takes one.
 const PEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';
 const canAsk = () => (state.features || []).includes('tile-change');
-const PEN_BTN = () => (canAsk() ? `<button type="button" class="tile-edit" data-tile-edit aria-label="Change">${PEN}</button>` : '');
+const PEN_BTN = () => (canAsk() ? `<button type="button" class="tile-edit" data-tile-edit aria-label="${tr('Change')}">${PEN}</button>` : '');
 
 // A switch or a button as a row of the Controls box: its title and line, and a switch (on, off, not known) or a go mark.
 const GO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 function controlRowHTML(t, waiting) {
   const look = t.look || {};
-  const note = waiting ? 'Waiting for your OK' : tapped.get(t.id) || (t.error ? "Couldn't update" : '');
+  const note = waiting ? tr('Waiting for your OK') : tapped.get(t.id) || (t.error ? tr("Couldn't update") : '');
   const on = look.dot?.filled;
   const end = t.kind === 'switch' ? `<span class="sw ${on === true ? 'on' : on === false ? '' : 'unknown'}" aria-hidden="true"></span>` : `<span class="go">${GO}</span>`;
   return `<div role="button" tabindex="0" class="tile ctl-row kind-${t.kind} ${waiting ? 'waiting' : ''} ${popped.has(t.id) ? 'pop' : ''}" data-tile="${esc(t.id)}"${look.tap === 'toggle' ? ` aria-pressed="${on === true}"` : ''} title="${esc(t.error || '')}">
@@ -253,10 +253,11 @@ function boardRuns(ts) {
 // them ("script · 30 s"), how long ago they last read, said there once and not on each tile.
 const sectionBots = (ts) => [...new Set(ts.map((t) => botById(t.bot)?.name).filter(Boolean))].join(', ');
 const sectionSource = (ts) => { const all = [...new Set(ts.map((t) => t.source).filter(Boolean))]; return all.length === 1 ? all[0] : ''; };
-// "3s ago", "2 min ago", "2 h ago": the age of a value, from its seconds.
-function ageWords(secs) {
+// "3s ago", "2 min ago", "2 h ago": the age of a value, from its seconds. short: without "ago" ("2 h").
+function ageWords(secs, short = false) {
   const s = Math.max(0, Math.floor(secs));
-  return `${s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)} min` : `${Math.floor(s / 3600)} h`} ago`;
+  const age = s < 60 ? tr('{n}s', { n: s }) : s < 3600 ? tr('{n} min', { n: Math.floor(s / 60) }) : tr('{n} h', { n: Math.floor(s / 3600) });
+  return short ? age : tr('{age} ago', { age });
 }
 const REFRESH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4.5h-4.5"/></svg>';
 const newestAt = (tiles) => Math.max(0, ...(tiles || []).map((t) => Date.parse(t.at || '') || 0));
@@ -267,7 +268,7 @@ setInterval(() => {
   const el = $('#view-dashboard [data-live]');
   const newest = newestAt(state.dash?.tiles);
   if (el && newest) el.textContent = ageWords((Date.now() - newest) / 1000);
-  $$('#view-dashboard [data-age]').forEach((x) => { const w = ageWords((Date.now() - Number(x.dataset.age)) / 1000); x.textContent = 'short' in x.dataset ? w.replace(/ ago$/, '') : w; });
+  $$('#view-dashboard [data-age]').forEach((x) => { x.textContent = ageWords((Date.now() - Number(x.dataset.age)) / 1000, 'short' in x.dataset); });
 }, 1000);
 // The heading shown (its name), or all of them (''); kept in this browser.
 let boardFilter = (() => { try { return localStorage.getItem('board-filter') || ''; } catch { return ''; } })();
@@ -275,7 +276,7 @@ let boardFilter = (() => { try { return localStorage.getItem('board-filter') || 
 function renderDashboard() {
   const root = $('#view-dashboard');
   const d = state.dash;
-  if (!d) { root.innerHTML = '<div class="empty">Loading…</div>'; return; }
+  if (!d) { root.innerHTML = `<div class="empty">${tr('Loading…')}</div>`; return; }
   if (tileDrag) return; // redrawing would drop the tile you're dragging
   if (ctlHeld) { ctlHeld.later = true; return; } // nor while a slider or the colour wheel is in your hand
   renderPanel();
@@ -290,22 +291,22 @@ function renderDashboard() {
   const shown = groups.filter(([name]) => !boardFilter || name === boardFilter);
   // A group tile, and when it's open, its tiles right below it across the whole width.
   const withInside = (t, sourced) => tileHTML(t, waiting.has(t.id), sourced) + (t.kind === 'group' && openGroups.has(t.id)
-    ? `<div class="dash-inside"><div class="dash-grid" data-section="${esc(t.section)}" data-parent="${esc(t.id)}">${d.tiles.filter((x) => x.parent === t.id).map((x) => tileHTML(x, waiting.has(x.id))).join('') || '<div class="faint">Nothing in it yet.</div>'}</div></div>` : '');
-  const runHTML = (r, sourced) => (r.tile ? withInside(r.tile, sourced) : `<div class="ctl-box"><div class="tile-head"><span class="tile-title">Controls</span></div>${r.rows.map((t) => controlRowHTML(t, waiting.has(t.id))).join('')}</div>`);
+    ? `<div class="dash-inside"><div class="dash-grid" data-section="${esc(t.section)}" data-parent="${esc(t.id)}">${d.tiles.filter((x) => x.parent === t.id).map((x) => tileHTML(x, waiting.has(x.id))).join('') || `<div class="faint">${tr('Nothing in it yet.')}</div>`}</div></div>` : '');
+  const runHTML = (r, sourced) => (r.tile ? withInside(r.tile, sourced) : `<div class="ctl-box"><div class="tile-head"><span class="tile-title">${tr('Controls')}</span></div>${r.rows.map((t) => controlRowHTML(t, waiting.has(t.id))).join('')}</div>`);
   const newest = newestAt(d.tiles);
   root.innerHTML = `
-    <div class="section-head board-head"><div>${BACK_BTN}<h1>Board</h1></div>
-      <div class="board-tools">${d.tiles.some((t) => t.source) ? `<button type="button" class="board-live ${boardRefreshing ? 'spin' : ''}" data-board-refresh aria-label="Refresh" title="Refresh">${REFRESH}${newest ? `<span data-live>${esc(ageWords((Date.now() - newest) / 1000))}</span>` : ''}</button>` : ''}${named.length > 1 ? `<div class="seg board-filter">${['', ...named].map((n) => `<button class="${n === boardFilter ? 'on' : ''}" data-filter="${esc(n)}">${esc(n || 'All')}</button>`).join('')}</div>` : ''}</div></div>
+    <div class="section-head board-head"><div>${BACK_BTN}<h1>${tr('Board')}</h1></div>
+      <div class="board-tools">${d.tiles.some((t) => t.source) ? `<button type="button" class="board-live ${boardRefreshing ? 'spin' : ''}" data-board-refresh aria-label="${tr('Refresh')}" title="${tr('Refresh')}">${REFRESH}${newest ? `<span data-live>${esc(ageWords((Date.now() - newest) / 1000))}</span>` : ''}</button>` : ''}${named.length > 1 ? `<div class="seg board-filter">${['', ...named].map((n) => `<button class="${n === boardFilter ? 'on' : ''}" data-filter="${esc(n)}">${esc(n || tr('All'))}</button>`).join('')}</div>` : ''}</div></div>
     ${d.tiles.length ? '' : `<div class="dash-empty">
-      <p>Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.</p>
-      <p>Nothing is on it yet. Tell the Chief or any bot, for example: <i>“Put a shopping list on my board.”</i></p>
+      <p>${tr('Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.')}</p>
+      <p>${tr('Nothing is on it yet. Tell the Chief or any bot, for example: {example}', { example: `<i>${tr('“Put a shopping list on my board.”')}</i>` })}</p>
     </div>`}
     ${shown.map(([name, ts]) => {
     const by = sectionBots(ts);
     const from = name ? sectionSource(ts) : '';
     return `${name ? `<h3 class="dash-sec">${esc(name)}${by ? ` <span class="by">${esc(by)}</span>` : ''}${from ? ageHTML(newestAt(ts.filter((t) => t.source)), from) : ''}</h3>` : ''}<div class="dash-grid" data-section="${esc(name)}">${boardRuns(ts).map((r) => runHTML(r, !!from)).join('')}</div>`;
   }).join('')}
-    ${(d.suggestions || []).length ? `<h3 class="dash-sec">Suggested</h3><div class="dash-grid">${d.suggestions.map(suggestedHTML).join('')}</div>` : ''}`;
+    ${(d.suggestions || []).length ? `<h3 class="dash-sec">${tr('Suggested')}</h3><div class="dash-grid">${d.suggestions.map(suggestedHTML).join('')}</div>` : ''}`;
   $$('[data-tile]', root).forEach((el) => {
     const t = d.tiles.find((x) => x.id === el.dataset.tile);
     wireTile(el, t, waiting.has(el.dataset.tile));
@@ -340,8 +341,8 @@ function suggestedHTML(s) {
   return `<div class="tile suggested ${t.wide ? 'wide' : ''}" data-sug="${esc(s.id)}">
     <div class="tile-head"><i class="tile-dot" style="--c:${esc(b?.color || CHIEF_COLOR)}"></i><span class="tile-title">${esc(t.title)}</span></div>
     <div class="tile-why">${b ? `<b>${esc(b.name)}</b> · ` : ''}${esc(s.reason)}</div>
-    ${(t.scripts || []).length ? `<details class="tile-script"><summary>Its script</summary>${t.scripts.map((sc) => `<pre>${esc(sc)}</pre>`).join('')}</details>` : ''}
-    <div class="tile-actions"><button class="btn sm" data-sug-no aria-label="Not this one">✕</button><button class="btn sm primary" data-sug-add>Add</button></div>
+    ${(t.scripts || []).length ? `<details class="tile-script"><summary>${tr('Its script')}</summary>${t.scripts.map((sc) => `<pre>${esc(sc)}</pre>`).join('')}</details>` : ''}
+    <div class="tile-actions"><button class="btn sm" data-sug-no aria-label="${tr('Not this one')}">✕</button><button class="btn sm primary" data-sug-add>${tr('Add')}</button></div>
   </div>`;
 }
 async function answerSuggestion(x, add) {
@@ -466,10 +467,10 @@ let panelOpen = null; // { id, m, sig }
 function refreshLine(t) {
   const n = t.every;
   if (typeof n !== 'number') return '';
-  const unit = (k, one) => (k === 1 ? `every ${one}` : `every ${k} ${one}s`);
-  const when = n === 0 ? 'only when tapped'
-    : `${n % 86400 === 0 ? unit(n / 86400, 'day') : n % 3600 === 0 ? unit(n / 3600, 'hour') : n % 60 === 0 ? unit(n / 60, 'minute') : unit(n, 'second')} while the Board is open`;
-  return `Refreshes ${when}. Ask the Chief of Staff to change it.`;
+  if (n === 0) return tr('Refreshes only when tapped. Ask the Chief of Staff to change it.');
+  const every = n % 86400 === 0 ? trn(n / 86400, 'every day', 'every {n} days') : n % 3600 === 0 ? trn(n / 3600, 'every hour', 'every {n} hours')
+    : n % 60 === 0 ? trn(n / 60, 'every minute', 'every {n} minutes') : trn(n, 'every second', 'every {n} seconds');
+  return tr('Refreshes {every} while the Board is open. Ask the Chief of Staff to change it.', { every });
 }
 function openTilePanel(t, only = null) {
   const m = openModal(`
@@ -623,8 +624,8 @@ function openAsk(t) {
   pop.className = `ask-pop${sheet ? ' ask-sheet' : ''}`;
   pop.setAttribute('role', 'dialog');
   pop.setAttribute('aria-label', t.title);
-  pop.innerHTML = `${sheet ? `<h2>${esc(t.title)}</h2>` : ''}<textarea rows="3" placeholder="What should change?"></textarea>
-    <div class="row"><button type="button" class="rm" data-ask-rm aria-label="Remove from Board">${BIN}</button><button type="button" class="send off" data-ask-send aria-label="Send">${UP}</button></div>`;
+  pop.innerHTML = `${sheet ? `<h2>${esc(t.title)}</h2>` : ''}<textarea rows="3" placeholder="${tr('What should change?')}"></textarea>
+    <div class="row"><button type="button" class="rm" data-ask-rm aria-label="${tr('Remove from Board')}">${BIN}</button><button type="button" class="send off" data-ask-send aria-label="${tr('Send')}">${UP}</button></div>`;
   const dim = sheet ? Object.assign(document.createElement('div'), { className: 'ask-dim' }) : null;
   if (dim) { dim.onclick = closeAsk; document.body.append(dim); }
   document.body.append(pop);
@@ -675,7 +676,7 @@ async function sendAsk() {
     return toast(e.message, true);
   }
   if (asking?.pop === pop) closeAsk(); // not another tile's ask, opened while this one went
-  tapped.set(t.id, `Sent to ${chiefName()}`);
+  tapped.set(t.id, tr('Sent to {name}', { name: chiefTitle() }));
   renderDashboard();
   setTimeout(() => { tapped.delete(t.id); renderDashboard(); }, 2500);
 }
@@ -704,7 +705,7 @@ function openHomePick(anchor) {
   const pop = document.createElement('div');
   pop.className = `ask-pop home-pop${sheet ? ' ask-sheet' : ''}`;
   pop.setAttribute('role', 'dialog');
-  pop.setAttribute('aria-label', 'Tiles on home');
+  pop.setAttribute('aria-label', tr('Tiles on home'));
   const dim = sheet ? Object.assign(document.createElement('div'), { className: 'ask-dim' }) : null;
   if (dim) { dim.onclick = closeHomePick; document.body.append(dim); }
   document.body.append(pop);
@@ -805,19 +806,19 @@ window.addEventListener('resize', () => placeHomePick());
 function removeTile(t) {
   const inside = t.kind === 'group' ? (state.dash?.tiles || []).filter((x) => x.parent === t.id) : [];
   if (inside.length) return removeGroup(t, inside.length);
-  if (!confirm(`Remove “${t.title}” from your Board?`)) return;
+  if (!confirm(tr('Remove “{title}” from your Board?', { title: t.title }))) return;
   api(`/dashboard/tiles/${t.id}`, { method: 'DELETE' }).then(() => loadDash(true)).catch((e) => toast(e.message, true));
 }
 
 // A group with tiles in it: only the group (its tiles stay, loose), or everything.
 function removeGroup(t, n) {
   const m = openModal(`
-    <div class="modal-head"><h2>Remove “${esc(t.title)}”?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
-    <div class="modal-body"><p style="margin:0">It holds ${n === 1 ? 'one tile' : `${n} tiles`}.</p></div>
+    <div class="modal-head"><h2>${tr('Remove “{title}”?', { title: esc(t.title) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body"><p style="margin:0">${trn(n, 'It holds one tile.', 'It holds {n} tiles.')}</p></div>
     <div class="modal-foot">
-      <button class="btn" data-dismiss>Cancel</button>
-      <button class="btn" id="rm-group">Only the group</button>
-      <button class="btn danger" id="rm-all">The group and its tiles</button>
+      <button class="btn" data-dismiss>${tr('Cancel')}</button>
+      <button class="btn" id="rm-group">${tr('Only the group')}</button>
+      <button class="btn danger" id="rm-all">${tr('The group and its tiles')}</button>
     </div>`);
   const go = (all) => { m.close(); api(`/dashboard/tiles/${t.id}${all ? '?all' : ''}`, { method: 'DELETE' }).then(() => loadDash(true)).catch((e) => toast(e.message, true)); };
   $('#rm-group', m).onclick = () => go(false);
@@ -825,9 +826,9 @@ function removeGroup(t, n) {
 }
 
 // What a tile says when its bot was busy: the request waits among the owner's messages (docs/api.md, "A message that waits").
-const tileWaits = (t) => `${botById(t.bot)?.name || 'Its bot'} will do it when it is free`;
+const tileWaits = (t) => tr('{name} will do it when it is free', { name: botById(t.bot)?.name || tr('Its bot') });
 async function tapTile(t) {
-  if (t.kind === 'page') { if (t.page) Pages.openPage({ botId: t.page.bot, slug: t.page.slug, title: t.title, bot: t.page.bot === Pages.CHIEF ? chiefName() : botById(t.page.bot)?.name || '' }); return; }
+  if (t.kind === 'page') { if (t.page) Pages.openPage({ botId: t.page.bot, slug: t.page.slug, title: t.title, bot: t.page.bot === Pages.CHIEF ? chiefTitle() : botById(t.page.bot)?.name || '' }); return; }
   const tap = t.look?.tap || 'none';
   if (tap === 'panel') return openTilePanel(t);
   if (tap === 'chat' || tap === 'none') { if (tap === 'chat' && botById(t.bot)) setView('bot', t.bot); return; }
@@ -835,7 +836,8 @@ async function tapTile(t) {
   const pop = () => { popped.add(t.id); renderDashboard(); setTimeout(() => { popped.delete(t.id); renderDashboard(); }, 500); };
   const on = t.look.dot?.filled !== true;
   if (tap === 'toggle') { state.dash.tiles = state.dash.tiles.map((x) => (x.id === t.id ? { ...x, value: on, look: { ...x.look, dot: { ...x.look.dot, filled: on } } } : x)); renderDashboard(); }
-  if (t.asks) flash(`Asked ${botById(t.bot)?.name || 'its bot'}`);
+  const who = botById(t.bot)?.name;
+  if (t.asks) flash(who ? tr('Asked {name}', { name: who }) : tr('Asked its bot'));
   try {
     const { queued, ...r } = await api(`/dashboard/tiles/${t.id}/tap`, { method: 'POST', body: tap === 'toggle' ? { on } : {} });
     state.dash.tiles = state.dash.tiles.map((x) => (x.id === t.id ? { ...x, ...r } : x));

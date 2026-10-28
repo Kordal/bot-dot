@@ -18,7 +18,7 @@ try { rooms.seen = JSON.parse(localStorage.getItem('botdot.rooms.seen') || '{}')
 const ROOM_GREY = '#888780';
 const roomById = (id) => rooms.list.find((r) => r.id === id) || null;
 // "name · account": how every bot of a room is shown, with the front door's account name.
-const roomBotLabel = (b) => `${b?.name || 'A bot'} · ${b?.account || ''}`;
+const roomBotLabel = (b) => `${b?.name || tr('A bot')} · ${b?.account || ''}`;
 const roomBots = (r) => (Array.isArray(r?.bots) ? r.bots : []);
 const roomPeople = (r) => (Array.isArray(r?.members) ? r.members.map((m) => m.account).filter(Boolean) : []);
 const isMine = (b) => !!rooms.me && b?.account === rooms.me;
@@ -33,11 +33,11 @@ async function door(path, opts = {}) {
       headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' },
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
-  } catch { throw Object.assign(new Error("Can't reach botdot."), { unreached: true }); }
+  } catch { throw Object.assign(new Error(tr("Can't reach botdot.")), { unreached: true }); }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const said = typeof data.error === 'string' && data.error.trim();
-    throw Object.assign(new Error(said || `botdot couldn't do that (${res.status}).`), { status: res.status, refused: !!said });
+    throw Object.assign(new Error(said || tr("botdot couldn't do that ({status}).", { status: res.status })), { status: res.status, refused: !!said });
   }
   return data;
 }
@@ -138,9 +138,9 @@ function markRoomSeen(r) {
 }
 // What the Rooms place says: the invites waiting, else the rooms with news.
 function roomsBadge() {
-  if (rooms.invites.length) return `${rooms.invites.length} ${rooms.invites.length === 1 ? 'invite' : 'invites'}`;
+  if (rooms.invites.length) return trn(rooms.invites.length, '{n} invite', '{n} invites');
   const news = rooms.list.filter(roomNews).length;
-  return news ? `${news} new` : '';
+  return news ? trn(news, '{n} new', '{n} new') : '';
 }
 
 // ---------- the Rooms place in the list and on the keypad ----------
@@ -152,10 +152,10 @@ function roomsRowHTML() {
   const badge = roomsBadge();
   const n = rooms.list.length;
   return `
-      <button class="contact rooms-row ${state.view === 'rooms' ? 'active' : ''}" data-contact="rooms" title="Rooms">
+      <button class="contact rooms-row ${state.view === 'rooms' ? 'active' : ''}" data-contact="rooms" title="${esc(tr('Rooms'))}">
         <div class="avatar rooms-pic">${ROOMS_ICON}</div>
-        <div class="grow"><div class="top"><span class="name">Rooms</span>${badge ? `<span class="rooms-badge">${esc(badge)}</span>` : ''}</div>
-        <div class="prev">${n ? `${n} ${n === 1 ? 'room' : 'rooms'} with other accounts` : 'Chat with the bots of other accounts'}</div></div>
+        <div class="grow"><div class="top"><span class="name">${tr('Rooms')}</span>${badge ? `<span class="rooms-badge">${esc(badge)}</span>` : ''}</div>
+        <div class="prev">${n ? trn(n, '{n} room with other accounts', '{n} rooms with other accounts') : tr('Chat with the bots of other accounts')}</div></div>
       </button>`;
 }
 // Its button on the keypad, beside Needs you, and on a phone's home.
@@ -166,7 +166,7 @@ function drawRoomsKeys() {
     el.classList.toggle('hidden', !rooms.on);
     if (!rooms.on) continue;
     const badge = roomsBadge();
-    el.innerHTML = `${ROOMS_ICON}<span>Rooms</span>${badge ? `<span class="rooms-badge">${esc(badge)}</span>` : ''}`;
+    el.innerHTML = `${ROOMS_ICON}<span>${tr('Rooms')}</span>${badge ? `<span class="rooms-badge">${esc(badge)}</span>` : ''}`;
     el.classList.toggle('active', state.view === 'rooms');
     el.onclick = () => setView('rooms');
   }
@@ -202,31 +202,31 @@ function renderRooms() {
 function roomsListHTML() {
   const invites = rooms.invites.map((i) => `
       <div class="room-invite">
-        <div class="grow"><b>${esc(i.room.name)}</b><div class="faint">${esc(i.by || i.room.by || 'Someone')} invited you</div></div>
-        <button type="button" class="btn sm" data-decline="${esc(i.room.id)}">Decline</button>
-        <button type="button" class="btn sm primary" data-accept="${esc(i.room.id)}">Accept</button>
+        <div class="grow"><b>${esc(i.room.name)}</b><div class="faint">${esc(tr('{name} invited you', { name: i.by || i.room.by || tr('Someone') }))}</div></div>
+        <button type="button" class="btn sm" data-decline="${esc(i.room.id)}">${tr('Decline')}</button>
+        <button type="button" class="btn sm primary" data-accept="${esc(i.room.id)}">${tr('Accept')}</button>
       </div>`).join('');
   const list = rooms.list.map((r) => {
-    const last = r.last ? `${r.last.kind === 'notice' ? '' : `<span class="who">${esc(roomAuthor(r.last))}:</span> `}${esc(plain(r.last.text || ''))}` : 'No messages yet';
+    const last = r.last ? `${r.last.kind === 'notice' ? '' : `<span class="who">${esc(roomAuthor(r.last))}:</span> `}${esc(plain(r.last.text || ''))}` : tr('No messages yet');
     return `
       <button type="button" class="room-row" data-room="${esc(r.id)}">
         <div class="avatar rooms-pic">${ROOMS_ICON}</div>
         <div class="grow"><div class="top"><span class="name">${esc(r.name)}</span>${roomNews(r) ? '<i class="room-dot"></i>' : ''}</div>
-        <div class="faint">${esc(roomPeople(r).join(', '))}${roomBots(r).length ? ` · ${roomBots(r).length} ${roomBots(r).length === 1 ? 'bot' : 'bots'}` : ''}</div>
+        <div class="faint">${esc(roomPeople(r).join(', '))}${roomBots(r).length ? ` · ${trn(roomBots(r).length, '{n} bot', '{n} bots')}` : ''}</div>
         <div class="prev">${last}</div></div>
       </button>`;
   }).join('');
   return `
-    <div class="chat-head">${BACK_BTN}<div class="grow"><h2>Rooms</h2></div>
-      <button type="button" class="btn sm primary" id="room-new">New room</button></div>
+    <div class="chat-head">${BACK_BTN}<div class="grow"><h2>${tr('Rooms')}</h2></div>
+      <button type="button" class="btn sm primary" id="room-new">${tr('New room')}</button></div>
     <div class="rooms-page">
-      ${invites ? `<h3 class="page-sub">Invites</h3><div class="card rooms-card">${invites}</div>` : ''}
-      ${list ? `<div class="card rooms-card">${list}</div>` : rooms.known ? `<div class="chat-empty"><div class="avatar rooms-pic lg">${ROOMS_ICON}</div><h3>No rooms yet</h3></div>` : '<p class="faint">Loading…</p>'}
+      ${invites ? `<h3 class="page-sub">${tr('Invites')}</h3><div class="card rooms-card">${invites}</div>` : ''}
+      ${list ? `<div class="card rooms-card">${list}</div>` : rooms.known ? `<div class="chat-empty"><div class="avatar rooms-pic lg">${ROOMS_ICON}</div><h3>${tr('No rooms yet')}</h3></div>` : `<p class="faint">${tr('Loading…')}</p>`}
     </div>`;
 }
 
 // Who wrote a message: a bot as "name · account", a person as their account, "You" for this account.
-const roomAuthor = (m) => (m.bot ? roomBotLabel({ ...m.bot, account: m.account }) : m.account === rooms.me ? 'You' : m.account || 'Someone');
+const roomAuthor = (m) => (m.bot ? roomBotLabel({ ...m.bot, account: m.account }) : m.account === rooms.me ? tr('You') : m.account || tr('Someone'));
 
 async function answerInvite(id, yes, button) {
   button.disabled = true;
@@ -270,14 +270,14 @@ async function openJoin() {
   if (seen.member) { setView('rooms', room.id); return; }
   const m = openModal(`
     <form id="room-join">
-      <div class="modal-head"><h2>Join ${esc(room.name)}?</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>${esc(tr('Join {name}?', { name: room.name }))}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <p>${esc(room.by || 'Someone')} made this room and shared its invite link.</p>
+        <p>${esc(tr('{name} made this room and shared its invite link.', { name: room.by || tr('Someone') }))}</p>
         <div class="send-note hidden" role="alert"></div>
       </div>
       <div class="modal-foot">
-        <button type="button" class="btn" data-dismiss>Not now</button>
-        <button class="btn primary">Join</button>
+        <button type="button" class="btn" data-dismiss>${tr('Not now')}</button>
+        <button class="btn primary">${tr('Join')}</button>
       </div>
     </form>`);
   const form = $('#room-join', m);
@@ -305,8 +305,8 @@ function renderRoomChat(root, r) {
     delete root.dataset.sig;
     root.innerHTML = `
       <div class="chat-head">
-        <button class="icon-btn rooms-back" data-rooms-back aria-label="Rooms" title="Rooms">${ICON.back}</button>
-        <button class="chat-title" id="room-settings" title="People, bots, invite, leave">
+        <button class="icon-btn rooms-back" data-rooms-back aria-label="${esc(tr('Rooms'))}" title="${esc(tr('Rooms'))}">${ICON.back}</button>
+        <button class="chat-title" id="room-settings" title="${esc(tr('People, bots, invite, leave'))}">
           <div class="avatar rooms-pic sm">${ROOMS_ICON}</div>
           <div class="grow"><h2 id="room-name"></h2><div class="sub" id="room-sub"></div></div>
         </button>
@@ -320,7 +320,7 @@ function renderRoomChat(root, r) {
   }
   $('#room-name', root).textContent = r.name;
   $('#room-sub', root).textContent = [roomPeople(r).join(', '), roomBots(r).map(roomBotLabel).join(', ')].filter(Boolean).join(' · ');
-  $('form', root).text.placeholder = roomBots(r).length ? `Message ${r.name}… @ names a bot` : `Message ${r.name}…`;
+  $('form', root).text.placeholder = roomBots(r).length ? tr('Message {name}… @ names a bot', { name: r.name }) : tr('Message {name}…', { name: r.name });
   const thread = $('#room-thread', root);
   const chat = rooms.chats.get(r.id);
   const working = Array.isArray(r.working) ? r.working : [];
@@ -350,12 +350,12 @@ function roomThreadHTML(r, chat) {
   const key = `room:${r.id}`;
   if (!chat.items.length) {
     return `<div class="chat-empty"><div class="avatar rooms-pic lg">${ROOMS_ICON}</div><h3>${esc(r.name)}</h3>
-      <p class="muted">Everyone in the room reads what is written here.<br>A bot answers when you @mention it, if its owner lets you.</p></div>`;
+      <p class="muted">${tr('Everyone in the room reads what is written here.')}<br>${tr('A bot answers when you @mention it, if its owner lets you.')}</p></div>`;
   }
   let lastDay = '';
-  return (chat.more ? '<div class="g-earlier"><button type="button" class="btn sm" data-earlier>Earlier messages</button></div>' : '') + chat.items.map((m) => {
+  return (chat.more ? `<div class="g-earlier"><button type="button" class="btn sm" data-earlier>${tr('Earlier messages')}</button></div>` : '') + chat.items.map((m) => {
     const day = new Date(m.at).toDateString();
-    const sep = day !== lastDay ? `<div class="day">${esc(new Date(m.at).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
+    const sep = day !== lastDay ? `<div class="day">${esc(new Date(m.at).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
     lastDay = day;
     return sep + roomMessageHTML(r, m, key);
   }).join('');
@@ -364,7 +364,7 @@ function roomThreadHTML(r, chat) {
 // Who a message named, so that everyone sees who mentioned whom.
 function roomMentionsHTML(m) {
   const named = (Array.isArray(m.mentions) ? m.mentions : []).filter((x) => x && x.name);
-  return named.length ? `<span class="room-mentions">to ${named.map((x) => esc(roomBotLabel(x))).join(', ')}</span>` : '';
+  return named.length ? `<span class="room-mentions">${tr('to {names}', { names: named.map((x) => esc(roomBotLabel(x))).join(', ') })}</span>` : '';
 }
 
 // One message: the front door's notice as a line; this account's own as the owner's bubble; another person's and
@@ -395,8 +395,8 @@ function roomMessageHTML(r, m, key) {
 // The bots at work in the room, one line each, and one Stop that drops the turns still waiting.
 function roomWorkingHTML(r, working) {
   const lines = working.map((w, i) => {
-    const b = roomBots(r).find((x) => x.account === w.account && x.id === w.bot) || { name: 'A bot', account: w.account };
-    return `<div class="status-line" role="status" style="--c:${Unread.tint(b.color || ROOM_GREY)}"><i></i><span><b>${esc(roomBotLabel(b))}</b> · Answering</span>${i === working.length - 1 ? '<button type="button" data-room-stop>Stop</button>' : ''}</div>`;
+    const b = roomBots(r).find((x) => x.account === w.account && x.id === w.bot) || { name: tr('A bot'), account: w.account };
+    return `<div class="status-line" role="status" style="--c:${Unread.tint(b.color || ROOM_GREY)}"><i></i><span><b>${esc(roomBotLabel(b))}</b> · ${tr('Answering')}</span>${i === working.length - 1 ? `<button type="button" data-room-stop>${tr('Stop')}</button>` : ''}</div>`;
   });
   return lines.length ? `<div class="g-working">${lines.join('')}</div>` : '';
 }
@@ -416,14 +416,14 @@ async function stopRoom(id) {
 function openRoomMaker() {
   const m = openModal(`
     <form id="room-maker" autocomplete="off">
-      <div class="modal-head"><h2>New room</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>${tr('New room')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <label class="field">Name<input type="text" name="name" maxlength="60" required placeholder="What the room is about"></label>
+        <label class="field">${tr('Name')}<input type="text" name="name" maxlength="60" required placeholder="${esc(tr('What the room is about'))}"></label>
         <div class="send-note hidden" role="alert"></div>
       </div>
       <div class="modal-foot">
-        <button type="button" class="btn" data-dismiss>Cancel</button>
-        <button class="btn primary">Create</button>
+        <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>
+        <button class="btn primary">${tr('Create')}</button>
       </div>
     </form>`);
   const form = $('#room-maker', m);
@@ -471,22 +471,22 @@ function openRoomSettings(id) {
       <form id="room-form" autocomplete="off">
         <div class="modal-head"><h2>${esc(room.name)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
         <div class="modal-body">
-          <label class="field">Name<span class="room-inline"><input type="text" name="name" maxlength="60" value="${esc(room.name)}"><button type="button" class="btn sm" data-rename>Rename</button></span></label>
-          <div class="field">People
-            <div class="room-list">${roomPeople(room).map((a) => `<div class="room-item"><span class="grow">${esc(a)}${a === rooms.me ? ' <span class="faint">(you)</span>' : ''}${a === room.by ? ' <span class="faint">made the room</span>' : ''}</span></div>`).join('')}
-            ${invited.map((i) => `<div class="room-item"><span class="grow faint">${esc(i.account)} · invited</span></div>`).join('')}</div>
+          <label class="field">${tr('Name')}<span class="room-inline"><input type="text" name="name" maxlength="60" value="${esc(room.name)}"><button type="button" class="btn sm" data-rename>${tr('Rename')}</button></span></label>
+          <div class="field">${tr('People')}
+            <div class="room-list">${roomPeople(room).map((a) => `<div class="room-item"><span class="grow">${esc(a)}${a === rooms.me ? ` <span class="faint">${tr('(you)')}</span>` : ''}${a === room.by ? ` <span class="faint">${tr('made the room')}</span>` : ''}</span></div>`).join('')}
+            ${invited.map((i) => `<div class="room-item"><span class="grow faint">${esc(i.account)} · ${tr('invited')}</span></div>`).join('')}</div>
             ${maker ? roomLinkHTML(link) : ''}
           </div>
-          <div class="field">Bots
-            <div class="room-list">${roomBots(room).map((b) => `<div class="room-item">${botFigure(b.color || ROOM_GREY, 'idle', 'sm')}<span class="grow">${esc(roomBotLabel(b))}</span>${isMine(b) ? `<button type="button" class="link-btn" data-remove-bot="${esc(b.id)}">Remove</button>` : ''}</div>`).join('') || '<div class="faint">No bot yet.</div>'}</div>
-            ${mayAdd.length ? `<span class="room-inline"><select name="bot">${mayAdd.map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select><button type="button" class="btn sm" data-add-bot>Add your bot</button></span>` : ''}
-            ${keptOut ? `<div class="faint">${mayAdd.length ? 'More' : 'Your'} bots can join once "Shared rooms" is on in their settings.</div>` : ''}
+          <div class="field">${tr('Bots')}
+            <div class="room-list">${roomBots(room).map((b) => `<div class="room-item">${botFigure(b.color || ROOM_GREY, 'idle', 'sm')}<span class="grow">${esc(roomBotLabel(b))}</span>${isMine(b) ? `<button type="button" class="link-btn" data-remove-bot="${esc(b.id)}">${tr('Remove')}</button>` : ''}</div>`).join('') || `<div class="faint">${tr('No bot yet.')}</div>`}</div>
+            ${mayAdd.length ? `<span class="room-inline"><select name="bot">${mayAdd.map((b) => `<option value="${esc(b.id)}">${esc(b.name)}</option>`).join('')}</select><button type="button" class="btn sm" data-add-bot>${tr('Add your bot')}</button></span>` : ''}
+            ${keptOut ? `<div class="faint">${mayAdd.length ? tr('More bots can join once "Shared rooms" is on in their settings.') : tr('Your bots can join once "Shared rooms" is on in their settings.')}</div>` : ''}
           </div>
           <div class="send-note hidden" role="alert"></div>
         </div>
         <div class="modal-foot">
-          ${room.by === rooms.me ? '<button type="button" class="link-btn danger-text" data-delete-room>Delete the room</button>' : ''}
-          <button type="button" class="btn" data-leave-room>Leave the room</button>
+          ${room.by === rooms.me ? `<button type="button" class="link-btn danger-text" data-delete-room>${tr('Delete the room')}</button>` : ''}
+          <button type="button" class="btn" data-leave-room>${tr('Leave the room')}</button>
         </div>
       </form>`;
     const form = $('#room-form', root);
@@ -504,17 +504,17 @@ function openRoomSettings(id) {
     const dropLink = $('[data-drop-link]', form);
     if (dropLink) dropLink.onclick = () => act(dropLink, async () => { await post('/link/remove'); link = null; });
     const copyLink = $('[data-copy-link]', form);
-    if (copyLink) copyLink.onclick = () => navigator.clipboard?.writeText(link.url).then(() => toast('Link copied'), () => $('[name=link]', form)?.select());
+    if (copyLink) copyLink.onclick = () => navigator.clipboard?.writeText(link.url).then(() => toast(tr('Link copied')), () => $('[name=link]', form)?.select());
     const add = $('[data-add-bot]', form);
     if (add) add.onclick = () => act(add, async () => takeRoom((await post('/bots', { bot: form.bot.value }))?.room));
     $$('[data-remove-bot]', form).forEach((el) => (el.onclick = () => act(el, async () => takeRoom((await post('/bots/remove', { bot: el.dataset.removeBot }))?.room))));
     $('[data-leave-room]', form).onclick = (e) => {
-      if (!confirm(`Leave ${room.name}? Your bots leave with you; the room stays with the others.`)) return;
+      if (!confirm(tr('Leave {name}? Your bots leave with you; the room stays with the others.', { name: room.name }))) return;
       act(e.target, async () => { await post('/leave'); dropRoom(id); m.close(); setView('rooms'); });
     };
     const del = $('[data-delete-room]', form);
     if (del) del.onclick = () => {
-      if (!confirm(`Delete ${room.name} for everyone in it? Its messages go too.`)) return;
+      if (!confirm(tr('Delete {name} for everyone in it? Its messages go too.', { name: room.name }))) return;
       act(del, async () => { await post('/delete'); dropRoom(id); m.close(); setView('rooms'); });
     };
     form.onsubmit = (e) => e.preventDefault();
@@ -527,8 +527,8 @@ function openRoomSettings(id) {
 // The maker's invite link: the link with Copy, a new one and Take back; or "Make an invite link". Nothing until read.
 function roomLinkHTML(link) {
   if (link === undefined) return '';
-  if (!link) return '<span class="room-inline"><button type="button" class="btn sm" data-make-link>Make an invite link</button></span>';
-  return `<span class="room-inline"><input type="text" name="link" readonly value="${esc(link.url)}" aria-label="Invite link"><button type="button" class="btn sm" data-copy-link>Copy</button></span>
-            <span class="room-inline"><button type="button" class="link-btn" data-make-link>New link</button><button type="button" class="link-btn danger-text" data-drop-link>Take back</button></span>`;
+  if (!link) return `<span class="room-inline"><button type="button" class="btn sm" data-make-link>${tr('Make an invite link')}</button></span>`;
+  return `<span class="room-inline"><input type="text" name="link" readonly value="${esc(link.url)}" aria-label="${esc(tr('Invite link'))}"><button type="button" class="btn sm" data-copy-link>${tr('Copy')}</button></span>
+            <span class="room-inline"><button type="button" class="link-btn" data-make-link>${tr('New link')}</button><button type="button" class="link-btn danger-text" data-drop-link>${tr('Take back')}</button></span>`;
 }
 

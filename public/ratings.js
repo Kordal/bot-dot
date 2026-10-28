@@ -7,7 +7,7 @@
 (function (root) {
 
 const VALUES = ['up', 'down'];
-const LABEL = { up: 'More like this', down: 'Less like this' };
+const LABEL = { up: tr('More like this'), down: tr('Less like this') };
 const THUMB = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10v11H3V10z"/><path d="M7 10l4-8a2.5 2.5 0 0 1 2.5 2.5V8h5.3a2 2 0 0 1 2 2.4l-1.5 8A2 2 0 0 1 17.3 20H7z"/></svg>';
 
 // A rating as the server has it: 'up', 'down', or null for anything else.

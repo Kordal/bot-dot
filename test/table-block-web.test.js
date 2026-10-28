@@ -6,11 +6,11 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { read, esc } = require('./web-page');
+const { read, esc, words } = require('./web-page');
 
 const kitSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'blocks.js'), 'utf8');
 const kit = () => {
-  const ctx = vm.createContext({ esc, md: (s) => `<p>${esc(s)}</p>`, $$: () => [], $: () => null });
+  const ctx = vm.createContext({ ...words, esc, md: (s) => `<p>${esc(s)}</p>`, $$: () => [], $: () => null });
   vm.runInContext(`${kitSource}\nthis.kitTableView = kitTableView; this.kitTable = kitTable; this.kitTableBody = kitTableBody; this.kitTableState = kitTableState; this.pageBlockHTML = pageBlockHTML; this.pageHTML = pageHTML;`, ctx);
   return ctx;
 };

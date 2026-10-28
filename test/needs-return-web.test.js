@@ -134,7 +134,7 @@ test('web: the view it was opened from is kept as it opens, and its Back goes th
   assert.match(cut('function show({ view: v', 'function threadToEnd'), /if \(changed && v === 'needs'\) state\.cameFrom = NeedsReturn\.from\(state, matchMedia\(PHONE\)\.matches && !\$\('#app'\)\.classList\.contains\('in-main'\)\);\n\s+const was/, 'before state.view changes');
   assert.match(cut('function show({ view: v', 'function threadToEnd'), /if \(changed\) \{[^\n]*stayOnNeeds\(\); \}/, 'a view changed: no wait carries over');
   const render = cut('function renderNeeds() {', '// The buttons on need cards');
-  assert.match(render, /\$\{needsBack\(\)\}<h1>Needs you<\/h1>/);
+  assert.match(render, /\$\{needsBack\(\)\}<h1>\$\{tr\('Needs you'\)\}<\/h1>/);
   assert.match(render, /back\.onclick = \(\) => \{ if \(!leaveNeeds\(\)\) showList\(\); \}/);
   assert.match(cut('const needsBack', 'let needsSeen'), /BACK_BTN\.replace\('data-back', 'data-needs-back'\)/, 'not the Back every page has, which shows the list');
 });

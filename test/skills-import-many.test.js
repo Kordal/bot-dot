@@ -9,7 +9,7 @@ const path = require('path');
 const http = require('node:http');
 const vm = require('vm');
 const { startServer, makeBot } = require('./helpers');
-const { cut, esc } = require('./web-page');
+const { cut, esc, words } = require('./web-page');
 
 // github.com/acme/kit: three skills under skills/, one of them ("notes") with a script, one SKILL.md nested
 // inside a skill (part of that skill, not one of its own), and a fourth whose folder name is no skill name.
@@ -159,7 +159,7 @@ test('the API: preview lists them, confirm imports the ticked ones and gives the
 
 // The web page's list of the skills a link holds (public/app.js skillPickHTML).
 test('the web page lists each skill with a box, flags the ones the library has and cannot tick a broken one', () => {
-  const ctx = vm.createContext({ esc });
+  const ctx = vm.createContext({ ...words, esc });
   vm.runInContext(`${cut('function skillPickHTML(', 'function openSkillImport(')}; this.skillPickHTML = skillPickHTML;`, ctx);
   const html = ctx.skillPickHTML({ skills: [
     { folder: 'skills/notes', name: 'notes', description: 'Takes notes.', exists: true, scripts: ['run.sh'], allowedTools: [], fileCount: 2 },
@@ -182,7 +182,7 @@ test('the web page lists each skill with a box, flags the ones the library has a
 // The bots under "Give them to" (#488): Select all / Deselect all in their header row, leaving a bot with skills
 // turned off as it is and the skills list's own pair alone.
 test('the web page selects and deselects every bot that can take skills', () => {
-  const ctx = vm.createContext({ esc, state: { bots: [{ id: 'b1', name: 'Clerk' }, { id: 'b2', name: 'Off', useSkills: false }] }, CHIEF_BOT: { id: 'chief', name: 'Chief' }, botLabel: (b) => esc(b.name) });
+  const ctx = vm.createContext({ ...words, esc, state: { bots: [{ id: 'b1', name: 'Clerk' }, { id: 'b2', name: 'Off', useSkills: false }] }, CHIEF_BOT: { id: 'chief', name: 'Chief' }, botLabel: (b) => esc(b.name) });
   vm.runInContext(`${cut('function botCheckboxes(', 'function openSkillEditor(')}; this.botPickHTML = botPickHTML; this.wireBotPick = wireBotPick;`, ctx);
   const html = ctx.botPickHTML('Give them to', ['b1']);
   assert.match(html, /Give them to/);

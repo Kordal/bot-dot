@@ -3,7 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read } = require('./web-page');
+const { read, words } = require('./web-page');
 
 function page() {
   const pills = [];
@@ -16,7 +16,7 @@ function page() {
     showModal() { modal.open = true; modal.shown++; },
     replaceChildren(frag) { modal.childNodes = frag.nodes; },
   };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     document: { createDocumentFragment: () => ({ nodes: [], append(...n) { this.nodes.push(...n); } }) },
     $: (sel) => (sel === '.req-error' ? say : null),
     cornerPill: (kind, text, retry) => pills.push({ kind, text, retry }),

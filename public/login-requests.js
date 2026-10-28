@@ -34,13 +34,13 @@ function loginRequestOthers(r) {
   if (!others.length) return '';
   const long = others.length > LOGIN_SEARCH_ABOVE;
   return `<div class="req-others">
-          <button type="button" class="link-btn" id="req-others-open" aria-expanded="false" aria-controls="req-others-list">Use another saved login</button>
-          <fieldset id="req-others-list" hidden><legend>Saved for another website</legend>
-            ${long ? '<input type="search" id="req-others-search" placeholder="Search" aria-label="Search the saved logins" autocomplete="off" autocapitalize="off" spellcheck="false">' : ''}
+          <button type="button" class="link-btn" id="req-others-open" aria-expanded="false" aria-controls="req-others-list">${tr('Use another saved login')}</button>
+          <fieldset id="req-others-list" hidden><legend>${tr('Saved for another website')}</legend>
+            ${long ? `<input type="search" id="req-others-search" placeholder="${tr('Search')}" aria-label="${tr('Search the saved logins')}" autocomplete="off" autocapitalize="off" spellcheck="false">` : ''}
             <div class="req-others-rows${long ? ' long' : ''}">
-            ${others.map((e) => `<div class="req-existing"><span>🔑 <b>${esc(e.name)}</b>${e.username ? ` · ${esc(e.username)}` : ''}<span class="req-other-site">${esc(e.site)}</span></span><button type="button" class="btn sm" data-other="${esc(e.id)}">Use it</button></div>`).join('')}
+            ${others.map((e) => `<div class="req-existing"><span>🔑 <b>${esc(e.name)}</b>${e.username ? ` · ${esc(e.username)}` : ''}<span class="req-other-site">${esc(e.site)}</span></span><button type="button" class="btn sm" data-other="${esc(e.id)}">${tr('Use it')}</button></div>`).join('')}
             </div>
-            ${long ? '<div class="req-others-none faint" hidden>No saved login matches.</div>' : ''}
+            ${long ? `<div class="req-others-none faint" hidden>${tr('No saved login matches.')}</div>` : ''}
           </fieldset>
         </div>`;
 }
@@ -50,17 +50,17 @@ function loginRequestOthers(r) {
 function loginRequestConfirm(r, e) {
   return `<div class="req-confirm" id="req-confirm">
           <div class="req-site">
-            <div class="muted" style="font-size:12.5px">Use the login</div>
+            <div class="muted" style="font-size:12.5px">${tr('Use the login')}</div>
             <div class="site">${esc(e.name)}</div>
-            <div class="muted" style="font-size:12.5px">${e.site ? `saved for <b>${esc(e.site)}</b>` : 'saved without a website'}</div>
-            <div class="muted" style="font-size:12.5px;margin-top:8px">on</div>
+            <div class="muted" style="font-size:12.5px">${e.site ? tr('saved for <b>{site}</b>', { site: esc(e.site) }) : tr('saved without a website')}</div>
+            <div class="muted" style="font-size:12.5px;margin-top:8px">${tr('on')}</div>
             <div class="site">${esc(r.site)}</div>
           </div>
-          <div class="req-note req-warn">⚠️ Its password will also be used on <b>${esc(r.site)}</b>, by ${esc(r.bot.name)}. Only continue if ${esc(r.site)} really takes this login: web pages can try to trick bots into asking.</div>
+          <div class="req-note req-warn">⚠️ ${tr('Its password will also be used on <b>{site}</b>, by {bot}. Only continue if {site} really takes this login: web pages can try to trick bots into asking.', { site: esc(r.site), bot: esc(r.bot.name) })}</div>
           <div class="req-error" role="alert" hidden></div>
           <div class="req-confirm-actions">
-            <button type="button" class="btn" data-back>Back</button>
-            <button type="button" class="btn primary" id="req-confirm-yes">Use it on ${esc(r.site)}</button>
+            <button type="button" class="btn" data-back>${tr('Back')}</button>
+            <button type="button" class="btn primary" id="req-confirm-yes">${tr('Use it on {site}', { site: esc(r.site) })}</button>
           </div>
         </div>`;
 }
@@ -71,33 +71,33 @@ function openLoginRequest(r) {
   const reusable = r.existing.filter((e) => !e.allowed);
   const m = openModal(`
     <form id="login-request" autocomplete="off">
-      <div class="modal-head"><h2>🔐 ${botLabel(r.bot)} needs a login</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>🔐 ${tr('{bot} needs a login', { bot: botLabel(r.bot) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         <div class="req-site">
-          <div class="muted" style="font-size:12.5px">Website</div>
+          <div class="muted" style="font-size:12.5px">${tr('Website')}</div>
           <div class="site">${esc(r.site)}</div>
-          <div class="muted" style="font-size:12.5px">It will only ever be used with this address, and only by ${esc(r.bot.name)}.</div>
+          <div class="muted" style="font-size:12.5px">${tr('It will only ever be used with this address, and only by {bot}.', { bot: esc(r.bot.name) })}</div>
         </div>
-        ${r.reason ? `<div class="req-reason"><span class="muted">${r.from === 'chief' ? 'The Chief says' : 'The bot says'}:</span> “${esc(r.reason)}”</div>` : ''}
+        ${r.reason ? `<div class="req-reason"><span class="muted">${r.from === 'chief' ? tr('The Chief says:') : tr('The bot says:')}</span> “${esc(r.reason)}”</div>` : ''}
         ${reusable.length ? `
-          <fieldset><legend>Already in your Vault</legend>
-            ${reusable.map((e) => `<div class="req-existing"><span>🔑 <b>${esc(e.name)}</b> ${e.username ? `· ${esc(e.username)}` : ''}</span><button type="button" class="btn sm" data-allow="${esc(e.id)}">Let ${esc(r.bot.name)} use it</button></div>`).join('')}
+          <fieldset><legend>${tr('Already in your Vault')}</legend>
+            ${reusable.map((e) => `<div class="req-existing"><span>🔑 <b>${esc(e.name)}</b> ${e.username ? `· ${esc(e.username)}` : ''}</span><button type="button" class="btn sm" data-allow="${esc(e.id)}">${tr('Let {bot} use it', { bot: esc(r.bot.name) })}</button></div>`).join('')}
           </fieldset>` : ''}
         ${loginRequestOthers(r)}
-        ${reusable.length || (r.others || []).length ? '<div class="faint" style="font-size:12px;text-align:center">or save a new one:</div>' : ''}
-        ${state.bw?.configured && state.bw.unlocked ? `<div class="req-note bw-hint">Already in your Bitwarden? Move it into the <b>bot-dot</b> folder there (edit the item → Folder), then <button type="button" class="link-btn" id="req-recheck">check Bitwarden again</button>.</div>` : ''}
+        ${reusable.length || (r.others || []).length ? `<div class="faint" style="font-size:12px;text-align:center">${tr('or save a new one:')}</div>` : ''}
+        ${state.bw?.configured && state.bw.unlocked ? `<div class="req-note bw-hint">${tr('Already in your Bitwarden? Move it into the <b>bot-dot</b> folder there (edit the item → Folder), then {check}.', { check: `<button type="button" class="link-btn" id="req-recheck">${tr('check Bitwarden again')}</button>` })}</div>` : ''}
         ${vaultTypeControl(r.type)}
         ${vaultTypeFields(r.type, { username: r.username })}
-        <label class="toggle"><input type="checkbox" name="insecureTls"> Accept a self-signed certificate <span class="hint muted" style="font-weight:400">for your own servers</span></label>
-        <label class="field">Save as<input type="text" name="name" value="${esc(r.name)}"></label>
-        ${state.bw?.configured && !state.bw.unlocked ? '<label class="field">Bitwarden master password <span class="hint">Bitwarden is locked; this unlocks it so the login is saved there</span><input type="password" name="unlockPassword" autocomplete="current-password" required></label>' : ''}
-        <div class="req-note">🛡 Goes straight into ${state.bw?.configured ? 'your Bitwarden (bot-dot folder)' : 'your encrypted Vault'}. The AI never sees it, and it isn't written to the chat or logs.
-          Only continue if you expected this request: web pages can try to trick bots into asking.</div>
+        <label class="toggle"><input type="checkbox" name="insecureTls"> ${tr('Accept a self-signed certificate')} <span class="hint muted" style="font-weight:400">${tr('for your own servers')}</span></label>
+        <label class="field">${tr('Save as')}<input type="text" name="name" value="${esc(r.name)}"></label>
+        ${state.bw?.configured && !state.bw.unlocked ? `<label class="field">${tr('Bitwarden master password')} <span class="hint">${tr('Bitwarden is locked; this unlocks it so the login is saved there')}</span><input type="password" name="unlockPassword" autocomplete="current-password" required></label>` : ''}
+        <div class="req-note">🛡 ${state.bw?.configured ? tr("Goes straight into your Bitwarden (bot-dot folder). The AI never sees it, and it isn't written to the chat or logs.") : tr("Goes straight into your encrypted Vault. The AI never sees it, and it isn't written to the chat or logs.")}
+          ${tr('Only continue if you expected this request: web pages can try to trick bots into asking.')}</div>
       </div>
       <div class="modal-foot">
-        <button type="button" class="btn danger left" id="req-decline">Decline</button>
-        <button type="button" class="btn" id="req-later">Later</button>
-        <button class="btn primary" type="submit">Save and continue</button>
+        <button type="button" class="btn danger left" id="req-decline">${tr('Decline')}</button>
+        <button type="button" class="btn" id="req-later">${tr('Later')}</button>
+        <button class="btn primary" type="submit">${tr('Save and continue')}</button>
       </div>
     </form>`);
   m.dataset.request = r.id;
@@ -113,7 +113,7 @@ function openLoginRequest(r) {
       pollLoginRequests();
     } catch (e) { toast(e.message, true); }
   };
-  $$('[data-allow]', m).forEach((b) => (b.onclick = () => whileBusy(b, 'Allowing…', () => answer({ action: 'allow', loginId: b.dataset.allow }, `${r.bot.name} can now use it and will continue`))));
+  $$('[data-allow]', m).forEach((b) => (b.onclick = () => whileBusy(b, tr('Allowing…'), () => answer({ action: 'allow', loginId: b.dataset.allow }, tr('{bot} can now use it and will continue', { bot: r.bot.name })))));
   // A login of another website: its list opens from one line, and a pick is asked a second time in the dialog.
   const othersOpen = $('#req-others-open', m);
   if (othersOpen) othersOpen.onclick = () => {
@@ -146,11 +146,11 @@ function openLoginRequest(r) {
     const yes = $('#req-confirm-yes', c);
     $('[data-back]', c).onclick = () => { c.remove(); form.classList.remove('confirming'); };
     $('[data-back]', c).focus();
-    yes.onclick = () => whileBusy(yes, 'Allowing…', async () => {
+    yes.onclick = () => whileBusy(yes, tr('Allowing…'), async () => {
       try {
         await api(`/vault/requests/${r.id}`, { method: 'POST', body: { action: 'allow', loginId: e.id } });
         m.close();
-        toast(`${r.bot.name} can now use it on ${r.site} and will continue`);
+        toast(tr('{bot} can now use it on {site} and will continue', { bot: r.bot.name, site: r.site }));
         pollLoginRequests();
       } catch (err) {
         // The server's sentence (the login has 20 additional hosts already, say); the request stays open.
@@ -160,17 +160,17 @@ function openLoginRequest(r) {
       }
     });
   }));
-  $('#req-decline', m).onclick = () => whileBusy($('#req-decline', m), 'Declining…', () => answer({ action: 'decline' }, 'Declined'));
+  $('#req-decline', m).onclick = () => whileBusy($('#req-decline', m), tr('Declining…'), () => answer({ action: 'decline' }, tr('Declined')));
   const recheck = $('#req-recheck', m);
   if (recheck) recheck.onclick = async () => {
-    recheck.disabled = true; recheck.textContent = 'checking…';
+    recheck.disabled = true; recheck.textContent = tr('checking…');
     try {
       await api('/vault/bitwarden/sync', { method: 'POST' });
       const fresh = (await api('/vault/requests')).find((x) => x.id === r.id);
       const found = fresh ? fresh.existing.filter((e) => !e.allowed).length : 0;
       m.close(); // the regular check reopens it with what's in Bitwarden now
-      if (fresh) toast(found ? 'Found it. Choose it to let the bot use it.' : `Nothing for ${fresh.site} in the bot-dot folder yet. Check the item's website address in Bitwarden too.`, !found);
-    } catch (e) { toast(e.message, true); recheck.disabled = false; recheck.textContent = 'check Bitwarden again'; }
+      if (fresh) toast(found ? tr('Found it. Choose it to let the bot use it.') : tr("Nothing for {site} in the bot-dot folder yet. Check the item's website address in Bitwarden too.", { site: fresh.site }), !found);
+    } catch (e) { toast(e.message, true); recheck.disabled = false; recheck.textContent = tr('check Bitwarden again'); }
   };
   $('#req-later', m).onclick = () => { loginReq.snoozed.add(r.id); m.close(); };
   $('[data-dismiss]', m).onclick = () => { loginReq.snoozed.add(r.id); m.close(); };
@@ -188,15 +188,15 @@ function openLoginRequest(r) {
 // Saving to Bitwarden (and unlocking it first, if it's locked) takes a few seconds: like unlocking,
 // it runs in the background with the pill in the corner, and the bot continues once it's saved.
 async function saveLoginInBackground(r, body) {
-  unlockPill('busy', 'Saving login…');
+  unlockPill('busy', tr('Saving login…'));
   try {
     await api(`/vault/requests/${r.id}`, { method: 'POST', body });
-    unlockPill('ok', `Saved. ${r.bot.name} will continue.`);
+    unlockPill('ok', tr('Saved. {bot} will continue.', { bot: r.bot.name }));
     if (body.unlockPassword) pollBitwarden();
   } catch (err) {
     // Opened again with the type the owner chose and the username they typed, so the next try saves what they meant.
     const again = () => { const x = loginReq.pending.find((y) => y.id === r.id); if (x && !$('#modal').open) openLoginRequest({ ...x, type: body.type, username: body.username ?? x.username }); };
-    unlockPill('err', /not right/i.test(err.message) ? 'Wrong master password, login not saved' : `Login not saved: ${err.message}`, again);
+    unlockPill('err', /not right/i.test(err.message) ? tr('Wrong master password, login not saved') : tr('Login not saved: {error}', { error: err.message }), again);
     loginReq.snoozed.add(r.id); // reopened from the pill, not popped up again by itself
   } finally {
     body.password = body.unlockPassword = null;

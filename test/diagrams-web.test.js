@@ -9,6 +9,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { words } = require('./web-page');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
@@ -82,7 +83,7 @@ function load() {
   const doc = page();
   const errors = [], listeners = [];
   const ctx = vm.createContext({
-    document: doc, console: { error: (...a) => errors.push(a.join(' ')) }, location: { origin: ORIGIN },
+    ...words, document: doc, console: { error: (...a) => errors.push(a.join(' ')) }, location: { origin: ORIGIN },
     setTimeout: (...a) => setTimeout(...a), clearTimeout: (...a) => clearTimeout(...a), // the test's, which a test may mock
     addEventListener: (type, fn) => { if (type === 'message') listeners.push(fn); },
     removeEventListener: (type, fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); },

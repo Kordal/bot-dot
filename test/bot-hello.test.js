@@ -116,10 +116,10 @@ test('a bot that has a chat already when its time comes writes no first message'
 
 test('web: a new bot\'s first message has no request above it, and the "New" line goes above it', () => {
   const vm = require('vm');
-  const { read, cut, esc } = require('./web-page');
+  const { read, cut, esc, words } = require('./web-page');
   const lib = vm.createContext({});
   vm.runInContext(read('unread.js'), lib);
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     esc, Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: () => '08:00', dur: () => '2 s',
     notesFoldHTML: () => '', filesHTML: () => '', botFilesHTML: () => '', copyBtn: () => '',

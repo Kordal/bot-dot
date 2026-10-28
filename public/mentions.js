@@ -188,7 +188,7 @@ function suggest(typed, ctx) {
   } else {
     const q = m[1];
     const taken = new Set(bots.map((b) => shortName(b.name).toLowerCase()));
-    const all = ctx.all && !String(typed).slice(0, m.index).trim() && has(ALL, q) ? [{ kind: 'all', text: `@${ALL}`, label: 'all: every member at once' }] : [];
+    const all = ctx.all && !String(typed).slice(0, m.index).trim() && has(ALL, q) ? [{ kind: 'all', text: `@${ALL}`, label: typeof tr === 'function' ? tr('all: every member at once') : 'all: every member at once' }] : [];
     // A page's flat name, or "@Bot/Title" when a bot or an earlier page has it (and its bot can be mentioned).
     const pageRows = pagesInScope(ctx).filter((p) => has(shortName(p.title), q)).flatMap((p) => {
       const short = shortName(p.title);

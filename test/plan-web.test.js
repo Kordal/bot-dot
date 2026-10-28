@@ -8,11 +8,12 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { webSource } = require('./web-source');
+const { words } = require('./web-page');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
 const stored = new Map();
-const page = vm.createContext({
+const page = vm.createContext({ ...words,
   localStorage: { getItem: (k) => stored.get(k) ?? null, setItem: (k, v) => stored.set(k, String(v)) },
   matchMedia: () => ({ matches: false }),
 });
@@ -114,7 +115,7 @@ test('web: a bot\'s plan from the feed lands on its running run and draws its op
   const heard = {};
   const state = { view: 'bot', botId: 'b1', runs: [{ id: 'r1', botId: 'b1', status: 'running' }, { id: 'r0', botId: 'b1', status: 'success', plan: plan('done') }] };
   let draws = 0;
-  const ctx = vm.createContext({ JSON, state, renderBotChat: () => { draws++; }, es: { addEventListener: (t, fn) => { heard[t] = fn; } } });
+  const ctx = vm.createContext({ ...words, JSON, state, renderBotChat: () => { draws++; }, es: { addEventListener: (t, fn) => { heard[t] = fn; } } });
   vm.runInContext(cut('  // A working bot\'s plan changed (#629)', '  // A reply in the Chief chat that\'s open'), ctx);
   const feed = (data) => heard.run_plan({ data: JSON.stringify(data) });
   feed({ chat: 'bot:b1', botId: 'b1', runId: 'r1', plan: plan('done', 'doing', 'todo') });
@@ -136,7 +137,7 @@ test('web: a bot\'s steps from the feed land on its running run and draw its ope
   const heard = {};
   const state = { view: 'bot', botId: 'b1', runs: [{ id: 'r1', botId: 'b1', status: 'running', steps: { count: 1, rows: [] } }, { id: 'r0', botId: 'b1', status: 'success', steps: { count: 1, rows: [] } }] };
   let draws = 0;
-  const ctx = vm.createContext({ JSON, state, renderBotChat: () => { draws++; }, es: { addEventListener: (t, fn) => { heard[t] = fn; } } });
+  const ctx = vm.createContext({ ...words, JSON, state, renderBotChat: () => { draws++; }, es: { addEventListener: (t, fn) => { heard[t] = fn; } } });
   vm.runInContext(cut('  // A working bot took a step (#633)', '  // A reply in the Chief chat that\'s open'), ctx);
   const feed = (data) => heard.run_steps({ data: JSON.stringify(data) });
   const steps = { count: 2, rows: [{ at: '2026-10-27T10:00:00.000Z', text: 'Reading a.js' }] };

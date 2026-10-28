@@ -4,12 +4,12 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, cut, esc, element } = require('./web-page');
+const { app, cut, esc, element, words } = require('./web-page');
 
 function jobs({ answer = null } = {}) {
   const box = element();
   const calls = [];
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     esc, toast() {}, $: (sel) => (sel === '#chief-job-list' ? box : null), $$: () => [],
     api: async (p, opts = {}) => { calls.push([opts.method || 'GET', p]); if (answer instanceof Error) throw answer; return answer; },
   });
