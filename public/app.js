@@ -280,9 +280,9 @@ function ago(iso) {
   const s = (Date.now() - new Date(iso)) / 1000;
   if (s < 0) return inFuture(iso);
   if (s < 60) return tr('just now');
-  if (s < 3600) return trn(Math.floor(s / 60), '{n}m ago', '{n}m ago');
-  if (s < 86400) return trn(Math.floor(s / 3600), '{n}h ago', '{n}h ago');
-  if (s < 86400 * 30) return trn(Math.floor(s / 86400), '{n}d ago', '{n}d ago');
+  if (s < 3600) return tr('{n}m ago', { n: Math.floor(s / 60) });
+  if (s < 86400) return tr('{n}h ago', { n: Math.floor(s / 3600) });
+  if (s < 86400 * 30) return tr('{n}d ago', { n: Math.floor(s / 86400) });
   return new Date(iso).toLocaleDateString(I18n.locale);
 }
 

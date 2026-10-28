@@ -17,7 +17,7 @@ function whatsNewNotesHTML(entries) {
       : `
       <details><summary>${esc(e.title)}</summary>${points}</details>`;
   };
-  const count = entries.length > WHATS_NEW_OPEN ? `<p class="whats-new-count">${trn(entries.length, '{n} change, newest first. Tap a title for more.', '{n} changes, newest first. Tap a title for more.')}</p>` : '';
+  const count = entries.length > WHATS_NEW_OPEN ? `<p class="whats-new-count">${tr('{n} changes, newest first. Tap a title for more.', { n: entries.length })}</p>` : '';
   return count + entries.map(note).join('');
 }
 

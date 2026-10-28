@@ -257,7 +257,7 @@ const Files = (() => {
       return `<nav class="fx-selbar">${b('move', 'move-to', I.move, tr('Move'))}${b('copy', 'copy-to', I.file, tr('Copy'))}${b('download', 'download', I.down, tr('Download'))}${b('del', 'delete', I.trash, tr('Delete'), ' danger')}</nav>`;
     }
     const b = (k, what, label, cls = '') => (can(k) ? `<button type="button" class="btn${cls}" data-fx="${what}">${label}</button>` : '');
-    return `<div class="fx-float"><b>${trn(chosen.length, '{n} selected', '{n} selected')}</b>${b('move', 'move-to', tr('Move to…'))}${b('copy', 'copy-to', tr('Copy to…'))}${b('download', 'download', tr('Download'))}${b('del', 'delete', tr('Delete'), ' danger')}<button type="button" class="icon-btn" data-fx="clear" aria-label="${tr('Clear the selection')}">${I.close}</button></div>`;
+    return `<div class="fx-float"><b>${tr('{n} selected', { n: chosen.length })}</b>${b('move', 'move-to', tr('Move to…'))}${b('copy', 'copy-to', tr('Copy to…'))}${b('download', 'download', tr('Download'))}${b('del', 'delete', tr('Delete'), ' danger')}<button type="button" class="icon-btn" data-fx="clear" aria-label="${tr('Clear the selection')}">${I.close}</button></div>`;
   }
   const selected = (c) => visible(c).filter((e) => c.sel.has(e.path));
 
@@ -369,7 +369,7 @@ const Files = (() => {
 
   function phoneTopHTML(c) {
     if (c.selecting) {
-      return `<header class="fx-ptop"><button type="button" class="icon-btn" data-fx="clear" aria-label="${tr('Stop selecting')}">${I.close}</button><b class="fx-ptitle">${trn(c.sel.size, '{n} selected', '{n} selected')}</b><span class="grow"></span><button type="button" class="btn" data-fx="all">${tr('All')}</button></header>`;
+      return `<header class="fx-ptop"><button type="button" class="icon-btn" data-fx="clear" aria-label="${tr('Stop selecting')}">${I.close}</button><b class="fx-ptitle">${tr('{n} selected', { n: c.sel.size })}</b><span class="grow"></span><button type="button" class="btn" data-fx="all">${tr('All')}</button></header>`;
     }
     const title = c.results ? tr('Search') : c.path ? nameOf(c.path) : placeName(c.place);
     return `<header class="fx-ptop">
@@ -482,7 +482,7 @@ const Files = (() => {
       try { await sendFile(c, dir, file, true); } catch { failed++; }
     }
     c.busy = null;
-    toast(failed ? trn(plan.length, "{name}: {failed} of {n} file didn't upload.", "{name}: {failed} of {n} files didn't upload.", { name: top, failed }) : tr('Uploaded {name}', { name: top }), !!failed);
+    toast(failed ? tr("{name}: {failed} of {n} files didn't upload.", { name: top, failed, n: plan.length }) : tr('Uploaded {name}', { name: top }), !!failed);
     return load(c);
   }
   // What was dropped from the desktop: files, and folders read with what they hold.

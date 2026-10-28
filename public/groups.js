@@ -339,7 +339,7 @@ const namesList = (names) => (names.length > 1 ? tr('{names} and {last}', { name
 // A message of the owner's waits for busy members: for whom. '' when it waits for nobody.
 function waitsLine(m) {
   const names = (Array.isArray(m.waitsFor) ? m.waitsFor : []).map((id) => memberName(id));
-  return names.length ? trn(names.length, 'Waits until {names} is free', 'Waits until {names} are free', { names: namesList(names) }) : '';
+  return names.length ? (names.length > 1 ? tr('Waits until {names} are free', { names: namesList(names) }) : tr('Waits until {names} is free', { names: namesList(names) })) : '';
 }
 // A message none of whose turns has started, and that waits: for a busy member, or for Claude to be signed in.
 // It is drawn at the end of the chat, faded, with "Take back", as a waiting message in a bot's chat is.

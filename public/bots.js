@@ -451,7 +451,7 @@ function renderBotSettings(force = false) {
       const lib = library.filter((k) => on.has(`lib:${k.name}`)).map((k) => k.name);
       const count = (from) => sys.filter((k) => k.from === from && on.has(`sys:${k.name}`)).length;
       const acc = count('from your Claude account'), built = count('built into Claude Code');
-      return [...lib, acc ? trn(acc, '{n} from your Claude account', '{n} from your Claude account') : '', built ? trn(built, '{n} built into Claude Code', '{n} built into Claude Code') : ''].filter(Boolean).join(', ');
+      return [...lib, acc ? tr('{n} from your Claude account', { n: acc }) : '', built ? tr('{n} built into Claude Code', { n: built }) : ''].filter(Boolean).join(', ');
     };
     foldPicker(box, items, on, () => {
       sel.skills.clear();

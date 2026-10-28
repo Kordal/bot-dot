@@ -31,7 +31,7 @@ const tint = (color) => (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(color || 
 function dots(n, color) {
   const shown = Math.min(MAX_DOTS, Number.isInteger(n) && n > 0 ? n : 0);
   if (!shown) return '';
-  return `<span class="unread-dots" style="--c:${tint(color)}" aria-label="${trn(shown, 'New reply', 'New replies')}">${'<i></i>'.repeat(shown)}</span>`;
+  return `<span class="unread-dots" style="--c:${tint(color)}" aria-label="${(shown === 1 ? tr('New reply') : tr('New replies'))}">${'<i></i>'.repeat(shown)}</span>`;
 }
 
 // A bot that asks the owner something (docs/api.md, "A bot that asks"): the server says it with `asks` on the bot,
