@@ -62,4 +62,14 @@ class RunStepsTest {
         assertNull("one paragraph", RunSteps.folded(para.repeat(4)))
         assertNull("code", RunSteps.folded("$text\n\n```\ncode\n```"))
     }
+
+    @Test fun aStepLineOpenedWhileItsRunWorksFoldsWhenTheRunEnds() {
+        val working = run("""{"id":"w","botId":"b","prompt":"Test it","status":"running"}""")
+        val ended = run("""{"id":"w","botId":"b","prompt":"Test it","status":"success","result":"Done."}""")
+        assertFalse(RunSteps.open(emptyMap(), working))
+        assertFalse(RunSteps.open(emptyMap(), ended))
+        assertTrue(RunSteps.open(mapOf("w" to true), working))
+        assertFalse(RunSteps.open(mapOf("w" to true), ended))
+        assertTrue(RunSteps.open(mapOf("w" to false), ended))
+    }
 }

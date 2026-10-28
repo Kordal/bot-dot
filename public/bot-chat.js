@@ -96,8 +96,13 @@ function shownSteps(r, sent) {
 }
 // What of a running run's step rows the chat shows (#633): a new row, or the last one that came again, draws it anew.
 const stepsSig = (r) => { const rows = Array.isArray(r.steps?.rows) ? r.steps.rows : []; const last = rows[rows.length - 1]; return `${rows.length}:${last?.at ?? ''}:${last?.n ?? 1}`; };
-// The open blocks' step lines, by run: they stay open as the chat is drawn again.
-const openSteps = new Set();
+// The open blocks' step lines, by run, each with whether its run was at work when it was opened: they stay open as the
+// chat is drawn again. One opened to watch a run at work folds when the run ends, so a finished run's steps are folded.
+const openSteps = new Map();
+const stepsOpen = (r) => {
+  if (openSteps.get(r.id) && r.status !== 'running') openSteps.delete(r.id);
+  return openSteps.has(r.id);
+};
 
 // A run's step line (docs/api.md, "A run's steps"): folded, how many steps it took, the skills it changed and the
 // bots it messaged; open, a row per step, with the messages it sent and the skills it changed among them. A run at
@@ -122,7 +127,7 @@ function stepLineHTML(r) {
     ...sent.map((t) => ({ at: t.at, icon: STEP_ICON.message, text: `<b>Messaged ${esc(t.name || '')}</b><span class="step-q">${esc(firstLine(t.text))}</span>` })),
     ...(r.learned || []).filter((x) => SKILL_KINDS.includes(x.kind)).map((x) => ({ at: x.at, icon: STEP_ICON.skill, text: `<b>${esc(said(x.chip) || said(x.text))}</b>` })),
   ].map((x, i) => ({ ...x, i, t: Date.parse(x.at) })).sort((a, b) => (Number.isFinite(a.t) ? a.t : Infinity) - (Number.isFinite(b.t) ? b.t : Infinity) || a.i - b.i);
-  return `<details class="run-steps${running ? ' now' : ''}" data-steps="${esc(r.id)}"${openSteps.has(r.id) ? ' open' : ''}>`
+  return `<details class="run-steps${running ? ' now' : ''}" data-steps="${esc(r.id)}"${stepsOpen(r) ? ' open' : ''}>`
     + `<summary${label ? ` aria-label="${esc(label)}"` : ''}>${STEP_ICON.open}${head}</summary>`
     + (rows.length ? `<div class="step-rows">${rows.map((x) => `<div class="step-row"><time>${esc(stepTime(x.at))}</time>${x.icon}<span>${x.text}</span></div>`).join('')}</div>` : '')
     + '</details>';
@@ -383,7 +388,7 @@ function renderBotChat() {
     $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
     $$('[data-details]', thread).forEach((el) => (el.onclick = () => openRun(el.dataset.details)));
     // A block's step line opens and closes, and stays so; Stop in a running block's footer ends that run.
-    $$('details.run-steps', thread).forEach((el) => el.addEventListener('toggle', () => { if (el.open) openSteps.add(el.dataset.steps); else openSteps.delete(el.dataset.steps); }));
+    $$('details.run-steps', thread).forEach((el) => el.addEventListener('toggle', () => { if (el.open) openSteps.set(el.dataset.steps, el.classList.contains('now')); else openSteps.delete(el.dataset.steps); }));
     $$('[data-reply-run]', thread).forEach((el) => (el.onclick = () => pickReply(bot.id, el.dataset.replyRun)));
     $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
     foldLongReplies(thread);
