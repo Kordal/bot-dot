@@ -131,7 +131,7 @@ test("web: the Pages view lists every bot's pages, kept up to date first, and it
 });
 
 test('web: Pages opens from Settings only from a server with pages-all, and has a view of its own (#361)', () => {
-  assert.match(read('settings.js'), /\['pages', 'Pages'/);
+  assert.match(read('settings.js'), /\['pages', tr\('Pages'\)\]/);
   assert.match(read('settings.js'), /view !== 'pages' \|\| \(typeof Pages !== 'undefined' && Pages\.showsAll\(\)\)/);
   assert.match(read('index.html'), /id="view-pages"/);
   assert.match(read('app.js'), /state\.view === 'pages'\) Pages\.renderAll\(\)/);

@@ -59,6 +59,9 @@ import dev.botdot.app.data.SettingsInfo
 import dev.botdot.app.data.SetupInfo
 import dev.botdot.app.data.claudeCouldNotTell
 import dev.botdot.app.data.claudeSays
+import dev.botdot.app.data.I18n
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
@@ -115,7 +118,7 @@ fun SettingsScreen(
     suspend fun load() {
         val a = api ?: return
         coroutineScope {
-            launch { runCatching { a.settings() }.onSuccess { info = it; edit = it.settings }.onError { tell(it.message ?: "Couldn't load") } }
+            launch { runCatching { a.settings() }.onSuccess { info = it; edit = it.settings }.onError { tell(it.message ?: tr("Couldn't load")) } }
             launch { runCatching { a.setup() }.onSuccess { setup = it } }
             launch {
                 runCatching { a.version() }.onSuccess { server = it; app.store.version.set(it) }
@@ -132,8 +135,8 @@ fun SettingsScreen(
     }
     LaunchedEffect(api) { load() }
 
-    val models = listOf("" to "Claude Code's default") + info.models.map { it.id to it.label.ifBlank { it.id } }
-    val efforts = listOf("" to "Claude Code's default") + info.efforts.map { it.id to it.label }
+    val models = listOf("" to tr("Claude Code's default")) + info.models.map { it.id to it.label.ifBlank { it.id } }
+    val efforts = listOf("" to tr("Claude Code's default")) + info.efforts.map { it.id to it.label }
     val canThink = { m: String -> info.models.firstOrNull { it.id == m }?.effort ?: true }
 
     // Saved by itself (#636): the top says "Saved" for a moment, in place of a sentence.
@@ -142,41 +145,50 @@ fun SettingsScreen(
     // Model and reasoning save as they are picked; one that doesn't save goes back to what was.
     fun saveModel(next: AppSettings) {
         edit = next
-        scope.launch { runCatching { api!!.saveSettings(next) }.onSuccess { info = it; edit = it.settings; saved() }.onError { edit = info.settings; tell(it.message ?: "Couldn't save") } }
+        scope.launch { runCatching { api!!.saveSettings(next) }.onSuccess { info = it; edit = it.settings; saved() }.onError { edit = info.settings; tell(it.message ?: tr("Couldn't save")) } }
     }
 
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
-        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("Settings", style = MaterialTheme.typography.titleMedium) },
+        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(tr("Settings"), style = MaterialTheme.typography.titleMedium) },
             actions = { SavedMark(savedAt) }) },
     ) { pad ->
         // One flat list (#636): a row per setting, its value and a chevron, and no helper text. Each row that holds
         // more opens under itself, closed whenever Settings opens.
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 6.dp)) {
-            Link("Skills", onClick = onSkills)
-            if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link("Pages", onClick = onPages) // every bot's pages (#361)
-            Link("Connectors", onClick = onConnectors)
-            Link("Vault", onClick = onVault)
+            Link(tr("Skills"), onClick = onSkills)
+            if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link(tr("Pages"), onClick = onPages) // every bot's pages (#361)
+            Link(tr("Connectors"), onClick = onConnectors)
+            Link(tr("Vault"), onClick = onVault)
             Spacer(Modifier.height(18.dp))
 
-            Choice("Model", edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
-            if (canThink(edit.defaultModel)) Choice("Reasoning", edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
+            Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
+            if (canThink(edit.defaultModel)) Choice(tr("Reasoning"), edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
             Rule()
 
-            if (boatSizes != null || computerPlace != null) FoldSection("Computer", computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
+            // The interface's language (#645): saved by itself, and every screen draws again in it at once.
+            if (server?.features?.contains(I18n.FEATURE) == true) {
+                Choice(tr("Language"), I18n.language, I18n.LANGUAGES) { to ->
+                    if (to == I18n.language) return@Choice
+                    scope.launch { runCatching { api!!.setLanguage(to); I18n.sync(api!!, server?.features) }.onSuccess { saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
+                }
+                Rule()
+            }
+
+            if (boatSizes != null || computerPlace != null) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
                 computerPlace?.let { c ->
-                    Choice("Where", c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
+                    Choice(tr("Where"), c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
                         if (to == c.place) return@Choice
                         // Every bot with a computer moves along: whether their files go too is asked first (#556).
                         if (botsNow.orEmpty().any { it.computer == "linux" || it.computer == "boat" }) askPlace = to
-                        else scope.launch { runCatching { api!!.setComputerPlace(to, false) }.onSuccess { computerPlace = it; saved() }.onError { tell(it.message ?: "Couldn't save") } }
+                        else scope.launch { runCatching { api!!.setComputerPlace(to, false) }.onSuccess { computerPlace = it; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
                     }
                 }
                 boatSizes?.takeIf { computerPlace == null || computerPlace?.place == "boat" }?.let { b ->
                     // A new size reaches each machine when it starts next.
-                    Choice("Size", b.size, b.offered) { size ->
-                        scope.launch { runCatching { api!!.setBoatSize(size) }.onSuccess { boatSizes = it; saved() }.onError { tell(it.message ?: "Couldn't save") } }
+                    Choice(tr("Size"), b.size, b.offered) { size ->
+                        scope.launch { runCatching { api!!.setBoatSize(size) }.onSuccess { boatSizes = it; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
                     }
                 }
             }
@@ -191,82 +203,82 @@ fun SettingsScreen(
                 val keys = s.claude.knowsKeys && server?.features?.contains("claude-api-key") == true
                 fun keyChange(said: String, call: suspend () -> dev.botdot.app.data.ClaudeStatus?) {
                     scope.launch {
-                        runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = "" }.onError { tell(it.message ?: "Couldn't change it") }
+                        runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = "" }.onError { tell(it.message ?: tr("Couldn't change it")) }
                         load()
                     }
                 }
                 FoldSection("Claude", claudeValue(s.claude)) {
                     if (keys && keyOpen && loginUrl == null) {
-                        OutlinedTextField(apiKey, { apiKey = it.trim() }, label = { Text("Anthropic API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        OutlinedTextField(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(onClick = { val key = apiKey; keyChange("Saved. Bots now run on your API key") { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Save") }
-                            TextButton(onClick = { keyOpen = false; apiKey = "" }) { Text("Cancel", color = p.text) }
+                            Button(onClick = { val key = apiKey; keyChange(tr("Saved. Bots now run on your API key")) { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
+                                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
+                            TextButton(onClick = { keyOpen = false; apiKey = "" }) { Text(tr("Cancel"), color = p.text) }
                         }
                     } else if (s.claude.onApiKey && loginUrl == null) {
                         Hint(claudeSays(s.claude))
                         Row {
-                            if (s.claude.subscription == true) TextButton(onClick = { keyChange("Bots now run on your Claude subscription") { api!!.claudeUse("subscription") } }) {
-                                Text("Use the subscription instead", color = p.text)
+                            if (s.claude.subscription == true) TextButton(onClick = { keyChange(tr("Bots now run on your Claude subscription")) { api!!.claudeUse("subscription") } }) {
+                                Text(tr("Use the subscription instead"), color = p.text)
                             }
-                            TextButton(onClick = { confirmRemoveKey = true }) { Text("Remove the key", color = p.text) }
+                            TextButton(onClick = { confirmRemoveKey = true }) { Text(tr("Remove the key"), color = p.text) }
                         }
                     } else if (s.claude.loggedIn && loginUrl == null) {
                         if (s.claude.fromEnv) Hint(claudeSays(s.claude))
                         else {
                             Hint(claudeSays(s.claude))
                             Row {
-                                TextButton(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: "Couldn't start") } } }) {
-                                    Text("Use another account", color = p.text)
+                                TextButton(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: tr("Couldn't start")) } } }) {
+                                    Text(tr("Use another account"), color = p.text)
                                 }
                                 // Ask with a fresh count of what's running, since signing out stops it.
                                 TextButton(onClick = { scope.launch { confirmLogout = runCatching { api!!.setup().running }.getOrDefault(0) } }) {
-                                    Text("Sign out", color = p.text)
+                                    Text(tr("Sign out"), color = p.text)
                                 }
                             }
                         }
-                        if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange("Bots now run on your API key") { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
+                        if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
                     } else if (loginUrl == null) {
                         Hint(claudeSays(s.claude))
-                        Button(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: "Couldn't start") } } },
-                            colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Sign in to Claude") }
-                        if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange("Bots now run on your API key") { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
+                        Button(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: tr("Couldn't start")) } } },
+                            colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Sign in to Claude")) }
+                        if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
                     } else {
                         // Open the page, sign in and allow access, then paste the code it shows.
-                        OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text("Open the sign-in page", color = p.text) }
-                        OutlinedTextField(code, { code = it.trim() }, label = { Text("Code") }, singleLine = true,
+                        OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }
+                        OutlinedTextField(code, { code = it.trim() }, label = { Text(tr("Code")) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.claudeCode(code) }.onSuccess { tell(claudeCouldNotTell(it) ?: "Signed in to Claude") }.onError { tell(it.message ?: "That code didn't work") }
+                                    runCatching { api!!.claudeCode(code) }.onSuccess { tell(claudeCouldNotTell(it) ?: tr("Signed in to Claude")) }.onError { tell(it.message ?: tr("That code didn't work")) }
                                     loginUrl = null; code = ""; load()
                                 }
-                            }, enabled = code.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Sign in") }
-                            TextButton(onClick = { loginUrl = null; code = "" }) { Text("Cancel", color = p.text) }
+                            }, enabled = code.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Sign in")) }
+                            TextButton(onClick = { loginUrl = null; code = "" }) { Text(tr("Cancel"), color = p.text) }
                         }
                     }
                 }
             }
 
             backups?.let { b ->
-                FoldSection("Backups", backupValue(b, backingUp)) {
+                FoldSection(tr("Backups"), backupValue(b, backingUp)) {
                     // Turned on with a passphrase on the web page only.
-                    if (!b.configured) Hint("Turn them on in botdot's web page.")
+                    if (!b.configured) Hint(tr("Turn them on in botdot's web page."))
                     else {
                         if (!b.error.isNullOrBlank()) Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(enabled = !backingUp && !b.running, onClick = {
                                 backingUp = true
-                                scope.launch { runCatching { api!!.backupNow() }.onSuccess { backups = it; tell("Backed up") }.onError { tell(it.message ?: "Couldn't back up") }; backingUp = false }
-                            }) { Text("Back up now", color = p.text) }
+                                scope.launch { runCatching { api!!.backupNow() }.onSuccess { backups = it; tell(tr("Backed up")) }.onError { tell(it.message ?: tr("Couldn't back up")) }; backingUp = false }
+                            }) { Text(tr("Back up now"), color = p.text) }
                             b.last?.let { f ->
                                 // To Downloads, with the app's session (BackupDownload): this account's backup alone.
                                 OutlinedButton(onClick = {
                                     runCatching { dev.botdot.app.data.BackupDownload.start(context, api!!, f.name) }
-                                        .onSuccess { tell("Downloading to Downloads") }.onFailure { tell(it.message ?: "Couldn't download") }
-                                }) { Text("Download", color = p.text) }
+                                        .onSuccess { tell(tr("Downloading to Downloads")) }.onFailure { tell(it.message ?: tr("Couldn't download")) }
+                                }) { Text(tr("Download"), color = p.text) }
                             }
                         }
                     }
@@ -275,12 +287,12 @@ fun SettingsScreen(
 
             update?.let { u ->
                 // On: always the latest botdot version. Off: the owner updates when ready, before the admin's deadline.
-                FoldSection("Updates", if (u.autoUpdate) "Automatic" else "By hand") {
-                    SwitchRow("Update automatically", checked = u.autoUpdate) { on ->
-                        scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: "Couldn't change it") } }
+                FoldSection(tr("Updates"), if (u.autoUpdate) tr("Automatic") else tr("By hand")) {
+                    SwitchRow(tr("Update automatically"), checked = u.autoUpdate) { on ->
+                        scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: tr("Couldn't change it")) } }
                     }
                     u.text().takeIf { it.isNotEmpty() }?.let { Hint(it) }
-                    if (u.canUpdate) OutlinedButton(onClick = { confirmUpdateNow = true }) { Text("Update now", color = p.text) }
+                    if (u.canUpdate) OutlinedButton(onClick = { confirmUpdateNow = true }) { Text(tr("Update now"), color = p.text) }
                     if (u.ready && updateNotes.isNotEmpty()) {
                         Text(dev.botdot.app.data.WhatsNew.TITLE, color = p.text, style = MaterialTheme.typography.titleSmall)
                         WhatsNewEntries(updateNotes, color = p.text)
@@ -290,97 +302,96 @@ fun SettingsScreen(
                 if (u.moving) LaunchedEffect(u, updatePolls) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it }; updatePolls++ }
             }
 
-            if (notifyOn) Link("Notifications", value = "On", onClick = onBattery)
-            else Link("Notifications", value = "Off") {
+            if (notifyOn) Link(tr("Notifications"), value = "On", onClick = onBattery)
+            else Link(tr("Notifications"), value = "Off") {
                 context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
             }
 
             // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in
             // again with its passkey (the dialog says so).
             if (server?.features?.contains("accounts") == true) {
-                FoldSection("Sign-ins") {
-                    OutlinedButton(onClick = { confirmSignOut = true }) { Text("Sign out everywhere", color = p.text) }
+                FoldSection(tr("Sign-ins")) {
+                    OutlinedButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
                 }
             }
-            Link("botdot's address", value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'), onClick = onChangeServer)
+            Link(tr("botdot's address"), value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'), onClick = onChangeServer)
         }
     }
 
     confirmLogout?.let { running ->
         AlertDialog(
             onDismissRequest = { confirmLogout = null },
-            title = { Text("Sign out of Claude?") },
+            title = { Text(tr("Sign out of Claude?")) },
             text = {
-                Text("Bots can't run until you sign in again." + when (running) {
+                Text(tr("Bots can't run until you sign in again.") + when (running) {
                     0 -> ""
-                    1 -> "\n\nA bot is working right now; it will be stopped."
-                    else -> "\n\n$running bots are working right now; they will be stopped."
+                    else -> "\n\n" + trn(running, "A bot is working right now; it will be stopped.", "{n} bots are working right now; they will be stopped.")
                 })
             },
             confirmButton = {
                 TextButton(onClick = {
                     confirmLogout = null
                     scope.launch {
-                        runCatching { api!!.claudeLogout() }.onSuccess { tell("Signed out of Claude") }.onError { tell(it.message ?: "Couldn't sign out") }
+                        runCatching { api!!.claudeLogout() }.onSuccess { tell(tr("Signed out of Claude")) }.onError { tell(it.message ?: tr("Couldn't sign out")) }
                         load()
                     }
-                }) { Text("Sign out", color = p.text) }
+                }) { Text(tr("Sign out"), color = p.text) }
             },
-            dismissButton = { TextButton(onClick = { confirmLogout = null }) { Text("Cancel", color = p.text) } },
+            dismissButton = { TextButton(onClick = { confirmLogout = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
     if (confirmRemoveKey) AlertDialog(
         onDismissRequest = { confirmRemoveKey = false },
-        title = { Text("Remove the API key?") },
-        text = { Text(if (setup?.claude?.subscription == true) "Bots will run on your Claude subscription." else "Bots can't run until you sign in to Claude or save a key again.") },
+        title = { Text(tr("Remove the API key?")) },
+        text = { Text(if (setup?.claude?.subscription == true) tr("Bots will run on your Claude subscription.") else tr("Bots can't run until you sign in to Claude or save a key again.")) },
         confirmButton = {
             TextButton(onClick = {
                 confirmRemoveKey = false
                 scope.launch {
-                    runCatching { api!!.claudeRemoveKey() }.onSuccess { tell(claudeCouldNotTell(it) ?: "API key removed") }.onError { tell(it.message ?: "Couldn't remove it") }
+                    runCatching { api!!.claudeRemoveKey() }.onSuccess { tell(claudeCouldNotTell(it) ?: tr("API key removed")) }.onError { tell(it.message ?: tr("Couldn't remove it")) }
                     load()
                 }
-            }) { Text("Remove", color = p.text) }
+            }) { Text(tr("Remove"), color = p.text) }
         },
-        dismissButton = { TextButton(onClick = { confirmRemoveKey = false }) { Text("Cancel", color = p.text) } },
+        dismissButton = { TextButton(onClick = { confirmRemoveKey = false }) { Text(tr("Cancel"), color = p.text) } },
     )
     askPlace?.let { to ->
         val move = { copy: Boolean ->
             askPlace = null
-            scope.launch { runCatching { api!!.setComputerPlace(to, copy) }.onSuccess { computerPlace = it; app.store.bots.refresh() }.onError { tell(it.message ?: "Couldn't save") } }
+            scope.launch { runCatching { api!!.setComputerPlace(to, copy) }.onSuccess { computerPlace = it; app.store.bots.refresh() }.onError { tell(it.message ?: tr("Couldn't save")) } }
         }
         AlertDialog(
             onDismissRequest = { askPlace = null },
-            title = { Text("Copy the bots' files to ${if (to == "boat") "the External Virtual PC" else "this machine"}?") },
-            confirmButton = { TextButton(onClick = { move(true) }) { Text("Copy files", color = p.text) } },
-            dismissButton = { TextButton(onClick = { move(false) }) { Text("Start empty", color = p.text) } },
+            title = { Text(if (to == "boat") tr("Copy the bots' files to the External Virtual PC?") else tr("Copy the bots' files to this machine?")) },
+            confirmButton = { TextButton(onClick = { move(true) }) { Text(tr("Copy files"), color = p.text) } },
+            dismissButton = { TextButton(onClick = { move(false) }) { Text(tr("Start empty"), color = p.text) } },
         )
     }
 
     if (confirmUpdateNow) AlertDialog(
         onDismissRequest = { confirmUpdateNow = false },
-        title = { Text("Update now?") },
-        text = { Text("Your account moves to the new version: your bots restart, and work still running stops.") },
+        title = { Text(tr("Update now?")) },
+        text = { Text(tr("Your account moves to the new version: your bots restart, and work still running stops.")) },
         confirmButton = {
             TextButton(onClick = {
                 confirmUpdateNow = false
-                scope.launch { runCatching { api!!.updateNow() }.onSuccess { update = it }.onError { tell(it.message ?: "Couldn't update") } }
-            }) { Text("Update now", color = p.text) }
+                scope.launch { runCatching { api!!.updateNow() }.onSuccess { update = it }.onError { tell(it.message ?: tr("Couldn't update")) } }
+            }) { Text(tr("Update now"), color = p.text) }
         },
-        dismissButton = { TextButton(onClick = { confirmUpdateNow = false }) { Text("Cancel", color = p.text) } },
+        dismissButton = { TextButton(onClick = { confirmUpdateNow = false }) { Text(tr("Cancel"), color = p.text) } },
     )
     if (confirmSignOut) AlertDialog(
         onDismissRequest = { confirmSignOut = false },
-        title = { Text("Sign out everywhere?") },
-        text = { Text("Every browser and app signed in to your account, this phone too, signs in again with your passkey.") },
+        title = { Text(tr("Sign out everywhere?")) },
+        text = { Text(tr("Every browser and app signed in to your account, this phone too, signs in again with your passkey.")) },
         confirmButton = {
             TextButton(onClick = {
                 confirmSignOut = false
                 // Done, the front door asks this phone to sign in, and its screen opens by itself.
-                scope.launch { runCatching { api!!.signOutEverywhere() }.onError { tell(it.message ?: "Couldn't sign out") } }
-            }) { Text("Sign out everywhere", color = p.text) }
+                scope.launch { runCatching { api!!.signOutEverywhere() }.onError { tell(it.message ?: tr("Couldn't sign out")) } }
+            }) { Text(tr("Sign out everywhere"), color = p.text) }
         },
-        dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel", color = p.text) } },
+        dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(tr("Cancel"), color = p.text) } },
     )
 }
 
@@ -388,7 +399,7 @@ fun SettingsScreen(
 @Composable
 private fun KeyOffer(saved: Boolean, onUse: () -> Unit, onNew: () -> Unit) {
     val p = LocalPaper.current
-    TextButton(onClick = if (saved) onUse else onNew) { Text(if (saved) "Use the API key instead" else "Use an API key instead", color = p.text) }
+    TextButton(onClick = if (saved) onUse else onNew) { Text(if (saved) tr("Use the API key instead") else tr("Use an API key instead"), color = p.text) }
 }
 
 /** A row that opens another screen (#636): its name, its [value] and a chevron, and a thin line under it. */
@@ -407,14 +418,14 @@ private fun Link(text: String, value: String? = null, onClick: () -> Unit) {
 
 /** Claude's row in a word or two: what bots run on, or that they can't. */
 internal fun claudeValue(c: dev.botdot.app.data.ClaudeStatus): String = when {
-    c.onApiKey -> "API key"
-    !c.loggedIn -> "Not signed in"
-    else -> c.email ?: "Signed in"
+    c.onApiKey -> tr("API key")
+    !c.loggedIn -> tr("Not signed in")
+    else -> c.email ?: tr("Signed in")
 }
 
 /** The Backups row's value: what it does now, when it last did it, or that it is off. */
 internal fun backupValue(b: dev.botdot.app.data.BackupInfo, backingUp: Boolean): String = when {
-    !b.configured -> "Off"
-    backingUp || b.running -> "Backing up…"
-    else -> b.last?.let { shortTime(it.at) } ?: "None yet"
+    !b.configured -> tr("Off")
+    backingUp || b.running -> tr("Backing up…")
+    else -> b.last?.let { shortTime(it.at) } ?: tr("None yet")
 }

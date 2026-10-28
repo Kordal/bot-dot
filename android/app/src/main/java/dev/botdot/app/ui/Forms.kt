@@ -140,8 +140,6 @@ fun Rule() = Box(Modifier.fillMaxWidth().height(1.dp).background(LocalPaper.curr
 fun SavedMark(count: Int) {
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(count) { if (count > 0) { shown = true; delay(2_000); shown = false } }
-    if (shown) Text(SAVED, color = LocalPaper.current.muted, fontSize = 14.sp, modifier = Modifier.padding(end = 16.dp).semantics { liveRegion = LiveRegionMode.Polite })
+    if (shown) Text(dev.botdot.app.data.tr("Saved"), color = LocalPaper.current.muted, fontSize = 14.sp, modifier = Modifier.padding(end = 16.dp).semantics { liveRegion = LiveRegionMode.Polite })
 }
 
-/** What a settings screen's top says after a save (#636), as on the web page. */
-const val SAVED = "Saved"

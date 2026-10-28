@@ -188,6 +188,11 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         settings = Settings(this)
+        val words = getSharedPreferences("i18n", MODE_PRIVATE) // the interface's language and its dictionary (#645)
+        dev.botdot.app.data.I18n.start(object : dev.botdot.app.data.I18n.Keep {
+            override fun read() = words.getString("kept", null)
+            override fun write(value: String) { words.edit { putString("kept", value) } }
+        })
         notifier = Notifier(
             this,
             figure = { figure.value },
@@ -206,6 +211,14 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
             }
         }
         scope.launch { feed.events.collect { store.handle(it) } }
+        // The account's language, asked again each time the feed connects and when another app changes it (#645).
+        scope.launch {
+            feed.events.collect { ev ->
+                if (ev.type != "hello" && dev.botdot.app.data.I18n.event(ev) == null) return@collect
+                val a = api.value ?: return@collect
+                dev.botdot.app.data.I18n.sync(a, runCatching { a.version().features }.getOrNull())
+            }
+        }
         val bundled = runCatching { FigureDef.parse(assets.open("figure.json").bufferedReader().use { it.readText() }) }.getOrNull()
         figure.value = bundled
         scope.launch { followFigure(bundled) }

@@ -157,6 +157,14 @@ function followFeed() {
     if (!thread || !d.chatId || thread.dataset.chat !== d.chatId || !Number.isInteger(d.index)) return;
     Ratings.show($(`.rate[data-rate="${d.index}"]`, thread), d.rating);
   });
+  // The account's language changed in another app (#645): this page follows, unless something is being written.
+  es.addEventListener('language', (e) => {
+    let d = {};
+    try { d = JSON.parse(e.data); } catch { /* not ours */ }
+    if (!['en', 'pl'].includes(d.language) || d.language === I18n.language) return;
+    if ($$('textarea, input[type=text]').some((el) => el.value.trim()) || $('#modal').open) return; // at the next load
+    I18n.sync(api, state.features);
+  });
   // The checkup's setting changed, in another app or by the Chief in a chat: the switches follow.
   es.addEventListener('checkup', (e) => {
     let d = {};

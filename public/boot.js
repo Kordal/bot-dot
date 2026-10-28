@@ -31,6 +31,7 @@ document.addEventListener('click', (e) => {
   const figure = loadFigure();
   state.status = await api('/status').catch(() => null);
   await loadFeatures();
+  await I18n.sync(api, state.features); // the account's language (#645): the page loads again when it changed
   // A document's own tab (#348): the document alone, none of the app.
   if (location.hash.startsWith('#doc/')) return DocPage.show(location.hash, docPageTools());
   // And the browser's back to a document, or its address typed in: the document alone, drawn at load.

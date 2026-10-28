@@ -126,6 +126,14 @@ The one program on a machine that people reach (`front-door.js`, [ADR 028](adr/0
 
 `accounts` and `passkeys`: this botdot server is one account on its machine, reached through a front door that signs in with passkeys (see [The front door](#the-front-door)). Without a session the front door answers this route itself, with both.
 
+### The interface's language
+
+When `features` has `language` ([#645](https://github.com/Kordal/bot-dot/issues/645), [ADR 107](adr/107-the-interface-speaks-english-or-polish-from-one-dictionary-the-server-hands-out.md)): the words the apps draw, in English or in Polish, for the whole account.
+
+- `language` in `GET /api/settings` is `"en"` (how it starts) or `"pl"`. `PUT /api/settings` with `{ language }` changes it, the owner's alone as every key of that route; another value is `400` with `error`. A change is announced on the feed as `language` with `{ language }`, so every app of the account follows.
+- `GET /api/i18n/pl` → `{ language: "pl", strings }`: the Polish dictionary. Each key is a string as the apps write it in English, each value its Polish with the same `{placeholders}`; a count's key is its English plural ("{n} bots") and its value `{ one, few, many }`, picked by the Polish rules. A string with no key stays English. `404` for a language botdot has not. English has no dictionary: its words are the keys.
+- The apps keep the dictionary (the web page in its storage, the Android app in its own), so they draw in the chosen language from their first screen, and fetch it again at each start. What a bot or the Chief of Staff writes is never translated.
+
 ### What's new
 
 When `features` has `whats-new` ([#219](https://github.com/Kordal/bot-dot/issues/219)): the notes of the releases this account has not seen, which the web page and the Android app show once after an update, in a pop-up with "Got it".

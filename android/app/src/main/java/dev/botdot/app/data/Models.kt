@@ -1154,7 +1154,7 @@ data class BoatSize(val id: String, val cpus: Int = 0, val memoryGB: Int = 0, va
 @Serializable
 data class ComputerPlace(val place: String = "linux", val boat: Boolean = false) {
     companion object {
-        val options = listOf("linux" to "This machine", "boat" to "External Virtual PC")
+        val options get() = listOf("linux" to tr("This machine"), "boat" to tr("External Virtual PC"))
         fun shows(features: List<String>?, boat: Boolean?) = boat == true && "account-computer" in features.orEmpty()
     }
 }

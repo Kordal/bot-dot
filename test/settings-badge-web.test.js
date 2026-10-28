@@ -5,13 +5,14 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { cut, element } = require('./web-page');
+const { cut, element, words } = require('./web-page');
 
 function page(runs) {
   const links = element();
   links.querySelectorAll = () => [];
   const root = element({ '#settings-links': links, '#settings-form': element() });
   const ctx = vm.createContext({
+    ...words,
     state: { runs, bots: [], settings: {} },
     activityRuns: () => runs,
     $: (sel, r) => (r ? r.querySelector(sel) : sel === '#view-settings' ? root : null),
