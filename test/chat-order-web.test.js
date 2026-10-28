@@ -34,7 +34,7 @@ function page() {
     choicesHTML: (c) => (c ? `<div class="choices">${c.map(esc).join('|')}</div>` : ''),
     said: (v) => (typeof v === 'string' ? v.trim() : ''), plain: (t) => String(t || ''), OpeningLine: { WAITING: 'Waiting for your OK', ofRun: () => '' }, state: { keepOpen: null, features: [] },
   });
-  vm.runInContext(`${cut('function messagedLabel(r) {', '// Notes other bots left')}\n${cut('function botThreadHTML(bot, runs, newFirst = null) {', '// "Run now" under the notes that wait')}\nthis.botThreadHTML = botThreadHTML;`, ctx);
+  vm.runInContext(`${cut('function messagedLabel(r) {', '// Notes other bots left')}\n${cut('function botThreadHTML(bot, runs, newFirst = null) {', '// "Run now" under the notes that wait')}\nthis.botThreadHTML = botThreadHTML; this.tookFor = tookFor;`, ctx);
   return ctx;
 }
 const bot = { id: 'qm', name: 'Quotz Manager', color: '#48c' };
@@ -57,10 +57,10 @@ test('web: a long run with /btw in the middle: its block comes after the /btw bl
   assert.equal((html.match(/class="choices"/g) || []).length, 1, 'the answers stand once, under the reply that is last');
 });
 
-test('web: while the long run works, its block stays at the bottom, below the /btw, with its line and Stop', () => {
+test('web: while the long run works, its block stays at the bottom, below the /btw, with its line and Stop at the line\'s end', () => {
   const html = page().botThreadHTML(bot, [{ ...long, status: 'running', endedAt: null, result: null, steps: { count: 4, rows: [] } }, btw]);
   assert.deepEqual(blocks(html), ['btw', 'long']);
-  order(html, '/btw status?', 'Still waiting', 'Deploy now', 'class="step-now">Working<', 'step-n">4 steps', 'data-live="long"', 'data-stop-run="long"');
+  order(html, '/btw status?', 'Still waiting', 'Deploy now', 'class="steps-row"', 'class="step-now">Working<', 'step-n">4 steps', 'data-stop-run="long"', 'data-live="long"');
 });
 
 test('web: the "New" line goes in the block that ended last, below the owner\'s own message', () => {
@@ -81,6 +81,30 @@ test('web: a finished block folds its steps into one line: the count, the skills
   assert.doesNotMatch(html, /bot-msg-label">Messaged/, 'no loose "Messaged" row above the reply');
   const plainBlock = page().botThreadHTML(bot, [run('quiet', { prompt: 'Hi', result: 'Hello.', startedAt: '2026-10-23T11:28:00.000Z', endedAt: '2026-10-23T11:28:05.000Z' })]);
   assert.doesNotMatch(plainBlock, /run-steps/, 'a run without a step, a skill or a message has no step line');
+});
+
+// Quiet keys (#635): no frame round a run, one step line that ends in how long it took, and the time, Details,
+// Copy and Reply shown on hover or focus (the style), never at rest.
+test('web: a run\'s step line ends in how long it took, its skills in the accent; its footer and the owner\'s Copy wait for a hover', () => {
+  const done = run('done', { prompt: 'Check the backup', result: 'Done.', startedAt: '2026-10-23T11:28:00.000Z', endedAt: '2026-10-23T11:35:00.000Z', durationMs: 7 * 60000 + 9000,
+    steps: { count: 23, rows: [] }, learned: [{ kind: 'skill-updated', skill: 'backup-check' }] });
+  const html = page().botThreadHTML(bot, [done]);
+  assert.match(html, /<summary aria-label="23 steps, the skill backup-check">[\s\S]*?<span class="step-n">23 steps<\/span><span class="step-dot">·<\/span><span class="step-pip skill"><span>backup-check<\/span><\/span><span class="step-dot">·<\/span><span class="step-took">7 min<\/span><\/summary>/);
+  assert.match(html, /<div class="bubble from-me" data-expand><div class="clamp">Check the backup<\/div><\/div><div class="bubble-meta on-hover">/);
+  assert.match(html, /<div class="bubble-meta block-foot on-hover">11:45 · 6m <button data-details="done">Details<\/button>/);
+  const ctx = page();
+  assert.deepEqual([45e3, 60e3, 7 * 60e3, 65 * 60e3, 120 * 60e3].map((ms) => ctx.tookFor(ms)), ['45 s', '1 min', '7 min', '1 h 5 min', '2 h']);
+  // At work: the line has no time yet, and Stop stands at its end.
+  const working = page().botThreadHTML(bot, [{ ...done, status: 'running', endedAt: null, durationMs: null, result: null, steps: { count: 4, rows: [] } }]);
+  assert.match(working, /<div class="steps-row"><details class="run-steps now"[\s\S]*?<\/details><button type="button" class="block-stop" data-stop-run="done">Stop<\/button><\/div>/);
+  assert.doesNotMatch(working, /step-took|bubble-meta block-foot">/);
+  // The style: no frame round a block, no bubble round a reply, and what waits for a hover is there for a key and a touch.
+  const css = read('style.css');
+  assert.match(css, /\.run-block \{ display: flex; flex-direction: column; gap: 10px; \}/);
+  assert.match(css, /\.chat-thread \.bubble\.from-bot:not\(\.problem\) \{[^}]*background: none; border: 0;/);
+  assert.match(css, /\.chat-thread \.on-hover \{ opacity: 0;/);
+  assert.match(css, /\.run-block:is\(:hover, :focus-within, \.tapped\) \.on-hover, \.bubble-row:is\(:hover, :focus-within, \.tapped\) \.on-hover \{ opacity: 1; \}/);
+  assert.match(read('bot-chat.js'), /at\?\.classList\.add\('tapped'\);/, 'a tap shows them where there is no hover');
 });
 
 test('web: a reply to a run is a further round of its block, which stands where its newest reply does; Reply is on its last round (#627)', () => {

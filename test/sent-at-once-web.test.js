@@ -277,9 +277,9 @@ test('web: a quick answer is there at once like a typed message, and one that fa
   assert.equal(await sending, true);
   assert.deepEqual(p.bot.names(), ['run-row', 'run-row']);
   assert.equal(p.said.bodies[1].key, p.said.bodies[0].key);
-  // Every answer, card, starter and plan approval goes through the two senders, which draw it (test/failed-send-web.test.js).
+  // Every answer, card and plan approval goes through the two senders, which draw it (test/failed-send-web.test.js).
   const calls = [...app.matchAll(/(?<!function )\b(sendToChief|runBot)\(/g)];
-  assert.ok(calls.length >= 6);
+  assert.ok(calls.length >= 5);
 });
 
 test('web: nothing in the local bubble is markup, and a message of files alone is its files', () => {

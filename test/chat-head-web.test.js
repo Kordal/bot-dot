@@ -38,3 +38,25 @@ test('web: the Chief\'s previous chats are in its settings', () => {
 test('web: the header has no gear of its own', () => {
   assert.doesNotMatch(head, /ICON\.gear/);
 });
+
+// Quiet keys (#635): a chat head is the figure, the name and its buttons, with no line under the name; a bot's
+// holds Files and ⋯, whose menu has its settings, its computer and "Add a bot to this chat".
+test('web: a chat head has no line under the name, and a bot\'s keeps its other ways in under ⋯', () => {
+  assert.doesNotMatch(head + chief, /class="sub"/);
+  assert.doesNotMatch(app, /#bot-sub|#chief-sub/);
+  const right = head.slice(head.indexOf('<div class="actions-right">'));
+  assert.deepEqual([...right.matchAll(/id="(bot-[a-z-]+)"/g)].map((m) => m[1]), ['bot-files', 'bot-more', 'bot-screen', 'bot-add-to-chat']);
+  assert.match(right, /<button type="button" role="menuitem" class="hidden" id="bot-screen">Its computer<\/button>/);
+  assert.match(app, /\$\('#bot-screen'\)\.onclick = \(\) => openScreen\(state\.botId\);/);
+  // Esc in the menu closes it and is not the keypad's Esc, which opens the Chief: that one skips a press already taken.
+  const menu = app.slice(app.indexOf('function wireChatMenu(wrap)'), app.indexOf('function renderBotChat()'));
+  assert.match(menu, /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\); open\(false\); btn\.focus\(\); \}/);
+  assert.match(app, /if \(e\.defaultPrevented \|\| e\.isComposing/);
+});
+
+test('web: a new Chief chat is its head and the message box: no tagline and no example requests', () => {
+  const at = app.indexOf('async function showChat(id)');
+  const empty = app.slice(at, app.indexOf('let chat;', at));
+  assert.match(empty, /thread\.innerHTML = `<div class="chief-empty">\$\{chiefFigure\('lg'\)\}<\/div>`;/);
+  assert.doesNotMatch(empty, /<h3>|<p |suggestion/);
+});

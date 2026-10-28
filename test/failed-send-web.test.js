@@ -322,11 +322,11 @@ test('web: a send from outside the box shows the same line above that chat\'s bo
   assert.deepEqual(b.said.toasts, []);
 });
 
-test('web: every quick answer, question card, starter and plan approval sends that way, in the Chief\'s chat and in a bot\'s', () => {
+test('web: every quick answer, question card and plan approval sends that way, in the Chief\'s chat and in a bot\'s', () => {
   // Each with the key of what was tapped (QW-008).
   assert.equal((app.match(/wireChoices\(thread, \(t, key\) => sendFrom\((form|\$\('#view-chief form'\)), \(\) => sendToChief\(t, \[\], key\)\)\);/g) || []).length, 2, 'the chat as opened, and the reply as it arrives');
   assert.match(app, /wireChoices\(thread, \(t, key\) => sendFrom\(\$\('form', root\), \(\) => runBot\(bot\.id, t, \[\], key\)\)\);/);
-  assert.match(app, /b\.onclick = withKey\(\(key\) => sendFrom\(form, \(\) => sendToChief\(b\.textContent, \[\], key\)\)\)/);
+  assert.doesNotMatch(app, /CHIEF_SUGGESTIONS|class="suggestion"/, 'a new Chief chat has no example requests (#635)');
   assert.match(app, /build\.onclick = withKey\(async \(key\) => \{ if \(await sendFrom\(form, \(\) => sendToChief\(PLAN_APPROVAL, \[\], key\)\)\) build\.closest\('\.suggestion-actions'\)\?\.remove\(\); \}\);/);
   assert.match(app, /wireComposer\(form, \(text, files, key\) => runBot\(bot\.id, text, files, key, replyingTo\.get\(bot\.id\)\?\.runId\), \(\) => `bot:\$\{bot\.id\}`, bot\.id\);/);
   const calls = [...app.matchAll(/(?<!function )\b(sendToChief|runBot)\(/g)].map((m) => app.slice(app.lastIndexOf('\n', m.index) + 1, app.indexOf('\n', m.index)));
@@ -510,6 +510,19 @@ test('web: after a send a gateway refused, "Can\'t reach botdot. Trying again…
 test('web: the line is above the box, in the warning colour', () => {
   const composer = cut('function composerHTML(placeholder', '// Files attached in a composer');
   assert.match(composer, /<div class="send-note hidden" role="status"><\/div>\s*<div class="attach-list hidden"><\/div>\s*<div class="composer-box">/);
+});
+
+// Quiet keys (#635): the empty box says whom it messages, and on a phone, where the head names the chat, "Message".
+test('web: the empty box says "Message <name>", and "Message" on a phone', () => {
+  const words = (phone) => {
+    const ctx = vm.createContext({ esc, away: { on: false }, signedOut: { on: false }, signedOutHTML: () => '', ICON: {}, matchMedia: () => ({ matches: phone, addEventListener() {} }) });
+    vm.runInContext(`${cut('function composerHTML(placeholder', '// Files attached in a composer')}\nthis.composerHTML = composerHTML;`, ctx);
+    return ctx.composerHTML('Message Server Watch').match(/placeholder="([^"]*)" data-placeholder="([^"]*)"/).slice(1);
+  };
+  assert.deepEqual(words(false), ['Message Server Watch', 'Message Server Watch']);
+  assert.deepEqual(words(true), ['Message', 'Message Server Watch']);
+  assert.ok(app.includes('composerHTML(`Message ${bot.name}`)') && app.includes('composerHTML(`Message ${chiefName()}`)') && read('groups.js').includes('composerHTML(`Message ${g.name}`)'));
+  assert.doesNotMatch(app, /a task…|Message the Chief…/);
 });
 
 // ---------- QW-008: a message's key ----------
