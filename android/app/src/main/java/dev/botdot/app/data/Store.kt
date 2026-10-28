@@ -310,7 +310,11 @@ data class Needs(
  * One thing that waits for you: the colour and outfit of the bot it's about (no colour: it is about no bot, and its
  * mark is the Chief's), what it is in words, and that [bot]'s id (null: the Chief's), whose key says Needs you (#397).
  */
-data class Waiting(val color: String?, val text: String, val outfit: JsonElement? = null, val bot: String? = null)
+/**
+ * One thing that waits for the owner, as home's Needs you rows show it. [permission]: the id of a permission a bot asks
+ * for, whose row says all there is to it, so the row itself answers it with No and Allow; anything else opens Needs you.
+ */
+data class Waiting(val color: String?, val text: String, val outfit: JsonElement? = null, val bot: String? = null, val permission: String? = null)
 
 private const val NO_COLOR = "#888780" // the grey of a bot without a colour (FigureDef.GREY)
 
@@ -337,13 +341,16 @@ fun waitingOf(bots: List<Bot>, chief: ChiefOverview?, needs: Needs?, dash: Dashb
         chief?.chats?.forEach { c -> c.waiting?.let { w -> add(about(w.from, "${w.from.name} sent the Chief a plan: ${c.title}")) } }
         needs?.asks?.forEach { a ->
             val who = a.bot?.name ?: "The Chief"
+            if (a.kind == "permission") {
+                add(about(a.bot, "$who asks to ${a.what?.label ?: a.permission}").copy(permission = a.id))
+                return@forEach
+            }
             add(about(a.bot, when {
                 // A tool: what its notification says under the bot's name ("Asks to install gh"), as one line. The
                 // words are made here, because `GET /api/asks` has no such line; without the tool's name, the title.
                 ToolCard.isTool(a) -> ToolCard.name(a).let { tool -> if (tool.isNotEmpty()) "$who asks to install $tool" else if (a.title.isNotBlank()) "$who: ${a.title}" else "$who asks to install a tool" }
                 a.title.isNotBlank() -> "$who: ${a.title}"
                 a.written && a.line.isNotBlank() -> "$who: ${a.line}" // a skill it wrote: the server's line, nothing is installed
-                a.kind == "permission" -> "$who asks to ${a.what?.label ?: a.permission}"
                 else -> "$who asks to install the skill ${a.skill?.name ?: ""}".trim()
             }))
         }

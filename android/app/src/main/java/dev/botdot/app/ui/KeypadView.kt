@@ -1,14 +1,7 @@
 package dev.botdot.app.ui
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,7 +10,6 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -28,12 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyGridScope
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -50,7 +36,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -74,25 +59,33 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.unit.Dp
+import dev.botdot.app.data.FigureDef
 import androidx.navigation.NavController
 import dev.botdot.app.data.Bot
 import kotlinx.serialization.json.JsonElement
 
-// The keypad drawn (#496): every page one under the other (#516), its name over its bots and groups as keys in rows
-// of three, numbered 1 to 9 as Keypad.digits gives them (#366). What a page holds is Keypad.pages; what a key of a
-// hardware keyboard does is Keypad.action; where a dragged key lands is Keypad.move (#499).
-
-/** What the keypad shows of the keys of a hardware keyboard, while one is attached. */
-internal const val KEYPAD_HINT = "1–9 open · esc chief · ctrl+k search"
+// The keypad drawn (#496, quiet keys #636): every page one under the other (#516). A key is a head and a name, with
+// no frame: one dot on the head says its state, and a line under the name only while it works. The pinned keys are
+// the first row, without a heading; the categories flow side by side, each its name over its keys. The digits 1 to 9
+// are Keypad.digits (#366); what a key of a hardware keyboard does is Keypad.action; where a dragged key lands is
+// Keypad.move (#499).
 
 /** The last place on the keypad, after the last page: adding a bot starts in the Chief's chat. */
 internal const val ASK_FOR_A_BOT = "Ask the Chief for a bot"
 
 /**
- * What a key shows: the head (or a group's [members]), the name and the line the list's row has for it ([who]: the
- * bot named before it in a group's line). [asks]: it asks the owner something, and has the mark beside its name.
- * [status]: its pill ([Keypad.status], #397), with [time] beside it: when it last did something, or how long it has
- * been working.
+ * What a key shows: the head (or a group's [members]) and the name; [line]: what the list's row has for it, shown
+ * under the name only while it works ([who]: the bot named before it in a group's line). [asks]: it asks the owner
+ * something. [status]: its state ([Keypad.status], #397), said by one dot on the head; [time]: when it last did
+ * something, or how long it has been working, read by TalkBack.
  */
 internal data class KeyLook(
     val name: String, val line: String, val color: String?, val state: String = "idle", val who: String = "",
@@ -128,23 +121,27 @@ private class KeyDrag {
 /** What a dragged key is over: a page's heading ([at] null), or the place [at] on the page [page]. */
 private data class Aim(val page: Int, val at: Int?)
 
+/** How big the keys are: on the keypad, or in a phone's sections. */
+private data class KeySize(val width: Dp, val head: Int, val name: TextUnit)
+
+private val WIDE_KEY = KeySize(132.dp, 52, 14.sp)
+private val PHONE_KEY = KeySize(80.dp, 40, 12.5.sp)
+
 /**
- * The keypad: every page one under the other, under its heading (its name, how many keys, and a dot in the colour of
- * a bot on it that asks), its keys in rows of three, and all of it scrolls. [active]: the key whose chat is open
- * beside it, which stays lit. [hint]: the keys of a hardware keyboard, while one is attached. [onAsk]: the last place,
- * which asks the Chief for a bot. [onMove]: a key pressed and held, then dragged onto another key or onto a page's
- * heading, and the place it is to have there ([Keypad.move]); nothing is called when it would stay where it is.
- * [folded]: the list's folded categories, whose pages show only their heading (#171); [onFold]: a category's heading
- * tapped, to fold or open it.
+ * The keypad: every page, the pinned keys first and the categories after them side by side, and all of it scrolls.
+ * [active]: the key whose chat is open beside it, which stays lit. [digitsShown]: a hardware keyboard is attached, and
+ * each key shows its digit. [onAsk]: the last place, which asks the Chief for a bot. [onMove]: a key pressed and held,
+ * then dragged onto another key or onto a page's heading, and the place it is to have there ([Keypad.move]); nothing
+ * is called when it would stay where it is. [folded]: the list's folded categories, whose pages show only their
+ * heading (#171); [onFold]: a category's heading tapped, to fold or open it.
  */
 @Composable
 internal fun KeypadView(
     pages: List<Keypad.Page>, active: String?, look: (Keypad.Key) -> KeyLook,
-    onKey: (Keypad.Key) -> Unit, onAsk: () -> Unit, modifier: Modifier = Modifier, hint: String? = null,
+    onKey: (Keypad.Key) -> Unit, onAsk: () -> Unit, modifier: Modifier = Modifier, digitsShown: Boolean = false,
     onMove: ((Keypad.Key, ListLayout.Place) -> Unit)? = null,
     folded: Set<String> = emptySet(), onFold: ((Keypad.Page) -> Unit)? = null,
 ) {
-    val p = LocalPaper.current
     val drag = remember { KeyDrag() }
     val pagesNow by rememberUpdatedState(pages)
     val move by rememberUpdatedState(onMove)
@@ -170,49 +167,70 @@ internal fun KeypadView(
             )
         }
         .then(if (dragged?.id == k.id) Modifier.zIndex(1f).graphicsLayer { translationX = drag.moved.x; translationY = drag.moved.y; alpha = 0.6f } else Modifier)
-    Column(modifier) {
-        if (hint != null) Text(hint, color = p.faint, fontSize = 12.sp, maxLines = 1, modifier = Modifier.align(Alignment.End).padding(start = 16.dp, end = 16.dp, top = 10.dp))
-        // While a key is dragged the keys stand still, so the finger moves the key and not the page.
-        Keys(Modifier.weight(1f).fillMaxWidth().testTag(KEYPAD_PAGES), scroll = dragged == null) {
-            val digits = Keypad.digits(pages, Keypad.shownKeys(pages, folded))
+    val digits = Keypad.digits(pages, Keypad.shownKeys(pages, folded))
+    // While a key is dragged the keys stand still, so the finger moves the key and not the page.
+    Column(modifier.fillMaxWidth().testTag(KEYPAD_PAGES).verticalScroll(rememberScrollState(), enabled = dragged == null).padding(horizontal = 16.dp, vertical = 12.dp)) {
+        KeyPages(pages, folded, onFold,
+            heading = { i -> Modifier.onGloballyPositioned { drag.heads[i] = it.boundsInRoot() } },
+            headingLit = { i -> aim == Aim(i, null) },
+            onHeadingGone = { i -> drag.heads.remove(i) },
+        ) { i, n, k ->
+            DisposableEffect(k.id) { onDispose { drag.keys.remove(k.id) } }
+            QuietKey(look(k), WIDE_KEY, lit = k.id == active, aimed = aim == Aim(i, n), number = if (digitsShown) Keypad.digitOf(digits, k) else 0, modifier = dragging(k)) { onKey(k) }
+        }
+        // The last place, after the last page's keys; with no bot yet, alone, where the first one is asked for.
+        AskKey(onAsk, aimed = pages.isNotEmpty() && aim == Aim(pages.lastIndex, pages.last().keys.size),
+            modifier = Modifier.padding(top = 12.dp).onGloballyPositioned { drag.lastPlace = it.boundsInRoot() })
+    }
+}
+
+/**
+ * [pages] as quiet keys: the pinned page's keys in the first row with no heading, then each other page, its name over
+ * its keys, side by side as they fit. [heading]: what a page's heading carries (where it stands, for a drag);
+ * [headingLit]: a dragged key is over it. [key]: draws the key [k], the [n]th of the page [i].
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun KeyPages(
+    pages: List<Keypad.Page>, folded: Set<String>, onFold: ((Keypad.Page) -> Unit)?,
+    heading: (Int) -> Modifier = { Modifier }, headingLit: (Int) -> Boolean = { false }, onHeadingGone: (Int) -> Unit = {},
+    key: @Composable (i: Int, n: Int, k: Keypad.Key) -> Unit,
+) {
+    val p = LocalPaper.current
+    @Composable
+    fun Keys(i: Int, page: Keypad.Page) = FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        page.keys.forEachIndexed { n, k -> androidx.compose.runtime.key(k.id) { key(i, n, k) } }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        pages.forEachIndexed { i, page -> if (page.kind == Keypad.Kind.PINNED) Keys(i, page) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             pages.forEachIndexed { i, page ->
-                val aimed = aim == Aim(i, null) // a key dragged over it would go last on this page
+                if (page.kind == Keypad.Kind.PINNED) return@forEachIndexed
                 val isFolded = Keypad.isFolded(page, folded)
-                item(key = "page:${page.kind}:${page.name}", span = { GridItemSpan(maxLineSpan) }) {
-                    DisposableEffect(i) { onDispose { drag.heads.remove(i) } }
-                    Column(Modifier.onGloballyPositioned { drag.heads[i] = it.boundsInRoot() }.folding(page, isFolded, onFold).padding(start = 4.dp, top = if (i == 0) 0.dp else 12.dp)) {
-                        PageLabel(page, look, if (aimed) p.text else p.faint, isFolded.takeIf { folds(page, onFold) })
-                        Spacer(Modifier.height(9.dp))
-                        Box(Modifier.height(if (aimed) 2.dp else 1.dp).fillMaxWidth().background(if (aimed) p.text else p.line))
+                androidx.compose.runtime.key("page:${page.kind}:${page.name}") {
+                    Column {
+                        DisposableEffect(i) { onDispose { onHeadingGone(i) } }
+                        Box(heading(i).folding(page, isFolded, onFold).padding(start = 4.dp, end = 4.dp, bottom = 4.dp)) {
+                            PageLabel(page, if (headingLit(i)) p.text else p.muted, isFolded.takeIf { folds(page, onFold) })
+                        }
+                        if (!isFolded) Keys(i, page)
                     }
                 }
-                if (isFolded) return@forEachIndexed // its keys are not shown, nor given a free digit
-                itemsIndexed(page.keys, key = { _, k -> k.id }) { n, k ->
-                    DisposableEffect(k.id) { onDispose { drag.keys.remove(k.id) } }
-                    KeyView(Keypad.digitOf(digits, k), look(k), lit = k.id == active, aimed = aim == Aim(i, n), big = page.kind == Keypad.Kind.PINNED, modifier = dragging(k)) { onKey(k) }
-                }
             }
-            // The last place, after the last page's keys; with no bot yet, alone, where the first one is asked for.
-            askKey(onAsk, aimed = pages.isNotEmpty() && aim == Aim(pages.lastIndex, pages.last().keys.size),
-                modifier = Modifier.onGloballyPositioned { drag.lastPlace = it.boundsInRoot() })
         }
     }
 }
 
 /**
- * A page's name and how many keys it has, and a dot in the colour of a bot on it that asks: over its keys on the keypad
- * and on a phone. [folded]: a category's heading that folds (#171), with the list's chevron (null: Pinned, or nothing
- * folds); folded, a green dot also says one of its bots is working, as in the list.
+ * A page's name over its keys, on the keypad and on a phone. [folded]: a category's heading that folds (#171), null
+ * where nothing folds; folded, it has a chevron, and a green dot when one of its bots is working.
  */
 @Composable
-private fun PageLabel(page: Keypad.Page, look: (Keypad.Key) -> KeyLook, color: Color, folded: Boolean? = null) {
+private fun PageLabel(page: Keypad.Page, color: Color, folded: Boolean? = null) {
     val p = LocalPaper.current
-    val asks = page.keys.map(look).firstOrNull { it.asks }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        if (folded != null) Text("▾", color = p.faint, fontSize = 11.sp, modifier = Modifier.padding(end = 6.dp).rotate(if (folded) -90f else 0f))
-        Text(page.name.uppercase(), color = color, fontSize = 11.5.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp, maxLines = 1)
-        Text("${page.keys.size}", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(start = 6.dp))
-        if (asks != null) Box(Modifier.padding(start = 6.dp).size(5.dp).clip(CircleShape).background(parseColor(asks.color, p.faint)))
+        if (folded == true) Text("▾", color = p.faint, fontSize = 11.sp, modifier = Modifier.padding(end = 6.dp).rotate(-90f))
+        Text(page.name, color = color, fontSize = 12.5.sp, maxLines = 1)
         if (folded == true && page.keys.any { it is Keypad.Key.OfBot && it.bot.running }) Box(Modifier.padding(start = 6.dp).size(6.dp).clip(CircleShape).background(p.ok).testTag(FOLDED_BUSY))
     }
 }
@@ -231,83 +249,75 @@ private fun Modifier.folding(page: Keypad.Page, folded: Boolean, onFold: ((Keypa
 /** The tag of the keypad's pages, which scroll (KeypadUiTest). */
 internal const val KEYPAD_PAGES = "keypad-pages"
 
-/** Keys in rows of three, under their pages' headings; what does not fit scrolls, unless [scroll] is false. */
-@Composable
-private fun Keys(modifier: Modifier, scroll: Boolean = true, content: LazyGridScope.() -> Unit) = LazyVerticalGrid(
-    columns = GridCells.Fixed(3), modifier = modifier, contentPadding = PaddingValues(16.dp),
-    verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
-    userScrollEnabled = scroll, content = content,
-)
-
-private val KEY_SHAPE = RoundedCornerShape(18.dp)
-private val KEY_HEIGHT = 124.dp
-private val BIG_KEY_HEIGHT = 148.dp
+private val KEY_SHAPE = RoundedCornerShape(16.dp)
 
 /**
- * A key (#397): its [number] (1 to 9: a bot's own or a free one, Keypad.digits; 0: none), the head, the name, the line
- * the list's row says, and its status pill with its time; a thin line runs along it while it works. [lit]: its chat is
- * the one open beside the keypad. [aimed]: a dragged key is over it, and would take its place. [big]: a pinned key,
- * which is larger.
+ * A quiet key (#636): the head with its state's dot, the name under it, and under that what it does while it works,
+ * on a light ground. No frame. [number]: its digit (1 to 9), shown while a hardware keyboard is attached; 0: none.
+ * [lit]: its chat is the one open beside the keypad. [aimed]: a dragged key is over it, and would take its place.
  */
 @Composable
-private fun KeyView(number: Int, look: KeyLook, lit: Boolean, modifier: Modifier = Modifier, aimed: Boolean = false, big: Boolean = false, onClick: () -> Unit) {
+private fun QuietKey(look: KeyLook, size: KeySize, modifier: Modifier = Modifier, lit: Boolean = false, aimed: Boolean = false, number: Int = 0, onClick: () -> Unit) {
     val p = LocalPaper.current
     val pop = donePop(look.status.kind)
+    val live = look.status.kind == Keypad.StatusKind.WORKING
+    val ground by animateColorAsState(if (lit || live) p.panel else Color.Transparent, Motion.enter(), label = "key ground")
     Box(
-        modifier.fillMaxWidth().height(if (big) BIG_KEY_HEIGHT else KEY_HEIGHT).graphicsLayer { scaleX = pop; scaleY = pop }.clip(KEY_SHAPE).background(p.panel)
-            .border(1.dp, if (aimed) p.text else if (lit) p.muted else p.line2, KEY_SHAPE)
-            .semantics { selected = lit }.clickable(onClickLabel = look.name, onClick = onClick).padding(horizontal = 18.dp, vertical = 16.dp),
+        modifier.width(size.width).graphicsLayer { scaleX = pop; scaleY = pop }.clip(KEY_SHAPE).background(ground)
+            .then(if (aimed || lit) Modifier.border(1.dp, if (aimed) p.text else p.line2, KEY_SHAPE) else Modifier)
+            .semantics { selected = lit }.clickable(onClickLabel = look.name, onClick = onClick).padding(horizontal = 6.dp, vertical = 10.dp),
     ) {
-        if (number in 1..9) Text("$number", color = p.faint, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.TopEnd))
-        Row(Modifier.padding(end = 14.dp)) {
-            KeyHead(look, if (big) 52 else 44)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                KeyName(look, 16.sp)
-                KeyLine(look, 13.sp, maxLines = 1)
-                Spacer(Modifier.height(10.dp))
-                StatusRow(look)
-            }
+        if (number in 1..9) Text("$number", color = p.faint, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.TopEnd))
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            KeyHead(look, size.head)
+            Spacer(Modifier.height(6.dp))
+            Text(look.name, color = p.text, fontSize = size.name, fontWeight = FontWeight.Medium, lineHeight = size.name * 1.25f, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            if (live) KeyLine(look)
         }
     }
 }
 
-/** The head on a key, or a group's heads, with the mark of one that asks. */
+/** The tag of the dot on a key's head that says its state (KeypadUiTest). */
+internal const val KEY_DOT = "key-dot"
+
+/**
+ * The head on a key, or a group's heads, and one dot at its foot for its state: green while it works, amber while it
+ * needs the owner, red when its last run did not finish, blue with the count of its unread replies. Nothing when it
+ * is idle or done: its face says that. TalkBack reads the dot as the state's words and its time.
+ */
 @Composable
 private fun KeyHead(look: KeyLook, size: Int) {
+    val p = LocalPaper.current
+    val said = listOf(look.status.text, look.time).filter { it.isNotEmpty() }.joinToString(", ")
     Box {
         if (look.members != null) GroupPicture(look.members, size) else BotFigure(look.color, look.state, size, look.outfit)
-        if (look.asks) AsksMark(look.color, Modifier.align(Alignment.TopEnd))
-    }
-}
-
-@Composable
-private fun KeyName(look: KeyLook, fontSize: TextUnit) {
-    Text(look.name, color = LocalPaper.current.text, fontSize = fontSize, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-}
-
-/** The tag of a key's status pill (KeypadUiTest). */
-internal const val KEY_STATUS = "key-status"
-
-/** A key's status pill and its time, and under them a thin line while it works. */
-@Composable
-private fun StatusRow(look: KeyLook) {
-    val p = LocalPaper.current
-    val (fgNow, bgNow) = statusColors(look.status.kind)
-    val fg by animateColorAsState(fgNow, Motion.enter(), label = "status")
-    val bg by animateColorAsState(bgNow, Motion.enter(), label = "status ground")
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Row(Modifier.clip(RoundedCornerShape(99.dp)).background(bg).padding(horizontal = 10.dp, vertical = 3.dp).testTag(KEY_STATUS), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(6.dp).clip(CircleShape).background(fg))
-            Spacer(Modifier.size(6.dp))
-            // The word cross-fades (Working → Done, #496).
-            AnimatedContent(look.status.text, transitionSpec = { fadeIn(Motion.enter(Motion.FAST)) togetherWith fadeOut(Motion.exit()) }, label = "status word") {
-                Text(it, color = fg, fontSize = 12.5.sp, maxLines = 1)
+        // The dot stands on the head's foot, in a ring of the page's ground.
+        fun ring(x: Dp) = Modifier.align(Alignment.BottomEnd).offset(x, 2.dp).clip(CircleShape).background(p.bg).padding(2.5.dp)
+        val dot = when (look.status.kind) {
+            Keypad.StatusKind.WORKING -> p.ok
+            Keypad.StatusKind.NEEDS -> p.warn
+            Keypad.StatusKind.FAILED -> p.err
+            else -> null
+        }
+        if (dot != null) Box(ring(3.dp).testTag(KEY_DOT).semantics { contentDescription = said }) { Box(Modifier.size(9.dp).clip(CircleShape).background(dot)) }
+        else if (look.status.kind == Keypad.StatusKind.UNREAD) Box(ring(7.dp).testTag(KEY_DOT).semantics { contentDescription = said }) {
+            Box(Modifier.defaultMinSize(16.dp, 16.dp).clip(CircleShape).background(p.mention).padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
+                Text(if (look.unread > 99) "99+" else "${look.unread}", color = Color.White, fontSize = 10.sp, lineHeight = 10.sp, fontWeight = FontWeight.SemiBold)
             }
         }
-        if (look.time.isNotEmpty()) Text(look.time, color = p.faint, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp))
     }
-    if (look.status.kind == Keypad.StatusKind.WORKING) RunLine()
+}
+
+/** What a working key says under its name: what it does now, the list's line. Nothing for no line. */
+@Composable
+private fun KeyLine(look: KeyLook) {
+    if (look.line.isBlank()) return
+    val p = LocalPaper.current
+    val line = buildAnnotatedString {
+        if (look.who.isNotEmpty()) withStyle(SpanStyle(color = p.text)) { append("${look.who}: ") }
+        append(look.line)
+    }
+    Text(line, color = p.muted, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 2.dp))
 }
 
 /** A key's scale: 1, and once when its bot goes from Working to Done, up to 1.03 and back (#496). */
@@ -323,135 +333,59 @@ private fun donePop(kind: Keypad.StatusKind): Float {
     return scale.value
 }
 
-private val VIOLET = Color(0xFF8B7CF6)
-
-/** A pill's words and its ground, by its kind: the block kit's levels, and violet for unread, grey for idle. */
-@Composable
-private fun statusColors(kind: Keypad.StatusKind): Pair<Color, Color> {
-    val p = LocalPaper.current
-    return when (kind) {
-        Keypad.StatusKind.WORKING -> p.mention to p.mention.copy(alpha = 0.14f)
-        Keypad.StatusKind.NEEDS -> p.warnText to p.warnSoft
-        Keypad.StatusKind.UNREAD -> Color(0xFFA99CF8) to VIOLET.copy(alpha = 0.16f)
-        Keypad.StatusKind.DONE -> p.okText to p.okSoft
-        Keypad.StatusKind.FAILED -> p.err to p.errSoft
-        Keypad.StatusKind.IDLE -> p.muted to p.sunk
-    }
-}
-
-/** The thin line along a working key: a short stretch of blue that runs across it, standing still where animations are off. */
-@Composable
-private fun RunLine() {
-    val p = LocalPaper.current
-    val shift by rememberInfiniteTransition(label = "run").animateFloat(0f, 1f, infiniteRepeatable(tween(2400)), label = "run")
-    Box(Modifier.padding(top = 10.dp).fillMaxWidth().height(2.dp).clip(RoundedCornerShape(2.dp)).background(p.line2).drawBehind {
-        val w = size.width * 0.35f
-        drawRect(p.mention, topLeft = Offset(-w + (size.width + w) * shift, 0f), size = androidx.compose.ui.geometry.Size(w, size.height))
-    })
-}
-
-/** What a key says under its name, as the list's row: what it asks stands out from what it last said. Nothing for no line. */
-@Composable
-private fun KeyLine(look: KeyLook, fontSize: TextUnit, maxLines: Int, textAlign: TextAlign? = null) {
-    if (look.line.isBlank()) return
-    val p = LocalPaper.current
-    val line = buildAnnotatedString {
-        if (look.who.isNotEmpty()) withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append("${look.who}: ") }
-        append(look.line)
-    }
-    Text(line, color = if (look.asks) p.text else if (look.state == "working") p.okText else p.muted, fontWeight = if (look.asks) FontWeight.Medium else null,
-        fontSize = fontSize, lineHeight = 16.sp, maxLines = maxLines, overflow = TextOverflow.Ellipsis, textAlign = textAlign)
-}
-
 /**
- * The last place on the keypad: a dashed key that opens a new chat with the Chief, to ask it for a bot. [aimed]: a
+ * The last place on the keypad: a dashed head that opens a new chat with the Chief, to ask it for a bot. [aimed]: a
  * dragged key is over it, and would go last on the last page.
  */
-private fun LazyGridScope.askKey(onAsk: () -> Unit, aimed: Boolean = false, modifier: Modifier = Modifier) = item(key = ASK_FOR_A_BOT) {
+@Composable
+private fun AskKey(onAsk: () -> Unit, modifier: Modifier = Modifier, aimed: Boolean = false) {
     val p = LocalPaper.current
-    Box(
-        modifier.fillMaxWidth().height(KEY_HEIGHT).clip(KEY_SHAPE)
-            .drawBehind {
-                val r = 20.dp.toPx()
-                drawRoundRect(if (aimed) p.text else p.line2, cornerRadius = CornerRadius(r, r), style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 5.dp.toPx()))))
-            }
-            .clickable(onClick = onAsk).padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) { Text(ASK_FOR_A_BOT, color = p.faint, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+    val size = WIDE_KEY
+    Column(modifier.width(size.width).clip(KEY_SHAPE).clickable(onClick = onAsk).padding(horizontal = 6.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(size.head.dp).drawBehind {
+            drawCircle(if (aimed) p.text else p.line2, style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))))
+        }, contentAlignment = Alignment.Center) { Text("+", color = p.faint, fontSize = 20.sp) }
+        Spacer(Modifier.height(6.dp))
+        Text(ASK_FOR_A_BOT, color = p.faint, fontSize = 12.5.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+    }
 }
 
-/** The Chief's message box at the foot of a phone's home. */
-internal const val ASK_THE_CHIEF = "Ask the Chief…"
+/** The tag of the Chief's field at the foot of a phone's home. */
+internal const val CHIEF_FIELD = "chief-field"
 
 /**
- * A phone's home (#498): the same pages as the keypad, one under the other, each a section under its name and count
- * (and the dot of a bot on it that asks) with its keys in rows of three and no digits; above them [header] (Needs
- * you, the Board), below them the Chief's message box ([onChief]; [chiefUnread]: its new replies). A key opens its
- * chat ([onKey]) full screen, as a row of the list does, and Back returns here. A phone's keys answer no keyboard.
- * [folded] and [onFold]: a category's page folds as on the keypad (#171).
+ * A phone's home (#498, #636): the same pages as the keypad, the pinned keys first and the categories side by side,
+ * with no digits; above them [header] (Needs you, the Board), below them the Chief's field, its head and name
+ * ([onChief]; [chiefBusy]: it works; [chiefUnread]: its new replies). A key opens its chat ([onKey]) full screen, as
+ * a row of the list does, and Back returns here. A phone's keys answer no keyboard. [folded] and [onFold]: a
+ * category's page folds as on the keypad (#171).
  */
 @Composable
 internal fun KeypadSections(
     pages: List<Keypad.Page>, look: (Keypad.Key) -> KeyLook, onKey: (Keypad.Key) -> Unit, onChief: () -> Unit,
-    modifier: Modifier = Modifier, chiefUnread: Int = 0, folded: Set<String> = emptySet(), onFold: ((Keypad.Page) -> Unit)? = null,
+    modifier: Modifier = Modifier, chiefUnread: Int = 0, chiefBusy: Boolean = false, folded: Set<String> = emptySet(), onFold: ((Keypad.Page) -> Unit)? = null,
     header: @Composable () -> Unit = {},
 ) {
     val p = LocalPaper.current
     Column(modifier) {
-        header()
-        LazyVerticalGrid(
-            GridCells.Fixed(2), Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            for (page in pages) {
-                val isFolded = Keypad.isFolded(page, folded)
-                item(key = "page:${page.kind}:${page.name}", span = { GridItemSpan(maxLineSpan) }) {
-                    Box(Modifier.folding(page, isFolded, onFold).padding(start = 4.dp, top = 14.dp, bottom = 2.dp)) {
-                        PageLabel(page, look, p.faint, isFolded.takeIf { folds(page, onFold) })
-                    }
-                }
-                // Pinned: one key a row, the head beside the name; the other pages two a row (#397).
-                val pinned = page.kind == Keypad.Kind.PINNED
-                if (!isFolded) items(page.keys, key = { it.id }, span = { GridItemSpan(if (pinned) maxLineSpan else 1) }) { k -> SectionKey(look(k), wide = pinned) { onKey(k) } }
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+            header()
+            Box(Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp)) {
+                KeyPages(pages, folded, onFold) { _, _, k -> QuietKey(look(k), PHONE_KEY) { onKey(k) } }
             }
         }
-        val shape = RoundedCornerShape(16.dp)
+        val shape = RoundedCornerShape(26.dp)
+        val name = LocalChiefName.current
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(shape).border(1.dp, p.line2, shape)
-                .clickable(onClickLabel = LocalChiefName.current, onClick = onChief).padding(horizontal = 16.dp, vertical = 13.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)
+                .clickable(onClickLabel = name, onClick = onChief).padding(horizontal = 12.dp, vertical = 9.dp).testTag(CHIEF_FIELD),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(ASK_THE_CHIEF, color = p.faint, fontSize = 15.sp, maxLines = 1, modifier = Modifier.weight(1f))
+            BotFigure(CHIEF_COLOR, if (chiefBusy) "working" else "idle", 28, FigureDef.CHIEF)
+            Spacer(Modifier.width(10.dp))
+            Text(name, color = p.faint, fontSize = 15.sp, maxLines = 1, modifier = Modifier.weight(1f))
             UnreadDots(chiefUnread, CHIEF_COLOR)
         }
-    }
-}
-
-private val SECTION_KEY_HEIGHT = 160.dp
-
-/** A key in a phone's section: the head over the name, the list's line and its status, no digit; [wide]: a pinned key, the head beside them. */
-@Composable
-private fun SectionKey(look: KeyLook, wide: Boolean, onClick: () -> Unit) {
-    val p = LocalPaper.current
-    val shape = RoundedCornerShape(16.dp)
-    val pop = donePop(look.status.kind)
-    val box = Modifier.fillMaxWidth().graphicsLayer { scaleX = pop; scaleY = pop }.clip(shape).background(p.panel).border(1.dp, p.line2, shape).clickable(onClickLabel = look.name, onClick = onClick).padding(16.dp)
-    if (wide) Row(box) {
-        KeyHead(look, 44)
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            KeyName(look, 15.sp)
-            KeyLine(look, 13.sp, maxLines = 1)
-            Spacer(Modifier.height(8.dp))
-            StatusRow(look)
-        }
-    } else Column(box.height(SECTION_KEY_HEIGHT), verticalArrangement = Arrangement.spacedBy(4.dp)) { // two a row, of one height
-        KeyHead(look, 40)
-        Spacer(Modifier.height(4.dp))
-        KeyName(look, 15.sp)
-        KeyLine(look, 13.sp, maxLines = 1)
-        Spacer(Modifier.height(4.dp))
-        StatusRow(look)
     }
 }
 

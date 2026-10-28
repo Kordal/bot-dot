@@ -307,10 +307,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 .clickable(onClick = onNeedsYou).padding(horizontal = 14.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text("Needs you", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                Text("Waiting for your OK", color = p.warnText, style = MaterialTheme.typography.bodySmall) // the figures say how many
-            }
+            Text("Needs you", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)) // the figures say how many
             Spacer(Modifier.size(10.dp))
             NeedsFigures(needsWho)
         }
@@ -324,7 +321,13 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             AppUpdateBanner(api, server) { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
         }
         BoardCards(dash, bots.orEmpty(), onClick = onDashboard, onEdit = if (dev.botdot.app.data.HomeTiles.shows(server?.features)) ({ choosingHome = true }) else null)
-        if (needs > 0) NeedsCard(waiting, onReview = onNeedsYou)
+        if (needs > 0) NeedsRows(waiting, onReview = onNeedsYou, onAnswer = { id, yes ->
+            scope.launch {
+                runCatching { (api ?: throw ApiException("Can't reach botdot.")).answerAsk(id, yes) }
+                    .onFailure { android.widget.Toast.makeText(context, it.message ?: "Couldn't answer", android.widget.Toast.LENGTH_LONG).show() }
+                store.needs.refresh()
+            }
+        })
         RoomsRow(app) { onOpen("rooms") }
     }
     // The keypad, and a phone's sections: the list's own order cut into pages, each bot and group a key that says what its row says.
@@ -395,8 +398,8 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             Spacer(Modifier.weight(1f))
             ConnectionDot(feedState)
             RoundButton(Icons.Filled.Search, "Search") { searching = !searching; if (!searching) query = "" }
-            RoundButton(Icons.Filled.Add, "New chat", onClick = onNew)
-            // Settings; Memory, Skills, Connectors and the rest open from there.
+            // Settings; Memory, Skills, Connectors and the rest open from there. A new chat with the Chief starts in its
+            // chat (#636): the top has search and settings only.
             RoundButton(Icons.Filled.Settings, "Settings") { onOpen("settings") }
             if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, "Feedback") { feedbackOpen = true }
         }
@@ -404,7 +407,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         // The keypad, while the search finds nothing to show in its place.
         if (keypad && q.isEmpty()) Column(Modifier.fillMaxSize().navigationBarsPadding()) {
             AboveKeys()
-            KeypadView(pages, active, ::look, onKey = openKey, onAsk = onNew, modifier = Modifier.weight(1f), hint = KEYPAD_HINT.takeIf { keyboard },
+            KeypadView(pages, active, ::look, onKey = openKey, onAsk = onNew, modifier = Modifier.weight(1f), digitsShown = keyboard,
                 // A key dragged to another place or page: saved as the list's drag saves a row.
                 onMove = { k, place -> save(k.id, ListLayout.change(place, group = k is Keypad.Key.OfGroup, pinned = k.pinned)) },
                 folded = folded, onFold = foldPage)
@@ -415,7 +418,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } },
             modifier = Modifier.fillMaxSize(),
         ) {
-            KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0, folded = folded, onFold = foldPage) {
+            KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0, chiefBusy = chiefBusy, folded = folded, onFold = foldPage) {
                 AboveKeys()
                 if (bots != null && pages.isEmpty()) Text("No bots yet. Ask the Chief of Staff to make one.", color = p.muted, modifier = Modifier.padding(20.dp))
             }
@@ -445,7 +448,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 val list = bots.orEmpty()
                 if (q.isNotEmpty()) {
                     // Searching: the bots that match, then the messages, instead of the usual list.
-                    if ("chief of staff".contains(q) || chiefName.lowercase().contains(q)) item(key = "chief") { Contact(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, "Your team of bots. Ask for anything.", outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
+                    if ("chief of staff".contains(q) || chiefName.lowercase().contains(q)) item(key = "chief") { Contact(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, "", outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
                     items(list.filter { "${it.name} ${it.description} ${it.group}".lowercase().contains(q) }, key = { it.id }) { b ->
                         Contact(b.color, b.state, b.name, sub(b), listTime(lastRun[b.id]?.startedAt), outfit = b.outfit, unread = b.unread, asks = asks(b)) { onBot(b.id) }
                     }

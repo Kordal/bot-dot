@@ -73,7 +73,6 @@ fun UsageSection(api: Api) {
     }
 
     FoldSection("Usage") {
-        Hint("Tokens as Claude Code reports them, for your bots and the Chief of Staff, counted from this update on.")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Usage.Preset.entries.forEach { option ->
                 if (option == preset) Button(onClick = { pick(option) }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(option.label) }

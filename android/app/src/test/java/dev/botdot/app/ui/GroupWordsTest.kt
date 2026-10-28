@@ -43,7 +43,7 @@ class GroupWordsTest {
         assertEquals("Done.", groupLine(group(""","last":{"botId":"coder","status":"success","text":""}"""), bots, emptyMap()).text)
         assertEquals("Couldn't finish", groupLine(group(""","last":{"botId":"coder","status":"error","text":null}"""), bots, emptyMap()).text)
         assertEquals("a failed reply says its problem", "Claude is not signed in.", groupLine(group(""","last":{"botId":"coder","status":"error","text":"Claude is not signed in."}"""), bots, emptyMap()).text)
-        assertEquals(GroupLine("", "No messages yet", color = "#3b82f6"), groupLine(group(), bots, emptyMap()))
+        assertEquals(GroupLine("", "", color = "#3b82f6"), groupLine(group(), bots, emptyMap()))
     }
 
     @Test fun whileAMemberWorksTheRowSaysWhoAndItsOpeningLine() {

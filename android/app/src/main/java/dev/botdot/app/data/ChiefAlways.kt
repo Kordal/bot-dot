@@ -18,7 +18,6 @@ data class ChiefGrant(val kind: Kind, val id: String, val label: String) {
 
     companion object {
         const val TITLE = "Always approved"
-        const val HINT = "What you said to always allow on its cards. Revoke one and it asks you again."
         const val REVOKED = "Revoked: it asks you again"
 
         /** The kinds this server has: each only when `features` announces it. None while the features are not known. */

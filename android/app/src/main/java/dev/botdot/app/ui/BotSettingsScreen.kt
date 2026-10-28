@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -146,9 +147,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         if (hasPages) runCatching { a.pages(botId) }.onSuccess { pages = it }
     }
 
-    fun save() = scope.launch {
-        val b = bot ?: return@launch
-        val changes = buildJsonObject {
+    // What differs from the bot as botdot has it: what a save sends.
+    fun changes(b: Bot) = buildJsonObject {
             if (color != b.color.orEmpty()) put("color", color)
             if (name != b.name) put("name", name)
             if (description != b.description) put("description", description)
@@ -171,10 +171,26 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             b.rooms?.let { was -> dev.botdot.app.data.BotRooms.change(was, rooms)?.let { put("rooms", it) } }
             if (b.hotkey != null && hotkey != b.hotkey) put("hotkey", hotkey)
         }
-        if (changes.isEmpty()) return@launch tell("Nothing changed.")
+    // Saved by itself (#636), a moment after the last change, and "Saved" says so at the top; its next run uses it.
+    // Changed again while it saved: what is typed stays, and the next save sends it. Else botdot's answer is shown as
+    // it keeps it (a name it trimmed), so a field it changed is not sent again and again.
+    // A change botdot refused is said once and not sent again until it is changed.
+    var savedAt by remember { mutableStateOf(0) }
+    var refused by remember { mutableStateOf<kotlinx.serialization.json.JsonObject?>(null) }
+    fun save() = scope.launch {
+        val b = bot ?: return@launch
+        val sent = changes(b)
+        if (sent.isEmpty() || saving) return@launch
         saving = true
-        runCatching { api!!.updateBot(botId, changes) }.onSuccess { fill(it); moveFiles = false; tell("Saved. Its next run uses this.") }.onError { tell(it.message ?: "Couldn't save") }
+        runCatching { api!!.updateBot(botId, sent) }.onSuccess { if (changes(b) == sent) fill(it) else bot = it; moveFiles = false; savedAt++ }.onError { refused = sent; tell(it.message ?: "Couldn't save") }
         saving = false
+    }
+    LaunchedEffect(color, name, description, group, pinned, task, model, effort, computer, computerOn, useSkills, skills, disabled, connectors, mayMessage, othersMayAsk, rooms, hotkey, saving) {
+        val b = bot ?: return@LaunchedEffect
+        val now = changes(b)
+        if (name.isBlank() || now.isEmpty() || now == refused) return@LaunchedEffect
+        delay(800)
+        save()
     }
 
     Scaffold(
@@ -185,7 +201,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             // Beside the chat the panel has its close button; covering the chat, Back.
             TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
                 title = { Text(bot?.name ?: "", style = MaterialTheme.typography.titleMedium) },
-                actions = { TextButton(onClick = { save() }, enabled = !saving && bot != null) { Text(if (saving) "Saving…" else "Save", color = p.text) }; PanelClose() })
+                actions = { SavedMark(savedAt); PanelClose() })
         },
     ) { pad ->
         val b = bot ?: return@Scaffold
@@ -194,10 +210,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 OutlinedTextField(name, { name = it.take(60) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 ColorPicker(color) { color = it }
                 OutlinedTextField(description, { description = it }, label = { Text("What it does") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(group, { group = it.take(40) }, label = { Text("Category (e.g. Home, Work)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(group, { group = it.take(40) }, label = { Text("Category") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 SwitchRow("Pinned below the Chief", checked = pinned) { pinned = it }
             }
-            Section("Its main assignment", "What it does when a job runs it without a task of its own, and its guide for your messages.") {
+            Section("Its main assignment") {
                 OutlinedTextField(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
                 // The change a card made to it or its rules, undone in one tap while nothing changed them since (#596).
                 b.undo?.let { change ->
@@ -222,7 +238,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         if (computer) computerOn = it
                         moveFiles = false
                     }
-                } else SwitchRow("Uses the computer", if (accountComputer) null else "Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.", computer) { computer = it }
+                } else SwitchRow("Uses the computer", checked = computer) { computer = it }
                 val move = botsNow?.firstOrNull { it.id == botId }?.computerMove ?: b.computerMove
                 if (move != null) androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                     if (move.state == "copying") Text("Copying files" + (if (move.total > 0) " · ${move.done * 100 / move.total}%" else "…"), color = p.muted, style = MaterialTheme.typography.bodySmall)
@@ -233,19 +249,17 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
                 if (b.computer == "linux" || (b.computer == "boat" && "boat-desktop" in server?.features.orEmpty())) OutlinedButton(onClick = onScreen) { Text("🖥 See its screen", color = p.text) }
                 val waiting = b.jobs.count { it.waits }
-                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clickable(onClick = onJobs).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Scheduled jobs", color = p.text, style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            when {
-                                b.jobs.isEmpty() -> "None. Ask it, or the Chief, for one."
-                                waiting > 0 -> "$waiting waiting for your OK"
-                                else -> "${b.jobs.size} job${if (b.jobs.size == 1) "" else "s"}${b.nextRunAt?.let { " · next ${shortTime(it)}" } ?: ""}"
-                            },
-                            color = p.muted, style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Text("›", color = p.faint)
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onJobs).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Scheduled jobs", color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                    Text(
+                        when {
+                            b.jobs.isEmpty() -> "None"
+                            waiting > 0 -> "$waiting waiting for your OK"
+                            else -> "${b.jobs.size}${b.nextRunAt?.let { " · next ${shortTime(it)}" } ?: ""}"
+                        },
+                        color = if (waiting > 0) p.warnText else p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1,
+                    )
+                    Text("›", color = p.faint, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
                 }
             }
             // Skills, Apps, May message: what's picked in one line; tap to see everything with a checkbox.
@@ -265,7 +279,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                     count("built into Claude Code").takeIf { it > 0 }?.let { "$it built into Claude Code" },
                 ).joinToString(", ").ifBlank { "None" }
                 FoldSection("Skills", summary, startOpen = focusSkill != null, modifier = Modifier.bringIntoViewRequester(skillsView)) {
-                    if (library.isEmpty() && sysSkills.isEmpty()) Hint("No skills yet. Ask the Chief to write one.")
                     val botName = { id: String -> (others + b).firstOrNull { it.id == id }?.name ?: "a deleted bot" }
                     if (library.isNotEmpty()) GroupHead("Your skills")
                     // In each group the ones it has come first (as saved, so rows don't jump while you tick them).
@@ -304,16 +317,16 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             }
             // "Other bots may ask it" (#136): only from a server that has it.
             if (others.isNotEmpty() && b.othersMayAsk != null) Section("Other bots") {
-                SwitchRow("Other bots may ask it", "Off keeps it to you: other bots don't see it among their teammates and can't message it.", othersMayAsk) { othersMayAsk = it }
+                SwitchRow("Other bots may ask it", checked = othersMayAsk) { othersMayAsk = it }
             }
             // Shared rooms (ADR 060, #316): whether it may be in rooms with other accounts' bots, and who may mention it there.
             if (dev.botdot.app.data.BotRooms.shows(server?.features) && b.rooms != null) Section("Shared rooms") {
-                SwitchRow("May be in shared rooms", "It only talks there: no tools, no notes, nothing of yours.", rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }
+                SwitchRow("May be in shared rooms", checked = rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }
                 if (rooms.allowRooms) Choice("Who may mention it", rooms.whoMayMention, dev.botdot.app.data.BotRooms.WHO) { rooms = rooms.copy(whoMayMention = it) }
             }
             // Its own key on the keypad (#366): only from a server that has it. A digit another bot holds moves here.
             if (b.hotkey != null) FoldSection("Key on the keypad", if (hotkey in 1..9) "$hotkey" else "By its place") {
-                CheckRow("By its place", "Without one it gets a free digit by its place.", hotkey == 0) { hotkey = 0 }
+                CheckRow("By its place", null, hotkey == 0) { hotkey = 0 }
                 for (d in 1..9) CheckRow("$d", others.firstOrNull { it.hotkey == d }?.let { "Now ${it.name}'s" }, hotkey == d) { on -> hotkey = if (on) d else 0 }
             }
             // The jobs you said to always approve, whose later changes need no OK, and its lasting grants in connected apps
@@ -351,7 +364,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             }
             // The rules you lifted for it with "Allow always for this bot" (#253). Revoke takes one back (saved right away).
             if (b.overrides.isNotEmpty()) FoldSection("Rules you lifted", b.overrides.joinToString(", ") { it.action }) {
-                Hint("It may do these though its rules say no. Revoke one and it asks you again.")
                 b.overrides.forEach { o ->
                     androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -373,11 +385,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             if (explorer) FilesLink(onFiles)
             // Its files (#235): what you gave it. Tap one to open it; keep one in mind so it comes with every task.
             if (keepsFiles && !explorer) FilesSection(api, botId, name, viewer = dev.botdot.app.data.DocumentView.shows(server?.features),
-                hint = "It sees this list in every task. A file kept in mind comes with every task.", empty = "None yet. Attach a file in its chat.", tell = ::tell)
+                empty = "None yet.", tell = ::tell)
             // Its pages (#346): what it made for you. Tap one to open it, and keep it up to date from there.
             pages?.let { list ->
                 FoldSection("Pages", if (list.isEmpty()) "None yet" else "${list.size}") {
-                    Hint(if (list.isEmpty()) "None yet. Ask ${b.name} for a page, a report or an overview." else "Reports, memos and overviews it made for you. Open one to keep it up to date.")
                     list.forEach { pg ->
                         key(pg.slug) {
                             Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(botId, dev.botdot.app.data.PageRef(pg.slug, pg.title), b.name) }.padding(vertical = 6.dp)) {
@@ -392,13 +403,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             if (!explorer && dev.botdot.app.data.WorkspaceFiles.shows(server?.features)) {
                 WorkspaceSection(api, botId, b.name, usesComputer = b.computer == "linux", viewer = dev.botdot.app.data.DocumentView.shows(server?.features), tell = ::tell, folders = dev.botdot.app.data.WorkspaceFiles.folders(server?.features), projects = dev.botdot.app.data.Projects.shows(server?.features))
             }
-            FoldSection("Advanced", "Model and more") {
-                Choice("Model", model, listOf("" to "Default (from Settings)") + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
+            Section(null) {
+                Choice("Model", model, listOf("" to "Default") + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
                 val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
-                if (canThink) Choice("Reasoning", effort, listOf("" to "Default (from Settings)") + choices.efforts.map { it.id to it.label }) { effort = it }
-            }
-            Button(onClick = { save() }, enabled = !saving, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) {
-                Text(if (saving) "Saving…" else "Save")
+                if (canThink) Choice("Reasoning", effort, listOf("" to "Default") + choices.efforts.map { it.id to it.label }) { effort = it }
             }
             if (dev.botdot.app.data.Duplicate.shows(server?.features)) OutlinedButton(onClick = {
                 scope.launch { runCatching { (api ?: error("Not connected to botdot")).copyPlan(botId) }.onSuccess { copyPlan = it; copyName = it.name }.onError { tell(it.message ?: "Couldn't load") } }

@@ -125,7 +125,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
         else act("open it") { BotFiles.openElsewhere(context, it, src, e.name) }
     }
 
-    FoldSection("Workspace", "Every file in its folder: what it keeps, makes and clones") {
+    FoldSection("Workspace") {
         LaunchedEffect(api, root, path, tries) {
             val a = api ?: return@LaunchedEffect
             listing = null; failed = null

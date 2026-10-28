@@ -4,7 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -12,16 +17,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,41 +31,50 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 
-/** A card with a title, like the web page's settings cards. Without one where its rows name themselves. */
+/**
+ * A group of rows (#636): its name, small and muted, over them, with no card around it; without one where its rows
+ * name themselves. [hint]: a line under the name, only where the screen cannot do without it (an invite, the Vault's
+ * setup); settings have none.
+ */
 @Composable
 fun Section(title: String?, hint: String? = null, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val p = LocalPaper.current
-    Column(
-        modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(18.dp)).border(1.dp, p.line, RoundedCornerShape(18.dp)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        if (title != null) Text(title, style = MaterialTheme.typography.titleMedium, color = p.text)
+    Column(modifier.fillMaxWidth().padding(top = 8.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (title != null) Text(title, color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
         if (hint != null) Text(hint, color = p.muted, style = MaterialTheme.typography.bodyMedium)
         content()
     }
 }
 
-/** A card like Section that opens and closes with a tap on its title (closed at first, unless [startOpen]). */
+/**
+ * A row of settings (#636): its name, its [value] in a word or a few, and a chevron; a tap opens what it holds under
+ * it (closed at first, unless [startOpen]). A thin line under it, as the flat list of the web page.
+ */
 @Composable
-fun FoldSection(title: String, hint: String? = null, startOpen: Boolean = false, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun FoldSection(title: String, value: String? = null, startOpen: Boolean = false, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val p = LocalPaper.current
     var open by remember(startOpen) { mutableStateOf(startOpen) } // asked open again (a skill's chip), it opens again
-    Column(
-        modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(18.dp)).border(1.dp, p.line, RoundedCornerShape(18.dp)).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Row(Modifier.fillMaxWidth().clickable { open = !open }, verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleMedium, color = p.text)
-                if (hint != null) Text(hint, color = p.muted, style = MaterialTheme.typography.bodyMedium)
-            }
-            Text(if (open) "▾" else "▸", color = p.faint)
+    val turn by animateFloatAsState(if (open) 90f else 0f, label = "chevron")
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClickLabel = if (open) "Close" else "Open") { open = !open }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            if (!value.isNullOrBlank()) Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 12.dp).widthIn(max = 200.dp))
+            Text("›", color = p.faint, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp).rotate(turn))
         }
-        Unfold(open) { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } }
+        Unfold(open) { Column(Modifier.padding(bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() } }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
     }
 }
 
@@ -102,20 +113,35 @@ fun Chips(options: List<Pair<String, String>>, selected: String, onSelect: (Stri
     }
 }
 
-/** A drop-down to pick one value; "" is the "default" choice. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** A row to pick one value (#636): its name, the value picked and a chevron; a tap opens the choices. "" is the "default" choice. */
 @Composable
 fun Choice(label: String, value: String, options: List<Pair<String, String>>, onChange: (String) -> Unit) {
+    val p = LocalPaper.current
     var open by remember { mutableStateOf(false) }
     val shown = options.firstOrNull { it.first == value }?.second ?: value
-    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
-        OutlinedTextField(
-            value = shown, onValueChange = {}, readOnly = true, label = { Text(label) }, singleLine = true,
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
-            modifier = Modifier.fillMaxWidth().menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-        )
-        ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { (id, text) -> DropdownMenuItem(text = { Text(text) }, onClick = { onChange(id); open = false }) }
+    Box {
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = label) { open = true }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Text(shown, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp).widthIn(max = 220.dp))
+            Text("›", color = p.faint, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.background(p.panel)) {
+            options.forEach { (id, text) -> DropdownMenuItem(text = { Text(text, color = if (id == value) p.text else p.muted) }, onClick = { onChange(id); open = false }) }
         }
     }
 }
+
+/** The thin line between rows of a flat list (#636). */
+@Composable
+fun Rule() = Box(Modifier.fillMaxWidth().height(1.dp).background(LocalPaper.current.line))
+
+/** "Saved" in a screen's top bar for two seconds after each save (#636): [count] goes up by one per save. */
+@Composable
+fun SavedMark(count: Int) {
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(count) { if (count > 0) { shown = true; delay(2_000); shown = false } }
+    if (shown) Text(SAVED, color = LocalPaper.current.muted, fontSize = 14.sp, modifier = Modifier.padding(end = 16.dp).semantics { liveRegion = LiveRegionMode.Polite })
+}
+
+/** What a settings screen's top says after a save (#636), as on the web page. */
+const val SAVED = "Saved"

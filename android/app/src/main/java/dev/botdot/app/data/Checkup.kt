@@ -19,8 +19,8 @@ data class Checkup(
     val webSearch: Boolean = false,
     @SerialName("when") val whenWords: String = "", // "Weekdays at 08:00", written by the server
 ) {
-    /** The line under the Checkup switch: the server's words for when, then who changes it. */
-    val caption: String get() = listOf(whenWords.trim().trimEnd('.'), ASK_THE_CHIEF).filter { it.isNotEmpty() }.joinToString(". ")
+    /** The Checkup switch's value (#636): the server's words for when, nothing for none. It is changed by chat. */
+    val caption: String get() = whenWords.trim().trimEnd('.')
 
     /** Web search is shown but not usable while checkups are off. */
     val webSearchUsable: Boolean get() = on
@@ -29,8 +29,6 @@ data class Checkup(
         const val FEATURE = "checkup"
         const val LABEL = "Checkup"
         const val WEB_SEARCH = "Web search"
-        const val WEB_SEARCH_HINT = "Lets a checkup search the web to check a proposal. It never opens a page."
-        private const val ASK_THE_CHIEF = "Ask the Chief to change it."
 
         /** Whether the switches are shown: the server announces the checkup. While its features are not known yet: no. */
         fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features

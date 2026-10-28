@@ -5,6 +5,12 @@ import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -130,35 +136,47 @@ fun SettingsScreen(
     val efforts = listOf("" to "Claude Code's default") + info.efforts.map { it.id to it.label }
     val canThink = { m: String -> info.models.firstOrNull { it.id == m }?.effort ?: true }
 
+    // Saved by itself (#636): the top says "Saved" for a moment, in place of a sentence.
+    var savedAt by remember { mutableStateOf(0) }
+    fun saved() { savedAt++ }
+    // Model and reasoning save as they are picked; one that doesn't save goes back to what was.
+    fun saveModel(next: AppSettings) {
+        edit = next
+        scope.launch { runCatching { api!!.saveSettings(next) }.onSuccess { info = it; edit = it.settings; saved() }.onError { edit = info.settings; tell(it.message ?: "Couldn't save") } }
+    }
+
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
-        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("Settings", style = MaterialTheme.typography.titleMedium) }) },
+        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("Settings", style = MaterialTheme.typography.titleMedium) },
+            actions = { SavedMark(savedAt) }) },
     ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // Every section folds, closed whenever Settings opens; the links under More stay open.
-            FoldSection("Default model and reasoning") {
-                Choice("Model", edit.defaultModel, models) { edit = edit.copy(defaultModel = it) }
-                if (canThink(edit.defaultModel)) Choice("Reasoning", edit.defaultEffort, efforts) { edit = edit.copy(defaultEffort = it) }
-                Button(
-                    onClick = { scope.launch { runCatching { api!!.saveSettings(edit) }.onSuccess { info = it; edit = it.settings; tell("Saved. New runs use it.") }.onError { tell(it.message ?: "Couldn't save") } } },
-                    enabled = edit != info.settings, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
-                ) { Text("Save") }
-            }
+        // One flat list (#636): a row per setting, its value and a chevron, and no helper text. Each row that holds
+        // more opens under itself, closed whenever Settings opens.
+        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 6.dp)) {
+            Link("Skills", onSkills)
+            if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link("Pages", onPages) // every bot's pages (#361)
+            Link("Connectors", onConnectors)
+            Link("Vault", onVault)
+            Spacer(Modifier.height(18.dp))
 
-            if (boatSizes != null || computerPlace != null) FoldSection("Computer") {
+            Choice("Model", edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
+            if (canThink(edit.defaultModel)) Choice("Reasoning", edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
+            Rule()
+
+            if (boatSizes != null || computerPlace != null) FoldSection("Computer", computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
                 computerPlace?.let { c ->
                     Choice("Where", c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
                         if (to == c.place) return@Choice
                         // Every bot with a computer moves along: whether their files go too is asked first (#556).
                         if (botsNow.orEmpty().any { it.computer == "linux" || it.computer == "boat" }) askPlace = to
-                        else scope.launch { runCatching { api!!.setComputerPlace(to, false) }.onSuccess { computerPlace = it }.onError { tell(it.message ?: "Couldn't save") } }
+                        else scope.launch { runCatching { api!!.setComputerPlace(to, false) }.onSuccess { computerPlace = it; saved() }.onError { tell(it.message ?: "Couldn't save") } }
                     }
                 }
                 boatSizes?.takeIf { computerPlace == null || computerPlace?.place == "boat" }?.let { b ->
+                    // A new size reaches each machine when it starts next.
                     Choice("Size", b.size, b.offered) { size ->
-                        scope.launch { runCatching { api!!.setBoatSize(size) }.onSuccess { boatSizes = it; tell("Saved. Each machine takes it when it starts next.") }.onError { tell(it.message ?: "Couldn't save") } }
+                        scope.launch { runCatching { api!!.setBoatSize(size) }.onSuccess { boatSizes = it; saved() }.onError { tell(it.message ?: "Couldn't save") } }
                     }
                 }
             }
@@ -177,10 +195,9 @@ fun SettingsScreen(
                         load()
                     }
                 }
-                FoldSection("✳︎ Claude") {
+                FoldSection("Claude", claudeValue(s.claude)) {
                     if (keys && keyOpen && loginUrl == null) {
-                        Hint("Paste an Anthropic API key. Make one in the Claude Console (console.anthropic.com → API keys). botdot checks it with Anthropic, keeps it encrypted and never shows it again.")
-                        OutlinedTextField(apiKey, { apiKey = it.trim() }, label = { Text("API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        OutlinedTextField(apiKey, { apiKey = it.trim() }, label = { Text("Anthropic API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Button(onClick = { val key = apiKey; keyChange("Saved. Bots now run on your API key") { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
@@ -216,9 +233,8 @@ fun SettingsScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Sign in to Claude") }
                         if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange("Bots now run on your API key") { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
                     } else {
-                        Hint("1. Open the sign-in page, sign in, allow access, and copy the code it shows.")
+                        // Open the page, sign in and allow access, then paste the code it shows.
                         OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text("Open the sign-in page", color = p.text) }
-                        Hint("2. Paste the code here.")
                         OutlinedTextField(code, { code = it.trim() }, label = { Text("Code") }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -231,15 +247,14 @@ fun SettingsScreen(
                             TextButton(onClick = { loginUrl = null; code = "" }) { Text("Cancel", color = p.text) }
                         }
                     }
-                    if (s.timezone.isNotBlank()) Hint("Schedules run on ${s.timezone} time.")
                 }
             }
 
             backups?.let { b ->
-                FoldSection("Backups") {
-                    if (!b.configured) Hint("Turn them on with a passphrase on botdot's web page (Settings → Backups).")
+                FoldSection("Backups", backupValue(b, backingUp)) {
+                    // Turned on with a passphrase on the web page only.
+                    if (!b.configured) Hint("Turn them on in botdot's web page.")
                     else {
-                        Hint(if (backingUp || b.running) "Backing up…" else (b.last?.let { "Last backup ${shortTime(it.at)} · ${b.count} kept" } ?: "No backup yet") + ". Every night at 03:00.")
                         if (!b.error.isNullOrBlank()) Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(enabled = !backingUp && !b.running, onClick = {
@@ -259,16 +274,10 @@ fun SettingsScreen(
             }
 
             update?.let { u ->
-                FoldSection("Updates") {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("Update automatically", color = p.text, style = MaterialTheme.typography.bodyLarge)
-                            Hint("On: Always use the latest botdot version.")
-                            Hint("Off: Update when you're ready, before the admin's deadline.")
-                        }
-                        androidx.compose.material3.Switch(checked = u.autoUpdate, onCheckedChange = { on ->
-                            scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it }.onError { tell(it.message ?: "Couldn't change it") } }
-                        })
+                // On: always the latest botdot version. Off: the owner updates when ready, before the admin's deadline.
+                FoldSection("Updates", if (u.autoUpdate) "Automatic" else "By hand") {
+                    SwitchRow("Update automatically", checked = u.autoUpdate) { on ->
+                        scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: "Couldn't change it") } }
                     }
                     u.text().takeIf { it.isNotEmpty() }?.let { Hint(it) }
                     if (u.canUpdate) OutlinedButton(onClick = { confirmUpdateNow = true }) { Text("Update now", color = p.text) }
@@ -281,28 +290,19 @@ fun SettingsScreen(
                 if (u.moving) LaunchedEffect(u, updatePolls) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it }; updatePolls++ }
             }
 
-            // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in again.
+            if (notifyOn) Link("Notifications", onBattery, value = "On")
+            else Link("Notifications", value = "Off") {
+                context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+            }
+
+            // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in
+            // again with its passkey (the dialog says so).
             if (server?.features?.contains("accounts") == true) {
                 FoldSection("Sign-ins") {
-                    Hint("Signs out this phone and every browser and app signed in to your account. Each signs in again with your passkey.")
                     OutlinedButton(onClick = { confirmSignOut = true }) { Text("Sign out everywhere", color = p.text) }
                 }
             }
-
-            Section("More") {
-                Link("✦ Skills", onSkills)
-                if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link("📄 Pages", onPages) // every bot's pages (#361)
-                Link("🔌 Connectors", onConnectors)
-                Link("🔐 Vault", onVault)
-                if (notifyOn) Link("🔔 Notifications in the background", onBattery)
-                else Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("🔔 Notifications are off", color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                    OutlinedButton(onClick = {
-                        context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
-                    }) { Text("Turn on", color = p.text) }
-                }
-                Link("🔗 Change botdot's address", onChangeServer)
-            }
+            Link("botdot's address", onChangeServer, value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'))
         }
     }
 
@@ -391,11 +391,30 @@ private fun KeyOffer(saved: Boolean, onUse: () -> Unit, onNew: () -> Unit) {
     TextButton(onClick = if (saved) onUse else onNew) { Text(if (saved) "Use the API key instead" else "Use an API key instead", color = p.text) }
 }
 
+/** A row that opens another screen (#636): its name, its [value] and a chevron, and a thin line under it. */
 @Composable
-private fun Link(text: String, onClick: () -> Unit) {
+private fun Link(text: String, onClick: () -> Unit, value: String? = null) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(text, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        Text("›", color = p.faint, style = MaterialTheme.typography.titleMedium)
+    Column {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            if (!value.isNullOrBlank()) Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp).widthIn(max = 220.dp))
+            Text("›", color = p.faint, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
+        }
+        Rule()
     }
+}
+
+/** Claude's row in a word or two: what bots run on, or that they can't. */
+internal fun claudeValue(c: dev.botdot.app.data.ClaudeStatus): String = when {
+    c.onApiKey -> "API key"
+    !c.loggedIn -> "Not signed in"
+    else -> c.email ?: "Signed in"
+}
+
+/** The Backups row's value: what it does now, when it last did it, or that it is off. */
+internal fun backupValue(b: dev.botdot.app.data.BackupInfo, backingUp: Boolean): String = when {
+    !b.configured -> "Off"
+    backingUp || b.running -> "Backing up…"
+    else -> b.last?.let { shortTime(it.at) } ?: "None yet"
 }

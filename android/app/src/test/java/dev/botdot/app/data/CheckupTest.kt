@@ -52,13 +52,12 @@ class CheckupTest {
         assertFalse(Checkup.shows(null)) // its features are not known yet
     }
 
-    @Test fun theLineUnderTheSwitchIsTheServersWordsThenWhoChangesIt() {
-        assertEquals("Weekdays at 08:00. Ask the Chief to change it.", Checkup(on = true, whenWords = "Weekdays at 08:00").caption)
-        assertEquals("Mondays and Thursdays at 07:30. Ask the Chief to change it.", Checkup(whenWords = "Mondays and Thursdays at 07:30").caption)
-        assertEquals("Ask the Chief to change it.", Checkup(on = true).caption) // a server that sent no words
+    @Test fun theSwitchsValueIsTheServersWordsForWhen() {
+        assertEquals("Weekdays at 08:00", Checkup(on = true, whenWords = "Weekdays at 08:00.").caption)
+        assertEquals("Mondays and Thursdays at 07:30", Checkup(whenWords = "Mondays and Thursdays at 07:30").caption)
+        assertEquals("", Checkup(on = true).caption) // a server that sent no words: no helper line in its place (#636)
         assertEquals("Checkup", Checkup.LABEL)
         assertEquals("Web search", Checkup.WEB_SEARCH)
-        assertEquals("Lets a checkup search the web to check a proposal. It never opens a page.", Checkup.WEB_SEARCH_HINT)
     }
 
     @Test fun webSearchCannotBeUsedWhileCheckupsAreOff() {

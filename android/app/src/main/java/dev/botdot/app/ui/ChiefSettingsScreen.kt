@@ -106,27 +106,42 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
         scope.launch { runCatching { api!!.setCheckup(field, if (field == "on") now.on else now.webSearch) }.onSuccess { if (it != null) checkup = it }.onError { if (checkup == now) checkup = before; tell(it.message ?: "Couldn't save") } } // not over what the feed said meanwhile
     }
 
+    // Saved by itself (#636), a moment after the last change, and "Saved" says so at the top. A refused name (a bot's,
+    // say) is put back and the server's sentence shown; the rest still saves. A refused change is not sent again until
+    // it is changed.
+    var savedAt by remember { mutableStateOf(0) }
+    var refused by remember { mutableStateOf<AppSettings?>(null) }
+    var renamed by remember { mutableStateOf<String?>(null) } // the name sent last: sent once, while the feed brings it back
+    LaunchedEffect(edit, name) {
+        val rename = renames && name.trim() != renamed
+        if ((edit == info.settings || edit == refused) && !rename) return@LaunchedEffect
+        kotlinx.coroutines.delay(800)
+        if (rename) runCatching { renamed = name.trim(); api!!.renameChief(name.trim()) }.onSuccess { name = ChiefName.field(it); savedAt++ }.onError { name = ChiefName.field(chiefName); tell(it.message ?: "Couldn't rename") }
+        if (edit != info.settings && edit != refused) {
+            val sent = edit
+            runCatching { api!!.saveSettings(sent) }.onSuccess { info = it; if (edit == sent) edit = it.settings; savedAt++ }.onError { refused = sent; tell(it.message ?: "Couldn't save") }
+        }
+    }
+
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
-        topBar = { TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(LocalChiefName.current, style = MaterialTheme.typography.titleMedium) }, actions = { PanelClose() }) },
+        topBar = { TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(LocalChiefName.current, style = MaterialTheme.typography.titleMedium) }, actions = { SavedMark(savedAt); PanelClose() }) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (hasName) Section("Name") {
                 OutlinedTextField(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.ROLE) })
             }
-            Section("Model and reasoning", "What the Chief uses to plan, create and manage your bots.") {
+            Section(null) {
                 Choice("Model", edit.chiefModel, listOf("" to "Same as the default") + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }
                 if (canThink(edit.chiefModel.ifBlank { edit.defaultModel })) Choice("Reasoning", edit.chiefEffort, listOf("" to "Same as the default") + info.efforts.map { it.id to it.label }) { edit = edit.copy(chiefEffort = it) }
             }
-            Section("Your rules for it", "Added to its own instructions, for the Chief only.") {
-                OutlinedTextField(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("e.g. Always ask me before creating a bot. Talk to me like a colleague: short and direct.") })
+            Section("Your rules for it") {
+                OutlinedTextField(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
             }
             if (hasSkills) {
                 val picked = edit.chiefSkills.orEmpty()
                 FoldSection(ChiefSkills.TITLE, picked.sorted().joinToString(", ").ifBlank { "None" }) {
-                    Hint(ChiefSkills.HINT)
                     if (library.isEmpty()) Hint(ChiefSkills.EMPTY)
                     // The ones it has come first (as saved, so rows don't jump while you tick them).
                     library.sortedBy { it.name !in info.settings.chiefSkills.orEmpty() }.forEach { k ->
@@ -135,20 +150,8 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                     }
                 }
             }
-            Button(
-                onClick = {
-                    scope.launch {
-                        // A refused name (a bot's, say) is put back and the server's sentence shown; the rest still saves.
-                        if (renames) runCatching { api!!.renameChief(name.trim()) }.onSuccess { name = ChiefName.field(it); tell("Renamed.") }.onError { name = ChiefName.field(chiefName); tell(it.message ?: "Couldn't rename") }
-                        if (edit != info.settings) runCatching { api!!.saveSettings(edit) }.onSuccess { info = it; edit = it.settings; tell("Saved. The Chief uses it from its next reply.") }.onError { tell(it.message ?: "Couldn't save") }
-                    }
-                },
-                enabled = edit != info.settings || renames, modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
-            ) { Text("Save") }
             // Revoke takes one off at once; the Chief asks again next time.
             if (grants.isNotEmpty()) FoldSection(ChiefGrant.TITLE, grants.joinToString(", ") { it.label }) {
-                Hint(ChiefGrant.HINT)
                 grants.forEach { g ->
                     key(g.kind, g.id) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -170,7 +173,6 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             // Its own jobs: a switch pauses one, Remove takes it away; they are made by chat.
             jobs?.let { list ->
                 FoldSection(ChiefJobs.TITLE, if (list.isEmpty()) ChiefJobs.EMPTY else "${list.size}") {
-                    Hint(ChiefJobs.HINT)
                     list.forEach { j ->
                         key(j.id) {
                             Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -193,7 +195,6 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             pages?.let { list ->
                 val name = LocalChiefName.current
                 FoldSection("Pages", if (list.isEmpty()) "None yet" else "${list.size}") {
-                    Hint(if (list.isEmpty()) "None yet. Ask $name for a page, a report or an overview." else "Reports, memos and overviews it made for you. Open one to keep it up to date.")
                     list.forEach { pg ->
                         key(pg.slug) {
                             Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(Pages.CHIEF, PageRef(pg.slug, pg.title), name) }.padding(vertical = 6.dp)) {
@@ -210,13 +211,13 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             else if (UploadedFiles.chiefShows(server?.features)) {
                 val viewer = DocumentView.shows(server?.features)
                 FilesSection(api, UploadedFiles.CHIEF, LocalChiefName.current, viewer,
-                    hint = "It sees this list in every reply. A file kept in mind comes with every reply.", empty = "None yet. Attach a file in its chat.", tell = ::tell)
+                    empty = "None yet.", tell = ::tell)
                 if (WorkspaceFiles.shows(server?.features)) WorkspaceSection(api, UploadedFiles.CHIEF, LocalChiefName.current, usesComputer = false, viewer = viewer, tell = ::tell, folders = WorkspaceFiles.folders(server?.features))
             }
             checkup?.takeIf { hasCheckup }?.let { c ->
                 Section(null) {
-                    SwitchRow(Checkup.LABEL, c.caption, c.on) { switch(c, "on", c.copy(on = it)) }
-                    SwitchRow(Checkup.WEB_SEARCH, Checkup.WEB_SEARCH_HINT, c.webSearch, enabled = c.webSearchUsable) { switch(c, "webSearch", c.copy(webSearch = it)) }
+                    SwitchRow(Checkup.LABEL, c.caption.ifEmpty { null }, c.on) { switch(c, "on", c.copy(on = it)) }
+                    SwitchRow(Checkup.WEB_SEARCH, checked = c.webSearch, enabled = c.webSearchUsable) { switch(c, "webSearch", c.copy(webSearch = it)) }
                 }
             }
             Section("Earlier chats") {

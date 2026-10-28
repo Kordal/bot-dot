@@ -9,7 +9,6 @@ object ChiefSkills {
     const val FEATURE = "chief-skills"
     const val CHIEF_ID = "chief"
     const val TITLE = "Skills"
-    const val HINT = "From your library, beside its own. Only you change them."
     const val EMPTY = "No skills in your library yet."
 
     /** Whether the server keeps the Chief's skills: only then is there a list to tick. */

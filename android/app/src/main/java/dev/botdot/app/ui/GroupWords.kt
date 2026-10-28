@@ -55,7 +55,7 @@ internal fun groupLine(g: Group, bots: List<Bot>, lines: Map<String, TurnLine>):
         return GroupLine("", "${memberName(bots, a.botId, a.botName)} asks${if (text.isNotEmpty()) ": $text" else ""}", asks = true, color = memberColor(bots, a.botId))
     }
     g.last?.let { l -> return GroupLine(memberName(bots, l.botId, l.botName), one(l.text).ifBlank { if (l.status == "success") "Done." else "Couldn't finish" }, color = dots) }
-    return GroupLine("", "No messages yet", color = dots)
+    return GroupLine("", "", color = dots) // nothing said yet: the row is its name alone (#636)
 }
 
 /** What the search box finds a group by: its name, its category and its members' names. */
