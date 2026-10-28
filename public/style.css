@@ -1658,13 +1658,17 @@ details.bs-row { display: block; }
 .key .group-pic > i { width: 33px; height: 33px; }
 .key .group-pic > i:nth-child(3) { left: 10px; }
 .key .name { max-width: 100%; font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.key .prev { max-width: 100%; margin-top: -6px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* A key's dot (list.js, keyDot): green while it works, amber while it needs the owner, blue with its new replies. Its
-   ring is the key's own background, so it stands clear of the head. */
-.key-dot { position: absolute; right: -1px; bottom: 1px; width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--key-bg); }
-.key-dot.working { background: var(--ok); }
-.key-dot.needs { background: var(--warn); }
-.key-dot.unread { right: -7px; bottom: -1px; width: auto; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 11px; background: var(--mention); color: #fff; font: 600 11px/16px var(--font); font-style: normal; text-align: center; }
+/* A key's status line (list.js, keyState, #664): a dot and the status's words, in the state's colour. */
+.key-st { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-top: -4px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.key-st::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.key-st > span { overflow: hidden; text-overflow: ellipsis; }
+.key-st.working { color: var(--ok-text); }
+.key-st.needs { color: var(--warn-text); }
+.key-st.unread { color: var(--mention); }
+.key-st.failed { color: var(--err); }
+.key-st.done::before { background: var(--ok); }
+.key-st.idle { color: var(--faint); }
+.key-st.idle::before { background: var(--line-2); }
 /* A key dragged (#499): it fades where it was; the key, the top row or the category it would land on is marked. */
 .key.drag-ghost { opacity: .35; }
 .key.drop-on { box-shadow: inset 0 0 0 1px var(--text); }
@@ -1713,7 +1717,7 @@ details.bs-row { display: block; }
 .kp-sec-keys .key .group-pic > i { width: 28px; height: 28px; }
 .kp-sec-keys .key .group-pic > i:nth-child(3) { left: 8px; }
 .kp-sec-keys .key .name { font-size: 13px; white-space: normal; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.kp-sec-keys .key .prev { margin-top: 0; font-size: 11.5px; }
+.kp-sec-keys .key .key-st { margin-top: 0; font-size: 11.5px; }
 /* The Chief's field: its head, its name where the message goes, and the send arrow; a tap opens its chat, ready to
    write in. */
 .kp-chief { flex: none; display: flex; align-items: center; gap: 12px; margin: 6px 16px calc(12px + env(safe-area-inset-bottom)); padding: 6px 6px 6px 12px; border: 1px solid var(--line-2); border-radius: 26px; background: var(--panel); color: var(--faint); font: inherit; font-size: 15px; text-align: left; cursor: text; }

@@ -96,10 +96,12 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
   return { ctx, state, said, doc, key, keys: () => doc['#kp-keys'].innerHTML, board: () => doc['#kp-board'].innerHTML,
     sections: () => doc['#kp-sections'].innerHTML, phoneBoard: () => doc['#kp-phone-board'].innerHTML, chief: () => doc['#kp-chief'].innerHTML };
 }
-// A key's dot (#635): [kind, its name for a screen reader, what it shows], or null for none.
-const dotOf = (key) => { const m = key.match(/<i class="key-dot (\w+)" role="img" aria-label="([^"]*)">([^<]*)<\/i>/); return m && [m[1], m[2], m[3]]; };
-// The keys drawn: "digit name line", in order, across the pages; the digit from its title (none past nine).
-const keysOf = (h) => [...h.matchAll(/<button class="key[^"]*" data-key="\d+"[^>]*? title="([^"]*)"[^>]*>([\s\S]*?)<\/button>/g)].map(([, title, inner]) => texts(`${(title.match(/ · (\d)$/) || [])[1] || ''} ${inner}`));
+// A key's status line (#664): [kind, the status's words (its title), what it shows], or null for none.
+const dotOf = (key) => { const m = key.match(/<span class="key-st (\w+)" title="([^"]*)"><span>([^<]*)<\/span><\/span>/); return m && [m[1], m[2], m[3]]; };
+// The keys drawn: "digit name", in order, across the pages; the digit from its title (none past nine). Its status line
+// is read by dotOf.
+const noState = (inner) => inner.replace(/<span class="key-st [\s\S]*?<\/span><\/span>/, '');
+const keysOf = (h) => [...h.matchAll(/<button class="key[^"]*" data-key="\d+"[^>]*? title="([^"]*)"[^>]*>([\s\S]*?)<\/button>/g)].map(([, title, inner]) => texts(`${(title.match(/ · (\d)$/) || [])[1] || ''} ${noState(inner)}`));
 // A category's heading: [name, the dot's colour or ''] (#635: no count; Pinned has none).
 const headOf = (inner) => { const m = inner.match(/>([^<]*)(?:<span class="chev closed">▾<\/span>)?(?:<i class="kp-dot" style="--c:([^"]*)"><\/i>)?(?:<i class="kp-busy"><\/i>)?<\/button>$/); return [m[1], m[2] || '']; };
 const headsOf = (h) => [...h.matchAll(/<h3 class="kp-page-head" data-page="\d+">([\s\S]*?)<\/h3>/g)].map((m) => headOf(m[1]));
@@ -114,7 +116,7 @@ test('web: the keypad shows the top row, then every category, its keys numbered 
   const p = page();
   assert.deepEqual(headsOf(p.keys()), [['Home', ''], ['Money', '']], 'a category is its plain name; no count, no Pinned heading');
   assert.deepEqual(pageKeysOf(p.keys(), 0), ['1 Garden Log'], 'a head and a name, nothing under it');
-  assert.deepEqual(pageKeysOf(p.keys(), 1), ['2 News Watcher', '3 Home Lights', '4 Evening Home Lights: Working…']);
+  assert.deepEqual(pageKeysOf(p.keys(), 1), ['2 News Watcher', '3 Home Lights', '4 Evening']);
   assert.deepEqual(pageKeysOf(p.keys(), 2), ['5 Inbox Sweeper'], 'its question is in Needs you, not on its key');
   assert.match(p.keys(), /<div class="avatar head" data-st="idle" data-c="#ef9f27"><\/div>/, 'its head, in its colour and state');
   assert.match(p.keys(), /<section class="kp-page kp-pinned" data-page="0" aria-label="Pinned"><div class="kp-page-keys"><button class="key key-chief/, 'the top row first');
@@ -128,13 +130,15 @@ test('web: a key\'s digit is in its title and its keyboard shortcut', () => {
   assert.match(p.keys(), /data-key-chief title="Chief of Staff · Esc" aria-keyshortcuts="Escape"/);
 });
 
-test('web: a working bot\'s key shows its opening line; nothing else has a line under its name', () => {
+test('web: a working bot\'s status line is its opening line; a group\'s says which member works on what (#664)', () => {
   const p = page({ runs: [{ id: 'r1', botId: 'lights', status: 'success', result: 'Off at 23:30', startedAt: at(1) }] });
-  assert.deepEqual(pageKeysOf(p.keys(), 1).slice(0, 2), ['2 News Watcher', '3 Home Lights'], 'working without a line yet: its dot says it');
+  assert.deepEqual(dotOf(keyNamed(p.keys(), 'News Watcher')), ['working', 'Working', 'Working'], 'working without a line yet');
   p.ctx.openingLines.sync([{ chat: 'bot:news', runId: 'r9', text: 'Reading 14 feeds' }]);
   p.ctx.drawKeypad();
-  assert.deepEqual(pageKeysOf(p.keys(), 1), ['2 News Watcher Reading 14 feeds…', '3 Home Lights', '4 Evening Home Lights: Working…'], 'its last result is in its chat');
-  assert.match(keyNamed(p.keys(), 'News Watcher'), /<span class="prev working">Reading 14 feeds…<\/span>/);
+  assert.deepEqual(dotOf(keyNamed(p.keys(), 'News Watcher')), ['working', 'Working', 'Reading 14 feeds…']);
+  assert.deepEqual(dotOf(keyNamed(p.keys(), 'Home Lights')), ['done', 'Done', 'Done'], 'its last result is in its chat');
+  assert.deepEqual(dotOf(keyNamed(p.keys(), 'Evening')), ['working', 'Working', 'Home Lights: Working…']);
+  assert.doesNotMatch(p.keys(), /class="prev/, 'no second line');
 });
 
 test('web: a group\'s key shows up to three heads, and while a member works who it is', () => {
@@ -142,47 +146,47 @@ test('web: a group\'s key shows up to three heads, and while a member works who 
   const group = keyNamed(p.keys(), 'Evening');
   assert.equal((group.match(/<i><svg class="fig"/g) || []).length, 3, 'three of its four members');
   assert.match(group, /group-pic/);
-  assert.equal(keysOf(group)[0], '4 Evening', 'a member that asks: no line');
-  assert.deepEqual(dotOf(group).slice(0, 2), ['needs', 'Needs you'], 'the amber dot');
+  assert.deepEqual(dotOf(group), ['needs', 'Needs you', 'Needs you'], 'a member that asks');
 });
 
-test('web: a key\'s state is one dot on its head: green working, amber needs you, blue unread with the count; none for done, failed or idle (#635)', () => {
+test('web: a key\'s state is one line under its name: working, needs you, unread, done, couldn\'t finish or idle (#664)', () => {
   const p = page({
     bots: [{ ...NEWS }, { ...INBOX }, { ...LIGHTS, unread: 2 }, { ...GARDEN }, { id: 'calm', name: 'Calm', color: '#888', state: 'idle', group: 'Home', order: 4 }, { id: 'oops', name: 'Oops', color: '#888', state: 'idle', group: 'Home', order: 5 }, { id: 'lots', name: 'Lots', color: '#888', state: 'idle', group: 'Home', order: 6, unread: 12 }],
     groups: [],
     runs: [{ id: 'r1', botId: 'news', status: 'running', startedAt: at(1) }, { id: 'r2', botId: 'garden', status: 'success', result: 'Watered', startedAt: at(5) }, { id: 'r3', botId: 'oops', status: 'error', startedAt: at(6) }],
   });
   const dot = (name) => dotOf(keyNamed(p.keys(), name));
-  assert.deepEqual(dot('News Watcher'), ['working', 'Working', '']);
-  assert.deepEqual(dot('Inbox Sweeper'), ['needs', 'Needs you', ''], 'it asks');
-  assert.deepEqual(dot('Home Lights'), ['unread', '2 unread', '2']);
-  assert.deepEqual(dot('Lots'), ['unread', '12 unread', '9+']);
-  assert.equal(dot('Garden Log'), null, 'done: its chat says so');
-  assert.equal(dot('Oops'), null, 'a run that did not finish: its chat says so');
-  assert.equal(dot('Calm'), null);
-  assert.match(keyNamed(p.keys(), 'News Watcher'), /<span class="key-head"><div class="avatar head" data-st="working"[^>]*><\/div><i class="key-dot working"/, 'on its head');
+  assert.deepEqual(dot('News Watcher'), ['working', 'Working', 'Working']);
+  assert.deepEqual(dot('Inbox Sweeper'), ['needs', 'Needs you', 'Needs you'], 'it asks');
+  assert.deepEqual(dot('Home Lights'), ['unread', '2 unread', '2 unread']);
+  assert.deepEqual(dot('Lots'), ['unread', '12 unread', '12 unread']);
+  assert.deepEqual(dot('Garden Log'), ['done', 'Done', 'Done']);
+  assert.deepEqual(dot('Oops'), ['failed', 'Couldn&#39;t finish', 'Couldn&#39;t finish'], 'escaped as the page writes it');
+  assert.deepEqual(dot('Calm'), ['idle', 'Idle', 'Idle']);
+  assert.doesNotMatch(p.keys(), /key-dot/, 'no dot on a head');
+  assert.match(keyNamed(p.keys(), 'News Watcher'), /<span class="name">News Watcher<\/span><span class="key-st working"/, 'under its name');
   const chief = () => p.keys().match(/<button class="key key-chief[\s\S]*?<\/button>/)[0];
-  assert.equal(dotOf(chief()), null, 'the Chief\'s key too');
+  assert.deepEqual(dotOf(chief()), ['idle', 'Idle', 'Idle'], 'the Chief\'s key too');
   Object.assign(p.state, { chiefBusy: true });
   p.ctx.drawKeypad();
-  assert.deepEqual(dotOf(chief()), ['working', 'Working', '']);
+  assert.deepEqual(dotOf(chief()), ['working', 'Working', 'Working']);
   Object.assign(p.state, { chiefBusy: false, chiefUnread: 3 });
   p.ctx.drawKeypad();
-  assert.deepEqual(dotOf(chief()), ['unread', '3 unread', '3']);
-  assert.deepEqual(dotOf(keyNamed(p.sections(), 'Inbox Sweeper')), ['needs', 'Needs you', ''], 'a phone\'s keys too');
+  assert.deepEqual(dotOf(chief()), ['unread', '3 unread', '3 unread']);
+  assert.deepEqual(dotOf(keyNamed(p.sections(), 'Inbox Sweeper')), ['needs', 'Needs you', 'Needs you'], 'a phone\'s keys too');
 });
 
-test('web: a key whose bot a card in Needs you waits for has the amber dot; a group\'s key the dot of its line (#397)', () => {
+test('web: a key whose bot a card in Needs you waits for says Needs you; a group\'s key the state of its line (#397)', () => {
   const p = page();
   const dot = (name) => dotOf(keyNamed(p.keys(), name))?.[0] ?? null;
-  assert.equal(dot('Home Lights'), null);
+  assert.equal(dot('Home Lights'), 'idle');
   p.ctx.drawKeypadNeeds([{ key: 'j', kind: 'job', bot: LIGHTS }], () => {});
   assert.equal(dot('Home Lights'), 'needs', 'drawn again when the bots that wait change');
   assert.equal(dot('Evening'), 'working', 'a member works');
   p.ctx.drawKeypadNeeds([], () => {}, [{ key: 'j', kind: 'job', bot: LIGHTS }]);
-  assert.equal(dot('Home Lights'), 'needs', 'on the Needs you page the rows are not shown, and the key still has it');
+  assert.equal(dot('Home Lights'), 'needs', 'on the Needs you page the rows are not shown, and the key still says it');
   p.ctx.drawKeypadNeeds([], () => {});
-  assert.equal(dot('Home Lights'), null);
+  assert.equal(dot('Home Lights'), 'idle');
 });
 
 // ---------- Needs you, a row per thing that waits (#635) ----------
@@ -269,7 +273,7 @@ test('web: the top row, under the Board, holds the Chief of Staff\'s key first, 
   const pinned = p.keys().split(/<section class="kp-page[^"]*"[^>]*>/)[1];
   assert.equal((p.keys().match(/kp-pinned/g) || []).length, 1);
   assert.match(pinned, /^<div class="kp-page-keys"><button class="key key-chief active" data-key-chief title="Chief of Staff · Esc"/, 'the Chief first, lit while its chat is open');
-  assert.equal(texts(pinned.match(/<button class="key key-chief[\s\S]*?<\/button>/)[0]), 'Chief of Staff', 'its head and name; no tagline');
+  assert.equal(texts(noState(pinned.match(/<button class="key key-chief[\s\S]*?<\/button>/)[0])), 'Chief of Staff', 'its head and name; no tagline');
   assert.deepEqual(pageKeysOf(p.keys(), 0), ['1 Garden Log'], 'the digits still count the bots from 1');
   Object.assign(p.state, { view: 'bot', botId: 'garden', chats: [{ id: 'c1', preview: 'Booked the **plumber**' }], chiefUnread: 2 });
   p.ctx.drawKeypad();
@@ -354,7 +358,7 @@ test('web: a key dragged onto another key of its page takes its place, saved as 
   assert.match(p.keys(), /<button class="key" data-key="2" draggable="true"/, 'a key can be dragged');
   assert.ok(dragKey(p, 2, { key: 1 }));
   assert.deepEqual(p.said.puts, [['PUT', '/bots/lights', { group: 'Home', order: 1 }]], 'moveBot\'s update, as a drop in the list sends it');
-  assert.deepEqual(pageKeysOf(p.keys(), 1).map((k) => k.split(' ').slice(1, 3).join(' ')), ['Home Lights', 'News Watcher', 'Evening Home'], 'drawn in its new place at once');
+  assert.deepEqual(pageKeysOf(p.keys(), 1).map((k) => k.split(' ').slice(1, 3).join(' ')), ['Home Lights', 'News Watcher', 'Evening'], 'drawn in its new place at once');
   assert.deepEqual(pagesNow(p), ['Pinned: Garden Log', 'Home: Home Lights, News Watcher, Evening', 'Money: Inbox Sweeper'], 'and the list, drawn from the same pages, says the same');
 });
 
@@ -487,7 +491,7 @@ test('web: with a query no page is folded; a digit opens the first key shown; a 
 // The categories' sections drawn: [name, the dot's colour or ''].
 const sectionsOf = (h) => [...h.matchAll(/<section class="kp-section[^"]*" data-section="\d+"><h3 class="kp-sec-head">([\s\S]*?)<\/h3>/g)].map((m) => headOf(m[1]));
 // The keys of one section: [name and line], in order.
-const phoneKeysOf = (h, n) => [...h.matchAll(new RegExp(`<button class="key[^"]*" data-section-key="${n}\\.\\d+"[^>]*>([\\s\\S]*?)<\\/button>`, 'g'))].map(([, inner]) => texts(inner));
+const phoneKeysOf = (h, n) => [...h.matchAll(new RegExp(`<button class="key[^"]*" data-section-key="${n}\\.\\d+"[^>]*>([\\s\\S]*?)<\\/button>`, 'g'))].map(([, inner]) => texts(noState(inner)));
 
 test('web: on a phone the home draws the pinned keys, then every category with its name, its keys without digits', () => {
   const p = page();
@@ -497,7 +501,8 @@ test('web: on a phone the home draws the pinned keys, then every category with i
   assert.match(p.sections(), /^<section class="kp-section kp-sec-pinned" data-section="0"><div class="kp-sec-keys">/);
   assert.match(p.sections(), /<\/section><div class="kp-cats"><section class="kp-section" data-section="1">/, 'the categories side by side where they fit');
   assert.deepEqual(phoneKeysOf(p.sections(), 0), ['Garden Log']);
-  assert.deepEqual(phoneKeysOf(p.sections(), 1), ['News Watcher Reading 14 feeds…', 'Home Lights', 'Evening Home Lights: Working…']);
+  assert.deepEqual(phoneKeysOf(p.sections(), 1), ['News Watcher', 'Home Lights', 'Evening']);
+  assert.deepEqual(dotOf(keyNamed(p.sections(), 'News Watcher')), ['working', 'Working', 'Reading 14 feeds…'], 'its status line on a phone too');
   assert.deepEqual(phoneKeysOf(p.sections(), 2), ['Inbox Sweeper']);
   assert.doesNotMatch(p.sections(), /aria-keyshortcuts|· \d"/, 'no digits on a phone');
   assert.doesNotMatch(p.sections(), /data-key=|data-key-chief/, 'and none of the wide keypad\'s keys, nor the Chief\'s key');

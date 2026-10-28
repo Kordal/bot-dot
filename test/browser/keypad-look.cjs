@@ -1,7 +1,7 @@
 // Optional browser check of the keypad's quiet keys (#397, #635): NODE_PATH=<directory containing playwright> node test/browser/keypad-look.cjs
 // Six bots (two pinned, three categories) and a Board of four tiles. At 1440px the strip over the keys is a plain
-// number per tile, Needs you a row with No and Allow, and each key a head and a name with one dot: green working (with
-// its line), amber needs you, blue unread; none for done or idle. The categories stand side by side. On a phone (390px)
+// number per tile, Needs you a row with No and Allow, and each key a head, a name and one status line (#664): what it
+// does while it works, Needs you, unread, Done, Couldn't finish or Idle, each in its colour. The categories stand side by side. On a phone (390px)
 // the numbers are two a row and never scroll sideways, and the Chief's field is at the bottom. SHOTS=<folder> keeps a
 // picture of each. Scratch data and the stand-in Claude only; the states a run would give are set on the page.
 const assert = require('node:assert/strict');
@@ -19,7 +19,7 @@ const { startServer, makeBot } = require('../helpers');
     const home = await bot('Home Helper', { pinned: 2 });
     const inbox = await bot('Inbox Triage', { group: 'Daily' });
     const plan = await bot('Weekly Planner', { group: 'Daily' });
-    await bot('Recipe Finder', { group: 'Home' });
+    const recipe = await bot('Recipe Finder', { group: 'Home' });
     const watch = await bot('Server Watch', { group: 'Tech' });
     const add = async (body) => { const r = await srv.api('/dashboard/tiles', { method: 'POST', body }); assert.equal(r.status, 201, JSON.stringify(r.data)); return r.data; };
     const temp = await add({ kind: 'value', title: 'Living room', section: 'Home', bot: home.id, unit: '°C' });
@@ -39,18 +39,18 @@ const { startServer, makeBot } = require('../helpers');
     await page.waitForFunction(() => typeof setView === 'function' && state.bots?.length === 6 && state.dash);
     // What runs and cards would give: News Monitor at work for two minutes, Home Helper asking for an OK, two unread
     // replies for Inbox Triage, Weekly Planner done.
-    const set = () => page.evaluate(({ news, home, inbox, plan, watch }) => {
+    const set = () => page.evaluate(({ news, home, inbox, plan, watch, recipe }) => {
       const b = (id) => state.bots.find((x) => x.id === id);
       Object.assign(b(news), { running: true, state: 'working' });
       Object.assign(b(watch), { running: true, state: 'working' });
       openingLines.sync([{ chat: `bot:${news}`, runId: 'r1', text: 'Reading 14 feeds' }, { chat: `bot:${watch}`, runId: 'r4', text: 'Running a command' }]);
       Object.assign(b(inbox), { unread: 2 });
       const ago = (m) => new Date(Date.now() - m * 60000).toISOString();
-      state.runs = [{ id: 'r1', botId: news, status: 'running', startedAt: ago(2) }, { id: 'r4', botId: watch, status: 'running', startedAt: ago(1) }, { id: 'r2', botId: plan, status: 'success', result: 'Week planned, page kept up to date', startedAt: ago(30) }, { id: 'r3', botId: inbox, status: 'success', result: '14 new emails: 2 need an answer', startedAt: ago(90) }];
+      state.runs = [{ id: 'r1', botId: news, status: 'running', startedAt: ago(2) }, { id: 'r4', botId: watch, status: 'running', startedAt: ago(1) }, { id: 'r6', botId: recipe, status: 'error', startedAt: ago(40) }, { id: 'r2', botId: plan, status: 'success', result: 'Week planned, page kept up to date', startedAt: ago(30) }, { id: 'r3', botId: inbox, status: 'success', result: '14 new emails: 2 need an answer', startedAt: ago(90) }];
       state.asks = [{ id: 'a1', kind: 'permission', permission: 'reboot', what: { label: 'reboot the router', hint: 'restart the router' }, botId: home, bot: { id: home, name: 'Home Helper', color: b(home).color } }];
       renderContacts();
       showNeeds();
-    }, { news: news.id, home: home.id, inbox: inbox.id, plan: plan.id, watch: watch.id });
+    }, { news: news.id, home: home.id, inbox: inbox.id, plan: plan.id, watch: watch.id, recipe: recipe.id });
     await set();
 
     assert.equal(await page.locator('#kp-board .kp-card').count(), 4, 'one number per tile');
@@ -58,14 +58,16 @@ const { startServer, makeBot } = require('../helpers');
     assert.equal(await page.locator('#kp-board .kp-card .kit-spark').count(), 2, 'the values with their recent values have a sparkline');
     assert.equal(await page.locator('#kp-board .kp-card .kit-bar').count(), 1, 'the disk its bar');
     assert.equal(await page.locator('#kp-needs .kp-need').innerText().then((t) => t.replace(/\s+/g, ' ')), 'Home Helper wants to reboot the router No Allow');
-    const dot = (name) => page.locator(`#kp-keys .key[title^="${name}"] .key-dot`);
-    assert.equal(await dot('News Monitor').getAttribute('class'), 'key-dot working');
-    assert.equal(await dot('Home Helper').getAttribute('class'), 'key-dot needs');
-    assert.equal(await dot('Inbox Triage').innerText(), '2');
-    assert.equal(await dot('Weekly Planner').count(), 0, 'done: no dot');
-    assert.equal(await dot('Recipe Finder').count(), 0, 'idle: no dot');
-    assert.equal(await page.locator('#kp-keys .key[title^="News Monitor"] .prev').innerText(), 'Reading 14 feeds…');
-    assert.equal(await page.locator('#kp-keys .key[title^="Recipe Finder"] .prev').count(), 0, 'no line when it does not work');
+    const st = async (name) => { const el = page.locator(`#kp-keys .key[title^="${name}"] .key-st`); return [(await el.getAttribute('class')).replace('key-st ', ''), await el.innerText()]; };
+    assert.deepEqual(await st('News Monitor'), ['working', 'Reading 14 feeds…']);
+    assert.deepEqual(await st('Home Helper'), ['needs', 'Needs you']);
+    assert.deepEqual(await st('Inbox Triage'), ['unread', '2 unread']);
+    assert.deepEqual(await st('Weekly Planner'), ['done', 'Done']);
+    assert.deepEqual(await st('Recipe Finder'), ['failed', "Couldn't finish"]);
+    assert.deepEqual(await st('Chief of Staff'), ['idle', 'Idle']);
+    assert.equal(await page.locator('#kp-keys .key-dot').count(), 0, 'no dot on a head');
+    const colour = (name) => page.locator(`#kp-keys .key[title^="${name}"] .key-st`).evaluate((el) => getComputedStyle(el).color);
+    assert.notEqual(await colour('News Monitor'), await colour('Home Helper'), 'each state in its colour');
     const top = async (name) => (await page.locator(`#kp-keys .key[title^="${name}"]`).boundingBox()).y;
     assert.equal(await top('Inbox Triage'), await top('Server Watch'), 'the categories side by side');
     await page.evaluate((id) => setView('bot', id), watch.id); // its key in the soft box of the open one
@@ -84,7 +86,7 @@ const { startServer, makeBot } = require('../helpers');
     assert.match(await page.locator('#kp-chief').innerText(), /Chief of Staff/);
     await shot('keypad-phone');
     assert.deepEqual(errors, []);
-    console.log('ok: the keypad\'s numbers, Needs you and key dots, wide and on a phone');
+    console.log('ok: the keypad\'s numbers, Needs you and key status lines, wide and on a phone');
   } finally {
     await browser?.close();
     await srv.stop();

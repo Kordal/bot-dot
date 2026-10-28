@@ -48,21 +48,16 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.semantics.contentDescription
@@ -253,8 +248,7 @@ internal const val KEYPAD_PAGES = "keypad-pages"
 private val KEY_SHAPE = RoundedCornerShape(16.dp)
 
 /**
- * A quiet key (#636): the head with its state's dot, the name under it, and under that what it does while it works,
- * on a light ground. No frame. [number]: its digit (1 to 9), shown while a hardware keyboard is attached; 0: none.
+ * A quiet key (#636): the head, the name under it, and under that its status line (#664), on a light ground. No frame. [number]: its digit (1 to 9), shown while a hardware keyboard is attached; 0: none.
  * [lit]: its chat is the one open beside the keypad. [aimed]: a dragged key is over it, and would take its place.
  */
 @Composable
@@ -273,52 +267,47 @@ private fun QuietKey(look: KeyLook, size: KeySize, modifier: Modifier = Modifier
             KeyHead(look, size.head)
             Spacer(Modifier.height(6.dp))
             Text(look.name, color = p.text, fontSize = size.name, fontWeight = FontWeight.Medium, lineHeight = size.name * 1.25f, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-            if (live) KeyLine(look)
+            KeyState(look)
         }
     }
 }
 
-/** The tag of the dot on a key's head that says its state (KeypadUiTest). */
-internal const val KEY_DOT = "key-dot"
+/** The tag of a key's status line (KeypadUiTest). */
+internal const val KEY_STATE = "key-state"
 
-/**
- * The head on a key, or a group's heads, and one dot at its foot for its state: green while it works, amber while it
- * needs the owner, red when its last run did not finish, blue with the count of its unread replies. Nothing when it
- * is idle or done: its face says that. TalkBack reads the dot as the state's words and its time.
- */
+/** The head on a key, or a group's heads. */
 @Composable
 private fun KeyHead(look: KeyLook, size: Int) {
-    val p = LocalPaper.current
-    val said = listOf(look.status.text, look.time).filter { it.isNotEmpty() }.joinToString(", ")
-    Box {
-        if (look.members != null) GroupPicture(look.members, size) else BotFigure(look.color, look.state, size, look.outfit)
-        // The dot stands on the head's foot, in a ring of the page's ground.
-        fun ring(x: Dp) = Modifier.align(Alignment.BottomEnd).offset(x, 2.dp).clip(CircleShape).background(p.bg).padding(2.5.dp)
-        val dot = when (look.status.kind) {
-            Keypad.StatusKind.WORKING -> p.ok
-            Keypad.StatusKind.NEEDS -> p.warn
-            Keypad.StatusKind.FAILED -> p.err
-            else -> null
-        }
-        if (dot != null) Box(ring(3.dp).testTag(KEY_DOT).semantics { contentDescription = said }) { Box(Modifier.size(9.dp).clip(CircleShape).background(dot)) }
-        else if (look.status.kind == Keypad.StatusKind.UNREAD) Box(ring(7.dp).testTag(KEY_DOT).semantics { contentDescription = said }) {
-            Box(Modifier.defaultMinSize(16.dp, 16.dp).clip(CircleShape).background(p.mention).padding(horizontal = 4.dp), contentAlignment = Alignment.Center) {
-                Text(if (look.unread > 99) "99+" else "${look.unread}", color = Color.White, fontSize = 10.sp, lineHeight = 10.sp, fontWeight = FontWeight.SemiBold)
-            }
-        }
-    }
+    if (look.members != null) GroupPicture(look.members, size) else BotFigure(look.color, look.state, size, look.outfit)
 }
 
-/** What a working key says under its name: what it does now, the list's line. Nothing for no line. */
+/**
+ * A key's status line under its name (#664): a dot and the status's words in the state's colour: green while it works,
+ * where the words are what it does now (and which member, for a group), amber while it needs the owner, blue with its
+ * unread replies, red when its last run did not finish, muted when done (a green dot) or idle. TalkBack reads the
+ * status's words and its time.
+ */
 @Composable
-private fun KeyLine(look: KeyLook) {
-    if (look.line.isBlank()) return
+private fun KeyState(look: KeyLook) {
     val p = LocalPaper.current
-    val line = buildAnnotatedString {
-        if (look.who.isNotEmpty()) withStyle(SpanStyle(color = p.text)) { append("${look.who}: ") }
-        append(look.line)
+    val kind = look.status.kind
+    val (words, dot) = when (kind) {
+        Keypad.StatusKind.WORKING -> p.okText to p.ok
+        Keypad.StatusKind.NEEDS -> p.warnText to p.warn
+        Keypad.StatusKind.UNREAD -> p.mention to p.mention
+        Keypad.StatusKind.FAILED -> p.err to p.err
+        Keypad.StatusKind.DONE -> p.muted to p.ok
+        Keypad.StatusKind.IDLE -> p.faint to p.line2
     }
-    Text(line, color = p.muted, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 2.dp))
+    val live = kind == Keypad.StatusKind.WORKING && look.line.isNotBlank()
+    val text = if (!live) look.status.text else if (look.who.isNotEmpty()) "${look.who}: ${look.line}" else look.line
+    val said = listOf(look.status.text, look.time).filter { it.isNotEmpty() }.joinToString(", ")
+    Row(Modifier.padding(top = 2.dp).testTag(KEY_STATE).semantics(mergeDescendants = true) { contentDescription = if (live) "$said: $text" else said },
+        verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(7.dp).clip(CircleShape).background(dot))
+        Spacer(Modifier.width(6.dp))
+        Text(text, color = words, fontSize = 11.5.sp, lineHeight = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
 }
 
 /** A key's scale: 1, and once when its bot goes from Working to Done, up to 1.03 and back (#496). */
