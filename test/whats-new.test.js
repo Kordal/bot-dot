@@ -14,13 +14,39 @@ const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'whats-new-'));
 const write = (dir, id, text = note(`Note ${id}`)) => fs.writeFileSync(path.join(dir, `${id}.md`), text);
 
 test("every note in whats-new/ has a title and 2 to 4 points, and a name that is its id", () => {
-  const files = fs.readdirSync(NOTES).filter((f) => f !== 'README.md');
+  const files = fs.readdirSync(NOTES).filter((f) => f !== 'README.md' && f !== 'pl');
   assert.ok(files.length > 0, 'whats-new/ has notes');
   for (const f of files) {
     assert.match(f, /\.md$/, `${f} is a .md note`);
     assert.match(f.slice(0, -3), whatsNew.ID, `${f} is named YYYY-MM-DD-short-name.md`);
   }
   for (const n of whatsNew.read(NOTES)) assert.equal(n.error, undefined, `whats-new/${n.id}.md ${n.error}`);
+});
+
+test('every note has a Polish twin in whats-new/pl/ by the same rules, and every twin an English note (#646)', () => {
+  const english = fs.readdirSync(NOTES).filter((f) => f.endsWith('.md') && f !== 'README.md').sort();
+  const polish = fs.readdirSync(path.join(NOTES, 'pl')).sort();
+  for (const f of polish) assert.match(f, /\.md$/, `whats-new/pl/${f} is a .md note`);
+  assert.deepEqual(english.filter((f) => !polish.includes(f)), [], 'notes with no Polish twin in whats-new/pl/');
+  assert.deepEqual(polish.filter((f) => !english.includes(f)), [], 'Polish notes in whats-new/pl/ with no English note');
+  for (const n of whatsNew.read(path.join(NOTES, 'pl'))) assert.equal(n.error, undefined, `whats-new/pl/${n.id}.md ${n.error}`);
+  const translated = whatsNew.read(NOTES, 'pl');
+  assert.equal(translated.length, english.length);
+  const same = translated.filter((n, i) => n.title === whatsNew.read(NOTES)[i].title);
+  assert.deepEqual(same.map((n) => n.id), [], 'Polish twins with the English title');
+});
+
+test('in Polish: the twin where it is good, the English note where it is missing or broken, English for any other language', () => {
+  const dir = tmp();
+  for (const id of ['2026-10-01-a', '2026-10-02-b', '2026-10-03-c']) write(dir, id);
+  fs.mkdirSync(path.join(dir, 'pl'));
+  write(path.join(dir, 'pl'), '2026-10-01-a', 'Notatka a\n- Punkt 1\n- Punkt 2\n');
+  write(path.join(dir, 'pl'), '2026-10-03-c', 'Zepsuta\n- Tylko jeden punkt\n');
+  assert.deepEqual(whatsNew.read(dir, 'pl').map((n) => n.title), ['Notatka a', 'Note 2026-10-02-b', 'Note 2026-10-03-c']);
+  for (const lang of ['en', 'de', undefined, null, '../pl']) assert.deepEqual(whatsNew.read(dir, lang).map((n) => n.title), ['Note 2026-10-01-a', 'Note 2026-10-02-b', 'Note 2026-10-03-c'], String(lang));
+  assert.deepEqual(whatsNew.after('2026-10-01-a', { dir, lang: 'pl' }).map((n) => n.title), ['Note 2026-10-03-c', 'Note 2026-10-02-b']);
+  assert.deepEqual(whatsNew.after('2026-09-30-x', { dir, lang: 'pl' }).at(-1), { id: '2026-10-01-a', title: 'Notatka a', points: ['Punkt 1', 'Punkt 2'] });
+  assert.equal(whatsNew.newest(dir), '2026-10-03-c', 'the pl folder is no note');
 });
 
 test('whats-new/ goes into the image (.dockerignore is an allowlist)', () => {
@@ -76,7 +102,15 @@ test('the routes: GET /api/whats-new shows a new note once it came, POST /api/wh
     write(notes, '2026-10-21-example', note('Example', 3)); // an update brought it
     const r = await srv.api('/whats-new');
     assert.deepEqual(r.data, { entries: [{ id: '2026-10-21-example', title: 'Example', points: ['Point 1', 'Point 2', 'Point 3'] }] });
-    assert.equal((await srv.api('/whats-new/seen', { method: 'POST', body: { id: 'nonsense' } })).status, 400);
+    // An account whose language is Polish (#646, its setting in data/settings.json) is sent the Polish twin.
+    fs.mkdirSync(path.join(notes, 'pl'));
+    write(path.join(notes, 'pl'), '2026-10-21-example', 'Przykład\n- Punkt 1\n- Punkt 2\n');
+    const settingsFile = path.join(srv.dir, 'data', 'settings.json');
+    const kept = fs.existsSync(settingsFile) ? JSON.parse(fs.readFileSync(settingsFile, 'utf8')) : {};
+    fs.writeFileSync(settingsFile, JSON.stringify({ ...kept, language: 'pl' }));
+    assert.deepEqual((await srv.api('/whats-new')).data, { entries: [{ id: '2026-10-21-example', title: 'Przykład', points: ['Punkt 1', 'Punkt 2'] }] });
+    fs.writeFileSync(settingsFile, JSON.stringify(kept));
+    assert.deepEqual((await srv.api('/whats-new/seen', { method: 'POST', body: { id: 'nonsense' } })).status, 400);
     assert.deepEqual((await srv.api('/whats-new/seen', { method: 'POST', body: { id: '2026-10-21-example' } })).data, { ok: true });
     assert.deepEqual((await srv.api('/whats-new')).data, { entries: [] }, 'the other app sees it gone too');
     await srv.stop();

@@ -344,15 +344,15 @@ function ownUpdate(name) {
   return { autoUpdate: doors.autoUpdate(name), asked, canUpdate: !asked && !!s && ['waiting', 'kept', 'failed'].includes(s.state), ready, last };
 }
 // What a waiting version brings (#303): the notes this front door's version ships after the newest one the account's
-// botdot server ships, which it says in its /api/version. A server that doesn't say (older than #303), or doesn't
-// answer: none.
-function newestNoteOf(account) {
+// botdot server ships, which it says in its /api/version, in the account's language (its /api/settings, #646). A
+// server that doesn't say (older than #303), or doesn't answer: none; one that has no language: English.
+function getFromAccount(account, to) {
   return new Promise((resolve) => {
-    const up = http.request({ socketPath: socketOf(account), method: 'GET', path: '/api/version', headers: { 'x-botdot-account': account }, timeout: 5000 }, (answer) => {
+    const up = http.request({ socketPath: socketOf(account), method: 'GET', path: to, headers: { 'x-botdot-account': account }, timeout: 5000 }, (answer) => {
       let body = '';
       answer.setEncoding('utf8');
       answer.on('data', (c) => { if (body.length < BODY_MAX) body += c; });
-      answer.on('end', () => { try { resolve(answer.statusCode === 200 ? JSON.parse(body).whatsNew ?? null : null); } catch { resolve(null); } });
+      answer.on('end', () => { try { resolve(answer.statusCode === 200 ? JSON.parse(body) : null); } catch { resolve(null); } });
       answer.on('error', () => resolve(null));
     });
     up.on('timeout', () => up.destroy());
@@ -362,7 +362,8 @@ function newestNoteOf(account) {
 }
 async function pendingNotes(account) {
   if (!ownUpdate(account).ready) return [];
-  return whatsNew.after(await newestNoteOf(account));
+  const [version, settings] = await Promise.all([getFromAccount(account, '/api/version'), getFromAccount(account, '/api/settings')]);
+  return whatsNew.after(version?.whatsNew ?? null, { lang: settings?.settings?.language });
 }
 function askSwitch(name) {
   if (!REQUESTS || !store.ACCOUNT_NAME.test(name)) return false;
