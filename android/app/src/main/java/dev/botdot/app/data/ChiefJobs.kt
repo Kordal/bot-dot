@@ -24,7 +24,6 @@ data class ChiefJobList(val jobs: List<ChiefJob> = emptyList())
 object ChiefJobs {
     const val FEATURE = "chief-jobs"
     const val TITLE = "Scheduled jobs"
-    const val HINT = "It looks things up on a schedule and tells you in its chat; it changes nothing. Ask it, e.g. \"every weekday at 8 tell me what's new on Hacker News\"."
     const val EMPTY = "None yet."
 
     fun shows(features: Collection<String>?): Boolean = features?.contains(FEATURE) == true

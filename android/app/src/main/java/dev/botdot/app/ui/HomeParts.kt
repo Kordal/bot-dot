@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -193,10 +194,10 @@ internal fun DashboardStrip(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot
 }
 
 /**
- * The Board's strip over the keys, on the keypad and a phone (#397): one small kpi card per tile ([stripKpi]): its
- * title over its first number with its sparkline or bar (not on a phone), or its dot (a switch On or Off). Those that
- * don't fit scroll sideways. A tap opens the Board; with no tile it says so. Not there before the Board has loaded.
- * A long press chooses its tiles ([onEdit], #447), where the server can.
+ * The Board's numbers over the keys, on the keypad and a phone (#397, #636): each tile's title over its first number
+ * ([stripKpi]) with its sparkline or bar where there is room, or its dot (a switch On or Off), with no box around
+ * them. Two to four a row, as many rows as it takes: none is cut off. A tap opens the Board; with no tile it says
+ * so. Not there before the Board has loaded. A long press chooses its tiles ([onEdit], #447), where the server can.
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -210,54 +211,71 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
         }, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onEdit).padding(horizontal = 20.dp, vertical = 10.dp))
         return
     }
-    val phone = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < Keypad.LIST
-    val shape = RoundedCornerShape(16.dp)
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp).testTag(BOARD_CARDS), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        for (t in tiles) {
-            val c = parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint)
-            Box(Modifier.widthIn(min = 132.dp, max = 220.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape).combinedClickable(onClickLabel = BoardWords.NAME, onClick = onClick, onLongClickLabel = if (onEdit != null) HOME_TILES else null, onLongClick = onEdit).padding(horizontal = 16.dp, vertical = 12.dp)) {
-                val kpi = stripKpi(t)
-                if (kpi != null) KitKpi(if (phone) kpi.copy(points = emptyList(), ratio = null) else kpi, tint(kpi.color, c), compact = true, small = true)
-                else Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(t.title, color = p.muted, fontSize = 12.5.sp, maxLines = 1)
-                    val look = t.look?.dot
-                    val dot = tint(look?.color, c)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).then(if (look != null && look.filled != true) Modifier.border(1.5.dp, dot, CircleShape) else Modifier.background(dot)))
-                        if (look?.big == true) Text(if (look.filled == true) "On" else if (look.filled == false) "Off" else "·", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).testTag(BOARD_CARDS)) {
+        val cols = (maxWidth / 160.dp).toInt().coerceIn(2, 4)
+        val narrow = cols == 2 // a phone: the numbers alone
+        Column {
+            for (row in tiles.chunked(cols)) Row(Modifier.fillMaxWidth()) {
+                for (t in row) {
+                    val c = parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint)
+                    Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).combinedClickable(onClickLabel = BoardWords.NAME, onClick = onClick, onLongClickLabel = if (onEdit != null) HOME_TILES else null, onLongClick = onEdit).padding(horizontal = 8.dp, vertical = 8.dp)) {
+                        val kpi = stripKpi(t)
+                        if (kpi != null) KitKpi(if (narrow) kpi.copy(points = emptyList(), ratio = null) else kpi, tint(kpi.color, c), compact = true, small = true)
+                        else Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(t.title, color = p.muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val look = t.look?.dot
+                            val dot = tint(look?.color, c)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(10.dp).clip(CircleShape).then(if (look != null && look.filled != true) Modifier.border(1.5.dp, dot, CircleShape) else Modifier.background(dot)))
+                                if (look?.big == true) Text(if (look.filled == true) "On" else if (look.filled == false) "Off" else "·", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
                     }
                 }
+                repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
 }
 
-/** The tag of the Board's strip of cards (KeypadUiTest). */
+/** The tag of the Board's numbers over the keys (KeypadUiTest). */
 internal const val BOARD_CARDS = "board-cards"
 /** What a long press on the strip does, for TalkBack, and the sheet's name (#447). */
 internal const val HOME_TILES = "Tiles on home"
 
 /**
- * Needs you over the keys (#397): one warm card, "N need you", what waits in one line, and Review, which opens
- * Needs you.
+ * Needs you over the keys (#636): one warm card, a row per thing that waits, its bot's head and what it wants. A
+ * permission a bot asks for is all its row says, so the row answers it with No and Allow ([onAnswer]: its id and the
+ * answer); a tap on any other row opens Needs you ([onReview]), where its card shows the rest. The first [NEEDS_ROWS]
+ * rows, then how many more.
  */
 @Composable
-internal fun NeedsCard(waiting: List<dev.botdot.app.data.Waiting>, onReview: () -> Unit) {
+internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, onReview: () -> Unit, onAnswer: (String, Boolean) -> Unit) {
     val p = LocalPaper.current
     val shape = RoundedCornerShape(16.dp)
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(shape).background(p.warnSoft).border(1.dp, p.warn.copy(alpha = 0.3f), shape)
-            .clickable(onClickLabel = "Needs you", onClick = onReview).padding(horizontal = 18.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(needsCount(waiting.size), color = p.warnText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            Text(waiting.map { it.text }.distinct().joinToString(" · "), color = p.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val chief = chiefNamed()
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).clip(shape).background(p.warnSoft).border(1.dp, p.warn.copy(alpha = 0.25f), shape)) {
+        for (w in waiting.take(NEEDS_ROWS)) Row(
+            Modifier.fillMaxWidth().then(if (w.permission == null) Modifier.clickable(onClickLabel = "Needs you", onClick = onReview) else Modifier)
+                .heightIn(min = 52.dp).padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (w.color == null) BotFigure(chief.color, "idle", 28, chief.outfit) else BotFigure(w.color, "idle", 28, w.outfit)
+            Spacer(Modifier.size(10.dp))
+            Text(w.text, color = p.text, fontSize = 14.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            w.permission?.let { id ->
+                Spacer(Modifier.size(6.dp))
+                Text("No", color = p.muted, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(11.dp)).clickable { onAnswer(id, false) }.padding(horizontal = 12.dp, vertical = 9.dp))
+                Text("Allow", color = p.inkText, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(11.dp)).background(p.ink).clickable { onAnswer(id, true) }.padding(horizontal = 14.dp, vertical = 9.dp))
+            }
         }
-        Spacer(Modifier.size(12.dp))
-        Text("Review", color = p.text, fontSize = 14.sp, modifier = Modifier.clip(RoundedCornerShape(99.dp)).border(1.dp, p.warn.copy(alpha = 0.4f), RoundedCornerShape(99.dp)).padding(horizontal = 16.dp, vertical = 7.dp))
+        if (waiting.size > NEEDS_ROWS) Text("${waiting.size - NEEDS_ROWS} more", color = p.warnText, fontSize = 13.5.sp,
+            modifier = Modifier.fillMaxWidth().clickable(onClickLabel = "Needs you", onClick = onReview).padding(horizontal = 14.dp, vertical = 10.dp))
     }
 }
+
+/** How many of what waits home's Needs you shows as rows. */
+internal const val NEEDS_ROWS = 3
 
 /** "1 needs you", "3 need you": the Needs you card's first line, the web page's words. */
 internal fun needsCount(n: Int) = if (n == 1) "1 needs you" else "$n need you"

@@ -43,7 +43,7 @@ class GroupWordsTest {
         assertEquals("Done.", groupLine(group(""","last":{"botId":"coder","status":"success","text":""}"""), bots, emptyMap()).text)
         assertEquals("Couldn't finish", groupLine(group(""","last":{"botId":"coder","status":"error","text":null}"""), bots, emptyMap()).text)
         assertEquals("a failed reply says its problem", "Claude is not signed in.", groupLine(group(""","last":{"botId":"coder","status":"error","text":"Claude is not signed in."}"""), bots, emptyMap()).text)
-        assertEquals(GroupLine("", "No messages yet", color = "#3b82f6"), groupLine(group(), bots, emptyMap()))
+        assertEquals(GroupLine("", "", color = "#3b82f6"), groupLine(group(), bots, emptyMap()))
     }
 
     @Test fun whileAMemberWorksTheRowSaysWhoAndItsOpeningLine() {
@@ -227,7 +227,7 @@ class GroupWordsTest {
     @Test fun aFolderOfBotsIsCalledACategoryWhereverTheAppSaidGroup() {
         val home = File(sources(), "ui/HomeScreen.kt").readText()
         assertTrue(home.contains("\"Show this category\"") && home.contains("\"Hide this category\""))
-        assertTrue(File(sources(), "ui/BotSettingsScreen.kt").readText().contains("\"Category (e.g. Home, Work)\""))
+        assertTrue(File(sources(), "ui/BotSettingsScreen.kt").readText().contains("\"Category\""))
         // What the list and a bot's settings print: no text that calls the folder a group. The field of the API
         // keeps its older name (`group` on a bot), and a group's own row has the key "group:<id>".
         val said = Regex("\"((?:[^\"\\\\]|\\\\.)*)\"")

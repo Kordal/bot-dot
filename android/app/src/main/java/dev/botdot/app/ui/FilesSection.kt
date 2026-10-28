@@ -29,10 +29,10 @@ import kotlinx.coroutines.launch
 /**
  * The Files section (#235): what the owner gave a bot, newest first. Tap one to open it; keep one in mind so it comes
  * with every task; delete one. The Chief's settings draw its own with the same section (#383): [ownerId] is then
- * [UploadedFiles.CHIEF]. [hint] is said above the list, [empty] when there is none.
+ * [UploadedFiles.CHIEF]. [empty] is said when there is none; the list has no helper line above it (#636).
  */
 @Composable
-fun FilesSection(api: Api?, ownerId: String, ownerName: String, viewer: Boolean, hint: String, empty: String, tell: (String) -> Unit) {
+fun FilesSection(api: Api?, ownerId: String, ownerName: String, viewer: Boolean, empty: String, tell: (String) -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -41,7 +41,7 @@ fun FilesSection(api: Api?, ownerId: String, ownerName: String, viewer: Boolean,
     LaunchedEffect(api, ownerId) { val a = api ?: return@LaunchedEffect; runCatching { a.botFiles(ownerId) }.onSuccess { files = it.files } }
     val list = files ?: return
     FoldSection("Files", UploadedFiles.summary(list)) {
-        Hint(if (list.isEmpty()) empty else hint)
+        if (list.isEmpty()) Hint(empty)
         list.forEach { f ->
             key(f.file) {
                 Column(Modifier.fillMaxWidth()) {

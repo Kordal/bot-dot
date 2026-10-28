@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,6 +50,10 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,30 +64,47 @@ import dev.botdot.app.data.Run
 import dev.botdot.app.data.RunSteps
 
 /**
- * One run of a bot's chat as one block (#625; `runBlockHTML` in public/bot-chat.js): a frame that holds what started
- * it, what was steered into it, its step line, its reply and its footer, and the runs that reply to it as further
- * rounds (#627). A run at work has a lighter frame. [onReply]: a long press offers "Reply to this task".
+ * One run of a bot's chat as one block (#625; `runBlockHTML` in public/bot-chat.js): what started it, what was steered
+ * into it, its step line, its reply, and the runs that reply to it as further rounds (#627). No frame (#636): the
+ * owner's pill and the plain reply say where it begins and ends. A long press offers what can be done with it:
+ * [onReply] "Reply to this task", [onDetails] its steps, [copy] the reply's text.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RunBlock(running: Boolean, onReply: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+fun RunBlock(onReply: (() -> Unit)? = null, onDetails: (() -> Unit)? = null, copy: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPaper.current
-    val shape = RoundedCornerShape(18.dp)
+    val context = LocalContext.current
     var sheet by remember { mutableStateOf(false) }
+    val offers = onReply != null || onDetails != null || !copy.isNullOrBlank()
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(Color(0xFF050505)).border(1.dp, if (running) p.line2 else p.line, shape)
-            .then(if (onReply != null) Modifier.pointerInput(onReply) { detectTapGestures(onLongPress = { sheet = true }) } else Modifier)
-            .padding(10.dp),
+        Modifier.fillMaxWidth()
+            .then(if (offers) Modifier.pointerInput(onReply, onDetails, copy) { detectTapGestures(onLongPress = { sheet = true }) } else Modifier)
+            .padding(vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp), content = content,
     )
-    if (sheet && onReply != null) ModalBottomSheet(onDismissRequest = { sheet = false }, containerColor = p.panel) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { sheet = false; onReply() }.padding(horizontal = 20.dp).padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
-        ) {
-            Icon(Icons.AutoMirrored.Outlined.Reply, null, tint = p.text, modifier = Modifier.size(24.dp))
-            Text("Reply to this task", color = p.text, fontSize = 16.sp)
+    if (sheet) ModalBottomSheet(onDismissRequest = { sheet = false }, containerColor = p.panel) {
+        Column(Modifier.padding(bottom = 8.dp)) {
+            onReply?.let { SheetRow(Icons.AutoMirrored.Outlined.Reply, REPLY_TO_TASK) { sheet = false; it() } }
+            onDetails?.let { SheetRow(Icons.Outlined.ExpandMore, DETAILS) { sheet = false; it() } }
+            copy?.takeIf { it.isNotBlank() }?.let { text -> SheetRow(Icons.Outlined.ContentCopy, COPY) { sheet = false; copyToClipboard(context, text) } }
         }
+    }
+}
+
+/** What a long press on a run offers (#627, #636), as on the web page. */
+internal const val REPLY_TO_TASK = "Reply to this task"
+internal const val DETAILS = "Details"
+internal const val COPY = "Copy"
+
+@Composable
+private fun SheetRow(icon: ImageVector, text: String, onClick: () -> Unit) {
+    val p = LocalPaper.current
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(horizontal = 20.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Icon(icon, null, tint = p.text, modifier = Modifier.size(24.dp))
+        Text(text, color = p.text, fontSize = 16.sp)
     }
 }
 
@@ -105,44 +127,63 @@ fun ReplyChip(text: String, onClear: () -> Unit) {
 }
 
 /**
- * A run's step line ([RunSteps]): folded, a check and how many steps it took, then a mark for each skill it changed
- * and each bot it messaged (on a phone the marks alone; TalkBack reads their names); a run at work shows a spinner
- * (a still dot while it waits for the owner's OK), what it is doing in the server's words ([line]) and its [count] so
- * far. A tap opens the timeline: a row per step with its time.
+ * A run's step line ([RunSteps]), one line with no box (#636): folded, a check, how many steps it took, each skill it
+ * changed by name, each bot it messaged, and how long it took; a run at work shows a spinner (a still dot while it
+ * waits for the owner's OK), what it is doing in the server's words ([line]), its [count] so far and Stop ([onStop]).
+ * A tap, or Details on the run's long press, opens the timeline: a row per step with its time. [open]: the timeline
+ * shows; [onOpen]: it is opened or closed.
  */
 @Composable
-fun StepLine(r: Run, line: String?, count: Int, held: Boolean, color: String?) {
+fun StepLine(r: Run, line: String?, count: Int, held: Boolean, color: String?, open: Boolean, onOpen: (Boolean) -> Unit, onStop: (() -> Unit)? = null) {
     val p = LocalPaper.current
-    var open by rememberSaveable(r.id) { mutableStateOf(false) }
     val skills = remember(r) { RunSteps.skills(r) }
     val bots = remember(r) { RunSteps.messaged(r) }
+    val took = if (r.isRunning) "" else RunSteps.took(r.startedAt, r.endedAt)
     val now = when { held -> OpeningLine.WAITING_FOR_OK; !line.isNullOrBlank() -> line; else -> "Working" }
     val label = if (r.isRunning) listOf(now, RunSteps.countWords(count)).filter { it.isNotEmpty() }.joinToString(", ")
-    else (listOf(RunSteps.countWords(count)) + skills.map { "the skill $it" } + bots.map { it.name }).filter { it.isNotEmpty() }.joinToString(", ")
-    val shape = RoundedCornerShape(12.dp)
+    else (listOf(RunSteps.countWords(count)) + skills.map { "the skill $it" } + bots.map { it.name } + took).filter { it.isNotEmpty() }.joinToString(", ")
     Column {
         Row(
-            Modifier.clip(shape).background(p.panel).border(1.dp, p.sunk, shape).clickable(onClickLabel = if (open) "Hide the steps" else "Show the steps") { open = !open }
-                .heightIn(min = 40.dp).padding(horizontal = 10.dp)
-                .semantics(mergeDescendants = true) { contentDescription = label; if (r.isRunning) liveRegion = LiveRegionMode.Polite },
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.fillMaxWidth().heightIn(min = 32.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(if (open) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, null, tint = p.muted, modifier = Modifier.size(16.dp))
-            if (r.isRunning) {
-                val accent = parseColor(color, p.ok)
-                if (held) Canvas(Modifier.size(8.dp)) { drawCircle(accent.copy(alpha = .5f)) }
-                else CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = accent)
-                Text(now, color = p.text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (count > 0) { Dot(); Text(RunSteps.countWords(count), color = p.faint, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1) }
-            } else {
-                Icon(Icons.Outlined.Check, null, tint = p.ok, modifier = Modifier.size(16.dp))
-                if (count > 0) Text(RunSteps.countWords(count), color = p.muted, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
-                skills.forEach { _ -> Dot(); Icon(Icons.Outlined.AutoAwesome, null, tint = p.dot, modifier = Modifier.size(16.dp)) }
-                bots.forEach { _ -> Dot(); Icon(Icons.AutoMirrored.Outlined.Chat, null, tint = p.muted, modifier = Modifier.size(16.dp)) }
+            Row(
+                Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (open) "Hide the steps" else "Show the steps") { onOpen(!open) }
+                    .heightIn(min = 32.dp).padding(end = 6.dp)
+                    .semantics(mergeDescendants = true) { contentDescription = label; if (r.isRunning) liveRegion = LiveRegionMode.Polite },
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                if (r.isRunning) {
+                    val accent = parseColor(color, p.ok)
+                    if (held) Canvas(Modifier.size(8.dp)) { drawCircle(accent.copy(alpha = .5f)) }
+                    else CircularProgressIndicator(Modifier.size(13.dp), strokeWidth = 2.dp, color = p.muted)
+                    Text(now, color = p.text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (count > 0) { Dot(); Text(RunSteps.countWords(count), color = p.muted, fontSize = 12.5.sp, fontFamily = FontFamily.Monospace, maxLines = 1) }
+                } else {
+                    Icon(if (open) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, null, tint = p.muted, modifier = Modifier.size(15.dp))
+                    Icon(Icons.Outlined.Check, null, tint = p.ok, modifier = Modifier.size(15.dp))
+                    Text(stepWords(count, skills, bots.map { it.name }, took, p.muted, p.dot, p.faint), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
             }
+            if (r.isRunning && onStop != null) WordButton("Stop", p.err, onStop)
         }
         Unfold(open) { Timeline(r) }
     }
+}
+
+/** A finished run's step line in words: "23 steps · backup-check · Infra Admin · 7 min", the count in mono and each skill in the dot's colour. */
+private fun stepWords(count: Int, skills: List<String>, bots: List<String>, took: String, muted: Color, skill: Color, faint: Color) = buildAnnotatedString {
+    var first = true
+    fun part(text: String, style: SpanStyle) {
+        if (text.isEmpty()) return
+        if (!first) withStyle(SpanStyle(color = faint)) { append(" · ") }
+        first = false
+        withStyle(style) { append(text) }
+    }
+    part(RunSteps.countWords(count), SpanStyle(color = muted, fontFamily = FontFamily.Monospace))
+    skills.forEach { part(it, SpanStyle(color = skill)) }
+    bots.forEach { part(it, SpanStyle(color = muted)) }
+    part(took, SpanStyle(color = faint))
 }
 
 @Composable
@@ -175,7 +216,10 @@ private fun Timeline(r: Run) {
     }
 }
 
-/** The footer of a run at work: when it started, and Stop for that run. A finished run's time is under its reply. */
+/**
+ * The footer of a run at work whose step line does not show ([RunSteps.shows]): when it started, and Stop for that
+ * run. A step line has Stop on it (#636), and a finished run's time is in its step line or under its reply.
+ */
 @Composable
 fun BlockFoot(r: Run, onStop: () -> Unit) {
     if (!r.isRunning) return

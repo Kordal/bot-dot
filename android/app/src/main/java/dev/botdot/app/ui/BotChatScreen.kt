@@ -90,6 +90,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     val files = vm.files
     val listState = rememberLazyListState()
     var opened by remember { mutableStateOf(setOf<String>()) } // runs a search match opened (folded ones between bots)
+    val stepsOpen = remember(botId) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() } // the runs whose steps are open (#636)
 
     LaunchedEffect(vm) { vm.notes.collect { scope.launch { snack.showSnackbar(it) } } }
     // From a search match: go to that run (older pages until it's there), and open it if it's folded.
@@ -188,7 +189,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
                 vm.replying?.let { ReplyChip(it.text) { vm.replying = null } }
                 Composer(
-                    placeholder = "Give ${bot?.name ?: "it"} a task…",
+                    placeholder = "Message",
                     files = files,
                     busy = boxStops(running != null, features),
                     outbox = vm.outbox,
@@ -231,10 +232,9 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                 }
                 if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, "Notes waiting:", foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }
                 if (loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null) item {
-                    // An empty chat: the bot's large head, with its hat and the face of its state, as on the web page and the Mac.
-                    Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // An empty chat: the bot's large head, with its hat and the face of its state, as on the web page (#636: no words).
+                    Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         BotFigure(bot?.color, bot?.state ?: "idle", size = 56, outfit = bot?.outfit)
-                        Text("No messages yet. Give ${bot?.name ?: "it"} a task, or attach a file.", color = p.muted, textAlign = TextAlign.Center)
                     }
                 }
                 // Each run is one block (#625), where its reply ended: below what came while its run worked (a "/btw",
@@ -244,9 +244,11 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                 val lastReply = blocks.lastOrNull()?.lastOrNull()?.id
                 items(blocks.asReversed(), key = { it.first().id }) { rounds ->
                     val last = rounds.last()
-                    RunBlock(rounds.any { it.isRunning }, onReply = if (replies && last.kind != "script" && !last.btw && !last.isQueued) ({
+                    // Details on the long press opens the newest round's steps; Copy takes its reply.
+                    val detailed = rounds.lastOrNull { RunSteps.shows(it) }
+                    RunBlock(onReply = if (replies && last.kind != "script" && !last.btw && !last.isQueued) ({
                         vm.replying = BotChatModel.Replying(last.id, RunSteps.firstLine(rounds.first().prompt).ifEmpty { "this task" })
-                    }) else null) {
+                    }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = true } }, copy = rounds.lastOrNull { it.status == "success" }?.result) {
                         rounds.forEachIndexed { n, r ->
                             if (n > 0) RoundRule()
                             // The "New" line: above what started the run, or, below your own message, above the rest of the block.
@@ -257,9 +259,11 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                             if (asked) YourSide(r, open = r.id in opened)
                             r.steered.forEach { SteeredMessage(it) }
                             if (new && (mine || !asked)) NewLine(bot?.color)
-                            if (RunSteps.shows(r)) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color)
+                            val steps = RunSteps.shows(r)
+                            if (steps) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color,
+                                open = stepsOpen[r.id] == true, onOpen = { stepsOpen[r.id] = it }, onStop = { vm.stop(r.id) })
                             val theirs = @Composable {
-                                TheirSide(r, open = r.id in opened, features = features, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
+                                TheirSide(r, open = r.id in opened, features = features, timed = steps, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
                                     learned = r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
                                 // Under the reply that is last in the chat, and under the run its open question is from when newer
                                 // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
@@ -271,7 +275,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                             // Its reply, once the run ended: it arrives when it is new in this open chat, and what
                             // started the run stands still above it. A run at work has no reply to arrive.
                             if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(8.dp)) { theirs() }
-                            BlockFoot(r) { vm.stop(r.id) }
+                            if (!steps) BlockFoot(r) { vm.stop(r.id) }
                         }
                     }
                 }
@@ -316,9 +320,10 @@ private fun drawsAsked(r: Run): Boolean = !r.inbox.isNullOrEmpty() || when (Unre
 }
 
 @Composable
-private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String>? = null, draft: String? = null, plan: Plan? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList()) {
+private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String>? = null, draft: String? = null, plan: Plan? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList(), timed: Boolean = false) {
     val p = LocalPaper.current
-    val footer = listOf(shortTime(r.endedAt ?: r.startedAt), RunSteps.took(r.startedAt, r.endedAt)).filter { it.isNotEmpty() }.joinToString(" · ")
+    // [timed]: its step line says how long it took (#636), and its reply has no footer.
+    val footer = if (timed) "" else listOf(shortTime(r.endedAt ?: r.startedAt), RunSteps.took(r.startedAt, r.endedAt)).filter { it.isNotEmpty() }.joinToString(" · ")
     // What it learned is the server's line where the server writes it (`memory-chips`): printed whole. Before, cut as it was.
     val whole = announces(features, MEMORY_CHIPS)
     val to = r.sentToAll?.takeIf { it.isNotEmpty() } ?: listOfNotNull(r.sentTo)
@@ -326,7 +331,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
     val folded = remember(r.result) { RunSteps.folded(r.result) }
     var more by remember(r.id) { mutableStateOf(false) }
     val reply: @Composable () -> Unit = {
-        TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
+        TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole, plain = true) {
             Column {
                 MarkdownText((if (folded != null && !more) folded else r.result.orEmpty()).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) "Done." else "" })
                 if (folded != null && !more) Text("More", color = p.muted, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { more = true }.padding(top = 8.dp, bottom = 4.dp))
@@ -345,11 +350,11 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
     when (r.status) {
         // No bubble while it works: the status line says it; only what it attached so far. From a server with drafts,
         // the reply as it is written so far stands in the reply's place and grows there (ReplyDraft).
-        "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble { Column { MarkdownText(draftSource(draft), copy = false); BotFilesRow(r.files) } }
+        "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble(plain = true) { Column { MarkdownText(draftSource(draft), copy = false); BotFilesRow(r.files) } }
         "success" -> reply()
         else -> when (val ended = endedWords(r, features)) {
             // A stopped run the server says nothing of, and every stopped run of a botdot from before `ended-by`.
-            is Ended.Stopped -> TheirBubble(footer, chips = learned, wholeChips = whole) { Column { Text(ended.text, color = p.muted); PlanFold(plan) } }
+            is Ended.Stopped -> TheirBubble(footer, chips = learned, wholeChips = whole, plain = true) { Column { Text(ended.text, color = p.muted); PlanFold(plan) } }
             is Ended.Problem -> TheirBubble(footer, error = true, copyText = r.error?.ifBlank { null } ?: ended.text, chips = learned, wholeChips = whole) {
                 Column { Text(ended.text, color = p.text, style = MaterialTheme.typography.bodyLarge); ReconnectCards(r.reconnect); PlanFold(plan) }
             }

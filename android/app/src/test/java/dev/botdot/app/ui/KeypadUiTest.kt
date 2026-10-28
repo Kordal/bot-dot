@@ -19,7 +19,9 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -42,7 +44,7 @@ import org.robolectric.annotation.Config
  * The keypad on screen (#496): from 840 dp it stands left of the Chief's chat in place of the list, a key opens its
  * chat in that column and stays lit, Esc and Back bring the Chief back, every page shows at once (#516), and a key
  * pressed, held and dragged moves to another place or page with the list's update (#499). On a phone (#498) the
- * pages are sections of keys, and a key's chat is full screen. The keypad, its keys and the panes are the app's own;
+ * pages are sections of keys, and a key's chat is full screen. A key is quiet (#636): its head, its name and one dot. The keypad, its keys and the panes are the app's own;
  * the chats, the list and the Board are stand-ins, as no botdot server runs here.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -64,7 +66,7 @@ class KeypadUiTest {
     private fun Window(width: Int) {
         Row(Modifier.fillMaxSize()) {
             HomePanes(Keypad.home(width), width, listShown = true,
-                keypad = { m -> KeypadView(pages, active = null, look = ::look, onKey = {}, onAsk = {}, modifier = m) },
+                keypad = { m -> KeypadView(pages, active = null, look = ::look, onKey = {}, onAsk = {}, modifier = m, digitsShown = true) },
                 list = { Text("The list", Modifier.width(300.dp)) },
             ) { m -> Box(m) { Text("The Chief's chat") } }
         }
@@ -73,13 +75,16 @@ class KeypadUiTest {
     @Test @Config(qualifiers = "w840dp-h600dp")
     fun at840TheKeypadAndTheChiefsChatShow() {
         rule.setContent { Window(840) }
-        // Every page at once (#516): Home over Work, each its heading over its keys, numbered across the pages.
-        val home = rule.onNodeWithText("HOME").assertIsDisplayed().getUnclippedBoundsInRoot()
+        // Every page at once (#516), side by side as they fit (#636): Home beside Work, each its heading over its
+        // keys, numbered across the pages while a keyboard is attached.
+        val home = rule.onNodeWithText("Home").assertIsDisplayed().getUnclippedBoundsInRoot()
         val cook = rule.onNodeWithText("Cook").assertIsDisplayed().getUnclippedBoundsInRoot()
-        val work = rule.onNodeWithText("WORK").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val work = rule.onNodeWithText("Work").assertIsDisplayed().getUnclippedBoundsInRoot()
         val coder = rule.onNodeWithText("Coder").assertIsDisplayed().getUnclippedBoundsInRoot()
         val ask = rule.onNodeWithText(ASK_FOR_A_BOT).assertIsDisplayed().getUnclippedBoundsInRoot()
-        assertTrue("Home's heading, its key, Work's heading, its keys, then the last place", home.bottom <= cook.top && cook.bottom <= work.top && work.bottom <= coder.top && coder.bottom <= ask.bottom)
+        assertTrue("Home's heading over its key, Work's over its keys", home.bottom <= cook.top && work.bottom <= coder.top)
+        assertTrue("Home beside Work", home.right <= work.left && home.top == work.top)
+        assertTrue("then the last place", maxOf(cook.bottom, coder.bottom) <= ask.top)
         rule.onNodeWithText("3").assertIsDisplayed() // Reviewer, the third key
         rule.onNodeWithText("The Chief's chat").assertIsDisplayed()
         rule.onNodeWithText("The list").assertDoesNotExist()
@@ -180,11 +185,11 @@ class KeypadUiTest {
         }
         drag("Reviewer", onto = "Coder")
         assertEquals(listOf("""reviewer {"group":"Work","order":1}"""), sent)
-        drag("Coder", onto = "HOME")
+        drag("Coder", onto = "Home")
         assertEquals("""coder {"group":"Home","order":2}""", sent.last())
         drag("Cook", onto = "Reviewer")
         assertEquals("onto a key of another page: its place there", """cook {"group":"Work","order":2}""", sent.last())
-        drag("Coder", onto = "WORK")
+        drag("Coder", onto = "Work")
         assertEquals("onto its own page's heading: last there", """coder {"group":"Work","order":2}""", sent.last())
         // Where it is already, and onto the last place when it is last on the last page: nothing is sent.
         drag("Reviewer", onto = "Reviewer")
@@ -211,17 +216,17 @@ class KeypadUiTest {
             }
         }
         rule.onNodeWithTag(FOLDED_BUSY, useUnmergedTree = true).assertDoesNotExist()
-        rule.onNodeWithText("HOME").performClick()
+        rule.onNodeWithText("Home").performClick()
         rule.onNodeWithText("Cook").assertDoesNotExist()
-        rule.onNodeWithText("HOME").assertIsDisplayed() // its heading and its count stay
+        rule.onNodeWithText("Home").assertIsDisplayed() // its heading stays
         rule.onNodeWithText(ASK_FOR_A_BOT).assertIsDisplayed()
         rule.runOnUiThread { relay.handler!!(Keypad.Press("1"), false) }
         assertEquals("1 is the first key shown: Coder on Work", listOf("coder"), opened)
-        rule.onNodeWithText("WORK").performClick()
+        rule.onNodeWithText("Work").performClick()
         rule.onNodeWithText("Coder").assertDoesNotExist()
         rule.onNodeWithTag(FOLDED_BUSY, useUnmergedTree = true).assertIsDisplayed() // folded, Work says Coder is working
         assertEquals(false, relay.handler!!(Keypad.Press("1"), false)) // no key is shown
-        rule.onNodeWithText("HOME").performClick()
+        rule.onNodeWithText("Home").performClick()
         rule.onNodeWithText("Cook").assertIsDisplayed()
     }
 
@@ -232,15 +237,15 @@ class KeypadUiTest {
             KeypadSections(pages, ::look, onKey = {}, onChief = {}, modifier = Modifier.fillMaxSize(), folded = folded,
                 onFold = { page -> Keypad.foldName(page)?.let { folded = if (it in folded) folded - it else folded + it } })
         }
-        rule.onNodeWithText("WORK").assertIsDisplayed()
+        rule.onNodeWithText("Work").assertIsDisplayed()
         rule.onNodeWithText("Coder").assertDoesNotExist()
         rule.onNodeWithText("Cook").assertIsDisplayed()
-        rule.onNodeWithText("WORK").performClick()
+        rule.onNodeWithText("Work").performClick()
         rule.onNodeWithText("Coder").assertIsDisplayed()
     }
 
     @Test @Config(qualifiers = "w840dp-h600dp")
-    fun eachKeySaysItsStatusAndTime() {
+    fun eachKeySaysItsStateByOneDotAndItsLineOnlyWhileItWorks() {
         fun status(k: Keypad.Key) = (k as Keypad.Key.OfBot).bot.let {
             when (it.id) {
                 "cook" -> KeyLook(it.name, "Dinner at 7", it.color, status = Keypad.status(last = "success"), time = "18:02")
@@ -249,11 +254,17 @@ class KeypadUiTest {
             }
         }
         rule.setContent { KeypadView(pages, active = null, look = ::status, onKey = {}, onAsk = {}, modifier = Modifier.fillMaxSize()) }
-        rule.onNodeWithText("Done").assertIsDisplayed()
-        rule.onNodeWithText("18:02").assertIsDisplayed()
-        rule.onNodeWithText("Working").assertIsDisplayed()
-        rule.onNodeWithText("2 min").assertIsDisplayed()
-        rule.onNodeWithText("Needs you").assertIsDisplayed()
+        // No pill and no time on a key (#636): one dot on the head, which TalkBack reads with its time.
+        rule.onNodeWithText("Done").assertDoesNotExist()
+        rule.onNodeWithText("18:02").assertDoesNotExist()
+        rule.onNodeWithText("Working").assertDoesNotExist()
+        rule.onNodeWithContentDescription("Working, 2 min", useUnmergedTree = true).assertExists()
+        rule.onNodeWithContentDescription("Needs you", useUnmergedTree = true).assertExists()
+        rule.onAllNodesWithTag(KEY_DOT, useUnmergedTree = true).assertCountEquals(2) // Cook is done: its face says it
+        // The line only while it works: what Coder does now; not what Cook last said, nor what Reviewer asks.
+        rule.onNodeWithText("Fixing the build").assertIsDisplayed()
+        rule.onNodeWithText("Dinner at 7").assertDoesNotExist()
+        rule.onNodeWithText("Which branch?").assertDoesNotExist()
     }
 
     /** A phone's home, as MainActivity lays it out below 600 dp: the sections are the NavHost's home, and a chat takes the whole screen. */
@@ -273,18 +284,19 @@ class KeypadUiTest {
     fun onAPhoneThePagesAreSectionsOfKeysUnderTheBoardAndOverTheChiefsMessageBox() {
         rule.setContent { Phone() }
         val board = rule.onNodeWithText("The Board").assertIsDisplayed().getUnclippedBoundsInRoot()
-        val home = rule.onNodeWithText("HOME").assertIsDisplayed().getUnclippedBoundsInRoot()
-        val work = rule.onNodeWithText("WORK").assertIsDisplayed().getUnclippedBoundsInRoot()
-        val chief = rule.onNodeWithText(ASK_THE_CHIEF).assertIsDisplayed().getUnclippedBoundsInRoot()
-        assertTrue("the Board, then the pages in order, then the Chief's box", board.bottom <= home.top && home.bottom <= work.top && work.bottom <= chief.top)
+        val home = rule.onNodeWithText("Home").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val work = rule.onNodeWithText("Work").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val chief = rule.onNodeWithTag(CHIEF_FIELD).assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertTrue("the Board, then the pages side by side in order", board.bottom <= home.top && home.right <= work.left && home.top == work.top)
         // A section's keys stand in a row: Coder and Reviewer side by side.
         val coder = rule.onNodeWithText("Coder").assertIsDisplayed().getUnclippedBoundsInRoot()
         val reviewer = rule.onNodeWithText("Reviewer").assertIsDisplayed().getUnclippedBoundsInRoot()
         assertEquals(coder.top, reviewer.top)
         assertTrue(coder.right <= reviewer.left)
         assertTrue("Work's keys under its name", work.bottom <= coder.top)
-        // No digits on a phone: the only "1" is Home's count; no tabs, and no last place.
-        rule.onAllNodesWithText("1").assertCountEquals(1)
+        assertTrue("then the Chief's field", coder.bottom <= chief.top)
+        // No digits and no counts on a phone, and no last place.
+        rule.onAllNodesWithText("1").assertCountEquals(0)
         rule.onNodeWithText(ASK_FOR_A_BOT).assertDoesNotExist()
     }
 
@@ -293,11 +305,11 @@ class KeypadUiTest {
         rule.setContent { Phone() }
         rule.onNodeWithText("Coder").performClick()
         rule.onNodeWithText("The chat of coder").assertIsDisplayed()
-        rule.onNodeWithText("WORK").assertDoesNotExist()
+        rule.onNodeWithText("Work").assertDoesNotExist()
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
-        rule.onNodeWithText("WORK").assertIsDisplayed()
+        rule.onNodeWithText("Work").assertIsDisplayed()
         rule.onNodeWithText("The chat of coder").assertDoesNotExist()
-        rule.onNodeWithText(ASK_THE_CHIEF).performClick()
+        rule.onNodeWithTag(CHIEF_FIELD).performClick()
         rule.onNodeWithText("The Chief's chat").assertIsDisplayed()
     }
 }

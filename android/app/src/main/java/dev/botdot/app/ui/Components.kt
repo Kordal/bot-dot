@@ -618,11 +618,16 @@ fun Chip(text: String) {
     }
 }
 
+/**
+ * A reply: in a bubble, or [plain] as text on the page with no bubble (a bot's run, #636: its block's long press copies
+ * it). A problem is always in its red bubble, so a failed reply looks failed.
+ */
 @Composable
-fun TheirBubble(footer: String? = null, error: Boolean = false, copyText: String? = null, chips: List<Pair<CharSequence, (() -> Unit)?>> = emptyList(), footerEnd: (@Composable () -> Unit)? = null, wholeChips: Boolean = false, content: @Composable () -> Unit) {
+fun TheirBubble(footer: String? = null, error: Boolean = false, copyText: String? = null, chips: List<Pair<CharSequence, (() -> Unit)?>> = emptyList(), footerEnd: (@Composable () -> Unit)? = null, wholeChips: Boolean = false, plain: Boolean = false, content: @Composable () -> Unit) {
     val p = LocalPaper.current
-    Column(Modifier.fillMaxWidth().padding(end = 32.dp)) {
-        Box(
+    Column(Modifier.fillMaxWidth().padding(end = if (plain && !error) 0.dp else 32.dp)) {
+        if (plain && !error) Box(Modifier.padding(horizontal = 4.dp)) { content() }
+        else Box(
             Modifier.clip(RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp))
                 .holdToCopy(copyText)
                 .background(if (error) p.errSoft else p.panel)
