@@ -72,6 +72,9 @@ const jobNotifyLine = (j) => (typeof j.notifyUrl === 'string' && j.notifyUrl ? `
 // notify line. '' for any other job.
 const jobCallModeLine = (j) => (j.call === true && j.callMode === 'signed' ? '<div class="faint job-call-mode">Takes signed calls: each one is signed with the secret in the Vault, and runs once.</div>' : '');
 
+// What an empty task means, as its placeholder rather than a line beside its label (#635).
+const jobPromptEmpty = (script) => (script ? 'When it is asked' : "Empty: the bot's main assignment");
+
 function jobCardHTML(j, open = false) {
   const script = j.kind === 'script';
   const preset = CRON_PRESETS.some((p) => p.cron === j.cron);
@@ -95,16 +98,16 @@ function jobCardHTML(j, open = false) {
           </select></label>
         </div>
         <div class="job-cron ${preset ? 'hidden' : ''}">
-          <label class="field">Schedule <span class="hint">cron: min hour day month weekday, e.g. 30 7 * * 1-5</span><input type="text" class="mono" name="jobCron" value="${esc(j.cron)}"></label>
+          <label class="field" title="cron: min hour day month weekday">Schedule<input type="text" class="mono" name="jobCron" value="${esc(j.cron)}" placeholder="30 7 * * 1-5"></label>
           <div class="cron-preview"></div>
         </div>
         <div class="job-script ${script ? '' : 'hidden'}">
-          <label class="field">Script <span class="hint">bash, runs in the bot's folder on this computer. Print nothing when there's nothing to report. $JOB_STATE_DIR keeps files between runs.</span>
+          <label class="field" title="bash, runs in the bot's folder on this computer. Print nothing when there's nothing to report. $JOB_STATE_DIR keeps files between runs.">Script
             <textarea class="mono" name="jobScript" rows="6" placeholder="curl -fsS https://example.com > /dev/null || echo &quot;example.com is down&quot;">${esc(j.script || '')}</textarea></label>
           <label class="field">Then ask the AI<select name="jobAiWhen">${Object.entries(AI_WHEN_TEXT).map(([k, v]) => `<option value="${k}" ${(j.aiWhen || 'output') === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
         </div>
-        <label class="field"><span class="job-prompt-label">${script ? 'What the AI should do with the output' : 'Task'}</span> <span class="hint job-prompt-hint">${script ? 'when it is asked' : "leave empty for the bot's main assignment"}</span>
-          <textarea name="jobPrompt" rows="3">${esc(j.prompt || '')}</textarea></label>
+        <label class="field"><span class="job-prompt-label">${script ? 'What the AI should do with the output' : 'Task'}</span>
+          <textarea name="jobPrompt" rows="3" placeholder="${jobPromptEmpty(script)}">${esc(j.prompt || '')}</textarea></label>
         <details class="job-more"><summary class="faint">More options</summary>
           <div class="row">
             <label class="field">Kind<select name="jobKind">
@@ -175,7 +178,7 @@ function wireJobCard(card, bot) {
     $('.job-timeout', card).classList.toggle('hidden', !script);
     $('.job-icon', card).textContent = script ? '⚙️' : '🧠';
     $('.job-prompt-label', card).textContent = script ? 'What the AI should do with the output' : 'Task';
-    $('.job-prompt-hint', card).textContent = script ? 'when it is asked' : "leave empty for the bot's main assignment";
+    card.querySelector('[name=jobPrompt]').placeholder = jobPromptEmpty(script);
     if (script) $in('jobScript').focus();
   };
   // Save what changed, a moment after the last change (a script job without its script waits until it has one).

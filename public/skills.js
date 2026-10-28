@@ -80,10 +80,10 @@ function openSkillEditor(skill, opts = {}) {
       <div class="modal-head"><h2>${isNew ? 'New skill' : esc(k.name)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         <div class="row">
-          <label class="field">Name <span class="hint">lowercase-with-dashes</span><input type="text" name="name" value="${esc(k.name)}" placeholder="weekly-report" required pattern="[a-z0-9][a-z0-9-]*"></label>
-          <label class="field">When to use it <span class="hint">bots decide from this</span><input type="text" name="description" value="${esc(k.description)}" placeholder="Use when writing the weekly status report" required></label>
+          <label class="field" title="lowercase-with-dashes">Name<input type="text" name="name" value="${esc(k.name)}" placeholder="weekly-report" required pattern="[a-z0-9][a-z0-9-]*"></label>
+          <label class="field" title="Bots decide from this">When to use it<input type="text" name="description" value="${esc(k.description)}" placeholder="Use when writing the weekly status report" required></label>
         </div>
-        <label class="field">Instructions <span class="hint">markdown: steps, rules, templates, examples</span>
+        <label class="field" title="Markdown: steps, rules, templates, examples">Instructions
           <textarea name="instructions" rows="12" class="mono" placeholder="# Weekly report&#10;1. Start with the three biggest wins…" required>${esc(k.instructions)}</textarea></label>
         ${String(k.createdBy).startsWith('bot:') ? `<div class="req-note">${esc(skillOrigin(k))} while learning. It may keep improving it, and its changes reach every bot that has this skill.</div>` : ''}
         ${k.source === 'github' ? `<div class="req-note">Imported from <a href="${esc(k.sourceUrl)}" target="_blank" rel="noopener">${esc(k.sourceUrl)}</a> · ${k.fileCount + 1} files${k.scripts.length ? ` · scripts: ${esc(k.scripts.join(', '))}` : ''}${k.allowedTools.length ? ` · can use without asking: ${esc(k.allowedTools.join(', '))}` : ''}</div>` : ''}
@@ -154,7 +154,7 @@ function openSkillImport(opts = {}) {
     <form id="import-form" autocomplete="off">
       <div class="modal-head"><h2>Import a skill</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <label class="field">Link to the skill <span class="hint">on skills.sh, or its folder on GitHub; a repository of several lists them all</span>
+        <label class="field" title="On skills.sh, or its folder on GitHub; a repository of several lists them all">Link to the skill
           <input type="text" name="url" placeholder="https://skills.sh/vercel-labs/skills/find-skills" required></label>
         <div id="import-preview"></div>
       </div>

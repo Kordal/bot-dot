@@ -173,11 +173,11 @@ a.more-btn { text-decoration: none; }
 }
 #bot-avatar, #chief-avatar { flex: none; }
 /* The colour picker in a bot's settings. */
-.swatches { display: flex; flex-wrap: wrap; gap: 10px; margin: 6px 0 4px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 12px; padding-left: 2px; }
 .swatch { position: relative; cursor: pointer; }
 .swatch input { position: absolute; opacity: 0; }
-.swatch i { display: block; width: 26px; height: 26px; border-radius: 50%; background: var(--c); }
-.swatch input:checked + i { outline: 2px solid var(--text); outline-offset: 2px; }
+.swatch i { display: block; width: 30px; height: 30px; border-radius: 50%; background: var(--c); }
+.swatch input:checked + i { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
 .swatch input:focus-visible + i { outline: 2px solid var(--muted); outline-offset: 2px; }
 /* A bot's small head with its hat next to its name in text (Figure.small): still, without eyes, a little taller than the line. */
 .fig.fig-small { display: inline-block; width: auto; height: 1.5em; margin-right: .25em; vertical-align: -.3em; }
@@ -1389,38 +1389,51 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .notes-fold[open] > summary .fold-peek { display: none; }
 .bubble.from-other-bot { background: var(--sunk); color: var(--text); border: 1px dashed var(--line-2); border-radius: 22px 22px 6px 22px; white-space: pre-wrap; }
 
-/* a bot's settings and jobs, in the panel beside its chat */
-.bs-rows { gap: 0; padding-top: 6px; padding-bottom: 6px; }
-.bs-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; font-size: 13.5px; }
-.bs-row + .bs-row { border-top: 1px solid var(--line); }
-.bs-row .grow { display: grid; gap: 6px; min-width: 0; }
+/* Every settings screen (#635): one flat list of rows, its label left and its value right, muted, a › where the row
+   opens something, a switch where it is on or off; thin lines between them, a blank gap between two lists. */
+.set-list { display: flex; flex-direction: column; }
+.set-list + .set-list, * + .set-list { margin-top: 26px; }
+.set-list [hidden] { display: none !important; }
+.bs-group { display: contents; } /* rows drawn as one piece (the checkup, the members) stand in the list as its own */
+.bs-row { display: flex; align-items: flex-start; gap: 10px; min-height: 48px; padding: 8px 0; font-size: 14.5px; line-height: 32px; border-top: 1px solid var(--line); }
+.set-list > .bs-row:first-child, .set-list > .bs-group:first-child > .bs-row:first-child { border-top: 0; }
+.bs-row b { font-weight: 400; }
+.bs-row > b, .bs-more > summary > b { flex: 1; min-width: 0; }
+/* A row whose value is a fold of picks (foldPicker): the summary right of the label, the list under both. */
+.bs-row .grow { flex: 1; min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; }
+.bs-row .grow > * { grid-column: 1 / -1; }
+.bs-row .grow > b { grid-column: 1; }
+.bs-row .grow > .bs-val, .bs-picks > .bs-sum { grid-column: 2; }
+.bs-picks { display: contents; }
+.bs-val, .bs-sum { min-width: 0; color: var(--muted); font-size: 13.5px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bs-row > .bs-val, .bs-more > summary > .bs-val { max-width: 62%; }
+.bs-chev { flex: none; color: var(--faint); transition: transform .15s; }
+.bs-fold.open .bs-chev, .bs-more[open] > summary > .bs-chev { transform: rotate(90deg); }
 .bs-row .faint { font-size: 12.5px; line-height: 1.45; }
-.bs-row .switch { margin-top: 2px; }
-.bs-row > select { flex: none; width: auto; max-width: min(45%, 220px); } /* beside the text, as wide as its choice (#366's key) */
-.bs-icon { width: 22px; flex: none; text-align: center; }
-.bs-link { width: 100%; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
-.bs-link:hover b { text-decoration: underline; text-underline-offset: 2px; }
-.bs-advanced > summary, .settings-fold > summary { display: flex; align-items: baseline; gap: 10px; cursor: pointer; list-style: none; }
-.bs-advanced > summary::-webkit-details-marker, .settings-fold > summary::-webkit-details-marker { display: none; }
-.bs-advanced > summary::before, .settings-fold > summary::before { content: "▸"; color: var(--faint); transition: transform .15s; }
-.bs-advanced[open] > summary::before, .settings-fold[open] > summary::before { transform: rotate(90deg); }
-.bs-advanced > summary .faint { font-size: 12.5px; }
-.bs-advanced:not([open]), .settings-fold:not([open]) { gap: 0; }
-.settings-fold > summary .page-sub { margin: 0; } /* every card of Settings, closed whenever Settings opens */
-.bs-advanced div.field .toggle { font-size: 13.5px; color: var(--text); }
+.bs-row .switch { margin-top: 6px; }
+label.bs-row { cursor: pointer; }
+/* A choice right of its label, as its value: the select shows only what is chosen (#366's key). */
+.bs-row > select { flex: none; width: auto; max-width: 55%; height: 32px; margin: 0; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 13.5px; text-align: right; text-align-last: right; appearance: none; cursor: pointer; }
+.bs-link { width: 100%; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; font-size: 14.5px; line-height: 32px; text-align: left; cursor: pointer; }
+#bs-undo:empty { display: none; }
+.bs-danger b { color: var(--err); }
+.bs-note:empty { display: none; }
+.bs-note { min-height: 0; font-size: 12.5px; line-height: 1.45; border-top: 0; padding-top: 0; color: var(--muted); }
+/* A row that opens what it holds under it: a <details> whose summary is the row. */
+details.bs-row { display: block; }
+.bs-more > summary { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; list-style: none; }
+.bs-more > summary::-webkit-details-marker { display: none; }
+.bs-body { display: grid; gap: 12px; padding: 6px 0 12px; font-size: 13.5px; line-height: 1.5; }
+.bs-body p { margin: 0; }
+.bs-body .bs-row:first-child { border-top: 0; }
+.bs-body .toggle { font-size: 13.5px; color: var(--text); }
 .bs-exact { display: grid; gap: 10px; }
 .bs-exact > summary, .job-more > summary, .bs-history > summary { cursor: pointer; font-size: 12.5px; font-weight: 400; }
 .bs-exact[open] > summary, .bs-history[open] > summary { margin-bottom: 4px; }
-.bs-foot { padding: 4px 2px 20px; display: flex; flex-wrap: wrap; gap: 8px 20px; }
-.bs-foot > .link-btn:not(.danger-text) { font-size: 13px; color: var(--muted); }
 .danger-text { color: var(--err); font-size: 13px; }
-.pick-list { display: grid; gap: 4px; max-height: 320px; overflow: auto; }
+.pick-list { display: grid; gap: 4px; max-height: 320px; overflow: auto; line-height: 1.45; }
 .bs-fold { cursor: pointer; }
-.bs-fold:hover b { text-decoration: underline; text-underline-offset: 2px; }
-.bs-fold .pick-list { cursor: default; margin-top: 4px; }
-.bs-chev { transition: transform .15s; }
-.bs-fold.open .bs-chev { transform: rotate(90deg); }
-.bs-sum { overflow: hidden; text-overflow: ellipsis; }
+.bs-fold .pick-list { cursor: default; margin: 4px 0 6px; }
 .pick-list .skill-pick { border: 0; width: 100%; text-align: left; color: inherit; font: inherit; font-size: 13px; }
 .pick-list .skill-pick:hover { background: var(--line); }
 .job-more { display: grid; gap: 10px; }
@@ -1428,17 +1441,36 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .job-script:not(.hidden) { display: grid; gap: 10px; }
 .backup-pass { display: flex; gap: 8px; flex-wrap: wrap; }
 .backup-pass input { flex: 1 1 140px; min-width: 0; }
-.backup-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.backup-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .backup-actions .link-btn { margin-left: auto; }
 .bs-fold .pick-list .skill-name { font-family: inherit; font-size: 13.5px; }
 
-/* Settings: the pages it opens (Activity, Skills, Connectors, Vault) */
-.settings-links { gap: 0; padding-top: 6px; padding-bottom: 6px; }
-.settings-link { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; text-align: left; padding: 11px 0; cursor: pointer; }
+/* The head of a chat's settings: its figure and its name to type over, what it does under it. The title of Settings
+   with "Saved" right of it, and "Saved" in the panel's head, left of its close. */
+.set-head { display: flex; align-items: center; gap: 14px; margin: 4px 0 22px; }
+.set-head .avatar { width: 56px; height: 62px; }
+.set-name { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.set-name > b { font-size: 24px; font-weight: 600; letter-spacing: -.02em; }
+.set-name input[type=text] { border: 0; border-radius: 0; background: transparent; padding: 2px 0; }
+.set-name input[type=text]:first-child { font-size: 24px; font-weight: 600; letter-spacing: -.02em; border-bottom: 1px solid var(--line-2); padding: 4px 0; }
+.set-name input[type=text] + input { color: var(--muted); font-size: 13.5px; }
+.set-name input[type=text]:focus-visible { outline: none; border-bottom-color: var(--muted); }
+.bot-settings, #chief-form { display: grid; gap: 20px; }
+.bot-settings > .set-head, #chief-form > .set-head { margin: 4px 0 0; }
+.bot-settings > .set-list, #chief-form > .set-list { margin-top: 6px; }
+.set-title { align-items: center; justify-content: flex-start; gap: 8px; margin-bottom: 18px; }
+.set-title + .set-list { margin-top: 0; }
+.set-title h1 { flex: 1; font-size: 22px; }
+.saved-note { font-size: 12.5px; color: var(--faint); opacity: 0; transition: opacity .2s ease; white-space: nowrap; }
+.saved-note.on { opacity: 1; }
+.panel-head .saved-note { margin-left: auto; }
+.panel-head .saved-note + .panel-close { margin-left: 0; }
+
+/* Settings: the rows of the Chief's previous chats */
+.settings-link { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: none; color: inherit; font: inherit; font-size: 14px; text-align: left; padding: 9px 0; cursor: pointer; }
 .settings-link + .settings-link { border-top: 1px solid var(--line); }
-.settings-link svg { color: var(--muted); }
 .settings-link:hover .grow { text-decoration: underline; text-underline-offset: 2px; }
-#chief-chats { grid-template-columns: minmax(0, 1fr); max-height: 320px; overflow-y: auto; }
+#chief-chats { gap: 0; max-height: 320px; overflow-y: auto; }
 #chief-chats .grow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #chief-chats .active .grow { font-weight: 600; }
 .sub-back { margin-bottom: 14px; }
@@ -1488,10 +1520,9 @@ a.file-chip.link:hover { border-color: var(--faint); }
 .g-limit { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 13px; padding-left: 2px; }
 
 /* The group's panel, and the picker of bots that makes a group or adds to one. */
-.group-panel { display: grid; gap: 14px; padding-top: 6px; }
-.group-panel .settings-card { margin-bottom: 0; }
-.member-row { display: flex; align-items: center; gap: 12px; font-size: 14px; font-weight: 500; }
-.member-row .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-panel { padding-top: 6px; }
+.member-row { align-items: center; gap: 12px; }
+.member-row .grow { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-bots { display: grid; gap: 2px; max-height: min(46vh, 380px); overflow-y: auto; }
 .pick-bot { display: flex; align-items: center; gap: 12px; width: 100%; border: 0; background: transparent; padding: 8px; border-radius: 12px; font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .pick-bot:hover:not(:disabled) { background: var(--sunk); }

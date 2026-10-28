@@ -63,7 +63,7 @@ const Usage = (() => {
   }
 
   function botsHTML(bots) {
-    if (!bots.length) return '<p class="muted settings-hint" style="margin:0">No tokens used in this timeframe.</p>';
+    if (!bots.length) return '<p class="muted" style="margin:0">No tokens used in this timeframe.</p>';
     const top = Math.max(...bots.map((b) => b.totalTokens), 1);
     return `<div class="usage-bots">${bots.map((b) => `
       <div class="usage-bot">
@@ -76,15 +76,18 @@ const Usage = (() => {
     const c = cur;
     if (!c) return;
     const d = c.data;
+    // A row of Settings (#635): what the counts are is its tooltip, not a line under it.
+    const tip = 'Tokens as Claude Code reports them, for your bots and the Chief of Staff, counted from this update on.';
     c.box.innerHTML = `
-      <summary><h3 class="page-sub">Usage</h3></summary>
-      <p class="muted settings-hint">Tokens as Claude Code reports them, for your bots and the Chief of Staff, counted from this update on.</p>
+      <summary title="${tip}" aria-description="${tip}"><b>Usage</b><span class="bs-chev" aria-hidden="true">›</span></summary>
+      <div class="bs-body">
       ${pickerHTML(c)}
-      ${c.error ? `<div class="req-note">${esc(c.error)}</div>` : !d ? '<p class="muted settings-hint" style="margin:0">Loading…</p>' : `
+      ${c.error ? `<div class="req-note">${esc(c.error)}</div>` : !d ? '<p class="muted" style="margin:0">Loading…</p>' : `
         ${totalsHTML(d.totals)}
         ${d.days.length > 1 ? chartHTML(d.days) : ''}
         <h4 class="usage-sub">By bot</h4>
-        ${botsHTML(d.bots)}`}`;
+        ${botsHTML(d.bots)}`}
+      </div>`;
     c.box.querySelectorAll('[data-usage-preset]').forEach((b) => (b.onclick = () => pick(b.dataset.usagePreset)));
     c.box.querySelectorAll('[data-usage-day]').forEach((i) => (i.onchange = () => setDay(i.dataset.usageDay, i.value)));
   }

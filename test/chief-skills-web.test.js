@@ -30,6 +30,7 @@ function chiefSettings({ chiefSkills = [], answers = [] } = {}) {
     ...finders(), state, esc,
     skillMoreHTML: () => '',
     toast: (...a) => toasts.push(a),
+    flashSaved: () => toasts.push(['Saved']), // "Saved" at the panel's top right, not a toast
     foldPicker: (el, items, selected, onChange, opts) => { picker = { el, items, selected, onChange, opts }; },
     api: async (path, opts = {}) => {
       calls.push([opts.method || 'GET', path, opts.body && JSON.parse(JSON.stringify(opts.body))]);
@@ -63,14 +64,16 @@ test('web: ticking a skill saves the whole list in one PUT, and a refusal is sai
   await p.onChange();
   assert.deepEqual(s.calls.at(-1), ['PUT', '/settings', { chiefSkills: ['house-style'] }]);
   assert.deepEqual([...s.state.settings.chiefSkills], ['house-style']);
+  assert.deepEqual(s.toasts, [['Saved']], 'it says "Saved"');
   p.selected.delete('house-style');
   await p.onChange();
   assert.deepEqual(s.calls.at(-1), ['PUT', '/settings', { chiefSkills: [] }]);
   assert.deepEqual(s.toasts.at(-1), ['No.', true]);
 });
 
-test("web: the skills row is in the Chief's settings, outside the form that saves its model and rules", () => {
+test("web: the skills row is in the Chief's settings, saved apart from its model and rules", () => {
   const draw = cut('function renderChiefSettings()', '// The library skills you gave the Chief');
-  assert.match(draw, /<\/form>\s*<h3 class="page-sub">Skills<\/h3>[\s\S]*id="chief-skill-picks"[\s\S]*\$\{CHECKUP_HTML\}/);
+  assert.match(draw, /<div class="bs-row" id="chief-skills"[^>]*>\s*<div class="grow"><b>Skills<\/b><div id="chief-skill-picks">[\s\S]*\$\{CHECKUP_HTML\}/, 'a row of the list');
+  assert.match(draw, /if \(!String\(e\.target\.name \|\| ''\)\.startsWith\('chief'\)\) return;/, 'its ticks are not sent with the model and rules');
   assert.match(draw, /drawChiefSkills\(root\);/);
 });

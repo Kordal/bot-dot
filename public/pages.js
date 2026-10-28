@@ -77,12 +77,13 @@ const Pages = (() => {
       <button type="button" class="btn sm ghost" data-dv="stop">Stop</button>${boardBtn(page)}</div>`;
   }
 
-  // A bot's pages in its settings.
-  async function drawList(b, box) {
+  // A bot's pages in its settings, under its Pages row; count: the row's value, how many there are.
+  async function drawList(b, box, count = null) {
     if (!box) return;
     let pages;
     try { pages = (await api(`/bots/${encodeURIComponent(b.id)}/pages`)).pages; } catch { box.innerHTML = '<span class="faint">Couldn\'t load its pages.</span>'; return; }
-    if (!pages.length) { box.innerHTML = `<span class="faint">None yet. Ask ${esc(b.name || botName(b.id))} for a page, a report or an overview.</span>`; return; }
+    if (count) count.textContent = pages.length ? String(pages.length) : '';
+    if (!pages.length) { box.innerHTML = `<span class="faint" title="Ask ${esc(b.name || botName(b.id))} for a page, a report or an overview.">None yet.</span>`; return; }
     box.innerHTML = pages.map((p) => `<a class="pg-row" ${attrs(b.id, p)}><span class="pg-icon">${iconOf(p)}</span><span class="pg-text"><b>${esc(p.title)}</b><span>${esc(updated(p))}${p.keep ? ` · ${esc(p.keep.when)}` : ''}</span></span>${p.keep ? '<span class="pg-live" aria-label="Keeps up to date"></span>' : ''}</a>`).join('');
   }
 
@@ -161,9 +162,9 @@ const Pages = (() => {
     const other = pages.filter((p) => !p.keep);
     const section = (title, list) => (list.length ? `<h3 class="page-sub">${title}</h3><div class="card pg-all">${list.map(rowHTML).join('')}</div>` : '');
     return `${SUB_BACK}
-    <div class="section-head"><div><h1>Pages</h1><p>Made by your bots</p></div></div>
+    <div class="section-head"><div><h1>Pages</h1></div></div>
     ${pages.length ? `${section('Kept up to date', kept)}${section(kept.length ? 'Other pages' : 'All pages', other)}`
-      : '<div class="card empty" style="padding:36px 20px">No pages yet. Ask a bot for a page, a report or an overview: it shows here, and under the bot\'s reply.</div>'}`;
+      : '<div class="card empty" style="padding:36px 20px" title="Ask a bot for a page, a report or an overview.">No pages yet.</div>'}`;
   }
   function openPage(p) {
     if (p.botId === CHIEF) setView('chief'); else setView('bot', p.botId);
@@ -195,9 +196,9 @@ const Pages = (() => {
     if (!d?.botId) return;
     DocViewer.pageChanged(d.botId, d.slug);
     const list = $('#page-list');
-    if (list && $('#view-botsettings')?.dataset.bot === d.botId) drawList({ id: d.botId, name: botName(d.botId) }, list);
+    if (list && $('#view-botsettings')?.dataset.bot === d.botId) drawList({ id: d.botId, name: botName(d.botId) }, list, $('#bs-pages-val'));
     const own = $('#chief-page-list');
-    if (own && d.botId === CHIEF) drawList({ id: CHIEF, name: chiefName() }, own);
+    if (own && d.botId === CHIEF) drawList({ id: CHIEF, name: chiefName() }, own, $('#chief-pages-val'));
     if (state.view === 'pages') renderAll();
   }
 
