@@ -621,7 +621,7 @@ internal val DECLINE: String get() = tr("Decline")
 
 /** The tag of the notification that Claude is signed out, and what it says. */
 internal const val SIGNED_OUT_KEY = "claude"
-internal const val SIGNED_OUT_TEXT = dev.botdot.app.ui.SIGNED_OUT // the words of the line above the message box
+internal val SIGNED_OUT_TEXT: String get() = dev.botdot.app.ui.SIGNED_OUT // the words of the line above the message box
 
 /** What the feed's word on Claude's sign-in does to that notification. */
 internal enum class SignedOutStep { RING, TAKE, NONE }
