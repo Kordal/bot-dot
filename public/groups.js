@@ -57,7 +57,7 @@ const groupLook = (g) => JSON.stringify(groupMembers(g).slice(0, 3).map((b) => [
 
 // A group's row in the list: the line under its name, the class that colours it, and what stands after its time.
 // While a member works: who, and what it says it is doing. Else "… asks" when a member asks the owner something,
-// with the mark in place of the dots. Else its newest reply, with the bot's name before it.
+// with the mark in place of the dots. Else its newest reply, with the bot's name before it; before the first, nothing.
 function groupLine(g) {
   const at = (Array.isArray(g.working) ? g.working : []).map(botById).find(Boolean);
   const dots = Unread.dots(Unread.count(g), memberColor(g.last?.botId, groupMembers(g)[0]?.color));
@@ -67,7 +67,7 @@ function groupLine(g) {
     return { who: '', prev: `${memberName(g.asks.botId, g.asks.botName)} asks${text ? `: ${text}` : ''}`, cls: 'asks', after: Unread.mark(memberColor(g.asks.botId)) };
   }
   if (g.last && typeof g.last === 'object') return { who: memberName(g.last.botId, g.last.botName), prev: plain(g.last.text) || (g.last.status === 'success' ? 'Done.' : "Couldn't finish"), cls: '', after: dots };
-  return { who: '', prev: 'No messages yet', cls: '', after: dots };
+  return { who: '', prev: '', cls: '', after: dots };
 }
 function groupContactHTML(g) {
   const line = groupLine(g);

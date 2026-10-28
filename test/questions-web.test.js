@@ -33,7 +33,7 @@ test('web: still asked, unchanged', () => {
     ['erasing a bot\'s old computer (#107)', /if \(!info\?\.old \|\| !confirm\(info\.old\.confirm\)\) return;/],
     ['deleting a skill', /confirm\(`Delete the skill "\$\{k\.name\}"\? Bots that have it will stop using it\.`\)/],
     ['removing a job in the jobs panel', /if \(!confirm\('Remove this job\?'\)\) return;/],
-    ['Decline on a job\'s card in Needs you, of a server whose button does not say that it removes', /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) whileBusy\(no, 'Declining…', \(\) => decide\(x, false\)\);/],
+    ['Decline on a job\'s card in Needs you, of a server whose button does not say that it removes', /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) return whileBusy\(button, 'Declining…', \(\) => decide\(x, false\)\);/],
     ['Always allow on a connected-app card, in the server\'s words (#474)', /if \(confirm\(said\(x\.a\.warning\) \|\| \(x\.a\.chief \? `Let \$\{CHIEF_BOT\.name\} do this from now on, whatever the details\?` : 'Let this bot do this from now on, whatever the details\?'\)\)\)/],
     ['Always allow on a Chief\'s change after the web, in the server\'s words (#280)', /if \(confirm\(said\(x\.a\.warning\) \|\| `\$\{said\(x\.a\.always\)\}\?`\)\)/],
     ['Always approve', /confirm\(scriptWarning\(x\.bot\.name, x\.job\.name\)\)/],

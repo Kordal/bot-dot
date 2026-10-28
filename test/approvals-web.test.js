@@ -119,7 +119,9 @@ test('web: a job and a tile that wait for their first approval have the server\'
   }
   // No browser question: the button says what it does.
   assert.equal(p.asksBeforeNo(p.item('job:j3')), false);
-  assert.match(cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat'), /if \(no\) no\.onclick = \(\) => \{ if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) whileBusy\(no, 'Declining…', \(\) => decide\(x, false\)\); \};/);
+  const wiring = cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat');
+  assert.match(wiring, /if \(no\) no\.onclick = \(\) => answerNeed\(x, false, no\);/, 'a card\'s no, as its row on the keypad answers it');
+  assert.match(wiring, /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) return whileBusy\(button, 'Declining…', \(\) => decide\(x, false\)\);/);
 });
 
 test('web: the server\'s words are text, never markup', async () => {

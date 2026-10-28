@@ -76,8 +76,8 @@ const fedJobThen = (botId, jobId) => (Array.isArray(state.approvals?.jobs) ? sta
 
 const needsFigures = (items) => `<span class="needs-figs">${items.map((x, i) => `<i style="animation-delay:${(i * 0.15).toFixed(2)}s">${x.bot ? botMark(x.bot) : Figure.small(CHIEF_COLOR, Figure.CHIEF)}</i>`).join('')}</span>`;
 
-// What one thing waits on, in a few words, for the one-line summary on the keypad's Needs you card (#397): its card's
-// title where the server sends one, else the words its card is drawn with.
+// What one thing waits on, in a few words, after its bot's name in its row of Needs you on the keypad (#397, #635): its
+// card's title where the server sends one, else the words its card is drawn with.
 function needLine(x) {
   const a = x.a || {};
   switch (x.kind) {
@@ -91,7 +91,7 @@ function needLine(x) {
     case 'pay': return `Pay on ${x.r.site}`;
     case 'login': return `A login for ${x.r.site}`;
     default:
-      if (a.kind === 'permission') return `Let it ${a.what?.label || a.permission}`;
+      if (a.kind === 'permission') return `wants to ${a.what?.label || a.permission}`;
       if (ToolCard.is(a)) return said(a.title) || 'A tool to install';
       if (a.kind === 'skill' && !a.written) return `The skill “${a.skill?.name || ''}”`;
       return said(a.title) || said(a.text) || 'An OK';
@@ -99,6 +99,10 @@ function needLine(x) {
 }
 // The bots something waits for: a key of theirs says "Needs you".
 const needsBots = (items) => new Set(items.flatMap((x) => (x.kind === 'batch' ? x.items : [x]).map((y) => y.bot?.id).filter(Boolean)));
+// A card its row in Needs you on the keypad answers with No and Allow (#635): a plain yes or no whose row says all that
+// the yes gives (approve only what is shown: Milestones 5 and 8). That is a permission a bot asks for, "wants to browse
+// the web", unless its yes is given on its card only. Anything else opens its card.
+const answersInline = (x) => x.kind === 'ask' && x.a.kind === 'permission' && x.a.yesOn !== 'card';
 
 // The banner: one small head per thing, in its bot's colour and hat, nothing to count. Review opens the one thing, or the page for several.
 function showNeeds() {
@@ -112,7 +116,7 @@ function showNeeds() {
     banner.innerHTML = `${needsFigures(items)}<span>Waiting for your OK</span><button class="btn sm primary" id="needs-open">Review</button>`;
     $('#needs-open').onclick = review;
   }
-  drawKeypadNeeds(state.view === 'needs' ? [] : items, review, items); // the same, on the keypad
+  drawKeypadNeeds(state.view === 'needs' ? [] : items, openNeed, items); // the same, on the keypad, a row each
   if (state.view === 'needs') renderNeeds();
   drawChatCards(); // the cards at the end of the open bot's or Chief's chat
   if (state.view === 'group') drawGroupCards(); // the cards at the end of the open group (groups.js)
@@ -486,12 +490,19 @@ function wireNeedCards(root, items) {
     const yes = $('[data-need-yes]', el), no = $('[data-need-no]', el), op = $('[data-need-open]', el), always = $('[data-need-always]', el);
     // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a yes that turns on a call or
     // a notify address says "Creating connection…" with a spinner.
-    if (yes) yes.onclick = () => whileApproving(yes, x.job, () => decide(x, true));
+    if (yes) yes.onclick = () => answerNeed(x, true, yes);
     if (always) always.onclick = () => { if (x.a?.kind === 'chief-action') { if (confirm(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(said(x.a.warning) || (x.a.chief ? `Let ${CHIEF_BOT.name} do this from now on, whatever the details?` : 'Let this bot do this from now on, whatever the details?'))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
-    if (no) no.onclick = () => { if (!asksBeforeNo(x) || confirm('Remove this job?')) whileBusy(no, 'Declining…', () => decide(x, false)); };
+    if (no) no.onclick = () => answerNeed(x, false, no);
     if (op) op.onclick = () => openNeed(x);
     el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
   });
+}
+
+// A card's yes or no, from its button (on its card, or its row on the keypad): the button says it works until the
+// answer comes. A job's no asks first where it removes the job.
+function answerNeed(x, yes, button) {
+  if (yes) return whileApproving(button, x.job, () => decide(x, true));
+  if (!asksBeforeNo(x) || confirm('Remove this job?')) return whileBusy(button, 'Declining…', () => decide(x, false));
 }
 
 // Allow all and Decline all on the cards of several (batchCardHTML). drawn: the cards as they were drawn.

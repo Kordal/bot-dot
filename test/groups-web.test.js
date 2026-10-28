@@ -406,10 +406,10 @@ test("web: the row has the members' heads with the faces of their states, the na
   // Five new replies are three dots, and a reply that failed is its problem, or that it could not finish.
   Object.assign(g, { unread: 5, last: { ...g.last, botId: 'gone', botName: 'Old Bot', status: 'error', text: '' } });
   assert.deepEqual(plain(p.ctx.groupLine(g)), { who: 'Old Bot', prev: "Couldn't finish", cls: '', after: p.ctx.Unread.dots(3, '#1d9e75') });
-  // A group with four members shows three heads; one whose bots are gone a grey one; one without a reply says so.
+  // A group with four members shows three heads; one whose bots are gone a grey one; one without a reply no line.
   assert.equal((p.ctx.groupPicture({ members: ['coder', 'reviewer', 'writer', 'weather'] }).match(/<svg/g) || []).length, 3);
   assert.match(p.ctx.groupPicture({ members: ['gone'] }), /<div class="group-pic  n1"><i><svg class="fig" data-st="idle" data-c="#888780">/);
-  assert.deepEqual(plain(p.ctx.groupLine({ ...DEV })), { who: '', prev: 'No messages yet', cls: '', after: '' });
+  assert.deepEqual(plain(p.ctx.groupLine({ ...DEV })), { who: '', prev: '', cls: '', after: '' });
   assert.match(css, /\.group-pic > i:nth-child\(3\) \{/);
 });
 
