@@ -46,6 +46,39 @@ test('clean keeps each failed run as kinds, numbers and tool names, of that day 
   assert.equal(usageLib.clean({ failures: Array.from({ length: 150 }, () => ({ at: '2026-10-20T10:00:00.000Z' })) }).failures.length, 100);
 });
 
+test('clean keeps a failed run\'s error line redacted again, and none from an older server (ADR 109)', () => {
+  const r = usageLib.clean({ day: '2026-10-20', failures: [
+    { at: '2026-10-20T10:00:00.000Z', kind: 'error', detail: 'Error: cannot open /home/Secret/a.txt token=Secret' },
+    { at: '2026-10-20T11:00:00.000Z', kind: 'exit', detail: null },
+    { at: '2026-10-20T12:00:00.000Z', kind: 'exit', detail: { text: 'Secret' } },
+    { at: '2026-10-20T13:00:00.000Z', kind: 'exit' },
+  ] });
+  assert.deepEqual(r.failures.map((f) => f.detail), ['Error: cannot open <path> token=<secret>', null, null, undefined]);
+  assert.ok(!('detail' in r.failures[3]));
+  assert.ok(!JSON.stringify(r).includes('Secret'));
+});
+
+test('collect asks again for a recent day whose failed runs were kept without their error line (ADR 109)', async (t) => {
+  const dir = scratch(t);
+  const now = Date.parse('2026-10-20T08:00:00Z');
+  const kept = usageLib.clean(row({ day: '2026-10-19', failures: [{ at: '2026-10-19T09:00:00.000Z', kind: 'error' }] }));
+  fs.writeFileSync(path.join(dir, 'usage.json'), JSON.stringify({ rows: { ann: { '2026-10-19': kept } } }));
+  const u = usageLib.open(dir, { now: () => now });
+  const asked = [];
+  let lines = false;
+  const ask = async (name, day) => { asked.push(day); return { status: 200, data: row({ day, failures: [{ at: `${day}T09:00:00.000Z`, kind: 'error', ...(lines ? { detail: 'spawn claude ENOENT' } : {}) }] }) }; };
+  const accounts = [{ name: 'ann', created: '2026-10-19T00:00:00Z' }];
+  await u.collect(accounts, ask);
+  assert.deepEqual(asked, ['2026-10-19']);
+  assert.ok(!('detail' in u.rowsOf('ann')['2026-10-19'].failures[0]), 'an older server: the row stays as it was');
+  lines = true; asked.length = 0;
+  await u.collect(accounts, ask);
+  assert.equal(u.rowsOf('ann')['2026-10-19'].failures[0].detail, 'spawn claude ENOENT');
+  asked.length = 0;
+  await u.collect(accounts, ask);
+  assert.deepEqual(asked, []);
+});
+
 test('collect asks again for a recent day kept before failed runs were listed, until its server lists them (#615)', async (t) => {
   const dir = scratch(t);
   const now = Date.parse('2026-10-20T08:00:00Z');
@@ -55,7 +88,7 @@ test('collect asks again for a recent day kept before failed runs were listed, u
   const u = usageLib.open(dir, { now: () => now });
   const asked = [];
   let lists = false;
-  const ask = async (name, day) => { asked.push(day); return { status: 200, data: row({ day, failures: lists ? [{ at: `${day}T09:00:00.000Z`, kind: 'timeout' }] : undefined }) }; };
+  const ask = async (name, day) => { asked.push(day); return { status: 200, data: row({ day, failures: lists ? [{ at: `${day}T09:00:00.000Z`, kind: 'timeout', detail: null }] : undefined }) }; };
   const accounts = [{ name: 'ann', created: '2026-10-18T00:00:00Z' }];
   await u.collect(accounts, ask);
   assert.deepEqual(asked, ['2026-10-18'], 'a day without failed runs needs no list');

@@ -2,7 +2,7 @@
 // signals after it, no text of the run, and the bot's worst patterns.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { toolWatch, outcomeOf, errorKind, CORRECTION } = require('../lib/outcomes');
+const { create, toolWatch, outcomeOf, errorKind, CORRECTION } = require('../lib/outcomes');
 const { scratchMemory, daysAgo, runMeta } = require('./memory-helpers');
 
 const minutes = (iso, n) => new Date(Date.parse(iso) + n * 60_000).toISOString();
@@ -158,11 +158,40 @@ test('failures: each failed run of a day, by kind, bot number and source, withou
   const tools = toolWatch();
   tools.see({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash' }] } });
   tools.see({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', is_error: true, content: 'Secret output' }] } });
-  m.outcomes.record(ended({ startedAt: at, status: 'error', error: 'timed out with Secret', jobName: 'Secret job', jobId: 'j1', durationMs: 300000 }), { tools });
+  m.outcomes.record(ended({ startedAt: at, status: 'error', error: 'Reading "Secret"\nError: timed out at /home/Secret/x token=Secret', jobName: 'Secret job', jobId: 'j1', durationMs: 300000 }), { tools });
   m.outcomes.record(ended({ startedAt: at, botId: 'beta' }));
   m.outcomes.record(ended({ startedAt: '2026-10-21T00:00:00.000Z', status: 'error' }));
   const f = m.outcomes.failures('2026-10-20T00:00:00.000Z', '2026-10-21T00:00:00.000Z', (id) => (id === 'alpha' ? 1 : null));
   assert.equal(f.length, 1);
-  assert.deepEqual({ ...f[0], at: null }, { at: null, kind: 'timeout', bot: 1, source: 'job', run: 'claude', durationMs: 300000, turns: f[0].turns, retries: 0, toolErrors: 1, tools: ['Bash'] });
+  assert.deepEqual({ ...f[0], at: null }, { at: null, kind: 'timeout', bot: 1, source: 'job', run: 'claude', durationMs: 300000, turns: f[0].turns, retries: 0, toolErrors: 1, tools: ['Bash'], detail: 'Error: timed out at <path> token=<secret>' });
   assert.ok(!JSON.stringify(f).includes('Secret'));
+});
+
+test('failures: a failed run keeps its error\'s line, redacted; a restart, a good run and a row from before get none or theirs (ADR 109)', (t) => {
+  const { memory: m } = scratchMemory(t);
+  const at = '2026-10-20T10:00:00.000Z';
+  const day = ['2026-10-20T00:00:00.000Z', '2026-10-21T00:00:00.000Z'];
+  m.outcomes.record(ended({ id: 'r1', startedAt: at, status: 'error', error: 'spawn claude ENOENT' }));
+  m.outcomes.record(ended({ id: 'r2', startedAt: at, status: 'interrupted', error: 'botdot restarted' }));
+  m.outcomes.record(ended({ id: 'r3', startedAt: at, status: 'error' }));
+  m.outcomes.record(ended({ id: 'r4', startedAt: at, status: 'success', error: 'Error: never shown' }));
+  assert.deepEqual(m.outcomes.failures(...day).map((f) => f.detail), ['spawn claude ENOENT', null, null]);
+  assert.deepEqual(m.outcomes.undetailed('2026-10-01'), []);
+});
+
+test('a ledger from before ADR 109 gets the detail column, and its failed rows their line once, from the run\'s file', () => {
+  const { DatabaseSync } = require('node:sqlite');
+  const db = new DatabaseSync(':memory:');
+  db.exec(`CREATE TABLE outcomes (run_id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, at TEXT NOT NULL, ended_at TEXT, trigger TEXT, source TEXT, job TEXT, kind TEXT,
+    outcome TEXT NOT NULL, ended_by TEXT, error_kind TEXT, tool_errors INTEGER, failed_tools TEXT, retries INTEGER NOT NULL DEFAULT 0,
+    duration_ms INTEGER, turns INTEGER, reply_at TEXT, counted INTEGER NOT NULL DEFAULT 0, reasked_at TEXT, corrected INTEGER NOT NULL DEFAULT 0, inputs TEXT);
+    INSERT INTO outcomes (run_id, bot_id, at, outcome, error_kind) VALUES ('r1', 'alpha', '2026-10-20T10:00:00.000Z', 'failed', 'error'), ('r2', 'alpha', '2026-10-20T11:00:00.000Z', 'failed', 'error'), ('r3', 'alpha', '2026-10-20T12:00:00.000Z', 'done', NULL);`);
+  const o = create(db, (sql) => db.prepare(sql));
+  const day = ['2026-10-20T00:00:00.000Z', '2026-10-21T00:00:00.000Z'];
+  assert.deepEqual(o.undetailed('2026-10-01'), ['r1', 'r2']);
+  o.setDetail('r1', { status: 'error', error: 'Exited with code 1' });
+  o.setDetail('r2', null); // its file is gone
+  assert.deepEqual(o.failures(...day).map((f) => f.detail), ['Exited with code 1', null]);
+  assert.deepEqual(o.undetailed('2026-10-01'), []);
+  create(db, (sql) => db.prepare(sql)); // a second start changes nothing
 });
