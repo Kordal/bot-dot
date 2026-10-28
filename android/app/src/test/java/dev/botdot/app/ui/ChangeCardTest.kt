@@ -217,6 +217,6 @@ class ChangeCardTest {
         val page = File(System.getProperty("webPage") ?: "../../public/needs.js").readText()
         assertTrue(ALWAYS_ALLOW_QUESTION, page.contains("'$ALWAYS_ALLOW_QUESTION')"))
         // The Chief's own question, with its name where the web page puts it.
-        assertTrue(page.contains("`" + alwaysAllowChief("\${CHIEF_BOT.name}") + "`"))
+        assertTrue(page.contains("tr('" + alwaysAllowChief("{name}") + "', { name: chiefTitle() })"))
     }
 }
