@@ -154,10 +154,10 @@ fun SettingsScreen(
         // One flat list (#636): a row per setting, its value and a chevron, and no helper text. Each row that holds
         // more opens under itself, closed whenever Settings opens.
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 6.dp)) {
-            Link("Skills", onSkills)
-            if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link("Pages", onPages) // every bot's pages (#361)
-            Link("Connectors", onConnectors)
-            Link("Vault", onVault)
+            Link("Skills", onClick = onSkills)
+            if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link("Pages", onClick = onPages) // every bot's pages (#361)
+            Link("Connectors", onClick = onConnectors)
+            Link("Vault", onClick = onVault)
             Spacer(Modifier.height(18.dp))
 
             Choice("Model", edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
@@ -290,7 +290,7 @@ fun SettingsScreen(
                 if (u.moving) LaunchedEffect(u, updatePolls) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it }; updatePolls++ }
             }
 
-            if (notifyOn) Link("Notifications", onBattery, value = "On")
+            if (notifyOn) Link("Notifications", value = "On", onClick = onBattery)
             else Link("Notifications", value = "Off") {
                 context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
             }
@@ -302,7 +302,7 @@ fun SettingsScreen(
                     OutlinedButton(onClick = { confirmSignOut = true }) { Text("Sign out everywhere", color = p.text) }
                 }
             }
-            Link("botdot's address", onChangeServer, value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'))
+            Link("botdot's address", value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'), onClick = onChangeServer)
         }
     }
 
@@ -393,7 +393,7 @@ private fun KeyOffer(saved: Boolean, onUse: () -> Unit, onNew: () -> Unit) {
 
 /** A row that opens another screen (#636): its name, its [value] and a chevron, and a thin line under it. */
 @Composable
-private fun Link(text: String, onClick: () -> Unit, value: String? = null) {
+private fun Link(text: String, value: String? = null, onClick: () -> Unit) {
     val p = LocalPaper.current
     Column {
         Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
