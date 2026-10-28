@@ -7,7 +7,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, finders } = require('./web-page');
+const { app, read, cut, esc, element, finders, words } = require('./web-page');
 
 const css = read('style.css');
 const html = read('index.html');
@@ -18,7 +18,7 @@ function page() {
   const hidden = () => element({}, { classes: ['hidden'] });
   const el = { away: hidden(), awayLine: hidden(), out: hidden(), outLine: hidden() };
   const doc = element({ '#away': el.away, '.away-line': [el.awayLine], '#signed-out': el.out, '.claude-line': [el.outLine] });
-  const ctx = vm.createContext({ ...finders(doc), esc, fetch: async () => { throw new TypeError('Failed to fetch'); }, console: { warn() {} } });
+  const ctx = vm.createContext({ ...words, ...finders(doc), esc, fetch: async () => { throw new TypeError('Failed to fetch'); }, console: { warn() {} } });
   vm.runInContext(`${cut('const away = { on: false };', 'function esc(s)')}
     Object.assign(this, { api, away, setAway, signedOut, setSignedOut, signedOutHTML, SIGNED_OUT });`, ctx);
   const shows = (x) => !x.classList.contains('hidden');
@@ -69,7 +69,7 @@ test('web: "Can\'t reach botdot" wins when both hold, and the signed-out line is
 });
 
 test('web: the line is on the page in both places, drawn as Claude is at that moment, its last words a button', () => {
-  assert.match(html, /<span class="away hidden" id="signed-out" role="status">Claude is signed out: bots can't work\. <button type="button" data-sign-in>Sign in<\/button><\/span>\s*(?:<!--[\s\S]*?-->\s*)?<div class="search">/, 'beside the logo, in the place of "Can\'t reach botdot"');
+  assert.match(html, /<span class="away hidden" id="signed-out" role="status"><span data-t>Claude is signed out: bots can't work\.<\/span> <button type="button" data-sign-in data-t>Sign in<\/button><\/span>\s*(?:<!--[\s\S]*?-->\s*)?<div class="search">/, 'beside the logo, in the place of "Can\'t reach botdot"');
   assert.ok(html.indexOf('id="away"') < html.indexOf('id="signed-out"') && html.indexOf('id="signed-out"') < html.indexOf('class="search"'), 'in the list\'s head');
   const { ctx } = page();
   assert.equal(ctx.SIGNED_OUT, LINE);
@@ -87,7 +87,7 @@ test('web: "Sign in" opens Setup, wherever the line stands', () => {
 test('web: the feed says it: `hello.claude` at the start and the `claude` event on every change', () => {
   const listeners = {};
   const got = [];
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     JSON, window: { EventSource: true }, state: {}, setTimeout: () => 0, clearTimeout() {}, setSignedOut: (c) => got.push(c),
     EventSource: class { addEventListener(type, fn) { (listeners[type] ||= []).push(fn); } },
   });

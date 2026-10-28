@@ -7,7 +7,7 @@ const vm = require('vm');
 const { cut, esc } = require('./web-page');
 
 function page(features) {
-  const ctx = vm.createContext({ esc, encodeURIComponent, state: { features } });
+  const ctx = vm.createContext({ esc, ...require('./web-page').words, encodeURIComponent, state: { features } });
   vm.runInContext(`${cut('const fmtSize = ', '// Files a bot attached to its reply')}\nthis.filesHTML = filesHTML;`, ctx);
   return ctx.filesHTML;
 }

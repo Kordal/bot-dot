@@ -20,40 +20,40 @@
       <div class="side-head">
         <div class="brand" id="brand" aria-label="botdot">bot<i class="brand-dot"></i></div>
         <!-- Shown while botdot does not answer (app.js, setAway). -->
-        <span class="away hidden" id="away" role="status">Can't reach botdot</span>
+        <span class="away hidden" id="away" role="status" data-t>Can't reach botdot</span>
         <!-- Shown while Claude is signed out and botdot answers (app.js, setSignedOut). -->
-        <span class="away hidden" id="signed-out" role="status">Claude is signed out: bots can't work. <button type="button" data-sign-in>Sign in</button></span>
+        <span class="away hidden" id="signed-out" role="status"><span data-t>Claude is signed out: bots can't work.</span> <button type="button" data-sign-in data-t>Sign in</button></span>
         <!-- The search field, behind its icon until it is opened (list.js, initSearch). -->
-        <div class="search"><input id="contact-search" type="search" placeholder="Search" aria-label="Search" autocomplete="off" /></div>
+        <div class="search"><input id="contact-search" type="search" placeholder="Search" aria-label="Search" data-t-placeholder data-t-aria-label autocomplete="off" /></div>
         <nav class="side-tools">
-          <button class="more-btn" id="search-btn" type="button" title="Search" aria-label="Search" aria-controls="contact-search" aria-expanded="false" aria-keyshortcuts="Control+K"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
+          <button class="more-btn" id="search-btn" type="button" title="Search" aria-label="Search" data-t-title data-t-aria-label aria-controls="contact-search" aria-expanded="false" aria-keyshortcuts="Control+K"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
           <!-- The admin page, for the admin's session only (settings.js, showAdminLink; ADR 028). -->
-          <a class="more-btn hidden" id="admin-link" href="/admin" title="Admin" aria-label="Admin"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6z"/></svg></a>
+          <a class="more-btn hidden" id="admin-link" href="/admin" title="Admin" aria-label="Admin" data-t-title data-t-aria-label><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6z"/></svg></a>
           <!-- Feedback to the admin of this machine: a bug or a feature request (settings.js, openFeedback; #216). -->
-          <button class="more-btn hidden" id="feedback-btn" type="button" title="Feedback" aria-label="Feedback"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4zM12 8v3M12 13.5v.01"/></svg></button>
+          <button class="more-btn hidden" id="feedback-btn" type="button" title="Feedback" aria-label="Feedback" data-t-title data-t-aria-label><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4zM12 8v3M12 13.5v.01"/></svg></button>
           <!-- Settings; Activity, Skills, Connectors and Vault open from there. -->
-          <button class="more-btn" id="more-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+          <button class="more-btn" id="more-btn" title="Settings" aria-label="Settings" data-t-title data-t-aria-label><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
         </nav>
       </div>
       <!-- A wide window's home in place of the list (list.js, drawKeypad; ADR 029): the Board's values and Needs you,
            then the Chief and the pinned keys, then every category (#508, #635). The stylesheet shows one or the other. -->
       <div class="keypad" id="keypad">
-        <div class="kp-head"><div class="kp-board" id="kp-board"></div><div class="kp-needs hidden" id="kp-needs" role="group" aria-label="Needs you"></div><button type="button" class="kp-rooms hidden" id="kp-rooms"></button></div>
+        <div class="kp-head"><div class="kp-board" id="kp-board"></div><div class="kp-needs hidden" id="kp-needs" role="group" aria-label="Needs you" data-t-aria-label></div><button type="button" class="kp-rooms hidden" id="kp-rooms"></button></div>
         <div class="kp-keys" id="kp-keys"></div>
       </div>
       <div class="contacts" id="contacts"></div>
       <!-- A phone's home in place of the list (list.js, drawKeypadSections; #498): the Board's values, Needs you, the
            keys and the Chief's field. The stylesheet shows it below the list's phone width. -->
       <div class="kp-phone" id="kp-phone">
-        <div class="kp-head"><div class="kp-board" id="kp-phone-board"></div><div class="kp-needs hidden" id="kp-phone-needs" role="group" aria-label="Needs you"></div><button type="button" class="kp-rooms hidden" id="kp-phone-rooms"></button></div>
+        <div class="kp-head"><div class="kp-board" id="kp-phone-board"></div><div class="kp-needs hidden" id="kp-phone-needs" role="group" aria-label="Needs you" data-t-aria-label></div><button type="button" class="kp-rooms hidden" id="kp-phone-rooms"></button></div>
         <div class="kp-sections" id="kp-sections"></div>
         <button type="button" class="kp-chief" id="kp-chief"></button>
       </div>
     </aside>
     <!-- The list's right edge: dragged to make the list wider or narrower (list.js, initSideGrip). -->
-    <div class="side-grip" id="side-grip" role="separator" aria-orientation="vertical" aria-label="Width of the list" aria-valuemin="72" aria-valuemax="480" tabindex="0"></div>
+    <div class="side-grip" id="side-grip" role="separator" aria-orientation="vertical" aria-label="Width of the list" data-t-aria-label aria-valuemin="72" aria-valuemax="480" tabindex="0"></div>
     <!-- Beside the keypad, the chat's left edge: dragged to make the chat wider or narrower (list.js, initChatGrip). -->
-    <div class="chat-grip" id="chat-grip" role="separator" aria-orientation="vertical" aria-label="Width of the chat" aria-valuemin="400" aria-valuemax="900" tabindex="0"></div>
+    <div class="chat-grip" id="chat-grip" role="separator" aria-orientation="vertical" aria-label="Width of the chat" data-t-aria-label aria-valuemin="400" aria-valuemax="900" tabindex="0"></div>
 
     <main class="main">
       <div id="needs-banner" class="login-banner hidden"></div>
@@ -64,10 +64,10 @@
         <section id="view-bot" class="view hidden"></section>
         <!-- A group's chat: one chat with two to six bots (groups.js). -->
         <section id="view-group" class="view hidden"></section>
-        <aside id="panel" class="panel hidden" aria-label="Settings">
+        <aside id="panel" class="panel hidden" aria-label="Settings" data-t-aria-label>
           <div class="panel-head">
             <button class="btn sm panel-back" id="panel-back"></button>
-            <button class="icon-btn panel-close" id="panel-close" title="Close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            <button class="icon-btn panel-close" id="panel-close" title="Close" aria-label="Close" data-t-title data-t-aria-label><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           </div>
           <section id="view-botsettings" class="page panel-page hidden"></section>
           <section id="view-chiefsettings" class="page panel-page hidden"></section>
@@ -75,7 +75,7 @@
           <section id="view-groupsettings" class="page panel-page hidden"></section>
         </aside>
         <!-- A file opened in the app (#251, viewer.js): beside the chat, or over it in a narrow window. -->
-        <aside id="doc-viewer" class="doc-viewer hidden" aria-label="File"></aside>
+        <aside id="doc-viewer" class="doc-viewer hidden" aria-label="File" data-t-aria-label></aside>
       </div>
       <section id="view-runs" class="view page hidden"></section>
       <!-- Shared rooms with other accounts on this machine: the list, or one room's chat (rooms.js, ADR 060). -->
@@ -92,7 +92,7 @@
   </div>
 
   <!-- A bot's files over the whole page (files.js, #603). -->
-  <div id="files" class="fx hidden" aria-label="Files"></div>
+  <div id="files" class="fx hidden" aria-label="Files" data-t-aria-label></div>
   <dialog id="modal"></dialog>
   <div id="toast" class="toast hidden" popover="manual"></div>
 

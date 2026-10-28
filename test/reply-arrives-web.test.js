@@ -8,7 +8,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, thread } = require('./web-page');
+const { app, read, cut, esc, element, thread, words } = require('./web-page');
 const { rulesOf, winner } = require('./css-rules');
 
 const css = read('style.css');
@@ -17,7 +17,7 @@ const SECTION = ['// ---------- a reply arrives ----------', '// Stop a run.'];
 
 // The rule alone. still: reduced motion is asked for.
 function rule({ still = false, $ = () => null, $$ = () => [] } = {}) {
-  const ctx = vm.createContext({ $, $$, reducedMotion: () => still });
+  const ctx = vm.createContext({ ...words, $, $$, reducedMotion: () => still });
   vm.runInContext(`${cut(...SECTION)}
     Object.assign(this, { newReplies, arrivalsKeeper, arrivals, botReplyIds, chiefReplyIds, repliesArrive, sentArrives, chiefArrives, arrive });`, ctx);
   return ctx;
@@ -296,10 +296,10 @@ function page() {
     Object.defineProperty(n, 'innerHTML', { get: () => html, set(v) { html = v; n.row = /data-sent/.test(v) ? element() : null; } });
     return n;
   };
-  const lib = vm.createContext({});
+  const lib = vm.createContext({ ...words });
   vm.runInContext(read('unread.js'), lib);
   vm.runInContext(read('opening-line.js'), lib);
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     JSON, esc, state, Unread: lib.Unread, OpeningLine: lib.OpeningLine, openingLines: lib.OpeningLine.keeper(), CHIEF_BOT: { id: 'chief' }, CHIEF_COLOR: '#d85a30',
     chiefTurns: new Map(), chiefQueued: new Map(), reducedMotion: () => false,
     $: (sel, root) => (root === undefined ? doc[sel] ?? null : sel === '[data-sent]' ? root.row ?? null : of(root).find.$(sel, root)),
@@ -404,7 +404,7 @@ test('web: with reduced motion asked for nothing moves: the stylesheet switches 
 
 test('web: a row that has arrived is a row like any other: its mark goes with the end of its movement', () => {
   const heard = {};
-  const ctx = vm.createContext({ document: { addEventListener: (type, fn) => { heard[type] = fn; } } });
+  const ctx = vm.createContext({ ...words, document: { addEventListener: (type, fn) => { heard[type] = fn; } } });
   vm.runInContext(cut('// An arrival is over', '// ---------- a message that waits ----------'), ctx);
   const row = element({}, { classes: ['bubble-row', 'arrives'] });
   // Another movement that ended inside it (a working line's dot) leaves it as it is.

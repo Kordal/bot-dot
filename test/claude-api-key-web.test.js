@@ -5,7 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, finders } = require('./web-page');
+const { app, read, cut, esc, element, finders, words } = require('./web-page');
 
 const SUB = { installed: true, loggedIn: true, email: 'me@example.com', using: 'subscription', apiKey: null, subscription: true };
 const SUB_AND_KEY = { ...SUB, apiKey: '…wxyz' };
@@ -15,7 +15,7 @@ const NOTHING = { installed: true, loggedIn: false, using: 'subscription', apiKe
 const OLD_SERVER = { installed: true, loggedIn: false }; // a status with no `using`
 
 function page() {
-  const ctx = vm.createContext({ esc, toast() {}, state: {} });
+  const ctx = vm.createContext({ ...words, esc, toast() {}, state: {} });
   vm.runInContext(`${cut('function setupItem(', 'function drawSetup()')}
     Object.assign(this, { claudeSetupItem, claudeKeyBox });`, ctx);
   return ctx;
@@ -52,7 +52,7 @@ test('web: with neither, Setup offers the key beside the sign-in; one subscripti
 
 test('web: Settings → Claude says the same, and the key box opens there', async () => {
   const card = element();
-  const ctx = vm.createContext({ ...finders(element({ '#claude-card': card })), esc, state: {}, api: async () => ({ claude: ctx.claude }), toast() {} });
+  const ctx = vm.createContext({ ...words, ...finders(element({ '#claude-card': card })), esc, state: {}, api: async () => ({ claude: ctx.claude }), toast() {} });
   vm.runInContext(`${cut('const claudeUnknown', '// First start, or Claude is known')}
     ${read('claude-card.js').slice(read('claude-card.js').indexOf('async function loadClaudeCard'))}
     this.loadClaudeCard = loadClaudeCard;`, ctx);

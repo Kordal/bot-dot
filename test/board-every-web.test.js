@@ -2,10 +2,10 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { cut } = require('./web-page');
+const { cut, words: page } = require('./web-page');
 
 const words = () => {
-  const ctx = vm.createContext({});
+  const ctx = vm.createContext({ ...page });
   vm.runInContext(`${cut('// How often a tile refreshes, in words', 'function openTilePanel(')}\nthis.refreshLine = refreshLine;`, ctx);
   return ctx.refreshLine;
 };

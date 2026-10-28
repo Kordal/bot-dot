@@ -6,10 +6,10 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { cut, read, esc } = require('./web-page');
+const { cut, read, esc, words } = require('./web-page');
 
 const { cases } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'document-cases.json'), 'utf8'));
-const page = vm.createContext({ esc });
+const page = vm.createContext({ ...words, esc });
 vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
   this.mdBlocks = mdBlocks;`, page);
 vm.runInContext(read('document.js'), page);
@@ -147,7 +147,7 @@ test('Google Docs without the access to make documents: the plain sentence and a
   assert.deepEqual(h.said.at(-1), { t: "Google Docs wasn't allowed to do this.", error: true, reconnect: true });
   assert.equal(st.connected, false, 'the next tap connects it first');
   assert.equal(h.rows.at(-1), 'Connect…');
-  assert.match(read('document.js'), /data-doc="gdocs-reconnect">Reconnect<\/button>/);
+  assert.match(read('document.js'), /data-doc="gdocs-reconnect">\$\{tr\('Reconnect'\)\}<\/button>/);
   assert.match(read('document.js'), /if \(what === 'gdocs-reconnect'\) gd\.connected = false;/);
 });
 

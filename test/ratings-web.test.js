@@ -8,10 +8,11 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { webSource } = require('./web-source');
+const { words } = require('./web-page');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
-const page = vm.createContext({});
+const page = vm.createContext({ ...words });
 vm.runInContext(read('unread.js'), page);
 vm.runInContext(read('ratings.js'), page);
 const { Ratings } = page;
@@ -95,7 +96,7 @@ test('web: a tap is sent to the server and rolled back with a toast when it is r
   assert.match(tap, /Ratings\.next\(before, b\.dataset\.rating\)/);
   assert.ok(tap.indexOf('Ratings.show(el, rating)') < tap.indexOf('await api('), 'filled at once');
   assert.match(tap, /api\(`\/chief\/chats\/\$\{encodeURIComponent\(chatId\)\}\/messages\/\$\{el\.dataset\.rate\}\/rating`, \{ method: 'PUT', body: \{ rating \} \}\)/);
-  assert.match(tap, /catch \{\s*if \(Ratings\.shown\(el\) === rating\) Ratings\.show\(el, before\);[^\n]*\n\s*toast\("Couldn't save your rating", true\)/);
+  assert.match(tap, /catch \{\s*if \(Ratings\.shown\(el\) === rating\) Ratings\.show\(el, before\);[^\n]*\n\s*toast\(tr\("Couldn't save your rating"\), true\)/);
 });
 
 test('web: a rating made in another app shows from the feed, in the chat on screen only', () => {

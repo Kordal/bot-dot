@@ -5,17 +5,17 @@ function renderRuns() {
   if (!root.querySelector('.runs-layout')) {
     root.innerHTML = `
       ${SUB_BACK}
-      <div class="section-head"><div><h1 title="Every bot run, live and past">Activity</h1></div>
-        <select id="run-filter" style="width:auto"><option value="">All bots</option></select></div>
+      <div class="section-head"><div><h1 title="${tr('Every bot run, live and past')}">${tr('Activity')}</h1></div>
+        <select id="run-filter" style="width:auto"><option value="">${tr('All bots')}</option></select></div>
       <div class="runs-layout">
         <div class="card run-list" id="run-list"></div>
-        <div class="card run-view" id="run-view"><div class="empty">Pick a run, or message a bot to start one.</div></div>
+        <div class="card run-view" id="run-view"><div class="empty">${tr('Pick a run, or message a bot to start one.')}</div></div>
       </div>`;
     $('#run-filter').onchange = renderRunList;
   }
   const f = $('#run-filter');
   const cur = f.value;
-  f.innerHTML = '<option value="">All bots</option>' + state.bots.map((b) => `<option value="${esc(b.id)}" ${b.id === cur ? 'selected' : ''}>${esc(b.name)}</option>`).join('');
+  f.innerHTML = `<option value="">${tr('All bots')}</option>` + state.bots.map((b) => `<option value="${esc(b.id)}" ${b.id === cur ? 'selected' : ''}>${esc(b.name)}</option>`).join('');
   renderRunList();
   if (state.selectedRun && !$('#run-view').dataset.id) showRun(state.selectedRun);
 }
@@ -36,12 +36,12 @@ function renderRunList() {
       <button class="run-item ${r.id === state.selectedRun ? 'active' : ''}" data-id="${esc(r.id)}" style="--bot-color:${esc(r.botColor || '#6c7cff')}">
         ${runFigure(r)}
         <div class="grow">
-          <div class="title">${esc(r.botName)}${r.groupId ? ` <span class="faint">in ${esc(groupById(r.groupId)?.name || 'a group')}</span>` : ''}</div>
-          <div class="sub">${ago(r.startedAt)} · ${r.jobName ? `⏰ ${esc(r.jobName)} · ` : r.trigger === 'schedule' ? '⏰ ' : ''}${[r.kind === 'script' ? 'no AI' : null, r.durationMs ? dur(r.durationMs) : null].filter(Boolean).join(' · ')}</div>
+          <div class="title">${esc(r.botName)}${r.groupId ? ` <span class="faint">${groupById(r.groupId)?.name ? tr('in {group}', { group: esc(groupById(r.groupId).name) }) : tr('in a group')}</span>` : ''}</div>
+          <div class="sub">${ago(r.startedAt)} · ${r.jobName ? `⏰ ${esc(r.jobName)} · ` : r.trigger === 'schedule' ? '⏰ ' : ''}${[r.kind === 'script' ? tr('no AI') : null, r.durationMs ? dur(r.durationMs) : null].filter(Boolean).join(' · ')}</div>
         </div>
         ${statusPill(r.reporting === 'held' ? 'held' : r.quiet ? 'quiet' : r.status)}
       </button>`).join('')
-    : '<div class="empty" style="padding:30px">No runs yet</div>';
+    : `<div class="empty" style="padding:30px">${tr('No runs yet')}</div>`;
   $$('.run-item').forEach((el) => (el.onclick = () => openRun(el.dataset.id)));
 }
 
@@ -59,7 +59,7 @@ function toolArg(input) {
 
 function contentText(c) {
   if (typeof c === 'string') return c;
-  if (Array.isArray(c)) return c.map((x) => (x.type === 'text' ? x.text : x.type === 'image' ? '[image]' : JSON.stringify(x))).join('\n');
+  if (Array.isArray(c)) return c.map((x) => (x.type === 'text' ? x.text : x.type === 'image' ? tr('[image]') : JSON.stringify(x))).join('\n');
   return JSON.stringify(c, null, 2);
 }
 
@@ -85,7 +85,7 @@ function renderEvent(ev, ctx) {
     return '';
   }
   if (ev.type === 'stderr') return `<div class="msg stderr">${esc(ev.text)}</div>`;
-  if (ev.type === 'script_output') return `<pre class="msg script-out">${esc(ev.text || '(no output)')}</pre>`;
+  if (ev.type === 'script_output') return `<pre class="msg script-out">${esc(ev.text || tr('(no output)'))}</pre>`;
   if (ev.type === 'raw') return `<div class="msg stderr">${esc(ev.text)}</div>`;
   return '';
 }
@@ -95,11 +95,11 @@ function applyToolResults(root, ctx) {
     const el = root.querySelector(`#tool-${CSS.escape(r.id)}`);
     if (!el) continue;
     el.classList.toggle('err', !!r.isError);
-    el.querySelector('.tstatus').textContent = r.isError ? 'error' : '✓';
-    if (r.text) el.insertAdjacentHTML('beforeend', `<pre>${esc(r.text.slice(0, 8000))}${r.text.length > 8000 ? '\n…(truncated)' : ''}</pre>`);
+    el.querySelector('.tstatus').textContent = r.isError ? tr('error') : '✓';
+    if (r.text) el.insertAdjacentHTML('beforeend', `<pre>${esc(r.text.slice(0, 8000))}${r.text.length > 8000 ? `\n${tr('…(truncated)')}` : ''}</pre>`);
     for (const img of r.images || []) {
       const src = img.source.url && img.source.url.startsWith('/api/runs/') ? img.source.url : `data:${img.source.media_type || 'image/png'};base64,${String(img.source.data || '').replace(/[^A-Za-z0-9+/=]/g, '')}`;
-      el.insertAdjacentHTML('beforeend', `<img class="shot" alt="Screenshot" loading="lazy" src="${esc(src)}">`);
+      el.insertAdjacentHTML('beforeend', `<img class="shot" alt="${tr('Screenshot')}" loading="lazy" src="${esc(src)}">`);
     }
   }
 }

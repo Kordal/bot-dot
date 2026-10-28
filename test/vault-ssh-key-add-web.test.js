@@ -16,7 +16,7 @@ const editor = cut('function openSshKeyEditor()', 'function openSshPublicKey(');
 const shown = cut('function openSshPublicKey(', '\n}\n');
 
 test('web: the Vault offers "＋ SSH key" only while Bitwarden is unlocked', () => {
-  assert.match(list, /\$\{bw\.unlocked \? '<button class="btn" id="add-file">＋ File<\/button><button class="btn" id="add-ssh-key">＋ SSH key<\/button>' : ''\}/);
+  assert.match(list, /\$\{bw\.unlocked \? `<button class="btn" id="add-file">＋ \$\{tr\('File'\)\}<\/button><button class="btn" id="add-ssh-key">＋ \$\{tr\('SSH key'\)\}<\/button>` : ''\}/);
   assert.match(list, /addKey\.onclick = \(\) => openSshKeyEditor\(\)/);
 });
 
@@ -26,8 +26,8 @@ test('web: the dialog sends the pasted or picked key, or asks for a new one, and
   assert.match(editor, /form\.privateKey\.value = await file\.text\(\)/, 'a picked file fills the field, read in the page');
   assert.match(editor, /\.\.\.\(privateKey \? \{ privateKey \} : \{ generate: true \}\)/, 'an empty field generates');
   assert.match(editor, /api\('\/vault\/ssh-keys', \{ method: 'POST', body \}\)/);
-  assert.match(editor, /'Add key' : 'Generate new key'/);
-  assert.match(editor, /setAside\(m, privateKey \? 'Adding the key…' : 'Generating a key…'/, "set aside while it saves; refused, it comes back with the server's sentence in the form (#478)");
+  assert.match(editor, /tr\('Add key'\) : tr\('Generate new key'\)/);
+  assert.match(editor, /setAside\(m, privateKey \? tr\('Adding the key…'\) : tr\('Generating a key…'\)/, "set aside while it saves; refused, it comes back with the server's sentence in the form (#478)");
   assert.match(editor, /const forget = \(\) => \{ if \(aside\) return; form\.privateKey\.value = '';/, 'closing it forgets the key, unless it is only set aside');
   assert.match(editor, /body\.privateKey = null;/, 'and the request keeps none after the answer');
 });

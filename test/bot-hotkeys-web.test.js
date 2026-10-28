@@ -7,14 +7,14 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { cut } = require('./web-page');
+const { cut, words } = require('./web-page');
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 
 test("web: the settings offer the key from a server with bot-hotkeys, each digit another bot holds named", () => {
   const settings = cut('function renderBotSettings(', '// The bits of the settings page that follow');
   assert.match(settings, /\$\{state\.features\.includes\('bot-hotkeys'\) \? hotkeyRow\(b\) : ''\}/);
-  const ctx = vm.createContext({ esc, state: { bots: [{ id: 'a', name: 'Coder', hotkey: 0 }, { id: 'b', name: 'Mail', hotkey: 3 }] } });
+  const ctx = vm.createContext({ ...words, esc, state: { bots: [{ id: 'a', name: 'Coder', hotkey: 0 }, { id: 'b', name: 'Mail', hotkey: 3 }] } });
   vm.runInContext(`${cut("const CHEV = ", '// A change on a settings screen saves by itself')}
     ${cut('function hotkeyRow(', 'function renderBotSettings(')}\nthis.hotkeyRow = hotkeyRow;`, ctx);
   const row = ctx.hotkeyRow({ id: 'a', hotkey: 0 });
@@ -41,7 +41,7 @@ test('web: the key\'s choice stands right of its label as its value, no wider th
 });
 
 test('web: saving sends hotkey as a number once it was chosen, and nothing where it was not or is not shown', () => {
-  const ctx = vm.createContext({ readDisabledSkills: () => [], readLlmFields: () => ({}) });
+  const ctx = vm.createContext({ ...words, readDisabledSkills: () => [], readLlmFields: () => ({}) });
   vm.runInContext(`${cut('function readBotForm(', '// Switched-off machine/built-in skills')}\nthis.readBotForm = readBotForm;`, ctx);
   const field = (value, checked = false) => ({ value, checked });
   const form = (more = {}) => ({ name: field('Coder'), color: field('#1d9e75'), description: field(''), group: field(''), prompt: field(''), systemPrompt: field(''),

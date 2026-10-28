@@ -1,6 +1,7 @@
 // botdot's service worker (issue #87): it shows the notifications botdot sends this browser through its push service,
 // and a tap opens the chat or the card they are about. And one page for no connection (issue #163): a page of botdot
-// that can't be loaded shows offline.html, the one file it keeps. Nothing else is cached: not the app, not the API.
+// that can't be loaded shows offline.html, kept with i18n.js, which draws it in the account's language (#647). Nothing
+// else is cached: not the app, not the API.
 // The page registers it on every load (install.js), and again when "Notifications on this device" is turned on (push.js).
 //
 // A push is { title, body, target, tag }: `target` is "bot:<id>", "chief:<chatId>", "group:<id>", "room:<id>" (a
@@ -20,16 +21,21 @@ function hashOf(target) {
 }
 
 // The offline page: kept at install, under a name that changes with it (a new offline.html needs a new name here);
-// older names go when this worker takes over.
+// older names go when this worker takes over. Its words (i18n.js) are kept with it, and answered from here only when
+// they can't be loaded.
 const OFFLINE = '/offline.html';
-const KEPT = 'botdot-offline-1';
+const WORDS = '/i18n.js';
+const KEPT = 'botdot-offline-2';
 
-// The offline page, kept unless it is already. Never fails: without it a failed page fails as it would without botdot.
+// The offline page and its words, each kept unless it is already. Never fails: without the page a failed page fails
+// as it would without botdot; without the words it is drawn in English.
 const keep = async () => {
-  try {
-    if (await caches.match(OFFLINE, { cacheName: KEPT })) return;
-    await (await caches.open(KEPT)).add(new Request(OFFLINE, { cache: 'reload' }));
-  } catch { /* no connection: the next page that loads tries again */ }
+  for (const file of [OFFLINE, WORDS]) {
+    try {
+      if (await caches.match(file, { cacheName: KEPT })) continue;
+      await (await caches.open(KEPT)).add(new Request(file, { cache: 'reload' }));
+    } catch { /* no connection: the next page that loads tries again */ }
+  }
 };
 
 self.addEventListener('install', (e) => {
@@ -42,13 +48,15 @@ self.addEventListener('activate', (e) => e.waitUntil((async () => {
   await self.clients.claim();
 })()));
 
-// A page that can't be loaded: the offline page in its place. Only pages: a script, a picture or the API fails as before.
+// A page that can't be loaded: the offline page in its place. Only pages, and the words the offline page loads: any
+// other script, a picture or the API fails as before.
 self.addEventListener('fetch', (e) => {
-  if (e.request.mode !== 'navigate') return;
+  const words = new URL(e.request.url, self.location.origin).pathname === WORDS;
+  if (e.request.mode !== 'navigate' && !words) return;
   e.respondWith(fetch(e.request).then((page) => {
     e.waitUntil(keep()); // kept now if the install couldn't
     return page;
-  }, async () => (await caches.match(OFFLINE, { cacheName: KEPT })) || Response.error()));
+  }, async () => (await caches.match(words ? WORDS : OFFLINE, { cacheName: KEPT })) || Response.error()));
 });
 
 self.addEventListener('push', (e) => {

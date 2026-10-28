@@ -3,7 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
-const { cut, element, finders } = require('./web-page');
+const { cut, element, finders, words } = require('./web-page');
 
 function botAlways(b, { fail = null } = {}) {
   const row = element({}, { classes: ['hidden'] });
@@ -11,7 +11,7 @@ function botAlways(b, { fail = null } = {}) {
   const root = element({ '#bs-always': row, '#always-picks': picks });
   const calls = [], toasts = [];
   let picker = null, refreshed = 0;
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     ...finders(), toast: (...a) => toasts.push(a), jobLine: (j) => `line of ${j.name}`, refresh: () => { refreshed++; },
     foldPicker: (el, items, selected, onChange, opts) => { picker = { el, items, selected, opts }; },
     api: async (path, opts = {}) => {

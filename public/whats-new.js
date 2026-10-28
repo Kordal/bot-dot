@@ -17,7 +17,7 @@ function whatsNewNotesHTML(entries) {
       : `
       <details><summary>${esc(e.title)}</summary>${points}</details>`;
   };
-  const count = entries.length > WHATS_NEW_OPEN ? `<p class="whats-new-count">${entries.length} changes, newest first. Tap a title for more.</p>` : '';
+  const count = entries.length > WHATS_NEW_OPEN ? `<p class="whats-new-count">${tr('{n} changes, newest first. Tap a title for more.', { n: entries.length })}</p>` : '';
   return count + entries.map(note).join('');
 }
 
@@ -32,10 +32,10 @@ async function showWhatsNew() {
 function openWhatsNew(entries) {
   if ($('#modal').open) { setTimeout(() => openWhatsNew(entries), WHATS_NEW_WAIT_MS); return null; }
   const m = openModal(`
-    <div class="modal-head"><h2>What's new</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-head"><h2>${tr("What's new")}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
     <div class="modal-body whats-new">${whatsNewNotesHTML(entries)}
     </div>
-    <div class="modal-foot"><button type="button" class="btn primary" data-dismiss>Got it</button></div>`);
+    <div class="modal-foot"><button type="button" class="btn primary" data-dismiss>${tr('Got it')}</button></div>`);
   m.addEventListener('close', () => { api('/whats-new/seen', { method: 'POST', body: { id: entries[0].id } }).catch(() => {}); }, { once: true });
   return m;
 }

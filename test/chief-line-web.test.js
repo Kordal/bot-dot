@@ -8,10 +8,10 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, thread, noDrafts } = require('./web-page');
+const { app, read, cut, esc, element, thread, noDrafts, words } = require('./web-page');
 
 const css = read('style.css');
-const lib = vm.createContext({});
+const lib = vm.createContext({ ...words });
 vm.runInContext(read('unread.js'), lib);
 vm.runInContext(read('opening-line.js'), lib);
 const { OpeningLine } = lib;
@@ -44,7 +44,7 @@ function chiefChat({ reply = async () => ({ ok: true }) } = {}) {
   t.thread.dataset.chat = 'c1';
   const state = { runs: [], chatId: 'c1' };
   const calls = [];
-  const ctx = vm.createContext({ ...noDrafts,
+  const ctx = vm.createContext({ ...words, ...noDrafts,
     OpeningLine, Unread: lib.Unread, openingLines: OpeningLine.keeper(), state, CHIEF_COLOR: CHIEF, 
     chiefTurns: new Map(), botById: () => null, updateChatQueued() {}, stopRun: () => assert.fail('no run is stopped from the Chief\'s line'),
     api: async (path, opts = {}) => { calls.push(`${opts.method || 'GET'} ${path}`); return reply(path); },
@@ -140,7 +140,7 @@ function following({ row = true } = {}) {
   const t = { dataset: { chat: 'c1' }, scrollHeight: 0, scrollTop: 0, clientHeight: 0, added: [], insertAdjacentHTML(where, html) { this.added.push(html); } };
   const state = { chatId: 'c1', chatStream: null, chatReload: false };
   const did = { placed: 0, shown: [], needs: 0, busy: [] };
-  const ctx = vm.createContext({ ...noDrafts,
+  const ctx = vm.createContext({ ...words, ...noDrafts,
     JSON, state, chiefTurns: new Map([['c1', '']]), openingLines: OpeningLine.keeper(), OpeningLine,
     $: (sel) => (sel === '#chat-thread' ? t : null), $$: (sel) => (sel === '[data-pending]' && pending ? [pending] : []),
     EventSource: class { constructor(url) { this.url = url; this.closed = false; streams.push(this); } close() { this.closed = true; } },
@@ -213,7 +213,7 @@ function feed({ view = 'chief', chatId = 'c1', stream = null, sending = false } 
   const form = {};
   const state = { view, chatId, chatStream: stream, chatReload: false };
   const did = { shown: [], placed: 0 };
-  const ctx = vm.createContext({ ...noDrafts,
+  const ctx = vm.createContext({ ...words, ...noDrafts,
     JSON, window: { EventSource: true }, state, setTimeout: () => 0, clearTimeout() {},
     chiefTurns: new Map(), openingLines: OpeningLine.keeper(), sendingIn: new WeakSet(sending ? [form] : []),
     $: (sel) => (sel === '#view-chief form' ? form : null),
@@ -289,7 +289,7 @@ test('web: a chat that is read takes its reply that is going on, and what waits,
   const did = { followed: [], busy: [] };
   let chat = { id: 'c1', busy: true, openingLine: null, queued: [{ id: 'q7', text: 'And the weather?', attachments: [], at: 'x' }, { text: 'no id' }],
     messages: [{ role: 'user', text: 'Ask Web Surfer.' }, { role: 'chief', pending: true, activity: { tool: 'wait_for_run', text: 'Waiting for Web Surfer' } }] };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     state, chiefTurns: new Map(), chiefQueued: new Map(), openingLines: OpeningLine.keeper(), OpeningLine,
     $: (sel) => (sel === '#chat-thread' ? t : sel === '#view-chief form' ? form : null), $$: () => [],
     api: async () => chat, toast: () => assert.fail('no toast'), matchMedia: () => ({ matches: true }),
@@ -314,7 +314,7 @@ test('web: a chat that is read takes its reply that is going on, and what waits,
 // ---------- Stop and who ended it ----------
 
 test('web: the page\'s own table is for a run without the server\'s `problem`, and names who ended it', () => {
-  const ctx = vm.createContext({});
+  const ctx = vm.createContext({ ...words });
   vm.runInContext(`${cut('const ENDED_BY = {', 'function runHeader(meta) {')}\nthis.friendlyProblem = friendlyProblem;`, ctx);
   const p = (meta) => ctx.friendlyProblem(meta, '');
   assert.equal(p({ status: 'stopped' }), 'You stopped this run before it finished.', 'a server that names nobody: the owner did');
@@ -332,7 +332,7 @@ test('web: the page\'s own table is for a run without the server\'s `problem`, a
 
 // The page's botThreadHTML over a bot's runs, with the page's own table for a run without `problem`.
 function threadHTML(runs) {
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     esc, Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: () => '11:40', dur: () => '2 s',
     notesFoldHTML: () => '', filesHTML: () => '', botFilesHTML: () => '', copyBtn: () => '',
@@ -365,7 +365,7 @@ test('web: an ended run draws the server\'s `problem`: who stopped it, in the se
 });
 
 // The page's chiefBubble and actionChip, with its own Markdown.
-const chiefPage = vm.createContext({
+const chiefPage = vm.createContext({ ...words,
   esc, state: { features: [], bots: [{ id: 'surf', name: 'Web Surfer', computer: 'linux' }], runs: [] }, CHIEF_COLOR: CHIEF, OpeningLine,
   msgTime: () => '09:12', copyBtn: () => '', choicesHTML: () => '', questionsHTML: () => '',
 });

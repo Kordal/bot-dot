@@ -24,14 +24,14 @@ test('web: the Chief\'s figure and name open its settings the same way, and its 
   const title = chief.match(/<button class="chat-title" id="chief-settings"[^>]*>([\s\S]*?)<\/button>/);
   assert.ok(title, 'one button around the figure and the name');
   assert.match(title[1], /id="chief-avatar"/);
-  assert.match(title[1], /<h2>\$\{esc\(chiefName\(\)\)\}<\/h2>/, "the name the owner gave it (#41)");
+  assert.match(title[1], /<h2>\$\{esc\(chiefTitle\(\)\)\}<\/h2>/, "the name the owner gave it (#41)");
   assert.match(app, /\$\('#chief-settings'\)\.onclick = \(\) => setPanel\('toggle'\);/);
   assert.doesNotMatch(chief, /ICON\.(gear|history)/);
 });
 
 test('web: the Chief\'s previous chats are in its settings', () => {
   const settings = app.slice(app.indexOf('function renderChiefSettings()'), app.indexOf('// The pages that open from Settings.'));
-  assert.match(settings, /<summary><b>Previous chats<\/b>\$\{CHEV\}<\/summary>\s*<div[^>]*id="chief-chats"/, "a row that opens them under it");
+  assert.match(settings, /<summary><b>\$\{tr\('Previous chats'\)\}<\/b>\$\{CHEV\}<\/summary>\s*<div[^>]*id="chief-chats"/, "a row that opens them under it");
   assert.match(app, /const el = \$\('#chief-chats'\);/);
 });
 
@@ -46,7 +46,7 @@ test('web: a chat head has no line under the name, and a bot\'s keeps its other 
   assert.doesNotMatch(app, /#bot-sub|#chief-sub/);
   const right = head.slice(head.indexOf('<div class="actions-right">'));
   assert.deepEqual([...right.matchAll(/id="(bot-[a-z-]+)"/g)].map((m) => m[1]), ['bot-files', 'bot-more', 'bot-screen', 'bot-add-to-chat']);
-  assert.match(right, /<button type="button" role="menuitem" class="hidden" id="bot-screen">Its computer<\/button>/);
+  assert.match(right, /<button type="button" role="menuitem" class="hidden" id=\"bot-screen\">\$\{tr\('Its computer'\)\}<\/button>/);
   assert.match(app, /\$\('#bot-screen'\)\.onclick = \(\) => openScreen\(state\.botId\);/);
   // Esc in the menu closes it and is not the keypad's Esc, which opens the Chief: that one skips a press already taken.
   const menu = app.slice(app.indexOf('function wireChatMenu(wrap)'), app.indexOf('function renderBotChat()'));

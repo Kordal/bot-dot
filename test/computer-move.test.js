@@ -293,16 +293,16 @@ test("while its files are copied, a bot's computer tools say so and reach no com
 });
 
 test('web and Android ask "Copy files" or "Start empty" between this machine and boat.dev, and show a copy that failed', () => {
-  const { app, cut } = require('./web-page');
+  const { app, cut, words } = require('./web-page');
   const vm = require('node:vm');
-  const ctx = vm.createContext({});
+  const ctx = vm.createContext({ ...words });
   vm.runInContext(`${cut('const COMPUTER_PLACE =', 'function askMoveFiles(')}${cut('const isComputerMove =', '// Its copy\'s line')}this.isComputerMove = isComputerMove;`, ctx);
   assert.ok(ctx.isComputerMove('linux', 'boat'));
   assert.ok(ctx.isComputerMove('boat', 'linux'));
   assert.equal(ctx.isComputerMove('none', 'boat'), false, 'a new computer asks nothing');
   assert.equal(ctx.isComputerMove('linux', 'none'), false);
-  assert.match(app, /Copy files<\/button>/);
-  assert.match(app, /Start empty<\/button>/);
+  assert.match(app, /\$\{tr\('Copy files'\)\}<\/button>/);
+  assert.match(app, /\$\{tr\('Start empty'\)\}<\/button>/);
   assert.match(app, /moveFiles: true/);
   assert.match(app, /computer\/move`, \{ method: 'POST' \}/);
   const kt = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/main/java/dev/botdot/app/ui/BotSettingsScreen.kt'), 'utf8');

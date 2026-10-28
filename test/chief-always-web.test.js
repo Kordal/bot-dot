@@ -4,7 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { cut, element, finders } = require('./web-page');
+const { cut, element, finders, words } = require('./web-page');
 
 function chiefAlways({ features = ['chief-connectors', 'more-always'], answers = {}, fail = null } = {}) {
   const row = element({}, { classes: ['hidden'] });
@@ -12,7 +12,7 @@ function chiefAlways({ features = ['chief-connectors', 'more-always'], answers =
   const root = element({ '#chief-always': row, '#chief-always-picks': picks });
   const calls = [], toasts = [];
   let picker = null;
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     ...finders(), state: { features }, toast: (...a) => toasts.push(a),
     foldPicker: (el, items, selected, onChange, opts) => { picker = { el, items, selected, opts }; },
     api: async (path, opts = {}) => {

@@ -122,17 +122,20 @@ function worker({ online = true } = {}) {
   return { run, stores, fetched, setOnline: (v) => { online = v; } };
 }
 
-test('the service worker keeps only the offline page, shows it for a page that fails, and leaves the rest alone', async () => {
+test('the service worker keeps only the offline page and its words, shows it for a page that fails, and leaves the rest alone', async () => {
   const w = worker();
   await w.run('install', {});
   await w.run('activate', {});
-  assert.deepEqual([...w.stores.keys()], ['botdot-offline-1'], 'older caches go');
-  assert.deepEqual([...w.stores.get('botdot-offline-1').keys()], ['/offline.html']);
+  assert.deepEqual([...w.stores.keys()], ['botdot-offline-2'], 'older caches go');
+  assert.deepEqual([...w.stores.get('botdot-offline-2').keys()], ['/offline.html', '/i18n.js'], 'the offline page and its words (#647)');
   assert.equal(await w.run('fetch', { request: { mode: 'navigate', url: '/#chief' } }), 'page /#chief', 'online: the page itself');
   w.setOnline(false);
   assert.equal(await w.run('fetch', { request: { mode: 'navigate', url: '/' } }), 'kept /offline.html');
   assert.equal(await w.run('fetch', { request: { mode: 'cors', url: '/api/bots' } }), undefined, 'the API is not answered by the worker');
   assert.equal(await w.run('fetch', { request: { mode: 'no-cors', url: '/app.js' } }), undefined);
+  assert.equal(await w.run('fetch', { request: { mode: 'no-cors', url: 'https://botdot.example/i18n.js' } }), 'kept /i18n.js', "the offline page's words");
+  w.setOnline(true);
+  assert.equal(await w.run('fetch', { request: { mode: 'no-cors', url: 'https://botdot.example/i18n.js' } }), 'page https://botdot.example/i18n.js', 'online: the file itself');
 });
 
 test('the service worker installs offline too, a failed page without the offline page fails as before, and the next page keeps it', async () => {

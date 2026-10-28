@@ -6,7 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, finders } = require('./web-page');
+const { app, read, cut, esc, element, finders, words } = require('./web-page');
 
 const COULD_NOT = 'Could not ask Claude Code whether it is signed in.';
 const UNKNOWN = { installed: true, loggedIn: false, error: COULD_NOT };
@@ -16,7 +16,7 @@ const NONE = { installed: false, loggedIn: false };
 
 function page() {
   const toasts = [];
-  const ctx = vm.createContext({ esc, toast: (text, bad = false) => toasts.push([text, bad]) });
+  const ctx = vm.createContext({ ...words, esc, toast: (text, bad = false) => toasts.push([text, bad]) });
   vm.runInContext(`${cut('function setupItem(', 'function drawSetup()')}
     Object.assign(this, { claudeUnknown, opensSetup, claudeSetupItem, toastClaude });`, ctx);
   return { ctx, toasts };
@@ -45,12 +45,12 @@ test('web: Setup shows the sentence of a check that could not tell, not the step
   const draw = cut('function drawSetup()', "onClick('#restore-open'");
   assert.match(draw, /const unknown = !!claudeUnknown\(c\);\n {2}const keyOpen = !!state\.setupKey && !signingIn;\n {2}const claude = claudeSetupItem\(c, signingIn, keyOpen\)/);
   assert.match(draw, /id="setup-done" \$\{c\.loggedIn \|\| unknown \? '' : 'disabled'\}/, 'the way back to the bots is open');
-  assert.match(draw, /<h1>Setup<\/h1>\$\{unknown \? '' : `<p>\$\{c\.loggedIn \? 'botdot is ready\. The rest is up to you\.' : 'One step and botdot is ready\.'\}<\/p>`\}/, 'and no "one step" is asked for');
+  assert.match(draw, /<h1>\$\{tr\('Setup'\)\}<\/h1>\$\{unknown \? '' : `<p>\$\{c\.loggedIn \? tr\('botdot is ready\. The rest is up to you\.'\) : tr\('One step and botdot is ready\.'\)\}<\/p>`\}/, 'and no "one step" is asked for');
 });
 
 test('web: Settings → Claude shows the sentence, never "Not signed in", for a check that could not tell', async () => {
   const card = element();
-  const ctx = vm.createContext({ ...finders(element({ '#claude-card': card })), esc, state: {}, api: async () => ({ claude: ctx.claude }), toast() {} });
+  const ctx = vm.createContext({ ...words, ...finders(element({ '#claude-card': card })), esc, state: {}, api: async () => ({ claude: ctx.claude }), toast() {} });
   vm.runInContext(`${cut('const claudeUnknown', '// First start, or Claude is known')}
     ${read('claude-card.js').slice(read('claude-card.js').indexOf('async function loadClaudeCard'))}
     this.loadClaudeCard = loadClaudeCard;`, ctx);
@@ -72,8 +72,8 @@ test('web: a sign-in or a sign-out whose check could not tell is answered with i
   ctx.toastClaude(UNKNOWN, 'Signed out of Claude');
   assert.deepEqual(toasts, [['Signed in to Claude as me@example.com', false], ['Signed out of Claude', false], [COULD_NOT, true], [COULD_NOT, true]]);
   for (const file of [app, read('claude-card.js')]) {
-    assert.match(file, /toastClaude\(r\.claude, 'Signed out of Claude'\);/);
-    assert.match(file, /toastClaude\(r\.claude, `Signed in to Claude\$\{r\.claude\.email \? ` as \$\{r\.claude\.email\}` : ''\}`\);/);
+    assert.match(file, /toastClaude\(r\.claude, tr\('Signed out of Claude'\)\);/);
+    assert.match(file, /toastClaude\(r\.claude, r\.claude\.email \? tr\('Signed in to Claude as \{email\}', \{ email: r\.claude\.email \}\) : tr\('Signed in to Claude'\)\);/);
     assert.doesNotMatch(file, /toast\(['`]Signed (in to|out of) Claude/);
   }
 });

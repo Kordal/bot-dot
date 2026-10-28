@@ -11,6 +11,11 @@
 
 (function (root) {
 
+// The page's words (i18n.js, #647); without them (the tests load this file alone) English.
+const words = typeof I18n === 'object' ? I18n : null;
+const tr = (text, vars) => (words ? words.tr(text, vars) : text);
+const trn = (n, one, other, vars) => (words ? words.trn(n, one, other, vars) : n === 1 ? one : other);
+
 const MAX_DOTS = 3;
 const REPEAT_MS = 10_000; // until the server names its own
 const CHAT_RUNS = 40; // a bot's chat draws its newest runs, this many
@@ -26,7 +31,7 @@ const tint = (color) => (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(String(color || 
 function dots(n, color) {
   const shown = Math.min(MAX_DOTS, Number.isInteger(n) && n > 0 ? n : 0);
   if (!shown) return '';
-  return `<span class="unread-dots" style="--c:${tint(color)}" aria-label="New ${shown === 1 ? 'reply' : 'replies'}">${'<i></i>'.repeat(shown)}</span>`;
+  return `<span class="unread-dots" style="--c:${tint(color)}" aria-label="${(shown === 1 ? tr('New reply') : tr('New replies'))}">${'<i></i>'.repeat(shown)}</span>`;
 }
 
 // A bot that asks the owner something (docs/api.md, "A bot that asks"): the server says it with `asks` on the bot,
@@ -35,7 +40,7 @@ function dots(n, color) {
 const asks = (bot, busy = false) => (!busy && typeof bot?.asks?.text === 'string' ? bot.asks.text.trim() : '');
 
 // The mark of a row whose bot asks: a round one in the bot's colour, where the dots are.
-const mark = (color) => `<span class="asks-mark" style="--c:${tint(color)}" aria-label="Asks you">?</span>`;
+const mark = (color) => `<span class="asks-mark" style="--c:${tint(color)}" aria-label="${tr('Asks you')}">?</span>`;
 
 // The feed's event about one bot's question, `{ botId, asks }`: `asks` is the question, or null when it ended. The
 // event that lists what waits in Needs you has the same name and no `botId`: it changes nothing here. Sets it on
@@ -51,7 +56,7 @@ function asked(bots, event) {
 }
 
 // The line above the first new reply.
-const line = (color) => `<div class="new-line" style="--c:${tint(color)}">New</div>`;
+const line = (color) => `<div class="new-line" style="--c:${tint(color)}">${tr('New')}</div>`;
 
 // One exchange of a bot's chat (what started the run, then its reply) with the line where the new part
 // begins: above the whole exchange, or below the owner's own message when that started it.

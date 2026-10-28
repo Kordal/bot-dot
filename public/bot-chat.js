@@ -28,7 +28,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
     const when = r.status === 'running' ? r.startedAt : r.endedAt || r.startedAt;
     if (!html || !when) return html;
     const day = new Date(when).toDateString();
-    const sep = day !== lastDay ? `<div class="day">${esc(new Date(when).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
+    const sep = day !== lastDay ? `<div class="day">${esc(new Date(when).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
     lastDay = day;
     return sep + html;
   }).join('');
@@ -68,7 +68,7 @@ function runBlockHTML(bot, rounds, newFirst, line, lastReply, newest) {
 
 // Whether the owner may reply to a run's block (#627): a run of the bot's own chat, against a botdot that takes it.
 const replyable = (r) => (state.features || []).includes('reply-to') && !r.groupId && !r.btw && r.kind !== 'script' && r.status !== 'queued';
-const replyBtnHTML = (r) => `<button type="button" class="reply-btn" data-reply-run="${esc(r.id)}">Reply</button>`;
+const replyBtnHTML = (r) => `<button type="button" class="reply-btn" data-reply-run="${esc(r.id)}">${tr('Reply')}</button>`;
 
 const STEP_ICON = {
   open: '<svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
@@ -82,7 +82,7 @@ const skillsChanged = (r) => [...new Set((r.learned || []).filter((x) => SKILL_K
 // How long a run took, on its step line (#635): "42 s", "7 min", "1 h 5 min".
 const tookFor = (ms) => { const s = Math.max(0, Math.round(ms / 1000)), m = Math.round(s / 60); return s < 60 ? `${s} s` : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`; };
 // A time of a step: its hour and minute.
-const stepTime = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); };
+const stepTime = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString(I18n.locale, { hour: '2-digit', minute: '2-digit' }); };
 const firstLine = (t) => plain(String(t || '').split('\n').find((l) => l.trim()) || '').slice(0, 160);
 // A run's step rows, less the last step that messaged each bot it has a row for (with what it said): that message is
 // not drawn twice. Earlier messages to the same bot keep their step.
@@ -114,17 +114,17 @@ function stepLineHTML(r) {
   const skills = skillsChanged(r);
   const to = sentTo(r);
   if (!running && !count && !skills.length && !to.length) return '';
-  const n = count ? `<span class="step-n">${count} step${count === 1 ? '' : 's'}</span>` : '';
+  const n = count ? `<span class="step-n">${trn(count, '{n} step', '{n} steps')}</span>` : '';
   const sep = '<span class="step-dot">·</span>';
   const head = running
     ? `<i class="plan-spin"></i><span class="step-now">${esc(runLine(r))}</span>${n ? sep + n : ''}`
     : [`${STEP_ICON.done}${n}`, ...skills.map((k) => `<span class="step-pip skill"><span>${esc(k)}</span></span>`), ...to.map((t) => `<span class="step-pip">${STEP_ICON.message}<span>${esc(t.name || '')}</span></span>`),
       ...(r.durationMs != null ? [`<span class="step-took">${esc(tookFor(r.durationMs))}</span>`] : [])].join(sep);
-  const label = [count ? `${count} step${count === 1 ? '' : 's'}` : '', ...skills.map((k) => `the skill ${k}`), ...to.map((t) => t.name)].filter(Boolean).join(', ');
+  const label = [count ? trn(count, '{n} step', '{n} steps') : '', ...skills.map((k) => tr('the skill {name}', { name: k })), ...to.map((t) => t.name)].filter(Boolean).join(', ');
   const sent = to.filter((t) => t.text);
   const rows = [
     ...shownSteps(r, sent).map((x) => ({ at: x.at, icon: x.kind === 'message' ? STEP_ICON.message : x.kind === 'skill' ? STEP_ICON.skill : STEP_ICON.done, text: `${esc(x.text)}${x.n > 1 ? ` <span class="step-x">×${x.n}</span>` : ''}` })),
-    ...sent.map((t) => ({ at: t.at, icon: STEP_ICON.message, text: `<b>Messaged ${esc(t.name || '')}</b><span class="step-q">${esc(firstLine(t.text))}</span>` })),
+    ...sent.map((t) => ({ at: t.at, icon: STEP_ICON.message, text: `<b>${tr('Messaged {name}', { name: esc(t.name || '') })}</b><span class="step-q">${esc(firstLine(t.text))}</span>` })),
     ...(r.learned || []).filter((x) => SKILL_KINDS.includes(x.kind)).map((x) => ({ at: x.at, icon: STEP_ICON.skill, text: `<b>${esc(said(x.chip) || said(x.text))}</b>` })),
   ].map((x, i) => ({ ...x, i, t: Date.parse(x.at) })).sort((a, b) => (Number.isFinite(a.t) ? a.t : Infinity) - (Number.isFinite(b.t) ? b.t : Infinity) || a.i - b.i);
   return `<details class="run-steps${running ? ' now' : ''}" data-steps="${esc(r.id)}"${stepsOpen(r) ? ' open' : ''}>`
@@ -136,7 +136,7 @@ function stepLineHTML(r) {
 // line in the server's words, else "Working".
 function runLine(r) {
   if (r.waitingFor === 'ok') return OpeningLine.WAITING;
-  return (typeof openingLines !== 'undefined' && openingLines.ofRun(`bot:${r.botId}`, r.id)) || OpeningLine.ofRun(r, state.features) || 'Working';
+  return (typeof openingLines !== 'undefined' && openingLines.ofRun(`bot:${r.botId}`, r.id)) || OpeningLine.ofRun(r, state.features) || tr('Working');
 }
 // The running blocks' lines as the server says them, in place: no redraw of the chat.
 function drawBlockLines(thread) {
@@ -150,8 +150,8 @@ function drawBlockLines(thread) {
     if (now) now.onclick = r.waitingFor === 'ok' ? (e) => { e.preventDefault(); if (!toHeldCard(thread, r.botId)) setView('needs'); } : null; // to the card it waits for
     const count = Number(r.steps?.count) || 0;
     const n = $('.step-n', block);
-    if (count && !n) $('.run-steps summary', block)?.insertAdjacentHTML('beforeend', `<span class="step-dot">·</span><span class="step-n">${count} step${count === 1 ? '' : 's'}</span>`);
-    else if (n) n.textContent = `${count} step${count === 1 ? '' : 's'}`;
+    if (count && !n) $('.run-steps summary', block)?.insertAdjacentHTML('beforeend', `<span class="step-dot">·</span><span class="step-n">${trn(count, '{n} step', '{n} steps')}</span>`);
+    else if (n) n.textContent = trn(count, '{n} step', '{n} steps');
   });
 }
 
@@ -163,7 +163,7 @@ function foldLongReplies(thread) {
     if (el.children.length < 2 || el.textContent.length < LONG_REPLY || el.classList.contains('long') || $('pre', el)) return; // a code block is never cut
     el.classList.add('long');
     [...el.children].forEach((c) => { if ($('a[href]', c) || /https?:\/\//.test(c.textContent)) c.classList.add('keep'); }); // a link is never folded
-    el.insertAdjacentHTML('afterend', '<button type="button" class="reply-more">More</button>');
+    el.insertAdjacentHTML('afterend', `<button type="button" class="reply-more">${tr('More')}</button>`);
     el.nextElementSibling.onclick = (e) => { e.stopPropagation(); el.classList.add('more'); e.currentTarget.remove(); };
   });
 }
@@ -172,23 +172,23 @@ function foldLongReplies(thread) {
 // the last in the chat (its quick answers stand under it). newest: it is the run that started last.
 function runParts(bot, r, last, newest, canReply = false) {
   // Messages other bots left for it, read at the start of this run.
-  const notes = notesFoldHTML(r.inbox, r.inbox?.length === 1 ? 'Read a note from' : 'Read notes from');
+  const notes = notesFoldHTML(r.inbox, r.inbox?.length === 1 ? tr('Read a note from') : tr('Read notes from'));
   let mine = false; // your own message started it: that isn't new, so the "New" line goes below it
   const asked = notes + (r.trigger === 'replies' || (r.trigger === 'bot' && !r.fromBot) ? '' // the answers it waited for, or notes that woke it (#225): the notes above are what started it
     : sender(r) // a message from another bot or the Chief: one folded line that opens to what it said
-    ? `<div class="bubble-row from-me"><details class="notes-fold" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(`Message from ${botLabel(sender(r))}`, r.prompt)}<div class="note"><div class="bubble from-other-bot">${esc(r.prompt)}${filesHTML(r.attachments)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></details></div>`
+    ? `<div class="bubble-row from-me"><details class="notes-fold" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(tr('Message from {name}', { name: botLabel(sender(r)) }), r.prompt)}<div class="note"><div class="bubble from-other-bot">${esc(r.prompt)}${filesHTML(r.attachments)}</div><div class="bubble-meta">${copyBtn(r.prompt)}</div></div></details></div>`
     : r.jobName
-    ? `<div class="bubble-row from-me"><span class="chip">${r.jobId === 'memory-review' ? '🧹' : '⏰'} ${esc(r.jobName)}${r.trigger === 'call' ? ', called' : ''}${r.parentRunId ? ' · its script found something' : ''} · ${esc(msgTime(r.startedAt))}</span></div>`
+    ? `<div class="bubble-row from-me"><span class="chip">${r.jobId === 'memory-review' ? '🧹' : '⏰'} ${esc(r.jobName)}${r.trigger === 'call' ? tr(', called') : ''}${r.parentRunId ? ` · ${tr('its script found something')}` : ''} · ${esc(msgTime(r.startedAt))}</span></div>`
     : r.trigger === 'schedule'
-    ? `<div class="bubble-row from-me"><span class="chip">⏰ Scheduled run · ${esc(msgTime(r.startedAt))}</span></div>`
+    ? `<div class="bubble-row from-me"><span class="chip">⏰ ${tr('Scheduled run · {time}', { time: esc(msgTime(r.startedAt)) })}</span></div>`
     : r.trigger === 'hello' ? '' // a new bot's first message (#511): you asked nothing
     : r.kind === 'reminder' ? '' // a reminder it set went off (#343): botdot posted it, nobody asked
     : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
     : r.customPrompt === false
-      ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} Ran its main assignment</span></div>`
+      ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} ${tr('Ran its main assignment')}</span></div>`
       : (mine = true, `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments, `bot:${r.botId}`)}</div><div class="bubble-meta on-hover">${copyBtn(r.prompt)}</div></div></div>`));
   // What the owner steered into it while it worked (ADR 040): their messages, after its request, without buttons.
-  const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(String(x.text || ''), r.botId)}</div>${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `bot:${r.botId}`)}</div><div class="bubble-meta on-hover"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`);
+  const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(String(x.text || ''), r.botId)}</div>${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `bot:${r.botId}`)}</div><div class="bubble-meta on-hover"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></div>`);
   let reply, stop = '';
   if (r.status === 'running') {
     // No bubble while it works: its step line says it. Only what it attached so far. From a server with drafts, the
@@ -196,10 +196,10 @@ function runParts(bot, r, last, newest, canReply = false) {
     // Stop stands at the end of its step line (runBlockHTML).
     reply = `<div class="bubble-row from-bot" data-live="${esc(r.id)}">${draftHTML(replyDrafts.of(r.id), true)}${botFilesHTML(r.files)}</div>
       <div class="bubble-meta block-foot on-hover"><span>${esc(msgTime(r.startedAt))}</span><span class="grow"></span>${canReply ? replyBtnHTML(r) : ''}</div>`;
-    stop = `<button type="button" class="block-stop" data-stop-run="${esc(r.id)}">Stop</button>`;
+    stop = `<button type="button" class="block-stop" data-stop-run="${esc(r.id)}">${tr('Stop')}</button>`;
   } else {
     const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
-    const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || 'Done. (No written reply.)';
+    const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || tr('Done. (No written reply.)');
     const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
     // Between bots (a run another bot or the Chief started) the reply folds as the message above it does: one line,
     // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open,
@@ -210,7 +210,7 @@ function runParts(bot, r, last, newest, canReply = false) {
         ${learnedChips({ ...r, learned: (r.learned || []).filter((x) => !SKILL_KINDS.includes(x.kind)) })}`;
     const shown = sender(r) && !failed && r.notificationAudience !== 'owner'
       ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(exchangeLabel(r), body)}
-          ${outgoing.map((t) => `<div class="note"><div class="bot-msg-label">To ${botLabel(t)}</div><div class="bubble from-bot"><div class="md">${md(t.text)}</div></div></div>`).join('')}
+          ${outgoing.map((t) => `<div class="note"><div class="bot-msg-label">${tr('To {name}', { name: botLabel(t) })}</div><div class="bubble from-bot"><div class="md">${md(t.text)}</div></div></div>`).join('')}
           <div class="note">${bubble}</div>
         </details>`
       : bubble; // whom it messaged is in its step line (stepLineHTML)
@@ -219,7 +219,7 @@ function runParts(bot, r, last, newest, canReply = false) {
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
         ${(last || r.id === bot.asks?.runId) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions) : ''}
-        <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">Details</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
+        <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">${tr('Details')}</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
       </div></div>`;
   }
   return { asked, steered, reply, mine, stop };
@@ -230,7 +230,7 @@ async function runNotes(botId, btn) {
   btn.disabled = true;
   try {
     const { status } = await api(`/bots/${encodeURIComponent(botId)}/inbox/run`, { method: 'POST' });
-    if (status === 'queued') toast(`${botById(botId)?.name || 'It'} is busy: it reads them once it is free.`);
+    if (status === 'queued') toast(tr('{name} is busy: it reads them once it is free.', { name: botById(botId)?.name || tr('It') }));
   } catch (e) { toast(e.message, true); btn.disabled = false; return; }
   refresh();
   loadInbox(botId);
@@ -334,25 +334,25 @@ function renderBotChat() {
     root.innerHTML = `
       <div class="chat-head">
         ${BACK_BTN}
-        <button class="chat-title" id="bot-settings" title="Settings">
+        <button class="chat-title" id="bot-settings" title="${tr('Settings')}">
           <div id="bot-avatar"></div>
           <div class="grow"><h2 id="bot-name"></h2></div>
         </button>
         <div class="actions-right">
-          <button class="icon-btn hidden" id="bot-files" title="Files" aria-label="Files">${ICON.folder}</button>
+          <button class="icon-btn hidden" id="bot-files" title="${tr('Files')}" aria-label="${tr('Files')}">${ICON.folder}</button>
           <div class="chat-more">
-            <button type="button" class="icon-btn" id="bot-more" title="More" aria-label="More" aria-haspopup="menu" aria-expanded="false">${MORE_ICON}</button>
+            <button type="button" class="icon-btn" id="bot-more" title="${tr('More')}" aria-label="${tr('More')}" aria-haspopup="menu" aria-expanded="false">${MORE_ICON}</button>
             <div class="chat-menu" role="menu" hidden>
-              <button type="button" role="menuitem" data-more="settings">Settings</button>
-              <button type="button" role="menuitem" class="hidden" id="bot-screen">Its computer</button>
-              <button type="button" role="menuitem" class="hidden" id="bot-add-to-chat">Add a bot to this chat</button>
+              <button type="button" role="menuitem" data-more="settings">${tr('Settings')}</button>
+              <button type="button" role="menuitem" class="hidden" id="bot-screen">${tr('Its computer')}</button>
+              <button type="button" role="menuitem" class="hidden" id="bot-add-to-chat">${tr('Add a bot to this chat')}</button>
             </div>
           </div>
         </div>
       </div>
       <div class="chat-thread" id="bot-thread"></div>
       <div class="pip hidden" id="bot-pip"></div>
-      ${composerHTML(`Message ${bot.name}`)}`;
+      ${composerHTML(tr('Message {name}', { name: bot.name }))}`;
     const form = $('form', root);
     wireComposer(form, (text, files, key) => runBot(bot.id, text, files, key, replyingTo.get(bot.id)?.runId), () => `bot:${bot.id}`, bot.id);
     $('.attach-list', form).insertAdjacentHTML('beforebegin', '<div class="reply-chip hidden"></div>');
@@ -483,7 +483,7 @@ function pickReply(botId, runId) {
   const runs = state.runs.filter((r) => r.botId === botId);
   let first = runs.find((r) => r.id === runId);
   for (let i = 0; first?.replyTo && i < 50; i++) first = runs.find((r) => r.id === first.replyTo) || first;
-  replyingTo.set(botId, { runId, text: firstLine(first?.prompt) || 'this task' });
+  replyingTo.set(botId, { runId, text: firstLine(first?.prompt) || tr('this task') });
   drawReplyChip(botId);
   $('#view-bot textarea')?.focus();
 }
@@ -492,7 +492,7 @@ function drawReplyChip(botId) {
   if (!chip || state.botId !== botId) return; // the chat on screen is another bot's: its own chip stays
   const to = replyingTo.get(botId);
   chip.classList.toggle('hidden', !to);
-  chip.innerHTML = to ? `<span class="grow">Reply to: ${esc(to.text)}</span><button type="button" aria-label="Don't reply to it">✕</button>` : '';
+  chip.innerHTML = to ? `<span class="grow">${tr('Reply to: {text}', { text: esc(to.text) })}</span><button type="button" aria-label="${tr("Don't reply to it")}">✕</button>` : '';
   if (to) $('button', chip).onclick = () => { replyingTo.delete(botId); drawReplyChip(botId); };
 }
 
@@ -558,19 +558,19 @@ function updatePip(bot, run) {
   el.classList.toggle('in-control', pip.control);
   if (pipHidden()) {
     el.classList.add('collapsed');
-    el.innerHTML = `<button class="pip-show" data-pip="show" title="Show ${esc(bot.name)}'s screen">${ICON.screen} Screen <span class="pill accent pulse">live</span></button>`;
+    el.innerHTML = `<button class="pip-show" data-pip="show" title="${tr("Show {name}'s screen", { name: esc(bot.name) })}">${ICON.screen} ${tr('Screen')} <span class="pill accent pulse">${tr('live')}</span></button>`;
   } else {
     el.classList.remove('collapsed');
     el.innerHTML = `
       <div class="pip-bar">
-        <span class="pill ${pip.control ? 'warn' : 'accent pulse'}">${pip.control ? 'you control it' : 'live'}</span>
-        <span class="grow pip-title">${esc(bot.name)}'s screen</span>
-        <button class="icon-btn sm" data-pip="control" title="${pip.control ? 'Give control back (just watch)' : 'Take control: use its mouse and keyboard'}">${pip.control ? '👁' : '🖱'}</button>
-        <button class="icon-btn sm" data-pip="size" title="${pip.large ? 'Make it smaller' : 'Make it bigger'}">${pip.large ? '⤡' : '⤢'}</button>
-        <button class="icon-btn sm" data-pip="open" title="Open in a window, with full screen">⧉</button>
-        <button class="icon-btn sm" data-pip="hide" title="Hide">✕</button>
+        <span class="pill ${pip.control ? 'warn' : 'accent pulse'}">${pip.control ? tr('you control it') : tr('live')}</span>
+        <span class="grow pip-title">${tr("{name}'s screen", { name: esc(bot.name) })}</span>
+        <button class="icon-btn sm" data-pip="control" title="${pip.control ? tr('Give control back (just watch)') : tr('Take control: use its mouse and keyboard')}">${pip.control ? '👁' : '🖱'}</button>
+        <button class="icon-btn sm" data-pip="size" title="${pip.large ? tr('Make it smaller') : tr('Make it bigger')}">${pip.large ? '⤡' : '⤢'}</button>
+        <button class="icon-btn sm" data-pip="open" title="${tr('Open in a window, with full screen')}">⧉</button>
+        <button class="icon-btn sm" data-pip="hide" title="${tr('Hide')}">✕</button>
       </div>
-      ${ready ? `<iframe src="${screenUrl(bot.id, pip.control)}" title="${esc(bot.name)}'s screen"></iframe>` : '<div class="pip-wait">🖥 Starting its computer…</div>'}`;
+      ${ready ? `<iframe src="${screenUrl(bot.id, pip.control)}" title="${tr("{name}'s screen", { name: esc(bot.name) })}"></iframe>` : `<div class="pip-wait">🖥 ${tr('Starting its computer…')}</div>`}`;
     keepScreenConnected($('iframe', el));
   }
   $$('[data-pip]', el).forEach((b) => (b.onclick = () => {

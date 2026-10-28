@@ -6,7 +6,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, whileBusy } = require('./web-page');
+const { app, read, cut, esc, element, whileBusy, words } = require('./web-page');
 const { page, plain, titleOf, metaOf, thenOf, buttonsOf, CODER, NEWS, BAD } = require('./need-cards');
 const Unread = require('../public/unread.js');
 
@@ -121,7 +121,7 @@ test('web: a job and a tile that wait for their first approval have the server\'
   assert.equal(p.asksBeforeNo(p.item('job:j3')), false);
   const wiring = cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat');
   assert.match(wiring, /if \(no\) no\.onclick = \(\) => answerNeed\(x, false, no\);/, 'a card\'s no, as its row on the keypad answers it');
-  assert.match(wiring, /if \(!asksBeforeNo\(x\) \|\| confirm\('Remove this job\?'\)\) return whileBusy\(button, 'Declining…', \(\) => decide\(x, false\)\);/);
+  assert.match(wiring, /if \(!asksBeforeNo\(x\) \|\| confirm\(tr\('Remove this job\?'\)\)\) return whileBusy\(button, tr\('Declining…'\), \(\) => decide\(x, false\)\);/);
 });
 
 test('web: the server\'s words are text, never markup', async () => {
@@ -353,7 +353,7 @@ function panel() {
   const opened = [], toasts = [], calls = [];
   const modal = element({ '#job-approve': element(), '#job-decline': element() }, { close() { modal.closed = true; } });
   const ctx = vm.createContext({
-    esc, state: { bots: [], botId: 'coder' }, CRON_PRESETS: [], OpeningLine: { text: (t) => (typeof t === 'string' ? t.trim() : '') }, ago: () => 'just now', shortTime: () => '08:00',
+    ...words, esc, state: { bots: [], botId: 'coder' }, CRON_PRESETS: [], OpeningLine: { text: (t) => (typeof t === 'string' ? t.trim() : '') }, ago: () => 'just now', shortTime: () => '08:00',
     botById: (id) => ctx.state.bots.find((b) => b.id === id), ToolCard: { is: () => false }, tileScripts: () => [],
     openModal: (html) => { opened.push(html); return modal; }, toast: (t) => toasts.push(t), refresh() {}, whileBusy,
     // GET /api/bots/:id/jobs before a yes: the jobs as the server has them now (ctx.jobs; none set: no list).
@@ -479,7 +479,7 @@ function wired(x, { agrees = true } = {}) {
   const buttons = { '[data-need-yes]': element(), '[data-need-no]': element(), '[data-need-always]': element() };
   const card = element(buttons, { dataset: { need: x.key } });
   const ctx = vm.createContext({
-    $: (sel, el) => el.querySelector(sel), $$: () => [card], needsOpen: new Set(), openNeed() {}, ToolCard: { is: () => false }, tileScripts: () => [], AI_WHEN_TEXT: {},
+    ...words, $: (sel, el) => el.querySelector(sel), $$: () => [card], needsOpen: new Set(), openNeed() {}, ToolCard: { is: () => false }, tileScripts: () => [], AI_WHEN_TEXT: {},
     confirm: (q) => { asked.push(q); return agrees; }, decide: (...a) => { decided.push(a.slice(1)); busy.push([pressed.textContent, pressed.classList.contains('spin')]); }, whileBusy,
   });
   vm.runInContext(`${cut('// A change that waits beside an approved job or tile', 'function pendingJobs() {')}
@@ -561,7 +561,7 @@ const QUESTION = { text: 'Which mailbox shall I sort first?', runId: 'r9', at: '
 
 // The page's own code for a bot's row in the list, with its Unread and its plain().
 function rows() {
-  const ctx = vm.createContext({ Unread });
+  const ctx = vm.createContext({ ...words, Unread });
   vm.runInContext(`${cut('const plain = (t) =>', '// ---------- contacts (sidebar) ----------')}
     ${cut('function contactLine(b, r, working) {', 'function drawContacts() {')}
     this.contactLine = contactLine;`, ctx);

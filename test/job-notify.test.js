@@ -126,8 +126,8 @@ test("the checkup's digest says when a job's notify address could not be told", 
 
 test("web: a job's settings show its notify address, read-only; a job without one shows nothing", () => {
   const vm = require('vm');
-  const { cut, esc } = require('./web-page');
-  const ctx = vm.createContext({ esc });
+  const { cut, esc, words } = require('./web-page');
+  const ctx = vm.createContext({ ...words, esc });
   vm.runInContext(`${cut('const jobNotifyLine = ', 'function jobCardHTML(j, open = false) {')}\nthis.jobNotifyLine = jobNotifyLine;`, ctx);
   assert.equal(ctx.jobNotifyLine({ name: 'x' }), '');
   assert.equal(ctx.jobNotifyLine({ notifyUrl: 'https://hooks.example.com/a?b=<c>' }), '<div class="faint job-notify">Tells <span class="mono">https://hooks.example.com/a?b=&lt;c&gt;</span> when a run ends, signed with the secret in the Vault.</div>');

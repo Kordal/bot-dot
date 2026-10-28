@@ -6,11 +6,11 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { cut, esc } = require('./web-page');
+const { cut, esc, words } = require('./web-page');
 
 const kitSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'blocks.js'), 'utf8');
 const kit = () => {
-  const ctx = vm.createContext({ esc, md: (s) => `<p>${esc(s)}</p>`, $$: () => [], $: () => null });
+  const ctx = vm.createContext({ ...words, esc, md: (s) => `<p>${esc(s)}</p>`, $$: () => [], $: () => null });
   vm.runInContext(`${kitSource}\nthis.kitStatus = kitStatus; this.kitCallout = kitCallout; this.kitClock = kitClock;`, ctx);
   return ctx;
 };
@@ -54,7 +54,7 @@ test('web: one chart code: lines with gridlines, axes and a legend, bars, stacke
 });
 
 const boardKit = () => {
-  const ctx = vm.createContext({ botById: (id) => ({ b1: { name: 'Home Helper' }, b2: { name: 'Server Watch' } }[id]), setInterval() {}, state: {}, localStorage: { getItem: () => null } });
+  const ctx = vm.createContext({ ...words, botById: (id) => ({ b1: { name: 'Home Helper' }, b2: { name: 'Server Watch' } }[id]), setInterval() {}, state: {}, localStorage: { getItem: () => null } });
   vm.runInContext(`${cut('// A tile whose face is one number', 'function tileHTML(')}\n${cut('// The tiles under one heading as they are drawn', 'function renderDashboard() {')}\nthis.out = { isKpiTile, isControlRow, boardRuns, sectionBots, sectionSource, ageWords, newestAt };`, ctx);
   return ctx.out;
 };
@@ -97,7 +97,7 @@ test('web: the kit is loaded before the Board, and the Board draws its blocks wi
 
 test('web: the refresh button beside the Board title reads every tile now (#452)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'public', 'board.js'), 'utf8');
-  assert.match(src, /data-board-refresh aria-label="Refresh"/);
+  assert.match(src, /data-board-refresh aria-label="\$\{tr\('Refresh'\)\}"/);
   assert.match(src, /api\('\/dashboard\/refresh', \{ method: 'POST', body: \{ all: true \} \}\)/);
   assert.doesNotMatch(src, /Live · updated/, 'no label beside it, the arrows say it');
 });

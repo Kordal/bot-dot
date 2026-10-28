@@ -39,7 +39,7 @@ function parse(hash) {
 // The button under a long reply, or '' when it isn't one or the server can't export.
 function button(src, text, { features, blocks }) {
   if (!features.includes('document-export') || !isLong(text, blocks)) return '';
-  return `<div class="doc-open-row"><a class="btn sm doc-open" href="/${address(src)}" target="_blank" rel="noopener">${ICON_OPEN}Open as document</a></div>`;
+  return `<div class="doc-open-row"><a class="btn sm doc-open" href="/${address(src)}" target="_blank" rel="noopener">${ICON_OPEN}${tr('Open as document')}</a></div>`;
 }
 
 // The sections of a drawn document: each heading gets an id, and the list beside it links to them. A heading that
@@ -56,23 +56,23 @@ function outline(article) {
 const ICON_OPEN = '<svg viewBox="0 0 24 24"><path d="M14 4h6v6 M20 4l-9 9 M18 14v6H4V6h6"/></svg>';
 const ICON_DOWN = '<svg viewBox="0 0 24 24"><path d="M12 4v11 M7 10l5 5 5-5 M5 20h14"/></svg>';
 const ICON_FILE = '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v13H7z M14 3v5h5"/></svg>';
-const FORMATS = [['docx', 'Word document', '.docx'], ['pdf', 'PDF', '.pdf'], ['md', 'Markdown', '.md']];
+const FORMATS = [['docx', tr('Word document'), '.docx'], ['pdf', 'PDF', '.pdf'], ['md', 'Markdown', '.md']];
 
 // What a document address shows: { title, who, at, text, back, botId }.
 async function load(src, g) {
   if (src.run) {
     const r = await g.api(`/runs/${encodeURIComponent(src.run)}`);
-    const bot = g.botName?.(r.botId) || r.botName || 'A bot';
+    const bot = g.botName?.(r.botId) || r.botName || tr('A bot');
     return { text: r.result || '', who: bot, at: r.endedAt || r.startedAt, back: r.groupId ? `#group/${r.groupId}` : `#bot/${r.botId}`, botId: r.botId };
   }
   if (src.chat != null) {
     const c = await g.api(`/chief/chats/${encodeURIComponent(src.chat)}?offset=${src.at}&limit=1`);
     const m = c.messages?.[0];
-    if (!m) throw new Error('This message is gone.');
-    return { text: m.text || '', who: m.role === 'report' && m.from ? (m.from.name || 'A bot') : g.chiefName?.() || 'Chief of Staff', at: m.endedAt || m.at, back: `#chief/${src.chat}` };
+    if (!m) throw new Error(tr('This message is gone.'));
+    return { text: m.text || '', who: m.role === 'report' && m.from ? (m.from.name || tr('A bot')) : g.chiefName?.() || tr('Chief of Staff'), at: m.endedAt || m.at, back: `#chief/${src.chat}` };
   }
   const v = await g.api(`${src.file}${src.file.includes('?') ? '&' : '?'}view=1`);
-  if (v.kind !== 'markdown' && v.kind !== 'text') throw new Error('Only a text document opens here.');
+  if (v.kind !== 'markdown' && v.kind !== 'text') throw new Error(tr('Only a text document opens here.'));
   // A page with blocks (#395): written out as text and tables, with the values they show now.
   return { text: v.plain || v.text || '', who: v.name, at: v.at, back: ownerOf(src.file), name: v.name, truncated: v.truncated };
 }
@@ -101,7 +101,7 @@ function titleOf(doc, blocks) {
   const plain = (s) => String(s).replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" }[e])).replace(/[*_`~]/g, '').trim();
   if (h) return plain(h.text);
   if (doc.name) return doc.name.replace(/\.[^.]+$/, '');
-  const first = plain(String(doc.text).split('\n').find((l) => l.trim()) || 'Document').replace(/^#+\s*/, '');
+  const first = plain(String(doc.text).split('\n').find((l) => l.trim()) || tr('Document')).replace(/^#+\s*/, '');
   return first.length > 80 ? `${first.slice(0, 77)}…` : first;
 }
 
@@ -114,43 +114,44 @@ async function show(hash, g) {
   page.className = 'doc-page';
   document.body.append(page);
   addEventListener('hashchange', () => { if (leaves(location.hash, (id) => !!page.querySelector(`[id="${CSS.escape(id)}"]`))) location.reload(); });
-  if (!src) { page.innerHTML = stateHTML(g, 'No such document', 'This address names no reply or file.'); return; }
+  if (!src) { page.innerHTML = stateHTML(g, tr('No such document'), tr('This address names no reply or file.')); return; }
   let doc;
-  try { doc = await load(src, g); } catch (e) { page.innerHTML = stateHTML(g, "Couldn't open it", e.message || 'Try again.'); return; }
-  if (!doc.text.trim()) { page.innerHTML = stateHTML(g, 'Nothing to show', 'This reply has no text.'); return; }
+  try { doc = await load(src, g); } catch (e) { page.innerHTML = stateHTML(g, tr("Couldn't open it"), e.message || tr('Try again.')); return; }
+  if (!doc.text.trim()) { page.innerHTML = stateHTML(g, tr('Nothing to show'), tr('This reply has no text.')); return; }
   const title = titleOf(doc, g.mdBlocks);
   document.title = `${title} · botdot`;
-  const meta = [`${words(doc.text).toLocaleString('en')} words`, doc.at ? g.msgTime(doc.at) : ''].filter(Boolean).join(' · ');
+  const n = words(doc.text);
+  const meta = [trn(n, '{n} word', '{n} words', { n: n.toLocaleString(I18n.locale) }), doc.at ? g.msgTime(doc.at) : ''].filter(Boolean).join(' · ');
   page.innerHTML = `
     <header class="doc-top">
       <div class="doc-crumb"><span>${g.esc(doc.who)}</span><span aria-hidden="true">›</span><b>${g.esc(title)}</b></div>
       <span class="doc-sp"></span>
       <span class="doc-meta">${g.esc(meta)}</span>
-      ${doc.back ? `<a class="btn sm" href="/${g.esc(doc.back)}">Back to chat</a>` : ''}
+      ${doc.back ? `<a class="btn sm" href="/${g.esc(doc.back)}">${tr('Back to chat')}</a>` : ''}
       <div class="doc-export">
-        <button type="button" class="btn sm primary" data-doc="menu" aria-haspopup="menu" aria-expanded="false">${ICON_DOWN}Export</button>
+        <button type="button" class="btn sm primary" data-doc="menu" aria-haspopup="menu" aria-expanded="false">${ICON_DOWN}${tr('Export')}</button>
         <div class="doc-menu" role="menu" hidden>
-          <div class="doc-menu-label">Download</div>
+          <div class="doc-menu-label">${tr('Download')}</div>
           ${FORMATS.map(([f, label, ext]) => `<button type="button" role="menuitem" data-doc="export" data-format="${f}">${ICON_FILE}${label}<small>${ext}</small></button>`).join('')}
           ${g.features?.includes('document-google-docs') ? `<div class="doc-menu-sep"></div>
-          <div class="doc-menu-label">Save to</div>
+          <div class="doc-menu-label">${tr('Save to')}</div>
           <button type="button" role="menuitem" data-doc="gdocs"><span class="doc-gd">G</span>Google Docs<small data-gd-state></small></button>` : ''}
           <div class="doc-menu-sep"></div>
-          <button type="button" role="menuitem" data-doc="copy">Copy text</button>
-          <button type="button" role="menuitem" data-doc="print">Print</button>
+          <button type="button" role="menuitem" data-doc="copy">${tr('Copy text')}</button>
+          <button type="button" role="menuitem" data-doc="print">${tr('Print')}</button>
         </div>
       </div>
     </header>
     <div class="doc-wrap">
-      <nav class="doc-toc" aria-label="On this page"></nav>
+      <nav class="doc-toc" aria-label="${tr('On this page')}"></nav>
       <article class="md doc-md">${g.md(doc.text, doc.botId)}</article>
     </div>
     <div class="doc-saved" role="status" hidden></div>
-    ${doc.truncated ? '<p class="doc-cut">Too large to show whole: this is its start. Download the file for all of it.</p>' : ''}`;
+    ${doc.truncated ? `<p class="doc-cut">${tr('Too large to show whole: this is its start. Download the file for all of it.')}</p>` : ''}`;
   const sections = outline(page.querySelector('.doc-md'));
   const toc = page.querySelector('.doc-toc');
   toc.innerHTML = sections.length > 1
-    ? `<div class="doc-toc-label">On this page</div>${sections.map((s) => `<a href="#${s.id}" data-sec="${s.id}" style="padding-left:${(s.level - 1) * 10}px">${g.esc(s.text)}</a>`).join('')}`
+    ? `<div class="doc-toc-label">${tr('On this page')}</div>${sections.map((s) => `<a href="#${s.id}" data-sec="${s.id}" style="padding-left:${(s.level - 1) * 10}px">${g.esc(s.text)}</a>`).join('')}`
     : '';
   // A section link scrolls to it and keeps the document's address.
   toc.onclick = (e) => {
@@ -180,7 +181,7 @@ function wire(page, doc, g) {
     // A line at the bottom: progress, the result or what went wrong, with a link that opens a tab of its own, or a
     // Reconnect button, which connects Google Docs again and then saves.
     status: (text, { link, error, reconnect } = {}) => {
-      saved.innerHTML = `${g.esc(text)}${link ? ` <a href="${g.esc(link.href)}" target="_blank" rel="noopener">${g.esc(link.text)}</a>` : ''}${reconnect ? ' <button type="button" data-doc="gdocs-reconnect">Reconnect</button>' : ''}`;
+      saved.innerHTML = `${g.esc(text)}${link ? ` <a href="${g.esc(link.href)}" target="_blank" rel="noopener">${g.esc(link.text)}</a>` : ''}${reconnect ? ` <button type="button" data-doc="gdocs-reconnect">${tr('Reconnect')}</button>` : ''}`;
       saved.classList.toggle('err', !!error);
       saved.hidden = false;
     },
@@ -196,7 +197,7 @@ function wire(page, doc, g) {
     open(false);
     if (what === 'print') return window.print();
     if (what === 'copy') {
-      try { await navigator.clipboard.writeText(doc.text); g.toast('Copied'); } catch { g.toast("Couldn't copy", true); }
+      try { await navigator.clipboard.writeText(doc.text); g.toast(tr('Copied')); } catch { g.toast(tr("Couldn't copy"), true); }
       return;
     }
     if (what === 'gdocs' || what === 'gdocs-reconnect') {
@@ -207,16 +208,16 @@ function wire(page, doc, g) {
       return;
     }
     if (what === 'export') {
-      g.toast('Making the file…');
-      try { save(await exportFile(doc, b.dataset.format)); } catch (err) { g.toast(err.message || "Couldn't make the file", true); }
+      g.toast(tr('Making the file…'));
+      try { save(await exportFile(doc, b.dataset.format)); } catch (err) { g.toast(err.message || tr("Couldn't make the file"), true); }
     }
   });
 }
 
 // What the Google Docs row says: st from GET /export/google-docs, { configured, connected }.
 function gdLabel(st) {
-  if (st.configured === false) return 'Not set up';
-  return st.connected === true ? 'connected' : st.connected === false ? 'Connect…' : '';
+  if (st.configured === false) return tr('Not set up');
+  return st.connected === true ? tr('connected') : st.connected === false ? tr('Connect…') : '';
 }
 
 const GD_POLL = 3000;
@@ -228,24 +229,24 @@ const GD_WAIT = 10 * 60_000;
 // status, wait }. Called straight from the tap: ui.open() runs before anything awaits, so pop-up blockers allow it.
 async function googleDocs(doc, st, g, ui) {
   if (st.configured === false) {
-    return ui.status("Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Connectors page, then try again.",
-      { link: { href: '/#connectors', text: 'Open Connectors ↗' }, error: true });
+    return ui.status(tr("Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Connectors page, then try again."),
+      { link: { href: '/#connectors', text: tr('Open Connectors ↗') }, error: true });
   }
   if (st.connected === false) {
     const win = ui.open();
-    if (!win) return ui.status('Your browser blocked the Google sign-in tab. Allow pop-ups for this page, then tap Google Docs again.', { error: true });
-    ui.row('Connecting…');
-    ui.status('Opening the Google sign-in…');
+    if (!win) return ui.status(tr('Your browser blocked the Google sign-in tab. Allow pop-ups for this page, then tap Google Docs again.'), { error: true });
+    ui.row(tr('Connecting…'));
+    ui.status(tr('Opening the Google sign-in…'));
     let r;
     try { r = await g.api('/connectors/connect', { method: 'POST', body: { app: 'googledocs' } }); } catch (e) {
       win.close();
       ui.row(gdLabel(st));
-      return ui.status(`Couldn't start connecting Google Docs: ${e.message || 'try again'}`, { error: true });
+      return ui.status(tr("Couldn't start connecting Google Docs: {why}", { why: e.message || tr('try again') }), { error: true });
     }
     if (r.noAuth) win.close();
     else {
       win.location = r.redirectUrl;
-      ui.status("Sign in to Google in the tab that opened. botdot saves the document when you're done.");
+      ui.status(tr("Sign in to Google in the tab that opened. botdot saves the document when you're done."));
       let c = null;
       for (const until = Date.now() + GD_WAIT; Date.now() < until;) {
         await ui.wait(GD_POLL);
@@ -254,28 +255,28 @@ async function googleDocs(doc, st, g, ui) {
       }
       if (c?.status !== 'ACTIVE') {
         ui.row(gdLabel(st));
-        return ui.status(c && ['FAILED', 'EXPIRED'].includes(c.status) ? `Connecting Google Docs didn't work${c.statusReason ? `: ${c.statusReason}` : ''}` : 'The Google sign-in took too long. Tap Google Docs to try again.', { error: true });
+        return ui.status(c && ['FAILED', 'EXPIRED'].includes(c.status) ? (c.statusReason ? tr("Connecting Google Docs didn't work: {why}", { why: c.statusReason }) : tr("Connecting Google Docs didn't work")) : tr('The Google sign-in took too long. Tap Google Docs to try again.'), { error: true });
       }
     }
     st.connected = true;
   }
-  ui.row('Saving…');
-  ui.status('Saving to Google Docs…');
+  ui.row(tr('Saving…'));
+  ui.status(tr('Saving to Google Docs…'));
   try {
     const r = await g.api('/export/google-docs', { method: 'POST', body: { title: doc.title, text: doc.text } });
     st.connected = true;
     ui.row(gdLabel(st));
-    ui.status('Saved to Google Docs', { link: { href: r.url, text: 'Open ↗' } });
+    ui.status(tr('Saved to Google Docs'), { link: { href: r.url, text: tr('Open ↗') } });
   } catch (err) {
     if (err.state === 'not-connected') {
       st.connected = false;
       ui.row(gdLabel(st));
-      return ui.status("Google Docs isn't connected. Tap Google Docs again to connect it.", { error: true });
+      return ui.status(tr("Google Docs isn't connected. Tap Google Docs again to connect it."), { error: true });
     }
     // Google Docs wasn't given this access, or is signed out: Reconnect connects it again and saves (state "reconnect").
     if (err.state === 'reconnect') st.connected = false;
     ui.row(gdLabel(st));
-    ui.status(err.message || "Couldn't save it to Google Docs", { error: true, reconnect: err.state === 'reconnect' });
+    ui.status(err.message || tr("Couldn't save it to Google Docs"), { error: true, reconnect: err.state === 'reconnect' });
   }
 }
 
@@ -285,7 +286,7 @@ async function exportFile(doc, format) {
   if (!res.ok) {
     let msg = '';
     try { msg = (await res.json()).error; } catch { /* no words */ }
-    throw new Error(msg || `Couldn't make the file (${res.status})`);
+    throw new Error(msg || tr("Couldn't make the file ({status})", { status: res.status }));
   }
   const name = decodeURIComponent((res.headers.get('content-disposition') || '').match(/filename\*=UTF-8''([^;]+)/)?.[1] || `document.${format}`);
   return { name, blob: await res.blob() };
@@ -300,7 +301,7 @@ function save({ name, blob }) {
   setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
 }
 
-const stateHTML = (g, title, text) => `<div class="doc-state"><h3>${g.esc(title)}</h3><p class="muted">${g.esc(text)}</p><a class="btn sm" href="/">Open botdot</a></div>`;
+const stateHTML = (g, title, text) => `<div class="doc-state"><h3>${g.esc(title)}</h3><p class="muted">${g.esc(text)}</p><a class="btn sm" href="/">${tr('Open botdot')}</a></div>`;
 
 // "Open as document" under a long reply, as the chats call it: src { run } or { chat, at }. It reads the page's
 // state and mdBlocks (app.js) when called.

@@ -4,7 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { cut, esc, element, finders } = require('./web-page');
+const { cut, esc, element, finders, words } = require('./web-page');
 
 const CHIEF_BOT = { id: 'chief', name: 'Chief of Staff' };
 const LIBRARY = [
@@ -13,7 +13,7 @@ const LIBRARY = [
 ];
 
 test('web: the Chief is the first box where a skill is given to bots, ticked when it has the skill', () => {
-  const ctx = vm.createContext({ CHIEF_BOT, esc, state: { bots: [{ id: 'b1', name: 'Report Bot' }] }, botLabel: (b) => esc(b.name) });
+  const ctx = vm.createContext({ ...words, CHIEF_BOT, esc, state: { bots: [{ id: 'b1', name: 'Report Bot' }] }, botLabel: (b) => esc(b.name) });
   vm.runInContext(`${cut('function botCheckboxes(', '// opts.forBot: pre-tick this bot.')}; this.botCheckboxes = botCheckboxes;`, ctx);
   const html = ctx.botCheckboxes(['chief']);
   const boxes = [...html.matchAll(/value="([^"]+)" ([^>]*)>/g)].map((m) => [m[1], /checked/.test(m[2])]);
@@ -26,7 +26,7 @@ function chiefSettings({ chiefSkills = [], answers = [] } = {}) {
   const calls = [], toasts = [];
   let picker = null;
   const state = { settings: { chiefSkills } };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     ...finders(), state, esc,
     skillMoreHTML: () => '',
     toast: (...a) => toasts.push(a),
@@ -73,7 +73,7 @@ test('web: ticking a skill saves the whole list in one PUT, and a refusal is sai
 
 test("web: the skills row is in the Chief's settings, saved apart from its model and rules", () => {
   const draw = cut('function renderChiefSettings()', '// The library skills you gave the Chief');
-  assert.match(draw, /<div class="bs-row" id="chief-skills"[^>]*>\s*<div class="grow"><b>Skills<\/b><div id="chief-skill-picks">[\s\S]*\$\{CHECKUP_HTML\}/, 'a row of the list');
+  assert.match(draw, /<div class="bs-row" id="chief-skills"[^>]*>\s*<div class="grow"><b>\$\{tr\('Skills'\)\}<\/b><div id="chief-skill-picks">[\s\S]*\$\{CHECKUP_HTML\}/, 'a row of the list');
   assert.match(draw, /if \(!String\(e\.target\.name \|\| ''\)\.startsWith\('chief'\)\) return;/, 'its ticks are not sent with the model and rules');
   assert.match(draw, /drawChiefSkills\(root\);/);
 });

@@ -61,31 +61,31 @@ const DocViewer = (() => {
     copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11 M7 10l5 5 5-5 M5 20h14"/></svg>',
   };
-  const downloadHTML = (c, primary = false) => (c.view?.downloadable === false ? '' : `<a class="btn sm${primary ? ' primary' : ''}" href="/api${esc(c.src)}" ${/\.pdf$/i.test(c.name) ? 'target="_blank" rel="noopener"' : `download="${esc(c.view?.interactive ? c.view.name : c.name)}"`}>${ICON.down}Download</a>`);
+  const downloadHTML = (c, primary = false) => (c.view?.downloadable === false ? '' : `<a class="btn sm${primary ? ' primary' : ''}" href="/api${esc(c.src)}" ${/\.pdf$/i.test(c.name) ? 'target="_blank" rel="noopener"' : `download="${esc(c.view?.interactive ? c.view.name : c.name)}"`}>${ICON.down}${tr('Download')}</a>`);
   const stateHTML = (title, text, acts) => `<div class="dv-state"><h3>${esc(title)}</h3><p class="muted">${esc(text)}</p><div class="dv-acts">${acts}</div></div>`;
 
   function headHTML(c) {
     const v = c.view;
-    const sub = c.page ? Pages.subtitle(c.from, v?.page) : [c.from ? `From ${c.from}` : '', v ? KB(v.size) : '', v?.at ? msgTime(v.at) : ''].filter(Boolean).join(' · ');
+    const sub = c.page ? Pages.subtitle(c.from, v?.page) : [c.from ? tr('From {name}', { name: c.from }) : '', v ? KB(v.size) : '', v?.at ? msgTime(v.at) : ''].filter(Boolean).join(' · ');
     return `<div class="dv-head">
-      <button type="button" class="icon-btn dv-back" data-dv="close" aria-label="Back to the chat">${ICON.back}</button>
+      <button type="button" class="icon-btn dv-back" data-dv="close" aria-label="${tr('Back to the chat')}">${ICON.back}</button>
       <div class="dv-title"><b>${esc(c.name)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>
-      <button type="button" class="icon-btn dv-full" data-dv="full" aria-label="${c.full ? 'Back beside the chat' : 'Open in full window'}" title="${c.full ? 'Back beside the chat' : 'Open in full window'}">${ICON.full}</button>
-      <button type="button" class="icon-btn dv-close" data-dv="close" aria-label="Close" title="Close">${ICON.close}</button>
+      <button type="button" class="icon-btn dv-full" data-dv="full" aria-label="${c.full ? tr('Back beside the chat') : tr('Open in full window')}" title="${c.full ? tr('Back beside the chat') : tr('Open in full window')}">${ICON.full}</button>
+      <button type="button" class="icon-btn dv-close" data-dv="close" aria-label="${tr('Close')}" title="${tr('Close')}">${ICON.close}</button>
     </div>`;
   }
-  const seg = (c, modes) => `<div class="dv-seg" role="group" aria-label="View">${modes.map(([m, label]) => `<button type="button" data-dv="mode" data-mode="${m}" class="${c.mode === m ? 'on' : ''}" aria-pressed="${c.mode === m}">${label}</button>`).join('')}</div>`;
+  const seg = (c, modes) => `<div class="dv-seg" role="group" aria-label="${tr('View')}">${modes.map(([m, label]) => `<button type="button" data-dv="mode" data-mode="${m}" class="${c.mode === m ? 'on' : ''}" aria-pressed="${c.mode === m}">${label}</button>`).join('')}</div>`;
   function barHTML(c) {
     const v = c.view;
     const text = ['markdown', 'text', 'csv'].includes(v.kind);
     const table = v.kind === 'csv' && c.mode === 'table' ? tableOf(rowsOf(c), null, c) : null;
     return `<div class="dv-bar">
       ${c.page && v.page ? Pages.barHTML(v.page) : ''}
-      ${v.kind === 'markdown' ? seg(c, [['rendered', 'Rendered'], ['source', 'Source']]) : v.kind === 'csv' ? seg(c, [['table', 'Table'], ['source', 'Source']]) : ''}
-      ${table ? `<input class="dv-find" type="search" placeholder="Find in table" aria-label="Find in table" value="${esc(c.find)}"><span class="dv-count faint">${table.total} rows · ${table.cols} columns</span>` : ''}
+      ${v.kind === 'markdown' ? seg(c, [['rendered', tr('Rendered')], ['source', tr('Source')]]) : v.kind === 'csv' ? seg(c, [['table', tr('Table')], ['source', tr('Source')]]) : ''}
+      ${table ? `<input class="dv-find" type="search" placeholder="${tr('Find in table')}" aria-label="${tr('Find in table')}" value="${esc(c.find)}"><span class="dv-count faint">${trn(table.total, '{n} row', '{n} rows')} · ${trn(table.cols, '{n} column', '{n} columns')}</span>` : ''}
       <span class="dv-sp"></span>
-      ${text ? `<button type="button" class="btn sm" data-dv="copy">${ICON.copy}Copy</button>` : ''}
-      ${v.kind === 'markdown' && globalThis.DocPage && state.features.includes('document-export') ? `<a class="btn sm" href="/${esc(DocPage.address({ file: c.src }))}" target="_blank" rel="noopener">Open as document</a>` : ''}
+      ${text ? `<button type="button" class="btn sm" data-dv="copy">${ICON.copy}${tr('Copy')}</button>` : ''}
+      ${v.kind === 'markdown' && globalThis.DocPage && state.features.includes('document-export') ? `<a class="btn sm" href="/${esc(DocPage.address({ file: c.src }))}" target="_blank" rel="noopener">${tr('Open as document')}</a>` : ''}
       ${downloadHTML(c)}
     </div>`;
   }
@@ -97,7 +97,7 @@ const DocViewer = (() => {
     const arrow = (i) => (c.sort?.col === i ? (c.sort.dir > 0 ? ' ▲' : ' ▼') : '');
     return `<div class="dv-table"><table><thead><tr><th class="dv-n"></th>${Array.from({ length: t.cols }, (_, i) => `<th><button type="button" data-dv="sort" data-col="${i}">${esc(t.head[i] ?? '')}${arrow(i)}</button></th>`).join('')}</tr></thead>
       <tbody>${t.rows.map((r) => `<tr><td class="dv-n">${r.n}</td>${Array.from({ length: t.cols }, (_, i) => `<td${isNum(r.cells[i] ?? '') ? ' class="num"' : ''}>${esc(r.cells[i] ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>
-      ${t.rows.length ? '' : '<p class="faint">Nothing found.</p>'}</div>`;
+      ${t.rows.length ? '' : `<p class="faint">${tr('Nothing found.')}</p>`}</div>`;
   }
   function bodyHTML(c) {
     const v = c.view;
@@ -109,20 +109,21 @@ const DocViewer = (() => {
 
   // The whole viewer for where it stands: loading, a state (gone, the computer off, no preview) or the file.
   function html(c) {
-    if (!c.view && !c.error) return `${headHTML(c)}<div class="dv-body dv-loading" aria-label="Loading">${[60, 92, 84, 70, 88].map((w) => `<div class="dv-sk" style="width:${w}%"></div>`).join('')}</div>`;
+    if (!c.view && !c.error) return `${headHTML(c)}<div class="dv-body dv-loading" aria-label="${tr('Loading')}">${[60, 92, 84, 70, 88].map((w) => `<div class="dv-sk" style="width:${w}%"></div>`).join('')}</div>`;
     if (c.error) {
       const e = c.error;
-      const body = e.status === 404 ? stateHTML('This file is gone', 'Nothing is at this path any more. It may have been moved or deleted.', '<button type="button" class="btn sm" data-dv="close">Back to the chat</button>')
-        : e.state === 'computer-off' ? stateHTML('The computer is off', "This file is on the account's computer, which is stopped. Start it to open the file.", `${c.bot ? '<button type="button" class="btn sm primary" data-dv="start">Start the computer</button>' : ''}<button type="button" class="btn sm" data-dv="close">Not now</button>`)
-          : stateHTML("Couldn't open it", e.message || '', '<button type="button" class="btn sm" data-dv="close">Back to the chat</button>');
+      const back = `<button type="button" class="btn sm" data-dv="close">${tr('Back to the chat')}</button>`;
+      const body = e.status === 404 ? stateHTML(tr('This file is gone'), tr('Nothing is at this path any more. It may have been moved or deleted.'), back)
+        : e.state === 'computer-off' ? stateHTML(tr('The computer is off'), tr("This file is on the account's computer, which is stopped. Start it to open the file."), `${c.bot ? `<button type="button" class="btn sm primary" data-dv="start">${tr('Start the computer')}</button>` : ''}<button type="button" class="btn sm" data-dv="close">${tr('Not now')}</button>`)
+          : stateHTML(tr("Couldn't open it"), e.message || '', back);
       return `${headHTML(c)}<div class="dv-body">${body}</div>`;
     }
     const v = c.view;
-    if (v.downloadable === false) return `${headHTML(c)}<div class="dv-body">${stateHTML('Too large to bring out of the computer', 'Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.', '<button type="button" class="btn sm" data-dv="close">Back to the chat</button>')}</div>`;
+    if (v.downloadable === false) return `${headHTML(c)}<div class="dv-body">${stateHTML(tr('Too large to bring out of the computer'), tr('Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.'), `<button type="button" class="btn sm" data-dv="close">${tr('Back to the chat')}</button>`)}</div>`;
     // A bot's interactive page (#399): its frame on the sandbox's own address.
     if (v.interactive && c.page) return `${headHTML(c)}${Pages.siteBarHTML(c, downloadHTML(c))}<div class="dv-body dv-site-body">${Pages.siteBodyHTML(c, downloadHTML(c, true))}</div>`;
-    if (v.kind === 'none') return `${headHTML(c)}<div class="dv-body">${stateHTML('No preview for this kind of file', 'The app shows Markdown, text, code, CSV and pictures. Open this one on your device.', downloadHTML(c, true))}</div>`;
-    const cut = v.truncated ? `<div class="dv-cut"><b>Too large to show whole.</b> Showing its start (up to 1 MB or 1,000 lines). ${v.downloadable === false ? '' : 'Download it to see everything.'}</div>` : '';
+    if (v.kind === 'none') return `${headHTML(c)}<div class="dv-body">${stateHTML(tr('No preview for this kind of file'), tr('The app shows Markdown, text, code, CSV and pictures. Open this one on your device.'), downloadHTML(c, true))}</div>`;
+    const cut = v.truncated ? `<div class="dv-cut"><b>${tr('Too large to show whole.')}</b> ${tr('Showing its start (up to 1 MB or 1,000 lines).')} ${v.downloadable === false ? '' : tr('Download it to see everything.')}</div>` : '';
     return `${headHTML(c)}${barHTML(c)}${cut}<div class="dv-body">${bodyHTML(c)}</div>`;
   }
 
@@ -255,7 +256,7 @@ const DocViewer = (() => {
     if (what === 'full') { cur.full = !cur.full; return cur.view?.interactive ? around(cur) : draw(); }
     if (what === 'mode') { cur.mode = btn.dataset.mode; return draw(); }
     // A page with blocks copies what it shows, its blocks as text and tables; its Source, the Markdown.
-    if (what === 'copy') { if (await copyText((cur.mode === 'rendered' && cur.view?.plain) || cur.view?.text || '')) toast('Copied'); return; }
+    if (what === 'copy') { if (await copyText((cur.mode === 'rendered' && cur.view?.plain) || cur.view?.text || '')) toast(tr('Copied')); return; }
     if (what === 'sort') {
       const col = Number(btn.dataset.col);
       cur.sort = cur.sort?.col === col ? (cur.sort.dir > 0 ? { col, dir: -1 } : null) : { col, dir: 1 };
@@ -321,7 +322,7 @@ const DocViewer = (() => {
       const a = e.target.closest?.('a.file-path');
       if (!a || a.dataset.tipped) return;
       a.dataset.tipped = '1';
-      api(withQuery(a.dataset.view, 'stat=1')).then((v) => { a.title = `Open ${v.name} · ${KB(v.size)}`; }, () => {});
+      api(withQuery(a.dataset.view, 'stat=1')).then((v) => { a.title = tr('Open {name} · {size}', { name: v.name, size: KB(v.size) }); }, () => {});
     });
   }
 

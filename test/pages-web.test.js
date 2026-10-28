@@ -3,14 +3,14 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, esc } = require('./web-page');
+const { read, esc, words } = require('./web-page');
 
 function page({ features = ['document-viewer', 'pages'], answers = {}, fails = {} } = {}) {
   const calls = [];
   const pills = [];
   const ctx = vm.createContext({
-    state: { features, bots: [{ id: 'ops', name: 'Ops' }], view: 'bot', botId: 'ops' },
-    esc, encodeURIComponent, ago: () => '5m ago', chiefName: () => 'Kai', toast() {}, DocViewer: { pageChanged() {} }, SUB_BACK: '',
+    ...words, state: { features, bots: [{ id: 'ops', name: 'Ops' }], view: 'bot', botId: 'ops' },
+    esc, encodeURIComponent, ago: () => '5m ago', chiefName: () => 'Kai', chiefTitle: () => 'Kai', toast() {}, DocViewer: { pageChanged() {} }, SUB_BACK: '',
     api: async (p, opts = {}) => { calls.push([p, opts.method || 'GET', opts.body]); if (fails[p]) throw new Error(fails[p]); return answers[p] ?? {}; },
     // The corner pill (app.js): what it said, and the retry its error offers.
     cornerPill: (kind, text, retry) => pills.push({ kind, text, retry }),

@@ -122,8 +122,8 @@ test('without logins on its job a script has no botdot-request key', { timeout: 
 
 test("web: a script job's settings show its logins, read-only; a job without any shows nothing", () => {
   const vm = require('vm');
-  const { cut, esc } = require('./web-page');
-  const ctx = vm.createContext({ esc });
+  const { cut, esc, words } = require('./web-page');
+  const ctx = vm.createContext({ ...words, esc });
   vm.runInContext(`${cut('const jobLoginsLine = ', 'const jobNotifyLine = ')}\nthis.jobLoginsLine = jobLoginsLine;`, ctx);
   assert.equal(ctx.jobLoginsLine({ kind: 'script' }), '');
   assert.equal(ctx.jobLoginsLine({ kind: 'ai', logins: ['A'] }), '');

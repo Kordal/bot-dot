@@ -222,7 +222,7 @@ test('web: a list of figures only has no search, a mark for the Board, and a lin
 
 test('web: every row carries its name as its title, for a list that shows figures only', () => {
   const { app } = require('./web-page');
-  assert.match(app, /data-contact="chief" title="\$\{esc\(chiefName\(\)\)\}">/);
+  assert.match(app, /data-contact="chief" title="\$\{esc\(chiefTitle\(\)\)\}">/);
   assert.match(app, /draggable="true" title="\$\{esc\(b\.name\)\}">/);
   assert.match(read('groups.js'), /draggable="true" title="\$\{esc\(g\.name\)\}">/);
 });

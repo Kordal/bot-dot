@@ -23,7 +23,7 @@ function keepScreenConnected(iframe) {
 // The account's computer is always on, for every bot (#104): it is on, being started again, or not made yet.
 function computerLabel(botId) {
   const st = state.computers?.[botId];
-  return st === 'running' ? 'on' : st === 'stopped' ? 'starting again' : 'not made yet';
+  return st === 'running' ? tr('Computer is on.') : st === 'stopped' ? tr('Computer is starting again.') : tr('Computer is not made yet.');
 }
 
 // The screen as large as the window lets it be, at the desktop's 4:3 (a boat.dev machine's 16:9), with all of the dialog in the window and no
@@ -54,14 +54,14 @@ const boatFrameUrl = (url) => `/boat-desktop.html#u=${encodeURIComponent(url)}`;
 function openBoatComputer(bot) {
   let control = false;
   const m = openModal(`
-    <div class="modal-head"><h2>${botLabel(bot)}'s computer</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-head"><h2>${tr("{name}'s computer", { name: botLabel(bot) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
     <div class="modal-body">
-      <div class="screen-frame wide-screen" id="screen-frame"><div class="screen-off">Starting…</div></div>
+      <div class="screen-frame wide-screen" id="screen-frame"><div class="screen-off">${tr('Starting…')}</div></div>
       <div class="screen-bar">
         <span class="muted" id="boat-state" style="font-size:12.5px"></span>
         <span style="flex:1"></span>
-        <button class="btn sm" id="screen-control" disabled>🖱 Take control</button>
-        <a class="btn sm hidden" id="screen-full" target="_blank" rel="noopener noreferrer">⤢ Full screen</a>
+        <button class="btn sm" id="screen-control" disabled>🖱 ${tr('Take control')}</button>
+        <a class="btn sm hidden" id="screen-full" target="_blank" rel="noopener noreferrer">⤢ ${tr('Full screen')}</a>
       </div>
     </div>`);
   m.classList.add('wide', 'screen');
@@ -70,7 +70,7 @@ function openBoatComputer(bot) {
   const line = () => api(`/bots/${bot.id}/computer`).then((d) => { $('#boat-state', m).textContent = d.text || ''; }, () => {});
   let shown = false, timer = null, open = true;
   const shield = () => {
-    $('#screen-control', m).textContent = control ? '👁 Just watch' : '🖱 Take control';
+    $('#screen-control', m).textContent = control ? `👁 ${tr('Just watch')}` : `🖱 ${tr('Take control')}`;
     $('#screen-shield', m)?.classList.toggle('hidden', control);
     $('#screen-frame iframe', m)?.setAttribute('tabindex', control ? '0' : '-1'); // no keys reach it by Tab either
   };
@@ -89,7 +89,7 @@ function openBoatComputer(bot) {
     if (d.state !== 'running') {
       // Started again, or its desktop still readying: a new address once it runs, never the old one.
       shown = false;
-      $('#screen-frame', m).innerHTML = '<div class="screen-off">Starting…</div>';
+      $('#screen-frame', m).innerHTML = `<div class="screen-off">${tr('Starting…')}</div>`;
       $('#screen-control', m).disabled = true;
       $('#screen-full', m).classList.add('hidden');
       timer = setTimeout(ask, 3000);
@@ -100,7 +100,7 @@ function openBoatComputer(bot) {
     $('#screen-control', m).disabled = false;
     if (!shown) {
       shown = true;
-      $('#screen-frame', m).innerHTML = `<iframe src="${esc(boatFrameUrl(d.url))}" title="Live screen" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe><div class="screen-shield" id="screen-shield"></div>`;
+      $('#screen-frame', m).innerHTML = `<iframe src="${esc(boatFrameUrl(d.url))}" title="${esc(tr('Live screen'))}" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe><div class="screen-shield" id="screen-shield"></div>`;
       shield();
       line();
     }
@@ -125,17 +125,17 @@ function openScreen(botId) {
   if (bot.computer === 'boat') return openBoatComputer(bot);
   let control = false;
   const m = openModal(`
-    <div class="modal-head"><h2>${botLabel(bot)}'s computer</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-head"><h2>${tr("{name}'s computer", { name: botLabel(bot) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
     <div class="modal-body">
-      <div class="screen-frame" id="screen-frame"><div class="muted">Loading…</div></div>
+      <div class="screen-frame" id="screen-frame"><div class="muted">${tr('Loading…')}</div></div>
       <div class="screen-bar">
         <span class="muted" id="screen-state" style="font-size:12.5px"></span>
         <span style="flex:1"></span>
-        <button class="btn sm" id="screen-control">🖱 Take control</button>
-        <a class="btn sm" id="screen-full" target="_blank" rel="noopener">⤢ Full screen</a>
-        <button class="btn sm danger" id="screen-reset" title="Erase the account's computer, for every bot that works on it.">Reset</button>
+        <button class="btn sm" id="screen-control">🖱 ${tr('Take control')}</button>
+        <a class="btn sm" id="screen-full" target="_blank" rel="noopener">⤢ ${tr('Full screen')}</a>
+        <button class="btn sm danger" id="screen-reset" title="${esc(tr("Erase the account's computer, for every bot that works on it."))}">${tr('Reset')}</button>
       </div>
-      <div class="screen-steps hidden" id="screen-steps"><div class="muted" style="font-size:12.5px">What it's doing: <span id="screen-now"></span></div></div>
+      <div class="screen-steps hidden" id="screen-steps"><div class="muted" style="font-size:12.5px">${tr("What it's doing:")} <span id="screen-now"></span></div></div>
       <div class="req-note hidden" id="screen-update"><span id="screen-update-text"></span> <button class="btn sm" id="screen-update-yes"></button></div>
       <div class="req-note hidden" id="screen-old"><span id="screen-old-text"></span> <button class="btn sm" id="screen-old-copy"></button> <button class="btn sm danger" id="screen-old-erase"></button></div>
       <div class="screen-usage hidden" id="screen-usage"></div>
@@ -156,7 +156,7 @@ function openScreen(botId) {
     }
     $('#screen-usage', m).innerHTML = usageRows(d.usage);
     $('#screen-usage', m).classList.toggle('hidden', !d.usage?.bots);
-    $('#screen-state', m).dataset.disk = d.diskBytes != null ? ` Uses ${d.diskBytes > 1e9 ? (d.diskBytes / 1e9).toFixed(1) + ' GB' : Math.max(1, Math.round(d.diskBytes / 1e6)) + ' MB'} of disk.` : '';
+    $('#screen-state', m).dataset.disk = d.diskBytes != null ? ` ${tr('Uses {size} of disk.', { size: d.diskBytes > 1e9 ? `${(d.diskBytes / 1e9).toLocaleString(I18n.locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} GB` : `${Math.max(1, Math.round(d.diskBytes / 1e6))} MB` })}` : '';
     frame();
   }).catch(() => {});
   describe();
@@ -167,17 +167,17 @@ function openScreen(botId) {
     // Its own screen off on the running computer (#134): the server's words and a button, not a viewer that can't connect.
     const off = state.computers?.[botId] === 'running' && info?.screenOff;
     const on = state.computers?.[botId] === 'running' && !off;
-    $('#screen-state', m).textContent = `Computer is ${computerLabel(botId)}.${bot.running ? ' The bot is using it right now.' : ''}${$('#screen-state', m).dataset.disk || ''}`;
-    $('#screen-control', m).textContent = control ? '👁 Just watch' : '🖱 Take control';
+    $('#screen-state', m).textContent = `${computerLabel(botId)}${bot.running ? ` ${tr('The bot is using it right now.')}` : ''}${$('#screen-state', m).dataset.disk || ''}`;
+    $('#screen-control', m).textContent = control ? `👁 ${tr('Just watch')}` : `🖱 ${tr('Take control')}`;
     $('#screen-full', m).href = screenUrl(botId, control);
     $('#screen-control', m).disabled = !on;
     $('#screen-frame', m).innerHTML = off
       ? `<div class="screen-off"><div class="big">🖥</div>${esc(off.text)}<div><button class="btn sm" id="screen-start">${esc(off.start)}</button></div></div>`
       : on
-      ? `<iframe src="${screenUrl(botId, control)}" title="Live screen"></iframe>`
-      : `<div class="screen-off"><div class="big">🖥</div>${state.computers?.[botId] === 'stopped' ? "The account's computer is starting again. It stays on for every bot." : "The account's computer isn't made yet. The first computer tool of any bot makes it."}</div>`;
+      ? `<iframe src="${screenUrl(botId, control)}" title="${esc(tr('Live screen'))}"></iframe>`
+      : `<div class="screen-off"><div class="big">🖥</div>${state.computers?.[botId] === 'stopped' ? tr("The account's computer is starting again. It stays on for every bot.") : tr("The account's computer isn't made yet. The first computer tool of any bot makes it.")}</div>`;
     const start = $('#screen-start', m);
-    if (start) start.onclick = async () => { start.disabled = true; await act('start', 'Starting its screen…'); await describe(); };
+    if (start) start.onclick = async () => { start.disabled = true; await act('start', tr('Starting its screen…')); await describe(); };
     keepScreenConnected($('#screen-frame iframe', m));
     fit();
   };
@@ -204,26 +204,26 @@ function openScreen(botId) {
   };
   $('#screen-reset', m).onclick = () => {
     if (!info?.reset) return;
-    if (confirm(`${info.reset.title}\n\n${info.reset.text}`)) forAll('reset', 'Resetting…');
+    if (confirm(`${info.reset.title}\n\n${info.reset.text}`)) forAll('reset', tr('Resetting…'));
   };
-  $('#screen-update-yes', m).onclick = () => { if (info?.update && confirm(info.update.text)) forAll('update', 'Updating…'); };
+  $('#screen-update-yes', m).onclick = () => { if (info?.update && confirm(info.update.text)) forAll('update', tr('Updating…')); };
   // A bot's old computer of its own: its files copied into its folder, then the old one erased.
   $('#screen-old-copy', m).onclick = async () => {
     try {
-      toast('Copying…');
+      toast(tr('Copying…'));
       const r = await api(`/bots/${botId}/computer`, { method: 'POST', body: { action: 'copy-old' } });
-      toast(`Copied into ${r.copied}`);
+      toast(tr('Copied into {folder}', { folder: r.copied }));
     } catch (e) { toast(e.message, true); }
   };
   $('#screen-old-erase', m).onclick = async () => {
     if (!info?.old || !confirm(info.old.confirm)) return;
-    await act('reset', 'Erasing…');
+    await act('reset', tr('Erasing…'));
     describe();
   };
   // Its line as it works, in the server's words, so a quiet screen (e.g. while it waits for you) still tells you
   // what's happening.
   const run = state.runs.find((r) => r.botId === botId && r.status === 'running');
-  const stepsEs = run && watchRun(run.id, () => { const n = $('#screen-now', m); if (n) n.textContent = 'finished'; }, null, (line) => {
+  const stepsEs = run && watchRun(run.id, () => { const n = $('#screen-now', m); if (n) n.textContent = tr('finished'); }, null, (line) => {
     const box = $('#screen-steps', m);
     if (!box || !OpeningLine.text(line)) return;
     box.classList.remove('hidden');
@@ -244,39 +244,40 @@ function openScreen(botId) {
 // sends the same text as `problem` (lib/problems.js); this is for a run the page followed live.
 // endedBy: who ended the run (docs/api.md): the owner, the Chief, a sign-out, a silence or the time limit.
 const ENDED_BY = {
-  owner: 'You stopped this run before it finished.',
-  chief: 'The Chief stopped this run before it finished.',
-  signout: 'This run was stopped because Claude was signed out.',
-  idle: 'I stopped because nothing happened for 20 minutes: I seemed stuck. Send it again, or break it into smaller pieces.',
-  limit: 'I stopped after 4 hours: this took too long. Send it again, or break it into smaller pieces.',
+  owner: tr('You stopped this run before it finished.'),
+  chief: tr('The Chief stopped this run before it finished.'),
+  signout: tr('This run was stopped because Claude was signed out.'),
+  idle: tr('I stopped because nothing happened for 20 minutes: I seemed stuck. Send it again, or break it into smaller pieces.'),
+  limit: tr('I stopped after 4 hours: this took too long. Send it again, or break it into smaller pieces.'),
 };
 function friendlyProblem(meta, resultText) {
   const text = `${resultText || ''} ${meta.error || ''}`;
   if (Object.hasOwn(ENDED_BY, meta.endedBy)) return ENDED_BY[meta.endedBy];
   // Stopped, and the server names nobody (a server from before `endedBy`): the owner did. With a name the page does not know, nobody is named.
-  if (meta.status === 'stopped') return meta.endedBy ? 'This run was stopped before it finished.' : ENDED_BY.owner;
-  if (meta.status === 'interrupted') return 'This run was cut off because botdot was restarted.';
-  if (/not logged in|\/login/i.test(text)) return "I couldn't start because Claude isn't signed in yet. Open Settings → Claude and sign in, then try again.";
+  if (meta.status === 'stopped') return meta.endedBy ? tr('This run was stopped before it finished.') : ENDED_BY.owner;
+  if (meta.status === 'interrupted') return tr('This run was cut off because botdot was restarted.');
+  if (/not logged in|\/login/i.test(text)) return tr("I couldn't start because Claude isn't signed in yet. Open Settings → Claude and sign in, then try again.");
   // Claude's servers refused the sign-in (a revoked or expired token): Claude Code's "Failed to authenticate. API Error: 401".
   if (/Failed to authenticate|authentication_error|API Error: 401/i.test(text)) {
-    return `Claude refused my sign-in, so I couldn't finish. ${meta.jobName ? 'I will try again at the next scheduled time' : 'Send it again'}; if this keeps happening, sign in to Claude again in Settings → Claude.`;
+    return meta.jobName ? tr("Claude refused my sign-in, so I couldn't finish. I will try again at the next scheduled time; if this keeps happening, sign in to Claude again in Settings → Claude.") : tr("Claude refused my sign-in, so I couldn't finish. Send it again; if this keeps happening, sign in to Claude again in Settings → Claude.");
   }
-  if (/max.?turns/i.test(text)) return 'The task took more steps than I was allowed. Try breaking it into smaller pieces.';
+  if (/max.?turns/i.test(text)) return tr('The task took more steps than I was allowed. Try breaking it into smaller pieces.');
   if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|reach the API server|network error|fetch failed/i.test(text)) {
-    return `I couldn't reach Claude's servers, so I couldn't start. This computer had no internet connection, or couldn't look up the address (a DNS problem).${meta.jobName ? ' I will try again at the next scheduled time.' : ' Check the connection and send the message again.'}`;
+    return `${tr("I couldn't reach Claude's servers, so I couldn't start. This computer had no internet connection, or couldn't look up the address (a DNS problem).")} ${meta.jobName ? tr('I will try again at the next scheduled time.') : tr('Check the connection and send the message again.')}`;
   }
-  if (/overloaded|529|rate.?limit|429|usage limit/i.test(text)) return "Claude's servers were busy or my usage limit was reached, so I stopped. Try again in a little while.";
+  if (/overloaded|529|rate.?limit|429|usage limit/i.test(text)) return tr("Claude's servers were busy or my usage limit was reached, so I stopped. Try again in a little while.");
   // Something else: say what it was, briefly.
   const why = String(meta.error || resultText || '').replace(/\s+/g, ' ').trim().slice(0, 200);
-  return `Something went wrong and I couldn't finish.${why ? ` It said: “${why}”.` : ''} The details show everything that happened.`;
+  return why ? tr("Something went wrong and I couldn't finish. It said: “{why}”. The details show everything that happened.", { why }) : tr("Something went wrong and I couldn't finish. The details show everything that happened.");
 }
 
 function runHeader(meta) {
   const when = fmtTime(meta.startedAt);
   const facts = [
-    `${meta.jobName ? `⏰ ${esc(meta.jobName)}, ${meta.trigger === 'schedule' ? 'scheduled' : meta.trigger === 'call' ? 'called' : 'started'}` : meta.trigger === 'schedule' ? '⏰ Scheduled' : 'Started'} ${when}`,
-    meta.kind === 'script' ? `⚙️ script, no AI${meta.exitCode != null ? ` · exit code ${meta.exitCode}` : ''}` : null,
-    meta.durationMs != null ? `took ${dur(meta.durationMs)}` : null,
+    meta.jobName ? `⏰ ${meta.trigger === 'schedule' ? tr('{job}, scheduled {when}', { job: esc(meta.jobName), when }) : meta.trigger === 'call' ? tr('{job}, called {when}', { job: esc(meta.jobName), when }) : tr('{job}, started {when}', { job: esc(meta.jobName), when })}`
+      : meta.trigger === 'schedule' ? `⏰ ${tr('Scheduled {when}', { when })}` : tr('Started {when}', { when }),
+    meta.kind === 'script' ? `⚙️ ${tr('script, no AI')}${meta.exitCode != null ? ` · ${tr('exit code {code}', { code: meta.exitCode })}` : ''}` : null,
+    meta.durationMs != null ? tr('took {time}', { time: dur(meta.durationMs) }) : null,
   ].filter(Boolean).join(' · ');
   return `
     <div class="run-header" style="--bot-color:${esc(meta.botColor || '#6c7cff')}">
@@ -284,17 +285,17 @@ function runHeader(meta) {
       <div class="grow"><h2>${esc(meta.botName)}</h2>
         <div class="muted" style="font-size:12.5px">${facts}</div></div>
       ${statusPill(meta.status)}
-      ${meta.status === 'running' ? `<button class="btn danger sm" id="stop-run">■ Stop</button>` : `<button class="btn sm" id="rerun">↻ Run again</button>`}
+      ${meta.status === 'running' ? `<button class="btn danger sm" id="stop-run">■ ${tr('Stop')}</button>` : `<button class="btn sm" id="rerun">↻ ${tr('Run again')}</button>`}
     </div>`;
 }
 
 function detailsInfo(meta) {
   return `
     <div class="run-facts">
-      <span>Folder <code class="mono">${esc(meta.project)}</code></span>
-      ${meta.modelUsed || meta.model ? `<span>Model <b>${esc(meta.modelUsed || meta.model)}</b>${meta.effort ? ` · reasoning <b>${esc(effortLabel(meta.effort))}</b>` : ''}</span>` : ''}
-      <span>Steps <b>${meta.numTurns ?? '—'}</b></span>
-      ${meta.sessionId ? `<span>Continue in Claude Code: <code class="mono">cd ${esc(meta.project)} && claude --resume ${esc(meta.sessionId)}</code> <button class="btn ghost sm" id="copy-resume">copy</button></span>` : ''}
+      <span>${tr('Folder')} <code class="mono">${esc(meta.project)}</code></span>
+      ${meta.modelUsed || meta.model ? `<span>${tr('Model')} <b>${esc(meta.modelUsed || meta.model)}</b>${meta.effort ? ` · ${tr('reasoning')} <b>${esc(effortLabel(meta.effort))}</b>` : ''}</span>` : ''}
+      <span>${tr('Steps')} <b>${meta.numTurns ?? '—'}</b></span>
+      ${meta.sessionId ? `<span>${tr('Continue in Claude Code:')} <code class="mono">cd ${esc(meta.project)} && claude --resume ${esc(meta.sessionId)}</code> <button class="btn ghost sm" id="copy-resume">${tr('copy')}</button></span>` : ''}
     </div>`;
 }
 
@@ -315,16 +316,16 @@ function showRun(id) {
       <div id="live-screen"></div>
       <div class="bubble-row from-bot" style="--bot-color:${esc(meta?.botColor || '#6c7cff')}">
         ${runFigure(meta || {}, 'sm')}
-        <div class="bubble from-bot live" id="answer"><div class="live-line"><div class="typing"><span></span><span></span><span></span></div><span class="activity muted">Working…</span></div></div>
+        <div class="bubble from-bot live" id="answer"><div class="live-line"><div class="typing"><span></span><span></span><span></span></div><span class="activity muted">${tr('Working…')}</span></div></div>
       </div>
-      <button class="details-toggle" id="details-toggle">${showDetails ? 'Hide details' : 'Show details'}</button>
+      <button class="details-toggle" id="details-toggle">${showDetails ? tr('Hide details') : tr('Show details')}</button>
       <div id="details" class="${showDetails ? '' : 'hidden'}">
         <div id="details-info">${meta ? detailsInfo(meta) : ''}</div>
         <div class="transcript" id="transcript"></div>
       </div>
     </div>`;
   const conv = $('#conversation');
-  const tr = $('#transcript');
+  const transcript = $('#transcript');
   const answer = $('#answer');
   const ctx = { tools: {}, results: [] };
   let current = meta;
@@ -339,21 +340,21 @@ function showRun(id) {
     const d = $('#details');
     d.classList.toggle('hidden');
     const open = !d.classList.contains('hidden');
-    $('#details-toggle').textContent = open ? 'Hide details' : 'Show details';
+    $('#details-toggle').textContent = open ? tr('Hide details') : tr('Show details');
     try { localStorage.setItem('botdot.details', open ? '1' : '0'); } catch { /* ignore */ }
   };
 
   const wire = () => {
     const stop = $('#stop-run');
-    if (stop) stop.onclick = async () => { await api(`/runs/${id}/stop`, { method: 'POST' }); toast('Stopping…'); };
+    if (stop) stop.onclick = async () => { await api(`/runs/${id}/stop`, { method: 'POST' }); toast(tr('Stopping…')); };
     const rerun = $('#rerun');
     if (rerun) rerun.onclick = () => {
       const bot = state.bots.find((b) => b.id === current.botId);
-      if (!bot) return toast('That bot was deleted', true);
+      if (!bot) return toast(tr('That bot was deleted'), true);
       openRunDialog(bot.id);
     };
     const copy = $('#copy-resume');
-    if (copy) copy.onclick = () => { navigator.clipboard.writeText(`cd ${current.project} && claude --resume ${current.sessionId}`); toast('Copied'); };
+    if (copy) copy.onclick = () => { navigator.clipboard.writeText(`cd ${current.project} && claude --resume ${current.sessionId}`); toast(tr('Copied')); };
   };
   const refreshMeta = (m) => {
     current = m;
@@ -367,7 +368,7 @@ function showRun(id) {
   };
   const showAnswer = () => {
     const failed = resultIsError || ['error', 'stopped', 'interrupted'].includes(current?.status);
-    const body = failed ? current?.problem || friendlyProblem(current || {}, resultText) : resultText || 'Done. (No written reply.)';
+    const body = failed ? current?.problem || friendlyProblem(current || {}, resultText) : resultText || tr('Done. (No written reply.)');
     answer.classList.toggle('problem', failed);
     answer.classList.remove('live'); // the answer can wrap normally
     answer.innerHTML = `<div class="md">${md(body)}</div>`;
@@ -378,14 +379,14 @@ function showRun(id) {
   state.runStream = es;
   es.onmessage = (msg) => {
     const ev = JSON.parse(msg.data);
-    if (OpeningLine.says(ev.type, state.features)) { line = OpeningLine.text(ev.text); setActivity(line || 'Working'); }
+    if (OpeningLine.says(ev.type, state.features)) { line = OpeningLine.text(ev.text); setActivity(line || tr('Working')); }
     if (ev.type === 'phase') {
-      setActivity(OpeningLine.text(ev.text) || line || 'Working');
+      setActivity(OpeningLine.text(ev.text) || line || tr('Working'));
     } else if (ev.type === 'run_start') {
       refreshMeta(ev.meta);
       $('#ask').textContent = ev.meta.prompt;
       if (ev.meta.computer && ev.meta.status === 'running' && state.bots.find((b) => b.id === ev.meta.botId)?.computer === 'linux') {
-        $('#live-screen').innerHTML = `<div class="live-screen"><div class="live-label"><span class="pill accent pulse">live</span> ${esc(ev.meta.botName)}'s screen <button class="btn ghost sm" data-screen-open>open</button></div><iframe src="${screenUrl(ev.meta.botId)}" title="Live screen"></iframe></div>`;
+        $('#live-screen').innerHTML = `<div class="live-screen"><div class="live-label"><span class="pill accent pulse">${tr('live')}</span> ${tr("{name}'s screen", { name: esc(ev.meta.botName) })} <button class="btn ghost sm" data-screen-open>${tr('open')}</button></div><iframe src="${screenUrl(ev.meta.botId)}" title="${esc(tr('Live screen'))}"></iframe></div>`;
         keepScreenConnected($('#live-screen iframe'));
         $('[data-screen-open]').onclick = () => openScreen(ev.meta.botId);
       }
@@ -395,7 +396,7 @@ function showRun(id) {
         refreshMeta(ev.meta);
         if (!$('#ask').textContent) $('#ask').textContent = ev.meta.prompt || '';
         if (resultText == null && ev.meta.result) resultText = ev.meta.result;
-        if (ev.meta.error) tr.insertAdjacentHTML('beforeend', `<div class="msg stderr">${esc(ev.meta.error)}</div>`);
+        if (ev.meta.error) transcript.insertAdjacentHTML('beforeend', `<div class="msg stderr">${esc(ev.meta.error)}</div>`);
         const i = state.runs.findIndex((r) => r.id === id);
         if (i >= 0) state.runs[i] = ev.meta;
         renderRunList();
@@ -409,8 +410,8 @@ function showRun(id) {
       resultIsError = !!ev.is_error;
     } else {
       const html = renderEvent(ev, ctx);
-      if (html) tr.insertAdjacentHTML('beforeend', html);
-      applyToolResults(tr, ctx);
+      if (html) transcript.insertAdjacentHTML('beforeend', html);
+      applyToolResults(transcript, ctx);
     }
     if (stick) conv.scrollTop = conv.scrollHeight;
   };

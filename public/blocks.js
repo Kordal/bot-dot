@@ -19,7 +19,7 @@ function kitDelta(b) {
   const d = b.delta;
   const arrow = d.dir === 'up' ? '▲' : d.dir === 'down' ? '▼' : '–';
   const tone = d.good === true ? 'good' : d.good === false ? 'bad' : 'flat';
-  return `<span class="kit-delta ${tone}">${arrow} ${esc(d.text)}${b.since ? ` since ${kitClock(Date.parse(b.since))}` : ''}</span>`;
+  return `<span class="kit-delta ${tone}">${arrow} ${b.since ? tr('{change} since {time}', { change: esc(d.text), time: kitClock(Date.parse(b.since)) }) : esc(d.text)}</span>`;
 }
 
 // A sparkline: the line, and the area under it fading out.
@@ -41,7 +41,7 @@ function kitKpi(b, c, tint = (x) => x) {
   return `<div class="kit-kpi ${b.points?.length >= 2 ? 'has-spark' : ''}">
     <div class="kit-kpi-main">
       ${b.label ? `<div class="kit-label">${esc(b.label)}</div>` : ''}
-      <div class="kit-num"${b.type === 'value' && b.color ? ` style="color:${tint(b.color)}"` : ''}>${b.text ? esc(b.text) : '<span class="faint">·</span>'}${b.unit ? `<small>${esc(b.unit)}</small>` : ''}${b.of ? `<small class="of">of ${esc(b.of)}</small>` : ''}</div>
+      <div class="kit-num"${b.type === 'value' && b.color ? ` style="color:${tint(b.color)}"` : ''}>${b.text ? esc(b.text) : '<span class="faint">·</span>'}${b.unit ? `<small>${esc(b.unit)}</small>` : ''}${b.of ? `<small class="of">${tr('of {total}', { total: esc(b.of) })}</small>` : ''}</div>
       ${kitDelta(b)}${sub}
     </div>
     ${kitSpark(b.points, c)}
@@ -197,19 +197,19 @@ function kitCell(c, type) {
 function kitTableBody(b, st) {
   const v = kitTableView(b, st);
   const head = b.head || [];
-  if (!v.total) return '<div class="faint kit-table-empty">No rows</div>';
+  if (!v.total) return `<div class="faint kit-table-empty">${tr('No rows')}</div>`;
   const th = head.map((h, i) => {
     const on = v.sort?.column === i;
     return `<th class="${KIT_RIGHT.includes(h.type) ? 'r' : ''} ${on ? 'on' : ''}"><button type="button" data-tsort="${i}">${esc(h.label)}${on ? `<span class="ar">${v.sort.dir === 'desc' ? '▼' : '▲'}</span>` : ''}</button></th>`;
   }).join('');
-  const tr = v.rows.map((r) => `<tr>${head.map((h, i) => `<td class="${KIT_RIGHT.includes(h.type) ? 'r' : ''} ${i > 0 && h.type === 'text' ? 'soft' : ''}">${kitCell(r[i], h.type)}</td>`).join('')}</tr>`).join('');
+  const trs = v.rows.map((r) => `<tr>${head.map((h, i) => `<td class="${KIT_RIGHT.includes(h.type) ? 'r' : ''} ${i > 0 && h.type === 'text' ? 'soft' : ''}">${kitCell(r[i], h.type)}</td>`).join('')}</tr>`).join('');
   // The list: the first column, a reference under it, a status on the right.
   const ref = head.findIndex((h) => h.type === 'ref');
   const stat = head.findIndex((h) => h.type === 'status');
   const li = v.rows.map((r) => `<div class="kit-trow"><div class="n">${esc(r[0]?.text || '')}${ref > 0 && r[ref]?.text ? `<span>${kitCell(r[ref], 'ref')}</span>` : ''}</div>${stat > 0 && r[stat]?.text ? kitCell(r[stat], 'status') : ''}</div>`).join('');
-  const pager = v.pages > 1 ? `<span class="kit-pager"><button type="button" data-tpage="${v.page - 1}" ${v.page ? '' : 'disabled'} aria-label="Previous">‹</button>${v.page + 1} / ${v.pages}<button type="button" data-tpage="${v.page + 1}" ${v.page < v.pages - 1 ? '' : 'disabled'} aria-label="Next">›</button></span>` : '';
-  return `${v.matching ? `<table class="kit-tbl"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table><div class="kit-tlist">${li}</div>` : '<div class="faint kit-table-empty">Nothing matches</div>'}
-    <div class="kit-tfoot"><span>${v.rows.length} of ${v.matching}${v.matching !== v.total ? ` · ${v.total} in all` : ''}</span>${pager}</div>`;
+  const pager = v.pages > 1 ? `<span class="kit-pager"><button type="button" data-tpage="${v.page - 1}" ${v.page ? '' : 'disabled'} aria-label="${tr('Previous')}">‹</button>${v.page + 1} / ${v.pages}<button type="button" data-tpage="${v.page + 1}" ${v.page < v.pages - 1 ? '' : 'disabled'} aria-label="${tr('Next')}">›</button></span>` : '';
+  return `${v.matching ? `<table class="kit-tbl"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table><div class="kit-tlist">${li}</div>` : `<div class="faint kit-table-empty">${tr('Nothing matches')}</div>`}
+    <div class="kit-tfoot"><span>${v.matching !== v.total ? tr('{shown} of {matching} · {total} in all', { shown: v.rows.length, matching: v.matching, total: v.total }) : tr('{shown} of {matching}', { shown: v.rows.length, matching: v.matching })}</span>${pager}</div>`;
 }
 
 // A table. key: where it is drawn, the same each time it is drawn again (a tile and its block, a page and its part).
@@ -217,8 +217,8 @@ function kitTable(b, key) {
   kitTableData.set(key, b);
   const st = kitTableState(key);
   const f = b.filter;
-  const seg = f ? `<div class="kit-seg" role="group">${['', ...f.options].map((o) => `<button type="button" data-tfilter="${esc(o)}" class="${(st.filter || '').toLowerCase() === o.toLowerCase() || (!o && !f.options.some((x) => x.toLowerCase() === (st.filter || '').toLowerCase())) ? 'on' : ''}">${o ? esc(o) : 'All'}</button>`).join('')}</div>` : '';
-  const find = b.search === false ? '' : `<input class="kit-find" type="search" placeholder="Search" value="${esc(st.q)}" aria-label="Search the table">`;
+  const seg = f ? `<div class="kit-seg" role="group">${['', ...f.options].map((o) => `<button type="button" data-tfilter="${esc(o)}" class="${(st.filter || '').toLowerCase() === o.toLowerCase() || (!o && !f.options.some((x) => x.toLowerCase() === (st.filter || '').toLowerCase())) ? 'on' : ''}">${o ? esc(o) : tr('All')}</button>`).join('')}</div>` : '';
+  const find = b.search === false ? '' : `<input class="kit-find" type="search" placeholder="${tr('Search')}" value="${esc(st.q)}" aria-label="${tr('Search the table')}">`;
   return `<div class="kit-table" data-tkey="${esc(key)}">
     <div class="kit-table-bar">${b.text ? `<b>${esc(b.text)}</b>` : ''}<span class="kit-count">${(b.rows || []).length}</span><span class="sp"></span>${find}${seg}</div>
     <div class="kit-table-body">${kitTableBody(b, st)}</div></div>`;
@@ -288,7 +288,7 @@ function pageBlockHTML(b, key = '') {
       if (b.blocks.every((x) => x.type === 'status')) return `<div class="pb-pills">${b.blocks.map(kitStatus).join('')}</div>`;
       return `<div class="pb-grid" style="--cols:${Math.min(Math.max(Number(b.columns) || 1, 1), 4)}">${b.blocks.map(pageBlockHTML).join('')}</div>`;
     default:
-      return `<div class="pb-error" title="${esc(b?.text || '')}">This block could not be drawn</div>`;
+      return `<div class="pb-error" title="${esc(b?.text || '')}">${tr('This block could not be drawn')}</div>`;
   }
 }
 

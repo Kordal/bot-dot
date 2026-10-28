@@ -8,7 +8,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, element, finders, answer, esc } = require('./web-page');
+const { app, read, cut, element, finders, answer, esc, words } = require('./web-page');
 
 const unreached = () => Object.assign(new Error("Can't reach botdot."), { unreached: true });
 const refused = (said) => Object.assign(new Error(said), { status: 429, refused: true });
@@ -23,7 +23,7 @@ function box(onSend, { secret = false } = {}) {
   const list = element({}, { classes: ['hidden'] });
   const form = element({ '.send-btn': btn, '.send-note': note, '.attach-list': list, '.attach-btn': element() }, { text: ta, files: element() });
   const said = { toasts: [], confirms: [] };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     ...finders(), Math, String, Promise, Map, WeakSet, crypto: globalThis.crypto,
     toast: (...a) => said.toasts.push(a),
     confirm: (q) => { said.confirms.push(q); return true; },
@@ -226,7 +226,7 @@ function answers(send) {
   const sendBtn = element({}, { disabled: true });
   const card = element({ textarea: boxes, button: sendBtn });
   const thread = element({ '[data-choice]': buttons, '.ask-card': [card] });
-  const ctx = vm.createContext({ ...finders(), Math, matchMedia: () => ({ matches: false }), crypto: globalThis.crypto });
+  const ctx = vm.createContext({ ...words, ...finders(), Math, matchMedia: () => ({ matches: false }), crypto: globalThis.crypto });
   vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('function wireChoices(root, send)', 'const copyBtn = ')}\nthis.wireChoices = wireChoices;`, ctx);
   ctx.wireChoices(thread, send);
   return { row, buttons, card, boxes, sendBtn };
@@ -259,7 +259,7 @@ test('web: a quick answer tapped twice sends once', async () => {
 
 // The answers of one reply (choicesHTML's `of`, #495), drawn and wired again as the chat is drawn again.
 function replyAnswers() {
-  const ctx = vm.createContext({ esc, $: () => null, $$: () => [], CSS: { escape: (s) => s }, crypto: globalThis.crypto, Map });
+  const ctx = vm.createContext({ ...words, esc, $: () => null, $$: () => [], CSS: { escape: (s) => s }, crypto: globalThis.crypto, Map });
   vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('// The text colour that reads best on a filled colour', '// Several questions at once ([[ask: …]])')}\n${cut('function wireChoices(root, send)', 'const copyBtn = ')}\nObject.assign(this, { wireChoices, choicesHTML });`, ctx);
   const draw = (send) => {
     const row = element({}, { hidden: false });
@@ -342,7 +342,7 @@ function senders(reply) {
   const calls = [];
   const bodies = []; // what each message was sent with
   const said = { toasts: [], refreshed: 0, followed: [], shown: [] };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     ...finders(doc), Promise, Object, crypto: globalThis.crypto,
     state: { chatId: null, chatNew: true, runs: [] }, console,
     api: async (path, opts = {}) => { calls.push(`${opts.method || 'GET'} ${path}`); if (opts.body) bodies.push(opts.body); return reply(path, opts); },
@@ -442,7 +442,7 @@ test('web: the box wired to the real senders keeps a failed message, in the Chie
 function reaching(reply) {
   const awayLine = element({}, { classes: ['hidden'] });
   const doc = element({ '.away-line': [awayLine] });
-  const ctx = vm.createContext({ ...finders(doc), fetch: (...a) => reply.now(...a), JSON, Object, Error, Promise });
+  const ctx = vm.createContext({ ...words, ...finders(doc), fetch: (...a) => reply.now(...a), JSON, Object, Error, Promise });
   vm.runInContext(`${cut('const away = { on: false };', 'function esc(s)')}\nthis.api = api;`, ctx);
   const send = (text) => ctx.api('/chief/chats/c1/messages', { method: 'POST', body: { text } });
   return { send, api: ctx.api, away: () => !awayLine.classList.contains('hidden') };
@@ -515,13 +515,13 @@ test('web: the line is above the box, in the warning colour', () => {
 // Quiet keys (#635): the empty box says whom it messages, and on a phone, where the head names the chat, "Message".
 test('web: the empty box says "Message <name>", and "Message" on a phone', () => {
   const words = (phone) => {
-    const ctx = vm.createContext({ esc, away: { on: false }, signedOut: { on: false }, signedOutHTML: () => '', ICON: {}, matchMedia: () => ({ matches: phone, addEventListener() {} }) });
+    const ctx = vm.createContext({ esc, ...require('./web-page').words, away: { on: false }, signedOut: { on: false }, signedOutHTML: () => '', ICON: {}, matchMedia: () => ({ matches: phone, addEventListener() {} }) });
     vm.runInContext(`${cut('function composerHTML(placeholder', '// Files attached in a composer')}\nthis.composerHTML = composerHTML;`, ctx);
     return ctx.composerHTML('Message Server Watch').match(/placeholder="([^"]*)" data-placeholder="([^"]*)"/).slice(1);
   };
   assert.deepEqual(words(false), ['Message Server Watch', 'Message Server Watch']);
   assert.deepEqual(words(true), ['Message', 'Message Server Watch']);
-  assert.ok(app.includes('composerHTML(`Message ${bot.name}`)') && app.includes('composerHTML(`Message ${chiefName()}`)') && read('groups.js').includes('composerHTML(`Message ${g.name}`)'));
+  assert.ok(app.includes("composerHTML(tr('Message {name}', { name: bot.name }))") && app.includes('composerHTML(messageChief())') && read('groups.js').includes("composerHTML(tr('Message {name}', { name: g.name }))"));
   assert.doesNotMatch(app, /a task…|Message the Chief…/);
 });
 

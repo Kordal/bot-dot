@@ -199,7 +199,7 @@ test('server: the preview answers { when, next }, and for a refused expression {
 
 const app = webSource();
 // A part of app.js, from one line of it up to another.
-const { whileBusy } = require('./web-page');
+const { whileBusy, words } = require('./web-page');
 const cut = (from, to) => {
   const a = app.indexOf(from), b = app.indexOf(to, a);
   assert.ok(a >= 0 && b > a, `app.js has "${from}" … "${to}"`);
@@ -216,7 +216,7 @@ test('web: the page has no describer of its own, and never draws a job\'s cron a
 
 // The jobs' part of the page, with stand-ins for what it calls.
 function jobsPage(extra = {}) {
-  const page = vm.createContext({ esc, ago: () => 'a while ago', toast: () => {}, refresh: () => {}, confirm: () => true, setTimeout, clearTimeout, whileBusy, ...extra });
+  const page = vm.createContext({ ...words, esc, ago: () => 'a while ago', toast: () => {}, refresh: () => {}, confirm: () => true, setTimeout, clearTimeout, whileBusy, ...extra });
   vm.runInContext(`${cut('const CRON_PRESETS = [', 'const MODE_INFO')}
     ${cut('// "18:32" today', '// When a message in a chat was sent')}
     ${cut('const AI_WHEN_TEXT = {', '// A script job\'s run in the chat')}
@@ -252,7 +252,7 @@ test('web: the approval dialog and its toast show the words, and the toast keeps
 });
 
 test('web: the Needs-you card and the always-approved list show the words', () => {
-  const box = vm.createContext({ esc, botLabel: (b) => esc(b.name), needsOpen: new Set() });
+  const box = vm.createContext({ ...words, esc, botLabel: (b) => esc(b.name), needsOpen: new Set() });
   vm.runInContext(`${cut('// A change that waits beside an approved job or tile', 'function pendingJobs() {')}
     ${cut('function needCardHTML(x, here = null) {', 'function renderNeeds() {')}; this.needCardHTML = needCardHTML;`, box);
   const job = { ...JOB, kind: 'script', script: 'echo hi', cron: '0 10 * * 1', when: 'Mondays at 10:00', approved: false, changedBy: 'chief' };

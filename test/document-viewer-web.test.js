@@ -7,13 +7,13 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { cut, read, esc, element } = require('./web-page');
+const { cut, read, esc, element, words } = require('./web-page');
 
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'file-paths.json'), 'utf8'));
 
 // md() and the links of a reply, cut out of app.js, with the features the server named.
 function chat(features = ['document-viewer']) {
-  const ctx = vm.createContext({ URL, esc, state: { features } });
+  const ctx = vm.createContext({ ...words, URL, esc, state: { features } });
   vm.runInContext(`${cut('function md(src, botId)', 'function linkifyChat(root)')}
     Object.assign(this, { md, filePaths, isFilePath, linkPaths });`, ctx);
   return ctx;
@@ -53,7 +53,7 @@ function viewer(answers, { features = ['document-viewer'] } = {}) {
   const listeners = {};
   const calls = [];
   const ctx = vm.createContext({
-    state: { features, bots: [{ id: 'news', name: 'News Monitor' }], view: 'bot', botId: 'news' },
+    ...words, state: { features, bots: [{ id: 'news', name: 'News Monitor' }], view: 'bot', botId: 'news' },
     esc, md, msgTime: () => '09:14', fmtSize: (n) => `${n} B`, toast() {}, copyText: async () => true, encodeURIComponent,
     $: (sel) => ({ '#doc-viewer': box, '#chat-row': row, '.main': main }[sel] || null),
     api: async (p, opts = {}) => { calls.push([p, opts.method || 'GET']); const a = answers[p]; if (a instanceof Error || a?.constructor?.name === 'Error') throw a; if (a === undefined) throw Object.assign(new Error('not found'), { status: 404 }); return a; },

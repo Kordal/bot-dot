@@ -7,9 +7,9 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, noDrafts, esc } = require('./web-page');
+const { app, read, cut, noDrafts, esc, words } = require('./web-page');
 
-const lib = vm.createContext({});
+const lib = vm.createContext({ ...words });
 vm.runInContext(read('unread.js'), lib);
 vm.runInContext(read('opening-line.js'), lib);
 const { OpeningLine } = lib;
@@ -51,7 +51,7 @@ function page(features, runs = [RUN]) {
   const es = { addEventListener: (type, fn) => { heard[type] = fn; } };
   const streams = [];
   class EventSource { constructor(url) { this.url = url; this.closed = false; streams.push(this); } close() { this.closed = true; } }
-  const ctx = vm.createContext({ ...noDrafts,
+  const ctx = vm.createContext({ ...words, ...noDrafts,
     JSON, OpeningLine, Unread: lib.Unread, openingLines, state, es, EventSource, esc,
     sentTo: () => [], said: (v) => (typeof v === 'string' ? v.trim() : ''), plain: (t) => String(t || ''), Date, CHIEF_COLOR: '#d85a30', chiefTurns: new Map(),
     botById: (id) => state.bots.find((b) => b.id === id) || null, stopRun() {}, updateChatQueued() {},
@@ -215,7 +215,7 @@ function watching(features) {
   const streams = [];
   class EventSource { constructor(url) { this.url = url; this.closed = false; streams.push(this); } close() { this.closed = true; } }
   const got = { lines: [], files: [], ended: 0 };
-  const ctx = vm.createContext({ ...noDrafts, JSON, OpeningLine, EventSource, state: { features } });
+  const ctx = vm.createContext({ ...words, ...noDrafts, JSON, OpeningLine, EventSource, state: { features } });
   vm.runInContext(`${cut('function watchRun(runId, onEnd, onFile, onLine, onDraft, onPlan) {', '// ---------- live screen preview')}\nthis.watchRun = watchRun;`, ctx);
   ctx.watchRun('r1', () => got.ended++, (file) => got.files.push(file), (text) => got.lines.push(text));
   const emit = (ev) => streams[0].onmessage({ data: JSON.stringify(ev) });
@@ -246,12 +246,12 @@ test('web: a run that is followed hands on the server\'s line and nothing of its
 
 test('web: the run\'s page and the computer\'s window draw a running run\'s line as the server says it', () => {
   const run = cut('function showRun(id) {', '// ---------- chief of staff ----------');
-  assert.match(run, /<span class="activity muted">Working…<\/span>/, 'until the run has a line');
-  assert.match(run, /if \(OpeningLine\.says\(ev\.type, state\.features\)\) \{ line = OpeningLine\.text\(ev\.text\); setActivity\(line \|\| 'Working'\); \}/);
-  assert.match(run, /if \(ev\.type === 'phase'\) \{\s*setActivity\(OpeningLine\.text\(ev\.text\) \|\| line \|\| 'Working'\);/, 'the server\'s words while its computer starts, then its line again');
+  assert.match(run, /<span class="activity muted">\$\{tr\('Working…'\)\}<\/span>/, 'until the run has a line');
+  assert.match(run, /if \(OpeningLine\.says\(ev\.type, state\.features\)\) \{ line = OpeningLine\.text\(ev\.text\); setActivity\(line \|\| tr\('Working'\)\); \}/);
+  assert.match(run, /if \(ev\.type === 'phase'\) \{\s*setActivity\(OpeningLine\.text\(ev\.text\) \|\| line \|\| tr\('Working'\)\);/, 'the server\'s words while its computer starts, then its line again');
   assert.doesNotMatch(run, /tool_use/);
   const screen = cut('function openScreen(botId) {', '// Plain-language explanation for a failed or stopped run');
   assert.match(screen, /const stepsEs = run && watchRun\(run\.id, /);
-  assert.match(screen, /What it's doing: <span id="screen-now"><\/span>/);
+  assert.match(screen, /\$\{tr\("What it's doing:"\)\} <span id="screen-now"><\/span>/);
   assert.doesNotMatch(screen, /class="steps"/, 'one line, no list of steps');
 });

@@ -225,15 +225,15 @@ function setQueued(chat, list) {
 const canSteer = (kind) => state.features.includes(kind === 'bot' ? 'steer' : kind === 'chief' ? 'chief-steer' : '');
 function queuedHTML(q, chat) {
   const [kind, id] = chatParts(chat);
-  const who = kind === 'chief' ? 'the Chief' : botById(id)?.name || 'the bot';
+  const who = kind === 'chief' ? tr('the Chief') : botById(id)?.name || tr('the bot');
   const text = typeof q.text === 'string' ? q.text : '';
   const files = filesHTML(Array.isArray(q.attachments) ? q.attachments : [], chat);
   const steering = canSteer(kind) && q.steering === true;
-  const line = steering ? 'Steering…' : `Waits until ${who} is free`;
-  const steer = canSteer(kind) && !steering ? `<button type="button" data-steer="${esc(q.id)}">Steer</button>` : '';
+  const line = steering ? tr('Steering…') : tr('Waits until {who} is free', { who });
+  const steer = canSteer(kind) && !steering ? `<button type="button" data-steer="${esc(q.id)}">${tr('Steer')}</button>` : '';
   return `<div class="bubble-row from-me"><div class="stack mine">
     <div class="bubble from-me waits">${escMentions(text, kind === 'chief' ? CHIEF_BOT.id : id)}${files}</div>
-    <div class="bubble-meta"><span>${esc(line)}</span>${steer}<button type="button" data-take-back="${esc(q.id)}">Take back</button></div>
+    <div class="bubble-meta"><span>${esc(line)}</span>${steer}<button type="button" data-take-back="${esc(q.id)}">${tr('Take back')}</button></div>
   </div></div>`;
 }
 // The waiting messages of a chat, at its end: after the working line and before the cards, which stay last
@@ -296,7 +296,7 @@ async function takeBack(chat, queuedId, button) {
     }
   } catch (e) {
     if (button) button.disabled = false;
-    if (e.status === 409) { showBoxNote(chatOpenIs(chat) ? form : null, 'It has already started.'); await again(); return; }
+    if (e.status === 409) { showBoxNote(chatOpenIs(chat) ? form : null, tr('It has already started.')); await again(); return; }
     toast(e.message, true);
     if (e.status === 404) await again(); // it is not there any more: the list as the server has it
   }
@@ -342,7 +342,7 @@ function placeStatusLines() {
   const messageWaits = !!message && !!chatId && (replying || queuedIn(`chief:${chatId}`).length > 0);
   const messageNew = sentArrives(arrivals.chief, $('#chat-thread'), chatId || null, message);
   updateChatQueued($('#chat-thread'), chatId ? `chief:${chatId}` : null, messageWaits ? message : null, messageNew);
-  drawStatusLine($('#chat-thread'), chatId ? `chief:${chatId}` : null, CHIEF_COLOR, replying ? { chief: chatId } : null, false, replying ? chiefTurns.get(chatId) : message ? 'Working' : '');
+  drawStatusLine($('#chat-thread'), chatId ? `chief:${chatId}` : null, CHIEF_COLOR, replying ? { chief: chatId } : null, false, replying ? chiefTurns.get(chatId) : message ? tr('Working') : '');
   updateChatSent($('#chat-thread'), messageWaits ? null : message, `chief:${chatId || ''}`, messageNew);
   if (!onScreen($('#group-thread'))) arrivals.group.leave(); // a group's chat tells what it draws itself (groups.js): here, only that it was left
 }
@@ -352,7 +352,7 @@ function placeStatusLines() {
 function drawStatusLine(thread, chat, color, stop, held = false, doing = '') {
   if (!thread) return;
   // The owner's message is on its way and nothing is at work here yet: "Working", with nothing to stop.
-  if (!doing && !stop && chat && sentIn(chat)) doing = 'Working';
+  if (!doing && !stop && chat && sentIn(chat)) doing = tr('Working');
   const kept = chat ? openingLines.of(chat) : '';
   const html = OpeningLine.status(stop && typeof stop === 'object' ? OpeningLine.chiefLine(doing, kept) : kept || doing, color, stop, held);
   const was = $('.status-line', thread);
@@ -373,7 +373,7 @@ function drawStatusLine(thread, chat, color, stop, held = false, doing = '') {
   // "Waiting for your OK" in a bot's chat takes the owner to the card it waits for, else to Needs you.
   const waits = held && String(chat).startsWith('bot:') ? (next ? next.previousElementSibling : thread.lastElementChild) : null;
   if (waits) {
-    waits.title = 'Show what it waits for';
+    waits.title = tr('Show what it waits for');
     waits.onclick = (e) => { if (e.target.closest('button')) return; if (!toHeldCard(thread, chat.slice(4))) setView('needs'); };
   }
   if (atBottom) thread.scrollTop = thread.scrollHeight;
@@ -564,6 +564,6 @@ function chiefArrives(thread) {
 
 // Stop a run. When it can't be (the server is away, the run is over) the chat stays as it is.
 async function stopRun(id) {
-  try { await api(`/runs/${encodeURIComponent(id)}/stop`, { method: 'POST' }); toast('Stopping…'); }
+  try { await api(`/runs/${encodeURIComponent(id)}/stop`, { method: 'POST' }); toast(tr('Stopping…')); }
   catch (e) { toast(e.message, true); }
 }

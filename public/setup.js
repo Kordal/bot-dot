@@ -10,7 +10,7 @@ async function renderSetup(fresh = false) {
   if (root.dataset.ready && !fresh) return;
   root.dataset.ready = '1';
   if (!state.setup || fresh) {
-    if (!state.setup) root.innerHTML = '<div class="empty">Checking…</div>';
+    if (!state.setup) root.innerHTML = `<div class="empty">${tr('Checking…')}</div>`;
     try { state.setup = await api(`/setup${fresh ? '?fresh' : ''}`); } catch (e) { root.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   }
   drawSetup();
@@ -31,20 +31,20 @@ const claudeUnknown = (c) => (c && c.error ? String(c.error) : '');
 // which one bots run on; a server that does not say has no key, and nothing of one is drawn.
 const claudeHasKeys = (c) => !!c && c.installed !== false && (c.using === 'api-key' || c.using === 'subscription');
 // On the key: the sentence that says so, and names a subscription that is signed in too as not used.
-const claudeOnKey = (c) => `Bots run on your Anthropic API key <b>${esc(c.apiKey || '')}</b>.${c.subscription === true ? ` Your Claude subscription${c.email ? ` (<b>${esc(c.email)}</b>)` : ''} is signed in too; bots don't use it.` : ''}`;
+const claudeOnKey = (c) => `${tr('Bots run on your Anthropic API key {key}.', { key: `<b>${esc(c.apiKey || '')}</b>` })}${c.subscription === true ? ` ${c.email ? tr("Your Claude subscription ({email}) is signed in too; bots don't use it.", { email: `<b>${esc(c.email)}</b>` }) : tr("Your Claude subscription is signed in too; bots don't use it.")}` : ''}`;
 // On the subscription: a saved key, named as not used.
-const claudeKeyNote = (c) => (claudeHasKeys(c) && c.apiKey ? ` An Anthropic API key (<b>${esc(c.apiKey)}</b>) is saved too; bots don't use it.` : '');
+const claudeKeyNote = (c) => (claudeHasKeys(c) && c.apiKey ? ` ${tr("An Anthropic API key ({key}) is saved too; bots don't use it.", { key: `<b>${esc(c.apiKey)}</b>` })}` : '');
 // The key's links, none while signing in or while the key box is open (busy).
 function claudeKeyActions(c, busy) {
   if (busy || !claudeHasKeys(c)) return [];
-  if (c.using === 'api-key') return [...(c.subscription === true ? ['<button class="link-btn" id="claude-use-sub">Use the subscription instead</button>'] : []), '<button class="link-btn" id="claude-key-remove">Remove the key</button>'];
-  return [c.apiKey ? '<button class="link-btn" id="claude-use-key">Use the API key instead</button>' : '<button class="link-btn" id="claude-key-new">Use an API key instead</button>'];
+  if (c.using === 'api-key') return [...(c.subscription === true ? [`<button class="link-btn" id="claude-use-sub">${tr('Use the subscription instead')}</button>`] : []), `<button class="link-btn" id="claude-key-remove">${tr('Remove the key')}</button>`];
+  return [c.apiKey ? `<button class="link-btn" id="claude-use-key">${tr('Use the API key instead')}</button>` : `<button class="link-btn" id="claude-key-new">${tr('Use an API key instead')}</button>`];
 }
 // Where the key is pasted: a password field, so it is never shown. inCard: in Settings → Claude.
 const claudeKeyBox = (inCard) => `<div class="${inCard ? 'setup-login" style="padding:0;margin:12px 0 0' : 'card setup-login'}">
-      <form id="claude-key-form" class="setup-code"><input type="password" name="key" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false" required><button class="btn primary" type="submit">Save</button></form>
-      <p class="muted settings-hint">Make one in the Claude Console (console.anthropic.com → API keys). botdot checks it with Anthropic, keeps it encrypted and never shows it again.</p>
-      <button class="link-btn muted" id="claude-key-cancel">Cancel</button>
+      <form id="claude-key-form" class="setup-code"><input type="password" name="key" placeholder="sk-ant-…" autocomplete="off" autocapitalize="off" spellcheck="false" required><button class="btn primary" type="submit">${tr('Save')}</button></form>
+      <p class="muted settings-hint">${tr('Make one in the Claude Console (console.anthropic.com → API keys). botdot checks it with Anthropic, keeps it encrypted and never shows it again.')}</p>
+      <button class="link-btn muted" id="claude-key-cancel">${tr('Cancel')}</button>
     </div>`;
 // The key's links and box in root, for Setup and Settings → Claude; redraw draws root again from state.setup.
 function wireClaudeKey(root, c, redraw) {
@@ -60,11 +60,11 @@ function wireClaudeKey(root, c, redraw) {
   };
   on('#claude-key-new', () => { state.setupKey = true; redraw(); });
   on('#claude-key-cancel', () => { state.setupKey = false; redraw(); });
-  on('#claude-use-key', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'api-key' } }), 'Bots now run on your API key'));
-  on('#claude-use-sub', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } }), 'Bots now run on your Claude subscription'));
+  on('#claude-use-key', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'api-key' } }), tr('Bots now run on your API key')));
+  on('#claude-use-sub', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } }), tr('Bots now run on your Claude subscription')));
   on('#claude-key-remove', () => {
-    if (!confirm(c.subscription === true ? 'Remove the API key? Bots will run on your Claude subscription.' : "Remove the API key? Bots can't run until you sign in to Claude or save a key again.")) return;
-    ask(() => api('/setup/claude/key', { method: 'DELETE' }), 'API key removed');
+    if (!confirm(c.subscription === true ? tr('Remove the API key? Bots will run on your Claude subscription.') : tr("Remove the API key? Bots can't run until you sign in to Claude or save a key again."))) return;
+    ask(() => api('/setup/claude/key', { method: 'DELETE' }), tr('API key removed'));
   });
   const form = $('#claude-key-form', root);
   if (form) {
@@ -73,8 +73,8 @@ function wireClaudeKey(root, c, redraw) {
       e.preventDefault();
       const btn = form.querySelector('button');
       btn.disabled = true;
-      btn.textContent = 'Checking…';
-      ask(() => api('/setup/claude/key', { method: 'PUT', body: { key: form.key.value } }), 'Saved. Bots now run on your API key');
+      btn.textContent = tr('Checking…');
+      ask(() => api('/setup/claude/key', { method: 'PUT', body: { key: form.key.value } }), tr('Saved. Bots now run on your API key'));
     };
   }
 }
@@ -83,7 +83,7 @@ const opensSetup = (s) => !!s && (!s.done || (!s.claude?.loggedIn && !claudeUnkn
 // Setup's Claude item: signed in, a check that could not tell (its sentence, and the way to sign in stays), or the step to do.
 // keyOpen: the API key's box is open.
 function claudeSetupItem(c, signingIn, keyOpen = false) {
-  const signIn = c.installed === false || signingIn ? '' : '<button class="btn primary" id="claude-login">Sign in to Claude</button>';
+  const signIn = c.installed === false || signingIn ? '' : `<button class="btn primary" id="claude-login">${tr('Sign in to Claude')}</button>`;
   const keys = claudeKeyActions(c, signingIn || keyOpen);
   const links = (list) => list.join(' · ');
   if (claudeUnknown(c)) return setupItem({ state: 'todo', icon: '✳︎', title: 'Claude', body: esc(claudeUnknown(c)), action: [signIn, links(keys)].filter(Boolean).join(' ') });
@@ -91,12 +91,12 @@ function claudeSetupItem(c, signingIn, keyOpen = false) {
   return c.loggedIn
     ? setupItem({
       state: 'ok', icon: '✳︎', title: 'Claude',
-      body: (c.fromEnv ? "Signed in with a token from the server's settings." : c.email ? `Signed in with <b>${esc(c.email)}</b>.` : 'Signed in.') + claudeKeyNote(c),
-      action: links([...(c.fromEnv ? [] : ['<button class="link-btn" id="claude-switch">Use another account</button>', '<button class="link-btn" id="claude-logout">Sign out</button>']), ...keys]),
+      body: (c.fromEnv ? tr("Signed in with a token from the server's settings.") : c.email ? tr('Signed in with {email}.', { email: `<b>${esc(c.email)}</b>` }) : tr('Signed in.')) + claudeKeyNote(c),
+      action: links([...(c.fromEnv ? [] : [`<button class="link-btn" id="claude-switch">${tr('Use another account')}</button>`, `<button class="link-btn" id="claude-logout">${tr('Sign out')}</button>`]), ...keys]),
     })
     : setupItem({
-      state: 'todo', icon: '✳︎', title: 'Sign in to Claude',
-      body: c.installed === false ? "Claude Code isn't installed on this machine, so bots can't run." : `Your bots run on your Claude subscription. Sign in once; it stays signed in.${claudeHasKeys(c) ? ' Or run them on an Anthropic API key.' : ''}${claudeKeyNote(c)}`,
+      state: 'todo', icon: '✳︎', title: tr('Sign in to Claude'),
+      body: c.installed === false ? tr("Claude Code isn't installed on this machine, so bots can't run.") : `${tr('Your bots run on your Claude subscription. Sign in once; it stays signed in.')}${claudeHasKeys(c) ? ` ${tr('Or run them on an Anthropic API key.')}` : ''}${claudeKeyNote(c)}`,
       action: [signIn, links(keys)].filter(Boolean).join(' '),
     });
 }
@@ -112,7 +112,7 @@ function drawSetup() {
   const c = s.claude || {};
   const a = s.access || {};
   const dev = deviceTimezone();
-  const now = new Date().toLocaleTimeString([], { timeZone: s.timezone, hour: '2-digit', minute: '2-digit' });
+  const now = new Date().toLocaleTimeString(I18n.locale, { timeZone: s.timezone, hour: '2-digit', minute: '2-digit' });
   const signingIn = !!state.setupLogin;
 
   const unknown = !!claudeUnknown(c);
@@ -120,52 +120,53 @@ function drawSetup() {
   const claude = claudeSetupItem(c, signingIn, keyOpen) + (keyOpen ? claudeKeyBox(false) : '');
   const loginBox = signingIn ? `<div class="card setup-login">
       <ol>
-        <li><a class="btn primary" href="${esc(state.setupLogin.url)}" target="_blank" rel="noopener">Open the sign-in page</a><span class="muted">Sign in, allow access, and copy the code it shows.</span></li>
-        <li><form id="claude-code-form" class="setup-code"><input type="text" name="code" placeholder="Paste the code here" autocomplete="off" autocapitalize="off" spellcheck="false" required><button class="btn primary" type="submit">Sign in</button></form></li>
+        <li><a class="btn primary" href="${esc(state.setupLogin.url)}" target="_blank" rel="noopener">${tr('Open the sign-in page')}</a><span class="muted">${tr('Sign in, allow access, and copy the code it shows.')}</span></li>
+        <li><form id="claude-code-form" class="setup-code"><input type="text" name="code" placeholder="${tr('Paste the code here')}" autocomplete="off" autocapitalize="off" spellcheck="false" required><button class="btn primary" type="submit">${tr('Sign in')}</button></form></li>
       </ol>
-      <button class="link-btn muted" id="claude-cancel">Cancel</button>
+      <button class="link-btn muted" id="claude-cancel">${tr('Cancel')}</button>
     </div>` : '';
 
   const computers = !s.docker?.ok
-    ? setupItem({ state: 'off', icon: '🖥', title: 'Bot computers', body: `${esc(s.docker?.error || 'Docker is not available')}, so bots can't have their own desktop. Everything else works.` })
-    : setupItem({ state: 'ok', icon: '🖥', title: 'Bot computers', body: s.docker.image ? 'Ready. Any bot can get its own desktop with a browser (turn it on in the bot’s settings).' : 'Ready. The desktop downloads the first time a bot needs one, which takes a few minutes once.' });
+    ? setupItem({ state: 'off', icon: '🖥', title: tr('Bot computers'), body: tr("{why}, so bots can't have their own desktop. Everything else works.", { why: esc(s.docker?.error || tr('Docker is not available')) }) })
+    : setupItem({ state: 'ok', icon: '🖥', title: tr('Bot computers'), body: s.docker.image ? tr('Ready. Any bot can get its own desktop with a browser (turn it on in the bot’s settings).') : tr('Ready. The desktop downloads the first time a bot needs one, which takes a few minutes once.') });
 
   let phone;
   if (a.tailnet) {
     phone = setupItem({
-      state: 'ok', icon: '📱', title: 'Your phone',
-      body: `Private on your tailnet at <b>https://${esc(a.host)}</b>, and only your passkey signs in to your account.<br>On your phone, open it and choose <b>Add to Home Screen</b> to use it like an app.`,
+      state: 'ok', icon: '📱', title: tr('Your phone'),
+      body: tr('Private on your tailnet at {address}, and only your passkey signs in to your account.<br>On your phone, open it and choose <b>Add to Home Screen</b> to use it like an app.', { address: `<b>https://${esc(a.host)}</b>` }),
     });
   } else if (a.tailnetHost) {
-    phone = setupItem({ state: 'ok', icon: '📱', title: 'Your phone', body: `Also private on your tailnet at <b>https://${esc(a.tailnetHost)}</b>. Open it on your phone and choose <b>Add to Home Screen</b>.` });
+    phone = setupItem({ state: 'ok', icon: '📱', title: tr('Your phone'), body: tr('Also private on your tailnet at {address}. Open it on your phone and choose <b>Add to Home Screen</b>.', { address: `<b>https://${esc(a.tailnetHost)}</b>` }) });
   } else {
     phone = setupItem({
-      state: 'off', icon: '📱', title: 'Your phone',
-      body: `botdot only opens on this machine for now. To use it from your phone, privately, ${a.docker ? 'run the installer again: it sets up Tailscale for you.' : `install <a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a>, then run <span class="mono">tailscale serve --bg ${esc(a.port)}</span> and add the address it shows to <span class="mono">BOT_DOT_ALLOWED_HOSTS</span>.`}`,
+      state: 'off', icon: '📱', title: tr('Your phone'),
+      body: a.docker ? tr('botdot only opens on this machine for now. To use it from your phone, privately, run the installer again: it sets up Tailscale for you.')
+        : tr('botdot only opens on this machine for now. To use it from your phone, privately, install {tailscale}, then run {command} and add the address it shows to {setting}.', { tailscale: '<a href="https://tailscale.com/download" target="_blank" rel="noopener">Tailscale</a>', command: `<span class="mono">tailscale serve --bg ${esc(a.port)}</span>`, setting: '<span class="mono">BOT_DOT_ALLOWED_HOSTS</span>' }),
     });
   }
 
   const tz = setupItem({
-    state: 'ok', icon: '🕒', title: 'Time zone',
-    body: `Schedules run on <b>${esc(s.timezone)}</b> time (it's ${esc(now)} there).${dev && dev !== s.timezone ? ` Your device is on ${esc(dev)}.` : ''}`,
-    action: dev && dev !== s.timezone ? `<button class="btn sm" id="tz-use">Use ${esc(dev)}</button>` : '',
+    state: 'ok', icon: '🕒', title: tr('Time zone'),
+    body: `${tr("Schedules run on {zone} time (it's {time} there).", { zone: `<b>${esc(s.timezone)}</b>`, time: esc(now) })}${dev && dev !== s.timezone ? ` ${tr('Your device is on {zone}.', { zone: esc(dev) })}` : ''}`,
+    action: dev && dev !== s.timezone ? `<button class="btn sm" id="tz-use">${tr('Use {zone}', { zone: esc(dev) })}</button>` : '',
   });
 
   const bw = s.bitwarden || {};
   const extras = [
-    setupItem({ state: bw.configured ? 'ok' : 'off', icon: '🛡', title: 'Bitwarden <span class="setup-opt">optional</span>', body: bw.configured ? `Connected${bw.unlocked ? '' : ', locked: unlock it when botdot asks'}. Bots use its logins and cards without seeing them.` : 'Let bots use your logins, cards and identities without ever seeing them.', action: `<button class="btn sm" data-setup-go="vault">${bw.configured ? 'Open' : 'Set up'}</button>` }),
+    setupItem({ state: bw.configured ? 'ok' : 'off', icon: '🛡', title: `Bitwarden <span class="setup-opt">${tr('optional')}</span>`, body: bw.configured ? (bw.unlocked ? tr('Connected. Bots use its logins and cards without seeing them.') : tr('Connected, locked: unlock it when botdot asks. Bots use its logins and cards without seeing them.')) : tr('Let bots use your logins, cards and identities without ever seeing them.'), action: `<button class="btn sm" data-setup-go="vault">${bw.configured ? tr('Open') : tr('Set up')}</button>` }),
   ];
 
   root.innerHTML = `
     ${PAGE_BACK}
-    <div class="section-head"><div><h1>Setup</h1>${unknown ? '' : `<p>${c.loggedIn ? 'botdot is ready. The rest is up to you.' : 'One step and botdot is ready.'}</p>`}</div></div>
+    <div class="section-head"><div><h1>${tr('Setup')}</h1>${unknown ? '' : `<p>${c.loggedIn ? tr('botdot is ready. The rest is up to you.') : tr('One step and botdot is ready.')}</p>`}</div></div>
     ${claude}${loginBox}
     ${chiefNameSetupItem(s)}
     ${computers}${phone}${tz}
-    <h3 class="page-sub">Extras</h3>
+    <h3 class="page-sub">${tr('Extras')}</h3>
     ${extras.join('')}
-    ${state.bots.length ? '' : '<p class="muted settings-hint">Moving from another botdot? <button type="button" class="link-btn" id="restore-open">Restore a backup</button></p>'}
-    <div class="settings-foot"><button class="btn primary" id="setup-done" ${c.loggedIn || unknown ? '' : 'disabled'}>${s.done ? 'Back to your bots' : 'Meet your Chief of Staff'}</button></div>`;
+    ${state.bots.length ? '' : `<p class="muted settings-hint">${tr('Moving from another botdot?')} <button type="button" class="link-btn" id="restore-open">${tr('Restore a backup')}</button></p>`}
+    <div class="settings-foot"><button class="btn primary" id="setup-done" ${c.loggedIn || unknown ? '' : 'disabled'}>${s.done ? tr('Back to your bots') : tr('Meet your Chief of Staff')}</button></div>`;
 
   const redraw = () => drawSetup();
   const onClick = (sel, fn) => { const el = $(sel, root); if (el) el.onclick = fn; };
@@ -173,7 +174,7 @@ function drawSetup() {
   onClick('#restore-open', openRestoreDialog);
   onClick('#claude-login', async (e) => {
     e.target.disabled = true;
-    e.target.textContent = 'Starting…';
+    e.target.textContent = tr('Starting…');
     try { state.setupLogin = await api('/setup/claude/login', { method: 'POST' }); } catch (err) { toast(err.message, true); }
     redraw();
   });
@@ -185,12 +186,12 @@ function drawSetup() {
     // Ask with a fresh count of what's running, since signing out stops it.
     let running = 0;
     try { running = (await api('/setup')).running || 0; } catch { /* ask anyway */ }
-    const stops = running ? `\n\n${running === 1 ? 'A bot is working right now; it will be stopped.' : `${running} bots are working right now; they will be stopped.`}` : '';
-    if (!confirm(`Sign out of Claude? Bots can't run until you sign in again.${stops}`)) return;
+    const stops = running ? `\n\n${trn(running, 'A bot is working right now; it will be stopped.', '{n} bots are working right now; they will be stopped.')}` : '';
+    if (!confirm(`${tr("Sign out of Claude? Bots can't run until you sign in again.")}${stops}`)) return;
     try {
       const r = await api('/setup/claude', { method: 'DELETE' });
       state.setup.claude = r.claude;
-      toastClaude(r.claude, 'Signed out of Claude');
+      toastClaude(r.claude, tr('Signed out of Claude'));
     } catch (err) { toast(err.message, true); }
     renderSetup(true);
   });
@@ -206,12 +207,12 @@ function drawSetup() {
       e.preventDefault();
       const btn = form.querySelector('button');
       btn.disabled = true;
-      btn.textContent = 'Signing in…';
+      btn.textContent = tr('Signing in…');
       try {
         const r = await api('/setup/claude/code', { method: 'POST', body: { code: form.code.value } });
         state.setupLogin = null;
         state.setup.claude = r.claude;
-        toastClaude(r.claude, `Signed in to Claude${r.claude.email ? ` as ${r.claude.email}` : ''}`);
+        toastClaude(r.claude, r.claude.email ? tr('Signed in to Claude as {email}', { email: r.claude.email }) : tr('Signed in to Claude'));
       } catch (err) {
         state.setupLogin = null; // a code works once: start over
         toast(err.message, true);
@@ -220,7 +221,7 @@ function drawSetup() {
     };
   }
   onClick('#tz-use', async () => {
-    try { await api('/setup', { method: 'PUT', body: { timezone: dev } }); toast(`Schedules now run on ${dev} time`); } catch (err) { toast(err.message, true); }
+    try { await api('/setup', { method: 'PUT', body: { timezone: dev } }); toast(tr('Schedules now run on {zone} time', { zone: dev })); } catch (err) { toast(err.message, true); }
     renderSetup(true);
   });
   $$('[data-setup-go]', root).forEach((b) => (b.onclick = () => setView(b.dataset.setupGo)));
@@ -233,9 +234,9 @@ function chiefNameSetupItem(s) {
   if (s.done) return '';
   const name = s.chiefName && s.chiefName !== 'Chief of Staff' ? s.chiefName : '';
   return setupItem({
-    state: s.chiefNameAsked ? 'ok' : 'todo', icon: '🧭', title: 'Name your Chief of Staff',
-    body: 'It runs your team of bots and talks with you. Leave it empty to keep “Chief of Staff”. You can ask it for another name any time.',
-    action: `<input type="text" id="chief-name" class="setup-name" maxlength="40" placeholder="Chief of Staff" autocomplete="off" value="${esc(name)}">`,
+    state: s.chiefNameAsked ? 'ok' : 'todo', icon: '🧭', title: tr('Name your Chief of Staff'),
+    body: tr('It runs your team of bots and talks with you. Leave it empty to keep “Chief of Staff”. You can ask it for another name any time.'),
+    action: `<input type="text" id="chief-name" class="setup-name" maxlength="40" placeholder="${tr('Chief of Staff')}" autocomplete="off" value="${esc(name)}">`,
   });
 }
 // Done: setup is done, with the name asked above. A name the server refuses (a bot's) keeps Setup open with its

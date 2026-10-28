@@ -5,9 +5,9 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { read, cut, esc } = require('./web-page');
+const { read, cut, esc, words } = require('./web-page');
 
-const page = vm.createContext({ esc });
+const page = vm.createContext({ ...words, esc });
 vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')} this.md = md;`, page);
 const { md } = page;
 
@@ -25,7 +25,7 @@ const blocks = (html) => [...html.matchAll(/<div class="code-block">(<pre[^>]*>)
 // holds `text` (as a browser gives it).
 function handler() {
   const listeners = [], copied = [], timers = [];
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     esc,
     ICON: { copy: '<copy>', copied: '<check>' },
     toast: (m) => assert.fail(`no toast: ${m}`),

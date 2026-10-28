@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const vm = require('vm');
 const { startServer, makeBot } = require('./helpers');
 const { turnOn } = require('./call-helpers');
-const { read, cut, esc } = require('./web-page');
+const { read, cut, esc, words } = require('./web-page');
 const { whenWords } = require('../lib/jobs');
 
 let srv;
@@ -34,7 +34,7 @@ test('the server\'s words for a callable job end with ", and when called", or ar
 test('web: a called run reads "⏰ <job>, called" above its reply and in its details', () => {
   const lib = vm.createContext({});
   vm.runInContext(read('unread.js'), lib);
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     esc, Unread: lib.Unread, state: { keepOpen: null }, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff' }, ICON: { play: '▶' },
     botLabel: (b) => esc(b?.name || ''), botFigure: () => '', scriptRunHTML: () => '', msgTime: () => '11:40', dur: () => '2 s',
     notesFoldHTML: () => '', filesHTML: () => '', botFilesHTML: () => '', copyBtn: () => '',

@@ -7,10 +7,10 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { cut, read } = require('./web-page');
+const { cut, read, words } = require('./web-page');
 const table = require('./fixtures/quote-cases.json');
 
-const page = vm.createContext({});
+const page = vm.createContext({ ...words });
 vm.runInContext(read('quote.js'), page);
 const { Quote } = page;
 const plain = (x) => JSON.parse(JSON.stringify(x)); // out of the page's realm, for deepEqual
@@ -117,7 +117,7 @@ function chat() {
   thread.parentNode = view;
   const box = h('textarea'); box.parentNode = view; // the message box, in the same view
   let selection = null, cleared = 0;
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     Quote, Math, Number,
     document: {
       body: { append: (el) => assert.equal(el, btn) },

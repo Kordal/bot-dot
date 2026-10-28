@@ -29,7 +29,7 @@ function filterSkills(page) {
   });
   const none = $('#skill-search-none', page);
   none.classList.toggle('hidden', !searching || shown > 0);
-  none.textContent = `No skills match "${query.trim()}". Try another word.`;
+  none.textContent = tr('No skills match "{query}". Try another word.', { query: query.trim() });
 }
 
 const draw = renderSkills;
@@ -40,7 +40,7 @@ renderSkills = async function (...args) {
   const page = $('#view-skills');
   const head = $('.section-head', page);
   if (state.view !== 'skills' || !head) return out;
-  head.insertAdjacentHTML('afterend', `<div class="conn-filters"><input type="search" id="skill-search" placeholder="Search skills" autocomplete="off" value="${esc(query)}"></div><div class="faint hidden" id="skill-search-none"></div>`);
+  head.insertAdjacentHTML('afterend', `<div class="conn-filters"><input type="search" id="skill-search" placeholder="${esc(tr('Search skills'))}" autocomplete="off" value="${esc(query)}"></div><div class="faint hidden" id="skill-search-none"></div>`);
   const box = $('#skill-search');
   box.oninput = () => { query = box.value; filterSkills(page); };
   if (caret) { box.focus(); box.setSelectionRange(...caret); }

@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { words } = require('./web-page');
 
 const SEARCH = { results: [
   { name: 'summaries', path: 'summaries', type: 'folder', root: 'server' },
@@ -23,7 +24,7 @@ const LISTS = {
 function page(features = ['file-mentions', 'document-viewer']) {
   const asked = [];
   const ctx = vm.createContext({
-    String, Date, Math, Promise, setTimeout, clearTimeout, encodeURIComponent, decodeURIComponent, URLSearchParams,
+    ...words, String, Date, Math, Promise, setTimeout, clearTimeout, encodeURIComponent, decodeURIComponent, URLSearchParams,
     state: { features, bots: [{ id: 'news', name: 'News Monitor', jobs: [] }] },
     esc: (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'),
     api: async (url) => {

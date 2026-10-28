@@ -49,8 +49,8 @@ function drawAway() {
 // Claude is signed out, as the feed says it (hello.claude, the `claude` event): no bot can work. One line stands
 // where "Can't reach botdot" stands, with the way to sign in, until Claude is signed in again.
 const signedOut = { on: false };
-const SIGNED_OUT = "Claude is signed out: bots can't work.";
-const signedOutHTML = () => `${esc(SIGNED_OUT)} <button type="button" data-sign-in>Sign in</button>`;
+const SIGNED_OUT = tr("Claude is signed out: bots can't work.");
+const signedOutHTML = () => `${esc(SIGNED_OUT)} <button type="button" data-sign-in>${tr('Sign in')}</button>`;
 // claude: `{ loggedIn }`. Anything else says nothing, and the line stays as it is.
 function setSignedOut(claude) {
   if (typeof claude?.loggedIn !== 'boolean' || signedOut.on === !claude.loggedIn) return;
@@ -65,7 +65,7 @@ function setSignedOut(claude) {
 // without botdot's sentence), as Tailscale Serve does while botdot is down. A 504 is a gateway that
 // gave up waiting: botdot is away, and may have taken the request.
 async function api(path, opts = {}) {
-  const unreached = () => Object.assign(new Error("Can't reach botdot."), { unreached: true });
+  const unreached = () => Object.assign(new Error(tr("Can't reach botdot.")), { unreached: true });
   let res;
   try {
     res = await fetch(`/api${path}`, {
@@ -89,7 +89,7 @@ async function api(path, opts = {}) {
   if (notThere) throw unreached();
   if (!res.ok) {
     // state: the server's word for what stands in the way (the viewer's "gone", "computer-off": #251).
-    throw Object.assign(new Error(said || `botdot couldn't do that (${res.status}).`), { status: res.status, refused: !!said, unsure: !said && res.status >= 500 },
+    throw Object.assign(new Error(said || tr("botdot couldn't do that ({status}).", { status: res.status })), { status: res.status, refused: !!said, unsure: !said && res.status >= 500 },
       typeof data.state === 'string' ? { state: data.state } : {});
   }
   return data;
@@ -117,11 +117,16 @@ function takeChiefName(name) {
   return true;
 }
 // The head of the Chief's chat, which is drawn once.
-function drawChiefName() { const h = $('#view-chief .chat-head h2'); if (h) h.textContent = chiefName(); }
+function drawChiefName() { const h = $('#view-chief .chat-head h2'); if (h) h.textContent = chiefTitle(); }
+// The Chief's name as the page shows it: the role in the page's language while it has no name of its own. Mentions
+// and the server keep the English role (CHIEF_BOT.name), which they know it by.
+const chiefTitle = () => (chiefName() === CHIEF_ROLE ? tr('Chief of Staff') : chiefName());
+// Whom the message box writes to; the Chief's role has its own words, which Polish declines.
+const messageChief = () => (chiefName() === CHIEF_ROLE ? tr('Message the Chief of Staff') : tr('Message {name}', { name: chiefName() }));
 // A search in the list finds the Chief by its name and by its role.
 const chiefMatches = (q) => CHIEF_ROLE.toLowerCase().includes(q) || chiefName().toLowerCase().includes(q);
 // ---------- end of the Chief's name
-const BOT_COLORS = [['#1d9e75', 'Teal'], ['#378add', 'Blue'], ['#7f77dd', 'Purple'], ['#d4537e', 'Pink'], ['#e24b4a', 'Red'], ['#ef9f27', 'Amber'], ['#639922', 'Green'], ['#888780', 'Grey']];
+const BOT_COLORS = [['#1d9e75', tr('Teal')], ['#378add', tr('Blue')], ['#7f77dd', tr('Purple')], ['#d4537e', tr('Pink')], ['#e24b4a', tr('Red')], ['#ef9f27', tr('Amber')], ['#639922', tr('Green')], ['#888780', tr('Grey')]];
 // outfit: its hat ({ hat }: the name of one in the server's kit, or one the Chief drew), when it has one.
 // bot: its id, for a head that stays on the page while nothing draws it again (a run's): redrawMarks then finds it.
 const botFigure = (color, st = 'idle', size = '', outfit = null, bot = '') => `<div class="avatar head ${size}"${bot ? ` data-bot="${esc(bot)}" data-st="${esc(st)}" data-size="${esc(size)}"` : ''}>${Figure.svg(st, color, outfit)}</div>`;
@@ -226,17 +231,17 @@ function messagedLabel(r) {
   const to = r.sentToAll?.length ? r.sentToAll : r.sentTo ? [r.sentTo] : [];
   if (!to.length) return '';
   // A note wakes the bot once it is free (#225), as a message that waits does; it only gets no answer back.
-  const how = to.every((t) => t.delivered === 'queued') ? (to.length === 1 ? ' · it picks it up when free' : ' · they pick it up when free')
-    : to.every((t) => t.delivered?.startsWith('inbox')) ? (to.length === 1 ? ' · a note it reads when free' : ' · a note they read when free') : '';
-  return `<div class="bot-msg-label">Messaged ${to.map(botLabel).join(', ')}${how}</div>`;
+  const how = to.every((t) => t.delivered === 'queued') ? (to.length === 1 ? tr('it picks it up when free') : tr('they pick it up when free'))
+    : to.every((t) => t.delivered?.startsWith('inbox')) ? (to.length === 1 ? tr('a note it reads when free') : tr('a note they read when free')) : '';
+  return `<div class="bot-msg-label">${tr('Messaged {bots}', { bots: to.map(botLabel).join(', ') })}${how ? ` · ${how}` : ''}</div>`;
 }
 // Every bot a run messaged, each once.
 const sentTo = (r) => (r.sentToAll?.length ? r.sentToAll : r.sentTo ? [r.sentTo] : []);
 // The folded line of a run another bot or the Chief started: "Replied to Fleet Doctor" (with its small head), or whom else it messaged.
 function exchangeLabel(r) {
   const to = sentTo(r);
-  if (!to.length) return r.startedBy === 'chief' ? `Replied to ${botLabel(sender(r))}` : 'Replied'; // the Chief reads the reply itself
-  return to.every((t) => t.id === sender(r)?.id) ? `Replied to ${botLabel(sender(r))}` : `Messaged ${to.map(botLabel).join(', ')}`;
+  if (!to.length) return r.startedBy === 'chief' ? tr('Replied to {bot}', { bot: botLabel(sender(r)) }) : tr('Replied'); // the Chief reads the reply itself
+  return to.every((t) => t.id === sender(r)?.id) ? tr('Replied to {bot}', { bot: botLabel(sender(r)) }) : tr('Messaged {bots}', { bots: to.map(botLabel).join(', ') });
 }
 // A folded line between bots: who, then the first words of what it opens to, cut to the line (gone once it is open).
 const foldSummary = (who, text) => { const peek = plain(text).slice(0, 160); return `<summary class="fold-line"><span class="fold-who">${who}</span>${peek ? `<span class="fold-peek">${esc(peek)}</span>` : ''}</summary>`; };
@@ -255,44 +260,45 @@ function notesFoldHTML(notes, heading, foot = '') {
   return `<div class="bubble-row from-me">${foot ? `<div class="notes-wait">${fold}${foot}</div>` : fold}</div>`;
 }
 // A note the wake gate held for the bot's next run (ADR 083): it woke nothing.
-const LATER_CHIP = '<span class="chip later">Later</span>';
+const LATER_CHIP = `<span class="chip later">${tr('Later')}</span>`;
 // The notes that wait for a bot, at the bottom of its chat (#225): how long the oldest has waited, whether the wake
 // gate held one, and, from a botdot that wakes bots for their notes, "Run now", which starts it with them (or once
 // it is free).
 function waitingNotesHTML(botId, notes) {
   if (!notes?.length) return '';
   const oldest = notes.map((n) => n.at).filter(Boolean).sort()[0];
-  const runNow = state.features.includes('notes-wake') ? `<button data-run-notes="${esc(botId)}">Run now</button>` : '';
-  const parts = [oldest && `<span>Oldest ${esc(ago(oldest))}</span>`, notes.some((n) => n.later) && LATER_CHIP, runNow].filter(Boolean);
-  return notesFoldHTML(notes, 'Notes waiting:', parts.length ? `<div class="bubble-meta">${parts.join(' · ')}</div>` : '');
+  const runNow = state.features.includes('notes-wake') ? `<button data-run-notes="${esc(botId)}">${tr('Run now')}</button>` : '';
+  const parts = [oldest && `<span>${esc(tr('Oldest {ago}', { ago: ago(oldest) }))}</span>`, notes.some((n) => n.later) && LATER_CHIP, runNow].filter(Boolean);
+  return notesFoldHTML(notes, tr('Notes waiting:'), parts.length ? `<div class="bubble-meta">${parts.join(' · ')}</div>` : '');
 }
 // A run's bot: at work while the run goes on, with the failed face if it failed.
 const runFigure = (r, size) => botFigure(botById(r.botId)?.color || r.botColor, r.status === 'running' ? 'working' : r.status === 'error' ? 'failed' : 'idle', size, botById(r.botId)?.outfit, botById(r.botId)?.id);
 
+// Times in the page's language (I18n.locale, #647): "5m ago", "in 2h 10m", a date in its own format.
 function ago(iso) {
   if (!iso) return '—';
   const s = (Date.now() - new Date(iso)) / 1000;
   if (s < 0) return inFuture(iso);
-  if (s < 60) return 'just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  if (s < 86400 * 30) return `${Math.floor(s / 86400)}d ago`;
-  return new Date(iso).toLocaleDateString();
+  if (s < 60) return tr('just now');
+  if (s < 3600) return tr('{n}m ago', { n: Math.floor(s / 60) });
+  if (s < 86400) return tr('{n}h ago', { n: Math.floor(s / 3600) });
+  if (s < 86400 * 30) return tr('{n}d ago', { n: Math.floor(s / 86400) });
+  return new Date(iso).toLocaleDateString(I18n.locale);
 }
 
 function inFuture(iso) {
   const s = (new Date(iso) - Date.now()) / 1000;
-  if (s < 60) return 'in <1m';
-  if (s < 3600) return `in ${Math.round(s / 60)}m`;
-  if (s < 86400) return `in ${Math.floor(s / 3600)}h ${Math.round((s % 3600) / 60)}m`;
-  return `in ${Math.round(s / 86400)}d`;
+  if (s < 60) return tr('in <1m');
+  if (s < 3600) return trn(Math.round(s / 60), 'in {n}m', 'in {n}m');
+  if (s < 86400) return tr('in {h}h {m}m', { h: Math.floor(s / 3600), m: Math.round((s % 3600) / 60) });
+  return trn(Math.round(s / 86400), 'in {n}d', 'in {n}d');
 }
 
 function fmtTime(iso) {
-  return iso ? new Date(iso).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }) : '—';
+  return iso ? new Date(iso).toLocaleString(I18n.locale, { weekday: 'short', hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }) : '—';
 }
 
-const dur = (ms) => (ms == null ? '—' : ms < 60000 ? `${Math.round(ms / 1000)}s` : `${Math.floor(ms / 60000)}m ${Math.round((ms % 60000) / 1000)}s`);
+const dur = (ms) => (ms == null ? '—' : ms < 60000 ? tr('{s}s', { s: Math.round(ms / 1000) }) : tr('{m}m {s}s', { m: Math.floor(ms / 60000), s: Math.round((ms % 60000) / 1000) }));
 
 // The key of a message the owner sends (docs/api.md, "A message sent twice"): new for each message, and sent
 // again with it when its send failed, so that botdot takes a message once whose answer was lost. The page
@@ -327,7 +333,7 @@ const choicesHTML = (choices, yes = -1, color = '', of = '') => (choices?.length
   : '');
 // Several questions at once ([[ask: …]]): a card under the newest reply, a box under each question.
 const questionsHTML = (questions) => (questions?.length
-  ? `<div class="ask-card card">${questions.map((q) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea></label>`).join('')}<button class="btn primary sm" disabled>Send</button></div>`
+  ? `<div class="ask-card card">${questions.map((q) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea></label>`).join('')}<button class="btn primary sm" disabled>${tr('Send')}</button></div>`
   : '');
 // send(text, key) resolves to whether it went (sendFrom). The buttons go at the tap, as the owner's bubble shows
 // (sentAtOnce), and come back only when the send failed, to send the same message again: an answer keeps its key for
@@ -377,8 +383,8 @@ function wireChoices(root, send) {
   });
 }
 // What the document page draws with.
-const docPageTools = () => ({ api, md, esc, toast, msgTime, mdBlocks, chiefName, features: state.features, botName: (id) => botById(id)?.name });
-const copyBtn = (text) => `<button class="copy-btn" data-copy="${esc(text)}" title="Copy" aria-label="Copy">${ICON.copy}</button>`;
+const docPageTools = () => ({ api, md, esc, toast, msgTime, mdBlocks, chiefName: chiefTitle, features: state.features, botName: (id) => botById(id)?.name });
+const copyBtn = (text) => `<button class="copy-btn" data-copy="${esc(text)}" title="${tr('Copy')}" aria-label="${tr('Copy')}">${ICON.copy}</button>`;
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch { /* not a secure page: the old way */ }
   const t = Object.assign(document.createElement('textarea'), { value: text });
@@ -395,7 +401,7 @@ document.addEventListener('click', async (e) => {
   if (!b) return;
   e.stopPropagation();
   const text = b.dataset.copy ?? b.closest('.code-block')?.querySelector('pre')?.textContent ?? '';
-  if (!(await copyText(text))) return toast("Couldn't copy", true);
+  if (!(await copyText(text))) return toast(tr("Couldn't copy"), true);
   b.innerHTML = ICON.copied;
   setTimeout(() => (b.innerHTML = ICON.copy), 1500);
 }, true);
@@ -415,7 +421,7 @@ document.addEventListener('click', async (e) => {
     await api(`/chief/chats/${encodeURIComponent(chatId)}/messages/${el.dataset.rate}/rating`, { method: 'PUT', body: { rating } });
   } catch {
     if (Ratings.shown(el) === rating) Ratings.show(el, before); // unless a later tap or the feed changed it since
-    toast("Couldn't save your rating", true);
+    toast(tr("Couldn't save your rating"), true);
   }
 });
 
@@ -453,21 +459,21 @@ function cornerPill(kind, text, retry = null) {
   if (say.textContent && say.textContent !== text) Motion.play(say, 'm-swap', Motion.ms('--t1') + 60);
   say.textContent = text;
   $('.x', el)?.remove();
-  if (kind === 'err') el.insertAdjacentHTML('beforeend', '<button type="button" class="x" aria-label="Close">✕</button>');
+  if (kind === 'err') el.insertAdjacentHTML('beforeend', `<button type="button" class="x" aria-label="${tr('Close')}">✕</button>`);
   el.onclick = kind === 'err' ? (e) => { el.remove(); if (retry && !e.target.closest('.x')) retry(); } : null;
   if (kind === 'ok') cornerPill.timer = setTimeout(() => { el.classList.add('gone'); setTimeout(() => el.remove(), Motion.ms('--t1')); }, 2500);
 }
 
 // The owner's tap is done at once (#475): `work` runs on with the corner pill saying `words`, then `ok` or the error,
 // which a tap tries again with `retry`. Resolves true when it was done, false when it failed.
-async function inBackground(words, work, { ok = 'Done', retry = null } = {}) {
+async function inBackground(words, work, { ok = tr('Done'), retry = null } = {}) {
   cornerPill('busy', words);
   try {
     const r = await work();
     cornerPill('ok', typeof ok === 'function' ? ok(r) : ok);
     return true;
   } catch (e) {
-    cornerPill('err', e.message || "Couldn't do it", retry);
+    cornerPill('err', e.message || tr("Couldn't do it"), retry);
     return false;
   }
 }
@@ -476,7 +482,7 @@ async function inBackground(words, work, { ok = 'Done', retry = null } = {}) {
 // server refuses, the dialog comes back as it was, nothing typed lost, with the server's sentence in its
 // `.req-error` (or a toast); with another dialog open meanwhile, the error pill's tap brings it back. `work` gets
 // the dialog's own nodes, to read what they hold. Resolves true when it was saved.
-async function setAside(m, words, work, { ok = 'Saved' } = {}) {
+async function setAside(m, words, work, { ok = tr('Saved') } = {}) {
   const kept = document.createDocumentFragment();
   kept.append(...m.childNodes);
   m.close();
@@ -510,28 +516,30 @@ function toast(msg, isErr = false) {
   toast.timer = setTimeout(() => { if (!Motion.exits()) return gone(); t.classList.add('leaving'); toast.timer = setTimeout(gone, Motion.ms('--t1')); }, 3200);
 }
 
+// A status in the page's language; one it doesn't know stays the server's word.
+const STATUS_WORDS = { running: tr('running'), success: tr('success'), error: tr('error'), stopped: tr('stopped'), interrupted: tr('interrupted'), held: tr('held'), quiet: tr('quiet') };
 const statusPill = (s) => {
   const map = { running: 'accent pulse', success: 'ok', error: 'err', stopped: 'warn', interrupted: 'warn' };
-  return `<span class="pill ${map[s] || ''}">${esc(s)}</span>`;
+  return `<span class="pill ${map[s] || ''}">${esc(Object.hasOwn(STATUS_WORDS, s) ? STATUS_WORDS[s] : s)}</span>`;
 };
 
 // The times the "When" list of a job offers. Their labels are the server's words for them (lib/cron-words.js).
 const CRON_PRESETS = [
-  { label: 'Every 30 min', cron: '*/30 * * * *' },
-  { label: 'Hourly', cron: '0 * * * *' },
-  { label: 'Daily at 09:00', cron: '0 9 * * *' },
-  { label: 'Weekdays at 09:00', cron: '0 9 * * 1-5' },
-  { label: 'Weekdays at 18:00', cron: '0 18 * * 1-5' },
-  { label: 'Nightly at 02:00', cron: '0 2 * * *' },
-  { label: 'Mondays at 10:00', cron: '0 10 * * 1' },
+  { label: tr('Every 30 min'), cron: '*/30 * * * *' },
+  { label: tr('Hourly'), cron: '0 * * * *' },
+  { label: tr('Daily at 09:00'), cron: '0 9 * * *' },
+  { label: tr('Weekdays at 09:00'), cron: '0 9 * * 1-5' },
+  { label: tr('Weekdays at 18:00'), cron: '0 18 * * 1-5' },
+  { label: tr('Nightly at 02:00'), cron: '0 2 * * *' },
+  { label: tr('Mondays at 10:00'), cron: '0 10 * * 1' },
 ];
 
 const MODE_INFO = {
-  dontAsk: 'Only the allowed tools; everything else is denied',
-  acceptEdits: 'Allowed tools + auto-accept file edits',
-  auto: 'Claude decides with its auto-mode safety classifier',
-  plan: 'Read-only planning; no changes',
-  bypassPermissions: 'Everything allowed; no checks (use with care)',
+  dontAsk: tr('Only the allowed tools; everything else is denied'),
+  acceptEdits: tr('Allowed tools + auto-accept file edits'),
+  auto: tr('Claude decides with its auto-mode safety classifier'),
+  plan: tr('Read-only planning; no changes'),
+  bypassPermissions: tr('Everything allowed; no checks (use with care)'),
 };
 
 // Tiny markdown renderer. Input is escaped first, so output is safe: mdBlocks reads the escaped text into blocks
@@ -635,7 +643,7 @@ function mdBlocks(src) {
 // The Copy button in a code block's corner (#285). The page's copy handler (copyText) copies the text of the block's
 // <pre>, which is the text as written (the HTML holds it escaped), and shows a check for 1.5 s.
 const COPY_ICON = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>';
-const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="Copy code" aria-label="Copy code">${COPY_ICON}</button>`;
+const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="${tr('Copy code')}" aria-label="${tr('Copy code')}">${COPY_ICON}</button>`;
 
 function mdHTML(blocks) {
   const inline = (t) =>
@@ -733,7 +741,7 @@ const FILE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a
 function filePathLink(p, inner, botId) {
   const src = `/bots/${encodeURIComponent(botId)}/path?path=${encodeURIComponent(p)}`;
   const name = p.split('/').pop();
-  return `<a class="file-path" href="/api${esc(src)}" data-view="${esc(src)}" data-view-name="${esc(name)}" data-view-bot="${esc(botId)}" title="Open ${esc(name)}">${FILE_ICON}${inner}</a>`;
+  return `<a class="file-path" href="/api${esc(src)}" data-view="${esc(src)}" data-view-name="${esc(name)}" data-view-bot="${esc(botId)}" title="${esc(tr('Open {name}', { name }))}">${FILE_ICON}${inner}</a>`;
 }
 // The paths in a reply drawn by md(), as links: in its text and in a `code` that is one path, never in a code
 // block or a link. Only from a server whose `features` name `document-viewer`. html is md()'s, its text escaped.
@@ -944,7 +952,7 @@ function render() {
 
 // The running tasks, shown beside Activity on Settings (settings.js). The Settings button itself carries no number.
 const runningTasks = () => activityRuns().filter((r) => r.status === 'running').length;
-const tasksRunning = (n) => `${n} ${n === 1 ? 'task' : 'tasks'} running`;
+const tasksRunning = (n) => trn(n, '{n} task running', '{n} tasks running');
 // The Settings button: marked while one of its pages is open.
 function markMore() {
   $('#more-btn').classList.toggle('here', ['runs', 'skills', 'pages', 'connectors', 'vault', 'settings', 'setup'].includes(state.view));
@@ -956,7 +964,7 @@ function markMore() {
 
 
 function renderStatus() {
-  if (!state.status?.claudeBin) toast('Claude Code CLI not found. Bots cannot run.', true);
+  if (!state.status?.claudeBin) toast(tr('Claude Code CLI not found. Bots cannot run.'), true);
 }
 
 // Views: chief | bot (with state.botId) | group (with state.groupId, groups.js) | rooms (with state.roomId, rooms.js) | runs | skills | vault | settings | setup | connectors | dashboard | needs.
@@ -1045,7 +1053,7 @@ function drawPanelHead() {
   if (!page) return;
   const bot = state.view === 'bot' ? botById(state.botId) : null;
   const fromSettings = state.panel === 'jobs' && state.via;
-  const to = fromSettings ? 'Settings' : bot ? bot.name : state.view === 'group' ? groupById(state.groupId)?.name || 'Group' : chiefName();
+  const to = fromSettings ? tr('Settings') : bot ? bot.name : state.view === 'group' ? groupById(state.groupId)?.name || tr('Group') : chiefTitle();
   const panel = $('#panel');
   panel.dataset.kind = fromSettings ? 'jobs' : 'settings'; // the style shows Back beside the chat for 'jobs'
   const back = $('#panel-back');
@@ -1082,27 +1090,27 @@ const ICON = {
   folder: '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
   play: '<svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z" fill="currentColor" stroke="none"/></svg>',
 };
-const BACK_BTN = `<button class="icon-btn back-btn" data-back aria-label="Back">${ICON.back}</button>`;
-const PAGE_BACK = `<button class="btn sm page-back" data-back>${ICON.back} Back</button>`;
+const BACK_BTN = `<button class="icon-btn back-btn" data-back aria-label="${tr('Back')}">${ICON.back}</button>`;
+const PAGE_BACK = `<button class="btn sm page-back" data-back>${ICON.back} ${tr('Back')}</button>`;
 // Activity, Skills, Connectors and Vault: back to Settings, where they open from.
-const SUB_BACK = `<button class="btn sm sub-back" data-to-settings>${ICON.back} Settings</button>`;
+const SUB_BACK = `<button class="btn sm sub-back" data-to-settings>${ICON.back} ${tr('Settings')}</button>`;
 
 // "18:32" today, "Mon" this week, "Sep 21" otherwise.
 function shortTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   const now = new Date();
-  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  if (Math.abs(now - d) < 6 * 864e5) return d.toLocaleDateString([], { weekday: 'short' }); // ahead too: a job's next run
-  return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString(I18n.locale, { hour: '2-digit', minute: '2-digit' });
+  if (Math.abs(now - d) < 6 * 864e5) return d.toLocaleDateString(I18n.locale, { weekday: 'short' }); // ahead too: a job's next run
+  return d.toLocaleDateString(I18n.locale, { month: 'short', day: 'numeric' });
 }
 
 // When a message in a chat was sent: "18:32" today, "21 Sep, 18:32" before.
 function msgTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString([], { day: 'numeric', month: 'short' })}, ${time}`;
+  const time = d.toLocaleTimeString(I18n.locale, { hour: '2-digit', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short' })}, ${time}`;
 }
 
 const plain = (t) => String(t || '').replace(/[#*_`>|\[\]()-]+/g, ' ').replace(/\s+/g, ' ').trim();

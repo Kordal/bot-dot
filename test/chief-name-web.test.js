@@ -5,7 +5,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, cut, esc, element, finders } = require('./web-page');
+const { app, cut, esc, element, finders, words } = require('./web-page');
 
 // The name's own part of the page, with the Chief's row in the list and its chat's head.
 function names() {
@@ -44,7 +44,7 @@ test('the list, the keys, the panel and the chat head say the name, never a fixe
   for (const [from, to] of [['function drawContacts', '\n}\n'], ['function chiefKeyHTML', '\n}\n'], ['function drawPanelHead', '\n}\n'], ['function renderChief()', "wireComposer($('form', root)"]]) {
     const part = cut(from, to);
     assert.doesNotMatch(part, /Chief of Staff/, from);
-    assert.match(part, /chiefName\(\)/, from);
+    assert.match(part, /chief(Name|Title)\(\)/, from); // chiefTitle(): the name, or the role in the page's language (#647)
   }
 });
 
@@ -54,7 +54,7 @@ function setup({ s, answers = [] }) {
   const root = element({ '#chief-name': input });
   const calls = [], toasts = [], views = [];
   const state = { setup: s };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     ...finders(root), esc, state, JSON,
     toast: (...a) => toasts.push(a),
     setView: (v) => views.push(v),

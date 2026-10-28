@@ -4,7 +4,7 @@
 // action and the feed's list of what waits.
 const vm = require('vm');
 const Motion = require('../public/motion.js');
-const { read, cut, esc, element, whileBusy } = require('./web-page');
+const { read, cut, esc, element, whileBusy, words } = require('./web-page');
 
 const CHIEF_COLOR = '#d85a30';
 const plain = (x) => JSON.parse(JSON.stringify(x)); // out of the page's realm, for deepEqual
@@ -33,7 +33,7 @@ function page({ state = {}, answer = () => ({ ok: true }), screen = {} } = {}) {
   const st = { bw: null, asks: [], memPending: [], dash: null, chats: [], bots: [], approvals: null, view: 'chief', ...state };
   const needsPage = element();
   const ctx = vm.createContext({
-    Motion, esc, state: st, loginReq: { pending: [] }, CHIEF_COLOR, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff', color: CHIEF_COLOR }, BACK_BTN: '',
+    ...words, Motion, esc, state: st, loginReq: { pending: [] }, CHIEF_COLOR, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff', color: CHIEF_COLOR }, chiefTitle: () => 'Chief of Staff', BACK_BTN: '',
     botById: (id) => st.bots.find((b) => b.id === id), colorOf: (b) => b?.color || '#888780',
     botLabel: (b) => (b ? `<svg class="fig fig-small"></svg>${esc(b.name)}` : ''),
     CSS: { escape: (s) => s }, PLAN_APPROVAL: '', loadDash() {}, wireNeedCards() {}, wireBatchCards() {},

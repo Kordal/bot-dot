@@ -6,23 +6,23 @@ function composerHTML(placeholder, ctx = '') {
     <form class="composer" autocomplete="off">
       <div class="composer-wrap">
         <div class="plan-slot"></div>
-        <div class="away-line${away.on ? '' : ' hidden'}" role="status">Can't reach botdot. Trying again…</div>
+        <div class="away-line${away.on ? '' : ' hidden'}" role="status">${tr("Can't reach botdot. Trying again…")}</div>
         <div class="claude-line${signedOut.on && !away.on ? '' : ' hidden'}" role="status">${signedOutHTML()}</div>
         ${ctx ? `<div class="ctx">${ctx}</div>` : ''}
         <div class="send-note hidden" role="status"></div>
         <div class="attach-list hidden"></div>
         <div class="composer-box">
-          <button class="attach-btn" type="button" aria-label="Attach files" title="Attach files (or drop them here)">${ICON.clip}</button>
+          <button class="attach-btn" type="button" aria-label="${tr('Attach files')}" title="${tr('Attach files (or drop them here)')}">${ICON.clip}</button>
           <input type="file" name="files" multiple hidden>
           <div class="ta-wrap"><div class="ta-mark" aria-hidden="true"></div><textarea name="text" rows="1" placeholder="${esc(boxWords(placeholder))}" data-placeholder="${esc(placeholder)}"></textarea></div>
-          <button class="send-btn" type="submit" aria-label="Send">${ICON.send}</button>
+          <button class="send-btn" type="submit" aria-label="${tr('Send')}">${ICON.send}</button>
         </div>
       </div>
     </form>`;
 }
 // The words in an empty message box (#635): "Message <whom>", and on a phone, where the head names the chat, "Message".
 const PHONE_WIDTH = '(max-width: 479px)';
-const boxWords = (placeholder) => (placeholder && globalThis.matchMedia?.(PHONE_WIDTH).matches ? 'Message' : placeholder);
+const boxWords = (placeholder) => (placeholder && globalThis.matchMedia?.(PHONE_WIDTH).matches ? tr('Message') : placeholder);
 globalThis.matchMedia?.(PHONE_WIDTH).addEventListener?.('change', () => {
   for (const ta of document.querySelectorAll('textarea[data-placeholder]')) ta.placeholder = boxWords(ta.dataset.placeholder);
 });
@@ -31,7 +31,7 @@ globalThis.matchMedia?.(PHONE_WIDTH).addEventListener?.('change', () => {
 // sent with the message. uploadTo() says where: 'bot:<id>' or 'chief'.
 const fmtSize = (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`);
 const fileIcon = (name) => ({ xlsx: '📊', xls: '📊', xlsm: '📊', csv: '📊', ods: '📊', tsv: '📊', pdf: '📕', docx: '📝', doc: '📝', odt: '📝', md: '📝', txt: '📝', pptx: '📽', odp: '📽', png: '🖼', jpg: '🖼', jpeg: '🖼', gif: '🖼', webp: '🖼', json: '🧾' }[String(name).split('.').pop().toLowerCase()] || '📄');
-const fileChipHTML = (f, removable) => `<span class="file-chip ${f.status || ''}" title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span>${f.status === 'uploading' ? ' <i>uploading…</i>' : f.status === 'failed' ? ' <i>failed</i>' : ''}${removable ? `<button type="button" data-unattach="${esc(f.key)}" aria-label="Remove">×</button>` : ''}</span>`;
+const fileChipHTML = (f, removable) => `<span class="file-chip ${f.status || ''}" title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span>${f.status === 'uploading' ? ` <i>${tr('uploading…')}</i>` : f.status === 'failed' ? ` <i>${tr('failed')}</i>` : ''}${removable ? `<button type="button" data-unattach="${esc(f.key)}" aria-label="${tr('Remove')}">×</button>` : ''}</span>`;
 // The owner's files on a message, by the chat they were sent in ('bot:<id>', 'chief:<id>' or 'group:<id>'): each
 // opens in the viewer (#251, viewer.js), else downloads. A bot's are read from its folder (document-viewer), a Chief
 // chat's and a group's from botdot's own copy, which serves only a file a message there lists (#268). Without a chat,
@@ -74,8 +74,8 @@ function wireAttachments(form, uploadTo) {
   };
   const add = (files) => {
     for (const file of files) {
-      if (form._files.length >= 10) { toast('Attach at most 10 files at a time.', true); break; }
-      if (file.size > 25 * 1024 * 1024) { toast(`${file.name} is over 25 MB.`, true); continue; }
+      if (form._files.length >= 10) { toast(tr('Attach at most 10 files at a time.'), true); break; }
+      if (file.size > 25 * 1024 * 1024) { toast(tr('{name} is over 25 MB.', { name: file.name }), true); continue; }
       const f = { key: Math.random().toString(36).slice(2), name: file.name, size: file.size, status: 'uploading' };
       form._files.push(f);
       fetch(`/api/uploads?to=${encodeURIComponent(uploadTo())}`, {
@@ -84,7 +84,7 @@ function wireAttachments(form, uploadTo) {
         body: file,
       }).then(async (r) => {
         const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.error || `Upload failed (${r.status})`);
+        if (!r.ok) throw new Error(d.error || tr('Upload failed ({status})', { status: r.status }));
         Object.assign(f, d, { name: file.name, status: 'ready' });
       }).catch((e) => { f.status = 'failed'; toast(`${file.name}: ${e.message}`, true); }).finally(draw);
     }
@@ -207,11 +207,11 @@ function wireMentions(form, chat, grow) {
 // The line above the message box after a send that failed: why, and that nothing is lost. A request that
 // got no answer, a refusal with the server's sentence, and an answer nobody can read the outcome from.
 function sendNoteText(err) {
-  const kept = 'Your message is still here.';
-  if (err?.unsure) return `It may have been sent: check the chat. ${kept}`;
-  if (err?.unreached || !err?.message) return `Not sent: can't reach botdot. ${kept}`;
+  const kept = tr('Your message is still here.');
+  if (err?.unsure) return tr('It may have been sent: check the chat. {kept}', { kept });
+  if (err?.unreached || !err?.message) return tr("Not sent: can't reach botdot. {kept}", { kept });
   const said = String(err.message).trim();
-  return `Not sent: ${said}${/[.!?…]$/.test(said) ? '' : '.'} ${kept}`;
+  return tr('Not sent: {reason} {kept}', { reason: `${said}${/[.!?…]$/.test(said) ? '' : '.'}`, kept });
 }
 // The line above the message box: one sentence of the page's, or none.
 function showBoxNote(form, text) {
@@ -291,9 +291,9 @@ function wireComposer(form, onSend, uploadTo, chat) {
     e.preventDefault();
     if (btn.classList.contains('stop') || sendingIn.has(form)) return; // one message at a time: a second Send waits for the first
     const text = ta.value.trim();
-    if (files?.busy()) return toast('Wait a moment: the files are still uploading.');
+    if (files?.busy()) return toast(tr('Wait a moment: the files are still uploading.'));
     if (!text && !files?.count()) return;
-    if (looksLikeSecret(text) && !confirm('This looks like it contains a password.\n\nMessages are sent to the AI and saved on disk. Let the bot ask for it instead: it opens a secure box that goes straight into your Vault.\n\nSend anyway?')) return;
+    if (looksLikeSecret(text) && !confirm(tr('This looks like it contains a password.\n\nMessages are sent to the AI and saved on disk. Let the bot ask for it instead: it opens a secure box that goes straight into your Vault.\n\nSend anyway?'))) return;
     const held = files ? files.held() : [];
     const sent = failed && failed.text === text && same(failed.files, held) ? failed : { text, files: held, key: messageKey() };
     failed = null;
@@ -328,7 +328,7 @@ function initQuote() {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'quote-btn hidden';
-  btn.textContent = 'Quote';
+  btn.textContent = tr('Quote');
   document.body.append(btn);
   // picked: { form, text, range } of the selection shown; held: that one as the button was pressed (a tap may clear
   // the selection before its click); down: a pointer still selecting.
@@ -392,7 +392,7 @@ function setSendBusy(form, busy, onStop) {
   btn.classList.toggle('stop', busy);
   btn.innerHTML = busy ? ICON.stop : ICON.send;
   btn.type = busy ? 'button' : 'submit';
-  btn.setAttribute('aria-label', busy ? 'Stop' : 'Send');
+  btn.setAttribute('aria-label', busy ? tr('Stop') : tr('Send'));
   btn.onclick = busy ? onStop : null;
 }
 
@@ -402,17 +402,17 @@ function renderChief() {
     root.innerHTML = `
       <div class="chat-head">
         ${BACK_BTN}
-        <button class="chat-title" id="chief-settings" title="Its settings">
+        <button class="chat-title" id="chief-settings" title="${tr('Its settings')}">
           <div id="chief-avatar">${chiefFigure('sm')}</div>
-          <div class="grow"><h2>${esc(chiefName())}</h2></div>
+          <div class="grow"><h2>${esc(chiefTitle())}</h2></div>
         </button>
         <div class="actions-right">
-          ${state.features.includes('files-explorer') && state.features.includes('chief-files') ? `<button class="icon-btn" id="chief-files-btn" title="Files" aria-label="Files">${ICON.folder}</button>` : ''}
-          <button class="icon-btn" id="chief-new" title="New chat">${ICON.compose}</button>
+          ${state.features.includes('files-explorer') && state.features.includes('chief-files') ? `<button class="icon-btn" id="chief-files-btn" title="${tr('Files')}" aria-label="${tr('Files')}">${ICON.folder}</button>` : ''}
+          <button class="icon-btn" id="chief-new" title="${tr('New chat')}">${ICON.compose}</button>
         </div>
       </div>
       <div class="chat-thread" id="chat-thread"></div>
-      ${composerHTML(`Message ${chiefName()}`)}`;
+      ${composerHTML(messageChief())}`;
     wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
     if ($('#chief-files-btn')) $('#chief-files-btn').onclick = () => Files.open(chiefAsBot()); // files.js (#603)
@@ -437,7 +437,7 @@ function renderChatList() {
       <button type="button" class="settings-link ${c.id === state.chatId ? 'active' : ''}" data-chat="${esc(c.id)}">
         <span class="grow">${esc(c.title)}</span><span class="faint">${esc(shortTime(c.updatedAt))}</span>
       </button>`).join('')
-    : '<div class="faint" style="padding:11px 0;font-size:12.5px">No previous chats</div>';
+    : `<div class="faint" style="padding:11px 0;font-size:12.5px">${tr('No previous chats')}</div>`;
   $$('[data-chat]', el).forEach((b) => (b.onclick = () => { setView('chief'); showChat(b.dataset.chat); renderChatList(); }));
 }
 
@@ -452,14 +452,16 @@ function actionChip(a) {
   const screen = a.kind === 'run' && actionBot(a)?.computer === 'linux';
   // waits: what still waits for the owner's OK, in the server's words ("web access waits for your OK").
   const waits = typeof a.waits === 'string' && a.waits.trim() ? ` · <span class="waits">${esc(a.waits.trim())}</span>` : '';
-  return `<button class="action-chip" data-kind="${esc(a.kind)}" ${a.botId ? `data-bot="${esc(a.botId)}"` : ''} ${a.runId ? `data-run-id="${esc(a.runId)}"` : ''}>${icon} ${esc(a.text)}${waits}${screen ? ' · View live screen' : ''}</button>`;
+  return `<button class="action-chip" data-kind="${esc(a.kind)}" ${a.botId ? `data-bot="${esc(a.botId)}"` : ''} ${a.runId ? `data-run-id="${esc(a.runId)}"` : ''}>${icon} ${esc(a.text)}${waits}${screen ? ` · ${tr('View live screen')}` : ''}</button>`;
 }
 
 // A mail draft (docs/api.md, "A mail draft", #415): one card with its header, its state, its text, Send now and
 // Not now, and the bot whose run wrote it in its footer. A version the Chief wrote again later folds to one line, a
 // sent one to its header; a tap opens them.
 // A look's draft (#422, `unsaved`) is in no mailbox yet: "Not sent" alone.
-const MAIL_STATE = { draft: 'In Drafts · not sent', kept: 'Kept in Drafts · not sent', unsaved: 'Not sent' };
+const MAIL_STATE = { draft: tr('In Drafts · not sent'), kept: tr('Kept in Drafts · not sent'), unsaved: tr('Not sent') };
+// The card's buttons: what each sends (the Chief knows these words), and its label.
+const MAIL_ACTIONS = { 'Send now': tr('Send now'), 'Not now': tr('Not now') };
 // The run chips the card's footer takes the place of.
 const mailChip = (m, a) => !!m.draft?.botId && (a.kind === 'run' || a.kind === 'from') && a.botId === m.draft.botId;
 function mailCardHTML(d) {
@@ -468,15 +470,15 @@ function mailCardHTML(d) {
   const name = d.bot || bot?.name || '';
   const actions = sent || d.earlier ? [] : d.state === 'kept' ? ['Send now'] : ['Send now', 'Not now'];
   const card = `
-    <section class="mail-card" aria-label="Mail draft"${d.earlier ? ' hidden' : ''}>
-      <dl class="mail-head"><dt>To</dt><dd>${esc(d.to)}</dd><dt>Subject</dt><dd class="mail-subject">${esc(d.subject)}</dd></dl>
-      <div class="mail-state${sent ? ' sent' : ''}"><i></i>${sent ? `Sent ${esc(msgTime(d.sentAt))}` : d.unsaved ? MAIL_STATE.unsaved : MAIL_STATE[d.state] || MAIL_STATE.draft}</div>
+    <section class="mail-card" aria-label="${tr('Mail draft')}"${d.earlier ? ' hidden' : ''}>
+      <dl class="mail-head"><dt>${tr('To')}</dt><dd>${esc(d.to)}</dd><dt>${tr('Subject')}</dt><dd class="mail-subject">${esc(d.subject)}</dd></dl>
+      <div class="mail-state${sent ? ' sent' : ''}"><i></i>${sent ? tr('Sent {time}', { time: esc(msgTime(d.sentAt)) }) : d.unsaved ? MAIL_STATE.unsaved : MAIL_STATE[d.state] || MAIL_STATE.draft}</div>
       ${d.text ? `<div class="mail-text"${sent ? ' hidden' : ''}>${esc(d.text)}</div>` : ''}
-      ${actions.length ? `<div class="choices mail-actions">${actions.map((c, i) => `<button type="button" class="btn${i ? '' : ' primary'}" data-choice="${esc(c)}">${esc(c)}</button>`).join('')}</div>` : ''}
-      ${name ? `<div class="mail-foot"><button type="button" class="mail-link" data-mail-bot="${esc(d.botId)}">${esc(name)}</button>${bot?.computer === 'linux' ? ` · <button type="button" class="mail-link" data-mail-screen="${esc(d.botId)}">Screen</button>` : ''}</div>` : ''}
+      ${actions.length ? `<div class="choices mail-actions">${actions.map((c, i) => `<button type="button" class="btn${i ? '' : ' primary'}" data-choice="${esc(c)}">${esc(MAIL_ACTIONS[c] || c)}</button>`).join('')}</div>` : ''}
+      ${name ? `<div class="mail-foot"><button type="button" class="mail-link" data-mail-bot="${esc(d.botId)}">${esc(name)}</button>${bot?.computer === 'linux' ? ` · <button type="button" class="mail-link" data-mail-screen="${esc(d.botId)}">${tr('Screen')}</button>` : ''}</div>` : ''}
     </section>`;
-  if (d.earlier) return `<button type="button" class="mail-old" data-mail-open>Earlier version · show</button>${card}`;
-  return sent && d.text ? `${card}<button type="button" class="mail-link mail-show" data-mail-text>Show the text</button>` : card;
+  if (d.earlier) return `<button type="button" class="mail-old" data-mail-open>${tr('Earlier version · show')}</button>${card}`;
+  return sent && d.text ? `${card}<button type="button" class="mail-link mail-show" data-mail-text>${tr('Show the text')}</button>` : card;
 }
 function wireMail(root) {
   $$('[data-mail-open]', root).forEach((b) => (b.onclick = () => { b.nextElementSibling.hidden = false; b.remove(); }));
@@ -539,8 +541,8 @@ function drawChiefPlan(chatId, last) {
   if (!slot || !globalThis.Plan) return;
   slot.style.setProperty('--c', CHIEF_COLOR);
   const view = !chatId || !last ? null
-    : last.pending ? (last.plan ? { kind: 'live', plan: last.plan, id: chiefPlanId(chatId, last), who: chiefName() } : null)
-    : chiefStopped(last) ? { kind: 'stopped', plan: last.plan, id: chiefPlanId(chatId, last), who: chiefName() } : null;
+    : last.pending ? (last.plan ? { kind: 'live', plan: last.plan, id: chiefPlanId(chatId, last), who: chiefTitle() } : null)
+    : chiefStopped(last) ? { kind: 'stopped', plan: last.plan, id: chiefPlanId(chatId, last), who: chiefTitle() } : null;
   Plan.draw(slot, `chief:${chatId || ''}`, view, () => { if (state.chatId === chatId) showChat(chatId); });
 }
 
@@ -549,16 +551,16 @@ const PLAN_APPROVAL = 'Approved. Go ahead.';
 // A bot's suggestion for the Chief: nothing happens until you answer it.
 const suggestionBubble = (m) => `
   <div class="bubble-row from-me"><div class="stack from-bot-msg">
-    <div class="bot-msg-label">Suggestion from ${m.from ? botLabel(m.from) : 'a bot'}</div>
+    <div class="bot-msg-label">${tr('Suggestion from {name}', { name: m.from ? botLabel(m.from) : tr('a bot') })}</div>
     <div class="bubble from-other-bot suggestion-msg" data-expand><div class="md clamp">${md(m.text)}</div></div>
     <div class="bubble-meta on-hover">${copyBtn(m.text)}</div>
-    ${m.status === 'pending' ? `<div class="suggestion-actions"><button class="btn" data-sug-dismiss>Decline</button><button class="btn primary" data-sug-build>Approve</button></div>` : m.status === 'dismissed' ? '<div class="bot-msg-label">You declined it</div>' : ''}
+    ${m.status === 'pending' ? `<div class="suggestion-actions"><button class="btn" data-sug-dismiss>${tr('Decline')}</button><button class="btn primary" data-sug-build>${tr('Approve')}</button></div>` : m.status === 'dismissed' ? `<div class="bot-msg-label">${tr('You declined it')}</div>` : ''}
   </div></div>`;
 
 // A bot the Chief handed a task, with its final reply once the teammates it asked had answered.
 const reportBubble = (m, at = null) => `
   <div class="bubble-row from-me"><div class="stack from-bot-msg">
-    <div class="bot-msg-label">Message from ${m.from ? botLabel(m.from) : 'a bot'}</div>
+    <div class="bot-msg-label">${tr('Message from {name}', { name: m.from ? botLabel(m.from) : tr('a bot') })}</div>
     ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text)}</div>${at != null ? globalThis.docButton?.({ chat: state.chatId, at }, m.text) || '' : ''}${botFilesHTML(m.files)}</div>
     <div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : `<div class="bubble from-other-bot report-msg">${botFilesHTML(m.files)}</div>`}
   </div></div>`;
@@ -566,7 +568,7 @@ const reportBubble = (m, at = null) => `
 // at: the message's place in the whole chat (the chat may have come in part, from `offset` on).
 const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m, at) : steeredBubbles(m.steered) + chiefBubble(m, i === all.length - 1, at));
 // What the owner steered into a reply while the Chief worked (ADR 040): their messages, before that reply, without buttons.
-const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta on-hover"><span>Steered · ${esc(msgTime(x.at))}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
+const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta on-hover"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
 
 const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : ''}</div></div>`;
 

@@ -3,7 +3,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { cut, element } = require('./web-page');
+const { cut, element, words } = require('./web-page');
 
 const PLAN = { name: 'Coder 2', copies: ['Its main assignment, rules and description', 'The Vault entries it may use: Portal <b>'], notCopied: 'Its memory, chats, runs, jobs, Board tiles, files and groups', logins: ['Portal <b>'], vaultLocked: false };
 
@@ -11,7 +11,7 @@ function page({ plan = PLAN, made = { id: 'c2', name: 'Coder 2' } } = {}) {
   const calls = []; const toasts = []; const views = []; const pills = [];
   const go = element({}); const name = element({}, { value: plan.name });
   const modal = element({ '#dup-go': go, '#dup-name': name }, { closed: false, close() { modal.closed = true; } });
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     api: async (url, opts = {}) => { calls.push([url, opts]); return opts.method === 'POST' ? made : plan; },
     openModal: (html) => { modal.innerHTML = html; return modal; },
     $: (sel, root) => (root ? root.querySelector(sel) : { open: false }),

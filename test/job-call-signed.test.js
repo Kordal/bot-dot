@@ -66,8 +66,8 @@ test('the card of a signed call says the secret lets a sender in', () => {
 
 test("web: a job's settings say it takes signed calls, beside the notify line; any other job says nothing", () => {
   const vm = require('vm');
-  const { cut, esc } = require('./web-page');
-  const ctx = vm.createContext({ esc });
+  const { cut, esc, words } = require('./web-page');
+  const ctx = vm.createContext({ ...words, esc });
   vm.runInContext(`${cut('const jobCallModeLine = ', 'function jobCardHTML(j, open = false) {')}\nthis.jobCallModeLine = jobCallModeLine;`, ctx);
   assert.equal(ctx.jobCallModeLine({ call: true, callMode: 'signed' }), '<div class="faint job-call-mode">Takes signed calls: each one is signed with the secret in the Vault, and runs once.</div>');
   assert.equal(ctx.jobCallModeLine({ call: true }), '');

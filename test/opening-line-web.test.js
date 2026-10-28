@@ -8,10 +8,11 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const { webSource } = require('./web-source');
+const { words } = require('./web-page');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const read = (f) => fs.readFileSync(path.join(PUBLIC, f), 'utf8');
-const page = vm.createContext({});
+const page = vm.createContext({ ...words });
 vm.runInContext(read('unread.js'), page);
 vm.runInContext(read('opening-line.js'), page);
 const { OpeningLine, Unread } = page;
@@ -50,7 +51,7 @@ test('web: the line is the server\'s text; the page cuts and tidies nothing itse
 test('web: the preview in the list is the line with an ellipsis, or nothing for "Working…"', () => {
   assert.equal(OpeningLine.preview('Planning this week\'s meals'), 'Planning this week\'s meals…');
   for (const none of ['', null, undefined, 3]) assert.equal(OpeningLine.preview(none), '');
-  assert.match(app, /const working = OpeningLine\.preview\(openingLines\.of\(`bot:\$\{b\.id\}`\)\) \|\| 'Working…'/);
+  assert.match(app, /const working = OpeningLine\.preview\(openingLines\.of\(`bot:\$\{b\.id\}`\)\) \|\| tr\('Working…'\)/);
   assert.match(app, /<div class="prev \$\{line\.cls\}">\$\{esc\(line\.prev\)\}<\/div>/, 'drawn as text');
   assert.match(app, /cls: asks \? 'asks' : b\.running \? 'working' : ''/);
 });
@@ -185,13 +186,13 @@ test('web: a running run draws no bubble: no typing dots, no Details, only what 
   const running = app.slice(app.indexOf("if (r.status === 'running') {", app.indexOf('function runParts')), app.indexOf("const failed = ['error', 'stopped', 'interrupted']"));
   // From a server with drafts the reply as it is written stands there too (test/reply-draft-web.test.js).
   assert.match(running, /reply = `<div class="bubble-row from-bot" data-live="\$\{esc\(r\.id\)\}">\$\{draftHTML\(replyDrafts\.of\(r\.id\), true\)\}\$\{botFilesHTML\(r\.files\)\}<\/div>/);
-  assert.match(running, /<button type="button" class="block-stop" data-stop-run="\$\{esc\(r\.id\)\}">Stop<\/button>/);
+  assert.match(running, /<button type="button" class="block-stop" data-stop-run="\$\{esc\(r\.id\)\}">\$\{tr\('Stop'\)\}<\/button>/);
   assert.doesNotMatch(running, /bubble from-bot|typing|data-details|activity/);
   assert.match(css, /\[data-live\]:empty \{ display: none; \}/);
   const follow = app.slice(app.indexOf('function followBotRun'), app.indexOf('function watchRun('));
   assert.doesNotMatch(follow, /stepsHTML|\.activity|\.steps/);
   assert.match(follow, /live\.insertAdjacentHTML\('beforeend', html\)/, 'a file it attaches shows at once');
-  assert.match(app, /\$\{r\.kind === 'reminder' \? '' : ` <button data-details="\$\{esc\(r\.id\)\}">Details<\/button>`\}\$\{copyBtn\(body\)\}/, 'a finished reply keeps Details, a reminder that went off has none (#343)');
+  assert.match(app, /\$\{r\.kind === 'reminder' \? '' : ` <button data-details="\$\{esc\(r\.id\)\}">\$\{tr\('Details'\)\}<\/button>`\}\$\{copyBtn\(body\)\}/, 'a finished reply keeps Details, a reminder that went off has none (#343)');
 });
 
 test('web: Stop stops the line\'s run, and a Stop that fails leaves the chat and says why', async () => {
@@ -202,7 +203,7 @@ test('web: Stop stops the line\'s run, and a Stop that fails leaves the chat and
   const button = { dataset: { stopRun: 'r1' }, onclick: null };
   const thread = { dataset: {}, scrollHeight: 0, scrollTop: 0, clientHeight: 0, lastElementChild: null, html: '',
     insertAdjacentHTML(where, html) { this.html = html; } };
-  const box = vm.createContext({
+  const box = vm.createContext({ ...words,
     OpeningLine, Unread, openingLines: { of: () => '' },
     $: (sel) => (sel === '[data-stop-run]' && thread.html.includes('data-stop-run="r1"') ? button : null),
     api: async (url, opts) => { calls.push([url, opts.method]); if (fail) throw new Error(fail); },

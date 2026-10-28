@@ -7,7 +7,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, finders } = require('./web-page');
+const { app, read, cut, esc, element, finders, words } = require('./web-page');
 
 const css = read('style.css');
 const SETTING = { on: true, days: [1, 2, 3, 4, 5], time: '08:00', webSearch: false, when: 'Weekdays at 08:00', timeZone: 'Europe/Warsaw', lastRanAt: null };
@@ -20,7 +20,7 @@ function settings({ features = ['chief', 'checkup'], checkup = null, answers = [
   const box = element({ '[data-checkup="on"]': on, '[data-checkup="webSearch"]': web, '[data-checkup-when]': when }, { classes: ['hidden'] });
   const calls = [], toasts = [], listeners = {};
   const state = { features, checkup };
-  const ctx = vm.createContext({
+  const ctx = vm.createContext({ ...words,
     ...finders(element({ '#chief-checkup': box })), state, JSON, esc,
     toast: (...a) => toasts.push(a), flashSaved() {},
     api: async (path, opts = {}) => {
@@ -148,7 +148,7 @@ test('web: a change made in another app or by the Chief moves the switches and t
 test('web: the settings not on screen: a change on the feed is kept for when they open', () => {
   const state = { features: ['checkup'], checkup: null };
   const listeners = {};
-  const ctx = vm.createContext({ ...finders(), state, JSON, es: { addEventListener: (t, fn) => { listeners[t] = fn; } } });
+  const ctx = vm.createContext({ ...words, ...finders(), state, JSON, es: { addEventListener: (t, fn) => { listeners[t] = fn; } } });
   vm.runInContext(`${cut('function drawCheckup()', 'async function loadCheckup()')}
     ${cut("es.addEventListener('checkup'", '\n}\n\n// ---------- boot')}`, ctx);
   listeners.checkup({ data: JSON.stringify(SETTING) });
@@ -157,7 +157,7 @@ test('web: the settings not on screen: a change on the feed is kept for when the
 
 // ---- a checkup's message ----
 
-const page = vm.createContext({ esc, state: { features: ['chief', 'unread', 'ratings', 'checkup'], bots: [], runs: [] }, CHIEF_COLOR: '#d85a30', msgTime: () => '08:00', copyBtn: () => '<copy>', questionsHTML: () => '' });
+const page = vm.createContext({ ...words, esc, ...words, state: { features: ['chief', 'unread', 'ratings', 'checkup'], bots: [], runs: [] }, CHIEF_COLOR: '#d85a30', msgTime: () => '08:00', copyBtn: () => '<copy>', questionsHTML: () => '' });
 vm.runInContext(read('unread.js'), page);
 vm.runInContext(read('ratings.js'), page);
 vm.runInContext(`${cut('// The text colour that reads best on a filled colour', '// Several questions at once ([[ask: …]])')}
