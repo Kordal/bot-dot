@@ -48,7 +48,7 @@ step="computer-server"
 [ -x /opt/computer-server/venv/bin/python ] || python3 -m venv /opt/computer-server/venv
 /opt/computer-server/venv/bin/pip install --no-cache-dir 'pip==26.2.2'
 /opt/computer-server/venv/bin/pip install --no-cache-dir \
-  'cua-computer-server==0.3.46' 'fastapi==0.144.0' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'pillow==13.0.0' 'certifi==2026.10.19'
+  'cua-computer-server==0.3.46' 'fastapi==0.144.0' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'authlib==1.9.1' 'pillow==13.0.0' 'certifi==2026.10.19'
 /opt/computer-server/venv/bin/pip check
 
 step="Camoufox"
