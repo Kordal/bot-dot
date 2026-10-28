@@ -45,6 +45,12 @@ data class RunSteps(val count: Int, val rows: List<Row>) {
         /** Whether [r]'s block has a step line: it is at work, or it took a step, changed a skill or messaged a bot. */
         fun shows(r: Run): Boolean = r.isRunning || (r.steps?.count ?: 0) > 0 || skills(r).isNotEmpty() || messaged(r).isNotEmpty()
 
+        /**
+         * Whether [r]'s step line is open, from [opened]: the runs whose steps the owner opened, each with whether it was at
+         * work then. One opened to watch the run at work folds when the run ends, so a finished run's steps are folded.
+         */
+        fun open(opened: Map<String, Boolean>, r: Run): Boolean = when (opened[r.id]) { null -> false; true -> r.isRunning; false -> true }
+
         /** What the line says of a finished run's count: "23 steps", or "" for none. */
         fun countWords(n: Int): String = when { n <= 0 -> ""; n == 1 -> "1 step"; else -> "$n steps" }
 

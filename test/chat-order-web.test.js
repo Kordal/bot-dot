@@ -34,7 +34,7 @@ function page() {
     choicesHTML: (c) => (c ? `<div class="choices">${c.map(esc).join('|')}</div>` : ''),
     said: (v) => (typeof v === 'string' ? v.trim() : ''), plain: (t) => String(t || ''), OpeningLine: { WAITING: 'Waiting for your OK', ofRun: () => '' }, state: { keepOpen: null, features: [] },
   });
-  vm.runInContext(`${cut('function messagedLabel(r) {', '// Notes other bots left')}\n${cut('function botThreadHTML(bot, runs, newFirst = null) {', '// "Run now" under the notes that wait')}\nthis.botThreadHTML = botThreadHTML; this.tookFor = tookFor;`, ctx);
+  vm.runInContext(`${cut('function messagedLabel(r) {', '// Notes other bots left')}\n${cut('function botThreadHTML(bot, runs, newFirst = null) {', '// "Run now" under the notes that wait')}\nthis.botThreadHTML = botThreadHTML; this.tookFor = tookFor; this.openSteps = openSteps;`, ctx);
   return ctx;
 }
 const bot = { id: 'qm', name: 'Quotz Manager', color: '#48c' };
@@ -81,6 +81,25 @@ test('web: a finished block folds its steps into one line: the count, the skills
   assert.doesNotMatch(html, /bot-msg-label">Messaged/, 'no loose "Messaged" row above the reply');
   const plainBlock = page().botThreadHTML(bot, [run('quiet', { prompt: 'Hi', result: 'Hello.', startedAt: '2026-10-23T11:28:00.000Z', endedAt: '2026-10-23T11:28:05.000Z' })]);
   assert.doesNotMatch(plainBlock, /run-steps/, 'a run without a step, a skill or a message has no step line');
+});
+
+// A finished run's steps are folded: one opened to watch the run at work folds when it ends; one opened after it
+// ended stays open as the chat is drawn again.
+test('web: a step line opened while its run works folds when the run ends; one opened after stays open', () => {
+  const ctx = page();
+  const steps = { count: 46, rows: [{ at: '2026-10-28T12:46:00.000Z', text: 'Using a connected app' }] };
+  const working = run('w', { prompt: 'Test it', status: 'running', startedAt: '2026-10-28T12:40:00.000Z', steps });
+  const ended = { ...working, status: 'success', result: 'Done.', endedAt: '2026-10-28T12:50:00.000Z' };
+  const isOpen = (html) => /<details class="run-steps[^"]*" data-steps="w" open>/.test(html);
+  assert.ok(!isOpen(ctx.botThreadHTML(bot, [working])), 'folded until it is opened');
+  ctx.openSteps.set('w', true); // opened while at work
+  assert.ok(isOpen(ctx.botThreadHTML(bot, [working])), 'stays open while it works');
+  assert.ok(!isOpen(ctx.botThreadHTML(bot, [ended])), 'folds when it ends');
+  assert.ok(!isOpen(ctx.botThreadHTML(bot, [ended])), 'and stays folded');
+  ctx.openSteps.set('w', false); // opened after it ended
+  assert.ok(isOpen(ctx.botThreadHTML(bot, [ended])));
+  assert.ok(isOpen(ctx.botThreadHTML(bot, [ended])), 'stays open as the chat is drawn again');
+  assert.match(read('bot-chat.js'), /openSteps\.set\(el\.dataset\.steps, el\.classList\.contains\('now'\)\)/, 'a toggle notes whether its run was at work');
 });
 
 // Quiet keys (#635): no frame round a run, one step line that ends in how long it took, and the time, Details,

@@ -90,7 +90,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     val files = vm.files
     val listState = rememberLazyListState()
     var opened by remember { mutableStateOf(setOf<String>()) } // runs a search match opened (folded ones between bots)
-    val stepsOpen = remember(botId) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() } // the runs whose steps are open (#636)
+    val stepsOpen = remember(botId) { androidx.compose.runtime.mutableStateMapOf<String, Boolean>() } // the runs whose steps are open, each with whether it was at work then (#636)
 
     LaunchedEffect(vm) { vm.notes.collect { scope.launch { snack.showSnackbar(it) } } }
     // From a search match: go to that run (older pages until it's there), and open it if it's folded.
@@ -248,7 +248,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     val detailed = rounds.lastOrNull { RunSteps.shows(it) }
                     RunBlock(onReply = if (replies && last.kind != "script" && !last.btw && !last.isQueued) ({
                         vm.replying = BotChatModel.Replying(last.id, RunSteps.firstLine(rounds.first().prompt).ifEmpty { "this task" })
-                    }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = true } }, copy = rounds.lastOrNull { it.status == "success" }?.result) {
+                    }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = d.isRunning } }, copy = rounds.lastOrNull { it.status == "success" }?.result) {
                         rounds.forEachIndexed { n, r ->
                             if (n > 0) RoundRule()
                             // The "New" line: above what started the run, or, below your own message, above the rest of the block.
@@ -261,7 +261,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                             if (new && (mine || !asked)) NewLine(bot?.color)
                             val steps = RunSteps.shows(r)
                             if (steps) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color,
-                                open = stepsOpen[r.id] == true, onOpen = { stepsOpen[r.id] = it }, onStop = { vm.stop(r.id) })
+                                open = RunSteps.open(stepsOpen, r), onOpen = { if (it) stepsOpen[r.id] = r.isRunning else stepsOpen.remove(r.id) }, onStop = { vm.stop(r.id) })
                             val theirs = @Composable {
                                 TheirSide(r, open = r.id in opened, features = features, timed = steps, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
                                     learned = r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
