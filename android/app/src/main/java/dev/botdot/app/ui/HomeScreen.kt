@@ -89,6 +89,7 @@ import kotlinx.coroutines.delay
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import dev.botdot.app.data.tr
 import dev.botdot.app.feed.Feed
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
@@ -158,7 +159,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         whatsNew = emptyList()
         scope.launch { runCatching { api?.whatsNewSeen(shown) } }
     })
-    if (feedbackOpen) FeedbackDialog(shotsOn = feedbackShots, send = { kind, text, shots -> (api ?: throw ApiException("Can't reach botdot.")).sendFeedback(kind, text, shots) }, onClose = { feedbackOpen = false })
+    if (feedbackOpen) FeedbackDialog(shotsOn = feedbackShots, send = { kind, text, shots -> (api ?: throw ApiException(tr("Can't reach botdot."))).sendFeedback(kind, text, shots) }, onClose = { feedbackOpen = false })
     val context = androidx.compose.ui.platform.LocalContext.current
     // One small head per thing that waits, in the colour of the bot it's about (the Chief's for the rest).
     val waiting by store.waiting.collectAsState(initial = emptyList())
@@ -173,7 +174,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     var choosingHome by remember { mutableStateOf(false) }
     dash?.takeIf { choosingHome }?.let { d ->
         HomeTilesSheet(d, save = { ids ->
-            runCatching { api!!.setHomeTiles(ids) }.onFailure { android.widget.Toast.makeText(context, it.message ?: "Couldn't save", android.widget.Toast.LENGTH_LONG).show() }.getOrThrow()
+            runCatching { api!!.setHomeTiles(ids) }.onFailure { android.widget.Toast.makeText(context, it.message ?: tr("Couldn't save"), android.widget.Toast.LENGTH_LONG).show() }.getOrThrow()
             store.dashboard.refresh()
         }, onDismiss = { choosingHome = false })
     }
@@ -239,7 +240,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         val group = groupById[id]
         scope.launch {
             runCatching { if (group != null) api?.updateGroup(group.id, change) else api?.updateBot(id, change) }
-                .onFailure { android.widget.Toast.makeText(context, it.message ?: "Couldn't save", android.widget.Toast.LENGTH_LONG).show() }
+                .onFailure { android.widget.Toast.makeText(context, it.message ?: tr("Couldn't save"), android.widget.Toast.LENGTH_LONG).show() }
             load()
             syncLayout() // didn't save: back where it was (the same list again changes nothing by itself)
         }
@@ -307,7 +308,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 .clickable(onClick = onNeedsYou).padding(horizontal = 14.dp, vertical = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Needs you", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)) // the figures say how many
+            Text(tr("Needs you"), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)) // the figures say how many
             Spacer(Modifier.size(10.dp))
             NeedsFigures(needsWho)
         }
@@ -323,8 +324,8 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         BoardCards(dash, bots.orEmpty(), onClick = onDashboard, onEdit = if (dev.botdot.app.data.HomeTiles.shows(server?.features)) ({ choosingHome = true }) else null)
         if (needs > 0) NeedsRows(waiting, onReview = onNeedsYou, onAnswer = { id, yes ->
             scope.launch {
-                runCatching { (api ?: throw ApiException("Can't reach botdot.")).answerAsk(id, yes) }
-                    .onFailure { android.widget.Toast.makeText(context, it.message ?: "Couldn't answer", android.widget.Toast.LENGTH_LONG).show() }
+                runCatching { (api ?: throw ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }
+                    .onFailure { android.widget.Toast.makeText(context, it.message ?: tr("Couldn't answer"), android.widget.Toast.LENGTH_LONG).show() }
                 store.needs.refresh()
             }
         })
@@ -348,7 +349,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 else -> ""
             }
             // A bot that asks shows its question alone: its pill says Needs you.
-            KeyLook(b.name, sub(b).removePrefix("Asks: "), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = asks(b), status = status, time = time)
+            KeyLook(b.name, sub(b).removePrefix(tr("Asks:") + " "), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = asks(b), status = status, time = time)
         }
         is Keypad.Key.OfGroup -> {
             val line = groupLine(k.group, bots.orEmpty(), turnLines)
@@ -373,23 +374,23 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         // The logo and the list's buttons: in a row, or one under the other in a list of figures, which has no search.
         if (figures) Column(Modifier.fillMaxWidth().statusBarsPadding().padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
-            if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = "Can't reach botdot" })
-            RoundButton(Icons.Filled.Add, "New chat", onClick = onNew)
-            RoundButton(Icons.Filled.Settings, "Settings") { onOpen("settings") }
-            if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, "Feedback") { feedbackOpen = true }
+            if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = tr("Can't reach botdot") })
+            RoundButton(Icons.Filled.Add, tr("New chat"), onClick = onNew)
+            RoundButton(Icons.Filled.Settings, tr("Settings")) { onOpen("settings") }
+            if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback")) { feedbackOpen = true }
         }
         // A list of names: the logo, and the buttons under it, a little smaller, so that all three fit in 140.
         else if (shows == ListWidth.Shows.NAMES) Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
-                if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = "Can't reach botdot" })
+                if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = tr("Can't reach botdot") })
             }
             // Four buttons don't fit in one row of 140: Feedback wraps under them there.
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                RoundButton(Icons.Filled.Search, "Search", size = 34.dp) { searching = !searching; if (!searching) query = "" }
-                RoundButton(Icons.Filled.Add, "New chat", size = 34.dp, onClick = onNew)
-                RoundButton(Icons.Filled.Settings, "Settings", size = 34.dp) { onOpen("settings") }
-                if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, "Feedback", size = 34.dp) { feedbackOpen = true }
+                RoundButton(Icons.Filled.Search, tr("Search"), size = 34.dp) { searching = !searching; if (!searching) query = "" }
+                RoundButton(Icons.Filled.Add, tr("New chat"), size = 34.dp, onClick = onNew)
+                RoundButton(Icons.Filled.Settings, tr("Settings"), size = 34.dp) { onOpen("settings") }
+                if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback"), size = 34.dp) { feedbackOpen = true }
             }
         }
         else Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
@@ -397,11 +398,11 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
             Spacer(Modifier.weight(1f))
             ConnectionDot(feedState)
-            RoundButton(Icons.Filled.Search, "Search") { searching = !searching; if (!searching) query = "" }
+            RoundButton(Icons.Filled.Search, tr("Search")) { searching = !searching; if (!searching) query = "" }
             // Settings; Memory, Skills, Connectors and the rest open from there. A new chat with the Chief starts in its
             // chat (#636): the top has search and settings only.
-            RoundButton(Icons.Filled.Settings, "Settings") { onOpen("settings") }
-            if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, "Feedback") { feedbackOpen = true }
+            RoundButton(Icons.Filled.Settings, tr("Settings")) { onOpen("settings") }
+            if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback")) { feedbackOpen = true }
         }
         if ((searching || query.isNotEmpty()) && !figures) SearchField(query, askSearch) { query = it }
         // The keypad, while the search finds nothing to show in its place.
@@ -420,7 +421,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         ) {
             KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0, chiefBusy = chiefBusy, folded = folded, onFold = foldPage) {
                 AboveKeys()
-                if (bots != null && pages.isEmpty()) Text("No bots yet. Ask the Chief of Staff to make one.", color = p.muted, modifier = Modifier.padding(20.dp))
+                if (bots != null && pages.isEmpty()) Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(20.dp))
             }
         }
         else PullToRefreshBox(
@@ -440,7 +441,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 // "Needs you" in a list of figures: the first of the figures that wait, on the same ground.
                 if (needs > 0 && figures) item {
                     Box(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(p.warnSoft)
-                        .clickable(onClickLabel = "Needs you", onClick = onNeedsYou).padding(vertical = 9.dp), contentAlignment = Alignment.Center) {
+                        .clickable(onClickLabel = tr("Needs you"), onClick = onNeedsYou).padding(vertical = 9.dp), contentAlignment = Alignment.Center) {
                         NeedsFigures(needsWho, max = 1)
                     }
                 }
@@ -448,13 +449,13 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 val list = bots.orEmpty()
                 if (q.isNotEmpty()) {
                     // Searching: the bots that match, then the messages, instead of the usual list.
-                    if ("chief of staff".contains(q) || chiefName.lowercase().contains(q)) item(key = "chief") { Contact(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, "", outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
+                    if ("chief of staff".contains(q) || dev.botdot.app.data.ChiefName.role.lowercase().contains(q) || chiefName.lowercase().contains(q)) item(key = "chief") { Contact(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, "", outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
                     items(list.filter { "${it.name} ${it.description} ${it.group}".lowercase().contains(q) }, key = { it.id }) { b ->
                         Contact(b.color, b.state, b.name, sub(b), listTime(lastRun[b.id]?.startedAt), outfit = b.outfit, unread = b.unread, asks = asks(b)) { onBot(b.id) }
                     }
                     items(groups.filter { groupSearchText(it, list).contains(q) }, key = { ListLayout.groupRow(it.id) }) { g -> GroupContact(g) }
                     if (hits.isNotEmpty()) item(key = "hits") {
-                        Text("Messages", color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 2.dp))
+                        Text(tr("Messages"), color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 2.dp))
                     }
                     items(hits.withIndex().toList(), key = { "hit:${it.index}" }) { (_, h) -> Hit(h, list) { onHit(h) } }
                     return@LazyColumn
@@ -514,9 +515,9 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                             val turn by animateFloatAsState(if (isFolded) -90f else 0f, tween(200), label = "fold")
                             // A list of figures has no room for a category's name: a line stands where it begins.
                             if (figures) Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp).height(1.dp).background(p.line))
-                            else Row(Modifier.fillMaxWidth().clickable(onClickLabel = if (isFolded) "Show this category" else "Hide this category") { scope.launch { app.settings.toggleFolded(category) } }
+                            else Row(Modifier.fillMaxWidth().clickable(onClickLabel = if (isFolded) tr("Show this category") else tr("Hide this category")) { scope.launch { app.settings.toggleFolded(category) } }
                                 .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(category.ifEmpty { "Other" }, color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text(category.ifEmpty { tr("Other") }, color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                                 Spacer(Modifier.size(6.dp))
                                 Text("▾", color = p.faint, fontSize = 12.sp, modifier = Modifier.graphicsLayer { rotationZ = turn })
                                 if (isFolded && members.any { it.running }) {
@@ -528,7 +529,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                     }
                 }
                 if (bots != null && list.isEmpty() && groups.isEmpty() && !figures) item {
-                    Text("No bots yet. Ask the Chief of Staff to make one.", color = p.muted, modifier = Modifier.padding(20.dp))
+                    Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(20.dp))
                 }
             }
         }
@@ -550,7 +551,7 @@ private fun SearchField(value: String, ask: Int, onChange: (String) -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp).focusRequester(focus),
         decorationBox = { field ->
             Row(Modifier.clip(CircleShape).background(p.sunk).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.weight(1f)) { if (value.isEmpty()) Text("Search", color = p.faint, style = MaterialTheme.typography.bodyLarge); field() }
+                Box(Modifier.weight(1f)) { if (value.isEmpty()) Text(tr("Search"), color = p.faint, style = MaterialTheme.typography.bodyLarge); field() }
                 if (value.isNotEmpty()) Text("✕", color = p.muted, modifier = Modifier.clickable { onChange("") }.padding(start = 8.dp))
             }
         },
@@ -592,7 +593,7 @@ private fun Hit(h: ChatHit, bots: List<Bot>, onClick: () -> Unit) {
 private fun ConnectionDot(state: Feed.State) {
     // Nothing while all is well; only a word when botdot can't be reached.
     if (state != Feed.State.Retrying) return
-    Text("Can't reach botdot", color = LocalPaper.current.warnText, fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
+    Text(tr("Can't reach botdot"), color = LocalPaper.current.warnText, fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
 }
 
 /**
@@ -600,7 +601,7 @@ private fun ConnectionDot(state: Feed.State) {
  * when it asks nothing, the server says nothing of it, or it is working: the row then says what it does. [r]: its latest run.
  */
 internal fun botAsks(b: Bot, r: Run?): String? =
-    b.asks?.takeIf { !(b.running || r?.isRunning == true) }?.let { "Asks: ${plainText(it.text).replace('\n', ' ').take(120)}" }
+    b.asks?.takeIf { !(b.running || r?.isRunning == true) }?.let { tr("Asks:") + " " + plainText(it.text).replace('\n', ' ').take(120) }
 
 /**
  * What a bot's row says under its name: what it's doing (its [line] as the server says it, "Working…" without
@@ -613,6 +614,6 @@ internal fun botSub(b: Bot, r: Run?, line: String?): String = when {
     b.jobs.any { it.waits } -> jobWaits(b.jobs.first { it.waits })
     r == null -> b.description
     r.status == "success" -> plainText(r.result.orEmpty()).replace('\n', ' ').take(120).ifBlank { b.description }
-    r.status == "stopped" -> "Stopped"
-    else -> "Couldn't finish"
+    r.status == "stopped" -> tr("Stopped")
+    else -> tr("Couldn't finish")
 }

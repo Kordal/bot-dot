@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.BrowserSignIn
+import dev.botdot.app.data.tr
 
 /**
  * Signing in to the account (ADR 028): once, with its passkey, on the front door's own page in the browser (a Custom
@@ -56,9 +57,8 @@ fun SignInScreen(app: BotDotApp, onChangeServer: () -> Unit) {
         Logo(size = 34.sp)
         Spacer(Modifier.height(8.dp))
         Text(
-            if (state == BrowserSignIn.State.Waiting) "Finish signing in in the browser. It brings you back here."
-            else "Sign in to your account on $host with its passkey, in the browser: the password manager you use there " +
-                "answers it. The phone stays signed in until you sign out.",
+            if (state == BrowserSignIn.State.Waiting) tr("Finish signing in in the browser. It brings you back here.")
+            else tr("Sign in to your account on {host} with its passkey, in the browser: the password manager you use there answers it. The phone stays signed in until you sign out.", "host" to host),
             color = p.muted, style = MaterialTheme.typography.bodyLarge,
         )
         (state as? BrowserSignIn.State.Failed)?.let {
@@ -72,9 +72,9 @@ fun SignInScreen(app: BotDotApp, onChangeServer: () -> Unit) {
             enabled = !finishing && api != null,
             colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
             modifier = Modifier.fillMaxWidth().height(50.dp),
-        ) { Text(when (state) { BrowserSignIn.State.Finishing -> "Signing in…"; BrowserSignIn.State.Waiting -> "Open the sign-in again"; else -> "Sign in with your passkey" }) }
+        ) { Text(when (state) { BrowserSignIn.State.Finishing -> tr("Signing in…"); BrowserSignIn.State.Waiting -> tr("Open the sign-in again"); else -> tr("Sign in with your passkey") }) }
         Spacer(Modifier.height(8.dp))
-        TextButton(onClick = onChangeServer, modifier = Modifier.fillMaxWidth()) { Text("Change botdot's address", color = p.text) }
+        TextButton(onClick = onChangeServer, modifier = Modifier.fillMaxWidth()) { Text(tr("Change botdot's address"), color = p.text) }
     }
 }
 
@@ -90,6 +90,6 @@ private fun openInBrowser(context: Context, url: String, toolbar: Int, failed: (
     try {
         tab.launchUrl(context, url.toUri())
     } catch (e: ActivityNotFoundException) {
-        failed("This phone has no browser to sign in with. Install one, then try again.")
+        failed(tr("This phone has no browser to sign in with. Install one, then try again."))
     }
 }

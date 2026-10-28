@@ -33,6 +33,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.Usage
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /**
@@ -53,7 +54,7 @@ fun UsageSection(api: Api) {
     suspend fun load(f: String?, t: String?) {
         runCatching { api.usage(f, t) }
             .onSuccess { answer = it; error = null; from = it.from; to = it.to }
-            .onFailure { error = it.message ?: "Couldn't load the usage" }
+            .onFailure { error = it.message ?: tr("Couldn't load the usage") }
     }
     fun pick(next: Usage.Preset) {
         preset = next
@@ -69,10 +70,10 @@ fun UsageSection(api: Api) {
                 val r = Usage.rangeOf(Usage.Preset.WEEK, first.today)
                 if (r == null) { answer = first; from = first.from; to = first.to } else load(r.first, r.second)
             }
-            .onFailure { error = it.message ?: "Couldn't load the usage" }
+            .onFailure { error = it.message ?: tr("Couldn't load the usage") }
     }
 
-    FoldSection("Usage") {
+    FoldSection(tr("Usage")) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Usage.Preset.entries.forEach { option ->
                 if (option == preset) Button(onClick = { pick(option) }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(option.label) }
@@ -81,24 +82,24 @@ fun UsageSection(api: Api) {
         }
         if (preset == Usage.Preset.CUSTOM) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(from, { from = it.trim(); changed = "from" }, label = { Text("From") }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
+                OutlinedTextField(from, { from = it.trim(); changed = "from" }, label = { Text(tr("From")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false), modifier = Modifier.weight(1f))
-                OutlinedTextField(to, { to = it.trim(); changed = "to" }, label = { Text("To") }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
+                OutlinedTextField(to, { to = it.trim(); changed = "to" }, label = { Text(tr("To")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false), modifier = Modifier.weight(1f))
             }
             val range = Usage.custom(from, to, changed)
-            OutlinedButton(enabled = range != null, onClick = { range?.let { r -> scope.launch { load(r.first, r.second) } } }) { Text("Show", color = p.text) }
+            OutlinedButton(enabled = range != null, onClick = { range?.let { r -> scope.launch { load(r.first, r.second) } } }) { Text(tr("Show"), color = p.text) }
         }
         val a = answer
         when {
             error != null -> Text(error ?: "", color = p.err, style = MaterialTheme.typography.bodySmall)
-            a == null -> Hint("Loading…")
+            a == null -> Hint(tr("Loading…"))
             else -> {
-                if (a.from == a.to) Hint(Usage.dayLabel(a.from)) else Hint("${Usage.dayLabel(a.from)} to ${Usage.dayLabel(a.to)}")
+                if (a.from == a.to) Hint(Usage.dayLabel(a.from)) else Hint(tr("{from} to {to}", "from" to Usage.dayLabel(a.from), "to" to Usage.dayLabel(a.to)))
                 Totals(a.totals)
                 if (a.days.size > 1) DayBars(a.days)
-                Text("By bot", color = p.text, style = MaterialTheme.typography.titleSmall)
-                if (a.bots.isEmpty()) Hint("No tokens used in this timeframe.")
+                Text(tr("By bot"), color = p.text, style = MaterialTheme.typography.titleSmall)
+                if (a.bots.isEmpty()) Hint(tr("No tokens used in this timeframe."))
                 val top = a.bots.maxOfOrNull { it.totalTokens }?.coerceAtLeast(1L) ?: 1L
                 a.bots.forEach { b -> BotRow(b, b.totalTokens.toFloat() / top) }
             }
@@ -109,9 +110,9 @@ fun UsageSection(api: Api) {
 @Composable
 private fun Totals(t: Usage.Totals) {
     val cells = listOf(
-        "Input tokens" to Usage.tokens(t.inputTokens), "Output tokens" to Usage.tokens(t.outputTokens),
-        "Cache read" to Usage.tokens(t.cacheReadTokens), "Cache write" to Usage.tokens(t.cacheWriteTokens),
-        "All tokens" to Usage.tokens(t.totalTokens),
+        tr("Input tokens") to Usage.tokens(t.inputTokens), tr("Output tokens") to Usage.tokens(t.outputTokens),
+        tr("Cache read") to Usage.tokens(t.cacheReadTokens), tr("Cache write") to Usage.tokens(t.cacheWriteTokens),
+        tr("All tokens") to Usage.tokens(t.totalTokens),
     )
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         cells.forEach { (label, value) -> Stat(label, value) }
@@ -133,7 +134,7 @@ private fun DayBars(days: List<Usage.Day>) {
     val p = LocalPaper.current
     val shares = Usage.bars(days)
     Column {
-        Row(Modifier.fillMaxWidth().height(96.dp).semantics { contentDescription = "Tokens per day" }, horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+        Row(Modifier.fillMaxWidth().height(96.dp).semantics { contentDescription = tr("Tokens per day") }, horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
             shares.forEach { share ->
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
                     if (share > 0f) Box(Modifier.fillMaxWidth().fillMaxHeight(share).background(p.muted, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)))
@@ -153,7 +154,7 @@ private fun BotRow(b: Usage.Bot, share: Float) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (b.gone) "${b.name} (deleted)" else b.name, color = p.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(if (b.gone) tr("{name} (deleted)", "name" to b.name) else b.name, color = p.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             Text(Usage.tokens(b.totalTokens), color = p.muted, style = MaterialTheme.typography.bodySmall)
         }
         Box(Modifier.fillMaxWidth().padding(top = 3.dp).height(4.dp).background(p.sunk, RoundedCornerShape(2.dp))) {

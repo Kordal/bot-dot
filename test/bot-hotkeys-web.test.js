@@ -60,6 +60,6 @@ test('android: the bot has hotkey, and its settings offer it only when the serve
   const models = fs.readFileSync(path.join(app, 'data', 'Models.kt'), 'utf8');
   const screen = fs.readFileSync(path.join(app, 'ui', 'BotSettingsScreen.kt'), 'utf8');
   assert.match(models, /val hotkey: Int\? = null/);
-  assert.match(screen, /if \(b\.hotkey != null\) FoldSection\("Key on the keypad"/);
+  assert.match(screen, /if \(b\.hotkey != null\) FoldSection\(tr\("Key on the keypad"\)/);
   assert.match(screen, /if \(b\.hotkey != null && hotkey != b\.hotkey\) put\("hotkey", hotkey\)/);
 });

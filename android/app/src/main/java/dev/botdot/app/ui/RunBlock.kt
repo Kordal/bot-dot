@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.OpeningLine
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.RunSteps
+import dev.botdot.app.data.tr
 
 /**
  * One run of a bot's chat as one block (#625; `runBlockHTML` in public/bot-chat.js): what started it, what was steered
@@ -92,9 +93,9 @@ fun RunBlock(onReply: (() -> Unit)? = null, onDetails: (() -> Unit)? = null, cop
 }
 
 /** What a long press on a run offers (#627, #636), as on the web page. */
-internal const val REPLY_TO_TASK = "Reply to this task"
-internal const val DETAILS = "Details"
-internal const val COPY = "Copy"
+internal val REPLY_TO_TASK: String get() = tr("Reply to this task")
+internal val DETAILS: String get() = tr("Details")
+internal val COPY: String get() = tr("Copy")
 
 @Composable
 private fun SheetRow(icon: ImageVector, text: String, onClick: () -> Unit) {
@@ -121,8 +122,8 @@ fun ReplyChip(text: String, onClear: () -> Unit) {
         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape).padding(start = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Reply to: $text", color = p.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, "Don't reply to it", tint = p.muted, modifier = Modifier.size(18.dp)) }
+        Text(tr("Reply to: {text}", "text" to text), color = p.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, tr("Don't reply to it"), tint = p.muted, modifier = Modifier.size(18.dp)) }
     }
 }
 
@@ -139,16 +140,16 @@ fun StepLine(r: Run, line: String?, count: Int, held: Boolean, color: String?, o
     val skills = remember(r) { RunSteps.skills(r) }
     val bots = remember(r) { RunSteps.messaged(r) }
     val took = if (r.isRunning) "" else RunSteps.took(r.startedAt, r.endedAt)
-    val now = when { held -> OpeningLine.WAITING_FOR_OK; !line.isNullOrBlank() -> line; else -> "Working" }
+    val now = when { held -> OpeningLine.WAITING_FOR_OK; !line.isNullOrBlank() -> line; else -> tr("Working") }
     val label = if (r.isRunning) listOf(now, RunSteps.countWords(count)).filter { it.isNotEmpty() }.joinToString(", ")
-    else (listOf(RunSteps.countWords(count)) + skills.map { "the skill $it" } + bots.map { it.name } + took).filter { it.isNotEmpty() }.joinToString(", ")
+    else (listOf(RunSteps.countWords(count)) + skills.map { tr("the skill {name}", "name" to it) } + bots.map { it.name } + took).filter { it.isNotEmpty() }.joinToString(", ")
     Column {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 32.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (open) "Hide the steps" else "Show the steps") { onOpen(!open) }
+                Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (open) tr("Hide the steps") else tr("Show the steps")) { onOpen(!open) }
                     .heightIn(min = 32.dp).padding(end = 6.dp)
                     .semantics(mergeDescendants = true) { contentDescription = label; if (r.isRunning) liveRegion = LiveRegionMode.Polite },
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
@@ -165,7 +166,7 @@ fun StepLine(r: Run, line: String?, count: Int, held: Boolean, color: String?, o
                     Text(stepWords(count, skills, bots.map { it.name }, took, p.muted, p.dot, p.faint), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (r.isRunning && onStop != null) WordButton("Stop", p.err, onStop)
+            if (r.isRunning && onStop != null) WordButton(tr("Stop"), p.err, onStop)
         }
         Unfold(open) { Timeline(r) }
     }
@@ -227,6 +228,6 @@ fun BlockFoot(r: Run, onStop: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(shortTime(r.startedAt), color = p.faint, fontSize = 12.sp)
         Spacer(Modifier.weight(1f))
-        WordButton("Stop", p.err, onStop)
+        WordButton(tr("Stop"), p.err, onStop)
     }
 }

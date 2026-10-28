@@ -16,8 +16,8 @@ internal object ReleaseTrust {
 data class ReleaseManifest(val app: String, val version: Long, val revision: String, val file: String, val sha256: String, val signature: String) {
     internal fun verify(expectedApp: String, installed: Long, publicKey: String = ReleaseTrust.KEY) {
         if (app != expectedApp || version !in 1..9_007_199_254_740_991L || !Regex("[0-9a-f]{40}").matches(revision) ||
-            !Regex("[A-Za-z0-9][A-Za-z0-9._/:@-]{0,255}").matches(file) || !Regex("[0-9a-f]{64}").matches(sha256)) throw ApiException("Invalid release manifest.")
-        if (version < installed) throw ApiException("An older release cannot be installed.")
+            !Regex("[A-Za-z0-9][A-Za-z0-9._/:@-]{0,255}").matches(file) || !Regex("[0-9a-f]{64}").matches(sha256)) throw ApiException(tr("Invalid release manifest."))
+        if (version < installed) throw ApiException(tr("An older release cannot be installed."))
         val valid = runCatching {
             val key = KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(publicKey)))
             Signature.getInstance("SHA256withECDSA").run {
@@ -26,7 +26,7 @@ data class ReleaseManifest(val app: String, val version: Long, val revision: Str
                 verify(Base64.getDecoder().decode(signature))
             }
         }.getOrDefault(false)
-        if (!valid) throw ApiException("The release signature is invalid or no release key is pinned.")
+        if (!valid) throw ApiException(tr("The release signature is invalid or no release key is pinned."))
     }
 
     companion object {

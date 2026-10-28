@@ -116,9 +116,9 @@ class BrowserSignIn(private val keep: Keep, private val now: () -> Long = System
         keep.write(null)
         val a = api()
         _state.value = when {
-            code == null -> State.Failed("The sign-in didn't come back from the browser. Sign in again.")
-            waiting == null || now() - waiting.startedAt > Handoff.WAITS_MS -> State.Failed("That sign-in has ended. Sign in again.")
-            a == null || a.baseUrl.trimEnd('/') != waiting.server -> State.Failed("That sign-in was for another botdot. Sign in again.")
+            code == null -> State.Failed(tr("The sign-in didn't come back from the browser. Sign in again."))
+            waiting == null || now() - waiting.startedAt > Handoff.WAITS_MS -> State.Failed(tr("That sign-in has ended. Sign in again."))
+            a == null || a.baseUrl.trimEnd('/') != waiting.server -> State.Failed(tr("That sign-in was for another botdot. Sign in again."))
             else -> {
                 _state.value = State.Finishing
                 try {
@@ -126,7 +126,7 @@ class BrowserSignIn(private val keep: Keep, private val now: () -> Long = System
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    State.Failed(e.message?.ifBlank { null } ?: "That didn't sign you in.")
+                    State.Failed(e.message?.ifBlank { null } ?: tr("That didn't sign you in."))
                 }
             }
         }

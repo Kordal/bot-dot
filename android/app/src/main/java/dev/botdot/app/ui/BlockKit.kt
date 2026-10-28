@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Block
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Tile
+import dev.botdot.app.data.tr
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -73,7 +74,7 @@ object BoardKit {
     /** "3s ago", "2 min ago", "2 h ago": the age of a value, as the web page says it. */
     fun ageWords(secs: Long): String {
         val s = maxOf(0L, secs)
-        return when { s < 60 -> "${s}s"; s < 3600 -> "${s / 60} min"; else -> "${s / 3600} h" } + " ago"
+        return tr("{age} ago", "age" to when { s < 60 -> "${s}s"; s < 3600 -> "${s / 60} min"; else -> "${s / 3600} h" })
     }
 
     /** When the newest value came, in epoch ms; 0 while none has. */
@@ -95,7 +96,7 @@ object BoardKit {
     fun deltaLine(b: Block, clock: (Long) -> String = ::clock): String {
         val d = b.delta ?: return ""
         val arrow = when (d.dir) { "up" -> "▲"; "down" -> "▼"; else -> "–" }
-        val since = b.since?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }?.let { " since ${clock(it)}" } ?: ""
+        val since = b.since?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }?.let { " " + tr("since {time}", "time" to clock(it)) } ?: ""
         return "$arrow ${d.text}$since"
     }
 
@@ -188,7 +189,7 @@ fun KitKpi(b: Block, color: Color, compact: Boolean, small: Boolean = false) {
                 Text(buildAnnotatedString {
                     append(b.text?.ifEmpty { "·" } ?: "·")
                     b.unit?.let { withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.faint)) { append(" $it") } }
-                    b.of?.let { withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.faint)) { append("  of $it") } }
+                    b.of?.let { withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.faint)) { append("  " + tr("of {total}", "total" to it)) } }
                 }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = if (small) 22.sp else 30.sp, fontWeight = FontWeight.SemiBold, lineHeight = if (small) 26.sp else 34.sp, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis)
                 b.delta?.let { d ->
                     Text(BoardKit.deltaLine(b), fontSize = 12.5.sp, color = when (d.good) { true -> p.okText; false -> p.err; null -> p.faint })

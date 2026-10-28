@@ -43,6 +43,8 @@ import dev.botdot.app.data.InteractivePages
 import dev.botdot.app.data.InteractiveView
 import dev.botdot.app.data.NotesWake
 import dev.botdot.app.data.UploadedFiles
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -61,15 +63,15 @@ fun InteractiveBar(site: InteractiveView, full: Boolean, onFull: () -> Unit, onV
             Text(InteractivePages.ISOLATED, color = p.muted, fontSize = 12.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = onFull) { Text("Full screen", color = p.text, fontSize = 13.sp) }
-            OutlinedButton(onClick = onVersions) { Text("Versions", color = p.text, fontSize = 13.sp) }
-            OutlinedButton(onClick = onDownload) { Text("Download", color = p.text, fontSize = 13.sp) }
+            OutlinedButton(onClick = onFull) { Text(tr("Full screen"), color = p.text, fontSize = 13.sp) }
+            OutlinedButton(onClick = onVersions) { Text(tr("Versions"), color = p.text, fontSize = 13.sp) }
+            OutlinedButton(onClick = onDownload) { Text(tr("Download"), color = p.text, fontSize = 13.sp) }
         }
         if (site.shown != site.current) Column(Modifier.fillMaxWidth().background(p.warnSoft).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("You are looking at version ${site.shown}. The page shows version ${site.current}.", color = p.text, fontSize = 13.sp)
+            Text(tr("You are looking at version {shown}. The page shows version {current}.", "shown" to site.shown, "current" to site.current), color = p.text, fontSize = 13.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onRollBack, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Go back to this version", fontSize = 13.sp) }
-                TextButton(onClick = onCurrent) { Text("Show the current one", color = p.text, fontSize = 13.sp) }
+                Button(onClick = onRollBack, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Go back to this version"), fontSize = 13.sp) }
+                TextButton(onClick = onCurrent) { Text(tr("Show the current one"), color = p.text, fontSize = 13.sp) }
             }
         }
     }
@@ -83,8 +85,8 @@ fun InteractiveFrame(site: InteractiveView, values: JsonObject?, onDownload: () 
     val frame = site.frame
     var asking by remember { mutableStateOf<String?>(null) }
     if (frame == null) {
-        ViewerState("This machine can't show interactive pages yet", "They need an address of their own, which the admin's next update of botdot sets up. Download it to open it on your phone.") {
-            Button(onClick = onDownload, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Save to Downloads") }
+        ViewerState(tr("This machine can't show interactive pages yet"), tr("They need an address of their own, which the admin's next update of botdot sets up. Download it to open it on your phone.")) {
+            Button(onClick = onDownload, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save to Downloads")) }
         }
         return
     }
@@ -135,15 +137,15 @@ private fun LinkOut(url: String, onDone: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val host = runCatching { java.net.URI(url).host }.getOrNull().orEmpty()
     AlertDialog(onDismissRequest = onDone, containerColor = p.panel,
-        title = { Text("Open a link?", color = p.text) },
-        text = { Column { Text("The page wants to open $host:", color = p.text); Text(url, color = p.muted, fontFamily = GeistMono, fontSize = 12.5.sp) } },
+        title = { Text(tr("Open a link?"), color = p.text) },
+        text = { Column { Text(tr("The page wants to open {host}:", "host" to host), color = p.text); Text(url, color = p.muted, fontFamily = GeistMono, fontSize = 12.5.sp) } },
         confirmButton = {
             TextButton(onClick = {
                 onDone()
                 runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }
-            }) { Text("Open", color = p.text) }
+            }) { Text(tr("Open"), color = p.text) }
         },
-        dismissButton = { TextButton(onClick = onDone) { Text("Cancel", color = p.muted) } })
+        dismissButton = { TextButton(onClick = onDone) { Text(tr("Cancel"), color = p.muted) } })
 }
 
 /** The versions kept, newest first: show one, or make it the page again. */
@@ -153,16 +155,16 @@ fun VersionsSheet(title: String, site: InteractiveView, onShow: (Int) -> Unit, o
     val p = LocalPaper.current
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.panel) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Versions of “$title”", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-            Text("Each time the bot publishes it, a new version. The last ten are kept.", color = p.muted, fontSize = 13.sp)
+            Text(tr("Versions of “{title}”", "title" to title), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+            Text(tr("Each time the bot publishes it, a new version. The last ten are kept."), color = p.muted, fontSize = 13.sp)
             site.versions.forEach { v ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Column(Modifier.weight(1f)) {
-                        Text("Version ${v.n}" + if (v.n == site.current) " · on the page" else "", color = if (v.n == site.current) p.okText else p.text, fontSize = 14.sp)
-                        Text("${NotesWake.ago(v.at)} · ${UploadedFiles.size(v.bytes)} · ${v.files} file${if (v.files == 1) "" else "s"}", color = p.faint, fontSize = 12.sp)
+                        Text(tr("Version {n}", "n" to v.n) + if (v.n == site.current) " · " + tr("on the page") else "", color = if (v.n == site.current) p.okText else p.text, fontSize = 14.sp)
+                        Text("${NotesWake.ago(v.at)} · ${UploadedFiles.size(v.bytes)} · " + trn(v.files, "{n} file", "{n} files"), color = p.faint, fontSize = 12.sp)
                     }
-                    TextButton(onClick = { onShow(v.n) }) { Text("Show", color = p.text) }
-                    if (v.n != site.current) OutlinedButton(onClick = { onCurrent(v.n) }) { Text("Go back to it", color = p.text, fontSize = 13.sp) }
+                    TextButton(onClick = { onShow(v.n) }) { Text(tr("Show"), color = p.text) }
+                    if (v.n != site.current) OutlinedButton(onClick = { onCurrent(v.n) }) { Text(tr("Go back to it"), color = p.text, fontSize = 13.sp) }
                 }
             }
         }

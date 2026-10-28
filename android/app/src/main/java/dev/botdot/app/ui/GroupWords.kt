@@ -8,6 +8,8 @@ import dev.botdot.app.data.hasGroups
 import dev.botdot.app.data.OpeningLine
 import dev.botdot.app.data.TurnLine
 import dev.botdot.app.data.TurnLines
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import dev.botdot.app.feed.plainText
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -21,14 +23,14 @@ internal const val GONE_COLOR = "#888780"
 
 /** "Coder", "Coder and Reviewer", "Coder, Reviewer and Issue Writer". */
 internal fun namesList(names: List<String>): String =
-    if (names.size > 1) "${names.dropLast(1).joinToString(", ")} and ${names.last()}" else names.firstOrNull().orEmpty()
+    if (names.size > 1) tr("{names} and {last}", "names" to names.dropLast(1).joinToString(", "), "last" to names.last()) else names.firstOrNull().orEmpty()
 
 /** What a screen reader is told of the heads of who is next in a group, which carry no words: "Next: Reviewer and Issue Writer". */
-internal fun nextWords(names: List<String>): String = if (names.isEmpty()) "" else "Next: ${namesList(names)}"
+internal fun nextWords(names: List<String>): String = if (names.isEmpty()) "" else tr("Next: {names}", "names" to namesList(names))
 
 /** A member's name now, or as the server [said] it for a bot that is gone. */
 internal fun memberName(bots: List<Bot>, botId: String?, said: String? = null): String =
-    bots.firstOrNull { it.id == botId }?.name ?: said?.trim()?.ifEmpty { null } ?: "A bot"
+    bots.firstOrNull { it.id == botId }?.name ?: said?.trim()?.ifEmpty { null } ?: tr("A bot")
 
 /** A member's colour now, or as the server [said] it for a bot that is gone. */
 internal fun memberColor(bots: List<Bot>, botId: String?, said: String? = null): String =
@@ -49,12 +51,12 @@ internal fun groupLine(g: Group, bots: List<Bot>, lines: Map<String, TurnLine>):
     val one = { text: String -> plainText(text).replace('\n', ' ').take(120) }
     val dots = memberColor(bots, g.last?.botId ?: g.members.firstOrNull { id -> bots.any { it.id == id } })
     val at = g.working.firstNotNullOfOrNull { id -> bots.firstOrNull { it.id == id } }
-    if (at != null) return GroupLine(at.name, "${TurnLines.of(lines, g.id, at.id).ifEmpty { "Working" }}…", working = true, color = dots)
+    if (at != null) return GroupLine(at.name, "${TurnLines.of(lines, g.id, at.id).ifEmpty { tr("Working") }}…", working = true, color = dots)
     g.asks?.let { a ->
         val text = one(a.text)
-        return GroupLine("", "${memberName(bots, a.botId, a.botName)} asks${if (text.isNotEmpty()) ": $text" else ""}", asks = true, color = memberColor(bots, a.botId))
+        return GroupLine("", tr("{name} asks", "name" to memberName(bots, a.botId, a.botName)) + if (text.isNotEmpty()) ": $text" else "", asks = true, color = memberColor(bots, a.botId))
     }
-    g.last?.let { l -> return GroupLine(memberName(bots, l.botId, l.botName), one(l.text).ifBlank { if (l.status == "success") "Done." else "Couldn't finish" }, color = dots) }
+    g.last?.let { l -> return GroupLine(memberName(bots, l.botId, l.botName), one(l.text).ifBlank { if (l.status == "success") tr("Done.") else tr("Couldn't finish") }, color = dots) }
     return GroupLine("", "", color = dots) // nothing said yet: the row is its name alone (#636)
 }
 
@@ -64,11 +66,11 @@ internal fun groupSearchText(g: Group, bots: List<Bot>): String = "${g.name} ${g
 /** Under a message of the owner's that waits for busy members: for whom. "" when it waits for nobody. */
 internal fun waitsLine(m: GroupMessage, bots: List<Bot>): String {
     val names = m.waitsFor.map { memberName(bots, it) }
-    return if (names.isEmpty()) "" else "Waits until ${namesList(names)} ${if (names.size > 1) "are" else "is"} free"
+    return if (names.isEmpty()) "" else if (names.size > 1) tr("Waits until {names} are free", "names" to namesList(names)) else tr("Waits until {names} is free", "names" to namesList(names))
 }
 
 /** Under a message that waits while Claude is signed out: no turn is given until the sign-in. */
-internal const val WAITS_FOR_SIGN_IN = "Waits until Claude is signed in"
+internal val WAITS_FOR_SIGN_IN: String get() = tr("Waits until Claude is signed in")
 
 /**
  * A message none of whose turns has started, and that waits: for a busy member, or for Claude to be signed in. It is
@@ -85,27 +87,27 @@ internal fun waitsWords(m: GroupMessage, bots: List<Bot>): String = waitsLine(m,
  * `working` has it ([OpeningLine.ofRun]), until they said one.
  */
 internal fun workingWords(name: String, line: TurnLine?, opening: String?): String = "$name · " +
-    if (line?.held == true) OpeningLine.WAITING_FOR_OK else "${OpeningLine.text(line?.text).ifEmpty { OpeningLine.text(opening) }.ifEmpty { "Working" }}…"
+    if (line?.held == true) OpeningLine.WAITING_FOR_OK else "${OpeningLine.text(line?.text).ifEmpty { OpeningLine.text(opening) }.ifEmpty { tr("Working") }}…"
 
 /** A group with no message yet: its members, and that all of them read what is written there. */
 internal fun emptyGroupWords(names: List<String>): String =
-    if (names.isEmpty()) "Its bots are all gone. Add one, or delete the group." else "${namesList(names)}. What you write here, all of them read."
+    if (names.isEmpty()) tr("Its bots are all gone. Add one, or delete the group.") else tr("{names}. What you write here, all of them read.", "names" to namesList(names))
 
 /** Under the picker that makes a group from the chat of [bot]: how many are picked ([n]), with that bot. */
 internal fun makeHint(n: Int, bot: String): String =
-    if (n > 0) "${n + 1} bots in the group, with $bot." else "Pick one to five bots to join $bot. Its own chat stays as it is."
+    if (n > 0) trn(n + 1, "{n} bot in the group, with {bot}.", "{n} bots in the group, with {bot}.", "bot" to bot) else tr("Pick one to five bots to join {bot}. Its own chat stays as it is.", "bot" to bot)
 
 /** What a screen reader says of the small plus right of the name in a bot's chat. It has no words beside it. */
-internal const val ADD_A_BOT = "Add a bot to this chat"
+internal val ADD_A_BOT: String get() = tr("Add a bot to this chat")
 
 /** Whether a group can be made from a bot's chat: the botdot server has groups, and there is another bot. */
 internal fun canMakeGroup(features: Collection<String>?, otherBots: Int): Boolean = hasGroups(features) && otherBots > 0
 
 /** Under the picker that adds bots to a group of [members] bots called [name]. */
-internal fun addHint(n: Int, members: Int, name: String): String = if (n > 0) "${members + n} bots in $name." else "A group has two to six bots."
+internal fun addHint(n: Int, members: Int, name: String): String = if (n > 0) trn(members + n, "{n} bot in {name}.", "{n} bots in {name}.", "name" to name) else tr("A group has two to six bots.")
 
 /** A card's bot as Needs you names it when the card was asked in a group: "Coder in Dev". */
-internal fun Named.inGroup(group: String?): Named = if (group.isNullOrBlank()) this else copy(name = "$name in $group")
+internal fun Named.inGroup(group: String?): Named = if (group.isNullOrBlank()) this else copy(name = tr("{name} in {group}", "name" to name, "group" to group))
 
 /** The list: the big figures on top, then each category's heading, its bots and, after them, its groups (ADR 018). */
 internal object ListLayout {

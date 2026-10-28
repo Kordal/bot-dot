@@ -12,8 +12,8 @@ import kotlinx.serialization.json.put
  */
 object WhatsNew {
     const val FEATURE = "whats-new"
-    const val TITLE = "What's new"
-    const val GOT_IT = "Got it"
+    val TITLE: String get() = tr("What's new")
+    val GOT_IT: String get() = tr("Got it")
     /** Every note since the last one seen comes (#380): the newest this many show in full, the rest as titles that open. */
     const val OPEN = 3
 
@@ -28,7 +28,7 @@ object WhatsNew {
 
     /** The line above more than [OPEN] notes, as on the web page; none for fewer. */
     fun countLine(entries: List<Entry>): String? =
-        if (entries.size > OPEN) "${entries.size} changes, newest first. Tap a title for more." else null
+        if (entries.size > OPEN) tr("{n} changes, newest first. Tap a title for more.", "n" to entries.size) else null
 
     /** Whether a note shows its points before a tap: the newest [OPEN] do. */
     fun openAtFirst(index: Int): Boolean = index < OPEN

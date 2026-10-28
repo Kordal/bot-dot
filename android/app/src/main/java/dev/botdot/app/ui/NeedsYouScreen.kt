@@ -113,6 +113,8 @@ import dev.botdot.app.data.GroupRef
 import dev.botdot.app.data.groupOfChat
 import dev.botdot.app.data.ToolCard
 import dev.botdot.app.data.VaultTypes
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -179,7 +181,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
         val r = runCatching { block() }
         load()
         answered()
-        tell(r.fold({ done }, { it.message ?: "That didn't work" }))
+        tell(r.fold({ done }, { it.message ?: tr("That didn't work") }))
     }
 
     val waitingJobs = bots.flatMap { b -> b.jobs.filter { it.waits }.map { b to it } }
@@ -207,14 +209,14 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                 decided = decided + d
                 ask?.let { store.answeredAway.add(it, d.title, d.label) } // the chat the card stood in says what you answered
             }
-            .onError { tell(it.message ?: "That didn't work") }
+            .onError { tell(it.message ?: tr("That didn't work")) }
         load()
         answered()
     }
     val jobWho = { b: Bot, j: Job -> inGroup(b.named(), cardGroups[CardGroups.jobKey(b.id, j.id)]) }
     val chiefWho = chiefNamed()
     val askWho = { a: Ask -> inGroup(a.bot?.let { whoOf(it.id, it.name) } ?: chiefWho, a.group) }
-    val memWho = { m: MemoryChange -> inGroup(whoOf(m.botId, bots.firstOrNull { it.id == m.botId }?.name ?: m.bot?.name ?: "A bot"), m.group) }
+    val memWho = { m: MemoryChange -> inGroup(whoOf(m.botId, bots.firstOrNull { it.id == m.botId }?.name ?: m.bot?.name ?: tr("A bot")), m.group) }
     // What one tap may approve: what a card shows in words. A script is answered on its own card.
     val all = approveAll(
         jobsLeft(waitingJobs, decided.map { it.key }),
@@ -223,14 +225,14 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
     )
     // "Always approve" a job: approve it and trust its later changes. Scripts only after the warning.
     var scriptWarning by remember { mutableStateOf<Pair<Bot, Job>?>(null) }
-    fun alwaysJob(b: Bot, j: Job) = decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, true, "Always approved") { api!!.approveJob(b.id, j.id, true, always = true) }
+    fun alwaysJob(b: Bot, j: Job) = decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, true, tr("Always approved")) { api!!.approveJob(b.id, j.id, true, always = true) }
     scriptWarning?.let { (b, j) ->
         AlertDialog(
             onDismissRequest = { scriptWarning = null },
-            title = { Text("Always approve \"${j.name}\"?") },
+            title = { Text(tr("Always approve \"{name}\"?", "name" to j.name)) },
             text = { Text(scriptWarningText(b.name)) },
-            confirmButton = { TextButton(onClick = { scriptWarning = null; alwaysJob(b, j) }) { Text("Always approve", color = p.err) } },
-            dismissButton = { TextButton(onClick = { scriptWarning = null }) { Text("Cancel", color = p.text) } },
+            confirmButton = { TextButton(onClick = { scriptWarning = null; alwaysJob(b, j) }) { Text(tr("Always approve"), color = p.err) } },
+            dismissButton = { TextButton(onClick = { scriptWarning = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
 
@@ -239,7 +241,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
-                title = { Text("Needs you", style = MaterialTheme.typography.titleMedium) },
+                title = { Text(tr("Needs you"), style = MaterialTheme.typography.titleMedium) },
                 actions = {
                     // AI jobs and memory changes need only a yes; a script, logins, payments and Bitwarden need you to look.
                     all.label?.let { label ->
@@ -254,34 +256,34 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } }, modifier = Modifier.padding(pad).fillMaxSize()) {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (loaded && requests.isEmpty() && !locked && waitingJobs.isEmpty() && memory.isEmpty() && plans.isEmpty() && asks.isEmpty() && tiles.isEmpty()) item {
-                    Text("All done.", color = p.muted, modifier = Modifier.padding(12.dp))
+                    Text(tr("All done."), color = p.muted, modifier = Modifier.padding(12.dp))
                 }
                 // What the button above leaves for its own card, in one line.
                 all.line?.let { line -> item(key = "left") { Text(line, color = p.muted, fontSize = 12.5.sp, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth()) } }
                 if (locked) item {
-                    if (unlocking) Busy("Unlocking Password Manager…")
+                    if (unlocking) Busy(tr("Unlocking Password Manager…"))
                     else BitwardenCard(bw, bw.wantedBy?.let { w -> whoOf(w.id, w.name) }, unlockError) { pw -> api?.let { app.unlockBitwarden(it, pw) } }
                 }
                 items(requests, key = { "r:${it.id}" }) { r -> Moves {
-                    val who = inGroup(if (r.bot == null && r.from == "chief") chiefNamed() else whoOf(r.bot?.id, r.bot?.name ?: "A bot"), r.group)
+                    val who = inGroup(if (r.bot == null && r.from == "chief") chiefNamed() else whoOf(r.bot?.id, r.bot?.name ?: tr("A bot")), r.group)
                     if (r.kind == "card") CardRequest(r, who,
-                        onAllow = { act("Allowed for this task") { api!!.answerRequest(r.id, buildJsonObject { put("action", "approve") }) } },
-                        onDecline = { act("Declined") { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
-                    else if (r.id in saving) Busy("Saving login…")
+                        onAllow = { act(tr("Allowed for this task")) { api!!.answerRequest(r.id, buildJsonObject { put("action", "approve") }) } },
+                        onDecline = { act(tr("Declined")) { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
+                    else if (r.id in saving) Busy(tr("Saving login…"))
                     else LoginRequestCard(r, who, bitwardenLocked = locked, features = features,
                         type = chosenType[r.id] ?: VaultTypes.of(r.type).id, onType = { chosenType[r.id] = it },
                         user = typedUser[r.id] ?: r.username, onUser = { typedUser[r.id] = it },
-                        onUse = { loginId -> act("${r.bot?.name ?: "The bot"} can use it now") { api!!.answerRequest(r.id, buildJsonObject { put("action", "allow"); put("loginId", loginId) }) } },
+                        onUse = { loginId -> act(tr("{name} can use it now", "name" to (r.bot?.name ?: tr("The bot")))) { api!!.answerRequest(r.id, buildJsonObject { put("action", "allow"); put("loginId", loginId) }) } },
                         // A login of another website, after the second question. A refusal (the login has 20
                         // additional hosts already) is the server's sentence, told like every other error; the request stays.
                         // The card waits for the answer (answered), so that it is asked once.
-                        onUseOther = { loginId, answered -> act("${r.bot?.name ?: "The bot"} can use it on ${r.site} now") { api!!.answerRequest(r.id, buildJsonObject { put("action", "allow"); put("loginId", loginId) }) }.invokeOnCompletion { answered() } },
+                        onUseOther = { loginId, answered -> act(tr("{name} can use it on {site} now", "name" to (r.bot?.name ?: tr("The bot")), "site" to r.site)) { api!!.answerRequest(r.id, buildJsonObject { put("action", "allow"); put("loginId", loginId) }) }.invokeOnCompletion { answered() } },
                         onSave = { sent, pw, master ->
                             api?.let { a ->
-                                app.saveLogin(a, r.id, VaultTypes.requestSave(sent, pw, master), r.bot?.name ?: "The bot")
+                                app.saveLogin(a, r.id, VaultTypes.requestSave(sent, pw, master), r.bot?.name ?: tr("The bot"))
                             }
                         },
-                        onDecline = { act("Declined") { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
+                        onDecline = { act(tr("Declined")) { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
                 } }
                 items(jobsLeft(waitingJobs, decided.map { it.key }), key = { (b, j) -> jobKey(b, j) }) { (b, j) -> Moves {
                     JobApproval(jobWho(b, j), j, (j.then ?: jobThens["${b.id}/${j.id}"])?.line(),
@@ -329,12 +331,12 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                 items(plans.filter { c -> decided.none { it.key == "p:${c.id}" } }, key = { "p:${it.id}" }) { c -> Moves {
                     val from = c.waiting!!.from
                     val who = whoOf(from.id, from.name)
-                    val title = "A plan for the Chief: ${c.title}"
-                    Card(who, title, "Nothing happens until you approve it", expandable = true) {
+                    val title = tr("A plan for the Chief: {title}", "title" to c.title)
+                    Card(who, title, tr("Nothing happens until you approve it"), expandable = true) {
                         Body(c.waiting.text.replace("**", "").replace(Regex("""(?m)^\s*[-*#]+\s+"""), ""))
-                        Text("Open chat", color = p.muted, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onChat(c.id) }.padding(6.dp))
-                        Buttons("Approve", { decide("p:${c.id}", who, title, true, "Approved · the Chief is on it") { api!!.sendToChief(c.id, PLAN_APPROVAL, emptyList()); null } },
-                            "Decline", { decide("p:${c.id}", who, title, false) { api!!.dismissSuggestion(c.id); null } })
+                        Text(tr("Open chat"), color = p.muted, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onChat(c.id) }.padding(6.dp))
+                        Buttons(tr("Approve"), { decide("p:${c.id}", who, title, true, tr("Approved · the Chief is on it")) { api!!.sendToChief(c.id, PLAN_APPROVAL, emptyList()); null } },
+                            tr("Decline"), { decide("p:${c.id}", who, title, false) { api!!.dismissSuggestion(c.id); null } })
                     }
                 } }
                 items(decided, key = { "d:${it.key}" }) { d -> Moves {
@@ -392,7 +394,7 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
     fun decide(key: String, title: String, yes: Boolean, label: String? = null, block: suspend () -> Answered?) = cs.launch {
         runCatching { block() }
             .onSuccess { said -> decided = decided + Decided(key, null, title, answeredLabel(answeredWord(label, said, yes), said?.carriesOn.takeIf { yes })); error = null }
-            .onError { error = it.message ?: "That didn't work" }
+            .onError { error = it.message ?: tr("That didn't work") }
         load()
         answered()
     }
@@ -412,14 +414,14 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
     val mySuggestions = if (chief || group != null) emptyList() else suggestions.filter { x -> x.bot == scope && decided.none { it.key == "s:${x.id}" } }
     val myTiles = tilesLeft(tiles.filter { t -> here(cardGroups[CardGroups.tileKey(t.id)]) && (group != null || if (chief) t.askedBy != "bot" else t.bot == scope && t.askedBy == "bot") }, decided.map { it.key })
     var scriptWarning by remember { mutableStateOf<Pair<Bot, Job>?>(null) }
-    fun alwaysJob(b: Bot, j: Job) = decide(jobKey(b, j), jobCard(j).title, true, "Always approved") { api!!.approveJob(b.id, j.id, true, always = true) }
+    fun alwaysJob(b: Bot, j: Job) = decide(jobKey(b, j), jobCard(j).title, true, tr("Always approved")) { api!!.approveJob(b.id, j.id, true, always = true) }
     scriptWarning?.let { (b, j) ->
         AlertDialog(
             onDismissRequest = { scriptWarning = null },
-            title = { Text("Always approve \"${j.name}\"?") },
+            title = { Text(tr("Always approve \"{name}\"?", "name" to j.name)) },
             text = { Text(scriptWarningText(b.name)) },
-            confirmButton = { TextButton(onClick = { scriptWarning = null; alwaysJob(b, j) }) { Text("Always approve", color = p.err) } },
-            dismissButton = { TextButton(onClick = { scriptWarning = null }) { Text("Cancel", color = p.text) } },
+            confirmButton = { TextButton(onClick = { scriptWarning = null; alwaysJob(b, j) }) { Text(tr("Always approve"), color = p.err) } },
+            dismissButton = { TextButton(onClick = { scriptWarning = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
     if (decided.isEmpty() && jobs.isEmpty() && mems.isEmpty() && myAsks.isEmpty() && reqs.isEmpty() && myTiles.isEmpty() && mySuggestions.isEmpty()) return
@@ -428,9 +430,9 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
         if (error != null) Text(error!!, color = p.err, fontSize = 12.5.sp)
         reqs.forEach { r ->
             val who = if (chief || group != null) r.bot?.let { named(bots.firstOrNull { b -> b.id == it.id }, it.name, null) } else null
-            Card(who, if (r.kind == "card") "Pay on ${r.site}" else "A login for ${r.site}", if (r.kind == "card") r.amount else r.reason) {
+            Card(who, if (r.kind == "card") tr("Pay on {site}", "site" to r.site) else tr("A login for {site}", "site" to r.site), if (r.kind == "card") r.amount else r.reason) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = onNeeds, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(if (r.kind == "card") "Review" else "Add it") }
+                    Button(onClick = onNeeds, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(if (r.kind == "card") tr("Review") else tr("Add it")) }
                 }
             }
         }
@@ -466,11 +468,11 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
         }
         // A tile this bot suggested for the Board.
         mySuggestions.forEach { x ->
-            Card(null, "Put “${x.tile.title}” on your Board?", x.reason, expandable = x.tile.scripts.isNotEmpty()) {
+            Card(null, tr("Put “{title}” on your Board?", "title" to x.tile.title), x.reason, expandable = x.tile.scripts.isNotEmpty()) {
                 x.tile.scripts.forEach { Body(it, mono = true) }
                 ThenLine(x.then?.line(chiefChat))
-                Buttons("Add", { decide("s:${x.id}", x.tile.title, true, "On your Board") { api!!.answerSuggestion(x.id, true) } },
-                    "No", { decide("s:${x.id}", x.tile.title, false, "Not added") { api!!.answerSuggestion(x.id, false) } })
+                Buttons(tr("Add"), { decide("s:${x.id}", x.tile.title, true, tr("On your Board")) { api!!.answerSuggestion(x.id, true) } },
+                    tr("No"), { decide("s:${x.id}", x.tile.title, false, tr("Not added")) { api!!.answerSuggestion(x.id, false) } })
             }
         }
         myTiles.forEach { t ->
@@ -525,16 +527,16 @@ internal fun answeredLabel(label: String, started: CarriesOn?): String = if (sta
  * words for the answered card ("Declined and removed", "Changed: daily at 07:00", "Kept as it was: daily at 08:00"),
  * else "Approved" or "Declined", as before the server said any.
  */
-internal fun answeredWord(own: String?, said: Answered?, yes: Boolean): String = own ?: said?.text ?: if (yes) "Approved" else "Declined"
+internal fun answeredWord(own: String?, said: Answered?, yes: Boolean): String = own ?: said?.text ?: if (yes) tr("Approved") else tr("Declined")
 
 /** Under the body of a change to an approved job or tile: nothing stops while the card waits. */
-internal const val RUNS_AS_APPROVED = "Runs as you approved it until you answer."
+internal val RUNS_AS_APPROVED: String get() = tr("Runs as you approved it until you answer.")
 
 /** The question before "Always allow" answers from a server that sends no `warning`, in the web page's words (public/needs.js). */
-internal const val ALWAYS_ALLOW_QUESTION = "Let this bot do this from now on, whatever the details?"
+internal val ALWAYS_ALLOW_QUESTION: String get() = tr("Let this bot do this from now on, whatever the details?")
 
 /** The same question on the Chief's own card (ADR 047), with the Chief's name, as the web page asks it. */
-internal fun alwaysAllowChief(name: String) = "Let $name do this from now on, whatever the details?"
+internal fun alwaysAllowChief(name: String) = tr("Let {name} do this from now on, whatever the details?", "name" to name)
 
 /**
  * What "Approve all" does with what waits: it approves [jobs] and [memory], which a card shows in words, and leaves
@@ -544,7 +546,7 @@ internal fun alwaysAllowChief(name: String) = "Let $name do this from now on, wh
  * under the title; null without the button, or when nothing is left.
  */
 internal class ApproveAll(val jobs: List<Pair<Bot, Job>>, val memory: List<MemoryChange>, left: List<String>) {
-    val label: String? = (jobs.size + memory.size).takeIf { it >= 2 }?.let { "Approve $it" }
+    val label: String? = (jobs.size + memory.size).takeIf { it >= 2 }?.let { tr("Approve {n}", "n" to it) }
     val line: String? = scriptsLeft(left).takeIf { label != null }
 }
 
@@ -557,8 +559,8 @@ internal fun approveAll(jobs: List<Pair<Bot, Job>>, memory: List<MemoryChange>, 
 /** The line that names what "Approve all" left: "Disk check runs a script: approve it on its card." null for none. */
 internal fun scriptsLeft(names: List<String>): String? = when (names.size) {
     0 -> null
-    1 -> "${names[0]} runs a script: approve it on its card."
-    else -> "${names.dropLast(1).joinToString(", ")} and ${names.last()} run scripts: approve them on their cards."
+    1 -> tr("{name} runs a script: approve it on its card.", "name" to names[0])
+    else -> tr("{names} and {last} run scripts: approve them on their cards.", "names" to names.dropLast(1).joinToString(", "), "last" to names.last())
 }
 
 /**
@@ -581,11 +583,11 @@ internal data class JobCard(
 )
 
 /** A job's report setting in words (`notify`, docs/api.md); a value this app does not know as it came. */
-private fun notifyWords(v: String) = when (v) { "always" -> "after every run"; "report-only" -> "only when it has something to report"; else -> v }
+private fun notifyWords(v: String) = when (v) { "always" -> tr("after every run"); "report-only" -> tr("only when it has something to report"); else -> v }
 
 /** When a script job asks the AI, in the words of the web page's job dialog (`aiWhen`); a value this app does not know as it came. */
 private fun aiWhenWords(v: String) = when (v) {
-    "output" -> "only when it prints something"; "failed" -> "only when it fails"; "always" -> "every time it runs"; "never" -> "never, just its output"; else -> v
+    "output" -> tr("only when it prints something"); "failed" -> tr("only when it fails"); "always" -> tr("every time it runs"); "never" -> tr("never, just its output"); else -> v
 }
 
 /** "<label>: <was> → <now>" for a setting that changes, "<label>: <now>" for one that had none; null when it stays. */
@@ -595,10 +597,10 @@ private fun changed(label: String, was: String?, now: String?, words: (String) -
     else -> "$label: ${words(was)} → ${words(now)}"
 }
 
-private fun kindWords(script: Boolean) = if (script) "a script, no AI" else "uses AI"
+private fun kindWords(script: Boolean) = if (script) tr("a script, no AI") else tr("uses AI")
 
 /** Under a change's sentence on a closed card: where the rest is. */
-internal const val SEE_FULL_CHANGE = "Tap to see the full change"
+internal val SEE_FULL_CHANGE: String get() = tr("Tap to see the full change")
 
 /** Whether the card shows what goes and what comes: always without a sentence, and with one once it is [open]. */
 internal fun showsFull(card: JobCard, open: Boolean) = open || card.summary == null
@@ -607,12 +609,12 @@ internal fun jobCard(j: Job): JobCard {
     val c = j.change.takeIf { j.approved }
     val was = scheduleWords(j) // the approved schedule: a change shows the new one beside it
     if (c == null) {
-        val by = when (j.changedBy ?: j.createdBy) { "chief" -> "added by the Chief"; "bot" -> "added by itself"; else -> "changed" }
+        val by = when (j.changedBy ?: j.createdBy) { "chief" -> tr("added by the Chief"); "bot" -> tr("added by itself"); else -> tr("changed") }
         val script = j.kind == "script"
-        return JobCard(j.name, "$was · ${kindWords(script)} · $by", j.script.takeIf { script }, null, j.prompt, null, null, j.no ?: "Decline", j.yes ?: "Approve",
-            listOfNotNull(j.logins.takeIf { script && it.isNotEmpty() }?.let { "Logins: ${it.joinToString(", ")}" }))
+        return JobCard(j.name, "$was · ${kindWords(script)} · $by", j.script.takeIf { script }, null, j.prompt, null, null, j.no ?: tr("Decline"), j.yes ?: tr("Approve"),
+            listOfNotNull(j.logins.takeIf { script && it.isNotEmpty() }?.let { tr("Logins: {logins}", "logins" to it.joinToString(", ")) }))
     }
-    val by = when (c.by) { "chief" -> "changed by the Chief"; "bot" -> "changed by itself"; else -> "changed" }
+    val by = when (c.by) { "chief" -> tr("changed by the Chief"); "bot" -> tr("changed by itself"); else -> tr("changed") }
     val now = c.words ?: was
     // After the yes it runs a script: the change says so or carries one ([Job.touchesScript] reads it the same way),
     // or it says nothing of it and the approved job runs one.
@@ -620,19 +622,19 @@ internal fun jobCard(j: Job): JobCard {
     val scriptNow = (c.script ?: j.script).takeIf { script }
     val prompt = c.prompt ?: j.prompt
     val meta = listOfNotNull(
-        if (now == was) was else "now $was → $now",
-        c.name?.takeIf { it != j.name }?.let { "renamed “$it”" },
+        if (now == was) was else tr("now {was} → {now}", "was" to was, "now" to now),
+        c.name?.takeIf { it != j.name }?.let { tr("renamed “{name}”", "name" to it) },
         kindWords(script), by,
     ).joinToString(" · ")
     return JobCard(
-        "${j.name}: a change", meta,
+        tr("{name}: a change", "name" to j.name), meta,
         scriptNow, j.script.takeIf { j.kind == "script" && it != scriptNow },
         prompt, j.prompt.takeIf { it.isNotBlank() && it != prompt },
-        RUNS_AS_APPROVED, j.no ?: "Keep as it is", j.yes ?: "Approve the change",
+        RUNS_AS_APPROVED, j.no ?: tr("Keep as it is"), j.yes ?: tr("Approve the change"),
         listOfNotNull(
-            changed("Tells you", j.notify ?: "report-only", c.notify, ::notifyWords),
-            changed("Asks the AI", j.aiWhen?.ifBlank { null }, c.aiWhen.takeIf { script }, ::aiWhenWords),
-            changed("Logins", j.logins.joinToString(", ").ifEmpty { null }, if (!script) null else c.logins.orEmpty().joinToString(", ").ifEmpty { if (j.logins.isEmpty()) null else "none" }) { it },
+            changed(tr("Tells you"), j.notify ?: "report-only", c.notify, ::notifyWords),
+            changed(tr("Asks the AI"), j.aiWhen?.ifBlank { null }, c.aiWhen.takeIf { script }, ::aiWhenWords),
+            changed(tr("Logins"), j.logins.joinToString(", ").ifEmpty { null }, if (!script) null else c.logins.orEmpty().joinToString(", ").ifEmpty { if (j.logins.isEmpty()) null else tr("none") }) { it },
         ),
         c.summary,
     )
@@ -649,15 +651,15 @@ internal data class TileCard(val title: String, val meta: String, val scripts: L
 internal fun tileCard(t: Tile): TileCard {
     val c = t.change.takeIf { t.approved }
     val scripts = if (c == null) t.scripts else c.scripts.orEmpty()
-    val by = if (c == null) { if (t.changedBy == "bot") "added by itself" else "added by the Chief" }
-        else when (c.by) { "chief" -> "changed by the Chief"; "bot" -> "changed by itself"; else -> "changed" }
+    val by = if (c == null) { if (t.changedBy == "bot") tr("added by itself") else tr("added by the Chief") }
+        else when (c.by) { "chief" -> tr("changed by the Chief"); "bot" -> tr("changed by itself"); else -> tr("changed") }
     // Every script it runs: the card says "a script" only above the scripts it shows.
     val meta = listOfNotNull(
-        t.section.ifEmpty { null }, c?.title?.takeIf { it != t.title }?.let { "renamed “$it”" },
-        "a script, no AI".takeIf { scripts.isNotEmpty() }, by,
+        t.section.ifEmpty { null }, c?.title?.takeIf { it != t.title }?.let { tr("renamed “{name}”", "name" to it) },
+        tr("a script, no AI").takeIf { scripts.isNotEmpty() }, by,
     ).joinToString(" · ")
-    return if (c == null) TileCard("Put “${t.title}” on your Board?", meta, scripts, emptyList(), null, t.no ?: "Decline", t.yes ?: "Approve")
-    else TileCard("${t.title}: a change", meta, scripts, t.scripts.takeIf { it != scripts }.orEmpty(), RUNS_AS_APPROVED, t.no ?: "Keep as it is", t.yes ?: "Approve the change")
+    return if (c == null) TileCard(tr("Put “{title}” on your Board?", "title" to t.title), meta, scripts, emptyList(), null, t.no ?: tr("Decline"), t.yes ?: tr("Approve"))
+    else TileCard(tr("{name}: a change", "name" to t.title), meta, scripts, t.scripts.takeIf { it != scripts }.orEmpty(), RUNS_AS_APPROVED, t.no ?: tr("Keep as it is"), t.yes ?: tr("Approve the change"))
 }
 
 /**
@@ -666,8 +668,8 @@ internal fun tileCard(t: Tile): TileCard {
  * time this app cannot read: the card keeps the line it has today.
  */
 internal fun connectorState(bot: String, held: Boolean?, stoppedAt: String?, time: (String) -> String = ::shortTime): String? = when {
-    held == true -> "$bot waits for your answer"
-    held == false && stoppedAt != null -> time(stoppedAt).ifEmpty { null }?.let { "$bot stopped waiting at $it" }
+    held == true -> tr("{bot} waits for your answer", "bot" to bot)
+    held == false && stoppedAt != null -> time(stoppedAt).ifEmpty { null }?.let { tr("{bot} stopped waiting at {time}", "bot" to bot, "time" to it) }
     else -> null
 }
 
@@ -681,7 +683,7 @@ private fun connectorCut(a: Ask): Boolean = a.rows.isNotEmpty() && a.rowsCut
 internal fun connectorTooLong(a: Ask): Boolean = a.tooLong && !connectorCut(a)
 
 /** The line of a card whose action is too long to show in full, as the web page says it. */
-internal const val TOO_LONG = "Too long to show in full."
+internal val TOO_LONG: String get() = tr("Too long to show in full.")
 
 /**
  * Whether the card offers "Always allow": not while a row it draws was clipped. It grants the action
@@ -700,10 +702,10 @@ internal fun connectorOnce(a: Ask): Boolean = connectorAlways(a) && !connectorTo
 internal fun connectorDetails(a: Ask): Boolean = !connectorTooLong(a) && (a.rows.isEmpty() || (a.rowsCut && a.details.isNotBlank()))
 
 /** The title of the card of a skill a bot wrote: the server's line, or the app's own where it sent none. */
-internal fun skillTitle(a: Ask): String = a.line.ifEmpty { "Wants to keep a skill it wrote: “${a.skill?.name.orEmpty()}”" }
+internal fun skillTitle(a: Ask): String = a.line.ifEmpty { tr("Wants to keep a skill it wrote: “{name}”", "name" to a.skill?.name.orEmpty()) }
 
 /** What the yes button of a changed bot reads: the server's word where it sends one ("Allow"), "Approve" otherwise. */
-internal fun changeYes(a: Ask): String = a.yes ?: "Approve"
+internal fun changeYes(a: Ask): String = a.yes ?: tr("Approve")
 
 /** Whether the card around it is open: closed, cards show a few lines of each text (like the web page). */
 private val LocalCardOpen = staticCompositionLocalOf { true }
@@ -715,7 +717,7 @@ private fun Card(who: Named?, title: String, meta: String? = null, done: Boolean
     var open by remember { mutableStateOf(!expandable) }
     Column(
         Modifier.fillMaxWidth().alpha(if (done) 0.4f else 1f).background(p.panel, RoundedCornerShape(18.dp)).border(1.dp, p.line, RoundedCornerShape(18.dp))
-            .then(if (expandable) Modifier.clickable(onClickLabel = if (open) "Show less" else "Show all") { open = !open } else Modifier).padding(16.dp),
+            .then(if (expandable) Modifier.clickable(onClickLabel = if (open) tr("Show less") else tr("Show all")) { open = !open } else Modifier).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (who != null) Row(verticalAlignment = Alignment.CenterVertically) {
@@ -743,20 +745,20 @@ private val answers = mutableIntStateOf(0)
 private fun answered() { answers.intValue++ }
 
 /** What the yes of a card that turns on a call or a notify address says while its answer is on its way (#154). */
-internal const val CREATING_CONNECTION = "Creating connection…"
+internal val CREATING_CONNECTION: String get() = tr("Creating connection…")
 
 /**
  * What a card's button says while its answer is on its way: "Approving…" for "Approve", as on the web page. [connects]:
  * it is the yes of a card that turns on a call or a notify address ([dev.botdot.app.data.Job.createsConnection]): "Creating connection…".
  */
 internal fun busyWord(label: String, connects: Boolean = false): String = if (connects) CREATING_CONNECTION else when (label) {
-    "Approve", "Always approve" -> "Approving…"
-    "Allow", "Allow once", "Always allow" -> "Allowing…"
-    "Decline" -> "Declining…"
-    "Save" -> "Saving…"
-    "Install" -> "Installing…"
-    "Add" -> "Adding…"
-    else -> if (label.startsWith("Always allow ") || label.startsWith("Allow always ")) "Allowing…" else "$label…" // the server's "Always allow reminders" (#280)
+    tr("Approve"), tr("Always approve") -> tr("Approving…")
+    tr("Allow"), tr("Allow once"), tr("Always allow") -> tr("Allowing…")
+    tr("Decline") -> tr("Declining…")
+    tr("Save") -> tr("Saving…")
+    tr("Install") -> tr("Installing…")
+    tr("Add") -> tr("Adding…")
+    else -> if (label.startsWith("Always allow ") || label.startsWith("Allow always ") || label.startsWith(tr("Always allow") + " ")) tr("Allowing…") else "$label…" // the server's "Always allow reminders" (#280)
 }
 
 /**
@@ -766,7 +768,7 @@ internal fun busyWord(label: String, connects: Boolean = false): String = if (co
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, onSecondary: () -> Unit, enabled: Boolean = true, onAlways: (() -> Unit)? = null, connects: Boolean = false, alwaysLabel: String = "Always approve") {
+private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, onSecondary: () -> Unit, enabled: Boolean = true, onAlways: (() -> Unit)? = null, connects: Boolean = false, alwaysLabel: String = tr("Always approve")) {
     val p = LocalPaper.current
     var pressed by remember { mutableStateOf<String?>(null) }
     val sent = answers.intValue
@@ -829,14 +831,14 @@ internal fun SecretBox(value: String, onChange: (String) -> Unit, label: String)
 @Composable
 private fun BitwardenCard(bw: BitwardenStatus, who: Named?, error: String?, onUnlock: (String) -> Unit) {
     var pw by remember { mutableStateOf("") }
-    Card(who, "Bitwarden is locked") {
-        Muted(bw.wantedBy?.let { "${it.name} needs a saved login. Unlock Bitwarden so bots can use your logins." }
-            ?: "Bots can't use your saved logins until you unlock it. The master password is only kept in botdot's memory, never saved.")
+    Card(who, tr("Bitwarden is locked")) {
+        Muted(bw.wantedBy?.let { tr("{name} needs a saved login. Unlock Bitwarden so bots can use your logins.", "name" to it.name) }
+            ?: tr("Bots can't use your saved logins until you unlock it. The master password is only kept in botdot's memory, never saved."))
         if (error != null) Text(error, color = LocalPaper.current.err, style = MaterialTheme.typography.bodyMedium)
-        PasswordField(pw, { pw = it }, "Master password")
+        PasswordField(pw, { pw = it }, tr("Master password"))
         val p = LocalPaper.current
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            Button(onClick = { onUnlock(pw); pw = "" }, enabled = pw.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Unlock") }
+            Button(onClick = { onUnlock(pw); pw = "" }, enabled = pw.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Unlock")) }
         }
     }
 }
@@ -870,27 +872,27 @@ private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boole
     var sending by remember(r.id) { mutableStateOf(false) }
     var fileError by remember(r.id) { mutableStateOf<String?>(null) }
     val pick = rememberSecretFilePick({ pw = it; fileError = null }) { fileError = it }
-    Card(who, "A login for ${r.site}") {
+    Card(who, tr("A login for {site}", "site" to r.site)) {
         if (confirming != null) OtherLoginConfirm(OtherLogins.confirm(r, confirming, who.name), onBack = { picked = null }, onYes = { picked = null; sending = true; onUseOther(confirming.id) { sending = false } })
         else {
             if (r.reason.isNotBlank()) Muted("“${r.reason}”")
             val usable = r.existing.filter { !it.allowed }
             if (usable.isNotEmpty()) {
-                Muted("Let it use a login you already saved:")
+                Muted(tr("Let it use a login you already saved:"))
                 usable.forEach { e ->
                     OutlinedButton(onClick = { onUse(e.id) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Use ${e.name}${if (e.username.isNotBlank()) " (${e.username})" else ""}", color = p.text)
+                        Text(tr("Use {name}", "name" to e.name + (if (e.username.isNotBlank()) " (${e.username})" else "")), color = p.text)
                     }
                 }
             }
             if (sending) Busy(OtherLogins.SENDING)
             else if (others.isNotEmpty()) {
                 Text(OtherLogins.OPEN, color = p.muted, fontSize = 13.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (othersOpen) "Hide the list" else "Show the list") { othersOpen = !othersOpen }.padding(6.dp))
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (othersOpen) tr("Hide the list") else tr("Show the list")) { othersOpen = !othersOpen }.padding(6.dp))
                 if (othersOpen) OtherLoginsList(others, typed, { typed = it }) { picked = it.id }
             }
-            if (usable.isNotEmpty()) Muted("Or save a new one:")
-            else Muted("It goes straight into your vault${if (bitwardenLocked) " (Bitwarden)" else ""}. The bot never sees the password.")
+            if (usable.isNotEmpty()) Muted(tr("Or save a new one:"))
+            else Muted(tr("It goes straight into your vault{where}. The bot never sees the password.", "where" to if (bitwardenLocked) " (Bitwarden)" else ""))
             if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.options(features, r.type), onType)
             fields.username?.let { label ->
                 OutlinedTextField(user, onUser, label = { Text(label) }, singleLine = true,
@@ -899,11 +901,11 @@ private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boole
             }
             if (fields.multiline) {
                 SecretBox(pw, { pw = it }, fields.secret)
-                TextButton(onClick = pick) { Text("Pick its file", color = p.text) }
+                TextButton(onClick = pick) { Text(tr("Pick its file"), color = p.text) }
                 fileError?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
             } else PasswordField(pw, { pw = it }, fields.secret)
-            if (bitwardenLocked) PasswordField(master, { master = it }, "Bitwarden master password (it's locked)")
-            Buttons("Save", { onSave(VaultTypes.sent(type, user, features), pw, master); pw = ""; master = "" }, "Decline", onDecline, enabled = pw.isNotEmpty())
+            if (bitwardenLocked) PasswordField(master, { master = it }, tr("Bitwarden master password (it's locked)"))
+            Buttons(tr("Save"), { onSave(VaultTypes.sent(type, user, features), pw, master); pw = ""; master = "" }, tr("Decline"), onDecline, enabled = pw.isNotEmpty())
         }
     }
 }
@@ -954,12 +956,12 @@ private fun OtherLoginConfirm(c: OtherLogins.Confirm, onBack: () -> Unit, onYes:
 
 @Composable
 private fun CardRequest(r: LoginRequest, who: Named, onAllow: () -> Unit, onDecline: () -> Unit) {
-    val card = r.card?.let { "${it.name}${it.last4?.let { l -> " ••$l" } ?: ""}" } ?: "a saved card"
-    Card(who, "Pay on ${r.site}") {
-        Muted("With $card${if (r.amount.isNotBlank()) ", ${r.amount}" else ""}.")
+    val card = r.card?.let { "${it.name}${it.last4?.let { l -> " ••$l" } ?: ""}" } ?: tr("a saved card")
+    Card(who, tr("Pay on {site}", "site" to r.site)) {
+        Muted(tr("With {card}{amount}.", "card" to card, "amount" to if (r.amount.isNotBlank()) ", ${r.amount}" else ""))
         if (r.reason.isNotBlank()) Muted("“${r.reason}”")
-        Muted("Your OK covers this task, this card and this site for 15 minutes. The bot never sees the card number.")
-        Buttons("Allow", onAllow, "Decline", onDecline)
+        Muted(tr("Your OK covers this task, this card and this site for 15 minutes. The bot never sees the card number."))
+        Buttons(tr("Allow"), onAllow, tr("Decline"), onDecline)
     }
 }
 
@@ -976,9 +978,9 @@ private fun JobApproval(who: Named?, j: Job, then: String?, onAlways: () -> Unit
         }
         if (showsFull(card, open)) {
             // Where the script changes: the approved one and the new one, each under what it is.
-            if (card.scriptWas != null) { Faint("Approved script"); Body(card.scriptWas.ifBlank { "(empty)" }, mono = true); if (script) Faint("New script") }
-            if (card.script != null) Body(card.script.ifBlank { "(empty)" }, mono = true)
-            val asked = { text: String -> if (script) "Then the AI is asked: $text" else text }
+            if (card.scriptWas != null) { Faint(tr("Approved script")); Body(card.scriptWas.ifBlank { tr("(empty)") }, mono = true); if (script) Faint(tr("New script")) }
+            if (card.script != null) Body(card.script.ifBlank { tr("(empty)") }, mono = true)
+            val asked = { text: String -> if (script) tr("Then the AI is asked: {text}", "text" to text) else text }
             if (card.promptWas != null) WasNow(asked(card.promptWas), card.prompt.takeIf { it.isNotBlank() }?.let(asked).orEmpty())
             else if (card.prompt.isNotBlank() && (open || !script)) Body(asked(card.prompt))
             card.also.forEach { Faint(it) }
@@ -1011,11 +1013,11 @@ private fun TileApproval(who: Named?, t: Tile, then: String?, onApprove: () -> U
     val card = tileCard(t)
     Card(who, card.title, card.meta, expandable = true) {
         if (card.scriptsWas.isNotEmpty()) {
-            Faint(if (card.scriptsWas.size == 1) "Approved script" else "Approved scripts")
-            card.scriptsWas.forEach { Body(it.ifBlank { "(empty)" }, mono = true) }
-            if (card.scripts.isNotEmpty()) Faint(if (card.scripts.size == 1) "New script" else "New scripts")
+            Faint(if (card.scriptsWas.size == 1) tr("Approved script") else tr("Approved scripts"))
+            card.scriptsWas.forEach { Body(it.ifBlank { tr("(empty)") }, mono = true) }
+            if (card.scripts.isNotEmpty()) Faint(if (card.scripts.size == 1) tr("New script") else tr("New scripts"))
         }
-        card.scripts.forEach { Body(it.ifBlank { "(empty)" }, mono = true) }
+        card.scripts.forEach { Body(it.ifBlank { tr("(empty)") }, mono = true) }
         ThenLine(card.line)
         ThenLine(then)
         Buttons(card.yes, onApprove, card.no, onDecline)
@@ -1044,7 +1046,7 @@ private fun AlwaysQuestion(text: String, label: String, done: (Boolean) -> Unit)
     onDismissRequest = { done(false) },
     text = { Text(text) },
     confirmButton = { TextButton(onClick = { done(true) }) { Text(label, color = LocalPaper.current.text) } },
-    dismissButton = { TextButton(onClick = { done(false) }) { Text("Cancel", color = LocalPaper.current.text) } },
+    dismissButton = { TextButton(onClick = { done(false) }) { Text(tr("Cancel"), color = LocalPaper.current.text) } },
 )
 
 /** A warning, set apart in amber: that of a tool from a link, and that of a login used on another website; the app puts the sign in front. Closed, it keeps two lines in sight. */
@@ -1148,11 +1150,11 @@ private fun AskBatchCard(card: AskCard.Several, who: Named?, onAll: (Boolean) ->
     var busy by remember(card.id) { mutableStateOf(false) }
     val all = { yes: Boolean -> if (!busy) { busy = true; onAll(yes).invokeOnCompletion { busy = false } } }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Card(who, card.title.ifBlank { "${card.asks.size} things wait for your OK" }) {
+        Card(who, card.title.ifBlank { trn(card.asks.size, "{n} thing waits for your OK", "{n} things wait for your OK") }) {
             batchOwnLine(card.asks)?.let { Muted(it) }
-            if (card.asks.any { it.batch?.own != true && !it.rowsCut }) Buttons("Allow all", { all(true) }, "Decline all", { all(false) }, enabled = !busy)
+            if (card.asks.any { it.batch?.own != true && !it.rowsCut }) Buttons(tr("Allow all"), { all(true) }, tr("Decline all"), { all(false) }, enabled = !busy)
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { all(false) }, enabled = !busy) { Text("Decline all", color = LocalPaper.current.text) }
+                OutlinedButton(onClick = { all(false) }, enabled = !busy) { Text(tr("Decline all"), color = LocalPaper.current.text) }
             }
         }
         Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { card.asks.forEach { each(it) } }
@@ -1171,7 +1173,7 @@ private fun answerAll(scope: CoroutineScope, api: Api, card: AskCard.Several, ye
                 if (d.error != null) tell(d.error) else record(a, answeredLabel(answeredWord(null, d.answered, yes), d.answered?.carriesOn.takeIf { yes }))
             }
         }
-        .onError { tell(it.message ?: "That didn't work") }
+        .onError { tell(it.message ?: tr("That didn't work")) }
     after()
 }
 
@@ -1180,17 +1182,17 @@ internal fun batchOwnLine(asks: List<Ask>): String? {
     val own = asks.filter { it.batch?.own == true }.map { "“${it.title.ifBlank { it.line }}”" }
     return when (own.size) {
         0 -> null
-        1 -> "Allow all leaves ${own[0]} to its own Allow."
-        else -> "Allow all leaves ${own.dropLast(1).joinToString(", ")} and ${own.last()} to their own Allow."
+        1 -> tr("Allow all leaves {name} to its own Allow.", "name" to own[0])
+        else -> tr("Allow all leaves {names} and {last} to their own Allow.", "names" to own.dropLast(1).joinToString(", "), "last" to own.last())
     }
 }
 
 /** An ask's card title as its own card draws it, for the faded line once it is answered. */
 internal fun askTitle(a: Ask): String = when {
-    a.kind == "permission" -> "Let it ${a.what?.label ?: a.permission}?"
+    a.kind == "permission" -> tr("Let it {what}?", "what" to (a.what?.label ?: a.permission))
     a.written -> skillTitle(a)
     ToolCard.isTool(a) -> ToolCard.parts(a).title
-    a.kind == "skill" -> "Install the skill \"${a.skill?.name.orEmpty()}\"?"
+    a.kind == "skill" -> tr("Install the skill \"{name}\"?", "name" to a.skill?.name.orEmpty())
     else -> a.title.ifBlank { a.line }
 }
 
@@ -1213,21 +1215,21 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         val rows = a.rows
         // "Always allow" (the server's `always`) grants the action with any arguments: it asks first with the server's
         // `warning`, which names the bot and the action (#474), as on the web page.
-        val always = a.always?.takeIf { it.isNotBlank() } ?: "Always allow"
+        val always = a.always?.takeIf { it.isNotBlank() } ?: tr("Always allow")
         var asking by remember(a.id) { mutableStateOf(false) }
-        if (asking) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { if (a.chiefsAction) alwaysAllowChief(who?.name ?: "the Chief") else ALWAYS_ALLOW_QUESTION }, always) {
+        if (asking) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { if (a.chiefsAction) alwaysAllowChief(who?.name ?: tr("the Chief")) else ALWAYS_ALLOW_QUESTION }, always) {
             asking = false
-            if (it) answer(a.title, true, "Always allowed", true)
+            if (it) answer(a.title, true, tr("Always allowed"), true)
         }
-        Card(who, a.title, connectorState(who?.name ?: a.bot?.name?.ifBlank { null } ?: "The bot", a.held, a.stoppedAt) ?: a.reason, expandable = true) {
+        Card(who, a.title, connectorState(who?.name ?: a.bot?.name?.ifBlank { null } ?: tr("The bot"), a.held, a.stoppedAt) ?: a.reason, expandable = true) {
             if (rows.isNotEmpty()) Facts(rows, whole = LocalCardOpen.current)
             if (connectorDetails(a)) Body(a.details)
             if (connectorTooLong(a)) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
             ThenLine(then)
             if (connectorAlways(a)) TextButton(onClick = { asking = true }) { Text(always) }
-            if (connectorOnce(a)) Buttons("Allow once", { decide(a.title, true, "Approved") }, "Decline", { decide(a.title, false, null) })
+            if (connectorOnce(a)) Buttons(tr("Allow once"), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) })
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text("Decline", color = LocalPaper.current.text) }
+                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
             }
         }
     } else if (a.kind == "chief-action") {
@@ -1238,15 +1240,15 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         // asks first with the server's `warning`.
         val always = a.always?.takeIf { it.isNotBlank() && a.chiefActionYes }
         var asking by remember(a.id) { mutableStateOf(false) }
-        if (asking && always != null) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { "$always?" }, always) { asking = false; if (it) answer(a.title, true, "Always allowed", true) }
+        if (asking && always != null) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { "$always?" }, always) { asking = false; if (it) answer(a.title, true, tr("Always allowed"), true) }
         Card(who, a.title, a.chiefActionLine, expandable = true) {
             if (a.rows.isNotEmpty()) Facts(a.rows, whole = LocalCardOpen.current)
             if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
             ThenLine(then)
-            if (a.chiefActionYes) Buttons("Approve", { decide(a.title, true, "Approved") }, "Decline", { decide(a.title, false, null) },
-                onAlways = always?.let { { asking = true } }, alwaysLabel = always ?: "Always approve")
+            if (a.chiefActionYes) Buttons(tr("Approve"), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) },
+                onAlways = always?.let { { asking = true } }, alwaysLabel = always ?: tr("Always approve"))
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text("Decline", color = LocalPaper.current.text) }
+                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
             }
         }
     } else if (a.isRoomCard) {
@@ -1256,9 +1258,9 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         Card(who, a.title, a.roomLine, expandable = true) {
             if (a.rows.isNotEmpty()) Facts(a.rows, whole = LocalCardOpen.current)
             if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
-            if (a.roomYes) Buttons(a.yes ?: "Allow", { decide(a.title, true, "Allowed") }, "Decline", { decide(a.title, false, null) })
+            if (a.roomYes) Buttons(a.yes ?: tr("Allow"), { decide(a.title, true, tr("Allowed")) }, tr("Decline"), { decide(a.title, false, null) })
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text("Decline", color = LocalPaper.current.text) }
+                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
             }
         }
     } else if (a.kind == "bot-change") {
@@ -1266,7 +1268,7 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         Card(who, a.title, a.reason, expandable = true) {
             if (parts.isNotEmpty()) ChangedParts(parts) else Body(a.details)
             ThenLine(then)
-            Buttons(changeYes(a), { decide(a.title, true, "Approved") }, "Decline", { decide(a.title, false, null) })
+            Buttons(changeYes(a), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) })
         }
     } else if (ToolCard.isTool(a)) {
         // The server's own fields, no wording from here: what the tool is and why, the warning of a tool from a
@@ -1292,33 +1294,33 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             ThenLine(then)
             // A rule a bot asks to lift (#253) has the server's second yes, `always`: "Allow always for this bot".
             val always = if (a.kind == "override") a.always?.takeIf { it.isNotBlank() } else null
-            Buttons(a.yes ?: "Allow", { decide(a.title, true, "Allowed") }, "Decline", { decide(a.title, false, null) },
-                onAlways = always?.let { { answer(a.title, true, "Always allowed", true) } }, alwaysLabel = always ?: "Always approve")
+            Buttons(a.yes ?: tr("Allow"), { decide(a.title, true, tr("Allowed")) }, tr("Decline"), { decide(a.title, false, null) },
+                onAlways = always?.let { { answer(a.title, true, tr("Always allowed"), true) } }, alwaysLabel = always ?: tr("Always approve"))
         }
     } else if (a.kind == "permission") {
-        val title = "Let it ${a.what?.label ?: a.permission}?"
+        val title = tr("Let it {what}?", "what" to (a.what?.label ?: a.permission))
         Card(who, title, a.reason, expandable = true) {
-            Body("${(a.what?.hint ?: "").replaceFirstChar { it.uppercase() }}. It can't until you allow it; you can change this in its settings.")
+            Body(tr("{hint}. It can't until you allow it; you can change this in its settings.", "hint" to (a.what?.hint ?: "").replaceFirstChar { it.uppercase() }))
             ThenLine(then)
-            Buttons("Allow", { decide(title, true, "Allowed") }, "Decline", { decide(title, false, null) })
+            Buttons(tr("Allow"), { decide(title, true, tr("Allowed")) }, tr("Decline"), { decide(title, false, null) })
         }
     } else if (a.written) {
         // A skill the bot wrote after it read content from others: the server's line as the title, and the whole
         // text a yes would save, as on the web page. Closed, the card shows its start; opened, all of it.
         val title = skillTitle(a)
         Card(who, title, a.reason, expandable = true) {
-            Body(a.skill?.instructions.orEmpty().ifBlank { "(empty)" })
+            Body(a.skill?.instructions.orEmpty().ifBlank { tr("(empty)") })
             ThenLine(then)
-            Buttons("Approve", { decide(title, true, "Approved") }, "Decline", { decide(title, false, null) })
+            Buttons(tr("Approve"), { decide(title, true, tr("Approved")) }, tr("Decline"), { decide(title, false, null) })
         }
     } else {
         val k = a.skill ?: AskSkill()
-        val title = "Install the skill \"${k.name}\"?"
-        val forWhom = if (a.forBots.isNotEmpty()) " · for ${a.forBots.joinToString(", ") { it.name }}" else ""
+        val title = tr("Install the skill \"{name}\"?", "name" to k.name)
+        val forWhom = if (a.forBots.isNotEmpty()) " · " + tr("for {names}", "names" to a.forBots.joinToString(", ") { it.name }) else ""
         Card(who, title, a.url.removePrefix("https://").removePrefix("www.") + forWhom, expandable = true) {
-            Body(k.description.ifBlank { "No description." } + (if (k.files > 1) " (${k.files} files)" else "") + (if (k.exists) " It replaces your skill of the same name." else "") + (if (a.reason.isNotBlank()) "\n\nWhy: ${a.reason}" else ""))
+            Body(k.description.ifBlank { tr("No description.") } + (if (k.files > 1) " " + trn(k.files, "({n} file)", "({n} files)") else "") + (if (k.exists) " " + tr("It replaces your skill of the same name.") else "") + (if (a.reason.isNotBlank()) "\n\n" + tr("Why: {reason}", "reason" to a.reason) else ""))
             ThenLine(then)
-            Buttons("Install", { decide(title, true, "Installed") }, "Decline", { decide(title, false, null) })
+            Buttons(tr("Install"), { decide(title, true, tr("Installed")) }, tr("Decline"), { decide(title, false, null) })
         }
     }
 }
@@ -1328,11 +1330,11 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
 /** A job's schedule as every screen shows it: the server's words (`when`, docs/api.md), or the app's own for a server that sends none. */
 fun scheduleWords(j: Job): String = j.words?.takeIf { it.isNotBlank() } ?: describeCron(j.cron)
 
-private const val CUSTOM = "Custom schedule"
+private val CUSTOM: String get() = tr("Custom schedule")
 // What parts the fields on the server: JavaScript's white space, which is neither Kotlin's trim() nor every regex engine's \s.
 private val SPACES = Regex("[\\t\\n\\u000B\\f\\r \\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\uFEFF]+")
-private val DAYS = listOf("Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays")
-private val MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+private val DAYS: List<String> get() = listOf(tr("Sundays"), tr("Mondays"), tr("Tuesdays"), tr("Wednesdays"), tr("Thursdays"), tr("Fridays"), tr("Saturdays"))
+private val MONTHS: List<String> get() = listOf(tr("Jan"), tr("Feb"), tr("Mar"), tr("Apr"), tr("May"), tr("Jun"), tr("Jul"), tr("Aug"), tr("Sep"), tr("Oct"), tr("Nov"), tr("Dec"))
 private val MONTH_DAYS = listOf(31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31) // February in a leap year
 
 /** A field that is one number of `range`, "07" too: null for anything else. */
@@ -1352,27 +1354,27 @@ private fun two(n: Int) = n.toString().padStart(2, '0')
  */
 fun describeCron(cron: String): String {
     val f = cron.split(SPACES).filter { it.isNotEmpty() }
-    if (f.size != 5) return "Invalid schedule"
+    if (f.size != 5) return tr("Invalid schedule")
     val (min, hour, dom, mon, dow) = f
     val everyDay = dom == "*" && mon == "*" && dow == "*"
-    if (everyDay && hour == "*") stepOf(min, 60)?.let { return "Every $it min" }
+    if (everyDay && hour == "*") stepOf(min, 60)?.let { return tr("Every {n} min", "n" to it) }
     val m = number(min, 0..59) ?: return CUSTOM
-    val atMinute = if (m == 0) "" else ", at minute $m"
-    if (everyDay && hour == "*") return "Hourly$atMinute"
-    if (everyDay) stepOf(hour, 24)?.let { return "Every $it hours$atMinute" }
+    val atMinute = if (m == 0) "" else ", " + tr("at minute {m}", "m" to m)
+    if (everyDay && hour == "*") return tr("Hourly") + atMinute
+    if (everyDay) stepOf(hour, 24)?.let { return tr("Every {n} hours", "n" to it) + atMinute }
     val h = number(hour, 0..23) ?: return CUSTOM
-    val at = "at ${two(h)}:${two(m)}"
+    val at = tr("at {time}", "time" to "${two(h)}:${two(m)}")
     val day = number(dom, 1..31)
     val month = number(mon, 1..12)
     val weekday = number(dow, 0..7) // 0 and 7 are Sunday
     return when {
-        everyDay -> if (h == 2 && m == 0) "Nightly at 02:00" else "Daily $at"
-        dom == "*" && mon == "*" && dow == "1-5" -> "Weekdays $at"
-        dom == "*" && mon == "*" && dow == "0,6" -> "Weekends $at"
+        everyDay -> if (h == 2 && m == 0) tr("Nightly at 02:00") else tr("Daily") + " " + at
+        dom == "*" && mon == "*" && dow == "1-5" -> tr("Weekdays") + " " + at
+        dom == "*" && mon == "*" && dow == "0,6" -> tr("Weekends") + " " + at
         dom == "*" && mon == "*" && weekday != null -> "${DAYS[weekday % 7]} $at"
-        day != null && mon == "*" && dow == "*" -> "Monthly on day $day $at"
+        day != null && mon == "*" && dow == "*" -> tr("Monthly on day {day}", "day" to day) + " " + at
         // One day of the year: how a one-time job is kept ("28 Sep at 07:00"). A day no year has never comes.
-        day != null && month != null && dow == "*" -> if (day > MONTH_DAYS[month - 1]) "Never runs" else "$day ${MONTHS[month - 1]} $at"
+        day != null && month != null && dow == "*" -> if (day > MONTH_DAYS[month - 1]) tr("Never runs") else "$day ${MONTHS[month - 1]} $at"
         else -> CUSTOM
     }
 }

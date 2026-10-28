@@ -7,10 +7,10 @@ package dev.botdot.app.data
  */
 object TileAsk {
     const val FEATURE = "tile-change"
-    const val PLACEHOLDER = "What should change?"
+    val PLACEHOLDER: String get() = tr("What should change?")
 
     fun shows(features: Collection<String>?): Boolean = FEATURE in features.orEmpty()
 
     /** What the tile says for a moment after the ask went. */
-    fun sent(chiefName: String?): String = "Sent to ${ChiefName.named(chiefName)}"
+    fun sent(chiefName: String?): String = tr("Sent to {name}", "name" to ChiefName.named(chiefName))
 }

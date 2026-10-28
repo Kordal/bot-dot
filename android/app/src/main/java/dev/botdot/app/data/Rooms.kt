@@ -21,7 +21,7 @@ data class BotRooms(val allowRooms: Boolean = false, val whoMayMention: String =
         const val MEMBERS = "anyone"
 
         /** The choices of "Who may mention it", as their wire value and their words. */
-        val WHO = listOf(OWNER to "Only you", MEMBERS to "Anyone in the room")
+        val WHO: List<Pair<String, String>> get() = listOf(OWNER to tr("Only you"), MEMBERS to tr("Anyone in the room"))
 
         /** Whether the bot settings show the section: the server keeps them (while its features are not known: no). */
         fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
@@ -168,7 +168,7 @@ object Rooms {
 
     /** "mentioned @Scout · ann, @Pip · bob": who [m] named, so everyone sees who mentioned whom; "" for none. */
     fun mentionLine(m: RoomMessage): String =
-        m.mentions.distinctBy { it.account to it.bot }.joinToString(", ") { "@${Mentions.shortName(it.name)} · ${it.account}" }.let { if (it.isEmpty()) "" else "mentioned $it" }
+        m.mentions.distinctBy { it.account to it.bot }.joinToString(", ") { "@${Mentions.shortName(it.name)} · ${it.account}" }.let { if (it.isEmpty()) "" else tr("mentioned {names}", "names" to it) }
 
     /** The key a room bot has in the mention picker, unique across accounts. */
     fun key(b: RoomBot): String = "${b.account}/${b.id}"
@@ -189,7 +189,7 @@ object Rooms {
         val who = author(m)
         val text = m.text.lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
         if (who.isEmpty()) text else "$who: $text"
-    } ?: "${r.members.size} ${if (r.members.size == 1) "person" else "people"}, ${r.bots.size} bot${if (r.bots.size == 1) "" else "s"}"
+    } ?: (trn(r.members.size, "{n} person", "{n} people") + ", " + trn(r.bots.size, "{n} bot", "{n} bots"))
 
     /** [held] with [more] added (by id, a newer copy wins), oldest first. */
     fun merge(held: List<RoomMessage>, more: List<RoomMessage>): List<RoomMessage> {
@@ -203,8 +203,8 @@ object Rooms {
         val names = r.working.mapNotNull { w -> r.bots.firstOrNull { it.account == w.account && it.id == w.bot }?.let { label(it.name, it.account) } }
         return when (names.size) {
             0 -> ""
-            1 -> "${names[0]} is writing…"
-            else -> "${names.dropLast(1).joinToString(", ")} and ${names.last()} are writing…"
+            1 -> tr("{name} is writing…", "name" to names[0])
+            else -> tr("{names} and {last} are writing…", "names" to names.dropLast(1).joinToString(", "), "last" to names.last())
         }
     }
 

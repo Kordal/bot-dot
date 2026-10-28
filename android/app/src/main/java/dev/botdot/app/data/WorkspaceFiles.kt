@@ -76,17 +76,19 @@ object WorkspaceFiles {
 
     /** The line under an entry's name: its size (a file) and when it changed. */
     fun detail(e: WorkspaceEntry, time: String): String = listOfNotNull(
-        when (e.type) { "file" -> UploadedFiles.size(e.size ?: 0); "link" -> "A link: botdot doesn't follow it"; else -> null },
+        when (e.type) { "file" -> UploadedFiles.size(e.size ?: 0); "link" -> tr("A link: botdot doesn't follow it"); else -> null },
         time.ifBlank { null },
     ).joinToString(" · ")
 
     /** The confirmation of a delete: what goes, counted (at most 10,000). */
-    fun deleteWords(name: String, c: WorkspaceCount): String {
-        if (c.type != "folder") return "Delete $name? This can't be undone."
-        fun many(n: Int, one: String) = "${String.format(java.util.Locale.ROOT, "%,d", n)} $one${if (n == 1) "" else "s"}"
-        val held = if (c.files + c.folders == 0) "It is empty."
-            else "It holds ${if (c.capped) "more than " else ""}${listOfNotNull(if (c.files > 0) many(c.files, "file") else null, if (c.folders > 0) many(c.folders, "folder") else null).joinToString(" and ")}, which go with it."
-        return "Delete the folder $name? $held This can't be undone."
+    fun deleteWords(name: String, c: WorkspaceCount, project: Boolean = false): String {
+        if (c.type != "folder") return tr("Delete {name}? This can't be undone.", "name" to name)
+        fun count(n: Int) = String.format(I18n.locale, "%,d", n)
+        val what = listOfNotNull(if (c.files > 0) trn(c.files, "{count} file", "{count} files", "count" to count(c.files)) else null, if (c.folders > 0) trn(c.folders, "{count} folder", "{count} folders", "count" to count(c.folders)) else null).joinToString(" " + tr("and") + " ")
+        val held = if (c.files + c.folders == 0) tr("It is empty.")
+            else if (c.capped) tr("It holds more than {what}, which go with it.", "what" to what) else tr("It holds {what}, which go with it.", "what" to what)
+        return if (project) tr("Delete the project {name}? {held} This can't be undone.", "name" to name, "held" to held)
+            else tr("Delete the folder {name}? {held} This can't be undone.", "name" to name, "held" to held)
     }
 
     /** Whether an entry may be deleted here: on botdot a link is never changed; on the computer deleting one takes the link alone. */

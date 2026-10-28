@@ -40,6 +40,7 @@ import dev.botdot.app.data.saysSignedOut
 import dev.botdot.app.data.isReplayOf
 import dev.botdot.app.data.str
 import dev.botdot.app.data.textOrNull
+import dev.botdot.app.data.tr
 import dev.botdot.app.ui.CHIEF_COLOR
 import dev.botdot.app.ui.figureBitmap
 import java.time.Instant
@@ -81,7 +82,7 @@ class Notifier(
     private val outfitOf: (botId: String) -> JsonElement? = { null },
     private val newChats: suspend () -> List<NewChat>? = { null },
     private val groupNameOf: (groupId: String) -> String? = { null },
-    private val chiefName: () -> String = { ChiefName.ROLE },
+    private val chiefName: () -> String = { ChiefName.role },
 ) {
     companion object {
         const val CH_UPDATES = "updates"
@@ -145,12 +146,12 @@ class Notifier(
 
     fun createChannels() {
         if (Build.VERSION.SDK_INT < 26) return
-        nm.createNotificationChannel(NotificationChannel(CH_UPDATES, "Replies and finished tasks", NotificationManager.IMPORTANCE_DEFAULT))
-        nm.createNotificationChannel(NotificationChannel(CH_NEEDS_YOU, "Needs you", NotificationManager.IMPORTANCE_HIGH).apply {
-            description = "A bot asks for a login, or something waits for your OK"
+        nm.createNotificationChannel(NotificationChannel(CH_UPDATES, tr("Replies and finished tasks"), NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(CH_NEEDS_YOU, tr("Needs you"), NotificationManager.IMPORTANCE_HIGH).apply {
+            description = tr("A bot asks for a login, or something waits for your OK")
         })
-        nm.createNotificationChannel(NotificationChannel(CH_CONNECTION, "Connection to botdot", NotificationManager.IMPORTANCE_MIN).apply {
-            description = "The quiet notification that keeps the connection open"
+        nm.createNotificationChannel(NotificationChannel(CH_CONNECTION, tr("Connection to botdot"), NotificationManager.IMPORTANCE_MIN).apply {
+            description = tr("The quiet notification that keeps the connection open")
             setShowBadge(false)
         })
     }
@@ -226,7 +227,7 @@ class Notifier(
                 val chat = "bot:${d.str("botId")}"
                 touched += chat
                 if (!replyNotifies(ev, chat, standing())) return
-                val name = d.str("botName").ifBlank { "A bot" }
+                val name = d.str("botName").ifBlank { tr("A bot") }
                 // Its reply holds a question for the owner: "<Bot> asks" and the question, and a tap opens the chat,
                 // where the answers are. It goes as every reply's does: when the feed says its chat was read.
                 val asks = asksNotice(isTrue(d["asks"]), d.str("title"), name, d.str("result"), d["question"].textOrNull())
@@ -239,10 +240,10 @@ class Notifier(
                 val group = d.str("groupId").ifEmpty { return }
                 val chat = groupKey(group)
                 if (!groupNotifies(ev, chat, standing().watching)) return
-                val name = d.str("botName").ifBlank { "A bot" }
+                val name = d.str("botName").ifBlank { tr("A bot") }
                 val asks = asksNotice(true, d.str("title"), name, d.str("result"), d["question"].textOrNull())
-                message(chat, Sender(d.str("botId"), asks?.title ?: "$name asks", d.str("botColor")), asks?.body ?: runText(d.str("status"), d.str("result"), d.str("problem"), d.str("error"), ""), at,
-                    title = groupNameOf(group) ?: "A group", open = chat)
+                message(chat, Sender(d.str("botId"), asks?.title ?: tr("{name} asks", "name" to name), d.str("botColor")), asks?.body ?: runText(d.str("status"), d.str("result"), d.str("problem"), d.str("error"), ""), at,
+                    title = groupNameOf(group) ?: tr("A group"), open = chat)
             }
             // The group was read, in any app, or its question ended: its notification goes.
             "group_unread", "group_asks" -> groupSettled(ev)?.let { c -> cancelWhere { it == c } }
@@ -252,7 +253,7 @@ class Notifier(
                 if (!replyNotifies(ev, chat, standing())) return
                 val body = chiefReplyText(d.str("status"), d.str("text"), d.str("error"))
                 val from = d["from"] as? JsonObject // a bot's reply posted in the chat
-                val sender = from?.let { Sender(it.str("id"), it.str("name").ifBlank { "A bot" }, it.str("color")) } ?: Sender(CHIEF_ID, chiefName(), CHIEF_COLOR)
+                val sender = from?.let { Sender(it.str("id"), it.str("name").ifBlank { tr("A bot") }, it.str("color")) } ?: Sender(CHIEF_ID, chiefName(), CHIEF_COLOR)
                 message(chat, sender, body, at, d.str("title"), open = oneFile(d) ?: chat)
             }
             "chief_suggestion" -> {
@@ -260,8 +261,8 @@ class Notifier(
                 if (appInForeground && visibleChat == "chief:$chatId") return
                 if (replay && chatId !in openPlans) return // answered since
                 val from = d["from"] as? JsonObject
-                once(Need("plan:$chatId", from?.str("name")?.ifBlank { null } ?: "A bot", from?.str("color"), "A plan for the Chief: ${d.str("title")}",
-                    plain(d.str("text")), at, yes = "Approve", open = "chief:$chatId", bot = from?.str("id")))
+                once(Need("plan:$chatId", from?.str("name")?.ifBlank { null } ?: tr("A bot"), from?.str("color"), tr("A plan for the Chief: {title}", "title" to d.str("title")),
+                    plain(d.str("text")), at, yes = tr("Approve"), open = "chief:$chatId", bot = from?.str("id")))
             }
             "plan_closed" -> forget { it == "plan:${d.str("chatId")}" }
             "login_request" -> if (!replay) once(loginNeed(d))
@@ -294,7 +295,7 @@ class Notifier(
         val no: Boolean = yes != null,
         val noLabel: String = DECLINE, // what its no reads: the server's words for a job and a tile that send them
         // What a locked screen shows in its place, and whether it is said also while the web page is in use.
-        val hidden: String = "Waiting for your OK", val evenOnWeb: Boolean = false,
+        val hidden: String = tr("Waiting for your OK"), val evenOnWeb: Boolean = false,
         // The other asks of its card of several (#277): one that joins later, or the first answered on its own, rings nothing new.
         val also: List<String> = emptyList(),
     )
@@ -311,14 +312,14 @@ class Notifier(
 
     private fun loginNeed(o: JsonObject): Need {
         val site = o.str("site")
-        val text = if (o.str("kind") == "card") "Wants to pay on $site${o.str("amount").takeIf { it.isNotBlank() }?.let { " ($it)" } ?: ""}" else "Asks for the $site login"
-        val place = cardPlace(o, o.str("botName").ifBlank { "A bot" }, groupNameOf)
+        val text = if (o.str("kind") == "card") tr("Wants to pay on {site}{amount}", "site" to site, "amount" to (o.str("amount").takeIf { it.isNotBlank() }?.let { " ($it)" } ?: "")) else tr("Asks for the {site} login", "site" to site)
+        val place = cardPlace(o, o.str("botName").ifBlank { tr("A bot") }, groupNameOf)
         return Need("login:${o.str("id")}", place.title, o.str("botColor"), text, at = time(o.str("createdAt")), bot = o.str("botId"), open = place.open)
     }
 
     private fun jobNeed(o: JsonObject): Need {
         val words = jobWords(o)
-        val place = cardPlace(o, o.str("botName").ifBlank { "A bot" }, groupNameOf)
+        val place = cardPlace(o, o.str("botName").ifBlank { tr("A bot") }, groupNameOf)
         return Need("job:${o.str("botId")}/${o.str("jobId")}", place.title, o.str("botColor"), words.text, yes = words.yes, bot = o.str("botId"), no = words.decline, noLabel = words.no, open = place.open)
     }
 
@@ -330,7 +331,7 @@ class Notifier(
 
     private fun memoryNeed(o: JsonObject): Need {
         val words = memoryWords(o, features)
-        val place = cardPlace(o, o.str("botName").ifBlank { "A bot" }, groupNameOf)
+        val place = cardPlace(o, o.str("botName").ifBlank { tr("A bot") }, groupNameOf)
         return Need("memory:${o.str("id")}", place.title, o.str("botColor"), words.text, words.detail, time(o.str("at")), yes = words.yes, bot = o.str("botId"), no = words.decline, noLabel = words.no, open = place.open)
     }
 
@@ -343,7 +344,7 @@ class Notifier(
     /** The feed's asks, one notification per card: what one run waits on rings once, with its card's title and no buttons. */
     private fun askNeeds(list: List<JsonObject>): List<Need> = askNotices(list).map { c ->
         val n = askNeed(c.first)
-        if (c.batch == null) n else n.copy(key = "ask:batch:${c.batch.id}", text = c.batch.title.ifBlank { n.text.ifBlank { "Needs your OK" } }, yes = null, no = false, also = c.asks)
+        if (c.batch == null) n else n.copy(key = "ask:batch:${c.batch.id}", text = c.batch.title.ifBlank { n.text.ifBlank { tr("Needs your OK") } }, yes = null, no = false, also = c.asks)
     }
 
     private fun approvals(a: JsonObject) {
@@ -368,8 +369,8 @@ class Notifier(
         if (key in rung) return
         val back = "bitwarden" in restore || key in restore
         rung += key; saveRung()
-        val text = wanted?.let { "${it.str("name")} wants a saved login. Bots can't use them until you unlock it." } ?: "Bots can't use your saved logins until you unlock it."
-        need(Need("bitwarden", "Bitwarden is locked", wanted?.str("color") ?: CHIEF_COLOR, text, bot = wanted?.str("id")), quiet = wanted == null || back)
+        val text = wanted?.let { tr("{name} wants a saved login. Bots can't use them until you unlock it.", "name" to it.str("name")) } ?: tr("Bots can't use your saved logins until you unlock it.")
+        need(Need("bitwarden", tr("Bitwarden is locked"), wanted?.str("color") ?: CHIEF_COLOR, text, bot = wanted?.str("id")), quiet = wanted == null || back)
     }
 
     /** Brings one kind of need up to date with what's open now: new ones ring once, answered ones go away. */
@@ -443,7 +444,7 @@ class Notifier(
     /** Who said it. [outfit]: what it wears, when the caller knows; else it is looked up. */
     private data class Sender(val id: String, val name: String, val color: String?, val outfit: JsonElement? = null)
 
-    private val me by lazy { Person.Builder().setKey("me").setName("You").setIcon(IconCompat.createWithBitmap(dot(YOU_COLOR, 64))).build() }
+    private val me by lazy { Person.Builder().setKey("me").setName(tr("You")).setIcon(IconCompat.createWithBitmap(dot(YOU_COLOR, 64))).build() }
 
     private fun person(s: Sender) = Person.Builder().setKey(s.id).setName(s.name).setIcon(IconCompat.createWithBitmap(head(s.id, s.color, s.outfit))).build()
 
@@ -458,7 +459,7 @@ class Notifier(
         style.addMessage(plain(markdown).take(1000), at, person(from))
         val chief = chat.startsWith("chief:")
         // A Chief chat is named by its title, and a group by its name: who said it stands under that.
-        if (chief || groupOfChat(chat) != null) style.setConversationTitle(title?.ifBlank { null } ?: old?.conversationTitle ?: if (chief) chiefName() else "A group").setGroupConversation(true)
+        if (chief || groupOfChat(chat) != null) style.setConversationTitle(title?.ifBlank { null } ?: old?.conversationTitle ?: if (chief) chiefName() else tr("A group")).setGroupConversation(true)
         notify(chat, chatBuilder(chat, style, at, quiet).setContentIntent(openApp(open)).setLargeIcon(if (chief) head(CHIEF_ID, CHIEF_COLOR) else head(from.id, from.color, from.outfit)))
     }
 
@@ -476,7 +477,7 @@ class Notifier(
             .setContentText(n.text.take(200))
             .setStyle(style)
             .setContentIntent(openApp(n.key))
-            .setPublicVersion(hidden(CH_UPDATES, "New message")))
+            .setPublicVersion(hidden(CH_UPDATES, tr("New message"))))
     }
 
     /** After you replied from the notification: your words show under the chat's messages (null: it didn't send, just stop waiting). */
@@ -496,11 +497,11 @@ class Notifier(
         val last = style.messages.lastOrNull()
         return builder(CH_UPDATES, at, quiet)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
-            .setContentTitle(last?.person?.name ?: "You")
+            .setContentTitle(last?.person?.name ?: tr("You"))
             .setContentText(last?.text?.lineSequence()?.firstOrNull { it.isNotBlank() }?.take(200))
             .setStyle(style)
             .setContentIntent(openApp(chat))
-            .setPublicVersion(hidden(CH_UPDATES, "New message"))
+            .setPublicVersion(hidden(CH_UPDATES, tr("New message")))
             .addAction(replyAction(chat))
     }
 
@@ -509,8 +510,8 @@ class Notifier(
         val pi = PendingIntent.getBroadcast(context, "reply:$chat".hashCode(),
             Intent(context, NotificationActions::class.java).setAction(NotificationActions.REPLY).putExtra(NotificationActions.EXTRA_KEY, chat),
             PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0))
-        return NotificationCompat.Action.Builder(0, "Reply", pi)
-            .addRemoteInput(RemoteInput.Builder(NotificationActions.KEY_TEXT).setLabel("Reply").build())
+        return NotificationCompat.Action.Builder(0, tr("Reply"), pi)
+            .addRemoteInput(RemoteInput.Builder(NotificationActions.KEY_TEXT).setLabel(tr("Reply")).build())
             .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
             .setShowsUserInterface(false)
             .setAuthenticationRequired(true) // what you send can set the Chief or a bot to work
@@ -616,11 +617,11 @@ internal fun plainText(md: String): String = md.lineSequence().map { line ->
 internal class AskWords(val text: String, val yes: String?, val decline: Boolean = yes != null, val no: String = DECLINE)
 
 /** What the no of a notification reads when the server names none. */
-internal const val DECLINE = "Decline"
+internal val DECLINE: String get() = tr("Decline")
 
 /** The tag of the notification that Claude is signed out, and what it says. */
 internal const val SIGNED_OUT_KEY = "claude"
-internal const val SIGNED_OUT_TEXT = dev.botdot.app.ui.SIGNED_OUT // the words of the line above the message box
+internal val SIGNED_OUT_TEXT: String get() = dev.botdot.app.ui.SIGNED_OUT // the words of the line above the message box
 
 /** What the feed's word on Claude's sign-in does to that notification. */
 internal enum class SignedOutStep { RING, TAKE, NONE }
@@ -678,7 +679,7 @@ internal fun yesButton(label: String?, o: JsonObject): String? = label.takeIf { 
 private fun saidText(o: JsonObject) = o.str("text").trim()
 
 /** What an ask says when the app has no words for it: enough to open its card, and nothing to answer blind. */
-internal const val NEEDS_OK = "Needs your OK"
+internal val NEEDS_OK: String get() = tr("Needs your OK")
 
 /**
  * The words of one entry of the feed's `asks` (docs/api.md), of any kind. The line is the server's own (`text`:
@@ -693,13 +694,13 @@ internal const val NEEDS_OK = "Needs your OK"
 internal fun askWords(o: JsonObject): AskWords {
     val kind = o.str("kind").ifBlank { "permission" } // as the asks themselves are read (Ask.kind)
     val said = saidText(o)
-    val yes = when (kind) { "skill" -> "Install"; ToolCard.KIND -> ToolCard.INSTALL; "permission" -> "Allow"; else -> "Approve" }
+    val yes = when (kind) { "skill" -> tr("Install"); ToolCard.KIND -> ToolCard.INSTALL; "permission" -> tr("Allow"); else -> tr("Approve") }
     val what = o.str("what").trim()
     return when {
         said.isNotEmpty() -> AskWords(said, yesButton(yes, o), decline = true)
-        kind == "skill" -> AskWords("Asks to install the skill “${o.str("skill")}”", yesButton(yes, o), decline = true)
+        kind == "skill" -> AskWords(tr("Asks to install the skill “{name}”", "name" to o.str("skill")), yesButton(yes, o), decline = true)
         kind == ToolCard.KIND -> AskWords("", null)
-        kind == "permission" && what.isNotEmpty() -> AskWords("Asks to $what", yesButton(yes, o), decline = true)
+        kind == "permission" && what.isNotEmpty() -> AskWords(tr("Asks to {what}", "what" to what), yesButton(yes, o), decline = true)
         else -> AskWords(NEEDS_OK, null)
     }
 }
@@ -724,8 +725,8 @@ internal fun memoryWords(o: JsonObject, features: Collection<String>?): MemoryWo
     }
     // A guarded change without the card's words: nothing says what a yes would do, so it has no button either.
     if (guarded) return MemoryWords(NEEDS_OK, null, null, decline = false)
-    val verb = when (o.str("action")) { "edit" -> "Change in"; "remove" -> "Remove from"; else -> "Add to" }
-    return MemoryWords("$verb the shared memory", note, "Approve", decline = true)
+    val verb = when (o.str("action")) { "edit" -> tr("Change in"); "remove" -> tr("Remove from"); else -> tr("Add to") }
+    return MemoryWords(tr("{verb} the shared memory", "verb" to verb), note, tr("Approve"), decline = true)
 }
 
 /**
@@ -743,7 +744,7 @@ internal fun redrawn(guarded: List<String>, rang: Set<String>, showing: Set<Stri
  * approved one); an entry that says `change: true` without them reads "Keep as it is" and "Approve the change",
  * since its no removes nothing. Any other reads "Decline" and "Approve", as before.
  */
-internal fun jobWords(o: JsonObject): AskWords = waitingWords(o, "Waiting for your OK: ${o.str("jobName")}")
+internal fun jobWords(o: JsonObject): AskWords = waitingWords(o, tr("Waiting for your OK: {name}", "name" to o.str("jobName")))
 
 /** The words of one entry of `approvals.tiles`, as [jobWords]: the server's `text`, or the app's own line. */
 internal fun tileWords(o: JsonObject): AskWords = waitingWords(o, tileWaits(o.str("title")))
@@ -752,9 +753,9 @@ private fun waitingWords(o: JsonObject, own: String): AskWords {
     val change = isTrue(o["change"])
     return AskWords(
         saidText(o).ifEmpty { own },
-        yesButton(o.str("yes").trim().ifEmpty { if (change) "Approve the change" else "Approve" }, o),
+        yesButton(o.str("yes").trim().ifEmpty { if (change) tr("Approve the change") else tr("Approve") }, o),
         decline = true,
-        no = o.str("no").trim().ifEmpty { if (change) "Keep as it is" else DECLINE },
+        no = o.str("no").trim().ifEmpty { if (change) tr("Keep as it is") else DECLINE },
     )
 }
 
@@ -771,7 +772,7 @@ internal class AsksNotice(val title: String, val body: String)
 internal fun asksNotice(asks: Boolean, title: String?, bot: String, result: String?, question: String? = null): AsksNotice? {
     if (!asks) return null
     val body = question?.trim()?.ifEmpty { null } ?: result?.takeIf { it.isNotBlank() } ?: return null
-    return AsksNotice(title?.trim()?.ifEmpty { null } ?: "$bot asks", body)
+    return AsksNotice(title?.trim()?.ifEmpty { null } ?: tr("{bot} asks", "bot" to bot), body)
 }
 
 /**
@@ -779,7 +780,7 @@ internal fun asksNotice(asks: Boolean, title: String?, bot: String, result: Stri
  * "error", the problem and not the half-written text.
  */
 internal fun chiefReplyText(status: String, text: String, error: String): String =
-    (if (status == "error") error.ifBlank { text } else text.ifBlank { error }).ifBlank { "Replied." }
+    (if (status == "error") error.ifBlank { text } else text.ifBlank { error }).ifBlank { tr("Replied.") }
 
 // ---------- following the botdot server's unread state (ADR 005) ----------
 
@@ -811,11 +812,11 @@ suspend fun newChats(api: Api): List<NewChat> = coroutineScope {
     } + chief.await().chats.filter { it.unread > 0 }.map { c ->
         NewChat("chief:${c.id}") {
             c.firstUnread?.let { api.chiefChat(c.id, offset = it, limit = 1) }?.messages?.firstOrNull()?.let { m ->
-                val text = m.text.ifBlank { m.error?.ifBlank { null } ?: "Replied." }
+                val text = m.text.ifBlank { m.error?.ifBlank { null } ?: tr("Replied.") }
                 val from = m.from?.takeIf { m.role == "report" } // a bot's reply posted in the chat
                 if (from == null) NewReply(CHIEF_ID, ChiefName.of(chief.await()), CHIEF_COLOR, text, timeOf(m.endedAt ?: m.at), c.title)
                 else all.firstOrNull { it.id == from.id }.let { now -> // the bot as it looks now
-                    NewReply(from.id, from.name.ifBlank { "A bot" }, now?.color ?: from.color, text, timeOf(m.endedAt ?: m.at), c.title, now?.outfit)
+                    NewReply(from.id, from.name.ifBlank { tr("A bot") }, now?.color ?: from.color, text, timeOf(m.endedAt ?: m.at), c.title, now?.outfit)
                 }
             }
         }
@@ -824,7 +825,7 @@ suspend fun newChats(api: Api): List<NewChat> = coroutineScope {
 
 /** What a finished run says in a notification: its reply, or why it didn't finish, under its job's name. */
 internal fun runText(status: String, result: String, problem: String, error: String, job: String): String {
-    val body = if (status == "success") result.ifBlank { "Done." } else problem.ifBlank { "Didn't finish: ${error.ifBlank { status }}" }
+    val body = if (status == "success") result.ifBlank { tr("Done.") } else problem.ifBlank { tr("Didn't finish: {error}", "error" to error.ifBlank { status }) }
     return (if (job.isNotBlank()) "$job\n" else "") + body
 }
 
@@ -844,7 +845,7 @@ internal fun roomNoticeOf(ev: FeedEvent): RoomNotice? {
     if (ev.type != "room_notice" || ev.data.str("webActive") == "true") return null
     val id = ev.data.str("roomId").ifEmpty { return null }
     val from = ev.data["from"] as? JsonObject
-    return RoomNotice("room:$id", ev.data.str("roomName").ifBlank { "A room" }, from?.str("name")?.ifBlank { null } ?: "Someone",
+    return RoomNotice("room:$id", ev.data.str("roomName").ifBlank { tr("A room") }, from?.str("name")?.ifBlank { null } ?: tr("Someone"),
         ev.data.str("preview"), from?.str("botId")?.ifBlank { null }, from?.str("color")?.ifBlank { null })
 }
 
@@ -881,7 +882,7 @@ internal class CardPlace(val title: String, val open: String)
  */
 internal fun cardPlace(o: JsonObject, bot: String, nameNow: (String) -> String? = { null }): CardPlace {
     val group = GroupRef.of(o) ?: return CardPlace(bot, "needs")
-    return CardPlace("$bot in ${nameNow(group.id) ?: group.name}", groupKey(group.id))
+    return CardPlace(tr("{bot} in {group}", "bot" to bot, "group" to (nameNow(group.id) ?: group.name)), groupKey(group.id))
 }
 
 /**
@@ -927,4 +928,4 @@ internal fun catchUpOf(showing: Set<String>, unread: Set<String>, rebuild: Boole
     CatchUp(showing - unread - touched, if (rebuild) unread - showing - touched - setOfNotNull(watching) else emptySet())
 
 /** The notification of a tile whose script waits for your OK. */
-internal fun tileWaits(title: String) = "Waiting for your OK: “$title” on your Board (a script)"
+internal fun tileWaits(title: String) = tr("Waiting for your OK: “{title}” on your Board (a script)", "title" to title)

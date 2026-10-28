@@ -44,6 +44,7 @@ import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
+import dev.botdot.app.data.tr
 import okio.Path.Companion.toOkioPath
 
 /** The app's shared pieces: settings, the API for the chosen botdot, the live feed, what it has, notifications. */
@@ -78,10 +79,10 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
         bwUnlockError.value = null
         scope.launch {
             val r = runCatching { api.unlockBitwarden(masterPassword) }
-            val error = r.exceptionOrNull()?.let { e -> if (e.message.orEmpty().contains("not right")) "Wrong master password" else e.message ?: "That didn't work" }
+            val error = r.exceptionOrNull()?.let { e -> if (e.message.orEmpty().contains("not right")) tr("Wrong master password") else e.message ?: tr("That didn't work") }
             bwUnlockError.value = error
             bwUnlocking.value = false
-            Toast.makeText(this@BotDotApp, error ?: "Bitwarden is unlocked", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@BotDotApp, error ?: tr("Bitwarden is unlocked"), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -95,14 +96,14 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
             val r = runCatching { api.answerRequest(requestId, body) }
             val error = r.exceptionOrNull()?.let { e ->
                 when {
-                    e is dev.botdot.app.data.ApiException && e.status == 423 -> "Bitwarden is locked: enter your master password too."
-                    e.message.orEmpty().contains("not right") -> "Wrong master password, login not saved"
-                    else -> "Login not saved: ${e.message ?: "that didn't work"}"
+                    e is dev.botdot.app.data.ApiException && e.status == 423 -> tr("Bitwarden is locked: enter your master password too.")
+                    e.message.orEmpty().contains("not right") -> tr("Wrong master password, login not saved")
+                    else -> tr("Login not saved: {why}", "why" to (e.message ?: tr("that didn't work")))
                 }
             }
             store.needs.refresh()
             savingLogins.value -= requestId
-            Toast.makeText(this@BotDotApp, error ?: "Saved. $botName will continue.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this@BotDotApp, error ?: tr("Saved. {botName} will continue.", "botName" to botName), Toast.LENGTH_SHORT).show()
         }
     }
 

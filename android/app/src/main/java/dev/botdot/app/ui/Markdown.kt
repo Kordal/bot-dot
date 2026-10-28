@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.FilePaths
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
 
 /** The words in the home screen's search box, marked in the chats you open (each word, and words it starts). */
@@ -117,7 +118,7 @@ private fun CopyCode(text: String, modifier: Modifier = Modifier) {
     var copied by remember { mutableStateOf(false) }
     LaunchedEffect(copied) { if (copied) { delay(1500); copied = false } }
     IconButton(onClick = { copyToClipboard(context, text); copied = true }, modifier = modifier.size(40.dp)) {
-        Icon(if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy, contentDescription = if (copied) "Copied" else "Copy code",
+        Icon(if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy, contentDescription = if (copied) tr("Copied") else tr("Copy code"),
             tint = LocalPaper.current.muted, modifier = Modifier.size(16.dp))
     }
 }
@@ -202,7 +203,7 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                             if (copy) copyTextOf(b)?.let { key(i, it) { CopyCode(it) } }
                         }
                         webLinkUnder(b, onWeb)?.let { url ->
-                            Text(buildAnnotatedString { withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = p.muted, textDecoration = TextDecoration.Underline)))) { append("Open on web") } },
+                            Text(buildAnnotatedString { withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = p.muted, textDecoration = TextDecoration.Underline)))) { append(tr("Open on web")) } },
                                 fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                         }
                     }

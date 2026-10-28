@@ -53,7 +53,7 @@ private class Went { @Volatile var out = false }
  * (ADR 028), which every request carries; none for a check of an address before it is used.
  */
 class Api(val baseUrl: String, val session: Session? = null) {
-    init { require(ReleaseManifest.secureURL(baseUrl)) { "Use HTTPS for a remote botdot server." } }
+    init { require(ReleaseManifest.secureURL(baseUrl)) { tr("Use HTTPS for a remote botdot server.") } }
     val json = JSON
 
     // One connection pool for the whole app (and pictures, see BotDotApp): a new Api doesn't mean new connections.
@@ -78,13 +78,13 @@ class Api(val baseUrl: String, val session: Session? = null) {
                     throw e
                 } catch (e: IOException) {
                     // The answer began and broke off: its status still says whether botdot took the request.
-                    throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})", res.code, sent = true)
+                    throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to (e.message ?: e.javaClass.simpleName)), res.code, sent = true)
                 }
             }
         } catch (e: ApiException) {
             throw e
         } catch (e: IOException) {
-            throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})", sent = went.out)
+            throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to (e.message ?: e.javaClass.simpleName)), sent = went.out)
         }
     }
 
@@ -92,7 +92,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
         val body = res.body.string()
         if (!res.isSuccessful) {
             val msg = runCatching { json.parseToJsonElement(body).jsonObject["error"]?.jsonPrimitive?.takeIf { it.isString }?.content }.getOrNull()?.trim()?.ifEmpty { null }
-            throw ApiException(msg ?: if (res.code == 403) "botdot refused this device: ${body.take(200)}" else "botdot answered ${res.code}", res.code, said = msg != null)
+            throw ApiException(msg ?: if (res.code == 403) tr("botdot refused this device: {body}", "body" to body.take(200)) else tr("botdot answered {code}", "code" to res.code), res.code, said = msg != null)
         }
         return body
     }
@@ -152,7 +152,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     private suspend fun doorGet(path: String) =
         call(Request.Builder().url(baseUrl.trimEnd('/') + path).header("Accept", "application/json").get().build())
-    private fun roomOf(answer: String): Room = json.decodeFromString<RoomAnswer>(answer).room ?: throw ApiException("The front door sent no room.")
+    private fun roomOf(answer: String): Room = json.decodeFromString<RoomAnswer>(answer).room ?: throw ApiException(tr("The front door sent no room."))
     private fun roomPath(id: String) = "/front-door/rooms/${enc(id)}"
 
     /** The rooms this account is in, and the invitations waiting for it. Asked only where [Rooms.on] says so. */
@@ -165,7 +165,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** The room's invite link (ADR 068), for its maker only (others: 403); null for none. */
     suspend fun roomLink(id: String): RoomLink? = json.decodeFromString<RoomLinkAnswer>(doorGet("${roomPath(id)}/link")).link
     /** A new invite link for the room; the one before stops working. */
-    suspend fun makeRoomLink(id: String): RoomLink = json.decodeFromString<RoomLinkAnswer>(door("${roomPath(id)}/link")).link ?: throw ApiException("The front door sent no link.")
+    suspend fun makeRoomLink(id: String): RoomLink = json.decodeFromString<RoomLinkAnswer>(door("${roomPath(id)}/link")).link ?: throw ApiException(tr("The front door sent no link."))
     /** Takes the room's invite link back: it no longer works. */
     suspend fun dropRoomLink(id: String) { door("${roomPath(id)}/link/remove") }
     /** What an invite link's [token] opens: the room's name and maker, and whether this account is in it already. */
@@ -185,7 +185,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
         json.decodeFromString(doorGet("${roomPath(id)}/messages?limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
     /** Writes in the room. [key]: as [runBot]'s, a resend with the same key is the same message. */
     suspend fun sendToRoom(id: String, text: String, key: String? = null): RoomMessage =
-        json.decodeFromString<RoomMessageAnswer>(door("${roomPath(id)}/messages", Rooms.messageBody(text, key))).message ?: throw ApiException("The front door sent no message.")
+        json.decodeFromString<RoomMessageAnswer>(door("${roomPath(id)}/messages", Rooms.messageBody(text, key))).message ?: throw ApiException(tr("The front door sent no message."))
     /** Drops the turns of this room that wait. */
     suspend fun stopRoom(id: String) { door("${roomPath(id)}/stop") }
     /** The rooms' live events (`room`, `room_gone`, `invite`, `invite_gone`, `room_message`), as feed events. */
@@ -490,12 +490,12 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** Uploads one file into folder [path] (another name when that one is taken); [made]: its missing folders are made first. */
     suspend fun uploadToWorkspace(resolver: ContentResolver, uri: Uri, botId: String, path: String, root: String = WorkspaceFiles.SERVER, made: Boolean = false) = withContext(Dispatchers.IO) {
         val (name, size) = describe(resolver, uri)
-        if (size != null && size > WorkspaceFiles.MAX_BYTES) throw ApiException("$name is over 25 MB.")
+        if (size != null && size > WorkspaceFiles.MAX_BYTES) throw ApiException(tr("{name} is over 25 MB.", "name" to name))
         val body = object : RequestBody() {
             override fun contentType() = "application/octet-stream".toMediaType()
             override fun contentLength() = size ?: -1L
             override fun writeTo(sink: BufferedSink) {
-                resolver.openInputStream(uri)?.use { sink.writeAll(it.source()) } ?: throw IOException("Can't open $name")
+                resolver.openInputStream(uri)?.use { sink.writeAll(it.source()) } ?: throw IOException(tr("Can't open {name}", "name" to name))
             }
         }
         call(request(WorkspaceFiles.upload(botId, path, root, made)).header("X-Bot-Dot", "1").header("X-File-Name", enc(name)).post(body).build())
@@ -617,11 +617,11 @@ class Api(val baseUrl: String, val session: Session? = null) {
                 dest.parentFile?.mkdirs()
                 res.body.byteStream().use { input -> part.outputStream().use { input.copyTo(it) } }
             }
-            if (!part.renameTo(dest)) throw ApiException("Couldn't save the file.")
+            if (!part.renameTo(dest)) throw ApiException(tr("Couldn't save the file."))
         } catch (e: ApiException) {
             part.delete(); throw e
         } catch (e: IOException) {
-            part.delete(); throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})")
+            part.delete(); throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to (e.message ?: e.javaClass.simpleName)))
         }
     }
 
@@ -633,7 +633,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** [text] saved as a new Google Doc (#351): its address on docs.google.com. */
     suspend fun saveToGoogleDocs(title: String, text: String): String =
         json.parseToJsonElement(send("POST", "/export/google-docs", buildJsonObject { put("title", title); put("text", text) })).jsonObject["url"]?.jsonPrimitive?.contentOrNull
-            ?.takeIf { DocumentExport.isGoogleDoc(it) } ?: throw ApiException("Google Docs saved nothing to open.")
+            ?.takeIf { DocumentExport.isGoogleDoc(it) } ?: throw ApiException(tr("Google Docs saved nothing to open."))
 
     /** A document made from [text] (#348, POST /api/export): Word, PDF or Markdown, written to [dir] under the name the
      *  server gives it. Returns the file. */
@@ -650,7 +650,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
                 dest
             }
         } catch (e: IOException) {
-            throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})")
+            throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to (e.message ?: e.javaClass.simpleName)))
         }
     }
 
@@ -678,7 +678,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
         } catch (e: ApiException) {
             throw e
         } catch (e: IOException) {
-            throw ApiException("Can't reach botdot. Is Tailscale on? (${e.message ?: e.javaClass.simpleName})")
+            throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to (e.message ?: e.javaClass.simpleName)))
         }
     }
 
@@ -744,7 +744,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
             override fun contentType() = "application/octet-stream".toMediaType()
             override fun contentLength() = size ?: -1L
             override fun writeTo(sink: BufferedSink) {
-                resolver.openInputStream(uri)?.use { sink.writeAll(it.source()) } ?: throw IOException("Can't open $name")
+                resolver.openInputStream(uri)?.use { sink.writeAll(it.source()) } ?: throw IOException(tr("Can't open {name}", "name" to name))
             }
         }
         val req = request("/uploads?to=${enc(to)}")
@@ -797,7 +797,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
             override fun onClosed(eventSource: EventSource) { channel.close() }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
                 val msg = response?.let { r -> runCatching { r.body.string() }.getOrNull()?.take(200) }
-                channel.close(ApiException(msg?.takeIf { it.isNotBlank() } ?: t?.message ?: "The connection dropped", response?.code ?: 0))
+                channel.close(ApiException(msg?.takeIf { it.isNotBlank() } ?: t?.message ?: tr("The connection dropped"), response?.code ?: 0))
             }
         })
         awaitClose { source.cancel() }

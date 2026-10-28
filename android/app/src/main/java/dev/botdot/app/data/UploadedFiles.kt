@@ -33,8 +33,8 @@ object UploadedFiles {
 
     /** The folded section's summary: how many, and how many are kept in mind. */
     fun summary(files: List<UploadedFile>): String = when {
-        files.isEmpty() -> "None"
-        else -> "${files.size} file${if (files.size == 1) "" else "s"}" + files.count { it.pinned }.let { if (it > 0) ", $it kept in mind" else "" }
+        files.isEmpty() -> tr("None")
+        else -> trn(files.size, "{n} file", "{n} files") + files.count { it.pinned }.let { if (it > 0) ", " + tr("{n} kept in mind", "n" to it) else "" }
     }
 }
 

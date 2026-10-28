@@ -14,8 +14,8 @@ import kotlinx.serialization.json.doubleOrNull
  */
 object ToolCard {
     const val KIND = "tool"
-    const val INSTALL = "Install"
-    const val DECLINE = "Decline"
+    val INSTALL: String get() = tr("Install")
+    val DECLINE: String get() = tr("Decline")
 
     /** Whether an ask is a tool's. */
     fun isTool(a: Ask): Boolean = a.kind == KIND
@@ -49,5 +49,5 @@ object ToolCard {
      * What an answered card says. Install answers at once (`{ ok: true, installing: true }`) and the install goes on
      * by itself for minutes; its result arrives later as a Chief message. So not "Installed", a skill's word.
      */
-    fun answered(yes: Boolean): String = if (yes) "Installing" else "Declined"
+    fun answered(yes: Boolean): String = if (yes) tr("Installing") else tr("Declined")
 }

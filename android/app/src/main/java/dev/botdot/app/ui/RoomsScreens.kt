@@ -68,6 +68,8 @@ import dev.botdot.app.data.RoomLink
 import dev.botdot.app.data.RoomLinkPreview
 import dev.botdot.app.data.RoomMessage
 import dev.botdot.app.data.Rooms
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -75,7 +77,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-private const val NOT_CONNECTED = "Not connected to botdot"
+private val NOT_CONNECTED: String get() = tr("Not connected to botdot")
 
 /** "Shared rooms" in the list, under Needs you and the Board, with the invitations that wait. */
 @Composable
@@ -101,15 +103,15 @@ internal fun RoomsRow(app: BotDotApp, onClick: () -> Unit) {
 /** What the list's row and the Rooms screen say, in one place for their tests. */
 internal object RoomWords {
     /** What the row says after its name: only the invitations that wait (#493), nothing otherwise. */
-    fun rowLine(invites: Int): String? = if (invites > 0) "$invites invitation${if (invites == 1) "" else "s"}" else null
+    fun rowLine(invites: Int): String? = if (invites > 0) trn(invites, "{n} invitation", "{n} invitations") else null
 
-    const val NOT_A_LINK = "That isn't a room's invite link."
+    val NOT_A_LINK: String get() = tr("That isn't a room's invite link.")
 
     /** What a failed action says: the front door's own sentence, or that it was not reached. */
-    fun failed(e: Throwable): String = if (e is ApiException && e.said) e.message.orEmpty() else e.message ?: "That didn't work"
+    fun failed(e: Throwable): String = if (e is ApiException && e.said) e.message.orEmpty() else e.message ?: tr("That didn't work")
 }
 
-internal const val ROOMS = "Shared rooms"
+internal val ROOMS: String get() = tr("Shared rooms")
 
 /**
  * Shared rooms (ADR 060): the invitations that wait for this account, each with Accept and Decline, then the rooms it
@@ -129,7 +131,7 @@ fun RoomsScreen(app: BotDotApp, onRoom: (String) -> Unit, onMade: (String) -> Un
     LaunchedEffect(Unit) { app.rooms.refresh() }
     fun act(block: suspend () -> Unit) = scope.launch { runCatching { block() }.onError { snack.showSnackbar(RoomWords.failed(it)) } }
 
-    if (making) NameDialog("New room", "Name", "", "Make", onDone = { name ->
+    if (making) NameDialog(tr("New room"), tr("Name"), "", tr("Make"), onDone = { name ->
         val api = app.api.value ?: throw ApiException(NOT_CONNECTED)
         val room = api.makeRoom(name)
         app.rooms.took(room)
@@ -147,24 +149,24 @@ fun RoomsScreen(app: BotDotApp, onRoom: (String) -> Unit, onMade: (String) -> Un
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
                 title = { Text(ROOMS, style = MaterialTheme.typography.titleMedium) },
                 actions = {
-                    if (on && links) TextButton(onClick = { joining = true }) { Text("Join", color = p.text) }
-                    if (on) TextButton(onClick = { making = true }) { Text("New room", color = p.text) }
+                    if (on && links) TextButton(onClick = { joining = true }) { Text(tr("Join"), color = p.text) }
+                    if (on) TextButton(onClick = { making = true }) { Text(tr("New room"), color = p.text) }
                 })
         },
     ) { pad ->
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (!on) item { Hint("Shared rooms are off on this machine. The admin turns them on.") }
+            if (!on) item { Hint(tr("Shared rooms are off on this machine. The admin turns them on.")) }
             val invites = list?.invites.orEmpty()
             items(invites, key = { "invite:" + it.room.id }) { i ->
-                Section(i.room.name, "${i.by} invites you") {
+                Section(i.room.name, tr("{name} invites you", "name" to i.by)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { act { app.rooms.took(app.api.value!!.acceptRoom(i.room.id)); onRoom(i.room.id) } }) { Text("Accept", color = p.text) }
-                        TextButton(onClick = { act { app.api.value!!.declineRoom(i.room.id); app.rooms.gone(i.room.id) } }) { Text("Decline", color = p.text) }
+                        OutlinedButton(onClick = { act { app.rooms.took(app.api.value!!.acceptRoom(i.room.id)); onRoom(i.room.id) } }) { Text(tr("Accept"), color = p.text) }
+                        TextButton(onClick = { act { app.api.value!!.declineRoom(i.room.id); app.rooms.gone(i.room.id) } }) { Text(tr("Decline"), color = p.text) }
                     }
                 }
             }
             val rooms = list?.rooms.orEmpty()
-            if (on && list != null && rooms.isEmpty() && invites.isEmpty()) item { Hint("No rooms yet") }
+            if (on && list != null && rooms.isEmpty() && invites.isEmpty()) item { Hint(tr("No rooms yet")) }
             items(rooms, key = { it.id }) { r -> RoomRow(r) { onRoom(r.id) } }
         }
     }
@@ -205,7 +207,7 @@ private fun NameDialog(title: String, label: String, start: String, button: Stri
                 scope.launch { runCatching { onDone(text.trim()) }.onError { error = RoomWords.failed(it) }; busy = false }
             }) { Text(button, color = p.text) }
         },
-        dismissButton = { TextButton(onClick = onClose, enabled = !busy) { Text("Cancel", color = p.text) } },
+        dismissButton = { TextButton(onClick = onClose, enabled = !busy) { Text(tr("Cancel"), color = p.text) } },
     )
 }
 
@@ -228,14 +230,14 @@ private fun JoinDialog(app: BotDotApp, onJoined: (String) -> Unit, onClose: () -
     }
     AlertDialog(
         onDismissRequest = { if (!busy) onClose() },
-        title = { Text(seen?.let { "Join ${it.room.name}?" } ?: "Join a room") },
+        title = { Text(seen?.let { tr("Join {name}?", "name" to it.room.name) } ?: tr("Join a room")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val room = seen
                 if (room == null) {
-                    OutlinedTextField(text, { text = it.take(400); error = null }, label = { Text("Invite link") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(text, { text = it.take(400); error = null }, label = { Text(tr("Invite link")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 } else {
-                    Text("${room.room.by.ifBlank { "Someone" }} made this room and shared its invite link.", color = p.text)
+                    Text(tr("{name} made this room and shared its invite link.", "name" to room.room.by.ifBlank { tr("Someone") }), color = p.text)
                 }
                 error?.let { Text(it, color = p.err) }
             }
@@ -249,9 +251,9 @@ private fun JoinDialog(app: BotDotApp, onJoined: (String) -> Unit, onClose: () -
                     val got = api().roomByLink(token)
                     if (got.member) onJoined(got.room.id) else seen = got
                 } else go { val joined = api().joinRoomByLink(token); app.rooms.took(joined); onJoined(joined.id) }
-            }) { Text(if (seen == null) "Next" else "Join", color = p.text) }
+            }) { Text(if (seen == null) tr("Next") else tr("Join"), color = p.text) }
         },
-        dismissButton = { TextButton(onClick = onClose, enabled = !busy) { Text("Cancel", color = p.text) } },
+        dismissButton = { TextButton(onClick = onClose, enabled = !busy) { Text(tr("Cancel"), color = p.text) } },
     )
 }
 
@@ -350,10 +352,10 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },
-            topBar = { ChatBar(null, "idle", room?.name.orEmpty(), onName = onSettings, onBack = onBack, nameLabel = "Its people and bots", picture = { RoomMark() }) },
+            topBar = { ChatBar(null, "idle", room?.name.orEmpty(), onName = onSettings, onBack = onBack, nameLabel = tr("Its people and bots"), picture = { RoomMark() }) },
             bottomBar = {
                 Composer(
-                    placeholder = "Message ${room?.name ?: "the room"}…",
+                    placeholder = room?.name?.let { tr("Message {name}…", "name" to it) } ?: tr("Message the room…"),
                     files = null,
                     busy = false,
                     outbox = vm.outbox,
@@ -376,7 +378,7 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
                         val working = room?.let { Rooms.workingLine(it) }.orEmpty()
                         if (working.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(working, color = p.muted, fontSize = 13.sp, modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
-                            TextButton(onClick = { vm.stop() }) { Text("Stop", color = p.text) }
+                            TextButton(onClick = { vm.stop() }) { Text(tr("Stop"), color = p.text) }
                         }
                     }
                 }
@@ -392,7 +394,7 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
 
 /** What a room's chat says, for its tests. */
 internal object RoomChat {
-    const val EMPTY = "Nothing here yet. Mention a bot with @ and it answers; it only talks, it uses no tools."
+    val EMPTY: String get() = tr("Nothing here yet. Mention a bot with @ and it answers; it only talks, it uses no tools.")
 
     /** Whether [m] stands right, as this account's own: a person's message by [mine]. */
     fun isMine(m: RoomMessage, mine: String?): Boolean = mine != null && m.bot == null && !m.notice && m.account == mine
@@ -464,15 +466,15 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
     asking?.let { what ->
         AlertDialog(
             onDismissRequest = { asking = null },
-            title = { Text(if (what == "delete") "Delete ${room?.name}?" else "Leave ${room?.name}?") },
-            text = { Text(if (what == "delete") "The room and its messages go, for everyone in it." else "Your bots leave with you. The room stays with the others.") },
+            title = { Text(if (what == "delete") tr("Delete {name}?", "name" to room?.name) else tr("Leave {name}?", "name" to room?.name)) },
+            text = { Text(if (what == "delete") tr("The room and its messages go, for everyone in it.") else tr("Your bots leave with you. The room stays with the others.")) },
             confirmButton = {
                 TextButton(onClick = {
                     asking = null
                     act { if (what == "delete") api().deleteRoom(roomId) else api().leaveRoom(roomId); app.rooms.gone(roomId); onGone() }
-                }) { Text(if (what == "delete") "Delete" else "Leave", color = p.err) }
+                }) { Text(if (what == "delete") tr("Delete") else tr("Leave"), color = p.err) }
             },
-            dismissButton = { TextButton(onClick = { asking = null }) { Text("Cancel", color = p.text) } },
+            dismissButton = { TextButton(onClick = { asking = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
 
@@ -486,56 +488,56 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
     ) { pad ->
         val r = room ?: return@Scaffold
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Section("Name") {
+            Section(tr("Name")) {
                 OutlinedTextField(name, { name = it.take(60) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                if (name.isNotBlank() && name.trim() != r.name) OutlinedButton(enabled = !busy, onClick = { act("Saved") { app.rooms.took(api().renameRoom(roomId, name.trim())) } }) { Text("Save", color = p.text) }
+                if (name.isNotBlank() && name.trim() != r.name) OutlinedButton(enabled = !busy, onClick = { act(tr("Saved")) { app.rooms.took(api().renameRoom(roomId, name.trim())) } }) { Text(tr("Save"), color = p.text) }
             }
-            Section("People") {
-                r.members.forEach { m -> Text(m.account + if (m.account == mine) " (you)" else "", color = p.text, style = MaterialTheme.typography.bodyLarge) }
-                r.invites.forEach { i -> Text("${i.account} · invited by ${i.by}", color = p.muted, style = MaterialTheme.typography.bodyMedium) }
+            Section(tr("People")) {
+                r.members.forEach { m -> Text(m.account + if (m.account == mine) " " + tr("(you)") else "", color = p.text, style = MaterialTheme.typography.bodyLarge) }
+                r.invites.forEach { i -> Text("${i.account} · " + tr("invited by {name}", "name" to i.by), color = p.muted, style = MaterialTheme.typography.bodyMedium) }
             }
-            if (maker && linkRead) Section("Invite link") {
+            if (maker && linkRead) Section(tr("Invite link")) {
                 val l = link
                 if (l == null) {
-                    OutlinedButton(enabled = !busy, onClick = { act { link = api().makeRoomLink(roomId) } }) { Text("Make an invite link", color = p.text) }
+                    OutlinedButton(enabled = !busy, onClick = { act { link = api().makeRoomLink(roomId) } }) { Text(tr("Make an invite link"), color = p.text) }
                 } else {
                     SelectionContainer { Text(l.url, color = p.text, style = MaterialTheme.typography.bodyMedium) }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(enabled = !busy, onClick = {
                             val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, l.url)
                             context.startActivity(Intent.createChooser(send, r.name))
-                        }) { Text("Share", color = p.text) }
-                        TextButton(enabled = !busy, onClick = { act("A new link: the one before no longer works") { link = api().makeRoomLink(roomId) } }) { Text("New link", color = p.text) }
-                        TextButton(enabled = !busy, onClick = { act("Taken back") { api().dropRoomLink(roomId); link = null } }) { Text("Take back", color = p.err) }
+                        }) { Text(tr("Share"), color = p.text) }
+                        TextButton(enabled = !busy, onClick = { act(tr("A new link: the one before no longer works")) { link = api().makeRoomLink(roomId) } }) { Text(tr("New link"), color = p.text) }
+                        TextButton(enabled = !busy, onClick = { act(tr("Taken back")) { api().dropRoomLink(roomId); link = null } }) { Text(tr("Take back"), color = p.err) }
                     }
                 }
             }
-            Section("Bots") {
-                if (r.bots.isEmpty()) Hint("No bots yet.")
+            Section(tr("Bots")) {
+                if (r.bots.isEmpty()) Hint(tr("No bots yet."))
                 r.bots.forEach { b ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         BotFigure(b.color ?: GONE_COLOR, "idle", 24, null)
                         Spacer(Modifier.size(8.dp))
                         Text(Rooms.label(b.name, b.account), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        if (b.account == mine) TextButton(enabled = !busy, onClick = { act { app.rooms.took(api().removeRoomBot(roomId, b.id)) } }) { Text("Remove", color = p.text) }
+                        if (b.account == mine) TextButton(enabled = !busy, onClick = { act { app.rooms.took(api().removeRoomBot(roomId, b.id)) } }) { Text(tr("Remove"), color = p.text) }
                     }
                 }
                 val addable = Rooms.addable(r, bots.orEmpty(), mine)
                 if (addable.isNotEmpty()) {
-                    Text("Add one of yours", color = p.muted, style = MaterialTheme.typography.bodyMedium)
+                    Text(tr("Add one of yours"), color = p.muted, style = MaterialTheme.typography.bodyMedium)
                     addable.forEach { b ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             BotFigure(b.color, "idle", 24, b.outfit)
                             Spacer(Modifier.size(8.dp))
                             Text(b.name, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                            TextButton(enabled = !busy, onClick = { act { app.rooms.took(api().addRoomBot(roomId, b.id)) } }) { Text("Add", color = p.text) }
+                            TextButton(enabled = !busy, onClick = { act { app.rooms.took(api().addRoomBot(roomId, b.id)) } }) { Text(tr("Add"), color = p.text) }
                         }
                     }
-                } else if (bots.orEmpty().none { it.rooms?.allowRooms == true }) Hint("None of your bots may be in shared rooms yet: switch it on in a bot's settings.")
+                } else if (bots.orEmpty().none { it.rooms?.allowRooms == true }) Hint(tr("None of your bots may be in shared rooms yet: switch it on in a bot's settings."))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(enabled = !busy, onClick = { asking = "leave" }) { Text("Leave", color = p.err) }
-                if (Rooms.mayDelete(r, mine)) OutlinedButton(enabled = !busy, onClick = { asking = "delete" }) { Text("Delete", color = p.err) }
+                OutlinedButton(enabled = !busy, onClick = { asking = "leave" }) { Text(tr("Leave"), color = p.err) }
+                if (Rooms.mayDelete(r, mine)) OutlinedButton(enabled = !busy, onClick = { asking = "delete" }) { Text(tr("Delete"), color = p.err) }
             }
         }
     }

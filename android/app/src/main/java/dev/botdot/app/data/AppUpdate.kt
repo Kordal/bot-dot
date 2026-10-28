@@ -29,17 +29,17 @@ object AppUpdate {
 
     /** Download, check it's the file botdot described, and open the installer. */
     suspend fun install(context: Context, api: Api, release: AndroidRelease, onProgress: (Float) -> Unit) {
-        if (!ReleaseManifest.secureURL(api.baseUrl)) throw ApiException("Use HTTPS for a remote botdot server.")
-        val manifest = release.release ?: throw ApiException("This update has no signed release manifest.")
+        if (!ReleaseManifest.secureURL(api.baseUrl)) throw ApiException(tr("Use HTTPS for a remote botdot server."))
+        val manifest = release.release ?: throw ApiException(tr("This update has no signed release manifest."))
         manifest.verify("android", BuildConfig.VERSION_CODE.toLong())
-        if (manifest.version != release.versionCode.toLong() || manifest.sha256 != release.sha256) throw ApiException("The release does not match its signed manifest.")
+        if (manifest.version != release.versionCode.toLong() || manifest.sha256 != release.sha256) throw ApiException(tr("The release does not match its signed manifest."))
         val dir = File(context.cacheDir, "updates").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
         val file = File(dir, "bot-dot-${release.versionName ?: release.versionCode}.apk")
         api.downloadApp(file, onProgress)
         val sha = release.sha256
         if (sha256(file) != sha) {
             file.delete()
-            throw ApiException("The download was damaged. Try again.")
+            throw ApiException(tr("The download was damaged. Try again."))
         }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", file)
         context.startActivity(

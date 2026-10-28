@@ -59,16 +59,16 @@ object Pages {
 
     /** The viewer's second line on a page: "Page by Ops · updated 5m ago". */
     fun subtitle(from: String, page: PageInfo?, now: java.time.Instant = java.time.Instant.now()): String {
-        val what = if (page?.kind == "interactive") "Interactive page" else "Page"
-        return listOfNotNull(if (from.isBlank()) what else "$what by $from", page?.let { "updated ${NotesWake.ago(it.updatedAt, now)}" }).joinToString(" · ")
+        val what = if (page?.kind == "interactive") tr("Interactive page") else tr("Page")
+        return listOfNotNull(if (from.isBlank()) what else tr("{what} by {name}", "what" to what, "name" to from), page?.let { tr("updated {age}", "age" to NotesWake.ago(it.updatedAt, now)) }).joinToString(" · ")
     }
 
     /** Its line in the bot's settings: "updated 5m ago · Daily at 07:00". */
     fun line(page: PageInfo, now: java.time.Instant = java.time.Instant.now()): String =
-        listOfNotNull("updated ${NotesWake.ago(page.updatedAt, now)}", page.keep?.`when`).joinToString(" · ")
+        listOfNotNull(tr("updated {age}", "age" to NotesWake.ago(page.updatedAt, now)), page.keep?.`when`).joinToString(" · ")
 
     /** How often, on the "Keep up to date" sheet: what the server takes, and its words. */
-    val EVERY = listOf("hour" to "Every hour", "day" to "Every morning", "monday" to "Every Monday")
+    val EVERY: List<Pair<String, String>> get() = listOf("hour" to tr("Every hour"), "day" to tr("Every morning"), "monday" to tr("Every Monday"))
 
     /** A page's blocks (#395): filled in anew at `?blocks=1`. A page has them only from a server with `page-blocks`. */
     fun blocksSrc(src: String): String = DocumentView.withQuery(src, "blocks=1")
@@ -135,7 +135,7 @@ data class PageValues(val values: JsonObject? = null, val tiles: List<String> = 
 /** An interactive page in its frame (#399): what the app may and may not let through. */
 object InteractivePages {
     const val FEATURE = "interactive-pages"
-    const val ISOLATED = "Isolated: runs on its own address, cannot see your account, cannot reach the internet."
+    val ISOLATED: String get() = tr("Isolated: runs on its own address, cannot see your account, cannot reach the internet.")
 
     /** The address the page's own files are under: its frame's address up to its last /. */
     fun prefix(frame: String): String = frame.substringBeforeLast('/') + "/"

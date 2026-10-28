@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.ApiException
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 const val API_VERSION = 1
@@ -43,7 +44,7 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
     var checking by remember { mutableStateOf(false) }
 
     fun connect() {
-        val url = Api.normalize(address) ?: run { error = "That doesn't look like an address."; return }
+        val url = Api.normalize(address) ?: run { error = tr("That doesn't look like an address."); return }
         checking = true
         error = null
         scope.launch {
@@ -53,13 +54,13 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
             val failure = r.exceptionOrNull()
             error = when {
                 // Before botdot had /api/version (it answers "Unknown endpoint").
-                failure is ApiException && failure.status == 404 -> "This botdot is older than the app. Ask its admin to update it, then connect again."
+                failure is ApiException && failure.status == 404 -> tr("This botdot is older than the app. Ask its admin to update it, then connect again.")
                 failure != null -> failure.message
-                v == null || v.app != "bot-dot" -> "That address answers, but it isn't botdot."
+                v == null || v.app != "bot-dot" -> tr("That address answers, but it isn't botdot.")
                 // A front door (ADR 028): which botdot is behind it is known once signed in.
                 v.frontDoor -> null
-                v.apiVersion > API_VERSION -> "This botdot is newer than the app. Update the app."
-                v.apiVersion < API_VERSION -> "This botdot is older than the app. Ask its admin to update it."
+                v.apiVersion > API_VERSION -> tr("This botdot is newer than the app. Update the app.")
+                v.apiVersion < API_VERSION -> tr("This botdot is older than the app. Ask its admin to update it.")
                 else -> null
             }
             if (error == null) onConnected(url)
@@ -72,13 +73,13 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
     ) {
         Logo(size = 34.sp)
         Spacer(Modifier.height(8.dp))
-        Text("Your botdot's address, the one you open in the browser. The phone reaches it through Tailscale, so keep Tailscale on.",
+        Text(tr("Your botdot's address, the one you open in the browser. The phone reaches it through Tailscale, so keep Tailscale on."),
             color = p.muted, style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(
             value = address,
             onValueChange = { address = it; error = null },
-            label = { Text("Address") },
+            label = { Text(tr("Address")) },
             placeholder = { Text("my-vm.my-tailnet.ts.net") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Go, autoCorrectEnabled = false),
@@ -95,6 +96,6 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
             enabled = !checking && address.isNotBlank(),
             colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
             modifier = Modifier.fillMaxWidth().height(50.dp),
-        ) { Text(if (checking) "Connecting…" else "Connect") }
+        ) { Text(if (checking) tr("Connecting…") else tr("Connect")) }
     }
 }

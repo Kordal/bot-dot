@@ -19,16 +19,16 @@ object NotesWake {
         val at = iso?.let { runCatching { Instant.parse(it) }.getOrNull() } ?: return ""
         val s = Duration.between(at, now).seconds.coerceAtLeast(0)
         return when {
-            s < 60 -> "just now"
-            s < 3600 -> "${s / 60}m ago"
-            s < 86400 -> "${s / 3600}h ago"
-            else -> "${s / 86400}d ago"
+            s < 60 -> tr("just now")
+            s < 3600 -> tr("{n}m ago", "n" to s / 60)
+            s < 86400 -> tr("{n}h ago", "n" to s / 3600)
+            else -> tr("{n}d ago", "n" to s / 86400)
         }
     }
 
     /** The line under the notes that wait, without "Run now": "Oldest 3h ago", or empty. */
-    fun line(notes: List<InboxNote>, now: Instant = Instant.now()): String = ago(oldest(notes), now).let { if (it.isEmpty()) "" else "Oldest $it" }
+    fun line(notes: List<InboxNote>, now: Instant = Instant.now()): String = ago(oldest(notes), now).let { if (it.isEmpty()) "" else tr("Oldest {age}", "age" to it) }
 
     /** "Messaged …" for notes: read when the bot is free, not on some next run. */
-    fun messagedHow(one: Boolean): String = if (one) " · a note it reads when free" else " · a note they read when free"
+    fun messagedHow(one: Boolean): String = " · " + if (one) tr("a note it reads when free") else tr("a note they read when free")
 }

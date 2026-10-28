@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Block
 import dev.botdot.app.data.PagePart
 import dev.botdot.app.data.Pages
+import dev.botdot.app.data.tr
 
 /*
  * A bot's page with blocks (#395; the web page's pageHTML in public/blocks.js): its Markdown with the chat's own
@@ -72,7 +73,7 @@ fun PageBlock(b: Block) {
                 }
             }
         }
-        else -> Text("This block could not be drawn", color = p.faint, fontSize = 12.5.sp, fontStyle = FontStyle.Italic)
+        else -> Text(tr("This block could not be drawn"), color = p.faint, fontSize = 12.5.sp, fontStyle = FontStyle.Italic)
     }
 }
 

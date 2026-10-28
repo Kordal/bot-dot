@@ -13,7 +13,7 @@ object DocumentExport {
     const val SECTIONED_WORDS = 120
 
     /** The formats, in the order the sheet lists them: format, label, extension. */
-    val FORMATS = listOf(Triple("docx", "Word document", ".docx"), Triple("pdf", "PDF", ".pdf"), Triple("md", "Markdown", ".md"))
+    val FORMATS: List<Triple<String, String, String>> get() = listOf(Triple("docx", tr("Word document"), ".docx"), Triple("pdf", "PDF", ".pdf"), Triple("md", "Markdown", ".md"))
 
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
 
@@ -26,13 +26,13 @@ object DocumentExport {
     data class GoogleDocsStatus(val configured: Boolean = true, val connected: Boolean = false)
     fun googleDocsLabel(s: GoogleDocsStatus?): String = when {
         s == null -> ""
-        !s.configured -> "Not set up"
-        s.connected -> "connected"
-        else -> "Connect…"
+        !s.configured -> tr("Not set up")
+        s.connected -> tr("connected")
+        else -> tr("Connect…")
     }
     const val GOOGLE_DOCS_APP = "googledocs"
-    const val GOOGLE_DOCS_NOT_SET_UP = "Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Connectors page, then try again."
-    const val GOOGLE_DOCS_SIGN_IN = "Sign in to Google in the browser, then come back and tap Google Docs again to save."
+    val GOOGLE_DOCS_NOT_SET_UP: String get() = tr("Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Connectors page, then try again.")
+    val GOOGLE_DOCS_SIGN_IN: String get() = tr("Sign in to Google in the browser, then come back and tap Google Docs again to save.")
 
     /** Only a Google Doc's own address is opened from the server's answer. */
     fun isGoogleDoc(url: String): Boolean = Regex("^https://docs\\.google\\.com/document/d/[A-Za-z0-9_-]+/edit$").matches(url)
@@ -52,8 +52,8 @@ object DocumentExport {
     /** A document's title: its first heading, else the start of its first line, without Markdown's marks. */
     fun title(firstHeading: String?, text: String): String {
         val plain = { s: String -> s.replace(Regex("[*_`~]"), "").trim() }
-        if (firstHeading != null) return plain(firstHeading).ifEmpty { "Document" }
-        val first = plain(text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().replace(Regex("^#+\\s*"), "")).ifEmpty { "Document" }
+        if (firstHeading != null) return plain(firstHeading).ifEmpty { tr("Document") }
+        val first = plain(text.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().replace(Regex("^#+\\s*"), "")).ifEmpty { tr("Document") }
         return if (first.length > 80) first.take(77) + "…" else first
     }
 }

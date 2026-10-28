@@ -155,6 +155,6 @@ class FileMentions(private val find: suspend (String) -> List<FoundFile>, privat
         /** Where a found file lives, beside its name: its folder, or its place. */
         fun whereOf(ref: Mentions.FileRef): String = ref.path.substringBeforeLast('/', "").substringAfterLast('/').ifEmpty { placeName(ref.root, ref.project) }
 
-        fun placeName(root: String, project: String?) = when (root) { "server" -> "On botdot"; "computer" -> "Computer"; else -> project.orEmpty() }
+        fun placeName(root: String, project: String?) = when (root) { "server" -> tr("On botdot"); "computer" -> tr("Computer"); else -> project.orEmpty() }
     }
 }

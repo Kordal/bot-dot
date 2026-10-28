@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Bot
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /**
@@ -107,7 +108,7 @@ fun BotPicker(title: String, bots: List<Bot>, max: Int, action: String, hint: (I
         title = { Text(title, style = MaterialTheme.typography.titleMedium, color = p.text) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (name != null) OutlinedTextField(named, { named = it.take(60) }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (name != null) OutlinedTextField(named, { named = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
                     bots.forEach { b ->
                         val on = b.id in picked
@@ -133,11 +134,11 @@ fun BotPicker(title: String, bots: List<Bot>, max: Int, action: String, hint: (I
                 saving = true
                 refused = null
                 scope.launch {
-                    runCatching { done(picked, named) }.onSuccess { onDismiss() }.onError { refused = it.message ?: "That didn't work" }
+                    runCatching { done(picked, named) }.onSuccess { onDismiss() }.onError { refused = it.message ?: tr("That didn't work") }
                     saving = false
                 }
             }) { Text(action, color = if (picked.isNotEmpty() && !saving) p.text else p.faint) }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text("Cancel", color = p.text) } },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text(tr("Cancel"), color = p.text) } },
     )
 }

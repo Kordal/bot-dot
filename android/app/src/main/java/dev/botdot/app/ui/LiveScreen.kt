@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ComputerInfo
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /**
@@ -73,7 +74,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         scope.launch {
             runCatching { if (all) a.resetAccountComputer() else a.resetComputer(botId) }
                 .onSuccess { state = "reset"; describe() }
-                .onError { state = before; snack.showSnackbar(it.message ?: "Couldn't reset") }
+                .onError { state = before; snack.showSnackbar(it.message ?: tr("Couldn't reset")) }
         }
     }
 
@@ -88,7 +89,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     r.error?.let { snack.showSnackbar(it) }
                     describe()
                 }
-                .onError { state = "running"; snack.showSnackbar(it.message ?: "Couldn't update") }
+                .onError { state = "running"; snack.showSnackbar(it.message ?: tr("Couldn't update")) }
         }
     }
 
@@ -96,8 +97,8 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         val a = api ?: return
         scope.launch {
             runCatching { a.copyOldComputer(botId) }
-                .onSuccess { snack.showSnackbar("Copied into ${it.copied}") }
-                .onError { snack.showSnackbar(it.message ?: "Couldn't copy its files") }
+                .onSuccess { snack.showSnackbar(tr("Copied into {place}", "place" to it.copied)) }
+                .onError { snack.showSnackbar(it.message ?: tr("Couldn't copy its files")) }
         }
     }
 
@@ -106,7 +107,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         scope.launch {
             runCatching { a.resetComputer(botId) }
                 .onSuccess { describe() }
-                .onError { snack.showSnackbar(it.message ?: "Couldn't erase it") }
+                .onError { snack.showSnackbar(it.message ?: tr("Couldn't erase it")) }
         }
     }
 
@@ -136,13 +137,13 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         containerColor = Color.Black,
         topBar = {
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
-                title = { Text(botName.ifBlank { "Its screen" }, style = MaterialTheme.typography.titleMedium) },
+                title = { Text(botName.ifBlank { tr("Its screen") }, style = MaterialTheme.typography.titleMedium) },
                 actions = {
                     if (state == "running") TextButton(onClick = { control = !control }) {
-                        Text(if (control) "Stop controlling" else "Take control", color = if (control) p.err else p.text)
+                        Text(if (control) tr("Stop controlling") else tr("Take control"), color = if (control) p.err else p.text)
                     }
-                    info?.update?.let { u -> if (state == "running") TextButton(onClick = { askUpdate = true }) { Text(u.yes.ifBlank { "Update" }, color = p.text) } }
-                    if (state == "running" || state == "error") TextButton(onClick = { askReset = true }) { Text("Reset", color = p.err) }
+                    info?.update?.let { u -> if (state == "running") TextButton(onClick = { askUpdate = true }) { Text(u.yes.ifBlank { tr("Update") }, color = p.text) } }
+                    if (state == "running" || state == "error") TextButton(onClick = { askReset = true }) { Text(tr("Reset"), color = p.err) }
                 })
         },
         snackbarHost = { SnackbarHost(snack) },
@@ -153,8 +154,8 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                 Column(Modifier.fillMaxWidth().background(p.sunk).padding(horizontal = 16.dp, vertical = 10.dp)) {
                     Text(old.text, color = p.text, fontSize = 13.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { copyOld() }) { Text(old.copy.ifBlank { "Copy its files" }, color = p.text) }
-                        TextButton(onClick = { askErase = true }) { Text(old.erase.ifBlank { "Erase it" }, color = p.err) }
+                        TextButton(onClick = { copyOld() }) { Text(old.copy.ifBlank { tr("Copy its files") }, color = p.text) }
+                        TextButton(onClick = { askErase = true }) { Text(old.erase.ifBlank { tr("Erase it") }, color = p.err) }
                     }
                 }
             }
@@ -190,17 +191,17 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     }
                     "off" -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
                         Text(info?.screenOff?.text.orEmpty(), color = Color.White)
-                        TextButton(onClick = { startScreen() }) { Text(info?.screenOff?.start?.ifBlank { null } ?: "Start its screen", color = Color.White) }
+                        TextButton(onClick = { startScreen() }) { Text(info?.screenOff?.start?.ifBlank { null } ?: tr("Start its screen"), color = Color.White) }
                     }
-                    "error" -> Text(error ?: "Couldn't start its computer.", color = Color.White, modifier = Modifier.padding(24.dp))
+                    "error" -> Text(error ?: tr("Couldn't start its computer."), color = Color.White, modifier = Modifier.padding(24.dp))
                     "reset" -> Text(
-                        if (info?.resetsAll == true) "The account's computer was erased. The next computer tool of any bot starts it again, fresh."
-                        else "Its computer was erased. The next run starts from a fresh desktop.",
+                        if (info?.resetsAll == true) tr("The account's computer was erased. The next computer tool of any bot starts it again, fresh.")
+                        else tr("Its computer was erased. The next run starts from a fresh desktop."),
                         color = Color.White, modifier = Modifier.padding(24.dp),
                     )
                     else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = Color.White)
-                        Text(when (state) { "starting" -> "Starting its computer…"; "resetting" -> "Resetting…"; "updating" -> "Updating…"; else -> "" }, color = Color.White, modifier = Modifier.padding(top = 12.dp))
+                        Text(when (state) { "starting" -> tr("Starting its computer…"); "resetting" -> tr("Resetting…"); "updating" -> tr("Updating…"); else -> "" }, color = Color.White, modifier = Modifier.padding(top = 12.dp))
                     }
                 }
             }
@@ -226,24 +227,24 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
             onDismissRequest = { askReset = false },
             title = { Text(words.title) },
             text = { Text(words.text) },
-            confirmButton = { TextButton(onClick = { askReset = false; reset() }) { Text(words.yes.ifBlank { "Reset" }, color = p.err) } },
-            dismissButton = { TextButton(onClick = { askReset = false }) { Text("Keep", color = p.text) } },
+            confirmButton = { TextButton(onClick = { askReset = false; reset() }) { Text(words.yes.ifBlank { tr("Reset") }, color = p.err) } },
+            dismissButton = { TextButton(onClick = { askReset = false }) { Text(tr("Keep"), color = p.text) } },
         )
     }
     info?.update?.let { u ->
         if (askUpdate) AlertDialog(
             onDismissRequest = { askUpdate = false },
             text = { Text(u.text) },
-            confirmButton = { TextButton(onClick = { askUpdate = false; update() }) { Text(u.yes.ifBlank { "Update" }, color = p.text) } },
-            dismissButton = { TextButton(onClick = { askUpdate = false }) { Text("Not now", color = p.text) } },
+            confirmButton = { TextButton(onClick = { askUpdate = false; update() }) { Text(u.yes.ifBlank { tr("Update") }, color = p.text) } },
+            dismissButton = { TextButton(onClick = { askUpdate = false }) { Text(tr("Not now"), color = p.text) } },
         )
     }
     info?.old?.let { old ->
         if (askErase) AlertDialog(
             onDismissRequest = { askErase = false },
             text = { Text(old.confirm) },
-            confirmButton = { TextButton(onClick = { askErase = false; eraseOld() }) { Text(old.erase.ifBlank { "Erase it" }, color = p.err) } },
-            dismissButton = { TextButton(onClick = { askErase = false }) { Text("Keep", color = p.text) } },
+            confirmButton = { TextButton(onClick = { askErase = false; eraseOld() }) { Text(old.erase.ifBlank { tr("Erase it") }, color = p.err) } },
+            dismissButton = { TextButton(onClick = { askErase = false }) { Text(tr("Keep"), color = p.text) } },
         )
     }
 }

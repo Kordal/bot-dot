@@ -27,16 +27,16 @@ object FilesExplorer {
         listOf(WorkspaceFiles.SERVER) + if (computer == "linux") listOf(WorkspaceFiles.COMPUTER) + Projects.of(botId, projects).map { WorkspaceFiles.projectRoot(it.name) } else emptyList()
 
     fun placeName(root: String): String = when (root) {
-        WorkspaceFiles.SERVER -> "On botdot"
-        WorkspaceFiles.COMPUTER -> "Computer"
-        KEPT -> "Kept in mind"
+        WorkspaceFiles.SERVER -> tr("On botdot")
+        WorkspaceFiles.COMPUTER -> tr("Computer")
+        KEPT -> tr("Kept in mind")
         else -> WorkspaceFiles.projectOf(root) ?: root
     }
 
     /** The root a place's files are asked of: what is kept in mind is on botdot. */
     fun rootOf(place: String): String = if (place == KEPT) WorkspaceFiles.SERVER else place
 
-    enum class Sort(val label: String) { NAME("Name"), DATE("Date"), SIZE("Size") }
+    enum class Sort { NAME, DATE, SIZE; val label: String get() = when (this) { NAME -> tr("Name"); DATE -> tr("Date"); SIZE -> tr("Size") } }
 
     /**
      * The entries as shown: folders first, then the rest by name, newest first or largest first (a folder by how many
@@ -92,7 +92,7 @@ object FilesExplorer {
 
     /** A folder's size is how many entries it holds; a file's, its bytes. */
     fun sizeOf(e: WorkspaceEntry): String = when (e.type) {
-        "folder" -> e.items?.let { "${String.format(Locale.ROOT, "%,d", it)} item${if (it == 1) "" else "s"}" }.orEmpty()
+        "folder" -> e.items?.let { trn(it, "{n} item", "{n} items") }.orEmpty()
         "file" -> UploadedFiles.size(e.size ?: 0)
         else -> ""
     }
@@ -104,10 +104,10 @@ object FilesExplorer {
             val t = Instant.parse(iso).atZone(zone)
             val day = t.toLocalDate()
             when {
-                day == today -> t.format(DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH))
-                day == today.minusDays(1) -> "Yesterday"
-                day.year == today.year -> t.format(DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH))
-                else -> t.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH))
+                day == today -> t.format(DateTimeFormatter.ofPattern("HH:mm", I18n.locale))
+                day == today.minusDays(1) -> tr("Yesterday")
+                day.year == today.year -> t.format(DateTimeFormatter.ofPattern("d MMM", I18n.locale))
+                else -> t.format(DateTimeFormatter.ofPattern("d MMM yyyy", I18n.locale))
             }
         }.getOrDefault("")
     }
@@ -153,11 +153,14 @@ object FilesExplorer {
     fun crumbs(path: String, top: String): List<Pair<String, String>> = WorkspaceFiles.crumbs(path, top)
 
     /** What a finished move or copy says: "Moved 2 items to Website / data". */
-    fun carriedWords(move: Boolean, names: List<String>, to: String, folder: String): String =
-        "${if (move) "Moved" else "Copied"} ${if (names.size == 1) names[0] else "${names.size} items"} to ${listOf(placeName(to), folder.substringAfterLast('/')).filter { it.isNotEmpty() }.joinToString(" / ")}"
+    fun carriedWords(move: Boolean, names: List<String>, to: String, folder: String): String {
+        val what = if (names.size == 1) names[0] else trn(names.size, "{n} item", "{n} items")
+        val place = listOf(placeName(to), folder.substringAfterLast('/')).filter { it.isNotEmpty() }.joinToString(" / ")
+        return if (move) tr("Moved {what} to {place}", "what" to what, "place" to place) else tr("Copied {what} to {place}", "what" to what, "place" to place)
+    }
 
     /** The confirmation of a delete of several: folders go with what they hold. */
-    fun deleteManyWords(n: Int): String = "Delete $n items? Folders go with what they hold. This can't be undone."
+    fun deleteManyWords(n: Int): String = trn(n, "Delete {n} item? Folders go with what they hold. This can't be undone.", "Delete {n} items? Folders go with what they hold. This can't be undone.")
 
     /** A search hit's place as a root string: "server", "computer" or "project/<name>". */
     fun placeOf(hit: FoundFile): String = if (hit.root == Projects.ROOT && hit.project != null) WorkspaceFiles.projectRoot(hit.project) else hit.root

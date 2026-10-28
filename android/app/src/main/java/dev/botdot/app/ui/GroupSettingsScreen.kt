@@ -49,6 +49,7 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.GROUP_MAX
 import dev.botdot.app.data.Group
 import dev.botdot.app.data.Groups
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -80,7 +81,7 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
 
     // A change to the group, saved at once; the list is read again either way.
     fun change(g: Group, body: JsonObject) = scope.launch {
-        runCatching { (app.api.value ?: error("Not connected to botdot")).updateGroup(g.id, body) }.onError { tell(it.message ?: "Couldn't save") }
+        runCatching { (app.api.value ?: error(tr("Not connected to botdot"))).updateGroup(g.id, body) }.onError { tell(it.message ?: tr("Couldn't save")) }
         app.store.groups.refresh()
     }
 
@@ -117,51 +118,51 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                     }
                 }
             }
-            OutlinedTextField(name, { name = it.take(60) }, label = { Text("Name") }, singleLine = true,
+            OutlinedTextField(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
                 modifier = Modifier.fillMaxWidth().onFocusChanged { if (focused && !it.isFocused) saveName(); focused = it.isFocused })
-            Section("Members") {
-                if (members.isEmpty()) Hint("Its bots are all gone. Add one, or delete the group.")
+            Section(tr("Members")) {
+                if (members.isEmpty()) Hint(tr("Its bots are all gone. Add one, or delete the group."))
                 members.forEach { b ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         BotFigure(b.color, b.state, 32, b.outfit)
                         Spacer(Modifier.size(10.dp))
                         Text(b.name, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         IconButton(onClick = { change(g, app.api.value?.membersOf(g.members - b.id) ?: return@IconButton) }) {
-                            Icon(Icons.Filled.Close, contentDescription = "Take ${b.name} out of the group", tint = p.muted, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Close, contentDescription = tr("Take {name} out of the group", "name" to b.name), tint = p.muted, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
                 // Nothing to add: the group is full, or every bot is in it.
-                if (Groups.addable(g, bots).isNotEmpty()) OutlinedButton(onClick = { adding = true }) { Text("＋ Add a bot", color = p.text) }
+                if (Groups.addable(g, bots).isNotEmpty()) OutlinedButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
             }
-            OutlinedButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text("Delete this group", color = p.err) }
+            OutlinedButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete this group"), color = p.err) }
         }
     }
 
     val g = group
     if (adding && g != null) BotPicker(
-        title = "Add a bot", bots = Groups.addable(g, bots).sortedBy { it.name.lowercase() }, max = GROUP_MAX - g.members.size, action = "Add",
+        title = tr("Add a bot"), bots = Groups.addable(g, bots).sortedBy { it.name.lowercase() }, max = GROUP_MAX - g.members.size, action = tr("Add"),
         hint = { n -> addHint(n, g.members.size, g.name) }, onDismiss = { adding = false },
     ) { picked, _ ->
-        val a = app.api.value ?: error("Not connected to botdot")
+        val a = app.api.value ?: error(tr("Not connected to botdot"))
         a.updateGroup(g.id, a.membersOf(g.members + picked))
         app.store.groups.refresh()
     }
     if (askDelete && g != null) AlertDialog(
         onDismissRequest = { askDelete = false },
-        title = { Text("Delete the group ${g.name}?") },
-        text = { Text("Its chat is erased. No bot is deleted: each keeps its own chat.") },
+        title = { Text(tr("Delete the group {name}?", "name" to g.name)) },
+        text = { Text(tr("Its chat is erased. No bot is deleted: each keeps its own chat.")) },
         confirmButton = {
             TextButton(onClick = {
                 askDelete = false
                 scope.launch {
-                    runCatching { (app.api.value ?: error("Not connected to botdot")).deleteGroup(g.id) }
+                    runCatching { (app.api.value ?: error(tr("Not connected to botdot"))).deleteGroup(g.id) }
                         .onSuccess { app.store.groups.update { all -> all.filterNot { it.id == g.id } }; onDeleted(); app.store.groups.refresh() }
-                        .onError { tell(it.message ?: "Couldn't delete") }
+                        .onError { tell(it.message ?: tr("Couldn't delete")) }
                 }
-            }) { Text("Delete", color = p.err) }
+            }) { Text(tr("Delete"), color = p.err) }
         },
-        dismissButton = { TextButton(onClick = { askDelete = false }) { Text("Keep", color = p.text) } },
+        dismissButton = { TextButton(onClick = { askDelete = false }) { Text(tr("Keep"), color = p.text) } },
     )
 }

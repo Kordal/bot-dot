@@ -65,6 +65,7 @@ import dev.botdot.app.data.Handoff
 import dev.botdot.app.data.UploadedFiles
 import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.groupOfChat
+import dev.botdot.app.data.tr
 import dev.botdot.app.feed.FeedService
 import dev.botdot.app.feed.Notifier
 import dev.botdot.app.ui.BoatScreen
@@ -165,7 +166,7 @@ class MainActivity : ComponentActivity() {
                         t.startsWith(BotFiles.PREFIX) -> app.api.value?.let { api ->
                             scope.launch {
                                 runCatching { BotFiles.open(this@MainActivity, api, t.removePrefix(BotFiles.PREFIX)) }
-                                    .onFailure { android.widget.Toast.makeText(this@MainActivity, it.message ?: "Couldn't open the file", android.widget.Toast.LENGTH_LONG).show() }
+                                    .onFailure { android.widget.Toast.makeText(this@MainActivity, it.message ?: tr("Couldn't open the file"), android.widget.Toast.LENGTH_LONG).show() }
                             }
                         }
                     }

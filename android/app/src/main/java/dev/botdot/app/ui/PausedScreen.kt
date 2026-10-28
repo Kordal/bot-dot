@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -49,7 +50,7 @@ fun PausedScreen(app: BotDotApp) {
     Column(Modifier.fillMaxSize().systemBarsPadding().padding(24.dp), verticalArrangement = Arrangement.Center) {
         Logo(size = 34.sp)
         Spacer(Modifier.height(8.dp))
-        Text("Your account is paused by the admin.", color = p.muted, style = MaterialTheme.typography.bodyLarge)
+        Text(tr("Your account is paused by the admin."), color = p.muted, style = MaterialTheme.typography.bodyLarge)
         said?.let {
             Spacer(Modifier.height(10.dp))
             Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium)
@@ -59,13 +60,13 @@ fun PausedScreen(app: BotDotApp) {
             onClick = {
                 busy = true; said = null
                 scope.launch {
-                    runCatching { api!!.signOut() }.onError { said = it.message ?: "Couldn't sign out" }
+                    runCatching { api!!.signOut() }.onError { said = it.message ?: tr("Couldn't sign out") }
                     busy = false
                 }
             },
             enabled = !busy && api != null,
             colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
             modifier = Modifier.fillMaxWidth().height(50.dp),
-        ) { Text("Use another account") }
+        ) { Text(tr("Use another account")) }
     }
 }

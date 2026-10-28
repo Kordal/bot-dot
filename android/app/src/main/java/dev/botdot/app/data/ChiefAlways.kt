@@ -12,13 +12,13 @@ import kotlinx.serialization.json.contentOrNull
  */
 data class ChiefGrant(val kind: Kind, val id: String, val label: String) {
     enum class Kind(val feature: String, val path: String, val key: String, val hint: String) {
-        APP("chief-connectors", "/chief/connector-actions", "action", "In a connected app, with any details."),
-        WEB("more-always", "/chief/after-web", "type", "Also after it read the web in a chat."),
+        APP("chief-connectors", "/chief/connector-actions", "action", tr("In a connected app, with any details.")),
+        WEB("more-always", "/chief/after-web", "type", tr("Also after it read the web in a chat.")),
     }
 
     companion object {
-        const val TITLE = "Always approved"
-        const val REVOKED = "Revoked: it asks you again"
+        val TITLE: String get() = tr("Always approved")
+        val REVOKED: String get() = tr("Revoked: it asks you again")
 
         /** The kinds this server has: each only when `features` announces it. None while the features are not known. */
         fun kinds(features: Collection<String>?): List<Kind> = Kind.entries.filter { features != null && it.feature in features }

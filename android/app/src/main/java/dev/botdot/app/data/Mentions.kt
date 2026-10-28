@@ -222,7 +222,7 @@ object Mentions {
             }.orEmpty()
         } else {
             val taken = bots.map { shortName(it.name).lowercase() }.toMutableSet()
-            val all = if (w.all && typed.substring(0, m.range.first).isBlank() && has(ALL, q)) listOf(Row(Kind.ALL, "@$ALL", "all: every member at once")) else emptyList()
+            val all = if (w.all && typed.substring(0, m.range.first).isBlank() && has(ALL, q)) listOf(Row(Kind.ALL, "@$ALL", tr("all: every member at once"))) else emptyList()
             // A page's flat name, or "@Bot/Title" when a bot or an earlier page has it (and its bot can be mentioned).
             val pageRows = w.pagesInScope.filter { has(shortName(it.title), q) }.mapNotNull { p ->
                 val short = shortName(p.title)

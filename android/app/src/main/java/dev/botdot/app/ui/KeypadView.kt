@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.Dp
 import dev.botdot.app.data.FigureDef
 import androidx.navigation.NavController
 import dev.botdot.app.data.Bot
+import dev.botdot.app.data.tr
 import kotlinx.serialization.json.JsonElement
 
 // The keypad drawn (#496, quiet keys #636): every page one under the other (#516). A key is a head and a name, with
@@ -244,7 +245,7 @@ private fun folds(page: Keypad.Page, onFold: ((Keypad.Page) -> Unit)?) = onFold 
 /** A category's heading taps to fold or open its page (#171), as the list's does; Pinned's does not. */
 private fun Modifier.folding(page: Keypad.Page, folded: Boolean, onFold: ((Keypad.Page) -> Unit)?): Modifier =
     if (!folds(page, onFold)) this
-    else clickable(onClickLabel = if (folded) "Show this category" else "Hide this category") { onFold?.invoke(page) }
+    else clickable(onClickLabel = if (folded) tr("Show this category") else tr("Hide this category")) { onFold?.invoke(page) }
 
 /** The tag of the keypad's pages, which scroll (KeypadUiTest). */
 internal const val KEYPAD_PAGES = "keypad-pages"
@@ -346,7 +347,7 @@ private fun AskKey(onAsk: () -> Unit, modifier: Modifier = Modifier, aimed: Bool
             drawCircle(if (aimed) p.text else p.line2, style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))))
         }, contentAlignment = Alignment.Center) { Text("+", color = p.faint, fontSize = 20.sp) }
         Spacer(Modifier.height(6.dp))
-        Text(ASK_FOR_A_BOT, color = p.faint, fontSize = 12.5.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+        Text(tr("Ask the Chief for a bot"), color = p.faint, fontSize = 12.5.sp, lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
 }
 

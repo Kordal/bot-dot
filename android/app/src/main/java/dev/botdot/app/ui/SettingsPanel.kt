@@ -7,6 +7,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.saveable.Saver
+import dev.botdot.app.data.tr
 
 /**
  * The settings panel: a bot's settings, its jobs or the Chief's settings, open for one chat. With room it stands
@@ -82,5 +83,5 @@ val LocalPanelClose = compositionLocalOf<(() -> Unit)?> { null }
 @Composable
 fun PanelClose() {
     val close = LocalPanelClose.current ?: return
-    IconButton(onClick = close) { Icon(Icons.Filled.Close, contentDescription = "Close") }
+    IconButton(onClick = close) { Icon(Icons.Filled.Close, contentDescription = tr("Close")) }
 }

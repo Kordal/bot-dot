@@ -96,7 +96,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     /** Whether Claude is signed out, as the feed says: no bot can work until the owner signs in. */
     val claude = ClaudeState()
 
-    private val _chiefName = MutableStateFlow(ChiefName.ROLE)
+    private val _chiefName = MutableStateFlow(ChiefName.role)
     /** The Chief's name (ChiefName): from the Chief's list, and at once from the feed's `chief_name`. */
     val chiefName: StateFlow<String> = _chiefName.asStateFlow()
 
@@ -155,7 +155,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         // The botdot is known (right after the app starts) or another one was chosen: what's looked at loads (again).
         scope.launch {
             var had: String? = null
-            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); _chiefName.value = ChiefName.ROLE; turnLines.clear(); cardGroups.clear(); answeredAway.clear(); pageSaves.clear(); parts.forEach { it.clear() }; had = a?.baseUrl } }
+            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); _chiefName.value = ChiefName.role; turnLines.clear(); cardGroups.clear(); answeredAway.clear(); pageSaves.clear(); parts.forEach { it.clear() }; had = a?.baseUrl } }
         }
     }
 
@@ -327,38 +327,38 @@ fun waitingOf(bots: List<Bot>, chief: ChiefOverview?, needs: Needs?, dash: Dashb
     val nameOf = { id: String?, fallback: String -> byId[id]?.name ?: fallback }
     return buildList {
         needs?.requests?.forEach { r ->
-            val who = r.bot?.name ?: if (r.from == "chief") "The Chief" else "A bot"
-            add(about(r.bot, if (r.kind == "card") "$who wants to pay on ${r.site}" else "$who needs a login for ${r.site}"))
+            val who = r.bot?.name ?: if (r.from == "chief") tr("The Chief") else tr("A bot")
+            add(about(r.bot, if (r.kind == "card") tr("{who} wants to pay on {site}", "who" to who, "site" to r.site) else tr("{who} needs a login for {site}", "who" to who, "site" to r.site)))
         }
-        if (needs?.bitwardenLocked == true) add(about(needs.bitwarden?.wantedBy, "Bitwarden is locked"))
+        if (needs?.bitwardenLocked == true) add(about(needs.bitwarden?.wantedBy, tr("Bitwarden is locked")))
         bots.forEach { b -> b.jobs.filter { it.waits }.forEach { j -> add(Waiting(b.color ?: NO_COLOR, "${b.name}: ${jobWaits(j)}", b.outfit, b.id)) } }
         // A guarded change is not one to the shared memory: its line is the server's title ("Forget for good").
         needs?.memory?.forEach { m ->
-            val who = nameOf(m.botId, m.bot?.name ?: "A bot")
+            val who = nameOf(m.botId, m.bot?.name ?: tr("A bot"))
             val title = m.titleValue.textOrNull().takeIf { m.guarded }
-            add(about(m.bot ?: byId[m.botId]?.let { BotRef(it.id) }, if (title != null) "$who: $title" else "$who wants to change the shared memory"))
+            add(about(m.bot ?: byId[m.botId]?.let { BotRef(it.id) }, if (title != null) "$who: $title" else tr("{who} wants to change the shared memory", "who" to who)))
         }
-        chief?.chats?.forEach { c -> c.waiting?.let { w -> add(about(w.from, "${w.from.name} sent the Chief a plan: ${c.title}")) } }
+        chief?.chats?.forEach { c -> c.waiting?.let { w -> add(about(w.from, tr("{name} sent the Chief a plan: {title}", "name" to w.from.name, "title" to c.title))) } }
         needs?.asks?.forEach { a ->
-            val who = a.bot?.name ?: "The Chief"
+            val who = a.bot?.name ?: tr("The Chief")
             if (a.kind == "permission") {
-                add(about(a.bot, "$who asks to ${a.what?.label ?: a.permission}").copy(permission = a.id))
+                add(about(a.bot, tr("{who} asks to {what}", "who" to who, "what" to (a.what?.label ?: a.permission))).copy(permission = a.id))
                 return@forEach
             }
             add(about(a.bot, when {
                 // A tool: what its notification says under the bot's name ("Asks to install gh"), as one line. The
                 // words are made here, because `GET /api/asks` has no such line; without the tool's name, the title.
-                ToolCard.isTool(a) -> ToolCard.name(a).let { tool -> if (tool.isNotEmpty()) "$who asks to install $tool" else if (a.title.isNotBlank()) "$who: ${a.title}" else "$who asks to install a tool" }
+                ToolCard.isTool(a) -> ToolCard.name(a).let { tool -> if (tool.isNotEmpty()) tr("{who} asks to install {tool}", "who" to who, "tool" to tool) else if (a.title.isNotBlank()) "$who: ${a.title}" else tr("{who} asks to install a tool", "who" to who) }
                 a.title.isNotBlank() -> "$who: ${a.title}"
                 a.written && a.line.isNotBlank() -> "$who: ${a.line}" // a skill it wrote: the server's line, nothing is installed
-                else -> "$who asks to install the skill ${a.skill?.name ?: ""}".trim()
+                else -> tr("{who} asks to install the skill {name}", "who" to who, "name" to (a.skill?.name ?: "")).trim()
             }))
         }
         dash?.waiting?.forEach { t ->
-            add(about(byId[t.bot]?.let { BotRef(it.id) }, "${nameOf(t.bot, "The Chief")}: ${if (t.approved && t.change != null) "a change to " else ""}“${t.title}” on the Board waits for your OK"))
+            add(about(byId[t.bot]?.let { BotRef(it.id) }, nameOf(t.bot, tr("The Chief")) + ": " + if (t.approved && t.change != null) tr("a change to “{title}” on the Board waits for your OK", "title" to t.title) else tr("“{title}” on the Board waits for your OK", "title" to t.title)))
         }
     }
 }
 
 /** What waits on a job, in a few words: the job itself, before its first OK, or a change beside the approved one. */
-fun jobWaits(j: Job): String = if (j.approved && j.change != null) "a change to a job waits for your OK" else "a job waits for your OK"
+fun jobWaits(j: Job): String = if (j.approved && j.change != null) tr("a change to a job waits for your OK") else tr("a job waits for your OK")

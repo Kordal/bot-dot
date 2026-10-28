@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Feedback
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -84,7 +85,7 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
             val added = mutableListOf<String>()
             val before = shots
             for (uri in uris) {
-                if (before.size + added.size >= Feedback.SHOTS_MAX) { refused += "At most ${Feedback.SHOTS_MAX} screenshots go in one report."; break }
+                if (before.size + added.size >= Feedback.SHOTS_MAX) { refused += tr("At most {max} screenshots go in one report.", "max" to Feedback.SHOTS_MAX); break }
                 val (name, bytes) = withContext(Dispatchers.IO) { readShot(context, uri) }
                 val no = Feedback.refusal(name, bytes)
                 if (no == null && bytes != null) { added += uri.toString(); ready[uri.toString()] = bytes } else refused += no.orEmpty()
@@ -96,11 +97,11 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
     }
     AlertDialog(
         onDismissRequest = { if (!sending) onClose() },
-        title = { Text("Feedback") },
+        title = { Text(tr("Feedback")) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (shotsOn) "The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent."
-                     else "The admin of this machine reads it. Only what you write here is sent.")
+                Text(if (shotsOn) tr("The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.")
+                     else tr("The admin of this machine reads it. Only what you write here is sent."))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     for (k in Feedback.Kind.entries) Row(
                         Modifier.selectable(selected = kind == k, role = Role.RadioButton) { kind = k },
@@ -110,23 +111,23 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
                         Text(k.label)
                     }
                 }
-                OutlinedTextField(text, { text = it; error = null }, placeholder = { Text("What happened, or what you would like") },
+                OutlinedTextField(text, { text = it; error = null }, placeholder = { Text(tr("What happened, or what you would like")) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp))
                 if (shotsOn) {
                     if (shots.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         shots.forEachIndexed { i, uri ->
                             val shape = RoundedCornerShape(8.dp)
                             Box(Modifier.size(72.dp, 56.dp).clip(shape).border(1.dp, p.line2, shape)) {
-                                coil3.compose.AsyncImage(model = uri, contentDescription = "Screenshot ${i + 1}", modifier = Modifier.size(72.dp, 56.dp), contentScale = ContentScale.Crop)
+                                coil3.compose.AsyncImage(model = uri, contentDescription = tr("Screenshot {n}", "n" to i + 1), modifier = Modifier.size(72.dp, 56.dp), contentScale = ContentScale.Crop)
                                 IconButton(onClick = { picked = shots.filterIndexed { j, _ -> j != i }.joinToString("\n"); ready.remove(uri); error = null },
                                     enabled = !sending && !reading, modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(22.dp).background(Color.Black.copy(alpha = 0.65f), CircleShape)) {
-                                    Icon(Icons.Filled.Close, contentDescription = "Remove screenshot ${i + 1}", tint = Color.White, modifier = Modifier.size(14.dp))
+                                    Icon(Icons.Filled.Close, contentDescription = tr("Remove screenshot {n}", "n" to i + 1), tint = Color.White, modifier = Modifier.size(14.dp))
                                 }
                             }
                         }
                     }
                     TextButton(enabled = !sending && !reading && shots.size < Feedback.SHOTS_MAX, onClick = { pick.launch(arrayOf("image/png", "image/jpeg", "image/webp")) }) {
-                        Text("Add screenshot", color = p.text)
+                        Text(tr("Add screenshot"), color = p.text)
                     }
                 }
                 error?.let { Text(it, color = p.err) }
@@ -141,13 +142,13 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
                         read.firstNotNullOfOrNull { (name, bytes) -> Feedback.refusal(name, bytes) }?.let { throw Refused(it) }
                         send(kind, text, read.map { it.second!! })
                     }
-                        .onSuccess { Toast.makeText(context, "Sent", Toast.LENGTH_SHORT).show(); onClose() }
+                        .onSuccess { Toast.makeText(context, tr("Sent"), Toast.LENGTH_SHORT).show(); onClose() }
                         .onError { error = if (it is Refused) it.message else Feedback.failed(it, shots.size) }
                     sending = false
                 }
-            }) { Text("Send", color = p.text) }
+            }) { Text(tr("Send"), color = p.text) }
         },
-        dismissButton = { TextButton(onClick = onClose, enabled = !sending) { Text("Cancel", color = p.text) } },
+        dismissButton = { TextButton(onClick = onClose, enabled = !sending) { Text(tr("Cancel"), color = p.text) } },
     )
 }
 
@@ -167,7 +168,7 @@ private fun readShot(context: Context, uri: Uri): Pair<String, ByteArray?> {
     val resolver = context.contentResolver
     val name = runCatching {
         resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-    }.getOrNull() ?: "That file"
+    }.getOrNull() ?: tr("That file")
     val bytes = runCatching { resolver.openInputStream(uri)?.use { atMost(it, SHOT_READ_MAX + 1) } }.getOrNull() ?: return name to null
     if (bytes.size <= Feedback.SHOT_BYTES || Feedback.pictureType(bytes) == null) return name to bytes
     val smaller = runCatching {

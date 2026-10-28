@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.DocumentExport
+import dev.botdot.app.data.tr
 
 /** Whether a reply is a document (#348): the rule the web page shares (test/fixtures/document-cases.json). */
 internal fun isDocument(text: String): Boolean {
@@ -47,6 +48,6 @@ fun OpenAsDocument(text: String?, from: String) {
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("Open as document  ↗", color = p.text, fontSize = 13.sp)
+        Text(tr("Open as document") + "  ↗", color = p.text, fontSize = 13.sp)
     }
 }

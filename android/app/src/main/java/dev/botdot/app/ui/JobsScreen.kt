@@ -40,6 +40,7 @@ import dev.botdot.app.data.Job
 import dev.botdot.app.data.JobLast
 import dev.botdot.app.data.RunNow
 import dev.botdot.app.data.str
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /** A bot's scheduled jobs: pause or resume each one, run it now, or approve one that waits for your OK. */
@@ -65,13 +66,13 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
-                title = { Text("Scheduled jobs", style = MaterialTheme.typography.titleMedium) }, actions = { PanelClose() })
+                title = { Text(tr("Scheduled jobs"), style = MaterialTheme.typography.titleMedium) }, actions = { PanelClose() })
         },
     ) { pad ->
         val jobs = bot?.jobs.orEmpty()
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (bot != null && jobs.isEmpty()) item {
-                Text("${bot.name} has no scheduled jobs. Ask it, or the Chief, for one: \"check the news every morning at 8\".", color = p.muted, modifier = Modifier.padding(8.dp))
+                Text(tr("{name} has no scheduled jobs. Ask it, or the Chief, for one: \"check the news every morning at 8\".", "name" to bot.name), color = p.muted, modifier = Modifier.padding(8.dp))
             }
             items(jobs, key = { it.id }) { j ->
                 JobRow(j,
@@ -81,14 +82,14 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
                             app.store.bots.update { list -> list.map { b -> if (b.id != botId) b else b.copy(jobs = b.jobs.map { if (it.id == j.id) it.copy(enabled = on, nextRunAt = if (on) it.nextRunAt else null) else it }) } }
                             val r = runCatching { api!!.setJobEnabled(botId, j.id, on) }
                             load()
-                            tell(r.fold({ if (on) "Resumed" else "Paused. It won't run until you turn it back on." }, { it.message ?: "Couldn't change it" }))
+                            tell(r.fold({ if (on) tr("Resumed") else tr("Paused. It won't run until you turn it back on.") }, { it.message ?: tr("Couldn't change it") }))
                         }
                     },
                     onRun = {
                         scope.launch {
                             val r = runCatching { api!!.runJob(botId, j.id) }
                             load()
-                            tell(r.fold({ runNowSays(it) }, { it.message ?: "Couldn't start it" }))
+                            tell(r.fold({ runNowSays(it) }, { it.message ?: tr("Couldn't start it") }))
                         }
                     },
                     onApprove = onNeedsYou,
@@ -110,9 +111,9 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
                 Text("${if (j.kind == "script") "⚙️" else "🧠"} ${j.name}", style = MaterialTheme.typography.titleMedium, color = p.text)
                 // A job with a change beside it runs on as approved: its line is that of a running job.
                 val status = when {
-                    !j.approved -> "Waits for your OK"
-                    !j.enabled -> "Paused"
-                    j.nextRunAt != null -> "Next: ${shortTime(j.nextRunAt)}"
+                    !j.approved -> tr("Waits for your OK")
+                    !j.enabled -> tr("Paused")
+                    j.nextRunAt != null -> tr("Next: {time}", "time" to shortTime(j.nextRunAt))
                     else -> ""
                 }
                 Text(listOf(scheduleWords(j), status).filter { it.isNotBlank() }.joinToString(" · "),
@@ -130,22 +131,22 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
             Text(jobLine(l, shortTime(l.at)), color = when (jobLineTone(l)) { JobTone.FAILED -> p.err; JobTone.MISSED -> p.warnText; JobTone.FINE -> p.faint }, style = MaterialTheme.typography.bodySmall)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!j.approved) OutlinedButton(onClick = onApprove) { Text("Review and approve", color = p.text) }
-            else OutlinedButton(onClick = onRun) { Text("Run now", color = p.text) }
-            if (changeWaits(j)) OutlinedButton(onClick = onApprove) { Text("Review the change", color = p.text) }
+            if (!j.approved) OutlinedButton(onClick = onApprove) { Text(tr("Review and approve"), color = p.text) }
+            else OutlinedButton(onClick = onRun) { Text(tr("Run now"), color = p.text) }
+            if (changeWaits(j)) OutlinedButton(onClick = onApprove) { Text(tr("Review the change"), color = p.text) }
         }
     }
 }
 
 /** Under a job that takes signed calls (`callMode`, docs/api.md "A signed call"): how a sender gets in; null for any other. */
 internal fun callModeLine(j: Job): String? =
-    if (j.call && j.callMode == "signed") "Takes signed calls: each one is signed with the secret in the Vault, and runs once." else null
+    if (j.call && j.callMode == "signed") tr("Takes signed calls: each one is signed with the secret in the Vault, and runs once.") else null
 
 /** Under a job with a notify address (`notifyUrl`, docs/api.md): where the end of each run goes. */
-internal fun notifyLine(url: String): String = "Tells $url when a run ends, signed with the secret in the Vault."
+internal fun notifyLine(url: String): String = tr("Tells {url} when a run ends, signed with the secret in the Vault.", "url" to url)
 
 /** Under an approved job that has a change beside it (`change`, docs/api.md): it runs as approved meanwhile. */
-internal const val CHANGE_WAITS = "A change waits for your OK"
+internal val CHANGE_WAITS: String get() = tr("A change waits for your OK")
 
 /** Whether the jobs screen says [CHANGE_WAITS] under a job: it is approved, so it runs, and a change waits beside it. */
 internal fun changeWaits(j: Job): Boolean = j.approved && j.change != null
@@ -156,8 +157,8 @@ internal fun changeWaits(j: Job): Boolean = j.approved && j.change != null
  * how that went.
  */
 internal fun jobLine(last: JobLast, time: String): String = last.text ?: run {
-    val what = mapOf("held" to "held till morning", "quiet" to "nothing to report", "success" to "done", "error" to "failed", "stopped" to "stopped", "interrupted" to "cut off")[last.status] ?: last.status
-    "Last run $time: $what"
+    val what = mapOf("held" to tr("held till morning"), "quiet" to tr("nothing to report"), "success" to tr("done"), "error" to tr("failed"), "stopped" to tr("stopped"), "interrupted" to tr("cut off"))[last.status] ?: last.status
+    tr("Last run {time}: {what}", "time" to time, "what" to what)
 }
 
 /** How the line under a job is coloured: its last run failed (also again and again), its time passed without a run, or neither. */
@@ -171,7 +172,7 @@ internal fun jobLineTone(last: JobLast): JobTone = when {
 
 /** What "Run now" says, from the server's answer: it started, it waits for the bot, or it was skipped and why. */
 internal fun runNowSays(answer: RunNow): String = when (answer) {
-    RunNow.Started -> "Started"
-    RunNow.Queued -> "It will run as soon as the bot is free"
+    RunNow.Started -> tr("Started")
+    RunNow.Queued -> tr("It will run as soon as the bot is free")
     is RunNow.Skipped -> answer.why
 }

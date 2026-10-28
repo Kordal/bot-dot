@@ -90,6 +90,8 @@ import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Dashboard
 import dev.botdot.app.data.Tile
 import dev.botdot.app.data.TileAsk
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
@@ -135,7 +137,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     suspend fun load(quiet: Boolean = false, all: Boolean = false) {
         if (quiet) return store.dashboard.refresh()
         val a = api ?: return
-        runCatching { a.dashboard(quiet = false, all = all) }.onSuccess { store.dashboard.set(it) }.onError { tell(it.message ?: "Couldn't load") }
+        runCatching { a.dashboard(quiet = false, all = all) }.onSuccess { store.dashboard.set(it) }.onError { tell(it.message ?: tr("Couldn't load")) }
     }
     fun refreshAll() { if (!refreshing) scope.launch { refreshing = true; load(all = true); delay(300); refreshing = false } }
     val owner = LocalLifecycleOwner.current
@@ -163,7 +165,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             runCatching { api!!.tapTile(t.id, on) }
                 // Its bot was busy: the tile says so in place of "Asked …".
                 .onSuccess { a -> a.tile?.let { replace(it) }; if (a.queued) blink(t, tileAsked(asked, queued = true)); if (how == "act" && !t.asks) pop(t) }
-                .onError { tell(it.message ?: "That didn't work"); load(quiet = true) }
+                .onError { tell(it.message ?: tr("That didn't work")); load(quiet = true) }
         }
     }
     // One of a tile's controls: a switch, button, slider, the colour wheel or a choice. While the wheel is still
@@ -175,7 +177,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                 scope.launch {
                     runCatching { api!!.actTile(t.id, key, value) }
                         .onSuccess { a -> if (done) a.tile?.let { replace(it) }; if (a.queued) blink(t, tileAsked(b?.name, queued = true)) }
-                        .onError { tell(it.message ?: "That didn't work"); load(quiet = true) }
+                        .onError { tell(it.message ?: tr("That didn't work")); load(quiet = true) }
                 }
             },
             openColor = { key -> panel = t.id to key },
@@ -205,30 +207,30 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             confirmButton = {},
         )
     }
-    fun remove(t: Tile, withTiles: Boolean) = scope.launch { runCatching { api!!.removeTile(t.id, withTiles) }.onError { tell(it.message ?: "Couldn't remove") }; load(quiet = true) }
+    fun remove(t: Tile, withTiles: Boolean) = scope.launch { runCatching { api!!.removeTile(t.id, withTiles) }.onError { tell(it.message ?: tr("Couldn't remove")) }; load(quiet = true) }
     // A group with tiles in it: only the group (its tiles stay, loose), or everything.
     val removingInside = removing?.let { t -> dash?.tiles.orEmpty().count { it.parent == t.id } } ?: 0
     if (removing != null && removingInside > 0) removing?.let { t ->
         AlertDialog(
             onDismissRequest = { removing = null },
-            title = { Text("Remove “${t.title}”?") },
+            title = { Text(tr("Remove “{title}”?", "title" to t.title)) },
             text = {
                 Column {
-                    Text(if (removingInside == 1) "It holds one tile." else "It holds $removingInside tiles.")
-                    TextButton(onClick = { removing = null; remove(t, false) }) { Text("Only the group", color = p.text) }
-                    TextButton(onClick = { removing = null; remove(t, true) }) { Text("The group and its tiles", color = p.err) }
+                    Text(trn(removingInside, "It holds one tile.", "It holds {n} tiles."))
+                    TextButton(onClick = { removing = null; remove(t, false) }) { Text(tr("Only the group"), color = p.text) }
+                    TextButton(onClick = { removing = null; remove(t, true) }) { Text(tr("The group and its tiles"), color = p.err) }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel", color = p.text) } },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     } else removing?.let { t ->
         AlertDialog(
             onDismissRequest = { removing = null },
-            title = { Text("Remove “${t.title}”?") },
-            text = { Text("It goes off your Board.") },
-            confirmButton = { TextButton(onClick = { removing = null; remove(t, false) }) { Text("Remove", color = p.err) } },
-            dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel", color = p.text) } },
+            title = { Text(tr("Remove “{title}”?", "title" to t.title)) },
+            text = { Text(tr("It goes off your Board.")) },
+            confirmButton = { TextButton(onClick = { removing = null; remove(t, false) }) { Text(tr("Remove"), color = p.err) } },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
 
@@ -247,7 +249,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                     decorationBox = { inner -> Box { if (text.isEmpty()) Text(TileAsk.PLACEHOLDER, color = p.faint, fontSize = 16.sp); inner() } },
                 )
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { asking = null; removing = t }) { Icon(Icons.Outlined.Delete, contentDescription = "Remove from Board", tint = p.faint) }
+                    IconButton(onClick = { asking = null; removing = t }) { Icon(Icons.Outlined.Delete, contentDescription = tr("Remove from Board"), tint = p.faint) }
                     Spacer(Modifier.weight(1f))
                     val can = text.isNotBlank() && !sending
                     Box(
@@ -256,11 +258,11 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                             scope.launch {
                                 runCatching { api!!.askTileChange(t.id, text.trim()) }
                                     .onSuccess { asking = null; blink(t, TileAsk.sent(chiefName)) }
-                                    .onError { sending = false; tell(it.message ?: "Couldn't send") }
+                                    .onError { sending = false; tell(it.message ?: tr("Couldn't send")) }
                             }
                         },
                         contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Filled.ArrowUpward, contentDescription = "Send", tint = if (can) p.inkText else p.faint, modifier = Modifier.size(20.dp)) }
+                    ) { Icon(Icons.Filled.ArrowUpward, contentDescription = tr("Send"), tint = if (can) p.inkText else p.faint, modifier = Modifier.size(20.dp)) }
                 }
             }
         }
@@ -278,10 +280,10 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                     if (dash?.tiles.orEmpty().any { it.source != null }) {
                         val turn by rememberInfiniteTransition(label = "refresh").animateFloat(0f, 360f, infiniteRepeatable(tween(800, easing = LinearEasing), RepeatMode.Restart), label = "turn")
                         Row(
-                            Modifier.clip(CircleShape).clickable(onClickLabel = "Refresh") { refreshAll() }.padding(end = 6.dp, top = 2.dp, bottom = 2.dp),
+                            Modifier.clip(CircleShape).clickable(onClickLabel = tr("Refresh")) { refreshAll() }.padding(end = 6.dp, top = 2.dp, bottom = 2.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Refresh", tint = p.okText, modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = if (refreshing) turn else 0f })
+                            Icon(Icons.Filled.Refresh, contentDescription = tr("Refresh"), tint = p.okText, modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = if (refreshing) turn else 0f })
                             if (newest > 0) Text(" " + BoardKit.ageWords((now - newest) / 1000), color = p.okText, fontSize = 12.sp)
                         }
                     }
@@ -351,7 +353,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                     j++
                 }
                 scope.launch {
-                    runCatching { api!!.moveTile(t.id, section, parent, before) }.onError { tell(it.message ?: "Couldn't move it") }
+                    runCatching { api!!.moveTile(t.id, section, parent, before) }.onError { tell(it.message ?: tr("Couldn't move it")) }
                     load(quiet = true)
                 }
             }
@@ -371,7 +373,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                     androidx.compose.foundation.layout.FlowRow(Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         (listOf("") + named).forEach { n ->
                             val on = n == filter
-                            Text(n.ifEmpty { "All" }, color = if (on) p.inkText else p.text, fontSize = 13.sp,
+                            Text(n.ifEmpty { tr("All") }, color = if (on) p.inkText else p.text, fontSize = 13.sp,
                                 modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (on) p.ink else Color.Transparent)
                                     .border(1.dp, if (on) p.ink else p.line2, RoundedCornerShape(99.dp)).clickable { filter = n }.padding(horizontal = 14.dp, vertical = 6.dp))
                         }
@@ -390,7 +392,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                             k.startsWith("in:") -> {
                                 // The top of an open group's tiles; "Nothing in it yet" while it's empty.
                                 val empty = d?.tiles.orEmpty().none { it.parent == k.removePrefix("in:") }
-                                if (empty) Text("Nothing in it yet.", color = p.faint, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+                                if (empty) Text(tr("Nothing in it yet."), color = p.faint, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
                                 else Spacer(Modifier.size(1.dp))
                             }
                             k.startsWith("out:") -> Spacer(Modifier.fillMaxWidth().size(1.dp).background(p.line))
@@ -417,12 +419,12 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                 // What bots suggested: faded, who and why, Add or ✕.
                 val suggested = d?.suggestions.orEmpty()
                 if (suggested.isNotEmpty()) item(key = "s:suggested", span = { GridItemSpan(maxLineSpan) }) {
-                    Text("Suggested", color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp, top = 10.dp))
+                    Text(tr("Suggested"), color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp, top = 10.dp))
                 }
                 items(suggested, key = { "sug:${it.id}" }, span = { GridItemSpan(maxLineSpan) }) { x ->
                     val b = bots.firstOrNull { it.id == x.bot }
                     Box(Modifier.padding(bottom = gap)) {
-                        SuggestedCard(x, b) { add -> scope.launch { runCatching { api!!.answerSuggestion(x.id, add) }.onError { tell(it.message ?: "That didn't work") }; load(quiet = true) } }
+                        SuggestedCard(x, b) { add -> scope.launch { runCatching { api!!.answerSuggestion(x.id, add) }.onError { tell(it.message ?: tr("That didn't work")) }; load(quiet = true) } }
                     }
                 }
             }
@@ -501,7 +503,7 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
             }
         }
         if (t.kind != "group" && look != null) Blocks(look.face, c, where, ctl)
-        val note = if (waiting) "Waiting for your OK" else flash ?: if (t.error != null) "Couldn't update" else null
+        val note = if (waiting) tr("Waiting for your OK") else flash ?: if (t.error != null) tr("Couldn't update") else null
         if (note != null) Text(note, color = p.muted, fontSize = 12.sp)
     }
 }
@@ -530,7 +532,7 @@ private fun ControlRow(t: Tile, waiting: Boolean, flash: String?, click: Modifie
     val p = LocalPaper.current
     val r = 18.dp
     val shape = RoundedCornerShape(topStart = if (first) r else 0.dp, topEnd = if (first) r else 0.dp, bottomStart = if (last) r else 0.dp, bottomEnd = if (last) r else 0.dp)
-    val note = if (waiting) "Waiting for your OK" else flash ?: if (t.error != null) "Couldn't update" else null
+    val note = if (waiting) tr("Waiting for your OK") else flash ?: if (t.error != null) tr("Couldn't update") else null
     Column(Modifier.fillMaxWidth().alpha(if (waiting) 0.55f else 1f).clip(shape).background(p.panel).padding(horizontal = 16.dp)) {
         if (first) Text(BoardWords.CONTROLS, color = p.text, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 14.dp, bottom = 2.dp))
         else Box(Modifier.fillMaxWidth().size(1.dp).background(p.line))
@@ -570,14 +572,14 @@ fun SuggestedCard(x: dev.botdot.app.data.TileSuggestion, bot: Bot?, onAnswer: (B
             append(x.reason)
         }, color = p.muted, fontSize = 13.sp)
         if (x.tile.scripts.isNotEmpty()) {
-            Text(if (script) "Hide its script" else "Its script", color = p.muted, fontSize = 12.5.sp, modifier = Modifier.clip(RoundedCornerShape(6.dp)).combinedClickable(onClick = { script = !script }).padding(vertical = 2.dp))
+            Text(if (script) tr("Hide its script") else tr("Its script"), color = p.muted, fontSize = 12.5.sp, modifier = Modifier.clip(RoundedCornerShape(6.dp)).combinedClickable(onClick = { script = !script }).padding(vertical = 2.dp))
             if (script) x.tile.scripts.forEach { Text(it, color = p.text, fontSize = 12.sp, fontFamily = GeistMono, modifier = Modifier.fillMaxWidth().background(p.sunk, RoundedCornerShape(8.dp)).padding(8.dp)) }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
             androidx.compose.material3.OutlinedButton(onClick = { onAnswer(false) }) { Text("✕", color = p.text) }
             Spacer(Modifier.size(8.dp))
-            androidx.compose.material3.Button(onClick = { onAnswer(true) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Add") }
+            androidx.compose.material3.Button(onClick = { onAnswer(true) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Add")) }
         }
     }
 }

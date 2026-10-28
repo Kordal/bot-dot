@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ChiefName
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /**
@@ -48,22 +49,22 @@ fun ChiefNameQuestion(app: BotDotApp) {
         scope.launch {
             runCatching { api!!.nameChief(given) }
                 .onSuccess { asking = false; app.store.chief.refresh() }
-                .onError { error = it.message ?: "Couldn't save the name" } // a bot's name, or botdot away: the question stays
+                .onError { error = it.message ?: tr("Couldn't save the name") } // a bot's name, or botdot away: the question stays
             saving = false
         }
         Unit
     }
     AlertDialog(
         onDismissRequest = {}, // answered with Save or Skip
-        title = { Text("Name your Chief of Staff") },
+        title = { Text(tr("Name your Chief of Staff")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("It runs your team of bots and talks with you. Leave it empty to keep “Chief of Staff”. You can ask it for another name any time.")
-                OutlinedTextField(name, { name = it.take(ChiefName.MAX); error = null }, placeholder = { Text(ChiefName.ROLE) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text(tr("It runs your team of bots and talks with you. Leave it empty to keep “Chief of Staff”. You can ask it for another name any time."))
+                OutlinedTextField(name, { name = it.take(ChiefName.MAX); error = null }, placeholder = { Text(ChiefName.role) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 error?.let { Text(it, color = p.err) }
             }
         },
-        confirmButton = { TextButton(onClick = { answer(name) }, enabled = !saving) { Text("Save", color = p.text) } },
-        dismissButton = { TextButton(onClick = { answer("") }, enabled = !saving) { Text("Skip", color = p.text) } },
+        confirmButton = { TextButton(onClick = { answer(name) }, enabled = !saving) { Text(tr("Save"), color = p.text) } },
+        dismissButton = { TextButton(onClick = { answer("") }, enabled = !saving) { Text(tr("Skip"), color = p.text) } },
     )
 }

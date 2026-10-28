@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Dashboard
 import dev.botdot.app.data.HomeTiles
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -97,13 +98,13 @@ private fun HomeTileRow(title: String, checked: Boolean, lifted: Boolean = false
     val p = LocalPaper.current
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (lifted) p.sunk else p.panel)
-            .clickable(role = Role.Checkbox, onClickLabel = if (checked) "Take off home" else "Put on home", onClick = onToggle)
-            .semantics { contentDescription = "$title, ${if (checked) "on home" else "not on home"}" }
+            .clickable(role = Role.Checkbox, onClickLabel = if (checked) tr("Take off home") else tr("Put on home"), onClick = onToggle)
+            .semantics { contentDescription = "$title, " + if (checked) tr("on home") else tr("not on home") }
             .padding(horizontal = 10.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        if (handle != null) Icon(Icons.Filled.DragIndicator, contentDescription = "Drag", tint = p.faint, modifier = handle.size(20.dp))
+        if (handle != null) Icon(Icons.Filled.DragIndicator, contentDescription = tr("Drag"), tint = p.faint, modifier = handle.size(20.dp))
         else Spacer(Modifier.size(20.dp))
         val box = RoundedCornerShape(5.dp)
         Box(Modifier.size(20.dp).clip(box).then(if (checked) Modifier.background(p.text) else Modifier.border(1.5.dp, p.faint, box)), contentAlignment = Alignment.Center) {

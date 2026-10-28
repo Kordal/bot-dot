@@ -17,6 +17,8 @@ import dev.botdot.app.data.Api
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.Waiting
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import java.time.Duration
 import java.time.Instant
 import kotlinx.coroutines.delay
@@ -43,7 +45,7 @@ class FeedService : Service() {
     override fun onCreate() {
         super.onCreate()
         val app = application as BotDotApp
-        ServiceCompat.startForeground(this, 1, status(getString(R.string.app_name), "Connecting…"),
+        ServiceCompat.startForeground(this, 1, status(getString(R.string.app_name), tr("Connecting…")),
             if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0)
         // Each bot's latest finished run, as the feed tells it (for "didn't finish" in the last day).
         scope.launch {
@@ -64,9 +66,9 @@ class FeedService : Service() {
             combine(app.feed.state, now) { st, line ->
                 when (st) {
                     Feed.State.Connected -> line
-                    Feed.State.Connecting -> Status("Connecting…")
-                    Feed.State.Retrying -> Status("Can't reach botdot. Is Tailscale on? Trying again…")
-                    Feed.State.Off -> Status("Not connected")
+                    Feed.State.Connecting -> Status(tr("Connecting…"))
+                    Feed.State.Retrying -> Status(tr("Can't reach botdot. Is Tailscale on? Trying again…"))
+                    Feed.State.Off -> Status(tr("Not connected"))
                 }
             }.distinctUntilChanged().collect { line ->
                 getSystemService(android.app.NotificationManager::class.java).notify(1, status("botdot", line.text, line.open))
@@ -82,7 +84,7 @@ class FeedService : Service() {
 
     private fun whatsGoingOn(app: BotDotApp, waiting: List<Waiting>, bots: List<Bot>, chiefBusy: Boolean, runs: Map<String, Run>): Status {
         if (waiting.size == 1) return Status(waiting[0].text, "needs")
-        if (waiting.size > 1) return Status("${waiting.size} things wait for your OK", "needs")
+        if (waiting.size > 1) return Status(trn(waiting.size, "{n} thing waits for your OK", "{n} things wait for your OK"), "needs")
 
         // A bot whose latest run failed in the last 24 hours (its figure says "failed"; the run says when).
         val dayAgo = Instant.now().minus(Duration.ofHours(24))
@@ -96,15 +98,15 @@ class FeedService : Service() {
         val failed = failedBots.mapNotNull { runs[it.id] }
             .filter { it.status == "error" && runCatching { Instant.parse(it.endedAt ?: it.startedAt) }.getOrNull()?.isAfter(dayAgo) == true }
             .maxByOrNull { it.startedAt }
-        if (failed != null) return Status("${failed.botName}: ${failed.jobName ?: "its last task"} didn't finish", "bot:${failed.botId}")
+        if (failed != null) return Status(failed.jobName?.let { tr("{bot}: {job} didn't finish", "bot" to failed.botName, "job" to it) } ?: tr("{bot}: its last task didn't finish", "bot" to failed.botName), "bot:${failed.botId}")
 
         val working = bots.filter { it.running }
-        val names = working.map { it.name } + if (chiefBusy) listOf("the Chief") else emptyList()
+        val names = working.map { it.name } + if (chiefBusy) listOf(tr("the Chief")) else emptyList()
         return when {
-            names.isEmpty() -> Status("All quiet")
-            names.size == 1 -> Status("${names[0].replaceFirstChar { it.uppercase() }} is working…", working.firstOrNull()?.let { "bot:${it.id}" })
-            names.size == 2 -> Status("${names[0].replaceFirstChar { it.uppercase() }} and ${names[1]} are working…")
-            else -> Status("${names.size} are working…")
+            names.isEmpty() -> Status(tr("All quiet"))
+            names.size == 1 -> Status(tr("{name} is working…", "name" to names[0].replaceFirstChar { it.uppercase() }), working.firstOrNull()?.let { "bot:${it.id}" })
+            names.size == 2 -> Status(tr("{name} and {other} are working…", "name" to names[0].replaceFirstChar { it.uppercase() }, "other" to names[1]))
+            else -> Status(trn(names.size, "{n} is working…", "{n} are working…"))
         }
     }
 

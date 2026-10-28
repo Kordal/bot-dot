@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.FigureDef
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.serialization.json.JsonElement
 
 /** Share → botdot: who gets what you shared? The Chief, or one of your bots. */
@@ -42,9 +44,9 @@ fun ShareScreen(app: BotDotApp, count: Int, text: String, onPick: (String) -> Un
     val error by app.store.bots.error.collectAsState()
 
     val what = when {
-        count > 1 -> "$count files"
-        count == 1 -> "the file"
-        else -> "the text"
+        count > 1 -> trn(count, "Send {n} file to…", "Send {n} files to…")
+        count == 1 -> tr("Send the file to…")
+        else -> tr("Send the text to…")
     }
     Scaffold(
         containerColor = p.bg,
@@ -52,7 +54,7 @@ fun ShareScreen(app: BotDotApp, count: Int, text: String, onPick: (String) -> Un
             TopAppBar(
                 navigationIcon = { BackButton(onCancel) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
-                title = { Text("Send $what to…", style = MaterialTheme.typography.titleMedium) },
+                title = { Text(what, style = MaterialTheme.typography.titleMedium) },
             )
         },
     ) { pad ->
@@ -62,7 +64,7 @@ fun ShareScreen(app: BotDotApp, count: Int, text: String, onPick: (String) -> Un
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
             }
             if (error != null) item { Text(error!!, color = p.err, modifier = Modifier.padding(20.dp)) }
-            item { Pick(CHIEF_COLOR, LocalChiefName.current, "It can pass it on to the right bot", FigureDef.CHIEF) { onPick("chief") } }
+            item { Pick(CHIEF_COLOR, LocalChiefName.current, tr("It can pass it on to the right bot"), FigureDef.CHIEF) { onPick("chief") } }
             items(bots.sortedBy { it.name.lowercase() }, key = { it.id }) { b -> Pick(b.color, b.name, b.description, b.outfit) { onPick(b.id) } }
         }
     }

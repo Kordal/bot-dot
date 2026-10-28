@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Block
 import dev.botdot.app.data.TableCell
 import dev.botdot.app.data.TableSort
+import dev.botdot.app.data.tr
 
 /*
  * A table (#396; the web page's kitTable in public/blocks.js): the owner sorts it by a column's header, searches it and
@@ -81,7 +82,7 @@ object KitTable {
     fun next(now: TableSort?, column: Int): TableSort = TableSort(column, if (now?.column == column && now.dir != "desc") "desc" else "asc")
 
     /** The footer's words: "2 of 3", "2 of 2 · 4 in all". */
-    fun count(v: View): String = "${v.rows.size} of ${v.matching}" + if (v.matching != v.total) " · ${v.total} in all" else ""
+    fun count(v: View): String = tr("{shown} of {matching}", "shown" to v.rows.size, "matching" to v.matching) + if (v.matching != v.total) " · " + tr("{total} in all", "total" to v.total) else ""
 
     /** On a phone: the list's line under a row's title (its first reference) and its pill (its first status), by column. */
     fun listColumns(b: Block): Pair<Int?, Int?> =
@@ -107,20 +108,20 @@ fun KitTableView(b: Block) {
         }
         if (b.search) BasicTextField(query, { query = it; page = 0 }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = 13.5.sp), cursorBrush = SolidColor(p.text),
             modifier = Modifier.fillMaxWidth().border(1.dp, p.line2, RoundedCornerShape(99.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
-            decorationBox = { inner -> if (query.isEmpty()) Text("Search", color = p.faint, fontSize = 13.5.sp); inner() })
+            decorationBox = { inner -> if (query.isEmpty()) Text(tr("Search"), color = p.faint, fontSize = 13.5.sp); inner() })
         b.filter?.let { f ->
             val on = f.options.firstOrNull { it.equals(filter, ignoreCase = true) }.orEmpty()
             FlowRow(Modifier.border(1.dp, p.line2, RoundedCornerShape(99.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 (listOf("") + f.options).forEach { o ->
-                    Text(o.ifEmpty { "All" }, color = if (o.equals(on, ignoreCase = true)) p.text else p.muted, fontSize = 12.5.sp,
+                    Text(o.ifEmpty { tr("All") }, color = if (o.equals(on, ignoreCase = true)) p.text else p.muted, fontSize = 12.5.sp,
                         modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (o.equals(on, ignoreCase = true)) p.sunk else androidx.compose.ui.graphics.Color.Transparent)
                             .clickable { filter = o; page = 0 }.padding(horizontal = 12.dp, vertical = 4.dp))
                 }
             }
         }
         when {
-            b.rows.isEmpty() -> Text("No rows", color = p.faint, fontSize = 13.sp)
-            v.matching == 0 -> Text("Nothing matches", color = p.faint, fontSize = 13.sp)
+            b.rows.isEmpty() -> Text(tr("No rows"), color = p.faint, fontSize = 13.sp)
+            v.matching == 0 -> Text(tr("Nothing matches"), color = p.faint, fontSize = 13.sp)
             else -> BoxWithConstraints {
                 if (maxWidth < 560.dp) TableList(b, v) else TableGrid(b, v) { col -> KitTable.next(sort ?: b.sort, col).let { sortCol = it.column; sortDir = it.dir; page = 0 } }
             }
