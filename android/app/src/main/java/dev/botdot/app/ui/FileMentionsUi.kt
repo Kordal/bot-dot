@@ -57,6 +57,7 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.FileMentions
 import dev.botdot.app.data.Mentions
 import dev.botdot.app.data.WorkspaceFiles
+import dev.botdot.app.data.tr
 
 /** Files for "@" in the chat on screen (#604): a bot's own chat on a botdot with `file-mentions`; null elsewhere. */
 val LocalFileMentions = compositionLocalOf<FileMentions?> { null }
@@ -93,7 +94,7 @@ fun FileMentionList(view: FileMentions.View, mentions: List<Mentions.Row>, w: Me
     Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) {
         view.dir?.let { d ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Back", tint = p.muted,
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("Back"), tint = p.muted,
                     modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onBack).padding(10.dp))
                 Icon(placeIcon(d.root), null, tint = p.faint, modifier = Modifier.size(16.dp))
                 val trail = listOf(FileMentions.placeName(d.root, d.project)) + d.path.split('/').filter { it.isNotEmpty() }
@@ -103,7 +104,7 @@ fun FileMentionList(view: FileMentions.View, mentions: List<Mentions.Row>, w: Me
                         else withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(t) }
                     }
                 }, color = p.muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(enabled = d.path.isNotEmpty(), onClickLabel = "Mention this folder", onClick = onSelf).padding(horizontal = 8.dp, vertical = 12.dp))
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(enabled = d.path.isNotEmpty(), onClickLabel = tr("Mention this folder"), onClick = onSelf).padding(horizontal = 8.dp, vertical = 12.dp))
             }
             Row(Modifier.fillMaxWidth().heightIn(min = 1.dp).background(p.line)) {}
         }

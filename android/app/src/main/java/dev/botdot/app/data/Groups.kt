@@ -115,7 +115,7 @@ data class GroupAsks(val botId: String, val botName: String, val text: String, v
 data class GroupLimit(val text: String, val messages: List<String> = emptyList(), val waits: List<String> = emptyList()) {
     companion object {
         /** What the line says when the server sends no sentence. */
-        const val STOPPED = "The group stopped."
+        val STOPPED: String get() = tr("The group stopped.")
 
         fun of(v: JsonElement?): GroupLimit? {
             val o = v as? JsonObject ?: return null
@@ -231,7 +231,7 @@ data class GroupSent(val message: GroupMessage?, val wentOn: Boolean, val messag
 data class GroupRef(val id: String, val name: String) {
     companion object {
         /** From the two fields as they came; null without an id: a card of a bot's own chat. */
-        fun of(id: JsonElement?, name: JsonElement?): GroupRef? = id.textOrNull()?.let { GroupRef(it, name.textOrNull() ?: "a group") }
+        fun of(id: JsonElement?, name: JsonElement?): GroupRef? = id.textOrNull()?.let { GroupRef(it, name.textOrNull() ?: tr("a group")) }
         fun of(o: JsonObject): GroupRef? = of(o["groupId"], o["groupName"])
     }
 }

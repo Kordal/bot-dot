@@ -40,7 +40,7 @@ object DocumentView {
 
     /** The header's second line: "From <bot> · 12 KB · 09:14", each part only when known. */
     fun subtitle(from: String, view: FileView?, time: String): String =
-        listOfNotNull(from.ifBlank { null }?.let { "From $it" }, view?.let { UploadedFiles.size(it.size) }, time.ifBlank { null }).joinToString(" · ")
+        listOfNotNull(from.ifBlank { null }?.let { tr("From {name}", "name" to it) }, view?.let { UploadedFiles.size(it.size) }, time.ifBlank { null }).joinToString(" · ")
 
     /** A CSV's rows, each a list of cells: a quoted cell may hold the separator, "" and line breaks. */
     fun csvRows(text: String, sep: Char = ','): List<List<String>> {

@@ -25,7 +25,7 @@ import kotlinx.serialization.json.JsonPrimitive
  */
 object OpeningLine {
     /** What stands where the opening line stood while a run waits for the owner's OK. No ellipsis: nothing moves until the owner answers. */
-    const val WAITING_FOR_OK = "Waiting for your OK"
+    val WAITING_FOR_OK: String get() = tr("Waiting for your OK")
 
     /** Whether a run's `waitingFor`, as the server sent it, says that it waits for the owner's OK. Anything else: it does not. */
     fun waitsForOk(v: JsonElement?): Boolean = (v as? JsonPrimitive)?.takeIf { it.isString }?.content == "ok"
@@ -62,7 +62,7 @@ object OpeningLine {
      * [waiting]: its run waits for the owner's OK, and says that in the line's place.
      */
     fun status(line: String?, working: Boolean, waiting: Boolean = false): String =
-        if (waiting) WAITING_FOR_OK else preview(line).ifEmpty { if (working) "Working…" else "" }
+        if (waiting) WAITING_FOR_OK else preview(line).ifEmpty { if (working) tr("Working…") else "" }
 
     /**
      * The run a bot's chat shows as at work, with the line and Stop: its running run, or null. A script job has no
@@ -95,8 +95,8 @@ object OpeningLine {
     fun chiefLine(line: String?, activity: String?, busy: Boolean): String {
         if (!busy) return ""
         val doing = text(activity)
-        val said = if (doing.isNotEmpty() && doing != NO_WORDS) doing else text(line).ifEmpty { doing }
-        return "${said.ifEmpty { "Thinking" }}…"
+        val said = (if (doing.isNotEmpty() && doing != NO_WORDS) doing else text(line).ifEmpty { doing }).let { if (it == NO_WORDS) tr("Working") else it }
+        return "${said.ifEmpty { tr("Thinking") }}…"
     }
 
     /**

@@ -118,6 +118,8 @@ import dev.botdot.app.data.UploadedFiles
 import dev.botdot.app.data.WorkspaceEntry
 import dev.botdot.app.data.WorkspaceFiles
 import dev.botdot.app.data.WorkspaceListing
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -195,8 +197,8 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
     val pinned = kept.filter { it.pinned }.map { it.file }.toSet()
     fun go(to: String, at: String) { place = to; path = at; query = ""; found = null }
     fun act(what: String, block: suspend (Api) -> Unit) {
-        val a = api ?: return tell("Not connected to botdot")
-        scope.launch { runCatching { block(a) }.onError { tell(it.message ?: "Couldn't $what") }; tries++ }
+        val a = api ?: return tell(tr("Not connected to botdot"))
+        scope.launch { runCatching { block(a) }.onError { tell(it.message ?: tr("Couldn't {what}", "what" to what)) }; tries++ }
     }
 
     // What is kept in mind: the pins of files on botdot, and a place of its own.
@@ -236,12 +238,12 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
 
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
-        if (uris.size > WorkspaceFiles.MAX_FILES) tell("Upload at most ${WorkspaceFiles.MAX_FILES} files at a time.")
+        if (uris.size > WorkspaceFiles.MAX_FILES) tell(tr("Upload at most {n} files at a time.", "n" to WorkspaceFiles.MAX_FILES))
         val into = path
         val r = root
         act("upload") { a ->
             for (uri in uris.take(WorkspaceFiles.MAX_FILES)) {
-                runCatching { a.uploadToWorkspace(context.contentResolver, uri, ownerId, into, r) }.onError { tell(it.message ?: "Couldn't upload") }
+                runCatching { a.uploadToWorkspace(context.contentResolver, uri, ownerId, into, r) }.onError { tell(it.message ?: tr("Couldn't upload")) }
             }
         }
     }
@@ -250,19 +252,19 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         if (tree == null) return@rememberLauncherForActivityResult
         val into = path
         val r = root
-        act("upload the folder") { a ->
+        act(tr("upload the folder")) { a ->
             val folder = withContext(Dispatchers.IO) { PickedFolder.read(context.contentResolver, tree) }
-            if (folder.tooMany) return@act tell("${folder.name} has more than ${String.format(java.util.Locale.ROOT, "%,d", WorkspaceFiles.MAX_FOLDER_FILES)} files: upload at most that many at a time.")
+            if (folder.tooMany) return@act tell(tr("{name} has more than {n} files: upload at most that many at a time.", "name" to folder.name, "n" to String.format(java.util.Locale.ROOT, "%,d", WorkspaceFiles.MAX_FOLDER_FILES)))
             val top = a.makeWorkspaceFolder(ownerId, into, folder.name, r, free = true)
             var missed = 0
             try {
                 folder.files.forEachIndexed { i, f ->
-                    busy = "Uploading ${folder.name}: ${i + 1} of ${folder.files.size}"
+                    busy = tr("Uploading {name}: {i} of {n}", "name" to folder.name, "i" to i + 1, "n" to folder.files.size)
                     if ((f.size ?: 0) > WorkspaceFiles.MAX_BYTES) missed++
                     else runCatching { a.uploadToWorkspace(context.contentResolver, f.uri, ownerId, WorkspaceFiles.folderDir(top, f.dir), r, made = true) }.onError { missed++ }
                 }
             } finally { busy = null }
-            tell(if (missed > 0) "${folder.name}: $missed of ${folder.files.size} files didn't upload." else "Uploaded ${folder.name}")
+            tell(if (missed > 0) tr("{name}: {failed} of {n} files didn't upload.", "name" to folder.name, "failed" to missed, "n" to folder.files.size) else tr("Uploaded {name}", "name" to folder.name))
         }
     }
 
@@ -271,27 +273,27 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         if (e.type != "file") return
         val src = WorkspaceFiles.file(ownerId, at, e.path)
         if (viewer) DocViewer.open = DocViewer.Request(src, e.name, name, botId = if (at != WorkspaceFiles.SERVER) ownerId else null)
-        else act("open it") { BotFiles.openElsewhere(context, it, src, e.name) }
+        else act(tr("open it")) { BotFiles.openElsewhere(context, it, src, e.name) }
     }
     fun download(list: List<WorkspaceEntry>) {
-        val a = api ?: return tell("Not connected to botdot")
+        val a = api ?: return tell(tr("Not connected to botdot"))
         val files = list.filter { it.type == "file" }
         files.forEach { BotFiles.saveToDownloads(context, a, WorkspaceFiles.file(ownerId, root, it.path), it.name) }
-        if (files.isNotEmpty()) tell(if (files.size == 1) "Saving ${files[0].name} to Downloads" else "Saving ${files.size} files to Downloads")
+        if (files.isNotEmpty()) tell(if (files.size == 1) tr("Saving {name} to Downloads", "name" to files[0].name) else trn(files.size, "Saving {n} file to Downloads", "Saving {n} files to Downloads"))
     }
     fun delete(list: List<WorkspaceEntry>) {
         if (list.isEmpty()) return
         if (list.size > 1) { ask = FxAsk("delete", list, FilesExplorer.deleteManyWords(list.size)); return }
         val r = root
         scope.launch {
-            runCatching { (api ?: error("Not connected to botdot")).workspaceCount(ownerId, r, list[0].path) }
+            runCatching { (api ?: error(tr("Not connected to botdot"))).workspaceCount(ownerId, r, list[0].path) }
                 .onSuccess { ask = FxAsk("delete", list, WorkspaceFiles.deleteWords(list[0].name, it)) }
-                .onError { tell(it.message ?: "Couldn't delete") }
+                .onError { tell(it.message ?: tr("Couldn't delete")) }
         }
     }
-    fun keep(e: WorkspaceEntry, on: Boolean) = act("keep it in mind") { a ->
+    fun keep(e: WorkspaceEntry, on: Boolean) = act(tr("keep it in mind")) { a ->
         if (on) a.keepFromWorkspace(ownerId, e.path) else a.pinBotFile(ownerId, e.path, false)
-        tell(if (on) "Keeping ${e.name} in mind" else "${e.name} is no longer kept in mind")
+        tell(if (on) tr("Keeping {name} in mind", "name" to e.name) else tr("{name} is no longer kept in mind", "name" to e.name))
     }
     fun startCarry(move: Boolean, list: List<WorkspaceEntry>) { if (list.isNotEmpty()) carry = FxCarry(move, place, list) }
     fun tap(e: WorkspaceEntry, at: String) {
@@ -314,9 +316,9 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
             Column(Modifier.background(p.bg)) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (selecting) {
-                        IconButton(onClick = { selected = emptySet() }) { Icon(Icons.Filled.Close, contentDescription = "Clear the selection") }
-                        Text("${selected.size} selected", color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = 8.dp))
-                        OutlinedButton(onClick = { selected = shown.map { it.path }.toSet() }, modifier = Modifier.padding(end = 8.dp)) { Text("All", color = p.text) }
+                        IconButton(onClick = { selected = emptySet() }) { Icon(Icons.Filled.Close, contentDescription = tr("Clear the selection")) }
+                        Text(tr("{n} selected", "n" to selected.size), color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = 8.dp))
+                        OutlinedButton(onClick = { selected = shown.map { it.path }.toSet() }, modifier = Modifier.padding(end = 8.dp)) { Text(tr("All"), color = p.text) }
                     } else {
                         BackButton(onBack)
                         Column(Modifier.weight(1f).padding(start = 4.dp)) {
@@ -324,11 +326,11 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                             Text("${FilesExplorer.placeName(place)} ▾", color = p.muted, style = MaterialTheme.typography.bodyMedium,
                                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { sheet = FxSheet.Places }.padding(vertical = 2.dp).testTag("files-place"))
                         }
-                        IconButton(onClick = { sheet = FxSheet.Sort }) { Icon(Icons.Outlined.SwapVert, contentDescription = "Sort", tint = p.text) }
-                        IconButton(onClick = { grid = !grid }) { Icon(if (grid) Icons.AutoMirrored.Outlined.ViewList else Icons.Outlined.GridView, contentDescription = if (grid) "List" else "Grid", tint = p.text) }
+                        IconButton(onClick = { sheet = FxSheet.Sort }) { Icon(Icons.Outlined.SwapVert, contentDescription = tr("Sort"), tint = p.text) }
+                        IconButton(onClick = { grid = !grid }) { Icon(if (grid) Icons.AutoMirrored.Outlined.ViewList else Icons.Outlined.GridView, contentDescription = if (grid) tr("List") else tr("Grid"), tint = p.text) }
                     }
                 }
-                if (searches && !selecting) OutlinedTextField(query, { query = it.take(100) }, singleLine = true, placeholder = { Text("Search", color = p.faint) },
+                if (searches && !selecting) OutlinedTextField(query, { query = it.take(100) }, singleLine = true, placeholder = { Text(tr("Search"), color = p.faint) },
                     leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = p.muted) },
                     shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp))
                 if (found == null && place != FilesExplorer.KEPT && path.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -346,15 +348,15 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         bottomBar = {
             if (selecting) Row(Modifier.fillMaxWidth().background(p.panel).navigationBarsPadding().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 val cans = chosen.map { can(it) }
-                BarButton(Icons.AutoMirrored.Outlined.DriveFileMove, "Move", cans.isNotEmpty() && cans.all { it.move }) { startCarry(true, chosen) }
-                BarButton(Icons.Outlined.ContentCopy, "Copy", cans.isNotEmpty() && cans.all { it.copy }) { startCarry(false, chosen) }
-                BarButton(Icons.Outlined.FileDownload, "Download", cans.any { it.download }) { download(chosen); selected = emptySet() }
-                BarButton(Icons.Outlined.Delete, "Delete", cans.isNotEmpty() && cans.all { it.delete }, danger = true) { delete(chosen) }
+                BarButton(Icons.AutoMirrored.Outlined.DriveFileMove, tr("Move"), cans.isNotEmpty() && cans.all { it.move }) { startCarry(true, chosen) }
+                BarButton(Icons.Outlined.ContentCopy, tr("Copy"), cans.isNotEmpty() && cans.all { it.copy }) { startCarry(false, chosen) }
+                BarButton(Icons.Outlined.FileDownload, tr("Download"), cans.any { it.download }) { download(chosen); selected = emptySet() }
+                BarButton(Icons.Outlined.Delete, tr("Delete"), cans.isNotEmpty() && cans.all { it.delete }, danger = true) { delete(chosen) }
             }
         },
         floatingActionButton = {
             if (writesHere && !selecting && busy == null) FloatingActionButton(onClick = { sheet = FxSheet.Add }, containerColor = p.ink, contentColor = p.inkText, shape = RoundedCornerShape(20.dp)) {
-                Icon(Icons.Filled.Add, contentDescription = "Add")
+                Icon(Icons.Filled.Add, contentDescription = tr("Add"))
             }
         },
     ) { pad ->
@@ -362,16 +364,16 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
             val e = failed
             when {
                 found == null && place != FilesExplorer.KEPT && e != null && (e as? ApiException)?.status == 409 -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text("The computer is off.", color = p.muted)
-                    Button(onClick = { act("start it") { it.startComputer(ownerId) } }, modifier = Modifier.padding(top = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Start the computer") }
+                    Text(tr("The computer is off."), color = p.muted)
+                    Button(onClick = { act(tr("start it")) { it.startComputer(ownerId) } }, modifier = Modifier.padding(top = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
                 }
                 found == null && place != FilesExplorer.KEPT && e != null && (e as? ApiException)?.status == 404 -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text("This folder is gone.", color = p.muted)
-                    OutlinedButton(onClick = { path = "" }, modifier = Modifier.padding(top = 12.dp)) { Text("Back to the top", color = p.text) }
+                    Text(tr("This folder is gone."), color = p.muted)
+                    OutlinedButton(onClick = { path = "" }, modifier = Modifier.padding(top = 12.dp)) { Text(tr("Back to the top"), color = p.text) }
                 }
-                found == null && place != FilesExplorer.KEPT && e != null -> Text(e.message ?: "Couldn't load it.", color = p.muted, modifier = Modifier.align(Alignment.Center).padding(24.dp))
-                found == null && place != FilesExplorer.KEPT && listing == null -> Text("Loading…", color = p.faint, modifier = Modifier.align(Alignment.Center))
-                shown.isEmpty() -> Text(if (found != null) "Nothing by that name." else "Empty.", color = p.faint, modifier = Modifier.align(Alignment.Center))
+                found == null && place != FilesExplorer.KEPT && e != null -> Text(e.message ?: tr("Couldn't load it."), color = p.muted, modifier = Modifier.align(Alignment.Center).padding(24.dp))
+                found == null && place != FilesExplorer.KEPT && listing == null -> Text(tr("Loading…"), color = p.faint, modifier = Modifier.align(Alignment.Center))
+                shown.isEmpty() -> Text(if (found != null) tr("Nothing by that name.") else tr("Empty."), color = p.faint, modifier = Modifier.align(Alignment.Center))
                 grid -> LazyVerticalGrid(GridCells.Adaptive(108.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 96.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     itemsIndexed(shown, key = { i, x -> shownAt[i] + "\u0000" + x.path }) { i, entry ->
@@ -405,23 +407,23 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                                 Icon(placeIcon(pl), contentDescription = null, tint = p.text, modifier = Modifier.size(24.dp))
                                 Text(FilesExplorer.placeName(pl), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 18.dp))
                                 if (pl == FilesExplorer.KEPT && pinned.isNotEmpty()) Text("  ${pinned.size}", color = p.faint)
-                                if (pl == place) Icon(Icons.Filled.Check, contentDescription = "Here", tint = p.text, modifier = Modifier.padding(start = 12.dp).size(20.dp))
+                                if (pl == place) Icon(Icons.Filled.Check, contentDescription = tr("Here"), tint = p.text, modifier = Modifier.padding(start = 12.dp).size(20.dp))
                                 Spacer(Modifier.weight(1f))
-                                WorkspaceFiles.projectOf(pl)?.let { pr -> IconButton(onClick = { sheet = FxSheet.Project(pr) }) { Icon(Icons.Filled.MoreHoriz, contentDescription = "Project", tint = p.muted) } }
+                                WorkspaceFiles.projectOf(pl)?.let { pr -> IconButton(onClick = { sheet = FxSheet.Project(pr) }) { Icon(Icons.Filled.MoreHoriz, contentDescription = tr("Project"), tint = p.muted) } }
                             }
                         }
-                        if (withProjects) SheetRow(Icons.Outlined.CreateNewFolder, "New project") { sheet = null; answer = ""; ask = FxAsk("project") }
+                        if (withProjects) SheetRow(Icons.Outlined.CreateNewFolder, tr("New project")) { sheet = null; answer = ""; ask = FxAsk("project") }
                     }
                     FxSheet.Sort -> FilesExplorer.Sort.entries.forEach { o ->
                         Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { sheet = null; sortName = o.name }.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(o.label, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                            if (o == sort) Icon(Icons.Filled.Check, contentDescription = "Sorted so", tint = p.text)
+                            if (o == sort) Icon(Icons.Filled.Check, contentDescription = tr("Sorted so"), tint = p.text)
                         }
                     }
                     FxSheet.Add -> {
-                        SheetRow(Icons.Outlined.FileUpload, "Upload files") { sheet = null; pick.launch("*/*") }
-                        SheetRow(Icons.Outlined.FolderOpen, "Upload folder") { sheet = null; pickFolder.launch(null) }
-                        SheetRow(Icons.Outlined.CreateNewFolder, "New folder") { sheet = null; answer = ""; ask = FxAsk("folder") }
+                        SheetRow(Icons.Outlined.FileUpload, tr("Upload files")) { sheet = null; pick.launch("*/*") }
+                        SheetRow(Icons.Outlined.FolderOpen, tr("Upload folder")) { sheet = null; pickFolder.launch(null) }
+                        SheetRow(Icons.Outlined.CreateNewFolder, tr("New folder")) { sheet = null; answer = ""; ask = FxAsk("folder") }
                     }
                     is FxSheet.Entry -> {
                         val en = s.e
@@ -434,27 +436,27 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                             }
                         }
                         HorizontalDivider(color = p.line2, modifier = Modifier.padding(vertical = 6.dp))
-                        if (c.open) SheetRow(Icons.AutoMirrored.Outlined.InsertDriveFile, "Open") { sheet = null; open(en) }
-                        if (c.rename) SheetRow(Icons.Outlined.DriveFileRenameOutline, "Rename") { sheet = null; answer = en.name; ask = FxAsk("rename", listOf(en)) }
-                        if (c.move) SheetRow(Icons.AutoMirrored.Outlined.DriveFileMove, "Move to…") { sheet = null; startCarry(true, listOf(en)) }
-                        if (c.copy) SheetRow(Icons.Outlined.ContentCopy, "Copy to…") { sheet = null; startCarry(false, listOf(en)) }
-                        if (c.download) SheetRow(Icons.Outlined.FileDownload, "Download") { sheet = null; download(listOf(en)) }
-                        if (c.keep) SheetRow(Icons.Outlined.PushPin, "Keep in mind") { sheet = null; keep(en, true) }
-                        if (c.unpin) SheetRow(Icons.Outlined.PushPin, "Unpin") { sheet = null; keep(en, false) }
-                        if (c.delete) SheetRow(Icons.Outlined.Delete, "Delete", danger = true) { sheet = null; delete(listOf(en)) }
+                        if (c.open) SheetRow(Icons.AutoMirrored.Outlined.InsertDriveFile, tr("Open")) { sheet = null; open(en) }
+                        if (c.rename) SheetRow(Icons.Outlined.DriveFileRenameOutline, tr("Rename")) { sheet = null; answer = en.name; ask = FxAsk("rename", listOf(en)) }
+                        if (c.move) SheetRow(Icons.AutoMirrored.Outlined.DriveFileMove, tr("Move to…")) { sheet = null; startCarry(true, listOf(en)) }
+                        if (c.copy) SheetRow(Icons.Outlined.ContentCopy, tr("Copy to…")) { sheet = null; startCarry(false, listOf(en)) }
+                        if (c.download) SheetRow(Icons.Outlined.FileDownload, tr("Download")) { sheet = null; download(listOf(en)) }
+                        if (c.keep) SheetRow(Icons.Outlined.PushPin, tr("Keep in mind")) { sheet = null; keep(en, true) }
+                        if (c.unpin) SheetRow(Icons.Outlined.PushPin, tr("Unpin")) { sheet = null; keep(en, false) }
+                        if (c.delete) SheetRow(Icons.Outlined.Delete, tr("Delete"), danger = true) { sheet = null; delete(listOf(en)) }
                     }
                     is FxSheet.Project -> {
                         val pr = projects.firstOrNull { it.name == s.name }
                         Text(s.name, color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                         if (pr != null) Text(Projects.members(pr, allBots), color = p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 20.dp))
                         HorizontalDivider(color = p.line2, modifier = Modifier.padding(vertical = 6.dp))
-                        SheetRow(Icons.Outlined.Dns, "Bots…") { sheet = null; picked = pr?.bots.orEmpty().toSet(); ask = FxAsk("members", project = s.name) }
-                        SheetRow(Icons.Outlined.Delete, "Delete project", danger = true) {
+                        SheetRow(Icons.Outlined.Dns, tr("Bots…")) { sheet = null; picked = pr?.bots.orEmpty().toSet(); ask = FxAsk("members", project = s.name) }
+                        SheetRow(Icons.Outlined.Delete, tr("Delete project"), danger = true) {
                             sheet = null
                             scope.launch {
-                                runCatching { (api ?: error("Not connected to botdot")).workspaceCount(ownerId, WorkspaceFiles.projectRoot(s.name), "") }
-                                    .onSuccess { ask = FxAsk("delete-project", words = WorkspaceFiles.deleteWords(s.name, it).replace("Delete the folder", "Delete the project"), project = s.name) }
-                                    .onError { tell(it.message ?: "Couldn't delete") }
+                                runCatching { (api ?: error(tr("Not connected to botdot"))).workspaceCount(ownerId, WorkspaceFiles.projectRoot(s.name), "") }
+                                    .onSuccess { ask = FxAsk("delete-project", words = WorkspaceFiles.deleteWords(s.name, it, project = true), project = s.name) }
+                                    .onError { tell(it.message ?: tr("Couldn't delete")) }
                             }
                         }
                     }
@@ -472,7 +474,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { ask = null },
             containerColor = p.panel,
-            title = { Text(when (a.kind) { "folder" -> "New folder"; "project" -> "New project"; "members" -> "Bots in ${a.project}"; "rename" -> "Rename"; else -> "Delete?" }) },
+            title = { Text(when (a.kind) { "folder" -> tr("New folder"); "project" -> tr("New project"); "members" -> tr("Bots in {name}", "name" to a.project); "rename" -> tr("Rename"); else -> tr("Delete?") }) },
             text = {
                 when {
                     danger -> Text(a.words, color = p.text)
@@ -484,35 +486,35 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                             }
                         }
                     }
-                    else -> OutlinedTextField(answer, { answer = it.take(255) }, singleLine = true, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                    else -> OutlinedTextField(answer, { answer = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
                 TextButton(enabled = danger || (a.kind == "members" && picked.isNotEmpty()) || (a.kind != "members" && answer.isNotBlank()), onClick = {
                     ask = null
                     when (a.kind) {
-                        "folder" -> act("make it") { it.makeWorkspaceFolder(ownerId, path, answer.trim(), r) }
-                        "project" -> act("make it") { made ->
+                        "folder" -> act(tr("make it")) { it.makeWorkspaceFolder(ownerId, path, answer.trim(), r) }
+                        "project" -> act(tr("make it")) { made ->
                             val pr = made.createProject(answer.trim(), listOf(ownerId))
                             projects = made.projects(); go(WorkspaceFiles.projectRoot(pr.name), ""); picked = pr.bots.toSet(); ask = FxAsk("members", project = pr.name)
                         }
-                        "members" -> { val members = picked.toList(); act("change its bots") { it.setProjectBots(a.project, members); projects = it.projects(); if (ownerId !in members && place == WorkspaceFiles.projectRoot(a.project)) go(WorkspaceFiles.COMPUTER, "") } }
-                        "delete-project" -> act("delete it") { it.deleteProject(a.project); projects = it.projects(); if (place == WorkspaceFiles.projectRoot(a.project)) go(WorkspaceFiles.COMPUTER, ""); tell("Deleted ${a.project}") }
-                        "rename" -> if (!WorkspaceFiles.nameOk(answer)) tell("A name can't have / in it. To put it in another folder, use Move to….")
-                            else en?.let { x -> WorkspaceFiles.renamed(x.path, answer).takeIf { it != x.path }?.let { to -> act("rename it") { it.moveInWorkspace(ownerId, x.path, to, r) } } }
+                        "members" -> { val members = picked.toList(); act(tr("change its bots")) { it.setProjectBots(a.project, members); projects = it.projects(); if (ownerId !in members && place == WorkspaceFiles.projectRoot(a.project)) go(WorkspaceFiles.COMPUTER, "") } }
+                        "delete-project" -> act(tr("delete it")) { it.deleteProject(a.project); projects = it.projects(); if (place == WorkspaceFiles.projectRoot(a.project)) go(WorkspaceFiles.COMPUTER, ""); tell(tr("Deleted {name}", "name" to a.project)) }
+                        "rename" -> if (!WorkspaceFiles.nameOk(answer)) tell(tr("A name can't have / in it. To put it in another folder, use Move to…."))
+                            else en?.let { x -> WorkspaceFiles.renamed(x.path, answer).takeIf { it != x.path }?.let { to -> act(tr("rename it")) { it.moveInWorkspace(ownerId, x.path, to, r) } } }
                         else -> {
                             val list = a.entries
                             selected = emptySet()
-                            act("delete it") { api2 ->
+                            act(tr("delete it")) { api2 ->
                                 var missed = 0
                                 for (x in list) runCatching { api2.deleteFromWorkspace(ownerId, r, x.path) }.onError { missed++; tell("${x.name}: ${it.message}") }
-                                if (missed == 0) tell(if (list.size == 1) "Deleted ${list[0].name}" else "Deleted ${list.size} items")
+                                if (missed == 0) tell(if (list.size == 1) tr("Deleted {name}", "name" to list[0].name) else trn(list.size, "Deleted {n} item", "Deleted {n} items"))
                             }
                         }
                     }
-                }) { Text(when (a.kind) { "folder", "project" -> "Make"; "members" -> "Save"; "rename" -> "Rename"; else -> "Delete" }, color = if (danger) p.err else p.text) }
+                }) { Text(when (a.kind) { "folder", "project" -> tr("Make"); "members" -> tr("Save"); "rename" -> tr("Rename"); else -> tr("Delete") }, color = if (danger) p.err else p.text) }
             },
-            dismissButton = { TextButton(onClick = { ask = null }) { Text("Cancel", color = p.text) } },
+            dismissButton = { TextButton(onClick = { ask = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
 
@@ -520,7 +522,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         carry = null
         selected = emptySet()
         val from = FilesExplorer.rootOf(c.from)
-        act(if (c.move) "move it" else "copy it") { a ->
+        act(if (c.move) tr("move it") else tr("copy it")) { a ->
             var missed = 0
             for (x in c.entries) runCatching { a.carryInWorkspace(ownerId, x.path, folder, from, to, c.move) }.onError { missed++; tell("${x.name}: ${it.message}") }
             if (missed == 0) tell(FilesExplorer.carriedWords(c.move, c.entries.map { it.name }, to, folder))
@@ -548,7 +550,7 @@ private fun CarryDialog(api: Api?, ownerId: String, c: FxCarry, places: List<Str
         scope.launch {
             runCatching { a.workspace(ownerId, root, path) }
                 .onSuccess { l -> open[slot(root, path)] = FilesExplorer.sorted(l.entries.filter { it.type == "folder" && !it.kept }) }
-                .onError { open.remove(slot(root, path)); tell(it.message ?: "Couldn't load it") }
+                .onError { open.remove(slot(root, path)); tell(it.message ?: tr("Couldn't load it")) }
         }
     }
     fun toggle(root: String, path: String) { if (slot(root, path) in open) open.remove(slot(root, path)) else load(root, path) }
@@ -560,11 +562,11 @@ private fun CarryDialog(api: Api?, ownerId: String, c: FxCarry, places: List<Str
         }
         places.forEach { r -> add(FxNode(r, "", FilesExplorer.placeName(r), 0)); walk(r, "", 1) }
     }
-    val what = if (c.entries.size == 1) c.entries[0].name else "${c.entries.size} items"
+    val what = if (c.entries.size == 1) c.entries[0].name else trn(c.entries.size, "{n} item", "{n} items")
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = p.panel,
-        title = { Text("${if (c.move) "Move" else "Copy"} $what", maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        title = { Text(if (c.move) tr("Move {what}", "what" to what) else tr("Copy {what}", "what" to what), maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = {
             Column {
                 Column(Modifier.fillMaxWidth().heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
@@ -574,14 +576,14 @@ private fun CarryDialog(api: Api?, ownerId: String, c: FxCarry, places: List<Str
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (here) p.sunk else Color.Transparent)
                             .clickable(enabled = ok) { onPick(n.root, n.path) }.heightIn(min = 44.dp).padding(start = (n.depth * 18).dp), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { toggle(n.root, n.path) }, modifier = Modifier.size(36.dp)) {
-                                Icon(if (slot(n.root, n.path) in open) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, contentDescription = "Open", tint = p.muted)
+                                Icon(if (slot(n.root, n.path) in open) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, contentDescription = tr("Open"), tint = p.muted)
                             }
                             Icon(if (n.depth == 0) placeIcon(n.root) else Icons.Outlined.Folder, contentDescription = null, tint = if (ok) p.text else p.faint, modifier = Modifier.size(20.dp))
                             Text(n.name, color = if (ok) p.text else p.faint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp))
                         }
                     } }
                 }
-                if (naming) OutlinedTextField(newName, { newName = it.take(255) }, singleLine = true, label = { Text("Name") }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                if (naming) OutlinedTextField(newName, { newName = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
             }
         },
         confirmButton = {
@@ -593,14 +595,14 @@ private fun CarryDialog(api: Api?, ownerId: String, c: FxCarry, places: List<Str
                     scope.launch {
                         runCatching { a.makeWorkspaceFolder(ownerId, c.folder, newName.trim(), r) }
                             .onSuccess { made -> naming = false; newName = ""; load(r, c.folder); onPick(r, made) }
-                            .onError { tell(it.message ?: "Couldn't make it") }
+                            .onError { tell(it.message ?: tr("Couldn't make it")) }
                     }
-                }) { Text("Make", color = p.text) }
-                else TextButton(enabled = to != null, onClick = { naming = true }) { Text("New folder", color = p.text) }
-                TextButton(enabled = to != null && !naming, onClick = { to?.let { onGo(it, c.folder) } }) { Text(if (c.move) "Move here" else "Copy here", color = p.text) }
+                }) { Text(tr("Make"), color = p.text) }
+                else TextButton(enabled = to != null, onClick = { naming = true }) { Text(tr("New folder"), color = p.text) }
+                TextButton(enabled = to != null && !naming, onClick = { to?.let { onGo(it, c.folder) } }) { Text(if (c.move) tr("Move here") else tr("Copy here"), color = p.text) }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = p.text) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel"), color = p.text) } },
     )
 }
 
@@ -641,7 +643,7 @@ private fun FileRow(e: WorkspaceEntry, detail: String, selecting: Boolean, on: B
                 Text(e.name, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (detail.isNotEmpty()) Text(detail, color = p.muted, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (!selecting && onMore != null) IconButton(onClick = onMore) { Icon(Icons.Filled.MoreHoriz, contentDescription = "More", tint = p.faint) }
+            if (!selecting && onMore != null) IconButton(onClick = onMore) { Icon(Icons.Filled.MoreHoriz, contentDescription = tr("More"), tint = p.faint) }
             else Spacer(Modifier.width(12.dp))
         }
         HorizontalDivider(color = p.line)
@@ -689,7 +691,7 @@ fun FilesLink(onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.panel).clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = 16.dp).testTag("files-link"),
         verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Outlined.Folder, contentDescription = null, tint = p.text, modifier = Modifier.size(22.dp))
-        Text("Files", color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(start = 14.dp))
+        Text(tr("Files"), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(start = 14.dp))
         Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = p.faint)
     }
 }

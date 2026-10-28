@@ -15,10 +15,10 @@ object Duplicate {
 
     /** What the confirmation says, the server's lines as they are. */
     fun text(plan: CopyPlan): String = buildString {
-        append("The copy gets:\n")
+        append(tr("The copy gets:") + "\n")
         plan.copies.forEach { append("• ").append(it).append('\n') }
-        append("\nNot copied: ").append(plan.notCopied).append('.')
-        if (plan.vaultLocked) append("\n\nBitwarden is locked: unlock it first, so the copy can use the same Vault entries.")
+        append("\n" + tr("Not copied:") + " ").append(plan.notCopied).append('.')
+        if (plan.vaultLocked) append("\n\n" + tr("Bitwarden is locked: unlock it first, so the copy can use the same Vault entries."))
     }
 }
 

@@ -7,7 +7,6 @@ import kotlinx.serialization.json.put
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 /**
  * Settings → Updates (#259, ADR 053): when this account switches to a new version. The owner's "Update automatically",
@@ -31,9 +30,9 @@ data class OwnUpdate(
 
     /** What the section says, in the web page's words: nothing while nothing waits or moves. */
     fun text(zone: ZoneId = ZoneId.systemDefault()): String = when {
-        moving -> "Moving to the new version. Your bots restart in a minute or two."
-        ready -> "A new version${readyVersion?.let { " ($it)" } ?: ""} is ready. Your account moves to it by itself on ${day(deadline!!, zone)}, or now if you choose."
-        last == "kept" || last == "failed" -> "The last move to a new version didn't happen: ${error?.ifBlank { null } ?: "the admin can see why"}."
+        moving -> tr("Moving to the new version. Your bots restart in a minute or two.")
+        ready -> tr("A new version{version} is ready. Your account moves to it by itself on {day}, or now if you choose.", "version" to (readyVersion?.let { " ($it)" } ?: ""), "day" to day(deadline!!, zone))
+        last == "kept" || last == "failed" -> tr("The last move to a new version didn't happen: {why}.", "why" to (error?.ifBlank { null } ?: tr("the admin can see why")))
         else -> ""
     }
 
@@ -62,6 +61,6 @@ data class OwnUpdate(
         fun body(autoUpdate: Boolean): JsonObject = buildJsonObject { put("autoUpdate", autoUpdate) }
 
         private fun day(iso: String, zone: ZoneId): String =
-            DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.ENGLISH).format(Instant.parse(iso).atZone(zone))
+            DateTimeFormatter.ofPattern(if (I18n.language == "pl") "EEEE, d MMMM" else "EEEE, MMM d", I18n.locale).format(Instant.parse(iso).atZone(zone))
     }
 }

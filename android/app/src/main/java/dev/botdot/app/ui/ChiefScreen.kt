@@ -66,13 +66,14 @@ import dev.botdot.app.data.PlanView
 import dev.botdot.app.data.Ratings
 import dev.botdot.app.data.Unread
 import dev.botdot.app.data.str
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 private val SUGGESTIONS = listOf(
-    "What bots do I have, and what is each one good at?",
-    "Create a bot that checks the news on a topic every morning and sends me the highlights.",
-    "Make a bot that uses the computer to work on websites for me.",
-    "Make a research bot that finds fresh game design ideas on the web.",
+    tr("What bots do I have, and what is each one good at?"),
+    tr("Create a bot that checks the news on a topic every morning and sends me the highlights."),
+    tr("Make a bot that uses the computer to work on websites for me."),
+    tr("Make a research bot that finds fresh game design ideas on the web."),
 )
 
 /** The Chief of Staff: a chat that manages your bots. chatId "latest" opens the newest chat. */
@@ -168,8 +169,8 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
             topBar = {
                 ChatBar(CHIEF_COLOR, if (busy) "working" else "idle", LocalChiefName.current, onName = onSettings, onBack = onBack, outfit = FigureDef.CHIEF) {
                     // Its files (#603), as a bot's.
-                    if (dev.botdot.app.data.FilesExplorer.shows(features) && dev.botdot.app.data.UploadedFiles.chiefShows(features)) RoundButton(Icons.Filled.Folder, "Files", onClick = onFiles)
-                    RoundButton(Icons.Filled.Add, "New chat") { vm.open(null) }
+                    if (dev.botdot.app.data.FilesExplorer.shows(features) && dev.botdot.app.data.UploadedFiles.chiefShows(features)) RoundButton(Icons.Filled.Folder, tr("Files"), onClick = onFiles)
+                    RoundButton(Icons.Filled.Add, tr("New chat")) { vm.open(null) }
                 }
             },
             bottomBar = { Column {
@@ -177,7 +178,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                     onFold = { planFolded = it; app.plans.setFolded(planChat, it) },
                     onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
                 Composer(
-                    placeholder = "Message the Chief…",
+                    placeholder = tr("Message the Chief…"),
                     files = files,
                     busy = boxStops(busy, features),
                     outbox = vm.outbox,
@@ -214,7 +215,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                         if (sent != null && !busy) SentBubble(sent, above = true, sentArrives)
                         if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.chiefLine(lines["chief:$chatId"], activity.lastOrNull(), busy), sent), CHIEF_COLOR, onStop = if (busy) ({ vm.stop() }) else null, room = true)
                         else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines["chief:$chatId"].takeIf { busy }, working = false), sent), CHIEF_COLOR)
-                        WaitingMessages(vm.queued, "the Chief", onSteer = if (canSteerChief(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
+                        WaitingMessages(vm.queued, tr("the Chief"), onSteer = if (canSteerChief(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                         if (sent != null && busy) SentBubble(sent, above = false, sentArrives)
                         ChatNeeds(app, "chief", onNeeds, chiefChat = chatId)
                     }
@@ -228,9 +229,9 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                     ) {
                         BotFigure(CHIEF_COLOR, if (busy) "working" else "idle", 56, FigureDef.CHIEF)
                         Spacer(Modifier.size(14.dp))
-                        Text("What should the team work on?", style = MaterialTheme.typography.titleLarge, color = p.text, textAlign = TextAlign.Center)
+                        Text(tr("What should the team work on?"), style = MaterialTheme.typography.titleLarge, color = p.text, textAlign = TextAlign.Center)
                         Spacer(Modifier.size(6.dp))
-                        Text("Ask for anything. I'll hand it to the right bot, or build a new one.", color = p.muted, textAlign = TextAlign.Center)
+                        Text(tr("Ask for anything. I'll hand it to the right bot, or build a new one."), color = p.muted, textAlign = TextAlign.Center)
                         Spacer(Modifier.size(22.dp))
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             val shape = RoundedCornerShape(16.dp)
@@ -257,10 +258,10 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                                         runCatching {
                                             val id = a.botId ?: app.api.value?.run(a.runId!!)?.botId
                                             val target = botById[id]
-                                            if (target == null) snack.showSnackbar("This bot is no longer available")
+                                            if (target == null) snack.showSnackbar(tr("This bot is no longer available"))
                                             else if (a.kind == "run" && target.computer == "linux") onScreen(target.id)
                                             else onBot(target.id)
-                                        }.onError { snack.showSnackbar(it.message ?: "Couldn't open bot") }
+                                        }.onError { snack.showSnackbar(it.message ?: tr("Couldn't open bot")) }
                                     }
                                     Unit
                                 })
@@ -306,7 +307,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
         // place. Against a botdot from before `message-waits`, its bubble as it was.
         m.pending && draft.isNotEmpty() -> TheirBubble(chips = chips) { MarkdownText(draftSource(draft), copy = false) }
         m.pending -> if (lineSaysIt) { if (chips.isNotEmpty()) ActionChips(chips) } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Working(activity.lastOrNull()?.let { "$it…" } ?: "Thinking…", activity)
+            Working(activity.lastOrNull()?.let { "$it…" } ?: tr("Thinking…"), activity)
             if (chips.isNotEmpty()) ActionChips(chips)
         }
         else -> {
@@ -363,7 +364,7 @@ private fun Thumbs(rating: String?, onTap: (String) -> Unit) {
     val p = LocalPaper.current
     val chief = parseColor(CHIEF_COLOR, p.muted)
     Row {
-        for ((value, label) in listOf(Ratings.UP to "More like this", Ratings.DOWN to "Less like this")) {
+        for ((value, label) in listOf(Ratings.UP to tr("More like this"), Ratings.DOWN to tr("Less like this"))) {
             val on = rating == value
             val icon = when (value) {
                 Ratings.UP -> if (on) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUpOutline
@@ -386,7 +387,7 @@ private fun FromLine(words: String, from: dev.botdot.app.data.BotRef?) {
     val w = LocalMentions.current
     val line = androidx.compose.ui.text.buildAnnotatedString {
         append("$words ")
-        if (from != null) bot(named(w?.bot(from.id), from.name, from.color)) else append("a bot")
+        if (from != null) bot(named(w?.bot(from.id), from.name, from.color)) else append(tr("a bot"))
     }
     FigureText(line, color = LocalPaper.current.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
 }
@@ -397,16 +398,16 @@ private fun Suggestion(m: ChiefMessage, onBuild: () -> Unit, onDismiss: () -> Un
     val p = LocalPaper.current
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FromLine("Suggestion from", m.from)
+        FromLine(tr("Suggestion from"), m.from)
         Column(Modifier.padding(start = 32.dp).clip(shape).holdToCopy(m.text).background(p.sunk).border(1.dp, p.line2, shape).padding(horizontal = 14.dp, vertical = 10.dp)) {
             MarkdownText(m.text)
         }
         when (m.status) {
             "pending" -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onDismiss) { Text("Decline", color = p.text) }
-                Button(onClick = onBuild, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Approve") }
+                OutlinedButton(onClick = onDismiss) { Text(tr("Decline"), color = p.text) }
+                Button(onClick = onBuild, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Approve")) }
             }
-            "dismissed" -> Text("You declined it", color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+            "dismissed" -> Text(tr("You declined it"), color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
         }
     }
 }
@@ -417,7 +418,7 @@ private fun Report(m: ChiefMessage) {
     val p = LocalPaper.current
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FromLine("Message from", m.from)
+        FromLine(tr("Message from"), m.from)
         // A task it didn't finish (`error: true`) is drawn like a failed reply; its text says why.
         Column(Modifier.padding(start = 32.dp).clip(shape).holdToCopy(m.text).background(if (m.failed) p.errSoft else p.sunk).border(1.dp, if (m.failed) p.err.copy(alpha = 0.3f) else p.line2, shape).padding(horizontal = 14.dp, vertical = 10.dp)) {
             if (m.text.isNotBlank()) MarkdownText(m.text) // a file it sent while working has no text

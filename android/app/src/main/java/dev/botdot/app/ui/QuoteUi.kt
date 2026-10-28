@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.Clipboard
 import androidx.compose.ui.platform.LocalClipboard
+import dev.botdot.app.data.tr
 
 /**
  * Quote (#97, [dev.botdot.app.data.Quote]): text selected in one message of a chat (the Chief's, a bot's, a group's)
@@ -61,7 +62,7 @@ fun QuotableSelection(modifier: Modifier = Modifier, content: @Composable () -> 
                 true
             }
             .appendTextContextMenuComponents {
-                item(QuoteKey, "Quote") {
+                item(QuoteKey, tr("Quote")) {
                     val copyNow = copy[0]
                     if (copyNow != null) {
                         taker.next = { box.quote(it) } // the copy's text, when it comes (it may come after run returns)

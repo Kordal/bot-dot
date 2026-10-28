@@ -27,8 +27,8 @@ data class Checkup(
 
     companion object {
         const val FEATURE = "checkup"
-        const val LABEL = "Checkup"
-        const val WEB_SEARCH = "Web search"
+        val LABEL: String get() = tr("Checkup")
+        val WEB_SEARCH: String get() = tr("Web search")
 
         /** Whether the switches are shown: the server announces the checkup. While its features are not known yet: no. */
         fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features

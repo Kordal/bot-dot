@@ -9,13 +9,13 @@ package dev.botdot.app.data
 object OtherLogins {
     /** A list longer than this gets a search field and scrolls inside the card. */
     const val SEARCH_ABOVE = 6
-    const val OPEN = "Use another saved login"
-    const val HEADING = "Saved for another website"
-    const val SEARCH = "Search"
-    const val NO_MATCH = "No saved login matches."
-    const val USE = "Use it"
-    const val BACK = "Back"
-    const val SENDING = "Letting it use the login…"
+    val OPEN: String get() = tr("Use another saved login")
+    val HEADING: String get() = tr("Saved for another website")
+    val SEARCH: String get() = tr("Search")
+    val NO_MATCH: String get() = tr("No saved login matches.")
+    val USE: String get() = tr("Use it")
+    val BACK: String get() = tr("Back")
+    val SENDING: String get() = tr("Letting it use the login…")
 
     /** How long the confirmation's button waits before it takes a tap: a second tap on the list's row answers nothing. */
     const val CONFIRM_AFTER_MS = 600L
@@ -52,12 +52,12 @@ object OtherLogins {
 
     /** What the confirmation says before [e] is used on the host [r] asks for, by the bot named [by]. */
     fun confirm(r: LoginRequest, e: OtherLogin, by: String): Confirm = Confirm(
-        lead = "Use the login",
+        lead = tr("Use the login"),
         login = e.name,
-        savedFor = if (e.site.isNotBlank()) "saved for ${e.site}" else "saved without a website",
-        on = "on",
+        savedFor = if (e.site.isNotBlank()) tr("saved for {site}", "site" to e.site) else tr("saved without a website"),
+        on = tr("on"),
         host = r.site,
-        warning = "Its password will also be used on ${r.site}, by $by. Only continue if ${r.site} really takes this login: web pages can try to trick bots into asking.",
-        yes = "Use it on ${r.site}",
+        warning = tr("Its password will also be used on {site}, by {bot}. Only continue if {site} really takes this login: web pages can try to trick bots into asking.", "site" to r.site, "bot" to by),
+        yes = tr("Use it on {site}", "site" to r.site),
     )
 }

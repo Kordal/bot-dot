@@ -42,19 +42,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.ChiefAction
 import dev.botdot.app.data.MailDraft
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /** A mail draft in the Chief's chat (docs/api.md, "A mail draft", #415): what the card shows, decided once here. */
 object MailCard {
-    const val SEND = "Send now"
-    const val KEEP = "Not now"
+    val SEND: String get() = tr("Send now")
+    val KEEP: String get() = tr("Not now")
 
     /** The state line, without the sent time: "Sent" is followed by it. A look's draft ([MailDraft.unsaved], #422) is in no mailbox yet. */
     fun state(d: MailDraft) = when {
-        d.state == "sent" -> "Sent"
-        d.unsaved -> "Not sent"
-        d.state == "kept" -> "Kept in Drafts · not sent"
-        else -> "In Drafts · not sent"
+        d.state == "sent" -> tr("Sent")
+        d.unsaved -> tr("Not sent")
+        d.state == "kept" -> tr("Kept in Drafts · not sent")
+        else -> tr("In Drafts · not sent")
     }
 
     /** The buttons on the card: Send now and Not now while it waits, Send now alone once kept, none when sent or folded. */
@@ -80,7 +81,7 @@ fun MailDraftCard(d: MailDraft, bot: String?, screen: Boolean, onBot: () -> Unit
     var open by rememberSaveable(d.earlier) { mutableStateOf(!d.earlier) }
     var textShown by rememberSaveable(d.state) { mutableStateOf(d.state != "sent") }
     if (!open) {
-        Text("Earlier version · show", color = p.faint, fontSize = 12.5.sp,
+        Text(tr("Earlier version · show"), color = p.faint, fontSize = 12.5.sp,
             modifier = Modifier.clip(RoundedCornerShape(99.dp)).border(1.dp, p.line2, RoundedCornerShape(99.dp))
                 .clickable(role = Role.Button) { open = true }.heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 12.dp))
         return
@@ -91,11 +92,11 @@ fun MailDraftCard(d: MailDraft, bot: String?, screen: Boolean, onBot: () -> Unit
     var used by remember(actions) { mutableStateOf(false) }
     val shape = RoundedCornerShape(18.dp)
     Column(Modifier.padding(end = 32.dp)) {
-        Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line2, shape).semantics { paneTitle = "Mail draft"; contentDescription = "Mail draft" }) {
+        Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line2, shape).semantics { paneTitle = tr("Mail draft"); contentDescription = tr("Mail draft") }) {
             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                for ((label, value) in listOf("To" to d.to, "Subject" to d.subject)) Row {
+                for ((label, value) in listOf(tr("To") to d.to, tr("Subject") to d.subject)) Row {
                     Text(label, color = p.faint, fontSize = 13.5.sp, modifier = Modifier.widthIn(min = 60.dp))
-                    Text(value, color = p.text, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = if (label == "Subject") FontWeight.SemiBold else null)
+                    Text(value, color = p.text, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = if (label == tr("Subject")) FontWeight.SemiBold else null)
                 }
             }
             HorizontalDivider(color = p.line)
@@ -103,7 +104,7 @@ fun MailDraftCard(d: MailDraft, bot: String?, screen: Boolean, onBot: () -> Unit
             Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = if (sent && bot == null) 12.dp else 0.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(8.dp).clip(CircleShape).background(if (sent) p.ok else p.warn))
                 Spacer(Modifier.size(8.dp))
-                Text(if (sent) "Sent ${shortTime(d.sentAt)}".trimEnd() else MailCard.state(d), color = if (sent) p.okText else p.muted, fontSize = 12.5.sp)
+                Text(if (sent) tr("Sent {time}", "time" to shortTime(d.sentAt)).trimEnd() else MailCard.state(d), color = if (sent) p.okText else p.muted, fontSize = 12.5.sp)
             }
             if (textShown && d.text.isNotBlank()) Text(d.text, color = p.text, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.holdToCopy(d.text).padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp))
             if (actions.isNotEmpty() && !used) FlowRow(Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -117,11 +118,11 @@ fun MailDraftCard(d: MailDraft, bot: String?, screen: Boolean, onBot: () -> Unit
                 Text(bot, color = p.muted, fontSize = 12.sp, modifier = Modifier.clickable(role = Role.Button, onClick = onBot).heightIn(min = 32.dp).padding(vertical = 8.dp))
                 if (screen) {
                     Text(" · ", color = p.faint, fontSize = 12.sp)
-                    Text("Screen", color = p.muted, fontSize = 12.sp, modifier = Modifier.clickable(role = Role.Button, onClick = onScreen).heightIn(min = 32.dp).padding(vertical = 8.dp))
+                    Text(tr("Screen"), color = p.muted, fontSize = 12.sp, modifier = Modifier.clickable(role = Role.Button, onClick = onScreen).heightIn(min = 32.dp).padding(vertical = 8.dp))
                 }
             }
         }
-        if (!textShown && d.text.isNotBlank()) Text("Show the text", color = p.muted, fontSize = 12.5.sp,
+        if (!textShown && d.text.isNotBlank()) Text(tr("Show the text"), color = p.muted, fontSize = 12.5.sp,
             modifier = Modifier.clickable(role = Role.Button) { textShown = true }.heightIn(min = 44.dp).padding(start = 16.dp, top = 12.dp, bottom = 12.dp))
     }
 }

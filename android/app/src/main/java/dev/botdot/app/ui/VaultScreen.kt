@@ -56,6 +56,8 @@ import dev.botdot.app.data.BitwardenStatus
 import dev.botdot.app.data.SecretFilePlace
 import dev.botdot.app.data.VaultItem
 import dev.botdot.app.data.VaultTypes
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
@@ -92,7 +94,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     suspend fun load() {
         val a = api ?: return
         runCatching { coroutineScope { val i = async { a.vault() }; val b = async { a.bitwarden() }; i.await() to b.await() } }
-            .onSuccess { (i, b) -> items = i; bw = b }.onError { tell(it.message ?: "Couldn't load") }
+            .onSuccess { (i, b) -> items = i; bw = b }.onError { tell(it.message ?: tr("Couldn't load")) }
     }
     // Unlocking runs in the app (it takes a while); show the items once it's done.
     LaunchedEffect(api, unlocking) { if (!unlocking) load() }
@@ -100,39 +102,39 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
-        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("🔐 Vault", style = MaterialTheme.typography.titleMedium) }) },
+        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("🔐 " + tr("Vault"), style = MaterialTheme.typography.titleMedium) }) },
         bottomBar = { work.now?.let { w -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), contentAlignment = Alignment.Center) { WorkLine(w) { work.now = null } } } },
     ) { pad ->
         val b = bw ?: return@Scaffold
         val locked = b.configured && !b.unlocked
         LazyColumn(Modifier.padding(pad).fillMaxSize().imePadding(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
-                Hint(if (b.configured) "Your Bitwarden's bot-dot folder: logins, cards and identities your bots can use without ever seeing them."
-                    else "Saved logins your bots can use without ever seeing the password.")
+                Hint(if (b.configured) tr("Your Bitwarden's bot-dot folder: logins, cards and identities your bots can use without ever seeing them.")
+                    else tr("Saved logins your bots can use without ever seeing the password."))
             }
             when {
-                !b.configured && !b.installed -> item { Hint("To use Bitwarden, install its command-line tool on botdot's computer first (brew install bitwarden-cli).") }
+                !b.configured && !b.installed -> item { Hint(tr("To use Bitwarden, install its command-line tool on botdot's computer first (brew install bitwarden-cli).")) }
                 !b.configured -> item { BitwardenSetup(onConnect = { server, url, id, secret ->
                     scope.launch {
-                        runCatching { api!!.setUpBitwarden(server, url, id, secret) }.onSuccess { tell("Connected. Now unlock it.") }.onError { tell(it.message ?: "Couldn't connect") }
+                        runCatching { api!!.setUpBitwarden(server, url, id, secret) }.onSuccess { tell(tr("Connected. Now unlock it.")) }.onError { tell(it.message ?: tr("Couldn't connect")) }
                         load()
                     }
                 }) }
                 locked -> item {
-                    Section("🛡 Bitwarden is locked", "The master password is only kept in botdot's memory, never saved.") {
+                    Section("🛡 " + tr("Bitwarden is locked"), tr("The master password is only kept in botdot's memory, never saved.")) {
                         if (unlockError != null) Text(unlockError!!, color = p.err, style = MaterialTheme.typography.bodyMedium)
-                        PasswordField(master, { master = it }, "Master password")
+                        PasswordField(master, { master = it }, tr("Master password"))
                         Button(onClick = { api?.let { app.unlockBitwarden(it, master) }; master = "" }, enabled = master.isNotEmpty() && !unlocking,
-                            colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(if (unlocking) "Unlocking…" else "Unlock") }
+                            colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(if (unlocking) tr("Unlocking…") else tr("Unlock")) }
                     }
                 }
                 else -> item {
                     Row(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("🛡 ${b.email ?: b.server ?: "Bitwarden"} · ${b.items ?: 0} item${if (b.items == 1) "" else "s"}${b.lastSync?.let { " · synced ${shortTime(it)}" } ?: ""}",
+                        Text("🛡 ${b.email ?: b.server ?: "Bitwarden"} · " + trn(b.items ?: 0, "{n} item", "{n} items") + (b.lastSync?.let { " · " + tr("synced {time}", "time" to shortTime(it)) } ?: ""),
                             color = p.muted, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
-                        fun sync() { work.run("Syncing…", { "Synced" }, retry = ::sync) { try { api!!.syncBitwarden() } finally { load() } } }
-                        TextButton(onClick = ::sync, enabled = !work.busy) { Text("Sync", color = p.text) }
-                        TextButton(onClick = { work.run("Locking…", { "Locked" }) { try { api!!.lockBitwarden() } finally { load() } } }, enabled = !work.busy) { Text("Lock", color = p.text) }
+                        fun sync() { work.run(tr("Syncing…"), { tr("Synced") }, retry = ::sync) { try { api!!.syncBitwarden() } finally { load() } } }
+                        TextButton(onClick = ::sync, enabled = !work.busy) { Text(tr("Sync"), color = p.text) }
+                        TextButton(onClick = { work.run(tr("Locking…"), { tr("Locked") }) { try { api!!.lockBitwarden() } finally { load() } } }, enabled = !work.busy) { Text(tr("Lock"), color = p.text) }
                     }
                 }
             }
@@ -140,17 +142,17 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
             if (!locked) {
                 items(items, key = { it.id }) { i -> VaultRow(i, bots.orEmpty(), features, onRemoveFile = { removingFile = it }) { editing = i } }
                 if (items.isEmpty()) item {
-                    Hint(if (b.configured) "Nothing in the bot-dot folder yet. Move the logins, cards and identities bots may use into that folder in Bitwarden, or add a login here."
-                        else "No saved logins yet. Add one so a bot can sign in to a site for you.")
+                    Hint(if (b.configured) tr("Nothing in the bot-dot folder yet. Move the logins, cards and identities bots may use into that folder in Bitwarden, or add a login here.")
+                        else tr("No saved logins yet. Add one so a bot can sign in to a site for you."))
                 }
                 item {
-                    OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) { Text("＋ Add", color = p.text) }
+                    OutlinedButton(onClick = { adding = true }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) { Text("＋ " + tr("Add"), color = p.text) }
                 }
                 if (b.configured && b.unlocked && VaultTypes.addsFiles(features)) item {
-                    OutlinedButton(onClick = { addingFile = true }, modifier = Modifier.fillMaxWidth()) { Text("＋ File", color = p.text) }
+                    OutlinedButton(onClick = { addingFile = true }, modifier = Modifier.fillMaxWidth()) { Text("＋ " + tr("File"), color = p.text) }
                 }
                 if (b.configured && b.unlocked && VaultTypes.addsSshKeys(features)) item {
-                    OutlinedButton(onClick = { addingKey = true }, modifier = Modifier.fillMaxWidth()) { Text("＋ SSH key", color = p.text) }
+                    OutlinedButton(onClick = { addingKey = true }, modifier = Modifier.fillMaxWidth()) { Text("＋ " + tr("SSH key"), color = p.text) }
                 }
             }
         }
@@ -167,13 +169,13 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
         addingFile -> FileEditor(allBots, api, work, { addingFile = false; scope.launch { load() } }) { addingFile = false }
         removingFile != null -> {
             val f = removingFile!!
-            AlertDialog(onDismissRequest = { removingFile = null }, title = { Text("Remove the file?") },
-                text = { Text("botdot deletes ${f.where}. The bot can't write it again without asking you on a card.") },
+            AlertDialog(onDismissRequest = { removingFile = null }, title = { Text(tr("Remove the file?")) },
+                text = { Text(tr("botdot deletes {where}. The bot can't write it again without asking you on a card.", "where" to f.where)) },
                 confirmButton = { TextButton(onClick = {
                     removingFile = null
-                    scope.launch { runCatching { api!!.removeSecretFile(f.id) }.onSuccess { tell(it ?: "Removed") }.onError { tell(it.message ?: "Couldn't remove it") }; load() }
-                }) { Text("Remove", color = p.err) } },
-                dismissButton = { TextButton(onClick = { removingFile = null }) { Text("Cancel", color = p.text) } })
+                    scope.launch { runCatching { api!!.removeSecretFile(f.id) }.onSuccess { tell(it ?: tr("Removed")) }.onError { tell(it.message ?: tr("Couldn't remove it")) }; load() }
+                }) { Text(tr("Remove"), color = p.err) } },
+                dismissButton = { TextButton(onClick = { removingFile = null }) { Text(tr("Cancel"), color = p.text) } })
         }
     }
 }
@@ -204,18 +206,18 @@ private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, work: Wor
             }
             val bytes = read?.second
             when {
-                read == null || bytes == null -> error = "Couldn't read that file."
-                bytes.size > VaultTypes.FILE_MAX_BYTES -> { picked = null; error = "That file is bigger than 64 KB, the most a file in the Vault can be." }
+                read == null || bytes == null -> error = tr("Couldn't read that file.")
+                bytes.size > VaultTypes.FILE_MAX_BYTES -> { picked = null; error = tr("That file is bigger than 64 KB, the most a file in the Vault can be.") }
                 else -> { picked = read.first to bytes; error = null }
             }
         }
     }
-    if (!aside) AlertDialog(onDismissRequest = { picked = null; close() }, title = { Text("📄 Add a file") }, text = {
+    if (!aside) AlertDialog(onDismissRequest = { picked = null; close() }, title = { Text("📄 " + tr("Add a file")) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(picked?.let { "${it.first} · ${VaultTypes.fileSize(it.second.size.toLong())}" } ?: "Pick the file", color = p.text) }
-            Hint("Any file, at most 64 KB. Saved in your Bitwarden's bot-dot folder: bots never see what is in it, and you can't see it here again.")
-            OutlinedTextField(name, { name = it.take(100) }, label = { Text("Name (optional)") }, placeholder = { Text("GitHub App key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text("Bots that may use it", color = p.text, style = MaterialTheme.typography.titleSmall)
+            TextButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(picked?.let { "${it.first} · ${VaultTypes.fileSize(it.second.size.toLong())}" } ?: tr("Pick the file"), color = p.text) }
+            Hint(tr("Any file, at most 64 KB. Saved in your Bitwarden's bot-dot folder: bots never see what is in it, and you can't see it here again."))
+            OutlinedTextField(name, { name = it.take(100) }, label = { Text(tr("Name (optional)")) }, placeholder = { Text(tr("GitHub App key")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text(tr("Bots that may use it"), color = p.text, style = MaterialTheme.typography.titleSmall)
             Hint(VaultTypes.FILE_SHARE_NOTE)
             bots.forEach { b -> CheckRow("${b.emoji} ${b.name}", null, b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id } }
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
@@ -225,12 +227,12 @@ private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, work: Wor
             picked?.let { (fileName, bytes) ->
                 aside = true
                 // Refused: the server's sentence, in the form, which comes back as it was.
-                work.run("Adding the file…", { "Saved" }, refused = { error = it; aside = false }) {
+                work.run(tr("Adding the file…"), { tr("Saved") }, refused = { error = it; aside = false }) {
                     api!!.addFile(name.trim(), fileName, bytes, chosen.toList()); picked = null; added()
                 }
             }
-        }) { Text("Add file", color = p.text) }
-    }, dismissButton = { TextButton(onClick = { picked = null; close() }) { Text("Cancel", color = p.text) } })
+        }) { Text(tr("Add file"), color = p.text) }
+    }, dismissButton = { TextButton(onClick = { picked = null; close() }) { Text(tr("Cancel"), color = p.text) } })
 }
 
 /** At most [limit] bytes of [input]: enough to tell a file that is too big. */
@@ -268,21 +270,21 @@ private fun SshKeyEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, work: W
                 runCatching { context.contentResolver.openInputStream(uri)?.use { readAtMost(it, 64 * 1024 + 1) } }.getOrNull()
             }
             when {
-                text == null -> error = "Couldn't read that file."
-                text.length > 64 * 1024 -> error = "That file is too big for an SSH private key."
+                text == null -> error = tr("Couldn't read that file.")
+                text.length > 64 * 1024 -> error = tr("That file is too big for an SSH private key.")
                 else -> { key = text; error = null; if (name.isBlank()) name = uri.lastPathSegment?.substringAfterLast('/')?.substringAfterLast(':').orEmpty() }
             }
         }
     }
-    if (!aside) AlertDialog(onDismissRequest = { key = ""; close() }, title = { Text("🗝️ Add an SSH key") }, text = {
+    if (!aside) AlertDialog(onDismissRequest = { key = ""; close() }, title = { Text("🗝️ " + tr("Add an SSH key")) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(name, { name = it.take(100) }, label = { Text("Name") }, placeholder = { Text("Home servers") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(key, { key = it }, label = { Text("Private key") }, placeholder = { Text("-----BEGIN OPENSSH PRIVATE KEY-----") }, minLines = 3, maxLines = 6,
+            OutlinedTextField(name, { name = it.take(100) }, label = { Text(tr("Name")) }, placeholder = { Text(tr("Home servers")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(key, { key = it }, label = { Text(tr("Private key")) }, placeholder = { Text("-----BEGIN OPENSSH PRIVATE KEY-----") }, minLines = 3, maxLines = 6,
                 textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-            TextButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text("Pick its file", color = p.text) }
-            Hint("OpenSSH format, without a passphrase. Leave it empty to generate a new key. It is saved in your Bitwarden's bot-dot folder: bots use it for SSH from the account's computer and never see it.")
-            Text("Bots that may use it", color = p.text, style = MaterialTheme.typography.titleSmall)
+            TextButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(tr("Pick its file"), color = p.text) }
+            Hint(tr("OpenSSH format, without a passphrase. Leave it empty to generate a new key. It is saved in your Bitwarden's bot-dot folder: bots use it for SSH from the account's computer and never see it."))
+            Text(tr("Bots that may use it"), color = p.text, style = MaterialTheme.typography.titleSmall)
             bots.forEach { b -> CheckRow("${b.emoji} ${b.name}", null, b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id } }
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
         }
@@ -291,11 +293,11 @@ private fun SshKeyEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, work: W
             aside = true
             val given = key.isNotBlank()
             // Refused: the server's sentence, in the form, which comes back with what was given.
-            work.run(if (given) "Adding the key…" else "Generating a key…", { if (given) "Key added" else "Key made" }, refused = { error = it; aside = false }) {
+            work.run(if (given) tr("Adding the key…") else tr("Generating a key…"), { if (given) tr("Key added") else tr("Key made") }, refused = { error = it; aside = false }) {
                 val made = api!!.addSshKey(name.trim(), key.trim().ifEmpty { null }, chosen.toList()); key = ""; added(made)
             }
-        }) { Text(if (key.isBlank()) "Generate new key" else "Add key", color = p.text) }
-    }, dismissButton = { TextButton(onClick = { key = ""; close() }) { Text("Cancel", color = p.text) } })
+        }) { Text(if (key.isBlank()) tr("Generate new key") else tr("Add key"), color = p.text) }
+    }, dismissButton = { TextButton(onClick = { key = ""; close() }) { Text(tr("Cancel"), color = p.text) } })
 }
 
 /** At most [limit] bytes of [input], as text: enough to tell a file that is too big. */
@@ -328,8 +330,8 @@ internal fun rememberSecretFilePick(onText: (String) -> Unit, onError: (String) 
                 runCatching { context.contentResolver.openInputStream(uri)?.use { bytesAtMost(it, VaultTypes.SECRET_FILE_MAX + 1) } }.getOrNull()
             }
             when {
-                bytes == null -> onError("Couldn't read that file.")
-                bytes.size > VaultTypes.SECRET_FILE_MAX -> onError("That file is too big for the Vault (64 KB at most).")
+                bytes == null -> onError(tr("Couldn't read that file."))
+                bytes.size > VaultTypes.SECRET_FILE_MAX -> onError(tr("That file is too big for the Vault (64 KB at most)."))
                 else -> onText(String(bytes, Charsets.UTF_8))
             }
         }
@@ -344,15 +346,15 @@ private fun SshPublicKey(key: VaultItem, close: () -> Unit) {
     val context = LocalContext.current
     AlertDialog(onDismissRequest = close, title = { Text("🗝️ ${key.name}") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Hint("Saved in Bitwarden. To let it in, add its public key to ~/.ssh/authorized_keys on the server.")
+            Hint(tr("Saved in Bitwarden. To let it in, add its public key to ~/.ssh/authorized_keys on the server."))
             Text(key.publicKey.orEmpty(), color = p.text, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
             Text(key.fingerprint.orEmpty(), color = p.faint, fontSize = 12.sp)
         }
     }, confirmButton = {
         TextButton(onClick = {
             context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("botdot", key.publicKey.orEmpty()))
-        }) { Text("Copy public key", color = p.text) }
-    }, dismissButton = { TextButton(onClick = close) { Text("Done", color = p.text) } })
+        }) { Text(tr("Copy public key"), color = p.text) }
+    }, dismissButton = { TextButton(onClick = close) { Text(tr("Done"), color = p.text) } })
 }
 
 @Composable
@@ -362,19 +364,19 @@ private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>
     Column(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(12.dp)) {
         Text("${KIND_ICON[i.kind] ?: "🔑"} ${i.name}", color = p.text, style = MaterialTheme.typography.titleMedium)
         when (i.kind) {
-            "card" -> listOf("${i.brand ?: "Card"} •••• ${i.last4.orEmpty()}${i.expiry?.let { " · expires $it" } ?: ""} · you approve each payment")
+            "card" -> listOf("${i.brand ?: tr("Card")} •••• ${i.last4.orEmpty()}" + (i.expiry?.let { " · " + tr("expires {date}", "date" to it) } ?: "") + " · " + tr("you approve each payment"))
             "identity" -> listOf(listOfNotNull(i.holder, i.email).joinToString(" · "))
             VaultTypes.SSH_KEY -> VaultTypes.sshKeyRows(i)
             VaultTypes.FILE -> VaultTypes.fileRows(i)
             else -> VaultTypes.rows(i, features) // its type before its address, then the line of that type
         }.forEach { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
-        if (i.reprompt) Text("Asks for the master password again in Bitwarden, so bots can't use it.", color = p.faint, fontSize = 12.sp)
-        Text(if (names.isEmpty()) "No bot may use it yet" else "Can be used by ${names.joinToString(", ")}", color = p.faint, fontSize = 12.sp)
+        if (i.reprompt) Text(tr("Asks for the master password again in Bitwarden, so bots can't use it."), color = p.faint, fontSize = 12.sp)
+        Text(if (names.isEmpty()) tr("No bot may use it yet") else tr("Can be used by {names}", "names" to names.joinToString(", ")), color = p.faint, fontSize = 12.sp)
         // Where botdot keeps it in a file (#253), each with its own "Remove the file".
         i.placedIn.forEach { f ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("📍 ${if (f.written) "Placed in" else "Allowed, not written yet:"} ${f.where} (${bots.firstOrNull { it.id == f.botId }?.name ?: f.botId}${if (f.at.isNotEmpty()) ", ${shortTime(f.at)}" else ""})", color = p.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onRemoveFile(f) }) { Text("Remove the file", color = p.err) }
+                Text("📍 " + (if (f.written) tr("Placed in") else tr("Allowed, not written yet:")) + " ${f.where} (${bots.firstOrNull { it.id == f.botId }?.name ?: f.botId}${if (f.at.isNotEmpty()) ", ${shortTime(f.at)}" else ""})", color = p.muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onRemoveFile(f) }) { Text(tr("Remove the file"), color = p.err) }
             }
         }
     }
@@ -389,16 +391,15 @@ private fun BitwardenSetup(onConnect: (server: String, serverUrl: String, client
     var url by remember { mutableStateOf("") }
     var id by remember { mutableStateOf("") }
     var secret by remember { mutableStateOf("") }
-    Section("Use your Bitwarden", "Bots will use the logins, payment cards and identities in a folder called bot-dot in your Bitwarden, and nothing else in it. " +
-        "Your master password is only used to unlock and is never saved.\n\n1. In the Bitwarden web vault, open Settings → Security → Keys → View API key.\n2. Copy the client_id and client_secret here.") {
-        Chips(listOf("us" to "bitwarden.com", "eu" to "bitwarden.eu", "custom" to "Self-hosted"), server) { server = it }
-        if (server == "custom") OutlinedTextField(url, { url = it.trim() }, label = { Text("Address") }, placeholder = { Text("https://vault.example.com") }, singleLine = true,
+    Section(tr("Use your Bitwarden"), tr("Bots will use the logins, payment cards and identities in a folder called bot-dot in your Bitwarden, and nothing else in it. Your master password is only used to unlock and is never saved.\n\n1. In the Bitwarden web vault, open Settings → Security → Keys → View API key.\n2. Copy the client_id and client_secret here.")) {
+        Chips(listOf("us" to "bitwarden.com", "eu" to "bitwarden.eu", "custom" to tr("Self-hosted")), server) { server = it }
+        if (server == "custom") OutlinedTextField(url, { url = it.trim() }, label = { Text(tr("Address")) }, placeholder = { Text("https://vault.example.com") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
         OutlinedTextField(id, { id = it.trim() }, label = { Text("client_id") }, singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
         PasswordField(secret, { secret = it.trim() }, "client_secret")
         Button(onClick = { onConnect(server, url, id, secret); secret = "" }, enabled = id.isNotBlank() && secret.isNotBlank() && (server != "custom" || url.isNotBlank()),
-            colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Connect Bitwarden") }
+            colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Connect Bitwarden")) }
     }
 }
 
@@ -428,12 +429,12 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
     var askDelete by remember { mutableStateOf(false) }
     val pick = rememberSecretFilePick({ pw = it; error = null }) { error = it }
 
-    if (!aside) AlertDialog(onDismissRequest = close, title = { Text(item?.let { "Edit ${it.name}" } ?: "Add to the Vault") }, text = {
+    if (!aside) AlertDialog(onDismissRequest = close, title = { Text(item?.let { tr("Edit {name}", "name" to it.name) } ?: tr("Add to the Vault")) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // A type with its own address (a GitHub App's api.github.com) fills an empty address field.
             if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.options(features, item?.type)) { type = it; VaultTypes.of(it).site?.let { s -> if (site.isBlank()) site = s } }
-            OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(site, { site = it.trim() }, label = { Text("Website or server") }, placeholder = { Text("pve.example.ts.net") }, singleLine = true,
+            OutlinedTextField(name, { name = it }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(site, { site = it.trim() }, label = { Text(tr("Website or server")) }, placeholder = { Text("pve.example.ts.net") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
             fields.username?.let { label ->
                 OutlinedTextField(user, { user = it }, label = { Text(label) }, singleLine = true,
@@ -442,44 +443,44 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
             }
             if (fields.multiline) {
                 SecretBox(pw, { pw = it }, fields.secret)
-                TextButton(onClick = pick) { Text("Pick its file", color = p.text) }
+                TextButton(onClick = pick) { Text(tr("Pick its file"), color = p.text) }
             } else PasswordField(pw, { pw = it }, fields.secret)
-            OutlinedTextField(hosts, { hosts = it }, label = { Text("Additional exact hosts") }, placeholder = { Text("api.example.com, auth.example.com") },
+            OutlinedTextField(hosts, { hosts = it }, label = { Text(tr("Additional exact hosts")) }, placeholder = { Text("api.example.com, auth.example.com") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-            Hint("Only these hosts may also receive it. Subdomains are not included automatically.")
-            SwitchRow("Accept a self-signed certificate", "For your own servers, e.g. Proxmox or a NAS", insecure) { insecure = it }
+            Hint(tr("Only these hosts may also receive it. Subdomains are not included automatically."))
+            SwitchRow(tr("Accept a self-signed certificate"), tr("For your own servers, e.g. Proxmox or a NAS"), insecure) { insecure = it }
             if (showsInComputer) SwitchRow(VaultTypes.IN_COMPUTER, VaultTypes.IN_COMPUTER_HINT, inComputer) { inComputer = it }
-            Text("Bots that may use it", color = p.text, style = MaterialTheme.typography.titleSmall)
+            Text(tr("Bots that may use it"), color = p.text, style = MaterialTheme.typography.titleSmall)
             bots.forEach { b ->
-                CheckRow("${b.emoji} ${b.name}", if (b.computer == "linux") null else "No computer, so it can't sign in to websites", b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id }
+                CheckRow("${b.emoji} ${b.name}", if (b.computer == "linux") null else tr("No computer, so it can't sign in to websites"), b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id }
             }
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
-            if (item != null) TextButton(onClick = { askDelete = true }, enabled = !work.busy) { Text("Delete", color = p.err) }
+            if (item != null) TextButton(onClick = { askDelete = true }, enabled = !work.busy) { Text(tr("Delete"), color = p.err) }
         }
     }, confirmButton = {
         TextButton(enabled = !work.busy && name.isNotBlank() && site.isNotBlank() && (item != null || pw.isNotEmpty()), onClick = {
             aside = true
             // A refused save: the server's sentence, the form as it was typed, the secret cleared (docs/api.md).
-            work.run("Saving…", { if (bitwarden) "Saved in Bitwarden" else "Saved" }, refused = { pw = ""; error = it; aside = false }) {
+            work.run(tr("Saving…"), { if (bitwarden) tr("Saved in Bitwarden") else tr("Saved") }, refused = { pw = ""; error = it; aside = false }) {
                 val sent = VaultTypes.sent(type, user, features, saved = item?.type)
                 api!!.saveVaultLogin(item?.id, name.trim(), site, sent.username, pw, insecure, chosen.toList(),
                     hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type, if (showsInComputer) inComputer else null)
                 pw = ""; done(null)
             }
-        }) { Text("Save", color = p.text) }
-    }, dismissButton = { TextButton(onClick = close) { Text("Cancel", color = p.text) } })
+        }) { Text(tr("Save"), color = p.text) }
+    }, dismissButton = { TextButton(onClick = close) { Text(tr("Cancel"), color = p.text) } })
 
     if (askDelete && item != null) AlertDialog(
         onDismissRequest = { askDelete = false },
-        title = { Text("Delete ${item.name}?") },
-        text = { Text(if (bitwarden) "It moves to Bitwarden's trash, where you can restore it for 30 days." else "Bots can't use it any more.") },
+        title = { Text(tr("Delete {name}?", "name" to item.name)) },
+        text = { Text(if (bitwarden) tr("It moves to Bitwarden's trash, where you can restore it for 30 days.") else tr("Bots can't use it any more.")) },
         confirmButton = {
             TextButton(onClick = {
                 askDelete = false
-                scope.launch { runCatching { api!!.deleteVaultItem(item.id) }.onSuccess { done("Deleted") }.onError { error = it.message ?: "Couldn't delete" } }
-            }) { Text("Delete", color = p.err) }
+                scope.launch { runCatching { api!!.deleteVaultItem(item.id) }.onSuccess { done(tr("Deleted")) }.onError { error = it.message ?: tr("Couldn't delete") } }
+            }) { Text(tr("Delete"), color = p.err) }
         },
-        dismissButton = { TextButton(onClick = { askDelete = false }) { Text("Keep", color = p.text) } },
+        dismissButton = { TextButton(onClick = { askDelete = false }) { Text(tr("Keep"), color = p.text) } },
     )
 }
 
@@ -493,14 +494,14 @@ private fun ItemBots(item: VaultItem, bots: List<Bot>, api: dev.botdot.app.data.
     var aside by remember { mutableStateOf(false) }
     if (!aside) AlertDialog(onDismissRequest = close, title = { Text("${KIND_ICON[item.kind] ?: ""} ${item.name}") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Hint(VaultTypes.itemBotsHint(item.kind) + " Change the details themselves in Bitwarden.")
+            Hint(VaultTypes.itemBotsHint(item.kind) + " " + tr("Change the details themselves in Bitwarden."))
             bots.forEach { b -> CheckRow("${b.emoji} ${b.name}", null, b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id } }
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
         }
     }, confirmButton = {
         TextButton(enabled = !work.busy, onClick = {
             aside = true
-            work.run("Saving…", { "Saved" }, refused = { error = it; aside = false }) { api!!.setVaultBots(item.id, chosen.toList()); done(null) }
-        }) { Text("Save", color = p.text) }
-    }, dismissButton = { TextButton(onClick = close) { Text("Cancel", color = p.text) } })
+            work.run(tr("Saving…"), { tr("Saved") }, refused = { error = it; aside = false }) { api!!.setVaultBots(item.id, chosen.toList()); done(null) }
+        }) { Text(tr("Save"), color = p.text) }
+    }, dismissButton = { TextButton(onClick = close) { Text(tr("Cancel"), color = p.text) } })
 }

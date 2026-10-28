@@ -69,6 +69,7 @@ import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.hasGroupAll
 import dev.botdot.app.data.isTrue
 import dev.botdot.app.data.str
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.FlowPreview
@@ -213,7 +214,7 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
         want = minOf(maxOf(want, reach), REACH)
         val mine = ++asked
         val page = try { a.groupChat(groupId, want) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) {
-            if (!loaded) _notes.tryEmit(e.message ?: "Couldn't load")
+            if (!loaded) _notes.tryEmit(e.message ?: tr("Couldn't load"))
             return
         }
         if (mine < taken) return // a later answer is drawn already
@@ -282,7 +283,7 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
     /** "Stop all": every run of the group at work ends, and the turns that would have followed never start. */
     fun stopAll() {
         viewModelScope.launch {
-            runCatching { app.api.value?.stopGroup(groupId) }.onError { _notes.tryEmit(it.message ?: "Couldn't stop") }
+            runCatching { app.api.value?.stopGroup(groupId) }.onError { _notes.tryEmit(it.message ?: tr("Couldn't stop")) }
             load()
         }
     }
@@ -290,7 +291,7 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
     /** "Go on": the group stopped at the limit gets its next replies. A group that is no longer stopped says so in the server's words. */
     fun goOn() {
         viewModelScope.launch {
-            runCatching { (app.api.value ?: throw ApiException(NOT_CONNECTED)).goOn(groupId) }.onSuccess { if (it.wentOn) took(it) }.onError { _notes.tryEmit(it.message ?: "That didn't work") }
+            runCatching { (app.api.value ?: throw ApiException(NOT_CONNECTED)).goOn(groupId) }.onSuccess { if (it.wentOn) took(it) }.onError { _notes.tryEmit(it.message ?: tr("That didn't work")) }
             load()
         }
     }
@@ -299,7 +300,7 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
         const val PAGE = 50
         const val REACH = 200 // the most one request reads: for a "New" line further back
         private const val ASK_MS = 3_000L
-        private const val NOT_CONNECTED = "Not connected to botdot"
+        private val NOT_CONNECTED: String get() = tr("Not connected to botdot")
     }
 }
 
@@ -387,10 +388,10 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },
-            topBar = { ChatBar(null, "idle", group?.name.orEmpty(), onName = onSettings, onBack = onBack, nameLabel = "Its name and its members", picture = { GroupPicture(members, 32) }) },
+            topBar = { ChatBar(null, "idle", group?.name.orEmpty(), onName = onSettings, onBack = onBack, nameLabel = tr("Its name and its members"), picture = { GroupPicture(members, 32) }) },
             bottomBar = {
                 Composer(
-                    placeholder = "Message ${group?.name ?: "the group"}…",
+                    placeholder = group?.name?.let { tr("Message {name}…", "name" to it) } ?: tr("Message the group…"),
                     files = vm.files,
                     busy = false, // a message to a group whose members work waits its turn: Send stays
                     outbox = vm.outbox,
@@ -422,7 +423,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                         vm.working.forEachIndexed { i, w ->
                             val line = turnLines[w.runId]
                             StatusLine(workingWords(memberName(bots, w.botId), line, OpeningLine.ofRun(w.workingLine, w.openingLine, app.store.lines.features)), memberColor(bots, w.botId), still = line?.held == true,
-                                onStop = if (i == vm.working.lastIndex) ({ vm.stopAll() }) else null, stopWord = "Stop all")
+                                onStop = if (i == vm.working.lastIndex) ({ vm.stopAll() }) else null, stopWord = tr("Stop all"))
                         }
                         // Who is next: the members whose turn has not come, also between two turns, when no line stands.
                         NextHeads(Groups.heads(next, bots))
@@ -481,7 +482,7 @@ private fun StoppedLine(text: String, onGoOn: () -> Unit) {
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(text, color = p.muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
-        OutlinedButton(onClick = onGoOn) { Text("Go on", color = p.text) }
+        OutlinedButton(onClick = onGoOn) { Text(tr("Go on"), color = p.text) }
     }
 }
 
@@ -516,12 +517,12 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
         Box(Modifier.padding(top = 18.dp)) { BotFigure(color, if (r.status == "error") "failed" else "idle", 28, bot?.outfit) }
         Spacer(Modifier.size(6.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(bot?.name ?: r.botName.ifBlank { "A bot" }, color = parseColor(color, p.muted), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+            Text(bot?.name ?: r.botName.ifBlank { tr("A bot") }, color = parseColor(color, p.muted), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
             when (r.status) {
                 "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
                     // A path in its reply opens in the viewer (#251), from its own folder or the computer.
                     CompositionLocalProvider(LocalPathActions provides rememberPathActions(r.botId, bot?.name ?: r.botName)) {
-                        Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) "Done." else "" }); OpenAsDocument(r.result, bot?.name ?: r.botName); BotFilesRow(r.files) }
+                        Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }); OpenAsDocument(r.result, bot?.name ?: r.botName); BotFilesRow(r.files) }
                     }
                 }
                 else -> when (val ended = endedWords(r, features)) {

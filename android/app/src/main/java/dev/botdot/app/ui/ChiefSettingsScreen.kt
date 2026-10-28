@@ -53,6 +53,7 @@ import dev.botdot.app.data.PageRef
 import dev.botdot.app.data.Pages
 import dev.botdot.app.data.Skill
 import dev.botdot.app.data.SettingsInfo
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /** The Chief's settings (its figure and name in its chat): its name, its model and reasoning, your rules for it, your skills for it, what you always approved, its pages, its files and workspace (#383) and its earlier chats. */
@@ -66,7 +67,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
     fun tell(msg: String) { scope.launch { snack.showSnackbar(msg) } }
     var info by remember { mutableStateOf(SettingsInfo()) }
     var edit by remember { mutableStateOf(AppSettings()) }
-    LaunchedEffect(api) { runCatching { api?.settings() }.onSuccess { if (it != null) { info = it; edit = it.settings } }.onError { tell(it.message ?: "Couldn't load") } }
+    LaunchedEffect(api) { runCatching { api?.settings() }.onSuccess { if (it != null) { info = it; edit = it.settings } }.onError { tell(it.message ?: tr("Couldn't load")) } }
     val overview by app.store.chief.value.collectAsState()
     val chats = overview?.chats.orEmpty()
     val canThink = { m: String -> info.models.firstOrNull { it.id == m }?.effort ?: true }
@@ -75,12 +76,12 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
     val server by app.store.version.value.collectAsState()
     val hasCheckup = Checkup.shows(server?.features)
     var checkup by remember { mutableStateOf<Checkup?>(null) }
-    LaunchedEffect(api, hasCheckup) { if (hasCheckup) runCatching { api?.checkup() }.onSuccess { checkup = it }.onError { tell(it.message ?: "Couldn't load") } else checkup = null }
+    LaunchedEffect(api, hasCheckup) { if (hasCheckup) runCatching { api?.checkup() }.onSuccess { checkup = it }.onError { tell(it.message ?: tr("Couldn't load")) } else checkup = null }
     LaunchedEffect(Unit) { app.feed.events.collect { ev -> Checkup.event(ev)?.let { checkup = it } } }
     // Your library skills for it, ticked as a bot's are, only from a server that keeps them; saved with Save.
     val hasSkills = ChiefSkills.shows(server?.features)
     var library by remember { mutableStateOf<List<Skill>>(emptyList()) }
-    LaunchedEffect(api, hasSkills) { if (hasSkills) runCatching { api?.skills() }.onSuccess { if (it != null) library = it.library }.onError { tell(it.message ?: "Couldn't load") } }
+    LaunchedEffect(api, hasSkills) { if (hasSkills) runCatching { api?.skills() }.onSuccess { if (it != null) library = it.library }.onError { tell(it.message ?: tr("Couldn't load")) } }
     // Its lasting grants, "Always allow" on its cards (#381), of the kinds this server has; asked each time the settings open.
     val grantKinds = ChiefGrant.kinds(server?.features)
     var grants by remember { mutableStateOf<List<ChiefGrant>>(emptyList()) }
@@ -103,7 +104,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
     // A refused or failed change puts the switch back and says why.
     fun switch(before: Checkup, field: String, now: Checkup) {
         checkup = now
-        scope.launch { runCatching { api!!.setCheckup(field, if (field == "on") now.on else now.webSearch) }.onSuccess { if (it != null) checkup = it }.onError { if (checkup == now) checkup = before; tell(it.message ?: "Couldn't save") } } // not over what the feed said meanwhile
+        scope.launch { runCatching { api!!.setCheckup(field, if (field == "on") now.on else now.webSearch) }.onSuccess { if (it != null) checkup = it }.onError { if (checkup == now) checkup = before; tell(it.message ?: tr("Couldn't save")) } } // not over what the feed said meanwhile
     }
 
     // Saved by itself (#636), a moment after the last change, and "Saved" says so at the top. A refused name (a bot's,
@@ -116,10 +117,10 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
         val rename = renames && name.trim() != renamed
         if ((edit == info.settings || edit == refused) && !rename) return@LaunchedEffect
         kotlinx.coroutines.delay(800)
-        if (rename) runCatching { renamed = name.trim(); api!!.renameChief(name.trim()) }.onSuccess { name = ChiefName.field(it); savedAt++ }.onError { name = ChiefName.field(chiefName); tell(it.message ?: "Couldn't rename") }
+        if (rename) runCatching { renamed = name.trim(); api!!.renameChief(name.trim()) }.onSuccess { name = ChiefName.field(it); savedAt++ }.onError { name = ChiefName.field(chiefName); tell(it.message ?: tr("Couldn't rename")) }
         if (edit != info.settings && edit != refused) {
             val sent = edit
-            runCatching { api!!.saveSettings(sent) }.onSuccess { info = it; if (edit == sent) edit = it.settings; savedAt++ }.onError { refused = sent; tell(it.message ?: "Couldn't save") }
+            runCatching { api!!.saveSettings(sent) }.onSuccess { info = it; if (edit == sent) edit = it.settings; savedAt++ }.onError { refused = sent; tell(it.message ?: tr("Couldn't save")) }
         }
     }
 
@@ -129,19 +130,19 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
         topBar = { TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(LocalChiefName.current, style = MaterialTheme.typography.titleMedium) }, actions = { SavedMark(savedAt); PanelClose() }) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (hasName) Section("Name") {
-                OutlinedTextField(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.ROLE) })
+            if (hasName) Section(tr("Name")) {
+                OutlinedTextField(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
             }
             Section(null) {
-                Choice("Model", edit.chiefModel, listOf("" to "Same as the default") + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }
-                if (canThink(edit.chiefModel.ifBlank { edit.defaultModel })) Choice("Reasoning", edit.chiefEffort, listOf("" to "Same as the default") + info.efforts.map { it.id to it.label }) { edit = edit.copy(chiefEffort = it) }
+                Choice(tr("Model"), edit.chiefModel, listOf("" to tr("Same as the default")) + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }
+                if (canThink(edit.chiefModel.ifBlank { edit.defaultModel })) Choice(tr("Reasoning"), edit.chiefEffort, listOf("" to tr("Same as the default")) + info.efforts.map { it.id to it.label }) { edit = edit.copy(chiefEffort = it) }
             }
-            Section("Your rules for it") {
+            Section(tr("Your rules for it")) {
                 OutlinedTextField(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
             }
             if (hasSkills) {
                 val picked = edit.chiefSkills.orEmpty()
-                FoldSection(ChiefSkills.TITLE, picked.sorted().joinToString(", ").ifBlank { "None" }) {
+                FoldSection(ChiefSkills.TITLE, picked.sorted().joinToString(", ").ifBlank { tr("None") }) {
                     if (library.isEmpty()) Hint(ChiefSkills.EMPTY)
                     // The ones it has come first (as saved, so rows don't jump while you tick them).
                     library.sortedBy { it.name !in info.settings.chiefSkills.orEmpty() }.forEach { k ->
@@ -163,9 +164,9 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                                 scope.launch {
                                     runCatching { api!!.revokeChiefGrant(g) }
                                         .onSuccess { grants = grants - g; tell(ChiefGrant.REVOKED) }
-                                        .onError { tell(it.message ?: "Couldn't save") }
+                                        .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
-                            }) { Text("Revoke", color = p.text) }
+                            }) { Text(tr("Revoke"), color = p.text) }
                         }
                     }
                 }
@@ -180,11 +181,11 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                                     Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                     Text(ChiefJobs.line(j), color = p.muted, style = MaterialTheme.typography.bodySmall)
                                     TextButton(onClick = {
-                                        scope.launch { runCatching { api!!.removeChiefJob(j.id) }.onSuccess { jobs = jobs.orEmpty().filter { it.id != j.id }; tell("Removed.") }.onError { tell(it.message ?: "Couldn't remove") } }
-                                    }, contentPadding = PaddingValues(0.dp)) { Text("Remove", color = p.err) }
+                                        scope.launch { runCatching { api!!.removeChiefJob(j.id) }.onSuccess { jobs = jobs.orEmpty().filter { it.id != j.id }; tell(tr("Removed.")) }.onError { tell(it.message ?: tr("Couldn't remove")) } }
+                                    }, contentPadding = PaddingValues(0.dp)) { Text(tr("Remove"), color = p.err) }
                                 }
                                 Switch(checked = j.on, onCheckedChange = { on ->
-                                    scope.launch { runCatching { api!!.setChiefJobOn(j.id, on) }.onSuccess { now -> jobs = jobs.orEmpty().map { if (it.id == now.id) now else it } }.onError { tell(it.message ?: "Couldn't save") } }
+                                    scope.launch { runCatching { api!!.setChiefJobOn(j.id, on) }.onSuccess { now -> jobs = jobs.orEmpty().map { if (it.id == now.id) now else it } }.onError { tell(it.message ?: tr("Couldn't save")) } }
                                 }, colors = switchColors())
                             }
                         }
@@ -194,7 +195,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             // Its pages: what it made for you. Tap one to open it, and keep it up to date from there.
             pages?.let { list ->
                 val name = LocalChiefName.current
-                FoldSection("Pages", if (list.isEmpty()) "None yet" else "${list.size}") {
+                FoldSection(tr("Pages"), if (list.isEmpty()) tr("None yet") else "${list.size}") {
                     list.forEach { pg ->
                         key(pg.slug) {
                             Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(Pages.CHIEF, PageRef(pg.slug, pg.title), name) }.padding(vertical = 6.dp)) {
@@ -211,7 +212,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             else if (UploadedFiles.chiefShows(server?.features)) {
                 val viewer = DocumentView.shows(server?.features)
                 FilesSection(api, UploadedFiles.CHIEF, LocalChiefName.current, viewer,
-                    empty = "None yet.", tell = ::tell)
+                    empty = tr("None yet."), tell = ::tell)
                 if (WorkspaceFiles.shows(server?.features)) WorkspaceSection(api, UploadedFiles.CHIEF, LocalChiefName.current, usesComputer = false, viewer = viewer, tell = ::tell, folders = WorkspaceFiles.folders(server?.features))
             }
             checkup?.takeIf { hasCheckup }?.let { c ->
@@ -220,11 +221,11 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                     SwitchRow(Checkup.WEB_SEARCH, checked = c.webSearch, enabled = c.webSearchUsable) { switch(c, "webSearch", c.copy(webSearch = it)) }
                 }
             }
-            Section("Earlier chats") {
+            Section(tr("Earlier chats")) {
                 chats.take(15).forEach { c ->
                     Text(c.title, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().clickable { onChat(c.id) }.padding(vertical = 10.dp))
                 }
-                if (chats.isEmpty()) Text("No earlier chats", color = p.muted)
+                if (chats.isEmpty()) Text(tr("No earlier chats"), color = p.muted)
             }
         }
     }

@@ -60,6 +60,8 @@ import dev.botdot.app.data.CatalogApp
 import dev.botdot.app.data.ChiefSkills
 import dev.botdot.app.data.ConnectorsInfo
 import dev.botdot.app.data.Skill
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.coroutines.launch
 
 // ---------- skills ----------
@@ -84,35 +86,35 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
     Scaffold(
         containerColor = p.bg,
         topBar = { TopAppBar(navigationIcon = { BackButton { if (open != null) open = null else onBack() } }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
-            title = { Text(open?.name ?: "✦ Skills", style = MaterialTheme.typography.titleMedium) }) },
+            title = { Text(open?.name ?: "✦ " + tr("Skills"), style = MaterialTheme.typography.titleMedium) }) },
     ) { pad ->
         val o = open
         if (o != null) {
             Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Hint(o.description)
                 val users = ChiefSkills.usedBy(o.usedBy, botNames)
-                Hint(if (users.isEmpty()) "No bot uses it yet. Turn it on in a bot's settings." else "Used by ${users.joinToString(", ")}")
-                o.createdBy?.let { Hint("Made by ${if (it.startsWith("bot:")) botNames[it.removePrefix("bot:")] ?: "a bot" else if (it == "chief") "the Chief" else "you"}") }
-                Section("What it tells the bot") { MarkdownText(o.instructions.ifBlank { "(empty)" }) }
+                Hint(if (users.isEmpty()) tr("No bot uses it yet. Turn it on in a bot's settings.") else tr("Used by {names}", "names" to users.joinToString(", ")))
+                o.createdBy?.let { Hint(if (it.startsWith("bot:")) tr("Made by {name}", "name" to (botNames[it.removePrefix("bot:")] ?: tr("a bot"))) else if (it == "chief") tr("Made by the Chief") else tr("Made by you")) }
+                Section(tr("What it tells the bot")) { MarkdownText(o.instructions.ifBlank { tr("(empty)") }) }
             }
             return@Scaffold
         }
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (error != null) item { Text(error!!, color = p.err) }
-            item { Hint("Instructions a bot loads when a task needs them. Choose which bots get which in each bot's settings, and the Chief's in its settings.") }
-            if (library.isEmpty()) item { Hint("Your library is empty. Ask the Chief to make or import one.") }
+            item { Hint(tr("Instructions a bot loads when a task needs them. Choose which bots get which in each bot's settings, and the Chief's in its settings.")) }
+            if (library.isEmpty()) item { Hint(tr("Your library is empty. Ask the Chief to make or import one.")) }
             items(library, key = { it.name }) { k ->
                 Column(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).clickable { open = k }.padding(12.dp)) {
                     Text(k.name, color = p.text, style = MaterialTheme.typography.titleMedium)
                     Text(k.description, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
                     val chief = ChiefSkills.CHIEF_ID in k.usedBy
                     val n = k.usedBy.size - if (chief) 1 else 0
-                    val bots = if (n == 0) "" else "$n bot${if (n == 1) "" else "s"}"
-                    Text(if (n == 0 && !chief) "Not used yet" else "Used by ${listOf(if (chief) "the Chief" else "", bots).filter { it.isNotEmpty() }.joinToString(" and ")}", color = p.faint, fontSize = 12.sp)
+                    val bots = if (n == 0) "" else trn(n, "{n} bot", "{n} bots")
+                    Text(if (n == 0 && !chief) tr("Not used yet") else tr("Used by {names}", "names" to listOf(if (chief) tr("the Chief") else "", bots).filter { it.isNotEmpty() }.joinToString(" " + tr("and") + " ")), color = p.faint, fontSize = 12.sp)
                 }
             }
             if (builtin.isNotEmpty()) {
-                item { Text("Built into Claude Code", color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp)) }
+                item { Text(tr("Built into Claude Code"), color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp)) }
                 item { Hint(builtin.joinToString(" · ") { it.name }) }
             }
         }
@@ -128,16 +130,16 @@ private fun ComposioKeyField(save: suspend (String) -> Boolean, onCancel: (() ->
     val scope = rememberCoroutineScope()
     var key by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
-    OutlinedTextField(key, { key = it }, placeholder = { Text("Composio API key") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+    OutlinedTextField(key, { key = it }, placeholder = { Text(tr("Composio API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
     Row(verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = getKey) { Text("Get a key at composio.dev", color = p.muted) }
+        TextButton(onClick = getKey) { Text(tr("Get a key at composio.dev"), color = p.muted) }
         Spacer(Modifier.weight(1f))
-        if (onCancel != null) TextButton(onClick = onCancel) { Text("Cancel", color = p.text) }
+        if (onCancel != null) TextButton(onClick = onCancel) { Text(tr("Cancel"), color = p.text) }
         TextButton(enabled = key.isNotBlank() && !saving, onClick = {
             saving = true
             scope.launch { if (save(key.trim())) key = ""; saving = false }
-        }) { Text("Save", color = p.okText) }
+        }) { Text(tr("Save"), color = p.okText) }
     }
 }
 
@@ -161,9 +163,9 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     var askRemoveKey by remember { mutableStateOf(false) }
     var replacing by remember { mutableStateOf(false) }
 
-    suspend fun load() { runCatching { api?.connectors() }.onSuccess { info = it }.onError { tell(it.message ?: "Couldn't load") } }
+    suspend fun load() { runCatching { api?.connectors() }.onSuccess { info = it }.onError { tell(it.message ?: tr("Couldn't load")) } }
     suspend fun saveKey(key: String): Boolean = runCatching { api!!.setComposioKey(key) }
-        .onSuccess { replacing = false; found = emptyList(); tell("Saved"); load() }.onError { tell(it.message ?: "Couldn't save") }.isSuccess
+        .onSuccess { replacing = false; found = emptyList(); tell(tr("Saved")); load() }.onError { tell(it.message ?: tr("Couldn't save")) }.isSuccess
     LaunchedEffect(api) { load() }
     // Back from signing in to an app in the browser: show the new connection.
     val owner = LocalLifecycleOwner.current
@@ -172,27 +174,27 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
         owner.lifecycle.addObserver(obs)
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
-    fun search() = scope.launch { runCatching { api!!.catalog(query) }.onSuccess { found = it.items.take(30) }.onError { tell(it.message ?: "Couldn't search") } }
+    fun search() = scope.launch { runCatching { api!!.catalog(query) }.onSuccess { found = it.items.take(30) }.onError { tell(it.message ?: tr("Couldn't search")) } }
     fun connect(slug: String) = scope.launch {
         runCatching { api!!.connectApp(slug) }.onSuccess { link ->
-            if (link.noAuth) { tell("Connected"); load() }
+            if (link.noAuth) { tell(tr("Connected")); load() }
             else link.redirectUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) }
-        }.onError { tell(it.message ?: "Couldn't connect") }
+        }.onError { tell(it.message ?: tr("Couldn't connect")) }
     }
 
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
-        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("🔌 Connectors", style = MaterialTheme.typography.titleMedium) }) },
+        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("🔌 " + tr("Connectors"), style = MaterialTheme.typography.titleMedium) }) },
     ) { pad ->
         val i = info ?: return@Scaffold
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!i.configured || i.keyRejected) {
                 // No key yet, or Composio refuses it (#409): botdot makes no Composio account, so the owner pastes one.
                 val title = when {
-                    !i.configured -> "Add your Composio key"
-                    i.account == "own" -> "Composio no longer accepts your key ${i.keyHint.orEmpty()}".trim()
-                    else -> "Composio no longer accepts botdot's Composio account"
+                    !i.configured -> tr("Add your Composio key")
+                    i.account == "own" -> tr("Composio no longer accepts your key {key}", "key" to i.keyHint.orEmpty()).trim()
+                    else -> tr("Composio no longer accepts botdot's Composio account")
                 }
                 item { Section(title) { ComposioKeyField({ saveKey(it) }) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) } } }
                 return@LazyColumn
@@ -201,19 +203,19 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
             item {
                 if (replacing) Section(null) { ComposioKeyField({ saveKey(it) }, onCancel = { replacing = false }) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) } }
                 else Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Composio key ${i.keyHint.orEmpty()}".trim(), color = p.text, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { replacing = true }) { Text("Replace", color = p.text) }
-                    TextButton(onClick = { askRemoveKey = true }) { Text("Remove", color = p.err) }
+                    Text(tr("Composio key {key}", "key" to i.keyHint.orEmpty()).trim(), color = p.text, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { replacing = true }) { Text(tr("Replace"), color = p.text) }
+                    TextButton(onClick = { askRemoveKey = true }) { Text(tr("Remove"), color = p.err) }
                 }
             }
             if (!i.error.isNullOrBlank()) item { Text(i.error, color = p.err) }
-            item { Text("Connected", color = p.text, style = MaterialTheme.typography.titleMedium) }
-            if (i.connections.isEmpty() && i.reconnect.isEmpty()) item { Hint("No apps yet. Search for one below.") }
+            item { Text(tr("Connected"), color = p.text, style = MaterialTheme.typography.titleMedium) }
+            if (i.connections.isEmpty() && i.reconnect.isEmpty()) item { Hint(tr("No apps yet. Search for one below.")) }
             items(i.reconnect, key = { "r:${it.slug}" }) { a ->
                 Row(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(a.name.ifBlank { a.slug }, color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { connect(a.slug) }) { Text("Connect again", color = p.okText) }
-                    TextButton(onClick = { scope.launch { runCatching { api!!.forgetReconnect(a.slug) }.onError { tell(it.message ?: "Couldn't remove") }; load() } }) { Text("Remove", color = p.muted) }
+                    TextButton(onClick = { connect(a.slug) }) { Text(tr("Connect again"), color = p.okText) }
+                    TextButton(onClick = { scope.launch { runCatching { api!!.forgetReconnect(a.slug) }.onError { tell(it.message ?: tr("Couldn't remove")) }; load() } }) { Text(tr("Remove"), color = p.muted) }
                 }
             }
             items(i.connections, key = { it.id }) { c ->
@@ -221,14 +223,14 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                     Column(Modifier.weight(1f)) {
                         Text(c.app?.name ?: c.toolkit, color = p.text, style = MaterialTheme.typography.titleMedium)
                         val n = c.usedBy.size
-                        Text("${c.status.lowercase().replaceFirstChar { it.uppercase() }} · ${if (n == 0) "no bot uses it yet" else "used by $n bot${if (n == 1) "" else "s"}"}",
+                        Text("${c.status.lowercase().replaceFirstChar { it.uppercase() }} · " + if (n == 0) tr("no bot uses it yet") else trn(n, "used by {n} bot", "used by {n} bots"),
                             color = if (c.status == "ACTIVE") p.muted else p.warnText, fontSize = 12.5.sp)
                     }
-                    TextButton(onClick = { askRemove = c.id }) { Text("Remove", color = p.err) }
+                    TextButton(onClick = { askRemove = c.id }) { Text(tr("Remove"), color = p.err) }
                 }
             }
             item {
-                OutlinedTextField(query, { query = it }, placeholder = { Text("Find an app: Gmail, Notion, Slack…") }, singleLine = true,
+                OutlinedTextField(query, { query = it }, placeholder = { Text(tr("Find an app: Gmail, Notion, Slack…")) }, singleLine = true,
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { search() }),
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
@@ -239,7 +241,7 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                         Text(a.name.ifBlank { a.slug }, color = p.text, style = MaterialTheme.typography.bodyLarge)
                         if (!a.description.isNullOrBlank()) Text(a.description, color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 2)
                     }
-                    Text("Connect", color = p.okText, style = MaterialTheme.typography.labelMedium)
+                    Text(tr("Connect"), color = p.okText, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
@@ -247,18 +249,18 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
 
     if (askRemoveKey) AlertDialog(
         onDismissRequest = { askRemoveKey = false },
-        title = { Text("Remove your Composio key?") },
-        text = { Text("Connectors stop working until you add another.") },
-        confirmButton = { TextButton(onClick = { askRemoveKey = false; scope.launch { runCatching { api!!.removeComposioKey() }.onSuccess { found = emptyList(); tell("Removed") }.onError { tell(it.message ?: "Couldn't remove") }; load() } }) { Text("Remove", color = p.err) } },
-        dismissButton = { TextButton(onClick = { askRemoveKey = false }) { Text("Keep", color = p.text) } },
+        title = { Text(tr("Remove your Composio key?")) },
+        text = { Text(tr("Connectors stop working until you add another.")) },
+        confirmButton = { TextButton(onClick = { askRemoveKey = false; scope.launch { runCatching { api!!.removeComposioKey() }.onSuccess { found = emptyList(); tell(tr("Removed")) }.onError { tell(it.message ?: tr("Couldn't remove")) }; load() } }) { Text(tr("Remove"), color = p.err) } },
+        dismissButton = { TextButton(onClick = { askRemoveKey = false }) { Text(tr("Keep"), color = p.text) } },
     )
     askRemove?.let { id ->
         AlertDialog(
             onDismissRequest = { askRemove = null },
-            title = { Text("Remove this app?") },
-            text = { Text("Bots lose access to it, unless you connect it again.") },
-            confirmButton = { TextButton(onClick = { askRemove = null; scope.launch { runCatching { api!!.disconnect(id) }.onSuccess { tell(it ?: "Removed") }.onError { tell(it.message ?: "Couldn't remove") }; load() } }) { Text("Remove", color = p.err) } },
-            dismissButton = { TextButton(onClick = { askRemove = null }) { Text("Keep", color = p.text) } },
+            title = { Text(tr("Remove this app?")) },
+            text = { Text(tr("Bots lose access to it, unless you connect it again.")) },
+            confirmButton = { TextButton(onClick = { askRemove = null; scope.launch { runCatching { api!!.disconnect(id) }.onSuccess { tell(it ?: tr("Removed")) }.onError { tell(it.message ?: tr("Couldn't remove")) }; load() } }) { Text(tr("Remove"), color = p.err) } },
+            dismissButton = { TextButton(onClick = { askRemove = null }) { Text(tr("Keep"), color = p.text) } },
         )
     }
 }

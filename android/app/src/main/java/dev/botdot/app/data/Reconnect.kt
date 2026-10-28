@@ -25,4 +25,4 @@ data class ReconnectCard(val app: String = "", val name: String = "") {
 }
 
 /** Where a Reconnect card's button is (#464): it says so, and is never stuck. An error stays in the card under it. */
-enum class ReconnectStep(val button: String) { Ready("Reconnect"), Opening("Opening…"), Failed("Try again") }
+enum class ReconnectStep { Ready, Opening, Failed; val button: String get() = when (this) { Ready -> tr("Reconnect"); Opening -> tr("Opening…"); Failed -> tr("Try again") } }

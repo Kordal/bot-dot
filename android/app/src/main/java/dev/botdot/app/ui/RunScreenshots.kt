@@ -37,6 +37,7 @@ import androidx.compose.ui.window.DialogProperties
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Run
 import coil3.compose.AsyncImage
+import dev.botdot.app.data.tr
 
 /** The screenshots a run's tools took: one folded line, "Screenshots ›", that opens to a row of them; a tap shows one full screen. */
 @Composable
@@ -52,12 +53,12 @@ fun RunScreenshots(r: Run) {
         if (open && shots == null) runCatching { app.api.value?.runImages(r.id) }.onSuccess { shots = it }.onFailure { failed = true }
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text("Screenshots ${if (open) "⌄" else "›"}", color = p.muted, fontSize = 13.5.sp,
+        Text(tr("Screenshots") + if (open) " ⌄" else " ›", color = p.muted, fontSize = 13.5.sp,
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
         if (open) {
             val list = shots
             when {
-                failed -> Text("Couldn't load them.", color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                failed -> Text(tr("Couldn't load them."), color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
                 list != null -> Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     list.forEachIndexed { i, path ->
                         Shot(path, thumb = true, modifier = Modifier.height(110.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, p.line2, RoundedCornerShape(8.dp)).clickable { showing = i })
@@ -86,6 +87,6 @@ private fun Shot(path: String, thumb: Boolean, modifier: Modifier) {
     val app = BotDotApp.of(LocalContext.current)
     val api by app.api.collectAsState()
     val url = api?.url(path) ?: return
-    AsyncImage(url, contentDescription = "Screenshot", modifier = if (thumb) modifier.widthIn(min = 60.dp) else modifier,
+    AsyncImage(url, contentDescription = tr("Screenshot"), modifier = if (thumb) modifier.widthIn(min = 60.dp) else modifier,
         contentScale = if (thumb) ContentScale.FillHeight else ContentScale.Fit)
 }

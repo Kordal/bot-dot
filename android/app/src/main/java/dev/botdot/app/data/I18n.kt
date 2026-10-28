@@ -25,6 +25,8 @@ object I18n {
     private var keep: Keep? = null
 
     var language by mutableStateOf("en"); private set
+    /** The language's locale, for dates, month and day names. */
+    val locale: java.util.Locale get() = java.util.Locale.forLanguageTag(language)
     private var strings by mutableStateOf<Map<String, JsonElement>>(emptyMap())
 
     /** The language and dictionary kept on the phone, at the app's start. */

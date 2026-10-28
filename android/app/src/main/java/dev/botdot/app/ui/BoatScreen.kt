@@ -29,6 +29,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.botdot.app.BotDotApp
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
 
 /** How often the app asks for the desktop again while it is open: keeps the machine on, and is under boat.dev's 10 minutes. */
@@ -58,7 +59,7 @@ fun BoatScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     error = null
                     if (d.running) { if (url == null) url = d.url; ASK_AGAIN_MS } else { url = null; control = false; STARTING_MS }
                 },
-                onFailure = { e -> url = null; control = false; error = e.message ?: "Couldn't open its screen."; ASK_AGAIN_MS },
+                onFailure = { e -> url = null; control = false; error = e.message ?: tr("Couldn't open its screen."); ASK_AGAIN_MS },
             )
             delay(wait)
         }
@@ -68,10 +69,10 @@ fun BoatScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         containerColor = Color.Black,
         topBar = {
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
-                title = { Text(botName.ifBlank { "Its screen" }, style = MaterialTheme.typography.titleMedium) },
+                title = { Text(botName.ifBlank { tr("Its screen") }, style = MaterialTheme.typography.titleMedium) },
                 actions = {
                     if (url != null) TextButton(onClick = { control = !control }) {
-                        Text(if (control) "Stop controlling" else "Take control", color = if (control) p.err else p.text)
+                        Text(if (control) tr("Stop controlling") else tr("Take control"), color = if (control) p.err else p.text)
                     }
                 })
         },
@@ -107,7 +108,7 @@ fun BoatScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                 error != null -> Text(error.orEmpty(), color = Color.White, modifier = Modifier.padding(24.dp))
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Color.White)
-                    Text("Starting…", color = Color.White, modifier = Modifier.padding(top = 12.dp))
+                    Text(tr("Starting…"), color = Color.White, modifier = Modifier.padding(top = 12.dp))
                 }
             }
         }

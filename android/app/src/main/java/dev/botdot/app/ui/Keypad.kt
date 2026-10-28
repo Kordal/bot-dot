@@ -2,6 +2,8 @@ package dev.botdot.app.ui
 
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Group
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 
 /**
  * The keypad: the home of a window from 840 dp wide (#494). Its pages are the list's own order ([ListLayout.rows])
@@ -20,8 +22,8 @@ internal object Keypad {
     const val CHAT_MOST = 480
 
     /** The name of the first page, of the pinned bots and groups, and of the last, of the bots in no category. */
-    const val PINNED = "Pinned"
-    const val OTHER = "Other"
+    val PINNED: String get() = tr("Pinned")
+    val OTHER: String get() = tr("Other")
 
     /** What a window shows as its home: the list alone (a phone), the list beside the chat, or the keypad beside the chat. */
     enum class Home { PHONE, LIST, KEYPAD }
@@ -176,12 +178,12 @@ internal object Keypad {
     enum class StatusKind { WORKING, NEEDS, UNREAD, DONE, FAILED, IDLE }
 
     fun status(running: Boolean = false, needs: Boolean = false, unread: Int = 0, last: String? = null, runs: Int = 0): Status = when {
-        running -> Status(StatusKind.WORKING, if (runs > 1) "Working ×$runs" else "Working")
-        needs -> Status(StatusKind.NEEDS, "Needs you")
-        unread > 0 -> Status(StatusKind.UNREAD, "$unread unread")
-        last == "success" -> Status(StatusKind.DONE, "Done")
-        last != null && last != "stopped" && last != "running" -> Status(StatusKind.FAILED, "Couldn't finish")
-        else -> Status(StatusKind.IDLE, "Idle")
+        running -> Status(StatusKind.WORKING, if (runs > 1) tr("Working ×{runs}", "runs" to runs) else tr("Working"))
+        needs -> Status(StatusKind.NEEDS, tr("Needs you"))
+        unread > 0 -> Status(StatusKind.UNREAD, trn(unread, "{n} unread", "{n} unread"))
+        last == "success" -> Status(StatusKind.DONE, tr("Done"))
+        last != null && last != "stopped" && last != "running" -> Status(StatusKind.FAILED, tr("Couldn't finish"))
+        else -> Status(StatusKind.IDLE, tr("Idle"))
     }
 
     /** How long a run has been going, beside a Working pill: "<1 min", "2 min", "1 h 5 min". [ms]: since its start. */

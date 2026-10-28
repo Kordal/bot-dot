@@ -52,7 +52,7 @@ data class RunSteps(val count: Int, val rows: List<Row>) {
         fun open(opened: Map<String, Boolean>, r: Run): Boolean = when (opened[r.id]) { null -> false; true -> r.isRunning; false -> true }
 
         /** What the line says of a finished run's count: "23 steps", or "" for none. */
-        fun countWords(n: Int): String = when { n <= 0 -> ""; n == 1 -> "1 step"; else -> "$n steps" }
+        fun countWords(n: Int): String = if (n <= 0) "" else trn(n, "{n} step", "{n} steps")
 
         /** A message's first line, as one plain line of at most 160 characters. */
         fun firstLine(text: String?): String = dev.botdot.app.feed.plainText(text.orEmpty().lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()).trim().take(160)
@@ -63,7 +63,7 @@ data class RunSteps(val count: Int, val rows: List<Row>) {
          * its first line follows after a newline.
          */
         fun timeline(r: Run): List<Row> {
-            val sent = messaged(r).filter { !it.text.isNullOrBlank() }.map { Row(it.at, "Messaged ${it.name}\n${firstLine(it.text)}", MESSAGE) }
+            val sent = messaged(r).filter { !it.text.isNullOrBlank() }.map { Row(it.at, tr("Messaged {name}", "name" to it.name) + "\n" + firstLine(it.text), MESSAGE) }
             // A message it sent stands as its own row, with what it said: the last step that messaged that bot is not
             // drawn twice. Earlier messages to the same bot keep their step.
             val steps = r.steps?.rows.orEmpty().toMutableList()

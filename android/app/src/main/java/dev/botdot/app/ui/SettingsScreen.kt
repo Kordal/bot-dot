@@ -302,8 +302,8 @@ fun SettingsScreen(
                 if (u.moving) LaunchedEffect(u, updatePolls) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it }; updatePolls++ }
             }
 
-            if (notifyOn) Link(tr("Notifications"), value = "On", onClick = onBattery)
-            else Link(tr("Notifications"), value = "Off") {
+            if (notifyOn) Link(tr("Notifications"), value = tr("On"), onClick = onBattery)
+            else Link(tr("Notifications"), value = tr("Off")) {
                 context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
             }
 

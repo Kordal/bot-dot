@@ -40,6 +40,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
 
 /**
@@ -67,7 +68,7 @@ fun FoldSection(title: String, value: String? = null, startOpen: Boolean = false
     var open by remember(startOpen) { mutableStateOf(startOpen) } // asked open again (a skill's chip), it opens again
     val turn by animateFloatAsState(if (open) 90f else 0f, label = "chevron")
     Column(modifier.fillMaxWidth()) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClickLabel = if (open) "Close" else "Open") { open = !open }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClickLabel = if (open) tr("Close") else tr("Open")) { open = !open }.padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(title, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             if (!value.isNullOrBlank()) Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(start = 12.dp).widthIn(max = 200.dp))

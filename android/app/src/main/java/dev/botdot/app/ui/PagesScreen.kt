@@ -42,6 +42,7 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.PageInfo
 import dev.botdot.app.data.PageRef
 import dev.botdot.app.data.Pages
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /**
@@ -67,25 +68,25 @@ fun PagesScreen(app: BotDotApp, onBack: () -> Unit) {
     } else null
     LaunchedEffect(api, pageSaves, DocViewer.open == null) {
         val a = api ?: return@LaunchedEffect
-        runCatching { a.allPages() }.onSuccess { pages = it; error = null }.onFailure { error = "Couldn't load the pages." }
+        runCatching { a.allPages() }.onSuccess { pages = it; error = null }.onFailure { error = tr("Couldn't load the pages.") }
     }
 
     Scaffold(
         containerColor = p.bg,
         topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
-            title = { Column { Text("Pages", style = MaterialTheme.typography.titleMedium); Text("Made by your bots", color = p.muted, style = MaterialTheme.typography.bodySmall) } }) },
+            title = { Column { Text(tr("Pages"), style = MaterialTheme.typography.titleMedium); Text(tr("Made by your bots"), color = p.muted, style = MaterialTheme.typography.bodySmall) } }) },
     ) { pad ->
         val list = pages
         val (kept, other) = Pages.split(list.orEmpty())
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             error?.let { e -> item { Text(e, color = p.err) } }
-            if (list != null && list.isEmpty()) item { Hint("No pages yet. Ask a bot for a page, a report or an overview: it shows here, and under the bot's reply.") }
+            if (list != null && list.isEmpty()) item { Hint(tr("No pages yet. Ask a bot for a page, a report or an overview: it shows here, and under the bot's reply.")) }
             if (kept.isNotEmpty()) {
-                item { SectionLabel("Kept up to date") }
+                item { SectionLabel(tr("Kept up to date")) }
                 items(kept, key = { "${it.botId}/${it.slug}" }) { PageRow(it, board) }
             }
             if (other.isNotEmpty()) {
-                item { SectionLabel(if (kept.isEmpty()) "All pages" else "Other pages") }
+                item { SectionLabel(if (kept.isEmpty()) tr("All pages") else tr("Other pages")) }
                 items(other, key = { "${it.botId}/${it.slug}" }) { PageRow(it, board) }
             }
         }
@@ -111,7 +112,7 @@ private fun PageRow(page: PageInfo, board: ((PageInfo, Boolean) -> Unit)?) {
         if (page.keep != null) Box(Modifier.size(7.dp).background(p.ok, CircleShape))
         if (board != null && page.onBoard != null) {
             Spacer(Modifier.size(10.dp))
-            Switch(checked = page.onBoard, onCheckedChange = { board(page, it) }, colors = switchColors(), modifier = Modifier.semantics { contentDescription = "On the Board" })
+            Switch(checked = page.onBoard, onCheckedChange = { board(page, it) }, colors = switchColors(), modifier = Modifier.semantics { contentDescription = tr("On the Board") })
         }
     }
 }

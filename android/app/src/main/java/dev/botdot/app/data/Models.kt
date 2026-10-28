@@ -510,7 +510,7 @@ const val MEMORY_CARDS = "memory-cards"
 fun announces(features: Collection<String>?, name: String): Boolean = features == null || name in features
 
 // The app's own words for a note in a run from before the chips, which the server sends without `chip`.
-private val BEFORE_CHIPS = mapOf("memory" to "Remembered: ", "memory-shared" to "Remembered for all bots: ", "forgot" to "Forgot: ")
+private val BEFORE_CHIPS: Map<String, String> get() = mapOf("memory" to tr("Remembered:") + " ", "memory-shared" to tr("Remembered for all bots:") + " ", "forgot" to tr("Forgot:") + " ")
 
 private val LEARN_ICON = mapOf("memory-pending" to "⏳", "skill-pending" to "⏳", "forgot" to "🧹", "instructions" to "✏️",
     "skill" to "✦", "skill-updated" to "✦", "job" to "⏰", "connector" to "🔌")
@@ -556,7 +556,7 @@ data class ChiefInfo(val id: String = "chief", val name: String = "Chief of Staf
 
 @Serializable
 data class ChiefChatSummary(
-    val id: String, val title: String = "New chat", val updatedAt: String = "", val waiting: WaitingPlan? = null,
+    val id: String, val title: String = tr("New chat"), val updatedAt: String = "", val waiting: WaitingPlan? = null,
     val unread: Int = 0, // its new replies
     val firstUnread: Int? = null, // the place of the first of them in the whole chat
     val openingLine: String? = null, // while the Chief replies in it: what it said it is about to do (OpeningLine)
@@ -628,7 +628,7 @@ data class ChiefMessage(
 @Serializable
 data class ChiefChat(
     val id: String,
-    val title: String = "New chat",
+    val title: String = tr("New chat"),
     val messages: List<ChiefMessage> = emptyList(),
     val busy: Boolean = false,
     val offset: Int = 0, // where messages start in the whole chat (a part of a long one)
@@ -976,7 +976,7 @@ data class BatchAnswered(val done: List<Done>) {
             return BatchAnswered(list.mapNotNull { e ->
                 val o = e as? JsonObject ?: return@mapNotNull null
                 val id = o["id"].textOrNull() ?: return@mapNotNull null
-                if ((o["ok"] as? JsonPrimitive)?.booleanOrNull == false) Done(id, null, o["error"].textOrNull() ?: "It could not be answered.")
+                if ((o["ok"] as? JsonPrimitive)?.booleanOrNull == false) Done(id, null, o["error"].textOrNull() ?: tr("It could not be answered."))
                 else Done(id, Answered.of(o.toString()), null)
             })
         }
@@ -1105,10 +1105,10 @@ fun memoryCard(m: MemoryChange, features: Collection<String>?): MemoryCard {
             else -> MemoryCard(words.title, meta, null, text, words.yes, words.no)
         }
     }
-    val own = when (m.action) { "edit" -> "Change in the shared memory"; "remove" -> "Remove from the shared memory"; else -> "Add to the shared memory" }
-    val meta = listOfNotNull("after reading outside content", m.reason.takeIf { it.isNotBlank() }).joinToString(" · ")
-    return MemoryCard(own, meta, current.takeIf { it.isNotEmpty() && m.action != "add" }?.let { "Now: $it" },
-        if (m.text.isBlank()) "" else if (m.action == "edit") "New: ${m.text}" else m.text, if (m.action == "remove") "Forget it" else "Approve", "Decline")
+    val own = when (m.action) { "edit" -> tr("Change in the shared memory"); "remove" -> tr("Remove from the shared memory"); else -> tr("Add to the shared memory") }
+    val meta = listOfNotNull(tr("after reading outside content"), m.reason.takeIf { it.isNotBlank() }).joinToString(" · ")
+    return MemoryCard(own, meta, current.takeIf { it.isNotEmpty() && m.action != "add" }?.let { tr("Now: {text}", "text" to it) },
+        if (m.text.isBlank()) "" else if (m.action == "edit") tr("New: {text}", "text" to m.text) else m.text, if (m.action == "remove") tr("Forget it") else tr("Approve"), tr("Decline"))
 }
 
 /** The title and the two buttons of a waiting memory change. */
@@ -1126,9 +1126,9 @@ fun cardWords(features: Collection<String>?, title: JsonElement?, yes: JsonEleme
 
 /** The words of a guarded change as docs/api.md has them ("A waiting memory change"), for one that came without. */
 private fun guardedWords(action: String): CardWords = when (action) {
-    "erase" -> CardWords("Forget for good", "Forget for good", "Keep")
-    "remove" -> CardWords("Remove what you said", "Remove it", "Keep it")
-    else -> CardWords("Change what you said", "Change it", "Keep it")
+    "erase" -> CardWords(tr("Forget for good"), tr("Forget for good"), tr("Keep"))
+    "remove" -> CardWords(tr("Remove what you said"), tr("Remove it"), tr("Keep it"))
+    else -> CardWords(tr("Change what you said"), tr("Change it"), tr("Keep it"))
 }
 
 // ---------- phase 3: settings, skills, connectors ----------
@@ -1227,13 +1227,13 @@ data class ClaudeStatus(
 
 /** What Settings → Claude says of a sign-in that is known: which one bots run on, and the other, when it is there too, as not used. */
 fun claudeSays(c: ClaudeStatus): String {
-    if (c.onApiKey) return "Bots run on your Anthropic API key ${c.apiKey.orEmpty()}." +
-        if (c.subscription == true) " Your Claude subscription${c.email?.let { " ($it)" }.orEmpty()} is signed in too; bots don't use it." else ""
-    val key = if (c.knowsKeys && c.apiKey != null) " An Anthropic API key (${c.apiKey}) is saved too; bots don't use it." else ""
+    if (c.onApiKey) return tr("Bots run on your Anthropic API key {key}.", "key" to c.apiKey.orEmpty()) +
+        if (c.subscription == true) " " + tr("Your Claude subscription{email} is signed in too; bots don't use it.", "email" to c.email?.let { " ($it)" }.orEmpty()) else ""
+    val key = if (c.knowsKeys && c.apiKey != null) " " + tr("An Anthropic API key ({key}) is saved too; bots don't use it.", "key" to c.apiKey) else ""
     return when {
-        !c.loggedIn -> "Not signed in, so bots can't run."
-        c.fromEnv -> "Signed in with a token from the server's settings."
-        else -> c.email?.let { "Signed in with $it." } ?: "Signed in."
+        !c.loggedIn -> tr("Not signed in, so bots can't run.")
+        c.fromEnv -> tr("Signed in with a token from the server's settings.")
+        else -> c.email?.let { tr("Signed in with {email}.", "email" to it) } ?: tr("Signed in.")
     } + key
 }
 
@@ -1282,9 +1282,9 @@ data class ComputerInfo(
 
     /** What the confirmation of Reset says: the server's words, or the words for the bot's own computer of before. */
     fun resetWords(botName: String): ComputerWords = reset ?: ComputerWords(
-        "Reset ${botName.ifBlank { "its" }}'s computer?",
-        "Everything installed on it, its files and its browser logins are erased. The next run starts from a fresh desktop.",
-        "Reset",
+        if (botName.isBlank()) tr("Reset its computer?") else tr("Reset {name}'s computer?", "name" to botName),
+        tr("Everything installed on it, its files and its browser logins are erased. The next run starts from a fresh desktop."),
+        tr("Reset"),
     )
 }
 

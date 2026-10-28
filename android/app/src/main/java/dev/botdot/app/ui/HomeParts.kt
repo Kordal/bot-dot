@@ -48,6 +48,8 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Bot
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.serialization.json.JsonElement
 
 // The pieces of the home screen that the list's rows and the keypad's keys share (HomeScreen, KeypadView).
@@ -141,7 +143,7 @@ internal fun Contact(color: String?, state: String, name: String, sub: String, t
 /** The mark of a bot that asks the owner something: round, in the bot's colour, holding "?". */
 @Composable
 internal fun AsksMark(color: String?, modifier: Modifier = Modifier) {
-    Box(modifier.size(18.dp).clip(CircleShape).background(parseColor(color, LocalPaper.current.faint)).semantics { contentDescription = "Asks you" }, contentAlignment = Alignment.Center) {
+    Box(modifier.size(18.dp).clip(CircleShape).background(parseColor(color, LocalPaper.current.faint)).semantics { contentDescription = tr("Asks you") }, contentAlignment = Alignment.Center) {
         Text("?", color = Color.White, fontSize = 11.sp, lineHeight = 11.sp, fontWeight = FontWeight.Bold)
     }
 }
@@ -227,7 +229,7 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
                             val dot = tint(look?.color, c)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(10.dp).clip(CircleShape).then(if (look != null && look.filled != true) Modifier.border(1.5.dp, dot, CircleShape) else Modifier.background(dot)))
-                                if (look?.big == true) Text(if (look.filled == true) "On" else if (look.filled == false) "Off" else "·", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+                                if (look?.big == true) Text(if (look.filled == true) tr("On") else if (look.filled == false) tr("Off") else "·", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
                             }
                         }
                     }
@@ -241,7 +243,7 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
 /** The tag of the Board's numbers over the keys (KeypadUiTest). */
 internal const val BOARD_CARDS = "board-cards"
 /** What a long press on the strip does, for TalkBack, and the sheet's name (#447). */
-internal const val HOME_TILES = "Tiles on home"
+internal val HOME_TILES: String get() = tr("Tiles on home")
 
 /**
  * Needs you over the keys (#636): one warm card, a row per thing that waits, its bot's head and what it wants. A
@@ -256,7 +258,7 @@ internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, onReview: () 
     val chief = chiefNamed()
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).clip(shape).background(p.warnSoft).border(1.dp, p.warn.copy(alpha = 0.25f), shape)) {
         for (w in waiting.take(NEEDS_ROWS)) Row(
-            Modifier.fillMaxWidth().then(if (w.permission == null) Modifier.clickable(onClickLabel = "Needs you", onClick = onReview) else Modifier)
+            Modifier.fillMaxWidth().then(if (w.permission == null) Modifier.clickable(onClickLabel = tr("Needs you"), onClick = onReview) else Modifier)
                 .heightIn(min = 52.dp).padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -265,12 +267,12 @@ internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, onReview: () 
             Text(w.text, color = p.text, fontSize = 14.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             w.permission?.let { id ->
                 Spacer(Modifier.size(6.dp))
-                Text("No", color = p.muted, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(11.dp)).clickable { onAnswer(id, false) }.padding(horizontal = 12.dp, vertical = 9.dp))
-                Text("Allow", color = p.inkText, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(11.dp)).background(p.ink).clickable { onAnswer(id, true) }.padding(horizontal = 14.dp, vertical = 9.dp))
+                Text(tr("No"), color = p.muted, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(11.dp)).clickable { onAnswer(id, false) }.padding(horizontal = 12.dp, vertical = 9.dp))
+                Text(tr("Allow"), color = p.inkText, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(11.dp)).background(p.ink).clickable { onAnswer(id, true) }.padding(horizontal = 14.dp, vertical = 9.dp))
             }
         }
-        if (waiting.size > NEEDS_ROWS) Text("${waiting.size - NEEDS_ROWS} more", color = p.warnText, fontSize = 13.5.sp,
-            modifier = Modifier.fillMaxWidth().clickable(onClickLabel = "Needs you", onClick = onReview).padding(horizontal = 14.dp, vertical = 10.dp))
+        if (waiting.size > NEEDS_ROWS) Text(tr("{n} more", "n" to waiting.size - NEEDS_ROWS), color = p.warnText, fontSize = 13.5.sp,
+            modifier = Modifier.fillMaxWidth().clickable(onClickLabel = tr("Needs you"), onClick = onReview).padding(horizontal = 14.dp, vertical = 10.dp))
     }
 }
 
@@ -278,7 +280,7 @@ internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, onReview: () 
 internal const val NEEDS_ROWS = 3
 
 /** "1 needs you", "3 need you": the Needs you card's first line, the web page's words. */
-internal fun needsCount(n: Int) = if (n == 1) "1 needs you" else "$n need you"
+internal fun needsCount(n: Int) = trn(n, "{n} needs you", "{n} need you")
 
 /** Its children in a row, as many as fit whole: the rest are left out, not cut off. When none fits, the first is cut short. */
 @Composable

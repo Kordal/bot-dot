@@ -158,7 +158,7 @@ fun AnnotatedString.Builder.bots(all: List<Named>) = all.forEachIndexed { i, b -
 data class Named(val name: String, val color: String?, val outfit: JsonElement?)
 
 /** The Chief's name (ChiefName), as the app last heard it: provided at the root (MainActivity), from the Store. */
-val LocalChiefName = compositionLocalOf { ChiefName.ROLE }
+val LocalChiefName = compositionLocalOf { ChiefName.role }
 
 /** The Chief of Staff, named in text: coral, in the outfit the definition gives it, with the name the owner gave it. */
 @Composable

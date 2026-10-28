@@ -8,15 +8,15 @@ package dev.botdot.app.data
 object ChiefSkills {
     const val FEATURE = "chief-skills"
     const val CHIEF_ID = "chief"
-    const val TITLE = "Skills"
-    const val EMPTY = "No skills in your library yet."
+    val TITLE: String get() = tr("Skills")
+    val EMPTY: String get() = tr("No skills in your library yet.")
 
     /** Whether the server keeps the Chief's skills: only then is there a list to tick. */
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
 
     /** Who uses a skill, by name: the Chief first, then the bots by their names (a deleted bot is left out). */
     fun usedBy(ids: List<String>, botNames: Map<String, String>): List<String> =
-        (if (CHIEF_ID in ids) listOf("the Chief") else emptyList()) + ids.filter { it != CHIEF_ID }.mapNotNull { botNames[it] }
+        (if (CHIEF_ID in ids) listOf(tr("the Chief")) else emptyList()) + ids.filter { it != CHIEF_ID }.mapNotNull { botNames[it] }
 
     /** The Chief's list with [name] ticked ([on]) or unticked, in the order it was given. */
     fun toggle(current: List<String>?, name: String, on: Boolean): List<String> {

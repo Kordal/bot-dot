@@ -27,7 +27,7 @@ object Usage {
         val totals: Totals = Totals(), val bots: List<Bot> = emptyList(), val days: List<Day> = emptyList(),
     )
 
-    enum class Preset(val label: String) { TODAY("Today"), WEEK("7 days"), MONTH("30 days"), CUSTOM("Custom") }
+    enum class Preset { TODAY, WEEK, MONTH, CUSTOM; val label: String get() = when (this) { TODAY -> tr("Today"); WEEK -> tr("7 days"); MONTH -> tr("30 days"); CUSTOM -> tr("Custom") } }
 
     /** Whether to show the section: the server announces it. While its features are not known yet: no. */
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
@@ -74,5 +74,5 @@ object Usage {
     }
 
     /** "16 Oct", for the chart's ends. */
-    fun dayLabel(s: String): String = day(s)?.let { "${it.dayOfMonth} ${it.month.getDisplayName(java.time.format.TextStyle.SHORT, Locale.ENGLISH)}" } ?: s
+    fun dayLabel(s: String): String = day(s)?.let { "${it.dayOfMonth} ${it.month.getDisplayName(java.time.format.TextStyle.SHORT, I18n.locale)}" } ?: s
 }

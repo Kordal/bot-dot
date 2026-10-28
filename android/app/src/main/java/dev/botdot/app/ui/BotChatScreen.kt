@@ -66,6 +66,7 @@ import dev.botdot.app.data.RunSteps
 import dev.botdot.app.data.SentTo
 import dev.botdot.app.data.Unread
 import dev.botdot.app.data.str
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /**
@@ -177,19 +178,19 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     beside = if (bot != null && canMakeGroup(features, others.size)) ({ SmallPlus(ADD_A_BOT) { makingGroup = true } }) else null,
                 ) {
                     // Its files (#603), as a file manager shows them.
-                    if (bot != null && dev.botdot.app.data.FilesExplorer.shows(features)) RoundButton(Icons.Filled.Folder, "Files", onClick = onFiles)
-                    if (bot?.computer == "linux" || (bot?.computer == "boat" && "boat-desktop" in features.orEmpty())) RoundButton(Icons.Filled.DesktopWindows, "Its screen", onClick = onScreen)
+                    if (bot != null && dev.botdot.app.data.FilesExplorer.shows(features)) RoundButton(Icons.Filled.Folder, tr("Files"), onClick = onFiles)
+                    if (bot?.computer == "linux" || (bot?.computer == "boat" && "boat-desktop" in features.orEmpty())) RoundButton(Icons.Filled.DesktopWindows, tr("Its screen"), onClick = onScreen)
                     val jobs = bot?.jobs.orEmpty()
-                    if (jobs.isNotEmpty()) RoundButton(Icons.Filled.Schedule, "Scheduled jobs", dot = jobs.any { it.waits }, onClick = onJobs)
+                    if (jobs.isNotEmpty()) RoundButton(Icons.Filled.Schedule, tr("Scheduled jobs"), dot = jobs.any { it.waits }, onClick = onJobs)
                 }
             },
             bottomBar = { Column {
-                PlanDock(planView, bot?.color, bot?.name ?: "It", planFolded,
+                PlanDock(planView, bot?.color, bot?.name ?: tr("It"), planFolded,
                     onFold = { planFolded = it; app.plans.setFolded(chatKey, it) },
                     onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
                 vm.replying?.let { ReplyChip(it.text) { vm.replying = null } }
                 Composer(
-                    placeholder = "Message",
+                    placeholder = tr("Message"),
                     files = files,
                     busy = boxStops(running != null, features),
                     outbox = vm.outbox,
@@ -230,7 +231,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         ChatNeeds(app, botId, onNeeds)
                     }
                 }
-                if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, "Notes waiting:", foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }
+                if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, tr("Notes waiting:"), foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }
                 if (loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null) item {
                     // An empty chat: the bot's large head, with its hat and the face of its state, as on the web page (#636: no words).
                     Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -247,7 +248,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     // Details on the long press opens the newest round's steps; Copy takes its reply.
                     val detailed = rounds.lastOrNull { RunSteps.shows(it) }
                     RunBlock(onReply = if (replies && last.kind != "script" && !last.btw && !last.isQueued) ({
-                        vm.replying = BotChatModel.Replying(last.id, RunSteps.firstLine(rounds.first().prompt).ifEmpty { "this task" })
+                        vm.replying = BotChatModel.Replying(last.id, RunSteps.firstLine(rounds.first().prompt).ifEmpty { tr("this task") })
                     }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = d.isRunning } }, copy = rounds.lastOrNull { it.status == "success" }?.result) {
                         rounds.forEachIndexed { n, r ->
                             if (n > 0) RoundRule()
@@ -286,11 +287,11 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // A new group of this bot and those picked, one to five, with the name given. The bot's own chat stays as it
     // is. A refusal of the botdot server is shown in the picker, in its words, and nothing is made.
     if (makingGroup && bot != null) BotPicker(
-        title = "New group", name = "", action = "Create", max = GROUP_MAX - 1,
+        title = tr("New group"), name = "", action = tr("Create"), max = GROUP_MAX - 1,
         bots = others.sortedWith(compareBy<Bot> { it.group != bot.group }.thenBy { it.name.lowercase() }), // its category's bots first
         hint = { n -> makeHint(n, bot.name) }, onDismiss = { makingGroup = false },
     ) { picked, named ->
-        val made = (app.api.value ?: error("Not connected to botdot")).makeGroup(named, listOf(bot.id) + picked)
+        val made = (app.api.value ?: error(tr("Not connected to botdot"))).makeGroup(named, listOf(bot.id) + picked)
         app.store.groups.refresh()
         onGroup(made.id)
     }
@@ -299,16 +300,16 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
 @Composable
 private fun YourSide(r: Run, open: Boolean = false) {
     val notes = r.inbox.orEmpty()
-    if (notes.isNotEmpty()) NotesFold(notes, if (notes.size == 1) "Read a note from" else "Read notes from")
+    if (notes.isNotEmpty()) NotesFold(notes, if (notes.size == 1) tr("Read a note from") else tr("Read notes from"))
     when (Unread.asked(r)) {
         Unread.Asked.REPLIES -> {} // the answers it waited for: the notes above are what started it
         Unread.Asked.MESSAGE -> FromBotBubble(r, open)
         Unread.Asked.JOB -> Chip("${Unread.jobChip(r)} · ${shortTime(r.startedAt)}")
-        Unread.Asked.SCHEDULE -> Chip("⏰ Scheduled run · ${shortTime(r.startedAt)}")
+        Unread.Asked.SCHEDULE -> Chip("⏰ " + tr("Scheduled run") + " · ${shortTime(r.startedAt)}")
         Unread.Asked.HELLO -> {} // a new bot's first message: the owner asked nothing
         Unread.Asked.REMINDER -> {} // a reminder the bot set went off: botdot posted it, the owner asked nothing
         Unread.Asked.CARRIED_ON -> {} // it goes on after your OK: your request stands once, above the first reply
-        Unread.Asked.USUAL -> Chip("▶ Ran its main assignment")
+        Unread.Asked.USUAL -> Chip("▶ " + tr("Ran its main assignment"))
         Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments)
     }
 }
@@ -333,8 +334,8 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
     val reply: @Composable () -> Unit = {
         TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole, plain = true) {
             Column {
-                MarkdownText((if (folded != null && !more) folded else r.result.orEmpty()).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) "Done." else "" })
-                if (folded != null && !more) Text("More", color = p.muted, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { more = true }.padding(top = 8.dp, bottom = 4.dp))
+                MarkdownText((if (folded != null && !more) folded else r.result.orEmpty()).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) tr("Done.") else "" })
+                if (folded != null && !more) Text(tr("More"), color = p.muted, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { more = true }.padding(top = 8.dp, bottom = 4.dp))
                 OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect); PlanFold(plan)
             }
         }
@@ -369,7 +370,7 @@ internal const val ENDED_BY = "ended-by"
 /** What the bubble of a run that did not finish says: the app's own muted "Stopped.", or a problem in the problem bubble. */
 internal sealed interface Ended {
     val text: String
-    data class Stopped(override val text: String = "Stopped.") : Ended
+    data class Stopped(override val text: String = tr("Stopped.")) : Ended
     data class Problem(override val text: String) : Ended
 }
 
@@ -382,7 +383,7 @@ internal sealed interface Ended {
 internal fun endedWords(r: Run, features: Collection<String>?): Ended {
     val problem = r.problem?.trim()?.ifEmpty { null }
     if (r.status == "stopped") return if (problem != null && features != null && ENDED_BY in features) Ended.Problem(problem) else Ended.Stopped()
-    return Ended.Problem(problem ?: r.error?.ifBlank { null } ?: "It didn't finish (${r.status}).")
+    return Ended.Problem(problem ?: r.error?.ifBlank { null } ?: tr("It didn't finish ({status}).", "status" to r.status))
 }
 
 /**
@@ -400,9 +401,9 @@ private fun ExchangeFold(r: Run, to: List<SentTo>, footer: String, startOpen: Bo
     // Each bot named has its small head beside its name.
     val label = buildAnnotatedString {
         when {
-            to.isEmpty() -> if (r.startedBy == "chief") { append("Replied to "); bot(chief) } else append("Replied") // the Chief reads the reply itself
-            to.all { it.id == r.fromBot?.id } -> { append("Replied to "); bot(named(w?.bot(r.fromBot?.id), r.fromBot?.name.orEmpty(), r.fromBot?.color)) }
-            else -> { append("Messaged "); bots(to.map { named(w?.bot(it.id), it.name, it.color) }) }
+            to.isEmpty() -> if (r.startedBy == "chief") { append(tr("Replied to") + " "); bot(chief) } else append(tr("Replied")) // the Chief reads the reply itself
+            to.all { it.id == r.fromBot?.id } -> { append(tr("Replied to") + " "); bot(named(w?.bot(r.fromBot?.id), r.fromBot?.name.orEmpty(), r.fromBot?.color)) }
+            else -> { append(tr("Messaged") + " "); bots(to.map { named(w?.bot(it.id), it.name, it.color) }) }
         }
         append(if (open) " ⌄" else " ›") // before the first words, which the line's end may cut
         val peek = foldPeek(r.result)
@@ -414,7 +415,7 @@ private fun ExchangeFold(r: Run, to: List<SentTo>, footer: String, startOpen: Bo
         Unfold(open) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 messages.forEach { t ->
-                    FigureText(buildAnnotatedString { append("To "); bot(named(w?.bot(t.id), t.name, t.color)) }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                    FigureText(buildAnnotatedString { append(tr("To") + " "); bot(named(w?.bot(t.id), t.name, t.color)) }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
                     TheirBubble(null, copyText = t.text) { MarkdownText(t.text.orEmpty()) }
                 }
                 reply()
@@ -453,7 +454,7 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
         if (foot.isNotEmpty() || onRunNow != null) Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (foot.isNotEmpty()) Text(foot, color = p.faint, fontSize = 12.sp)
             if (notes.any { it.later }) LaterPill()
-            if (onRunNow != null) Text("Run now", color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+            if (onRunNow != null) Text(tr("Run now"), color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
                 modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onRunNow).padding(horizontal = 4.dp, vertical = 2.dp))
         }
     }
@@ -463,7 +464,7 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
 @Composable
 private fun LaterPill() {
     val p = LocalPaper.current
-    Text("Later", color = p.muted, fontSize = 11.5.sp, modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(p.sunk).padding(horizontal = 8.dp, vertical = 1.dp))
+    Text(tr("Later"), color = p.muted, fontSize = 11.5.sp, modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(p.sunk).padding(horizontal = 8.dp, vertical = 1.dp))
 }
 
 /** A run started by another bot's message or a Chief task: one folded line, "Message from Fleet Doctor" (with its small head), that opens to what it said. */
@@ -475,11 +476,11 @@ private fun FromBotBubble(r: Run, startOpen: Boolean = false) {
         val w = LocalMentions.current
         val chief = chiefNamed()
         val line = buildAnnotatedString {
-            append("Message from ")
+            append(tr("Message from") + " ")
             when {
                 r.fromBot != null -> bot(named(w?.bot(r.fromBot.id), r.fromBot.name, r.fromBot.color))
                 r.startedBy == "chief" -> bot(chief)
-                else -> append("a bot")
+                else -> append(tr("a bot"))
             }
             append(if (open) " ⌄" else " ›") // before the first words, which the line's end may cut
             val peek = foldPeek(r.prompt)

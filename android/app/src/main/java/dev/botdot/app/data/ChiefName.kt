@@ -7,13 +7,15 @@ package dev.botdot.app.data
  */
 object ChiefName {
     const val FEATURE = "chief-name"
-    /** The role's own name: the Chief's name when the owner gave it none. */
+    /** The role's own name as botdot says it: the Chief's name when the owner gave it none. */
     const val ROLE = "Chief of Staff"
+    /** [ROLE] in the account's language. */
+    val role: String get() = tr("Chief of Staff")
     /** The longest name botdot keeps. */
     const val MAX = 40
 
-    /** A name as botdot said it, or the role's own when it said none. */
-    fun named(name: String?): String = name?.trim()?.ifEmpty { null } ?: ROLE
+    /** A name as botdot said it, or the role's own, in the account's language, when it said none or the role's. */
+    fun named(name: String?): String = name?.trim()?.ifEmpty { null }?.takeIf { it != ROLE } ?: role
 
     /** The name in the Chief's part of `GET /api/chief`. */
     fun of(chief: ChiefOverview?): String = named(chief?.chief?.name)
@@ -26,7 +28,7 @@ object ChiefName {
         features?.contains(FEATURE) == true && setup != null && !setup.done && !setup.chiefNameAsked
 
     /** What the name field of the Chief's settings starts with: empty for the role's own name, so its placeholder shows. */
-    fun field(name: String): String = if (named(name) == ROLE) "" else name.trim()
+    fun field(name: String): String = if (named(name) == role) "" else name.trim()
 
     /** Whether the field holds another name than the Chief has, so that Save renames it. */
     fun changed(field: String, name: String): Boolean = named(field.take(MAX)) != named(name)

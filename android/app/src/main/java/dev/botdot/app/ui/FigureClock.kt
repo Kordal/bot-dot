@@ -24,14 +24,15 @@ import androidx.compose.ui.graphics.drawscope.translate
 import dev.botdot.app.data.FigureDef
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.sin
 
 /** The colours a bot can have (= COLORS in lib/bots.js). The Chief is coral, like the logo's dot. */
-val BotColors = listOf(
-    "#1d9e75" to "Teal", "#378add" to "Blue", "#7f77dd" to "Purple", "#d4537e" to "Pink",
-    "#e24b4a" to "Red", "#ef9f27" to "Amber", "#639922" to "Green", "#888780" to "Grey",
+val BotColors: List<Pair<String, String>> get() = listOf(
+    "#1d9e75" to tr("Teal"), "#378add" to tr("Blue"), "#7f77dd" to tr("Purple"), "#d4537e" to tr("Pink"),
+    "#e24b4a" to tr("Red"), "#ef9f27" to tr("Amber"), "#639922" to tr("Green"), "#888780" to tr("Grey"),
 )
 const val CHIEF_COLOR = "#d85a30"
 

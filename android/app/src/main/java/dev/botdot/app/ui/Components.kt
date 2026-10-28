@@ -107,6 +107,8 @@ import kotlinx.coroutines.ensureActive
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.snapshotFlow
+import dev.botdot.app.data.I18n
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
@@ -124,7 +126,7 @@ fun parseColor(hex: String?, fallback: Color): Color =
 
 @Composable
 fun BackButton(onClick: () -> Unit) {
-    IconButton(onClick = onClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+    IconButton(onClick = onClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Back")) }
 }
 
 /** A round button that floats over what's behind it (a chat's messages); [dot]: something there waits for you. */
@@ -155,7 +157,7 @@ val LocalListToggle = compositionLocalOf<(() -> Unit)?> { null }
  * plus of a bot's chat): a long name is cut, and it stays.
  */
 @Composable
-fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onBack: () -> Unit, outfit: JsonElement? = null, nameLabel: String = "Its settings", picture: (@Composable () -> Unit)? = null, beside: (@Composable () -> Unit)? = null, actions: @Composable () -> Unit = {}) {
+fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onBack: () -> Unit, outfit: JsonElement? = null, nameLabel: String = tr("Its settings"), picture: (@Composable () -> Unit)? = null, beside: (@Composable () -> Unit)? = null, actions: @Composable () -> Unit = {}) {
     val p = LocalPaper.current
     val toggle = LocalListToggle.current
     Row(
@@ -163,8 +165,8 @@ fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onB
             .statusBarsPadding().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (toggle == null) RoundButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onClick = onBack)
-        else RoundButton("Show or hide the list", onClick = toggle) {
+        if (toggle == null) RoundButton(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), onClick = onBack)
+        else RoundButton(tr("Show or hide the list"), onClick = toggle) {
             // A window with its left side filled: the list.
             androidx.compose.foundation.Canvas(Modifier.size(width = 18.dp, height = 15.dp)) {
                 val line = 1.6.dp.toPx()
@@ -191,8 +193,8 @@ fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onB
 }
 
 private val TIME = DateTimeFormatter.ofPattern("HH:mm")
-private val DAY = DateTimeFormatter.ofPattern("d MMM")
-private val DAY_TIME = DateTimeFormatter.ofPattern("d MMM, HH:mm")
+private val DAY get() = DateTimeFormatter.ofPattern("d MMM", I18n.locale)
+private val DAY_TIME get() = DateTimeFormatter.ofPattern("d MMM, HH:mm", I18n.locale)
 fun shortTime(iso: String?): String {
     if (iso.isNullOrBlank()) return ""
     return runCatching {
@@ -209,8 +211,8 @@ fun listTime(iso: String?): String {
         val days = java.time.temporal.ChronoUnit.DAYS.between(t.toLocalDate(), java.time.LocalDate.now())
         when {
             days <= 0L -> t.format(TIME)
-            days == 1L -> "Yesterday"
-            days < 7L -> t.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
+            days == 1L -> tr("Yesterday")
+            days < 7L -> t.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, I18n.locale)
             else -> t.format(DAY)
         }
     }.getOrDefault("")
@@ -247,7 +249,7 @@ fun FileChip(name: String, note: String? = null, onDark: Boolean = false, onRemo
         Text(name, color = fg, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 180.dp))
         if (note != null) Text("  $note", color = p.faint, fontSize = 12.sp)
         if (onRemove != null) IconButton(onClick = onRemove, modifier = Modifier.size(26.dp)) {
-            Icon(Icons.Filled.Close, contentDescription = "Remove", modifier = Modifier.size(14.dp), tint = p.faint)
+            Icon(Icons.Filled.Close, contentDescription = tr("Remove"), modifier = Modifier.size(14.dp), tint = p.faint)
         }
     }
 }
@@ -296,7 +298,7 @@ fun BotFilesRow(files: List<Attachment>?, top: androidx.compose.ui.unit.Dp = 8.d
             opening = f.file
             scope.launch {
                 runCatching { dev.botdot.app.data.BotFiles.open(context, api, f.file, f.name) }
-                    .onFailure { android.widget.Toast.makeText(context, it.message ?: "Couldn't open ${f.name}", android.widget.Toast.LENGTH_LONG).show() }
+                    .onFailure { android.widget.Toast.makeText(context, it.message ?: tr("Couldn't open {name}", "name" to f.name), android.widget.Toast.LENGTH_LONG).show() }
                 opening = null
             }
         }
@@ -308,7 +310,7 @@ fun BotFilesRow(files: List<Attachment>?, top: androidx.compose.ui.unit.Dp = 8.d
         if (others.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             others.forEach { f ->
                 Box(Modifier.clip(RoundedCornerShape(99.dp)).clickable(enabled = opening == null) { open(f) }) {
-                    FileChip(f.name, note = if (opening == f.file) "opening…" else null)
+                    FileChip(f.name, note = if (opening == f.file) tr("opening…") else null)
                 }
             }
         }
@@ -333,7 +335,7 @@ fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>, name: Str
                 Text("📄", fontSize = 18.sp)
                 Column(Modifier.padding(start = 10.dp)) {
                     Text(page.title, color = p.text, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("Page", color = p.faint, fontSize = 12.sp)
+                    Text(tr("Page"), color = p.faint, fontSize = 12.sp)
                 }
             }
         }
@@ -358,18 +360,18 @@ fun ReconnectCards(cards: List<dev.botdot.app.data.ReconnectCard>) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(androidx.compose.ui.text.buildAnnotatedString {
                         withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(card.label) }
-                        append(" is signed out")
+                        append(" " + tr("is signed out"))
                     }, color = p.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     androidx.compose.material3.TextButton(enabled = step != dev.botdot.app.data.ReconnectStep.Opening, onClick = {
                         step = dev.botdot.app.data.ReconnectStep.Opening
                         problem = null
                         scope.launch {
-                            runCatching { (api ?: error("Not connected to botdot")).connectApp(card.app) }.onSuccess { link ->
+                            runCatching { (api ?: error(tr("Not connected to botdot"))).connectApp(card.app) }.onSuccess { link ->
                                 step = dev.botdot.app.data.ReconnectStep.Ready
                                 link.redirectUrl?.takeIf { !link.noAuth }?.let { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(it))) }
                             }.onFailure {
                                 step = dev.botdot.app.data.ReconnectStep.Failed
-                                problem = it.message ?: "Couldn't connect ${card.label}."
+                                problem = it.message ?: tr("Couldn't connect {name}.", "name" to card.label)
                             }
                         }
                     }) { Text(step.button, color = p.okText) }
@@ -388,7 +390,7 @@ private fun BotImage(f: Attachment, onClick: () -> Unit) {
     val p = LocalPaper.current
     val app = dev.botdot.app.BotDotApp.of(LocalContext.current)
     val api by app.api.collectAsState()
-    val url = api?.url("/files/" + f.file.split('/').joinToString("/") { Api.enc(it) }) ?: return FileChip(f.name, note = "loading…")
+    val url = api?.url("/files/" + f.file.split('/').joinToString("/") { Api.enc(it) }) ?: return FileChip(f.name, note = tr("loading…"))
     var shown by remember(url) { mutableStateOf(false) }
     val shape = RoundedCornerShape(10.dp)
     Box {
@@ -400,7 +402,7 @@ private fun BotImage(f: Attachment, onClick: () -> Unit) {
                 .then(if (shown) Modifier.border(1.dp, p.line2, shape).background(Color.White).clickable(onClick = onClick) else Modifier),
             contentScale = androidx.compose.ui.layout.ContentScale.Fit,
         )
-        if (!shown) FileChip(f.name, note = "loading…")
+        if (!shown) FileChip(f.name, note = tr("loading…"))
     }
 }
 
@@ -412,7 +414,7 @@ fun UnreadDots(unread: Int, color: String?, modifier: Modifier = Modifier) {
     val shown = Unread.dots(unread)
     if (shown == 0) return
     val c = parseColor(color, LocalPaper.current.faint)
-    Row(modifier.semantics(mergeDescendants = true) { contentDescription = if (shown == 1) "New reply" else "New replies" }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    Row(modifier.semantics(mergeDescendants = true) { contentDescription = if (shown == 1) tr("New reply") else tr("New replies") }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         repeat(shown) { Box(Modifier.size(7.dp).clip(CircleShape).background(c)) }
     }
 }
@@ -423,7 +425,7 @@ fun NewLine(color: String?) {
     val c = parseColor(color, LocalPaper.current.faint)
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.weight(1f).height(1.dp).background(c.copy(alpha = 0.45f)))
-        Text("New", color = c, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr("New"), color = c, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
         Box(Modifier.weight(1f).height(1.dp).background(c.copy(alpha = 0.45f)))
     }
 }
@@ -448,7 +450,7 @@ fun StatusLine(line: String?, color: String?, working: Boolean = false, waiting:
  * to it in a moment (a message is on its way), and nothing above it moves then.
  */
 @Composable
-fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (() -> Unit)? = null, stopWord: String = "Stop", room: Boolean = false) {
+fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (() -> Unit)? = null, stopWord: String = tr("Stop"), room: Boolean = false) {
     if (text.isEmpty()) return
     val p = LocalPaper.current
     val c = parseColor(color, p.faint)
@@ -506,8 +508,8 @@ fun WaitingMessage(text: String, attachments: List<Attachment>, waits: String, o
         Box(Modifier.alpha(0.5f)) { MyBubble(text, attachments) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(waits, color = p.faint, fontSize = 12.sp)
-            if (onSteer != null) WordButton("Steer", p.muted, onSteer)
-            WordButton("Take back", p.muted, onTakeBack)
+            if (onSteer != null) WordButton(tr("Steer"), p.muted, onSteer)
+            WordButton(tr("Take back"), p.muted, onTakeBack)
         }
     }
 }
@@ -530,12 +532,12 @@ fun SteeredMessage(m: dev.botdot.app.data.Steered) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         MyBubble(m.text, m.attachments)
-        Text(m.at?.let { "Steered · ${shortTime(it)}" } ?: "Steered", color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp, end = 6.dp))
+        Text(m.at?.let { tr("Steered") + " · ${shortTime(it)}" } ?: tr("Steered"), color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp, end = 6.dp))
     }
 }
 
 /** The standing line above the message box while Claude is signed out; its end leads to where the owner signs in. */
-const val SIGNED_OUT = "Claude is signed out: bots can't work."
+val SIGNED_OUT: String get() = tr("Claude is signed out: bots can't work.")
 
 /**
  * What a chat's screen does about new replies (ADR 005). Each time the screen is in front (its lifecycle resumed,
@@ -675,7 +677,7 @@ internal fun chipShown(text: CharSequence, whole: Boolean): AnnotatedString =
 data class ChipWords(val text: String, val waits: String? = null, val after: String = "")
 
 /** A Chief action's chip: its label, what still waits (`waits`), and "View live screen" where a tap opens the bot's screen. */
-fun chipWords(a: dev.botdot.app.data.ChiefAction, screen: Boolean) = ChipWords(a.label, a.waits, if (screen) " · View live screen" else "")
+fun chipWords(a: dev.botdot.app.data.ChiefAction, screen: Boolean) = ChipWords(a.label, a.waits, if (screen) " · " + tr("View live screen") else "")
 
 /** The chip's words as they are drawn: what waits in the warning colour [warn], the rest in the chip's own. */
 fun chipText(w: ChipWords, warn: Color): AnnotatedString = AnnotatedString.Builder().apply {
@@ -704,7 +706,7 @@ fun Modifier.holdToCopy(text: String?): Modifier {
 /** [text] to the system clipboard, with a "Copied" note where Android shows none of its own (before 13). */
 fun copyToClipboard(context: android.content.Context, text: String) {
     context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("botdot", text))
-    if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(context, "Copied", android.widget.Toast.LENGTH_SHORT).show()
+    if (android.os.Build.VERSION.SDK_INT < 33) android.widget.Toast.makeText(context, tr("Copied"), android.widget.Toast.LENGTH_SHORT).show()
 }
 
 /** The Chief's reply while it is written, against a botdot from before `message-waits`: there the working line says it ([StatusLine]). */
@@ -738,7 +740,7 @@ class PendingFiles(private val scope: CoroutineScope, private val context: Conte
         val a = api() ?: return
         for (uri in uris.take(10 - items.size)) {
             val (name, size) = a.describe(context.contentResolver, uri)
-            if ((size ?: 0) > 25L * 1024 * 1024) { onFailed("$name is over 25 MB."); continue }
+            if ((size ?: 0) > 25L * 1024 * 1024) { onFailed(tr("{name} is over 25 MB.", "name" to name)); continue }
             val item = Item(nextKey++, name, size, "uploading")
             items += item
             scope.launch {
@@ -750,7 +752,7 @@ class PendingFiles(private val scope: CoroutineScope, private val context: Conte
                     error = done.exceptionOrNull()?.message,
                 )
                 done.exceptionOrNull()?.let { e ->
-                    onFailed(if (e is SecurityException) "botdot can't open ${item.name}: the app that shared it didn't allow it." else "${item.name}: ${e.message ?: "couldn't upload"}")
+                    onFailed(if (e is SecurityException) tr("botdot can't open {name}: the app that shared it didn't allow it.", "name" to item.name) else "${item.name}: " + (e.message ?: tr("couldn't upload")))
                 }
             }
         }
@@ -822,7 +824,7 @@ fun Composer(
         if (files != null && files.items.isNotEmpty()) {
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 files.items.forEach { f ->
-                    FileChip(f.name, note = when (f.status) { "uploading" -> "uploading…"; "failed" -> "failed"; else -> null }, onRemove = { files.remove(f.key) })
+                    FileChip(f.name, note = when (f.status) { "uploading" -> tr("uploading…"); "failed" -> tr("failed"); else -> null }, onRemove = { files.remove(f.key) })
                 }
             }
         }
@@ -834,9 +836,9 @@ fun Composer(
         else if (rows.isNotEmpty() && mentions != null) MentionList(rows, mentions) { row -> pickMention(text, row).let { (v, end) -> text = v; picked = end } }
         // Claude is signed out ([onSignIn] is given while it is): one standing line, and the way to sign in.
         if (onSignIn != null) Text(
-            AnnotatedString.Builder().apply { append("$SIGNED_OUT "); pushStyle(SpanStyle(fontWeight = FontWeight.SemiBold)); append("Sign in"); pop() }.toAnnotatedString(),
+            AnnotatedString.Builder().apply { append("$SIGNED_OUT "); pushStyle(SpanStyle(fontWeight = FontWeight.SemiBold)); append(tr("Sign in")); pop() }.toAnnotatedString(),
             color = p.warnText, fontSize = 12.5.sp, lineHeight = 17.sp,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = "Sign in", role = Role.Button, onClick = onSignIn)
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = tr("Sign in"), role = Role.Button, onClick = onSignIn)
                 .padding(start = 6.dp, end = 6.dp).wrapContentHeight(Alignment.CenterVertically),
         )
         // Why the last send failed, until the owner sends or edits.
@@ -845,7 +847,7 @@ fun Composer(
                 modifier = Modifier.padding(start = 6.dp, bottom = 8.dp).semantics { liveRegion = LiveRegionMode.Polite })
         }
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (files != null) RoundButton(Icons.Filled.Add, "Attach files", size = 48.dp) { pick.launch("*/*") }
+            if (files != null) RoundButton(Icons.Filled.Add, tr("Attach files"), size = 48.dp) { pick.launch("*/*") }
             Row(
                 Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(p.sunk).border(1.dp, p.line2, RoundedCornerShape(24.dp)).padding(start = 16.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.Bottom,
@@ -873,7 +875,7 @@ fun Composer(
                 Box(
                     Modifier.padding(2.dp).size(36.dp).clip(CircleShape).background(if (busy) p.err else if (canSend) p.ink else p.line).clickable(role = Role.Button) {
                         if (busy) return@clickable onStop()
-                        if (files?.uploading == true) return@clickable onError("Wait a moment: the files are still uploading.")
+                        if (files?.uploading == true) return@clickable onError(tr("Wait a moment: the files are still uploading."))
                         if (!canSend) return@clickable
                         // The box empties at once, for the next message; a message that did not go comes back (above).
                         val t = text.text.trim()
@@ -882,7 +884,7 @@ fun Composer(
                     },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(if (busy) Icons.Filled.Stop else Icons.Filled.ArrowUpward, contentDescription = if (busy) "Stop" else "Send",
+                    Icon(if (busy) Icons.Filled.Stop else Icons.Filled.ArrowUpward, contentDescription = if (busy) tr("Stop") else tr("Send"),
                         tint = if (busy) Color.White else if (canSend) p.inkText else p.faint, modifier = Modifier.size(20.dp))
                 }
             }
@@ -973,7 +975,7 @@ fun Questions(questions: List<String>?, onSend: suspend (String, String) -> Bool
             },
             enabled = canSend,
             modifier = Modifier.align(Alignment.End),
-        ) { Text("Send") }
+        ) { Text(tr("Send")) }
     }
 }
 
@@ -994,7 +996,7 @@ internal class WorkState(private val scope: CoroutineScope) {
         scope.launch {
             runCatching { act() }
                 .onSuccess { val w = Work("ok", ok()); now = w; kotlinx.coroutines.delay(2500); if (now === w) now = null }
-                .onError { val said = it.message ?: "Couldn't do it"; if (refused != null) { now = null; refused(said) } else now = Work("err", said, retry) }
+                .onError { val said = it.message ?: tr("Couldn't do it"); if (refused != null) { now = null; refused(said) } else now = Work("err", said, retry) }
         }
     }
 }

@@ -22,12 +22,12 @@ object VaultTypes {
     const val GITHUB_APP_FEATURE = "vault-github-app"
 
     /** The label of the control that picks the type. */
-    const val CONTROL = "Type"
+    val CONTROL: String get() = tr("Type")
 
     /** "Usable in its computer" (docs/api.md, The Vault's items): a server that keeps it says so in its features. */
     const val IN_COMPUTER_FEATURE = "vault-in-computer"
-    const val IN_COMPUTER = "Usable in its computer"
-    const val IN_COMPUTER_HINT = "Bots may use it in a command on the account's computer, e.g. for Proton Bridge there. Every bot on that computer could then read it: only for secrets that guard something on it."
+    val IN_COMPUTER: String get() = tr("Usable in its computer")
+    val IN_COMPUTER_HINT: String get() = tr("Bots may use it in a command on the account's computer, e.g. for Proton Bridge there. Every bot on that computer could then read it: only for secrets that guard something on it.")
 
     /** Whether the server keeps "Usable in its computer": only then is there a switch for it, and a value to send. */
     fun showsInComputer(features: Collection<String>?): Boolean = features != null && IN_COMPUTER_FEATURE in features
@@ -41,15 +41,15 @@ object VaultTypes {
     data class Type(val id: String, val label: String, val username: String?, val optional: Boolean, val secret: String, val icon: String, val none: String, val saved: String,
         val multiline: Boolean = false, val feature: String? = null, val site: String? = null)
 
-    val ALL = listOf(
-        Type(LOGIN, "Login", "Username or email", false, "Password", "👤", "(no username)", "secret saved"),
-        Type(API_TOKEN, "API token", "Token ID", true, "Token", "🆔", "(no token ID)", "token saved"),
-        Type(OTHER, "Other", null, false, "Secret", "", "", "secret saved", multiline = true),
-        Type(GITHUB_APP, "GitHub App", "App ID", false, "Private key (.pem)", "🐙", "(no App ID)", "key saved", multiline = true, feature = GITHUB_APP_FEATURE, site = "api.github.com"),
+    val ALL: List<Type> get() = listOf(
+        Type(LOGIN, tr("Login"), tr("Username or email"), false, tr("Password"), "👤", tr("(no username)"), tr("secret saved")),
+        Type(API_TOKEN, tr("API token"), tr("Token ID"), true, tr("Token"), "🆔", tr("(no token ID)"), tr("token saved")),
+        Type(OTHER, tr("Other"), null, false, tr("Secret"), "", "", tr("secret saved"), multiline = true),
+        Type(GITHUB_APP, "GitHub App", tr("App ID"), false, tr("Private key (.pem)"), "🐙", tr("(no App ID)"), tr("key saved"), multiline = true, feature = GITHUB_APP_FEATURE, site = "api.github.com"),
     )
 
     /** Under a GitHub App's App ID: the installation, when it is installed on several accounts. */
-    const val GITHUB_APP_HINT = "Add /installation ID if it is installed on several accounts."
+    val GITHUB_APP_HINT: String get() = tr("Add /installation ID if it is installed on several accounts.")
 
     /** A secret read from a file: at most this many bytes (a private key is a few KB). */
     const val SECRET_FILE_MAX = 64 * 1024
@@ -72,8 +72,8 @@ object VaultTypes {
      * type. From a server before the types it is the one line the list always had.
      */
     fun rows(i: VaultItem, features: Collection<String>?): List<String> {
-        val extras = (if (i.hasTotp) " · two-step code" else "") + (if (i.insecureTls) " · self-signed certificate OK" else "") + (if (i.inComputer) " · usable in its computer" else "")
-        if (!shows(features)) return listOf("${i.site} · ${i.username.ifBlank { "(no username)" }}$extras")
+        val extras = (if (i.hasTotp) " · " + tr("two-step code") else "") + (if (i.insecureTls) " · " + tr("self-signed certificate OK") else "") + (if (i.inComputer) " · " + tr("usable in its computer") else "")
+        if (!shows(features)) return listOf("${i.site} · ${i.username.ifBlank { tr("(no username)") }}$extras")
         val t = of(i.type)
         val who = if (t.username == null) "" else "${t.icon} ${i.username.ifBlank { t.none }} · "
         return listOf("${t.label} · ${i.site}", "$who🔒 ${t.saved}$extras")
@@ -82,7 +82,7 @@ object VaultTypes {
     /** An SSH key of Bitwarden (kind `ssh-key`, docs/api.md): "SSH key", then its fingerprint and that a bot never sees it. */
     const val SSH_KEY = "ssh-key"
     fun sshKeyRows(i: VaultItem): List<String> =
-        listOf("SSH key", (i.fingerprint?.takeIf { it.isNotBlank() }?.let { "$it · " } ?: "") + "🔒 for SSH on a bot's computer, never shown to it")
+        listOf(tr("SSH key"), (i.fingerprint?.takeIf { it.isNotBlank() }?.let { "$it · " } ?: "") + "🔒 " + tr("for SSH on a bot's computer, never shown to it"))
 
     /** The owner adds an SSH key from the app (`vault-ssh-key-add`, #160): only with a server that takes one. */
     const val SSH_KEY_ADD_FEATURE = "vault-ssh-key-add"
@@ -91,7 +91,7 @@ object VaultTypes {
     /** A file of Bitwarden (kind `file`, #157): "File", then its file name, its size and that a bot never sees it. */
     const val FILE = "file"
     fun fileRows(i: VaultItem): List<String> =
-        listOf("File", "${i.fileName.orEmpty()} · ${fileSize(i.size ?: 0)} · 🔒 for one command on a bot's computer, never shown to it")
+        listOf(tr("File"), "${i.fileName.orEmpty()} · ${fileSize(i.size ?: 0)} · 🔒 " + tr("for one command on a bot's computer, never shown to it"))
     fun fileSize(bytes: Long): String = if (bytes < 1024) "$bytes B" else String.format(java.util.Locale.ROOT, "%.1f KB", bytes / 1024.0)
 
     /** The owner adds a file from the app (`vault-files`, #157): only with a server that takes one, and at most 64 KB. */
@@ -99,14 +99,14 @@ object VaultTypes {
     const val FILE_MAX_BYTES = 64 * 1024
     fun addsFiles(features: Collection<String>?): Boolean = features != null && FILES_FEATURE in features
     /** What sharing a file means: it is in the computer for one command, where every bot could read it meanwhile. */
-    const val FILE_SHARE_NOTE = "Bots that may use this file in a command on the account's computer. botdot puts it there for that one command and removes it afterwards, but every bot on that computer could read it meanwhile."
+    val FILE_SHARE_NOTE: String get() = tr("Bots that may use this file in a command on the account's computer. botdot puts it there for that one command and removes it afterwards, but every bot on that computer could read it meanwhile.")
 
     /** Above the bots of a card, an identity, an SSH key or a file: what sharing it lets a bot do. */
     fun itemBotsHint(kind: String): String = when (kind) {
-        "card" -> "Bots that may pay with this card. You still approve every payment."
+        "card" -> tr("Bots that may pay with this card. You still approve every payment.")
         FILE -> FILE_SHARE_NOTE
-        SSH_KEY -> "Bots that may use this key for SSH from the account's computer. botdot loads it into an ssh-agent there for one command: no file holds the key, but every bot on that computer could read it meanwhile."
-        else -> "Bots that may type these details into forms."
+        SSH_KEY -> tr("Bots that may use this key for SSH from the account's computer. botdot loads it into an ssh-agent there for one command: no file holds the key, but every bot on that computer could read it meanwhile.")
+        else -> tr("Bots that may type these details into forms.")
     }
 
     /** The two fields that hold the secret of a type. [username] null: the form shows the secret alone. [multiline]: the secret is a box of several lines. */
@@ -114,19 +114,19 @@ object VaultTypes {
 
     /** The Vault editor's fields. [isNew]: a new item needs its secret, a saved one keeps it when the field is left empty. */
     fun editorFields(type: String?, features: Collection<String>?, isNew: Boolean): Fields {
-        if (!shows(features)) return Fields("Username, email or token ID", if (isNew) "Password, token or key" else "New password (empty keeps it)")
+        if (!shows(features)) return Fields(tr("Username, email or token ID"), if (isNew) tr("Password, token or key") else tr("New password (empty keeps it)"))
         val t = of(type)
-        return Fields(usernameLabel(t), if (isNew) t.secret else "New ${t.secret.lowercase()} (empty keeps it)", t.multiline)
+        return Fields(usernameLabel(t), if (isNew) t.secret else tr("New {secret} (empty keeps it)", "secret" to t.secret.lowercase()), t.multiline)
     }
 
     /** The new-login fields of a login request's card. */
     fun requestFields(type: String?, features: Collection<String>?): Fields {
-        if (!shows(features)) return Fields("Username or email", "Password")
+        if (!shows(features)) return Fields(tr("Username or email"), tr("Password"))
         val t = of(type)
         return Fields(usernameLabel(t), t.secret, t.multiline)
     }
 
-    private fun usernameLabel(t: Type): String? = t.username?.let { if (t.optional) "$it (optional)" else it }
+    private fun usernameLabel(t: Type): String? = t.username?.let { if (t.optional) tr("{label} (optional)", "label" to it) else it }
 
     /** What a save sends beside the secret. [type] null: none is sent. [username] null: none is sent, and the server keeps the saved one. */
     data class Sent(val type: String?, val username: String?)

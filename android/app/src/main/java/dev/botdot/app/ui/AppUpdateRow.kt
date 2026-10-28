@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.AppUpdate
 import dev.botdot.app.data.VersionInfo
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /** Installing the app update botdot has: downloading, then Android's installer. */
@@ -39,10 +40,10 @@ private fun rememberInstall(api: Api?, tell: (String) -> Unit): Pair<Installer, 
         val a = api
         when {
             a == null || state.progress != null -> Unit
-            !AppUpdate.mayInstall(context) -> { tell("Allow botdot to install apps, then tap Install again."); AppUpdate.openInstallSetting(context) }
+            !AppUpdate.mayInstall(context) -> { tell(tr("Allow botdot to install apps, then tap Install again.")); AppUpdate.openInstallSetting(context) }
             else -> scope.launch {
                 state.progress = 0f
-                runCatching { AppUpdate.install(context, a, rel) { state.progress = it } }.onError { tell(it.message ?: "Couldn't download the update") }
+                runCatching { AppUpdate.install(context, a, rel) { state.progress = it } }.onError { tell(it.message ?: tr("Couldn't download the update")) }
                 state.progress = null
             }
         }
@@ -59,7 +60,7 @@ fun AppUpdateBanner(api: Api?, version: VersionInfo?, tell: (String) -> Unit) {
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.sunk).clickable(enabled = state.progress == null) { install(newer) }.padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("A new version of the app is ready", color = p.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Text(state.progress?.let { "${(it * 100).toInt()}%" } ?: "Install", color = p.okText, fontSize = 14.sp)
+        Text(tr("A new version of the app is ready"), color = p.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Text(state.progress?.let { "${(it * 100).toInt()}%" } ?: tr("Install"), color = p.okText, fontSize = 14.sp)
     }
 }

@@ -23,6 +23,7 @@ import dev.botdot.app.data.Run
 import dev.botdot.app.data.ReplyDraft
 import dev.botdot.app.data.RunEvent
 import dev.botdot.app.data.str
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -146,7 +147,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
     suspend fun load() {
         val a = app.api.value ?: return
         val (r, w) = coroutineScope { async { runCatching { a.runs(botId, PAGE) } } to async { runCatching { a.inbox(botId) } } }
-        r.await().onSuccess { all = it; noOlder = it.size < PAGE; loaded = true; follow() }.onError { _notes.tryEmit(it.message ?: "Couldn't load") }
+        r.await().onSuccess { all = it; noOlder = it.size < PAGE; loaded = true; follow() }.onError { _notes.tryEmit(it.message ?: tr("Couldn't load")) }
         w.await().onSuccess { waiting = it } // an older botdot has no inbox to show
     }
 
@@ -246,11 +247,11 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         viewModelScope.launch {
             try {
                 val r = (app.api.value ?: throw ApiException(NOT_CONNECTED)).runNotes(botId)
-                if (r.status == "queued") _notes.tryEmit("It's busy: it reads them once it's free.")
+                if (r.status == "queued") _notes.tryEmit(tr("It's busy: it reads them once it's free."))
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _notes.tryEmit(e.message ?: "Couldn't start it")
+                _notes.tryEmit(e.message ?: tr("Couldn't start it"))
             }
             refresh(); app.store.bots.refresh()
         }
@@ -442,7 +443,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
         }
         val id = chatId ?: run { chat = null; return }
         runCatching { a.chiefChat(id, limit = PAGE) }.onSuccess { if (id == chatId) { chat = it; follow() } }
-            .onError { _notes.tryEmit(it.message ?: "Couldn't load") }
+            .onError { _notes.tryEmit(it.message ?: tr("Couldn't load")) }
     }
 
     /** Its end again (or all of the loaded part), put in place. */
@@ -457,7 +458,7 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
             val now = chat ?: return@onSuccess
             chat = part.copy(offset = now.offset, messages = now.messages.take(from - now.offset) + part.messages)
             follow()
-        }.onError { _notes.tryEmit(it.message ?: "Couldn't load") }
+        }.onError { _notes.tryEmit(it.message ?: tr("Couldn't load")) }
     }
 
     /** The page before what's loaded (the chat was scrolled up). */
@@ -548,9 +549,9 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
         val rating = Ratings.next(before, tapped)
         chat = Ratings.set(c, index, rating)
         viewModelScope.launch {
-            runCatching { (app.api.value ?: throw ApiException("Not connected to botdot")).rate(c.id, index, rating) }.onError {
+            runCatching { (app.api.value ?: throw ApiException(tr("Not connected to botdot"))).rate(c.id, index, rating) }.onError {
                 chat?.takeIf { it.id == c.id }?.let { now -> chat = Ratings.undo(now, index, rating, before) }
-                _notes.tryEmit("Couldn't save your rating")
+                _notes.tryEmit(tr("Couldn't save your rating"))
             }
         }
     }
@@ -633,7 +634,7 @@ data class SentMessage(val key: String, val text: String, val attachments: List<
 }
 
 /** The working line under a message that is on its way, until the server has words of its own. */
-internal const val WORKING = "Working…"
+internal val WORKING: String get() = tr("Working…")
 
 /** A chat's working line: the line it has ([line], "" for none), or "Working…" while a message of the owner's is on its way ([sent]). */
 internal fun lineWith(line: String, sent: SentMessage?): String = line.ifEmpty { if (sent != null) WORKING else "" }
@@ -690,8 +691,8 @@ internal fun isGoOn(text: String): Boolean = Regex("""^[\s*_`"'.!]*go\s+on[\s*_`
 
 // ---------- a message that could not be sent ----------
 
-private const val NOT_CONNECTED = "Not connected to botdot"
-private const val STILL_HERE = "Your message is still here."
+private val NOT_CONNECTED: String get() = tr("Not connected to botdot")
+private val STILL_HERE: String get() = tr("Your message is still here.")
 
 /** The feature of a botdot that takes a message's key once (docs/api.md, "A message sent twice"). */
 const val MESSAGE_KEY = "message-key"
@@ -717,10 +718,10 @@ internal fun sendStays(features: Collection<String>?): Boolean = features != nul
 internal fun boxStops(busy: Boolean, features: Collection<String>?): Boolean = busy && !sendStays(features)
 
 /** Under a message that waits: what it waits for. [who]: the bot's name, or "the Chief". */
-internal fun waitsUntil(who: String): String = "Waits until $who is free"
+internal fun waitsUntil(who: String): String = tr("Waits until {names} is free", "names" to who)
 
 /** The box's line when "Take back" came too late: the message's run or turn has begun (the server's 409). */
-internal const val ALREADY_STARTED = "It has already started."
+internal val ALREADY_STARTED: String get() = tr("It has already started.")
 
 /**
  * The line above the message box after a "Take back" that failed. 409: it has already started. Else botdot's own
@@ -733,9 +734,9 @@ internal fun takeBackNote(e: Throwable): String {
     return when {
         api?.status == 409 -> ALREADY_STARTED
         api != null && api.said && said.isNotEmpty() -> said
-        api?.status == 404 -> "It is no longer waiting."
-        api == null || api.status == 0 || api.status == 502 || api.status == 503 -> "Not taken back: can't reach botdot."
-        else -> "Not taken back: botdot couldn't do that (${api.status})."
+        api?.status == 404 -> tr("It is no longer waiting.")
+        api == null || api.status == 0 || api.status == 502 || api.status == 503 -> tr("Not taken back: can't reach botdot.")
+        else -> tr("Not taken back: botdot couldn't do that ({status}).", "status" to api.status)
     }
 }
 
@@ -752,7 +753,7 @@ const val CHIEF_STEER = "chief-steer"
 internal fun canSteerChief(features: Collection<String>?): Boolean = features != null && CHIEF_STEER in features
 
 /** Under a message that the owner steered into the run that is going, until that run read it. */
-internal const val STEERING = "Steering…"
+internal val STEERING: String get() = tr("Steering…")
 
 /**
  * The line above the message box after a "Steer" that did not go. 409: botdot's own sentence (the run can't take it,
@@ -765,9 +766,9 @@ internal fun steerNote(e: Throwable): String {
     return when {
         api != null && api.said && said.isNotEmpty() -> said
         api?.status == 409 -> ALREADY_STARTED
-        api?.status == 404 -> "It is no longer waiting."
-        api == null || api.status == 0 || api.status == 502 || api.status == 503 -> "Not steered: can't reach botdot."
-        else -> "Not steered: botdot couldn't do that (${api.status})."
+        api?.status == 404 -> tr("It is no longer waiting.")
+        api == null || api.status == 0 || api.status == 502 || api.status == 503 -> tr("Not steered: can't reach botdot.")
+        else -> tr("Not steered: botdot couldn't do that ({status}).", "status" to api.status)
     }
 }
 
@@ -787,7 +788,7 @@ internal fun without(list: kotlinx.serialization.json.JsonElement?, id: String):
     } ?: list
 
 /** A failure before the message was sent that botdot answered with a [status] and no sentence: see [notSent]. */
-internal class NotSent(val status: Int) : IOException("botdot couldn't do that ($status).")
+internal class NotSent(val status: Int) : IOException(tr("botdot couldn't do that ({status}).", "status" to status))
 
 /**
  * A failure before the message itself was sent (its chat could not be made), in the web page's words. botdot's own
@@ -824,17 +825,17 @@ internal fun delivered(e: Throwable): Boolean = when (e) {
  */
 internal fun sendNote(e: Throwable, once: Boolean = false): String {
     if (e is NotSent) return notSentBecause(e.message.orEmpty())
-    val api = e as? ApiException ?: return "It may have been sent: check the chat. $STILL_HERE"
+    val api = e as? ApiException ?: return tr("It may have been sent: check the chat.") + " " + STILL_HERE
     val said = api.message?.trim().orEmpty()
     return when {
         api.said && said.isNotEmpty() -> notSentBecause(said)
-        api.status == 502 || api.status == 503 || (api.status == 0 && (once || !api.sent)) -> "Not sent: can't reach botdot. $STILL_HERE"
-        api.status == 0 || api.status >= 500 -> "It may have been sent: check the chat. $STILL_HERE"
-        else -> notSentBecause("botdot couldn't do that (${api.status}).") // an answer without a sentence, as the web page says it
+        api.status == 502 || api.status == 503 || (api.status == 0 && (once || !api.sent)) -> tr("Not sent: can't reach botdot.") + " " + STILL_HERE
+        api.status == 0 || api.status >= 500 -> tr("It may have been sent: check the chat.") + " " + STILL_HERE
+        else -> notSentBecause(tr("botdot couldn't do that ({status}).", "status" to api.status)) // an answer without a sentence, as the web page says it
     }
 }
 
-private fun notSentBecause(said: String) = "Not sent: $said${if (said.last() in ".!?…") "" else "."} $STILL_HERE"
+private fun notSentBecause(said: String) = tr("Not sent: {why}", "why" to said + if (said.last() in ".!?…") "" else ".") + " " + STILL_HERE
 
 /** A failed message back in the box, in front of what was typed since. */
 internal fun withFailed(failed: String, typedSince: String): String =

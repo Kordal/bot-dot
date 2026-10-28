@@ -23,13 +23,13 @@ data class ChiefJobList(val jobs: List<ChiefJob> = emptyList())
 /** The Chief's jobs in its settings: listed with when they run, switched and removed there, made by chat. */
 object ChiefJobs {
     const val FEATURE = "chief-jobs"
-    const val TITLE = "Scheduled jobs"
-    const val EMPTY = "None yet."
+    val TITLE: String get() = tr("Scheduled jobs")
+    val EMPTY: String get() = tr("None yet.")
 
     fun shows(features: Collection<String>?): Boolean = features?.contains(FEATURE) == true
 
     /** When it runs, and "paused" when it is switched off. */
-    fun line(job: ChiefJob): String = job.`when` + if (job.on) "" else " · paused"
+    fun line(job: ChiefJob): String = job.`when` + if (job.on) "" else " · " + tr("paused")
 
     /** The whole list a feed's `chief_jobs` carries, or null for another event or one this app can't read. */
     fun event(ev: FeedEvent): List<ChiefJob>? {

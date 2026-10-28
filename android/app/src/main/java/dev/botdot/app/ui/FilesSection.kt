@@ -24,6 +24,7 @@ import dev.botdot.app.data.BotFiles
 import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.UploadedFile
 import dev.botdot.app.data.UploadedFiles
+import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /**
@@ -40,7 +41,7 @@ fun FilesSection(api: Api?, ownerId: String, ownerName: String, viewer: Boolean,
     var toDelete by remember { mutableStateOf<UploadedFile?>(null) }
     LaunchedEffect(api, ownerId) { val a = api ?: return@LaunchedEffect; runCatching { a.botFiles(ownerId) }.onSuccess { files = it.files } }
     val list = files ?: return
-    FoldSection("Files", UploadedFiles.summary(list)) {
+    FoldSection(tr("Files"), UploadedFiles.summary(list)) {
         if (list.isEmpty()) Hint(empty)
         list.forEach { f ->
             key(f.file) {
@@ -48,14 +49,14 @@ fun FilesSection(api: Api?, ownerId: String, ownerName: String, viewer: Boolean,
                     Text(f.name, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.clickable {
                         // In the viewer (#251) where the server has it; else in the phone's own app, as before.
                         if (viewer) DocViewer.open = DocViewer.Request(DocumentView.botFile(ownerId, f.file), f.name, ownerName)
-                        else scope.launch { runCatching { BotFiles.openUpload(context, api ?: error("Not connected to botdot"), ownerId, f) }.onError { tell(it.message ?: "Couldn't open ${f.name}") } }
+                        else scope.launch { runCatching { BotFiles.openUpload(context, api ?: error(tr("Not connected to botdot")), ownerId, f) }.onError { tell(it.message ?: tr("Couldn't open {name}", "name" to f.name)) } }
                     })
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(UploadedFiles.detail(f), color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                         TextButton(onClick = {
-                            scope.launch { runCatching { api!!.pinBotFile(ownerId, f.file, !f.pinned) }.onSuccess { files = it.files }.onError { tell(it.message ?: "Couldn't save") } }
-                        }) { Text(if (f.pinned) "📌 Kept in mind" else "Keep in mind", color = if (f.pinned) p.text else p.muted) }
-                        TextButton(onClick = { toDelete = f }) { Text("Delete", color = p.err) }
+                            scope.launch { runCatching { api!!.pinBotFile(ownerId, f.file, !f.pinned) }.onSuccess { files = it.files }.onError { tell(it.message ?: tr("Couldn't save")) } }
+                        }) { Text(if (f.pinned) "📌 " + tr("Kept in mind") else tr("Keep in mind"), color = if (f.pinned) p.text else p.muted) }
+                        TextButton(onClick = { toDelete = f }) { Text(tr("Delete"), color = p.err) }
                     }
                 }
             }
@@ -64,15 +65,15 @@ fun FilesSection(api: Api?, ownerId: String, ownerName: String, viewer: Boolean,
     toDelete?.let { f ->
         AlertDialog(
             onDismissRequest = { toDelete = null },
-            title = { Text("Delete ${f.name}?") },
-            text = { Text("$ownerName won't have it any more.", color = p.text) },
+            title = { Text(tr("Delete {name}?", "name" to f.name)) },
+            text = { Text(tr("{ownerName} won't have it any more.", "ownerName" to ownerName), color = p.text) },
             confirmButton = {
                 TextButton(onClick = {
                     toDelete = null
-                    scope.launch { runCatching { api!!.deleteBotFile(ownerId, f.file) }.onSuccess { files = it.files }.onError { tell(it.message ?: "Couldn't delete") } }
-                }) { Text("Delete", color = p.err) }
+                    scope.launch { runCatching { api!!.deleteBotFile(ownerId, f.file) }.onSuccess { files = it.files }.onError { tell(it.message ?: tr("Couldn't delete")) } }
+                }) { Text(tr("Delete"), color = p.err) }
             },
-            dismissButton = { TextButton(onClick = { toDelete = null }) { Text("Cancel", color = p.text) } },
+            dismissButton = { TextButton(onClick = { toDelete = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
 }

@@ -68,6 +68,8 @@ import dev.botdot.app.data.FileView
 import dev.botdot.app.data.PageInfo
 import dev.botdot.app.data.PageRef
 import dev.botdot.app.data.Pages
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.coroutines.launch
 
 /**
@@ -127,11 +129,11 @@ private fun PathSheet(req: DocViewer.Request) {
             Text(req.path.orEmpty(), color = p.text, fontFamily = GeistMono, fontSize = 13.5.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = { DocViewer.held = null; DocViewer.open = req }, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Open") }
+                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Open")) }
                 OutlinedButton(onClick = {
                     context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("botdot", req.path.orEmpty()))
                     DocViewer.held = null
-                }, modifier = Modifier.weight(1f)) { Text("Copy path", color = p.text) }
+                }, modifier = Modifier.weight(1f)) { Text(tr("Copy path"), color = p.text) }
             }
         }
     }
@@ -212,48 +214,48 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     // The ⋯ menu's actions, with the file fetched as it is (not only its start).
     fun withApi(what: String, act: suspend (dev.botdot.app.data.Api) -> Unit) {
         menu = false
-        val a = api ?: return tell("Not connected to botdot")
-        scope.launch { runCatching { act(a) }.onError { tell(it.message ?: "Couldn't $what") } }
+        val a = api ?: return tell(tr("Not connected to botdot"))
+        scope.launch { runCatching { act(a) }.onError { tell(it.message ?: tr("Couldn't {what}", "what" to what)) } }
     }
     // A page's action, done at once (#475): `words` while it runs, then `ok` (gone by itself) or the error, whose tap
     // tries again with `retry`. A second action waits until the first one ends.
     fun inBackground(words: String, ok: String, retry: () -> Unit, act: suspend (dev.botdot.app.data.Api) -> Unit) {
         if (work?.kind == "busy") return
-        val a = api ?: return tell("Not connected to botdot")
+        val a = api ?: return tell(tr("Not connected to botdot"))
         work = Work("busy", words)
         scope.launch {
             runCatching { act(a) }
                 .onSuccess { val w = Work("ok", ok); work = w; kotlinx.coroutines.delay(2500); if (work === w) work = null }
-                .onError { work = Work("err", it.message ?: "Couldn't do it", retry) }
+                .onError { work = Work("err", it.message ?: tr("Couldn't do it"), retry) }
         }
     }
     Column(Modifier.fillMaxSize().background(p.bg).systemBarsPadding()) {
         if (!siteFull) Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = p.text) }
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Back"), tint = p.text) }
             Column(Modifier.weight(1f)) {
                 Text(req.name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val sub = if (req.text != null) listOfNotNull(req.from.ifBlank { null }, "${dev.botdot.app.data.DocumentExport.words(req.text)} words").joinToString(" · ")
+                val sub = if (req.text != null) listOfNotNull(req.from.ifBlank { null }, trn(dev.botdot.app.data.DocumentExport.words(req.text), "{n} word", "{n} words")).joinToString(" · ")
                     else if (req.page != null) Pages.subtitle(req.from, view?.page)
                     else DocumentView.subtitle(req.from, view, shortTime(view?.at))
                 if (sub.isNotEmpty()) Text(sub, color = p.muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Box {
-                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = "More", tint = p.text) }
+                IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = tr("More"), tint = p.text) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = p.panel) {
                     // A page with blocks copies what it shows, its blocks as text and tables; its Source, the Markdown.
                     (if (mode == "rendered") view?.plain ?: view?.text else view?.text)?.let { text ->
-                        DropdownMenuItem(text = { Text("Copy text", color = p.text) }, onClick = {
+                        DropdownMenuItem(text = { Text(tr("Copy text"), color = p.text) }, onClick = {
                             menu = false
                             context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText(req.name, text))
                         })
                     }
                     if (view?.kind == "markdown" && dev.botdot.app.data.DocumentExport.shows(server?.features)) {
-                        DropdownMenuItem(text = { Text("Export…", color = p.text) }, onClick = { menu = false; exporting = true })
+                        DropdownMenuItem(text = { Text(tr("Export…"), color = p.text) }, onClick = { menu = false; exporting = true })
                     }
                     if (req.text == null && view?.downloadable != false) {
-                        DropdownMenuItem(text = { Text("Save to Downloads", color = p.text) }, onClick = { withApi("save it") { BotFiles.saveToDownloads(context, it, src, fileName); tell("Saving $fileName to Downloads") } })
-                        DropdownMenuItem(text = { Text("Share…", color = p.text) }, onClick = { withApi("share it") { BotFiles.share(context, it, src, fileName) } })
-                        DropdownMenuItem(text = { Text("Open in another app", color = p.text) }, onClick = { withApi("open it") { BotFiles.openElsewhere(context, it, src, fileName) } })
+                        DropdownMenuItem(text = { Text(tr("Save to Downloads"), color = p.text) }, onClick = { withApi(tr("save it")) { BotFiles.saveToDownloads(context, it, src, fileName); tell(tr("Saving {name} to Downloads", "name" to fileName)) } })
+                        DropdownMenuItem(text = { Text(tr("Share…"), color = p.text) }, onClick = { withApi(tr("share it")) { BotFiles.share(context, it, src, fileName) } })
+                        DropdownMenuItem(text = { Text(tr("Open in another app"), color = p.text) }, onClick = { withApi(tr("open it")) { BotFiles.openElsewhere(context, it, src, fileName) } })
                     }
                 }
             }
@@ -262,14 +264,14 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         val e = error
         val page = v?.page
         val site = v?.interactive
-        val download = { withApi("save it") { BotFiles.saveToDownloads(context, it, src, fileName); tell("Saving $fileName to Downloads") } }
+        val download = { withApi(tr("save it")) { BotFiles.saveToDownloads(context, it, src, fileName); tell(tr("Saving {name} to Downloads", "name" to fileName)) } }
         // On the Board or off it (#451): the button flips at once, and back if the server says no (#475).
         var onBoard by remember(req, page) { mutableStateOf(page?.onBoard) }
         var boarding by remember(req) { mutableStateOf(false) }
         val board: (() -> Unit)? = if (req.page != null && onBoard != null && dev.botdot.app.data.Pages.showsBoard(server?.features)) {
             {
                 val a = api
-                if (a == null) tell("Not connected to botdot")
+                if (a == null) tell(tr("Not connected to botdot"))
                 else if (!boarding) {
                     val was = onBoard
                     onBoard = was != true
@@ -277,7 +279,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                     scope.launch {
                         runCatching { a.setPageOnBoard(req.page.botId, req.page.slug, was != true) }
                             .onSuccess { r -> onBoard = r?.onBoard ?: onBoard }
-                            .onError { onBoard = was; work = Work("err", it.message ?: "Couldn't change it") }
+                            .onError { onBoard = was; work = Work("err", it.message ?: tr("Couldn't change it")) }
                         boarding = false
                     }
                 }
@@ -286,22 +288,22 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         if (req.page != null && site != null) {
             if (board != null) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) { BoardButton(onBoard == true, board) }
             InteractiveBar(site, siteFull, onFull = { siteFull = true }, onVersions = { versions = true }, onDownload = download,
-                onRollBack = { withApi("go back to it") { it.setPageVersion(req.page.botId, req.page.slug, site.shown); tell("The page shows version ${site.shown} again"); version = null; tries++ } },
+                onRollBack = { withApi(tr("go back to it")) { it.setPageVersion(req.page.botId, req.page.slug, site.shown); tell(tr("The page shows version {n} again", "n" to site.shown)); version = null; tries++ } },
                 onCurrent = { version = null })
             if (versions) VersionsSheet(req.name, site, onShow = { n -> versions = false; version = if (n == site.current) null else n },
-                onCurrent = { n -> versions = false; withApi("go back to it") { it.setPageVersion(req.page.botId, req.page.slug, n); tell("The page shows version $n again"); version = null; tries++ } },
+                onCurrent = { n -> versions = false; withApi(tr("go back to it")) { it.setPageVersion(req.page.botId, req.page.slug, n); tell(tr("The page shows version {n} again", "n" to n)); version = null; tries++ } },
                 onDismiss = { versions = false })
         }
         if (req.page != null && page != null && site == null) {
-            fun refresh() { page.keep?.let { k -> inBackground("Starting the refresh…", "${req.from.ifBlank { "The bot" }} is refreshing it", ::refresh) { it.runJob(req.page.botId, k.jobId) } } }
-            fun stop() { inBackground("Stopping…", "It no longer keeps up to date", ::stop) { it.stopKeepingPage(req.page.botId, page.slug); changed++ } }
+            fun refresh() { page.keep?.let { k -> inBackground(tr("Starting the refresh…"), tr("{name} is refreshing it", "name" to req.from.ifBlank { tr("The bot") }), ::refresh) { it.runJob(req.page.botId, k.jobId) } } }
+            fun stop() { inBackground(tr("Stopping…"), tr("It no longer keeps up to date"), ::stop) { it.stopKeepingPage(req.page.botId, page.slug); changed++ } }
             PageBar(page, onBoard == true, board, onKeep = { if (work?.kind != "busy") { keepDraft = null; keeping = true } }, onRefresh = ::refresh, onStop = ::stop)
         }
         if (req.page != null) work?.let { w -> WorkLine(w, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { work = null } }
         // The sheet closes at once and the save runs on (#475); its error opens the sheet again with what was entered.
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, keepDraft, onDismiss = { keeping = false }) { draft ->
             keeping = false
-            inBackground("Saving schedule…", "It keeps up to date now", { keepDraft = draft; keeping = true }) {
+            inBackground(tr("Saving schedule…"), tr("It keeps up to date now"), { keepDraft = draft; keeping = true }) {
                 it.keepPage(req.page.botId, page.slug, draft.every, draft.time, draft.notify, draft.check); changed++
             }
         }
@@ -310,37 +312,37 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             e != null -> {
                 val status = (e as? ApiException)?.status
                 when (status) {
-                    404 -> ViewerState("This file is gone", "Nothing is at this path any more. It may have been moved or deleted.") { OutlinedButton(onClick = onBack) { Text("Back to the chat", color = p.text) } }
-                    409 -> ViewerState("The computer is off", "This file is on the account's computer, which is stopped. Start it to open the file.") {
+                    404 -> ViewerState(tr("This file is gone"), tr("Nothing is at this path any more. It may have been moved or deleted.")) { OutlinedButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
+                    409 -> ViewerState(tr("The computer is off"), tr("This file is on the account's computer, which is stopped. Start it to open the file.")) {
                         req.botId?.let { botId ->
-                            Button(onClick = { withApi("start it") { it.startComputer(botId); tries++ } }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Start the computer") }
+                            Button(onClick = { withApi(tr("start it")) { it.startComputer(botId); tries++ } }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
                         }
-                        OutlinedButton(onClick = onBack) { Text("Not now", color = p.text) }
+                        OutlinedButton(onClick = onBack) { Text(tr("Not now"), color = p.text) }
                     }
-                    else -> ViewerState("Couldn't open it", e.message.orEmpty()) { OutlinedButton(onClick = onBack) { Text("Back to the chat", color = p.text) } }
+                    else -> ViewerState(tr("Couldn't open it"), e.message.orEmpty()) { OutlinedButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
                 }
             }
             v == null -> Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 listOf(0.6f, 0.92f, 0.84f, 0.7f, 0.88f).forEach { w -> Box(Modifier.fillMaxWidth(w).height(12.dp).clip(RoundedCornerShape(6.dp)).background(p.sunk)) }
             }
-            !v.downloadable && v.kind == "none" -> ViewerState("Too large to bring out of the computer", "Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.") {
-                OutlinedButton(onClick = onBack) { Text("Back to the chat", color = p.text) }
+            !v.downloadable && v.kind == "none" -> ViewerState(tr("Too large to bring out of the computer"), tr("Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.")) {
+                OutlinedButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) }
             }
             site != null && req.page != null -> InteractiveFrame(site, values, onDownload = download)
-            v.kind == "none" -> ViewerState("No preview for this kind of file", "The app shows Markdown, text, code, CSV and pictures. Open this one on your phone.") {
-                Button(onClick = { withApi("save it") { BotFiles.saveToDownloads(context, it, req.src, req.name); tell("Saving ${req.name} to Downloads") } },
-                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Save to Downloads") }
-                OutlinedButton(onClick = { withApi("open it") { BotFiles.openElsewhere(context, it, req.src, req.name) } }) { Text("Open in another app", color = p.text) }
+            v.kind == "none" -> ViewerState(tr("No preview for this kind of file"), tr("The app shows Markdown, text, code, CSV and pictures. Open this one on your phone.")) {
+                Button(onClick = { withApi(tr("save it")) { BotFiles.saveToDownloads(context, it, req.src, req.name); tell(tr("Saving {name} to Downloads", "name" to req.name)) } },
+                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save to Downloads")) }
+                OutlinedButton(onClick = { withApi(tr("open it")) { BotFiles.openElsewhere(context, it, req.src, req.name) } }) { Text(tr("Open in another app"), color = p.text) }
             }
             v.kind == "image" -> Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
                 api?.let { AsyncImage(it.url(req.src), contentDescription = req.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
             }
             else -> Column(Modifier.fillMaxSize()) {
                 if (v.kind == "markdown" || v.kind == "csv") Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val modes = if (v.kind == "markdown") listOf("rendered" to "Rendered", "source" to "Source") else listOf("table" to "Table", "source" to "Source")
+                    val modes = if (v.kind == "markdown") listOf("rendered" to tr("Rendered"), "source" to tr("Source")) else listOf("table" to tr("Table"), "source" to tr("Source"))
                     modes.forEach { (m, label) -> ModeChip(label, mode == m) { mode = m } }
                 }
-                if (v.truncated) Text("Too large to show whole. Showing its start (up to 1 MB or 1,000 lines)." + if (v.downloadable) " Save it to see everything." else "",
+                if (v.truncated) Text(tr("Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).") + if (v.downloadable) " " + tr("Save it to see everything.") else "",
                     color = p.text, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth()
                         .border(1.dp, p.warnLine, RoundedCornerShape(12.dp)).background(p.warnSoft, RoundedCornerShape(12.dp)).padding(10.dp))
                 val text = v.text.orEmpty()
@@ -374,45 +376,45 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
     // The work outlives the sheet, which closes on the tap: in the app's scope, not the sheet's.
     fun make(what: String, act: suspend (java.io.File) -> Unit, format: String) {
         onDone()
-        val a = api ?: return tell("Not connected to botdot")
-        tell("Making the file…")
+        val a = api ?: return tell(tr("Not connected to botdot"))
+        tell(tr("Making the file…"))
         app.scope.launch {
-            runCatching { act(a.exportDocument(title, text, format, java.io.File(context.cacheDir, "botfiles/exports"))) }.onError { tell(it.message ?: "Couldn't $what") }
+            runCatching { act(a.exportDocument(title, text, format, java.io.File(context.cacheDir, "botfiles/exports"))) }.onError { tell(it.message ?: tr("Couldn't {what}", "what" to what)) }
         }
     }
     ModalBottomSheet(onDismissRequest = onDone, containerColor = p.panel) {
         Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 28.dp)) {
             Text("DOWNLOAD", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
             dev.botdot.app.data.DocumentExport.FORMATS.forEach { (format, label, ext) ->
-                SheetRow(label, ext) { make("save it", { f -> BotFiles.saveToDownloads(context, f); tell("Saved ${f.name} to Downloads") }, format) }
+                SheetRow(label, ext) { make(tr("save it"), { f -> BotFiles.saveToDownloads(context, f); tell(tr("Saved {name} to Downloads", "name" to f.name)) }, format) }
             }
             Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
             if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) {
-                Text("SAVE TO", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                Text(tr("SAVE TO"), color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 // Not connected: the tap connects Google Docs (the Connectors page's own path) with the sign-in in the
                 // browser (#378); without connected apps on this server it says so.
                 SheetRow("Google Docs", dev.botdot.app.data.DocumentExport.googleDocsLabel(googleDocs)) {
                     onDone()
-                    val a = api ?: return@SheetRow tell("Not connected to botdot")
+                    val a = api ?: return@SheetRow tell(tr("Not connected to botdot"))
                     val gd = googleDocs
                     if (gd != null && !gd.configured) return@SheetRow tell(dev.botdot.app.data.DocumentExport.GOOGLE_DOCS_NOT_SET_UP)
                     fun save() {
-                        tell("Saving to Google Docs…")
+                        tell(tr("Saving to Google Docs…"))
                         app.scope.launch {
                             runCatching { a.saveToGoogleDocs(title, text) }
                                 .onSuccess { url ->
-                                    tell("Saved to Google Docs")
+                                    tell(tr("Saved to Google Docs"))
                                     runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
                                 }
                                 // 409: not connected, or its connection lacks the access (state "reconnect"): the next tap connects it again.
                                 .onError {
                                     if ((it as? ApiException)?.status == 409) googleDocs = googleDocs?.copy(connected = false)
-                                    tell(if ((it as? ApiException)?.status == 409) "Google Docs needs connecting again. Tap Google Docs to connect it." else it.message ?: "Couldn't save it to Google Docs")
+                                    tell(if ((it as? ApiException)?.status == 409) tr("Google Docs needs connecting again. Tap Google Docs to connect it.") else it.message ?: tr("Couldn't save it to Google Docs"))
                                 }
                         }
                     }
                     if (gd?.connected != false) return@SheetRow save()
-                    tell("Opening the Google sign-in…")
+                    tell(tr("Opening the Google sign-in…"))
                     app.scope.launch {
                         runCatching { a.connectApp(dev.botdot.app.data.DocumentExport.GOOGLE_DOCS_APP) }
                             .onSuccess { link ->
@@ -420,14 +422,14 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
                                 else link.redirectUrl?.let {
                                     context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(it)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
                                     tell(dev.botdot.app.data.DocumentExport.GOOGLE_DOCS_SIGN_IN)
-                                } ?: tell("Couldn't start connecting Google Docs")
+                                } ?: tell(tr("Couldn't start connecting Google Docs"))
                             }
-                            .onError { tell("Couldn't start connecting Google Docs: ${it.message ?: "try again"}") }
+                            .onError { tell(tr("Couldn't start connecting Google Docs: {why}", "why" to (it.message ?: tr("try again")))) }
                     }
                 }
                 Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
             }
-            SheetRow("Share…", "PDF") { make("share it", { f -> BotFiles.shareFile(context, f) }, "pdf") }
+            SheetRow(tr("Share…"), "PDF") { make(tr("share it"), { f -> BotFiles.shareFile(context, f) }, "pdf") }
         }
     }
 }
@@ -487,8 +489,8 @@ private fun CsvTable(text: String, sep: Char) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             BasicTextField(find, { find = it }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = 14.sp), cursorBrush = SolidColor(p.text),
                 modifier = Modifier.weight(1f).border(1.dp, p.line2, RoundedCornerShape(99.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
-                decorationBox = { inner -> if (find.isEmpty()) Text("Find in table", color = p.faint, fontSize = 14.sp); inner() })
-            Text("${t.total} rows · ${t.cols} columns", color = p.muted, fontSize = 12.5.sp)
+                decorationBox = { inner -> if (find.isEmpty()) Text(tr("Find in table"), color = p.faint, fontSize = 14.sp); inner() })
+            Text(trn(t.total, "{n} row", "{n} rows") + " · " + trn(t.cols, "{n} column", "{n} columns"), color = p.muted, fontSize = 12.5.sp)
         }
         val cell = Modifier.width(140.dp).padding(horizontal = 8.dp, vertical = 6.dp)
         Column(Modifier.fillMaxSize().horizontalScroll(rememberScrollState()).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
@@ -507,7 +509,7 @@ private fun CsvTable(text: String, sep: Char) {
                     for (c in 0 until t.cols) Text(cells.getOrNull(c).orEmpty(), color = p.text, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = cell)
                 }
             }
-            if (t.rows.isEmpty()) Text("Nothing found.", color = p.muted, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+            if (t.rows.isEmpty()) Text(tr("Nothing found."), color = p.muted, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
         }
     }
 }
@@ -519,13 +521,13 @@ private fun PageBar(page: PageInfo, onBoard: Boolean, board: (() -> Unit)?, onKe
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val keep = page.keep
-        if (keep == null) OutlinedButton(onClick = onKeep) { Text("Keep up to date", color = p.text) }
+        if (keep == null) OutlinedButton(onClick = onKeep) { Text(tr("Keep up to date"), color = p.text) }
         else {
-            Text("↻ Keeps up to date · ${keep.`when`}", color = p.okText, fontSize = 12.5.sp,
+            Text("↻ " + tr("Keeps up to date") + " · ${keep.`when`}", color = p.okText, fontSize = 12.5.sp,
                 modifier = Modifier.align(Alignment.CenterVertically).clip(RoundedCornerShape(99.dp)).background(p.okSoft).padding(horizontal = 12.dp, vertical = 6.dp))
-            OutlinedButton(onClick = onRefresh) { Text("Refresh now", color = p.text) }
-            androidx.compose.material3.TextButton(onClick = onKeep) { Text("Change", color = p.muted) }
-            androidx.compose.material3.TextButton(onClick = onStop) { Text("Stop", color = p.muted) }
+            OutlinedButton(onClick = onRefresh) { Text(tr("Refresh now"), color = p.text) }
+            androidx.compose.material3.TextButton(onClick = onKeep) { Text(tr("Change"), color = p.muted) }
+            androidx.compose.material3.TextButton(onClick = onStop) { Text(tr("Stop"), color = p.muted) }
         }
         if (board != null) BoardButton(onBoard, board)
     }
@@ -535,7 +537,7 @@ private fun PageBar(page: PageInfo, onBoard: Boolean, board: (() -> Unit)?, onKe
 @Composable
 private fun BoardButton(on: Boolean, onClick: () -> Unit) {
     val p = LocalPaper.current
-    val label = if (on) "On Board" else "Board"
+    val label = if (on) tr("On Board") else tr("Board")
     if (on) androidx.compose.material3.Button(onClick = onClick, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = p.text, contentColor = p.bg)) {
         androidx.compose.material3.Icon(Icons.Outlined.GridView, contentDescription = null, modifier = Modifier.size(16.dp)); Spacer(Modifier.size(6.dp)); Text(label)
     } else OutlinedButton(onClick = onClick) {
@@ -557,18 +559,18 @@ private fun KeepSheet(page: PageInfo, from: String, draft: KeepDraft?, onDismiss
     var check by remember { mutableStateOf(draft?.check ?: page.keep?.check ?: page.sources) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.panel) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("Keep \u201c${page.title}\u201d up to date", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-            Text("${from.ifBlank { "The bot" }} rewrites the page on this schedule, from the same sources.", color = p.muted, fontSize = 13.5.sp)
-            Text("How often", color = p.muted, fontSize = 12.5.sp)
+            Text(tr("Keep “{title}” up to date", "title" to page.title), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+            Text(tr("{name} rewrites the page on this schedule, from the same sources.", "name" to from.ifBlank { tr("The bot") }), color = p.muted, fontSize = 13.5.sp)
+            Text(tr("How often"), color = p.muted, fontSize = 12.5.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { Pages.EVERY.forEach { (k, label) -> ModeChip(label, every == k) { every = k } } }
             if (every != "hour") {
-                Text("At", color = p.muted, fontSize = 12.5.sp)
+                Text(tr("At"), color = p.muted, fontSize = 12.5.sp)
                 BasicTextField(time, { time = it.take(5) }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = 15.sp), cursorBrush = SolidColor(p.text),
                     modifier = Modifier.width(110.dp).border(1.dp, p.line2, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 9.dp))
             }
-            Text("Tell me", color = p.muted, fontSize = 12.5.sp)
-            listOf("report-only" to ("Only when something needs me" to "A quiet update otherwise. The page shows when it changed."),
-                "always" to ("Every time it's updated" to "A short message with what changed.")).forEach { (k, words) ->
+            Text(tr("Tell me"), color = p.muted, fontSize = 12.5.sp)
+            listOf("report-only" to (tr("Only when something needs me") to tr("A quiet update otherwise. The page shows when it changed.")),
+                "always" to (tr("Every time it's updated") to tr("A short message with what changed."))).forEach { (k, words) ->
                 Row(Modifier.fillMaxWidth().clickable { notify = k }.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
                     androidx.compose.material3.RadioButton(selected = notify == k, onClick = { notify = k })
                     Column(Modifier.padding(top = 10.dp)) {
@@ -577,13 +579,13 @@ private fun KeepSheet(page: PageInfo, from: String, draft: KeepDraft?, onDismiss
                     }
                 }
             }
-            Text("What to check", color = p.muted, fontSize = 12.5.sp)
+            Text(tr("What to check"), color = p.muted, fontSize = 12.5.sp)
             BasicTextField(check, { check = it.take(600) }, textStyle = TextStyle(color = p.text, fontSize = 14.sp), cursorBrush = SolidColor(p.text),
                 modifier = Modifier.fillMaxWidth().height(90.dp).border(1.dp, p.line2, RoundedCornerShape(12.dp)).padding(12.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Cancel", color = p.text) }
+                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(tr("Cancel"), color = p.text) }
                 Button(onClick = { onKeep(KeepDraft(every, time, notify, check)) }, modifier = Modifier.weight(1.4f),
-                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text("Keep it up to date") }
+                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Keep it up to date")) }
             }
         }
     }

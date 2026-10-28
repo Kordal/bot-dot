@@ -14,7 +14,7 @@ import java.util.Base64
  * since #223 (ADR 048), up to [SHOTS_MAX] screenshots they added, when the front door says it takes them.
  */
 object Feedback {
-    enum class Kind(val wire: String, val label: String) { BUG("bug", "Bug"), FEATURE("feature", "Feature request") }
+    enum class Kind(val wire: String) { BUG("bug"), FEATURE("feature"); val label: String get() = when (this) { BUG -> tr("Bug"); FEATURE -> tr("Feature request") } }
 
     /** At most this many screenshots in one report, each at most [SHOT_BYTES], as PNG, JPEG or WebP (the front door's limits). */
     const val SHOTS_MAX = 3
@@ -33,7 +33,7 @@ object Feedback {
     /** What the form says when a send failed: the front door's own sentence, or that it wasn't reached; the text stays. */
     fun failed(e: Throwable, shots: Int = 0): String =
         if (e is ApiException && e.said) e.message.orEmpty()
-        else "Couldn't send: ${e.message ?: "can't reach botdot"}. ${if (shots > 0) "Your text and screenshots are" else "Your text is"} still here."
+        else if (shots > 0) tr("Couldn't send: {why}. Your text and screenshots are still here.", "why" to (e.message ?: tr("can't reach botdot"))) else tr("Couldn't send: {why}. Your text is still here.", "why" to (e.message ?: tr("can't reach botdot")))
 
     /** The picture's type from its first bytes (`image/png`, `image/jpeg` or `image/webp`), or null for anything else. */
     fun pictureType(b: ByteArray): String? = when {
@@ -45,9 +45,9 @@ object Feedback {
 
     /** Why a picked file can't go in, in a sentence the form shows, or null when it can. [name]: the file's name. */
     fun refusal(name: String, bytes: ByteArray?): String? = when {
-        bytes == null -> "Couldn't read $name."
-        pictureType(bytes) == null -> "$name isn't a PNG, JPEG or WebP picture."
-        bytes.size > SHOT_BYTES -> "$name is ${"%.1f".format(java.util.Locale.ROOT, bytes.size / 1024.0 / 1024.0)} MB: each screenshot can be at most 5 MB."
+        bytes == null -> tr("Couldn't read {name}.", "name" to name)
+        pictureType(bytes) == null -> tr("{name} isn't a PNG, JPEG or WebP picture.", "name" to name)
+        bytes.size > SHOT_BYTES -> tr("{name} is {size} MB: each screenshot can be at most 5 MB.", "name" to name, "size" to "%.1f".format(java.util.Locale.ROOT, bytes.size / 1024.0 / 1024.0))
         else -> null
     }
 

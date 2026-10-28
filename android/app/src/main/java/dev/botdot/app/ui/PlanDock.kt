@@ -56,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Plan
 import dev.botdot.app.data.PlanView
+import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 
 /**
  * A bot's or the Chief's plan in a dock above the message box (docs/api.md, "The plan"). Folded, as it starts on a
@@ -73,7 +75,7 @@ fun PlanDock(view: PlanView?, color: String?, who: String, folded: Boolean, onFo
     val shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 18.dp, bottomEnd = 18.dp)
     Column(
         Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)
-            .semantics { paneTitle = if (view.stopped) "$who's plan, stopped" else "$who's plan" },
+            .semantics { paneTitle = if (view.stopped) tr("{who}'s plan, stopped", "who" to who) else tr("{who}'s plan", "who" to who) },
     ) {
         when {
             view.stopped -> Stopped(plan, onDismiss)
@@ -87,13 +89,13 @@ fun PlanDock(view: PlanView?, color: String?, who: String, folded: Boolean, onFo
 private fun Folded(plan: Plan, accent: Color, onOpen: () -> Unit) {
     val p = LocalPaper.current
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = "Open the plan", role = Role.Button, onClick = onOpen)
-            .semantics { stateDescription = "Folded" }.padding(horizontal = 16.dp),
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClickLabel = tr("Open the plan"), role = Role.Button, onClick = onOpen)
+            .semantics { stateDescription = tr("Folded") }.padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = accent)
-        Text("Plan", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-        Text("step ${plan.step} of ${plan.total}", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+        Text(tr("Plan"), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+        Text(tr("step {step} of {total}", "step" to plan.step, "total" to plan.total), color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 12.sp)
         Text(plan.now?.let { it.doing.ifEmpty { it.text } }.orEmpty(), color = p.text, fontSize = 13.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
     }
     Bar(plan, accent)
@@ -105,12 +107,12 @@ private fun Open(plan: Plan, accent: Color, onFold: () -> Unit) {
     var showDone by remember(plan.total) { mutableStateOf(false) }
     // The grab handle: a tap folds the plan to its one line.
     Box(
-        Modifier.fillMaxWidth().height(24.dp).clickable(onClickLabel = "Fold the plan", role = Role.Button, onClick = onFold).semantics { stateDescription = "Open" },
+        Modifier.fillMaxWidth().height(24.dp).clickable(onClickLabel = tr("Fold the plan"), role = Role.Button, onClick = onFold).semantics { stateDescription = tr("Open") },
         contentAlignment = Alignment.Center,
     ) { Box(Modifier.width(32.dp).height(4.dp).clip(CircleShape).background(Color(0xFF5F5F5F))) }
     Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Plan", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        Text("${plan.done} of ${plan.total}", color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 12.5.sp)
+        Text(tr("Plan"), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text(tr("{done} of {total}", "done" to plan.done, "total" to plan.total), color = p.muted, fontFamily = FontFamily.Monospace, fontSize = 12.5.sp)
         Spacer(Modifier.weight(1f))
         Ring(plan, accent)
     }
@@ -127,11 +129,11 @@ private fun Open(plan: Plan, accent: Color, onFold: () -> Unit) {
             .verticalScroll(rememberScrollState()).padding(bottom = if (long) 20.dp else 8.dp),
     ) {
         if (hide) Row(
-            Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(onClickLabel = "Show the steps that are done", role = Role.Button) { showDone = true }.padding(horizontal = 18.dp),
+            Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable(onClickLabel = tr("Show the steps that are done"), role = Role.Button) { showDone = true }.padding(horizontal = 18.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(20.dp))
-            Text("${plan.done} steps done · show", color = p.muted, fontSize = 14.sp)
+            Text(trn(plan.done, "{n} step done · show", "{n} steps done · show"), color = p.muted, fontSize = 14.sp)
         }
         shown.forEach { StepRow(it, accent) }
     }
@@ -142,7 +144,7 @@ private fun StepRow(s: Plan.Step, accent: Color) {
     val p = LocalPaper.current
     Row(
         Modifier.fillMaxWidth().background(if (s.status == Plan.DOING) p.sunk else Color.Transparent).heightIn(min = 40.dp).padding(horizontal = 18.dp, vertical = 9.dp)
-            .semantics(mergeDescendants = true) { stateDescription = when (s.status) { Plan.DONE -> "Done"; Plan.DOING -> "In progress"; else -> "To do" } },
+            .semantics(mergeDescendants = true) { stateDescription = when (s.status) { Plan.DONE -> tr("Done"); Plan.DOING -> tr("In progress"); else -> tr("To do") } },
         verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Box(Modifier.size(20.dp).padding(top = 1.dp), contentAlignment = Alignment.Center) {
@@ -164,18 +166,18 @@ private fun StepRow(s: Plan.Step, accent: Color) {
 private fun Stopped(plan: Plan, onDismiss: () -> Unit) {
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Plan", color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-        Text("Stopped at step ${plan.step} of ${plan.total}", color = p.warnText, fontFamily = FontFamily.Monospace, fontSize = 12.5.sp)
+        Text(tr("Plan"), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text(tr("Stopped at step {step} of {total}", "step" to plan.step, "total" to plan.total), color = p.warnText, fontFamily = FontFamily.Monospace, fontSize = 12.5.sp)
     }
-    if (plan.done > 0) StoppedRow(if (plan.done == 1) "1 step done" else "${plan.done} steps done", p.faint) { Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(20.dp)) }
+    if (plan.done > 0) StoppedRow(trn(plan.done, "{n} step done", "{n} steps done"), p.faint) { Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(20.dp)) }
     plan.now?.takeIf { it.status != Plan.DONE }?.let { now -> StoppedRow(now.text, p.warnText) { Icon(Icons.Filled.Close, null, tint = p.warn, modifier = Modifier.size(20.dp)) } }
-    if (plan.left > 0) StoppedRow(if (plan.left == 1) "1 step not started" else "${plan.left} steps not started", p.faint) {
+    if (plan.left > 0) StoppedRow(trn(plan.left, "{n} step not started", "{n} steps not started"), p.faint) {
         Canvas(Modifier.size(13.dp)) { drawCircle(Color(0xFF5F5F5F), style = Stroke(1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 3f)))) }
     }
     Box(
-        Modifier.padding(start = 10.dp, bottom = 6.dp).heightIn(min = 48.dp).clip(CircleShape).clickable(onClickLabel = "Dismiss the plan", role = Role.Button, onClick = onDismiss).padding(horizontal = 10.dp),
+        Modifier.padding(start = 10.dp, bottom = 6.dp).heightIn(min = 48.dp).clip(CircleShape).clickable(onClickLabel = tr("Dismiss the plan"), role = Role.Button, onClick = onDismiss).padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
-    ) { Text("Dismiss", color = p.text, fontWeight = FontWeight.Medium, fontSize = 14.sp) }
+    ) { Text(tr("Dismiss"), color = p.text, fontWeight = FontWeight.Medium, fontSize = 14.sp) }
 }
 
 @Composable
@@ -191,7 +193,7 @@ private fun StoppedRow(text: String, tint: Color, mark: @Composable () -> Unit) 
 private fun Bar(plan: Plan, accent: Color) {
     val p = LocalPaper.current
     val part = if (plan.total == 0) 0f else plan.done.toFloat() / plan.total
-    Canvas(Modifier.fillMaxWidth().height(3.dp).semantics { contentDescription = "${plan.done} of ${plan.total} done" }) {
+    Canvas(Modifier.fillMaxWidth().height(3.dp).semantics { contentDescription = tr("{done} of {total} done", "done" to plan.done, "total" to plan.total) }) {
         drawRect(p.sunk)
         drawRect(accent, size = Size(size.width * part, size.height))
     }
@@ -202,7 +204,7 @@ private fun Bar(plan: Plan, accent: Color) {
 private fun Ring(plan: Plan, accent: Color) {
     val p = LocalPaper.current
     val part = if (plan.total == 0) 0f else plan.done.toFloat() / plan.total
-    Canvas(Modifier.size(28.dp).semantics { contentDescription = "${plan.done} of ${plan.total} done" }) {
+    Canvas(Modifier.size(28.dp).semantics { contentDescription = tr("{done} of {total} done", "done" to plan.done, "total" to plan.total) }) {
         val w = 4.dp.toPx()
         val box = Size(size.width - w, size.height - w)
         val at = Offset(w / 2, w / 2)
@@ -219,11 +221,11 @@ fun PlanFold(plan: Plan?) {
     var open by remember(plan) { mutableStateOf(false) }
     Column(Modifier.padding(top = 6.dp)) {
         Row(
-            Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (open) "Fold the plan" else "Show the plan", role = Role.Button) { open = !open },
+            Modifier.heightIn(min = 40.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (open) tr("Fold the plan") else tr("Show the plan"), role = Role.Button) { open = !open },
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (plan.finished) Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(16.dp))
-            Text("Plan · ${plan.done} of ${plan.total} done ${if (open) "⌄" else "›"}", color = p.muted, fontSize = 13.sp)
+            Text(tr("Plan · {done} of {total} done", "done" to plan.done, "total" to plan.total) + if (open) " ⌄" else " ›", color = p.muted, fontSize = 13.sp)
         }
         Unfold(open) { Column { plan.steps.forEachIndexed { i, s ->
             Text("${i + 1}. ${s.text}", color = p.faint, fontSize = 13.sp, lineHeight = 18.sp, textDecoration = if (s.status == Plan.DONE) TextDecoration.LineThrough else null, modifier = Modifier.padding(start = 4.dp, top = 2.dp))

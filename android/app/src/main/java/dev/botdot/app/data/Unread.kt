@@ -55,7 +55,7 @@ object Unread {
     }
 
     /** A job's run above its reply: "⏰ Motion", and "⏰ Motion, called" when a device on the tailnet called it. */
-    fun jobChip(r: Run): String = "⏰ ${r.jobName}${if (r.trigger == "call") ", called" else ""}"
+    fun jobChip(r: Run): String = "⏰ ${r.jobName}" + if (r.trigger == "call") ", " + tr("called") else ""
 
     /**
      * True when the owner's own message started this run: that message isn't new, so the line goes below it.

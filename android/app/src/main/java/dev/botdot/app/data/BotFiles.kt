@@ -72,10 +72,10 @@ object BotFiles {
                 put(MediaStore.Downloads.DISPLAY_NAME, file.name)
                 put(MediaStore.Downloads.MIME_TYPE, typeOf(file.name))
             }
-            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: throw ApiException("Couldn't save to Downloads.")
-            (context.contentResolver.openOutputStream(uri) ?: throw ApiException("Couldn't save to Downloads.")).use { out -> file.inputStream().use { it.copyTo(out) } }
+            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: throw ApiException(tr("Couldn't save to Downloads."))
+            (context.contentResolver.openOutputStream(uri) ?: throw ApiException(tr("Couldn't save to Downloads."))).use { out -> file.inputStream().use { it.copyTo(out) } }
         } else {
-            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: throw ApiException("Couldn't save to Downloads.")
+            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: throw ApiException(tr("Couldn't save to Downloads."))
             file.copyTo(File(dir, file.name), overwrite = true)
         }
     }
@@ -98,7 +98,7 @@ object BotFiles {
         try {
             context.startActivity(view)
         } catch (e: ActivityNotFoundException) {
-            throw ApiException("No app on this phone opens ${if (ext.isBlank()) "this file" else ".$ext files"}.")
+            throw ApiException(if (ext.isBlank()) tr("No app on this phone opens this file.") else tr("No app on this phone opens .{ext} files.", "ext" to ext))
         }
     }
 }

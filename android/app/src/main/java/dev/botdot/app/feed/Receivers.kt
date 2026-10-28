@@ -12,6 +12,7 @@ import android.widget.Toast
 import androidx.core.app.RemoteInput
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Api
+import dev.botdot.app.data.tr
 import dev.botdot.app.ui.PLAN_APPROVAL
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
@@ -52,7 +53,7 @@ class NotificationActions : BroadcastReceiver() {
         // To a busy bot or a replying Chief the answer is the message that waits its turn (`message-waits`): it went,
         // as one that started a run did.
         val sent = runCatching {
-            val a = api ?: error("Not connected to botdot")
+            val a = api ?: error(tr("Not connected to botdot"))
             when {
                 chat.startsWith("chief:") -> { a.sendToChief(chat.removePrefix("chief:"), text, emptyList()) }
                 chat.startsWith("bot:") -> { a.runBot(chat.removePrefix("bot:"), text, emptyList()) }
@@ -61,13 +62,13 @@ class NotificationActions : BroadcastReceiver() {
             }
         }
         withContext(app.notifying) { app.notifier.replied(chat, text.takeIf { sent.isSuccess }) }
-        sent.exceptionOrNull()?.let { Toast.makeText(context, "Couldn't send: ${it.message}", Toast.LENGTH_LONG).show() }
+        sent.exceptionOrNull()?.let { Toast.makeText(context, tr("Couldn't send: {why}", "why" to it.message), Toast.LENGTH_LONG).show() }
     }
 
     private suspend fun answer(context: Context, app: BotDotApp, api: Api?, key: String, yes: Boolean) {
         val id = key.substringAfter(':')
         runCatching {
-            val a = api ?: error("Not connected to botdot")
+            val a = api ?: error(tr("Not connected to botdot"))
             when (key.substringBefore(':')) {
                 "job" -> a.approveJob(id.substringBefore('/'), id.substringAfter('/'), yes)
                 "ask" -> a.answerAsk(id, yes)
@@ -76,7 +77,7 @@ class NotificationActions : BroadcastReceiver() {
                 "plan" -> if (yes) a.sendToChief(id, PLAN_APPROVAL, emptyList()) else a.dismissSuggestion(id)
             }
         }.onSuccess { withContext(app.notifying) { app.notifier.take(key) } }
-            .onFailure { Toast.makeText(context, "That didn't work: ${it.message}", Toast.LENGTH_LONG).show() }
+            .onFailure { Toast.makeText(context, tr("That didn't work: {why}", "why" to it.message), Toast.LENGTH_LONG).show() }
     }
 }
 
