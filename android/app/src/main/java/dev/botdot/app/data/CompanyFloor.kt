@@ -1,5 +1,13 @@
 package dev.botdot.app.data
 
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+
 /**
  * The Company's home as an office floor (#672, #675; web: public/company-floor.js): the rules of who sits where. This
  * file draws nothing (ui/CompanyHome.kt does):
@@ -8,6 +16,7 @@ package dev.botdot.app.data
  *   - the bots in no team, each on its own on the floor.
  *   - a team's objective: the objective of the team's colour.
  *   - "@Bot text" in Add a task: that bot's task.
+ *   - how each objective is shown (#690): its display, its pace against the line to the target, its chart, day 1.
  */
 object CompanyFloor {
     /** Days 30, 60 and 90: the check-ins on the line under the header. */
@@ -79,6 +88,74 @@ object CompanyFloor {
         }.maxByOrNull { it.name.length } ?: return Task(text, null)
         val rest = after.substring(fits.name.length).trim()
         return if (rest.isNotEmpty()) Task(rest, fits.id) else Task(text, null)
+    }
+
+    // ---------- how an objective is shown (#690; web: the same names in public/company-floor.js) ----------
+
+    /** The features that the goal cards (#690) and the leads' plan items and reports (#696) need. */
+    const val DISPLAY = "company-display"
+    const val LEADS = "company-leads"
+    val DISPLAYS = listOf("pace", "bar", "status")
+    /** How often a lead reports: "" none. */
+    val RHYTHMS = listOf("", "daily", "twice-weekly", "weekly")
+
+    /** The owner's or the Chief's pick, else a pace chart for an objective with a target and its status for one without. */
+    fun displayOf(o: Objective): String = o.display?.takeIf { it in DISPLAYS } ?: if (o.target > 0) "pace" else "status"
+
+    enum class Pace { AHEAD, ON, BEHIND }
+
+    /**
+     * Where an objective with a target stands against the straight line from 0 on day 1 to its target on day 90: ahead
+     * once it is a tenth of the target past the line (or past it at all on day 1, when the line is at 0), on track at or
+     * past the line, else behind. Null without a target or a day.
+     */
+    fun pace(o: Objective, day: Int?): Pace? {
+        if (o.target <= 0 || day == null || day <= 0) return null
+        val expected = o.target * (minOf(day, DAYS_ALL) - 1) / (DAYS_ALL - 1)
+        return when {
+            o.current >= expected + o.target / 10 || (expected == 0.0 && o.current > 0) -> Pace.AHEAD
+            o.current >= expected -> Pace.ON
+            else -> Pace.BEHIND
+        }
+    }
+
+    /** A point of the pace chart, both ways 0 to 1 (y down, as a canvas draws it). */
+    data class Point(val x: Float, val y: Float)
+
+    /**
+     * The pace chart: [line] from 0 on day 1 to the target on day 90; [actual] the objective's history before today and
+     * its current value today; [ticks] the x of days 30, 60 and 90. The top is the target or the highest value.
+     */
+    data class Chart(val line: Pair<Point, Point>, val actual: List<Point>, val ticks: List<Pair<Int, Float>>)
+
+    fun chart(o: Objective, day: Int?): Chart {
+        val today = (day ?: 1).coerceIn(1, DAYS_ALL)
+        val points = o.history.filter { it.day < today } + DayValue(today, o.current)
+        val top = maxOf(o.target, points.maxOf { it.value }).takeIf { it > 0 } ?: 1.0
+        fun x(d: Int) = (d - 1).toFloat() / (DAYS_ALL - 1)
+        fun y(v: Double) = (1 - maxOf(0.0, v) / top).toFloat()
+        return Chart(Point(x(1), y(0.0)) to Point(x(DAYS_ALL), y(o.target)), points.map { Point(x(it.day), y(it.value)) }, DAYS.map { it to x(it) })
+    }
+
+    /** Day 1 of a running company, when a chart would be a flat line: the home shows where it starts instead. */
+    fun firstDay(c: Company): Boolean = c.running && (c.day ?: 0) <= 1
+
+    /** The day of the first check-in (day 30), from the day the company started. */
+    fun checkinDate(startedAt: String?, zone: ZoneId = ZoneId.systemDefault()): LocalDate? = startedAt?.let {
+        runCatching { Instant.parse(it).plusSeconds(29L * 86_400).atZone(zone).toLocalDate() }.getOrNull()
+    }
+
+    /** How many of an objective's steps are done. */
+    fun stepsDone(o: Objective): Int = o.steps.count { it.done }
+
+    /** The steps with the [i]th ticked or not: sent whole, as the server keeps them. */
+    fun ticked(o: Objective, i: Int, done: Boolean): List<ObjectiveStep> = o.steps.mapIndexed { x, s -> if (x == i) s.copy(done = done) else s }
+
+    /** `PUT /api/company/objectives/:id`: the fields given, the steps whole. */
+    fun objectiveBody(display: String? = null, steps: List<ObjectiveStep>? = null, done: Boolean? = null): JsonObject = buildJsonObject {
+        if (display != null) put("display", display)
+        if (steps != null) put("steps", JsonArray(steps.map { s -> buildJsonObject { put("text", s.text); put("done", s.done) } }))
+        if (done != null) put("done", done)
     }
 
     /** The owner's tasks as You lists them: those not done, then the last five done. */
