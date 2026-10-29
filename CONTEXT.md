@@ -111,7 +111,7 @@ A place of its own beside the bots, opened from the switch "Bots | Projects": wh
 _Avoid_: company, firm (in what the user reads)
 
 **Standup**:
-A project's three lines per team each workday morning (done, next, blocked), written by each team's lead and merged by the Chief of Staff into one message and one card in Projects ([ADR 115](docs/adr/115-a-morning-standup-is-a-short-call-per-lead-and-one-chief-message.md)). Not a lead's report on its own rhythm, and not a checkup.
+A project's three lines per team each workday morning (done, next, blocked), written by each team's lead and merged by the Chief of Staff into one message and one card in Projects ([ADR 116](docs/adr/116-a-morning-standup-is-a-short-call-per-lead-and-one-chief-message.md)). Not a lead's report on its own rhythm, and not a checkup.
 _Avoid_: daily report, status update (for the standup itself)
 
 **The project's folder**:
