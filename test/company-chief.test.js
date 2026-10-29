@@ -49,7 +49,7 @@ test('a bad answer is no answer; a good one is cut to plain text', () => {
   assert.deepEqual(idea.suggestions, { goal: ['10 parents use it every week'], never: [], time: [] });
   const site = chief.parseRead(JSON.stringify({ name: 'Fernhill', about: 'Project management\nfor agencies', serves: '', today: 'Gmail and GitHub', questions: [{ question: 'Who answers billing questions?', chips: ['You', 'Someone else'] }, { question: '' }, 'x'] }), 'site');
   assert.deepEqual(site.cards, [
-    { key: 'about', question: 'What is your company about?', answer: 'Project management for agencies' },
+    { key: 'about', question: 'What is your project about?', answer: 'Project management for agencies' },
     { key: 'serves', question: 'Who do you serve?', answer: '', open: true },
     { key: 'today', question: 'How do you work today?', answer: 'Gmail and GitHub' },
     { key: 'q1', question: 'Who answers billing questions?', answer: '', chips: ['You', 'Someone else'], open: true },

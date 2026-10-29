@@ -54,7 +54,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await page.locator('[data-cf-plan-change]').click();
         await page.locator('#cf-change input').fill('Fewer interviews, more sign-ups');
         await page.locator('#cf-change input').press('Enter');
-        await waitFor(async () => (await srv.api('/chief')).data.chats.some((x) => x.title === 'Company'), { what: 'the Chief told of the change' });
+        await waitFor(async () => (await srv.api('/chief')).data.chats.some((x) => x.title === 'Project'), { what: 'the Chief told of the change' });
         await page.locator('[data-cf-plan-approve]').click();
         await page.locator('.cf-plan.approved').waitFor();
         assert.equal((await srv.api('/company')).data.company.plan.approved, true);
