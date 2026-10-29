@@ -1644,6 +1644,9 @@
     "many": "Jeszcze {n} czatów"
   },
   "Minimize": "Zwiń",
+  "Decisions": "Decyzje",
+  "Add a decision": "Dodaj decyzję",
+  "Remove": "Usuń",
   "{n} working": {
     "one": "{n} pracuje",
     "few": "{n} pracują",

@@ -22,7 +22,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
@@ -47,15 +46,15 @@ fun PausedScreen(app: BotDotApp) {
         }
     }
 
-    Column(Modifier.fillMaxSize().systemBarsPadding().padding(24.dp), verticalArrangement = Arrangement.Center) {
-        Logo(size = 34.sp)
-        Spacer(Modifier.height(8.dp))
+    Column(Modifier.fillMaxSize().systemBarsPadding().padding(Space.s24), verticalArrangement = Arrangement.Center) {
+        Logo(size = Type.s32)
+        Spacer(Modifier.height(Space.s8))
         Text(tr("Your account is paused by the admin."), color = p.muted, style = MaterialTheme.typography.bodyLarge)
         said?.let {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s12))
             Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium)
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(Space.s16))
         Button(
             onClick = {
                 busy = true; said = null

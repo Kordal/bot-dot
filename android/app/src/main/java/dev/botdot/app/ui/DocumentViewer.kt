@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -56,7 +55,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil3.compose.AsyncImage
@@ -125,9 +123,9 @@ private fun PathSheet(req: DocViewer.Request) {
     val p = LocalPaper.current
     val context = LocalContext.current
     ModalBottomSheet(onDismissRequest = { DocViewer.held = null }, containerColor = p.panel) {
-        Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(req.path.orEmpty(), color = p.text, fontFamily = GeistMono, fontSize = 13.5.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s16, bottom = Space.s24), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+            Text(req.path.orEmpty(), color = p.text, fontFamily = GeistMono, fontSize = Type.s14)
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Button(onClick = { DocViewer.held = null; DocViewer.open = req }, modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Open")) }
                 OutlinedButton(onClick = {
@@ -230,14 +228,14 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         }
     }
     Column(Modifier.fillMaxSize().background(p.bg).systemBarsPadding()) {
-        if (!siteFull) Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (!siteFull) Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s4, top = Space.s8, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Back"), tint = p.text) }
             Column(Modifier.weight(1f)) {
-                Text(req.name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(req.name, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val sub = if (req.text != null) listOfNotNull(req.from.ifBlank { null }, trn(dev.botdot.app.data.DocumentExport.words(req.text), "{n} word", "{n} words")).joinToString(" · ")
                     else if (req.page != null) Pages.subtitle(req.from, view?.page)
                     else DocumentView.subtitle(req.from, view, shortTime(view?.at))
-                if (sub.isNotEmpty()) Text(sub, color = p.muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (sub.isNotEmpty()) Text(sub, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = tr("More"), tint = p.text) }
@@ -286,7 +284,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             }
         } else null
         if (req.page != null && site != null) {
-            if (board != null) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) { BoardButton(onBoard == true, board) }
+            if (board != null) Row(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s4)) { BoardButton(onBoard == true, board) }
             InteractiveBar(site, siteFull, onFull = { siteFull = true }, onVersions = { versions = true }, onDownload = download,
                 onRollBack = { withApi(tr("go back to it")) { it.setPageVersion(req.page.botId, req.page.slug, site.shown); tell(tr("The page shows version {n} again", "n" to site.shown)); version = null; tries++ } },
                 onCurrent = { version = null })
@@ -299,7 +297,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             fun stop() { inBackground(tr("Stopping…"), tr("It no longer keeps up to date"), ::stop) { it.stopKeepingPage(req.page.botId, page.slug); changed++ } }
             PageBar(page, onBoard == true, board, onKeep = { if (work?.kind != "busy") { keepDraft = null; keeping = true } }, onRefresh = ::refresh, onStop = ::stop)
         }
-        if (req.page != null) work?.let { w -> WorkLine(w, Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { work = null } }
+        if (req.page != null) work?.let { w -> WorkLine(w, Modifier.padding(horizontal = Space.s16, vertical = Space.s4)) { work = null } }
         // The sheet closes at once and the save runs on (#475); its error opens the sheet again with what was entered.
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, keepDraft, onDismiss = { keeping = false }) { draft ->
             keeping = false
@@ -322,8 +320,8 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                     else -> ViewerState(tr("Couldn't open it"), e.message.orEmpty()) { OutlinedButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
                 }
             }
-            v == null -> Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                listOf(0.6f, 0.92f, 0.84f, 0.7f, 0.88f).forEach { w -> Box(Modifier.fillMaxWidth(w).height(12.dp).clip(RoundedCornerShape(6.dp)).background(p.sunk)) }
+            v == null -> Column(Modifier.padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                listOf(0.6f, 0.92f, 0.84f, 0.7f, 0.88f).forEach { w -> Box(Modifier.fillMaxWidth(w).height(12.dp).clip(Radius.small).background(p.sunk)) }
             }
             !v.downloadable && v.kind == "none" -> ViewerState(tr("Too large to bring out of the computer"), tr("Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.")) {
                 OutlinedButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) }
@@ -334,22 +332,22 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                     colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save to Downloads")) }
                 OutlinedButton(onClick = { withApi(tr("open it")) { BotFiles.openElsewhere(context, it, req.src, req.name) } }) { Text(tr("Open in another app"), color = p.text) }
             }
-            v.kind == "image" -> Box(Modifier.fillMaxSize().padding(12.dp), contentAlignment = Alignment.Center) {
+            v.kind == "image" -> Box(Modifier.fillMaxSize().padding(Space.s12), contentAlignment = Alignment.Center) {
                 api?.let { AsyncImage(it.url(req.src), contentDescription = req.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
             }
             else -> Column(Modifier.fillMaxSize()) {
-                if (v.kind == "markdown" || v.kind == "csv") Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (v.kind == "markdown" || v.kind == "csv") Row(Modifier.padding(horizontal = Space.s16, vertical = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     val modes = if (v.kind == "markdown") listOf("rendered" to tr("Rendered"), "source" to tr("Source")) else listOf("table" to tr("Table"), "source" to tr("Source"))
                     modes.forEach { (m, label) -> ModeChip(label, mode == m) { mode = m } }
                 }
                 if (v.truncated) Text(tr("Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).") + if (v.downloadable) " " + tr("Save it to see everything.") else "",
-                    color = p.text, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth()
-                        .border(1.dp, p.warnLine, RoundedCornerShape(12.dp)).background(p.warnSoft, RoundedCornerShape(12.dp)).padding(10.dp))
+                    color = p.text, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s16, vertical = Space.s8).fillMaxWidth()
+                        .border(1.dp, p.warnLine, Radius.card).background(p.warnSoft, Radius.card).padding(Space.s12))
                 val text = v.text.orEmpty()
                 when {
-                    v.kind == "markdown" && mode == "rendered" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 12.dp)) {
+                    v.kind == "markdown" && mode == "rendered" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s12)) {
                         if (v.parts != null) PageParts(v.parts) else MarkdownText(text, onWeb = null, paths = null)
-                        Spacer(Modifier.height(40.dp))
+                        Spacer(Modifier.height(Space.s32))
                     }
                     v.kind == "csv" && mode == "table" -> CsvTable(text, DocumentView.sepOf(req.name))
                     else -> Lines(text)
@@ -383,14 +381,14 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
         }
     }
     ModalBottomSheet(onDismissRequest = onDone, containerColor = p.panel) {
-        Column(Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 28.dp)) {
-            Text("DOWNLOAD", color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+        Column(Modifier.fillMaxWidth().padding(start = Space.s12, end = Space.s12, bottom = Space.s24)) {
+            Text("DOWNLOAD", color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(horizontal = Space.s12, vertical = Space.s8))
             dev.botdot.app.data.DocumentExport.FORMATS.forEach { (format, label, ext) ->
                 SheetRow(label, ext) { make(tr("save it"), { f -> BotFiles.saveToDownloads(context, f); tell(tr("Saved {name} to Downloads", "name" to f.name)) }, format) }
             }
-            Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
+            Box(Modifier.padding(vertical = Space.s8).fillMaxWidth().height(1.dp).background(p.line))
             if (dev.botdot.app.data.DocumentExport.savesToGoogleDocs(server?.features)) {
-                Text(tr("SAVE TO"), color = p.faint, fontSize = 11.5.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+                Text(tr("SAVE TO"), color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(horizontal = Space.s12, vertical = Space.s8))
                 // Not connected: the tap connects Google Docs (the Connectors page's own path) with the sign-in in the
                 // browser (#378); without connected apps on this server it says so.
                 SheetRow("Google Docs", dev.botdot.app.data.DocumentExport.googleDocsLabel(googleDocs)) {
@@ -427,7 +425,7 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
                             .onError { tell(tr("Couldn't start connecting Google Docs: {why}", "why" to (it.message ?: tr("try again")))) }
                     }
                 }
-                Box(Modifier.padding(vertical = 6.dp).fillMaxWidth().height(1.dp).background(p.line))
+                Box(Modifier.padding(vertical = Space.s8).fillMaxWidth().height(1.dp).background(p.line))
             }
             SheetRow(tr("Share…"), "PDF") { make(tr("share it"), { f -> BotFiles.shareFile(context, f) }, "pdf") }
         }
@@ -437,27 +435,27 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
 @Composable
 private fun SheetRow(label: String, end: String, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = p.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        Text(end, color = p.faint, fontSize = 12.5.sp)
+    Row(Modifier.fillMaxWidth().clip(Radius.small).clickable(onClick = onClick).padding(horizontal = Space.s12, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = p.text, fontSize = Type.s16, modifier = Modifier.weight(1f))
+        Text(end, color = p.faint, fontSize = Type.s12)
     }
 }
 
 @Composable
 private fun ModeChip(label: String, on: Boolean, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Text(label, color = if (on) p.inkText else p.text, fontSize = 13.sp,
-        modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (on) p.ink else p.bg).border(1.dp, if (on) p.ink else p.line2, RoundedCornerShape(99.dp))
-            .clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 6.dp))
+    Text(label, color = if (on) p.inkText else p.text, fontSize = Type.s14,
+        modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.bg).border(1.dp, if (on) p.ink else p.line2, Radius.pill)
+            .clickable(onClick = onClick).padding(horizontal = Space.s16, vertical = Space.s8))
 }
 
 @Composable
 internal fun ViewerState(title: String, text: String, actions: @Composable () -> Unit) {
     val p = LocalPaper.current
-    Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-        if (text.isNotBlank()) Text(text, color = p.muted, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) { actions() }
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s24, vertical = Space.s48), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+        Text(title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16)
+        if (text.isNotBlank()) Text(text, color = p.muted, fontSize = Type.s14, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) { actions() }
     }
 }
 
@@ -467,12 +465,12 @@ private fun Lines(text: String) {
     val p = LocalPaper.current
     val lines = remember(text) { text.removeSuffix("\n").split("\n") }
     val width = (lines.size.toString().length * 9 + 12).dp
-    LazyColumn(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().padding(horizontal = Space.s12)) {
         items(lines.size) { i ->
             Row {
-                Text("${i + 1}", color = p.faint, fontFamily = GeistMono, fontSize = 11.5.sp, modifier = Modifier.width(width).padding(top = 1.dp, end = 8.dp),
+                Text("${i + 1}", color = p.faint, fontFamily = GeistMono, fontSize = Type.s12, modifier = Modifier.width(width).padding(top = 1.dp, end = Space.s8),
                     textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                Text(lines[i], color = p.text, fontFamily = GeistMono, fontSize = 12.5.sp, lineHeight = 19.sp)
+                Text(lines[i], color = p.text, fontFamily = GeistMono, fontSize = Type.s12, lineHeight = Type.line20)
             }
         }
     }
@@ -486,30 +484,30 @@ private fun CsvTable(text: String, sep: Char) {
     var sort by remember { mutableStateOf<Pair<Int, Boolean>?>(null) }
     val t = remember(text, find, sort) { DocumentView.table(text, sep, sort?.first, sort?.second ?: true, find) }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            BasicTextField(find, { find = it }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = 14.sp), cursorBrush = SolidColor(p.text),
-                modifier = Modifier.weight(1f).border(1.dp, p.line2, RoundedCornerShape(99.dp)).padding(horizontal = 14.dp, vertical = 8.dp),
-                decorationBox = { inner -> if (find.isEmpty()) Text(tr("Find in table"), color = p.faint, fontSize = 14.sp); inner() })
-            Text(trn(t.total, "{n} row", "{n} rows") + " · " + trn(t.cols, "{n} column", "{n} columns"), color = p.muted, fontSize = 12.5.sp)
+        Row(Modifier.padding(horizontal = Space.s16, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+            BasicTextField(find, { find = it }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = Type.s14), cursorBrush = SolidColor(p.text),
+                modifier = Modifier.weight(1f).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s16, vertical = Space.s8),
+                decorationBox = { inner -> if (find.isEmpty()) Text(tr("Find in table"), color = p.faint, fontSize = Type.s14); inner() })
+            Text(trn(t.total, "{n} row", "{n} rows") + " · " + trn(t.cols, "{n} column", "{n} columns"), color = p.muted, fontSize = Type.s12)
         }
-        val cell = Modifier.width(140.dp).padding(horizontal = 8.dp, vertical = 6.dp)
-        Column(Modifier.fillMaxSize().horizontalScroll(rememberScrollState()).verticalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
+        val cell = Modifier.width(140.dp).padding(horizontal = Space.s8, vertical = Space.s8)
+        Column(Modifier.fillMaxSize().horizontalScroll(rememberScrollState()).verticalScroll(rememberScrollState()).padding(horizontal = Space.s8)) {
             Row {
                 Text("", modifier = Modifier.width(44.dp))
                 for (c in 0 until t.cols) {
                     val arrow = when { sort?.first != c -> ""; sort?.second == true -> " ▲"; else -> " ▼" }
-                    Text(t.head.getOrNull(c).orEmpty() + arrow, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    Text(t.head.getOrNull(c).orEmpty() + arrow, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s14, maxLines = 2, overflow = TextOverflow.Ellipsis,
                         modifier = cell.clickable { sort = when { sort?.first != c -> c to true; sort?.second == true -> c to false; else -> null } })
                 }
             }
             Box(Modifier.height(1.dp).width((44 + 140 * t.cols).dp).background(p.line2))
             t.rows.forEach { (n, cells) ->
                 Row {
-                    Text("$n", color = p.faint, fontFamily = GeistMono, fontSize = 11.5.sp, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.width(44.dp).padding(end = 8.dp, top = 7.dp))
-                    for (c in 0 until t.cols) Text(cells.getOrNull(c).orEmpty(), color = p.text, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = cell)
+                    Text("$n", color = p.faint, fontFamily = GeistMono, fontSize = Type.s12, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.width(44.dp).padding(end = Space.s8, top = Space.s8))
+                    for (c in 0 until t.cols) Text(cells.getOrNull(c).orEmpty(), color = p.text, fontSize = Type.s14, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = cell)
                 }
             }
-            if (t.rows.isEmpty()) Text(tr("Nothing found."), color = p.muted, fontSize = 13.sp, modifier = Modifier.padding(12.dp))
+            if (t.rows.isEmpty()) Text(tr("Nothing found."), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(Space.s12))
         }
     }
 }
@@ -518,13 +516,13 @@ private fun CsvTable(text: String, sep: Char) {
 @Composable
 private fun PageBar(page: PageInfo, onBoard: Boolean, board: (() -> Unit)?, onKeep: () -> Unit, onRefresh: () -> Unit, onStop: () -> Unit) {
     val p = LocalPaper.current
-    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s8),
+        horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         val keep = page.keep
         if (keep == null) OutlinedButton(onClick = onKeep) { Text(tr("Keep up to date"), color = p.text) }
         else {
-            Text("↻ " + tr("Keeps up to date") + " · ${keep.`when`}", color = p.okText, fontSize = 12.5.sp,
-                modifier = Modifier.align(Alignment.CenterVertically).clip(RoundedCornerShape(99.dp)).background(p.okSoft).padding(horizontal = 12.dp, vertical = 6.dp))
+            Text("↻ " + tr("Keeps up to date") + " · ${keep.`when`}", color = p.okText, fontSize = Type.s12,
+                modifier = Modifier.align(Alignment.CenterVertically).clip(Radius.pill).background(p.okSoft).padding(horizontal = Space.s12, vertical = Space.s8))
             OutlinedButton(onClick = onRefresh) { Text(tr("Refresh now"), color = p.text) }
             androidx.compose.material3.TextButton(onClick = onKeep) { Text(tr("Change"), color = p.muted) }
             androidx.compose.material3.TextButton(onClick = onStop) { Text(tr("Stop"), color = p.muted) }
@@ -558,31 +556,31 @@ private fun KeepSheet(page: PageInfo, from: String, draft: KeepDraft?, onDismiss
     var notify by remember { mutableStateOf(draft?.notify ?: page.keep?.notify ?: "report-only") }
     var check by remember { mutableStateOf(draft?.check ?: page.keep?.check ?: page.sources) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.panel) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(tr("Keep “{title}” up to date", "title" to page.title), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-            Text(tr("{name} rewrites the page on this schedule, from the same sources.", "name" to from.ifBlank { tr("The bot") }), color = p.muted, fontSize = 13.5.sp)
-            Text(tr("How often"), color = p.muted, fontSize = 12.5.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { Pages.EVERY.forEach { (k, label) -> ModeChip(label, every == k) { every = k } } }
+        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Space.s16, end = Space.s16, bottom = Space.s24), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+            Text(tr("Keep “{title}” up to date", "title" to page.title), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16)
+            Text(tr("{name} rewrites the page on this schedule, from the same sources.", "name" to from.ifBlank { tr("The bot") }), color = p.muted, fontSize = Type.s14)
+            Text(tr("How often"), color = p.muted, fontSize = Type.s12)
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) { Pages.EVERY.forEach { (k, label) -> ModeChip(label, every == k) { every = k } } }
             if (every != "hour") {
-                Text(tr("At"), color = p.muted, fontSize = 12.5.sp)
-                BasicTextField(time, { time = it.take(5) }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = 15.sp), cursorBrush = SolidColor(p.text),
-                    modifier = Modifier.width(110.dp).border(1.dp, p.line2, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 9.dp))
+                Text(tr("At"), color = p.muted, fontSize = Type.s12)
+                BasicTextField(time, { time = it.take(5) }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = Type.s16), cursorBrush = SolidColor(p.text),
+                    modifier = Modifier.width(110.dp).border(1.dp, p.line2, Radius.card).padding(horizontal = Space.s12, vertical = Space.s8))
             }
-            Text(tr("Tell me"), color = p.muted, fontSize = 12.5.sp)
+            Text(tr("Tell me"), color = p.muted, fontSize = Type.s12)
             listOf("report-only" to (tr("Only when something needs me") to tr("A quiet update otherwise. The page shows when it changed.")),
                 "always" to (tr("Every time it's updated") to tr("A short message with what changed."))).forEach { (k, words) ->
-                Row(Modifier.fillMaxWidth().clickable { notify = k }.padding(vertical = 4.dp), verticalAlignment = Alignment.Top) {
+                Row(Modifier.fillMaxWidth().clickable { notify = k }.padding(vertical = Space.s4), verticalAlignment = Alignment.Top) {
                     androidx.compose.material3.RadioButton(selected = notify == k, onClick = { notify = k })
-                    Column(Modifier.padding(top = 10.dp)) {
-                        Text(words.first, color = p.text, fontSize = 14.sp)
-                        Text(words.second, color = p.faint, fontSize = 12.sp)
+                    Column(Modifier.padding(top = Space.s12)) {
+                        Text(words.first, color = p.text, fontSize = Type.s14)
+                        Text(words.second, color = p.faint, fontSize = Type.s12)
                     }
                 }
             }
-            Text(tr("What to check"), color = p.muted, fontSize = 12.5.sp)
-            BasicTextField(check, { check = it.take(600) }, textStyle = TextStyle(color = p.text, fontSize = 14.sp), cursorBrush = SolidColor(p.text),
-                modifier = Modifier.fillMaxWidth().height(90.dp).border(1.dp, p.line2, RoundedCornerShape(12.dp)).padding(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(tr("What to check"), color = p.muted, fontSize = Type.s12)
+            BasicTextField(check, { check = it.take(600) }, textStyle = TextStyle(color = p.text, fontSize = Type.s14), cursorBrush = SolidColor(p.text),
+                modifier = Modifier.fillMaxWidth().height(90.dp).border(1.dp, p.line2, Radius.card).padding(Space.s12))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                 OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(tr("Cancel"), color = p.text) }
                 Button(onClick = { onKeep(KeepDraft(every, time, notify, check)) }, modifier = Modifier.weight(1.4f),
                     colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Keep it up to date")) }

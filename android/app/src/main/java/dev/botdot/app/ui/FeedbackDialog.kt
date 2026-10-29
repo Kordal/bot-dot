@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -99,10 +98,10 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
         onDismissRequest = { if (!sending) onClose() },
         title = { Text(tr("Feedback")) },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Text(if (shotsOn) tr("The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.")
                      else tr("The admin of this machine reads it. Only what you write here is sent."))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s16)) {
                     for (k in Feedback.Kind.entries) Row(
                         Modifier.selectable(selected = kind == k, role = Role.RadioButton) { kind = k },
                         verticalAlignment = Alignment.CenterVertically,
@@ -114,13 +113,13 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
                 OutlinedTextField(text, { text = it; error = null }, placeholder = { Text(tr("What happened, or what you would like")) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp))
                 if (shotsOn) {
-                    if (shots.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (shots.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                         shots.forEachIndexed { i, uri ->
-                            val shape = RoundedCornerShape(8.dp)
+                            val shape = Radius.small
                             Box(Modifier.size(72.dp, 56.dp).clip(shape).border(1.dp, p.line2, shape)) {
                                 coil3.compose.AsyncImage(model = uri, contentDescription = tr("Screenshot {n}", "n" to i + 1), modifier = Modifier.size(72.dp, 56.dp), contentScale = ContentScale.Crop)
                                 IconButton(onClick = { picked = shots.filterIndexed { j, _ -> j != i }.joinToString("\n"); ready.remove(uri); error = null },
-                                    enabled = !sending && !reading, modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(22.dp).background(Color.Black.copy(alpha = 0.65f), CircleShape)) {
+                                    enabled = !sending && !reading, modifier = Modifier.align(Alignment.TopEnd).padding(Space.s4).size(22.dp).background(Color.Black.copy(alpha = 0.65f), CircleShape)) {
                                     Icon(Icons.Filled.Close, contentDescription = tr("Remove screenshot {n}", "n" to i + 1), tint = Color.White, modifier = Modifier.size(14.dp))
                                 }
                             }

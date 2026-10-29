@@ -46,7 +46,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Block
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Tile
@@ -136,10 +135,10 @@ private fun levelColors(level: String?): Pair<Color, Color> {
 @Composable
 fun KitStatus(b: Block) {
     val (fg, bg) = levelColors(b.level)
-    Row(Modifier.clip(RoundedCornerShape(99.dp)).background(bg).padding(horizontal = 10.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.clip(Radius.pill).background(bg).padding(horizontal = Space.s12, vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(6.dp).clip(CircleShape).background(fg))
         Spacer(Modifier.size(6.dp))
-        Text(b.text.orEmpty(), color = fg, fontSize = 12.sp, maxLines = 1)
+        Text(b.text.orEmpty(), color = fg, fontSize = Type.s12, maxLines = 1)
     }
 }
 
@@ -148,9 +147,9 @@ fun KitCallout(b: Block) {
     val p = LocalPaper.current
     val lv = BoardKit.level(b.level)
     val (fg, bg) = if (lv == "info" || lv == "plan") p.text to p.sunk else levelColors(lv)
-    val shape = RoundedCornerShape(12.dp)
-    Column(Modifier.fillMaxWidth().clip(shape).background(bg).border(1.dp, if (lv == "info" || lv == "plan") p.line2 else fg.copy(alpha = 0.3f), shape).padding(horizontal = 14.dp, vertical = 10.dp)) {
-        b.title?.let { Text(it, color = fg, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold) }
+    val shape = Radius.card
+    Column(Modifier.fillMaxWidth().clip(shape).background(bg).border(1.dp, if (lv == "info" || lv == "plan") p.line2 else fg.copy(alpha = 0.3f), shape).padding(horizontal = Space.s16, vertical = Space.s12)) {
+        b.title?.let { Text(it, color = fg, fontSize = Type.s14, fontWeight = FontWeight.SemiBold) }
         MarkdownText(b.text.orEmpty(), color = p.text, copy = false)
     }
 }
@@ -182,19 +181,19 @@ fun KitSpark(points: List<Double>, color: Color, modifier: Modifier) {
 @Composable
 fun KitKpi(b: Block, color: Color, compact: Boolean, small: Boolean = false) {
     val p = LocalPaper.current
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.Bottom) {
-            Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                b.label?.let { Text(it, color = p.muted, fontSize = 12.5.sp) }
+            Column(Modifier.weight(1f, fill = false), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                b.label?.let { Text(it, color = p.muted, fontSize = Type.s12) }
                 Text(buildAnnotatedString {
                     append(b.text?.ifEmpty { "·" } ?: "·")
-                    b.unit?.let { withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.faint)) { append(" $it") } }
-                    b.of?.let { withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.faint)) { append("  " + tr("of {total}", "total" to it)) } }
-                }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = if (small) 22.sp else 30.sp, fontWeight = FontWeight.SemiBold, lineHeight = if (small) 26.sp else 34.sp, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis)
+                    b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.faint)) { append(" $it") } }
+                    b.of?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.faint)) { append("  " + tr("of {total}", "total" to it)) } }
+                }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = if (small) Type.s20 else Type.s32, fontWeight = FontWeight.SemiBold, lineHeight = if (small) Type.s24 else Type.s32, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis)
                 b.delta?.let { d ->
-                    Text(BoardKit.deltaLine(b), fontSize = 12.5.sp, color = when (d.good) { true -> p.okText; false -> p.err; null -> p.faint })
+                    Text(BoardKit.deltaLine(b), fontSize = Type.s12, color = when (d.good) { true -> p.okText; false -> p.err; null -> p.faint })
                 }
-                b.sub?.let { Text(it, fontSize = 12.5.sp, color = tint(b.subColor, p.muted, words = true)) }
+                b.sub?.let { Text(it, fontSize = Type.s12, color = tint(b.subColor, p.muted, words = true)) }
             }
             if (b.points.size >= 2 && !compact) {
                 Spacer(Modifier.size(12.dp))
@@ -203,8 +202,8 @@ fun KitKpi(b: Block, color: Color, compact: Boolean, small: Boolean = false) {
         }
         if (small && b.points.size >= 2) KitSpark(b.points, color, Modifier.fillMaxWidth().height(22.dp))
         b.ratio?.let { r ->
-            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(99.dp)).background(p.sunk)) {
-                Box(Modifier.fillMaxWidth(r.toFloat().coerceIn(0f, 1f)).height(6.dp).clip(RoundedCornerShape(99.dp)).background(color))
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(Radius.pill).background(p.sunk)) {
+                Box(Modifier.fillMaxWidth(r.toFloat().coerceIn(0f, 1f)).height(6.dp).clip(Radius.pill).background(color))
             }
         }
     }
@@ -220,23 +219,23 @@ fun KitChart(b: Block, color: Color, axes: Boolean) {
     val palette = listOf(p.mention, p.ok, p.warn, VIOLET)
     val lines = if (b.series.isNotEmpty()) b.series.mapIndexed { i, s -> Line(s.label.orEmpty(), if (s.color != null) tint(s.color, color) else if (i == 0) color else palette[(i - 1) % palette.size], s.points) }
         else listOf(Line("", color, b.points))
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         if (b.text != null || lines.any { it.label.isNotEmpty() }) Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(b.text.orEmpty(), color = p.muted, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+            Text(b.text.orEmpty(), color = p.muted, fontSize = Type.s12, modifier = Modifier.weight(1f))
             lines.filter { it.label.isNotEmpty() }.forEach { l ->
                 Box(Modifier.size(8.dp).clip(RoundedCornerShape(2.dp)).background(l.color))
-                Text(" ${l.label}", color = p.muted, fontSize = 12.sp, modifier = Modifier.padding(end = 10.dp))
+                Text(" ${l.label}", color = p.muted, fontSize = Type.s12, modifier = Modifier.padding(end = Space.s12))
             }
         }
         if (b.style == "hbar") {
             if (b.bars.isEmpty()) Text("·", color = p.faint)
             b.bars.forEach { bar ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(bar.label, color = p.text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.35f))
-                    Box(Modifier.weight(0.5f).height(8.dp).clip(RoundedCornerShape(99.dp)).background(p.sunk)) {
-                        Box(Modifier.fillMaxWidth(bar.ratio.toFloat().coerceIn(0f, 1f)).height(8.dp).clip(RoundedCornerShape(99.dp)).background(color))
+                    Text(bar.label, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(0.35f))
+                    Box(Modifier.weight(0.5f).height(8.dp).clip(Radius.pill).background(p.sunk)) {
+                        Box(Modifier.fillMaxWidth(bar.ratio.toFloat().coerceIn(0f, 1f)).height(8.dp).clip(Radius.pill).background(color))
                     }
-                    Text(bar.text, color = p.muted, fontSize = 12.sp, fontFamily = GeistMono, modifier = Modifier.padding(start = 10.dp))
+                    Text(bar.text, color = p.muted, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.padding(start = Space.s12))
                 }
             }
             return@Column
@@ -298,8 +297,8 @@ fun KitChart(b: Block, color: Color, axes: Boolean) {
                 }
             }
             if (axes) {
-                Text(BoardKit.num(hi) + unit, color = p.faint, fontSize = 10.5.sp, fontFamily = GeistMono, modifier = Modifier.align(Alignment.TopStart).width(30.dp))
-                Text(BoardKit.num(lo) + unit, color = p.faint, fontSize = 10.5.sp, fontFamily = GeistMono, modifier = Modifier.align(Alignment.BottomStart).width(30.dp))
+                Text(BoardKit.num(hi) + unit, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.align(Alignment.TopStart).width(30.dp))
+                Text(BoardKit.num(lo) + unit, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.align(Alignment.BottomStart).width(30.dp))
             }
             picked?.let { i ->
                 val density = LocalDensity.current
@@ -308,18 +307,18 @@ fun KitChart(b: Block, color: Color, axes: Boolean) {
                 val tipWidth = 150.dp
                 val x = (pad + plotWidth * frac - tipWidth / 2).coerceIn(0.dp, maxOf(0.dp, maxWidth - tipWidth))
                 Column(
-                    Modifier.offset { IntOffset(with(density) { x.roundToPx() }, 0) }.width(tipWidth).clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF1C1C1C)).border(1.dp, p.line2, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+                    Modifier.offset { IntOffset(with(density) { x.roundToPx() }, 0) }.width(tipWidth).clip(Radius.small)
+                        .background(Color(0xFF1C1C1C)).border(1.dp, p.line2, Radius.small).padding(horizontal = Space.s12, vertical = Space.s8),
                 ) {
-                    names.getOrNull(i)?.takeIf { it.isNotEmpty() }?.let { Text(it, color = p.text, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold) }
-                    Text(words.ifEmpty { "·" }, color = p.text, fontSize = 12.sp)
+                    names.getOrNull(i)?.takeIf { it.isNotEmpty() }?.let { Text(it, color = p.text, fontSize = Type.s12, fontWeight = FontWeight.SemiBold) }
+                    Text(words.ifEmpty { "·" }, color = p.text, fontSize = Type.s12)
                 }
             }
         }
         val ends = when { b.labels.isNotEmpty() -> b.labels.first() to b.labels.last(); b.times.isNotEmpty() -> BoardKit.clock(b.times.first()) to BoardKit.clock(b.times.last()); else -> null }
         if (axes && ends != null) Row(Modifier.fillMaxWidth().padding(start = pad)) {
-            Text(ends.first, color = p.faint, fontSize = 10.5.sp, fontFamily = GeistMono, modifier = Modifier.weight(1f))
-            Text(ends.second, color = p.faint, fontSize = 10.5.sp, fontFamily = GeistMono)
+            Text(ends.first, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.weight(1f))
+            Text(ends.second, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono)
         }
     }
 }

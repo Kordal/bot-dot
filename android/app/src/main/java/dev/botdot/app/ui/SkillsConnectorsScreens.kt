@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -50,7 +49,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -90,7 +88,7 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
     ) { pad ->
         val o = open
         if (o != null) {
-            Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Hint(o.description)
                 val users = ChiefSkills.usedBy(o.usedBy, botNames)
                 Hint(if (users.isEmpty()) tr("No bot uses it yet. Turn it on in a bot's settings.") else tr("Used by {names}", "names" to users.joinToString(", ")))
@@ -99,22 +97,22 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
             }
             return@Scaffold
         }
-        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             if (error != null) item { Text(error!!, color = p.err) }
             item { Hint(tr("Instructions a bot loads when a task needs them. Choose which bots get which in each bot's settings, and the Chief's in its settings.")) }
             if (library.isEmpty()) item { Hint(tr("Your library is empty. Ask the Chief to make or import one.")) }
             items(library, key = { it.name }) { k ->
-                Column(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).clickable { open = k }.padding(12.dp)) {
+                Column(Modifier.fillMaxWidth().background(p.panel, Radius.card).border(1.dp, p.line, Radius.card).clickable { open = k }.padding(Space.s12)) {
                     Text(k.name, color = p.text, style = MaterialTheme.typography.titleMedium)
                     Text(k.description, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
                     val chief = ChiefSkills.CHIEF_ID in k.usedBy
                     val n = k.usedBy.size - if (chief) 1 else 0
                     val bots = if (n == 0) "" else trn(n, "{n} bot", "{n} bots")
-                    Text(if (n == 0 && !chief) tr("Not used yet") else tr("Used by {names}", "names" to listOf(if (chief) tr("the Chief") else "", bots).filter { it.isNotEmpty() }.joinToString(" " + tr("and") + " ")), color = p.faint, fontSize = 12.sp)
+                    Text(if (n == 0 && !chief) tr("Not used yet") else tr("Used by {names}", "names" to listOf(if (chief) tr("the Chief") else "", bots).filter { it.isNotEmpty() }.joinToString(" " + tr("and") + " ")), color = p.faint, fontSize = Type.s12)
                 }
             }
             if (builtin.isNotEmpty()) {
-                item { Text(tr("Built into Claude Code"), color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 12.dp)) }
+                item { Text(tr("Built into Claude Code"), color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.s12)) }
                 item { Hint(builtin.joinToString(" · ") { it.name }) }
             }
         }
@@ -188,7 +186,7 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
         topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("🔌 " + tr("Connectors"), style = MaterialTheme.typography.titleMedium) }) },
     ) { pad ->
         val i = info ?: return@Scaffold
-        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             if (!i.configured || i.keyRejected) {
                 // No key yet, or Composio refuses it (#409): botdot makes no Composio account, so the owner pastes one.
                 val title = when {
@@ -212,19 +210,19 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
             item { Text(tr("Connected"), color = p.text, style = MaterialTheme.typography.titleMedium) }
             if (i.connections.isEmpty() && i.reconnect.isEmpty()) item { Hint(tr("No apps yet. Search for one below.")) }
             items(i.reconnect, key = { "r:${it.slug}" }) { a ->
-                Row(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().background(p.panel, Radius.card).border(1.dp, p.line, Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
                     Text(a.name.ifBlank { a.slug }, color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     TextButton(onClick = { connect(a.slug) }) { Text(tr("Connect again"), color = p.okText) }
                     TextButton(onClick = { scope.launch { runCatching { api!!.forgetReconnect(a.slug) }.onError { tell(it.message ?: tr("Couldn't remove")) }; load() } }) { Text(tr("Remove"), color = p.muted) }
                 }
             }
             items(i.connections, key = { it.id }) { c ->
-                Row(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().background(p.panel, Radius.card).border(1.dp, p.line, Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(c.app?.name ?: c.toolkit, color = p.text, style = MaterialTheme.typography.titleMedium)
                         val n = c.usedBy.size
                         Text("${c.status.lowercase().replaceFirstChar { it.uppercase() }} · " + if (n == 0) tr("no bot uses it yet") else trn(n, "used by {n} bot", "used by {n} bots"),
-                            color = if (c.status == "ACTIVE") p.muted else p.warnText, fontSize = 12.5.sp)
+                            color = if (c.status == "ACTIVE") p.muted else p.warnText, fontSize = Type.s12)
                     }
                     TextButton(onClick = { askRemove = c.id }) { Text(tr("Remove"), color = p.err) }
                 }
@@ -233,10 +231,10 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                 OutlinedTextField(query, { query = it }, placeholder = { Text(tr("Find an app: Gmail, Notion, Slack…")) }, singleLine = true,
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { search() }),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+                    modifier = Modifier.fillMaxWidth().padding(top = Space.s12))
             }
             items(found, key = { "f:${it.slug}" }) { a ->
-                Row(Modifier.fillMaxWidth().clickable { connect(a.slug) }.padding(vertical = 10.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().clickable { connect(a.slug) }.padding(vertical = Space.s12, horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(a.name.ifBlank { a.slug }, color = p.text, style = MaterialTheme.typography.bodyLarge)
                         if (!a.description.isNullOrBlank()) Text(a.description, color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 2)
