@@ -93,7 +93,7 @@ import kotlinx.serialization.json.JsonObject
 internal fun PlaceSwitch(company: Boolean, modifier: Modifier = Modifier, fill: Boolean = false, onPick: (Boolean) -> Unit) {
     val p = LocalPaper.current
     Row(modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, p.line2, RoundedCornerShape(12.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        listOf(false to tr("Bots"), true to tr("Company")).forEach { (on, label) ->
+        listOf(false to tr("Bots"), true to tr("Projects")).forEach { (on, label) ->
             val here = on == company
             Row((if (fill) Modifier.weight(1f) else Modifier).clip(RoundedCornerShape(9.dp)).background(if (here) p.sunk else Color.Transparent).clickable(onClickLabel = label) { if (!here) onPick(on) }
                 .padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {

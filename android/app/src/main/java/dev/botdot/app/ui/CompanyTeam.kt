@@ -128,7 +128,7 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
                 }
             }
         }
-        CoPanel(tr("Company memory")) { Text(trn(c.facts, "{n} fact", "{n} facts"), color = p.text, fontSize = 14.sp) }
+        CoPanel(tr("Project memory")) { Text(trn(c.facts, "{n} fact", "{n} facts"), color = p.text, fontSize = 14.sp) }
     }
 }
 
@@ -194,7 +194,7 @@ private fun BotCard(ui: CompanyUi, c: Company, b: Proposed, onRename: (String) -
                 Text(b.routines, color = p.text, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
             }
         }
-        if (b.from == null) Choice(tr("Asks first"), b.asksFirst, listOf("rules" to tr("Company rules"), "every" to tr("Every action"), "never" to tr("Never"))) {
+        if (b.from == null) Choice(tr("Asks first"), b.asksFirst, listOf("rules" to tr("Project rules"), "every" to tr("Every action"), "never" to tr("Never"))) {
             onChange(mapOf("asksFirst" to JsonPrimitive(it)))
         }
         if (b.preview.isNotEmpty() || missing.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.sunk).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
