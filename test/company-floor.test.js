@@ -110,6 +110,8 @@ test('firstDay and the first check-in date', () => {
   assert.equal(Floor.firstDay({ phase: 'setup', day: null }), false);
   assert.equal(Floor.checkinDate('2026-10-01T09:00:00.000Z').toISOString(), '2026-10-30T09:00:00.000Z');
   assert.equal(Floor.stepsDone({ steps: [{ text: 'a', done: true }, { text: 'b', done: false }] }), 1);
+});
+
 test('a typed decision is split at its first "because", "bo" or dash into the decision and its reason (#694)', () => {
   assert.deepEqual(Floor.decision('  Launch in Polish first because most users are Polish '), { text: 'Launch in Polish first', why: 'most users are Polish' });
   assert.deepEqual(Floor.decision('Bez reklam, bo szkoda pieniędzy'), { text: 'Bez reklam', why: 'szkoda pieniędzy' });
