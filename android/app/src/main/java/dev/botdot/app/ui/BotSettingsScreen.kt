@@ -28,8 +28,6 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -208,14 +206,14 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         val b = bot ?: return@Scaffold
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Section(tr("Who it is")) {
-                OutlinedTextField(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Field(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 ColorPicker(color) { color = it }
-                OutlinedTextField(description, { description = it }, label = { Text(tr("What it does")) }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(group, { group = it.take(40) }, label = { Text(tr("Category")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Field(description, { description = it }, label = { Text(tr("What it does")) }, modifier = Modifier.fillMaxWidth())
+                Field(group, { group = it.take(40) }, label = { Text(tr("Category")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 SwitchRow(tr("Pinned below the Chief"), checked = pinned) { pinned = it }
             }
             Section(tr("Its main assignment")) {
-                OutlinedTextField(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
+                Field(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
                 // The change a card made to it or its rules, undone in one tap while nothing changed them since (#596).
                 b.undo?.let { change ->
                     TextButton(onClick = {
@@ -248,7 +246,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         TextButton(onClick = { scope.launch { runCatching { api!!.retryComputerMove(botId) }.onError { tell(it.message ?: tr("Couldn't try again")) } } }) { Text(tr("Try again"), color = p.text) }
                     }
                 }
-                if (b.computer == "linux" || (b.computer == "boat" && "boat-desktop" in server?.features.orEmpty())) OutlinedButton(onClick = onScreen) { Text("🖥 " + tr("See its screen"), color = p.text) }
+                if (b.computer == "linux" || (b.computer == "boat" && "boat-desktop" in server?.features.orEmpty())) SecondaryButton(onClick = onScreen) { Text("🖥 " + tr("See its screen"), color = p.text) }
                 val waiting = b.jobs.count { it.waits }
                 androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onJobs).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
                     Text(tr("Scheduled jobs"), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
@@ -270,7 +268,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             LaunchedEffect(focusSkill, focusRow) { if (focusSkill != null && focusRow == null) { delay(350); skillsView.bringIntoView() } }
             if (!useSkills) Section(tr("Skills"), modifier = Modifier.bringIntoViewRequester(skillsView)) {
                 Hint(tr("Skills are off for this bot."))
-                OutlinedButton(onClick = { useSkills = true }) { Text(tr("Turn them on"), color = p.text) }
+                SecondaryButton(onClick = { useSkills = true }) { Text(tr("Turn them on"), color = p.text) }
             } else {
                 // One list, as on the web: your library's skills, then the ones every bot has unless switched off here.
                 val count = { from: String -> sysSkills.count { (k, f) -> f == from && k.name !in disabled } }
@@ -341,7 +339,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                             Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
                             Text("${scheduleWords(j)} · " + if (j.kind == "script") tr("a script, no AI") else tr("uses AI"), color = p.muted, style = MaterialTheme.typography.bodySmall)
                         }
-                        OutlinedButton(onClick = {
+                        SecondaryButton(onClick = {
                             scope.launch {
                                 runCatching { api!!.setJobAlwaysApprove(botId, j.id, false) }
                                     .onSuccess { saved -> bot = b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }); tell(tr("Revoked: its next change waits for your OK")) }
@@ -353,7 +351,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 grants.forEach { g ->
                     androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text(g.label.ifBlank { g.action }, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        OutlinedButton(onClick = {
+                        SecondaryButton(onClick = {
                             scope.launch {
                                 runCatching { api!!.revokeAlwaysAllowed(botId, g.action) }
                                     .onSuccess { bot = b.copy(alwaysAllowed = b.alwaysAllowed - g); tell(tr("Revoked: it asks you again")) }
@@ -371,7 +369,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                             Text(o.action, color = p.text, style = MaterialTheme.typography.bodyLarge)
                             Text(tr("Its rule: {rule}", "rule" to o.rule), color = p.muted, style = MaterialTheme.typography.bodySmall)
                         }
-                        OutlinedButton(onClick = {
+                        SecondaryButton(onClick = {
                             scope.launch {
                                 runCatching { api!!.revokeOverride(botId, o.id) }
                                     .onSuccess { saved -> bot = b.copy(overrides = saved.overrides); tell(tr("Revoked: it asks you again")) }
@@ -409,10 +407,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
                 if (canThink) Choice(tr("Reasoning"), effort, listOf("" to tr("Default")) + choices.efforts.map { it.id to it.label }) { effort = it }
             }
-            if (dev.botdot.app.data.Duplicate.shows(server?.features)) OutlinedButton(onClick = {
+            if (dev.botdot.app.data.Duplicate.shows(server?.features)) SecondaryButton(onClick = {
                 scope.launch { runCatching { (api ?: error(tr("Not connected to botdot"))).copyPlan(botId) }.onSuccess { copyPlan = it; copyName = it.name }.onError { tell(it.message ?: tr("Couldn't load")) } }
             }, modifier = Modifier.fillMaxWidth()) { Text(tr("Duplicate {name}", "name" to b.name), color = p.text) }
-            OutlinedButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete {name}", "name" to b.name), color = p.err) }
+            SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete {name}", "name" to b.name), color = p.err) }
         }
     }
 
@@ -425,7 +423,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             title = { Text(tr("Duplicate {name}?", "name" to bot?.name)) },
             text = {
                 Column {
-                    OutlinedTextField(copyName, { copyName = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Field(copyName, { copyName = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     Text(dev.botdot.app.data.Duplicate.text(plan), color = p.text, modifier = Modifier.padding(top = Space.s12))
                 }
             },

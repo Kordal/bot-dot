@@ -2,7 +2,6 @@ package dev.botdot.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -117,7 +116,7 @@ fun ReplyChip(text: String, onClear: () -> Unit) {
     val p = LocalPaper.current
     val shape = Radius.card
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s4).clip(shape).background(p.panel).border(1.dp, p.line2, shape).padding(start = Space.s12),
+        Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s4).raised(shape).padding(start = Space.s12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(tr("Reply to: {text}", "text" to text), color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))

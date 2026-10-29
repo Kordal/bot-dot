@@ -70,8 +70,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -317,7 +315,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                     if (selecting) {
                         IconButton(onClick = { selected = emptySet() }) { Icon(Icons.Filled.Close, contentDescription = tr("Clear the selection")) }
                         Text(tr("{n} selected", "n" to selected.size), color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = Space.s8))
-                        OutlinedButton(onClick = { selected = shown.map { it.path }.toSet() }, modifier = Modifier.padding(end = Space.s8)) { Text(tr("All"), color = p.text) }
+                        SecondaryButton(onClick = { selected = shown.map { it.path }.toSet() }, modifier = Modifier.padding(end = Space.s8)) { Text(tr("All"), color = p.text) }
                     } else {
                         BackButton(onBack)
                         Column(Modifier.weight(1f).padding(start = Space.s4)) {
@@ -329,7 +327,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                         IconButton(onClick = { grid = !grid }) { Icon(if (grid) Icons.AutoMirrored.Outlined.ViewList else Icons.Outlined.GridView, contentDescription = if (grid) tr("List") else tr("Grid"), tint = p.text) }
                     }
                 }
-                if (searches && !selecting) OutlinedTextField(query, { query = it.take(100) }, singleLine = true, placeholder = { Text(tr("Search"), color = p.faint) },
+                if (searches && !selecting) Field(query, { query = it.take(100) }, singleLine = true, placeholder = { Text(tr("Search"), color = p.faint) },
                     leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = p.muted) },
                     shape = Radius.card, modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s4))
                 if (found == null && place != FilesExplorer.KEPT && path.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
@@ -368,7 +366,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                 }
                 found == null && place != FilesExplorer.KEPT && e != null && (e as? ApiException)?.status == 404 -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(tr("This folder is gone."), color = p.muted)
-                    OutlinedButton(onClick = { path = "" }, modifier = Modifier.padding(top = Space.s12)) { Text(tr("Back to the top"), color = p.text) }
+                    SecondaryButton(onClick = { path = "" }, modifier = Modifier.padding(top = Space.s12)) { Text(tr("Back to the top"), color = p.text) }
                 }
                 found == null && place != FilesExplorer.KEPT && e != null -> Text(e.message ?: tr("Couldn't load it."), color = p.muted, modifier = Modifier.align(Alignment.Center).padding(Space.s24))
                 found == null && place != FilesExplorer.KEPT && listing == null -> Text(tr("Loading…"), color = p.faint, modifier = Modifier.align(Alignment.Center))
@@ -485,7 +483,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                             }
                         }
                     }
-                    else -> OutlinedTextField(answer, { answer = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth())
+                    else -> Field(answer, { answer = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -582,7 +580,7 @@ private fun CarryDialog(api: Api?, ownerId: String, c: FxCarry, places: List<Str
                         }
                     } }
                 }
-                if (naming) OutlinedTextField(newName, { newName = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth().padding(top = Space.s8))
+                if (naming) Field(newName, { newName = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth().padding(top = Space.s8))
             }
         },
         confirmButton = {

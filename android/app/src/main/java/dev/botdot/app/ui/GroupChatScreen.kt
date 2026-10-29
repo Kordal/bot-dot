@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -481,7 +480,7 @@ private fun StoppedLine(text: String, onGoOn: () -> Unit) {
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth().padding(vertical = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
         Text(text, color = p.muted, fontSize = Type.s14, lineHeight = Type.line20, modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
-        OutlinedButton(onClick = onGoOn) { Text(tr("Go on"), color = p.text) }
+        SecondaryButton(onClick = onGoOn) { Text(tr("Go on"), color = p.text) }
     }
 }
 

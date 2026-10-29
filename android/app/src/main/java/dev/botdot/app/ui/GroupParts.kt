@@ -24,7 +24,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -107,7 +106,7 @@ fun BotPicker(title: String, bots: List<Bot>, max: Int, action: String, hint: (I
         title = { Text(title, style = MaterialTheme.typography.titleMedium, color = p.text) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                if (name != null) OutlinedTextField(named, { named = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (name != null) Field(named, { named = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
                     bots.forEach { b ->
                         val on = b.id in picked

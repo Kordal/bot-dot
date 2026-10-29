@@ -2,8 +2,6 @@ package dev.botdot.app.ui
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,7 +23,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -48,7 +45,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -102,7 +98,7 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
             item { Hint(tr("Instructions a bot loads when a task needs them. Choose which bots get which in each bot's settings, and the Chief's in its settings.")) }
             if (library.isEmpty()) item { Hint(tr("Your library is empty. Ask the Chief to make or import one.")) }
             items(library, key = { it.name }) { k ->
-                Column(Modifier.fillMaxWidth().background(p.panel, Radius.card).border(1.dp, p.line, Radius.card).clickable { open = k }.padding(Space.s12)) {
+                Column(Modifier.fillMaxWidth().raised(Radius.card).clickable { open = k }.padding(Space.s12)) {
                     Text(k.name, color = p.text, style = MaterialTheme.typography.titleMedium)
                     Text(k.description, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
                     val chief = ChiefSkills.CHIEF_ID in k.usedBy
@@ -128,7 +124,7 @@ private fun ComposioKeyField(save: suspend (String) -> Boolean, onCancel: (() ->
     val scope = rememberCoroutineScope()
     var key by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
-    OutlinedTextField(key, { key = it }, placeholder = { Text(tr("Composio API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+    Field(key, { key = it }, placeholder = { Text(tr("Composio API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
     Row(verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = getKey) { Text(tr("Get a key at composio.dev"), color = p.muted) }
@@ -210,14 +206,14 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
             item { Text(tr("Connected"), color = p.text, style = MaterialTheme.typography.titleMedium) }
             if (i.connections.isEmpty() && i.reconnect.isEmpty()) item { Hint(tr("No apps yet. Search for one below.")) }
             items(i.reconnect, key = { "r:${it.slug}" }) { a ->
-                Row(Modifier.fillMaxWidth().background(p.panel, Radius.card).border(1.dp, p.line, Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
                     Text(a.name.ifBlank { a.slug }, color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     TextButton(onClick = { connect(a.slug) }) { Text(tr("Connect again"), color = p.okText) }
                     TextButton(onClick = { scope.launch { runCatching { api!!.forgetReconnect(a.slug) }.onError { tell(it.message ?: tr("Couldn't remove")) }; load() } }) { Text(tr("Remove"), color = p.muted) }
                 }
             }
             items(i.connections, key = { it.id }) { c ->
-                Row(Modifier.fillMaxWidth().background(p.panel, Radius.card).border(1.dp, p.line, Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(c.app?.name ?: c.toolkit, color = p.text, style = MaterialTheme.typography.titleMedium)
                         val n = c.usedBy.size
@@ -228,7 +224,7 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                 }
             }
             item {
-                OutlinedTextField(query, { query = it }, placeholder = { Text(tr("Find an app: Gmail, Notion, Slack…")) }, singleLine = true,
+                Field(query, { query = it }, placeholder = { Text(tr("Find an app: Gmail, Notion, Slack…")) }, singleLine = true,
                     leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), keyboardActions = KeyboardActions(onSearch = { search() }),
                     modifier = Modifier.fillMaxWidth().padding(top = Space.s12))

@@ -176,7 +176,7 @@ fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onB
         }
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Row(
-                Modifier.weight(1f, fill = false).height(40.dp).clip(CircleShape).background(p.sunk).border(1.dp, p.line2, CircleShape)
+                Modifier.weight(1f, fill = false).height(40.dp).raised(CircleShape)
                     .clickable(onClick = onName).semantics { contentDescription = nameLabel }.padding(start = Space.s4, end = Space.s16),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -238,8 +238,7 @@ fun FileChip(name: String, note: String? = null, onDark: Boolean = false, onRemo
     val fg = if (onDark) p.inkText else p.text
     Row(
         Modifier.clip(Radius.pill)
-            .background(if (onDark) p.inkText.copy(alpha = 0.14f) else p.panel)
-            .border(1.dp, if (onDark) p.inkText.copy(alpha = 0.25f) else p.line2, Radius.pill)
+            .background(if (onDark) p.inkText.copy(alpha = 0.14f) else p.raise2)
             .padding(start = Space.s12, end = if (onRemove != null) Space.s4 else Space.s12, top = Space.s4, bottom = Space.s4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -327,7 +326,7 @@ fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>, name: Str
     val from = name ?: LocalPathActions.current?.from.orEmpty()
     Column(Modifier.padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         pages.forEach { page ->
-            Row(Modifier.widthIn(max = 320.dp).clip(Radius.card).background(p.panel).border(1.dp, p.line2, Radius.card)
+            Row(Modifier.widthIn(max = 320.dp).raised(Radius.card)
                 .clickable { DocViewer.open = DocViewer.page(botId, page, from) }.padding(horizontal = Space.s12, vertical = Space.s8),
                 verticalAlignment = Alignment.CenterVertically) {
                 Text("📄", fontSize = Type.s16)
@@ -353,7 +352,7 @@ fun ReconnectCards(cards: List<dev.botdot.app.data.ReconnectCard>) {
         cards.forEach { card ->
             var step by remember(card.app) { mutableStateOf(dev.botdot.app.data.ReconnectStep.Ready) }
             var problem by remember(card.app) { mutableStateOf<String?>(null) }
-            Column(Modifier.widthIn(max = 320.dp).clip(Radius.card).background(p.panel).border(1.dp, p.line2, Radius.card)
+            Column(Modifier.widthIn(max = 320.dp).raised(Radius.card)
                 .padding(start = Space.s12, end = Space.s4, top = Space.s4, bottom = Space.s4)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(androidx.compose.ui.text.buildAnnotatedString {
@@ -397,7 +396,7 @@ private fun BotImage(f: Attachment, onClick: () -> Unit) {
             model = url, contentDescription = f.name,
             onState = { shown = it is coil3.compose.AsyncImagePainter.State.Success },
             modifier = Modifier.widthIn(max = 300.dp).heightIn(max = 360.dp).clip(shape)
-                .then(if (shown) Modifier.border(1.dp, p.line2, shape).background(Color.White).clickable(onClick = onClick) else Modifier),
+                .then(if (shown) Modifier.background(Color.White).clickable(onClick = onClick) else Modifier),
             contentScale = androidx.compose.ui.layout.ContentScale.Fit,
         )
         if (!shown) FileChip(f.name, note = tr("loading…"))
@@ -628,10 +627,8 @@ fun TheirBubble(footer: String? = null, error: Boolean = false, copyText: String
     Column(Modifier.fillMaxWidth().padding(end = if (plain && !error) 0.dp else Space.s32)) {
         if (plain && !error) Box(Modifier.padding(horizontal = Space.s4)) { content() }
         else Box(
-            Modifier.clip(Radius.theirs)
+            Modifier.then(if (error) Modifier.clip(Radius.theirs).background(p.errSoft) else Modifier.raised(Radius.theirs))
                 .holdToCopy(copyText)
-                .background(if (error) p.errSoft else p.panel)
-                .border(1.dp, if (error) p.err.copy(alpha = 0.3f) else p.line, Radius.theirs)
                 .padding(horizontal = Space.s16, vertical = Space.s12),
         ) { content() }
         if (chips.isNotEmpty()) ActionChips(chips, wholeChips)
@@ -847,7 +844,7 @@ fun Composer(
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             if (files != null) RoundButton(Icons.Filled.Add, tr("Attach files"), size = 48.dp) { pick.launch("*/*") }
             Row(
-                Modifier.weight(1f).clip(Radius.pill).background(p.sunk).border(1.dp, p.line2, Radius.pill).padding(start = Space.s16, top = Space.s4, end = Space.s4, bottom = Space.s4),
+                Modifier.weight(1f).raised(Radius.pill).padding(start = Space.s16, top = Space.s4, end = Space.s4, bottom = Space.s4),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 BasicTextField(
@@ -922,7 +919,7 @@ fun Choices(choices: List<String>?, yes: Int? = null, color: String? = null, onP
             val pick: () -> Unit = { sending = true; scope.launch { try { if (onPick(c, keys[i])) used = true } finally { sending = false } } }
             val fill = if (i == yes) color?.let { parseColor(it, Color.Unspecified) }?.takeIf { it != Color.Unspecified } else null
             if (fill != null) androidx.compose.material3.Button(onClick = pick, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = fill, contentColor = inkOn(fill))) { Text(c) }
-            else androidx.compose.material3.OutlinedButton(onClick = pick) { Text(c, color = p.text) }
+            else SecondaryButton(onClick = pick) { Text(c, color = p.text) }
         }
     }
 }
@@ -948,7 +945,7 @@ fun Questions(questions: List<String>?, onSend: suspend (String, String) -> Bool
     val answers = remember(questions) { mutableStateListOf(*Array(questions.size) { "" }) }
     val keys = remember(questions) { CardKey() }
     Column(
-        Modifier.fillMaxWidth().padding(end = Space.s24).clip(Radius.card).border(1.dp, p.line, Radius.card).background(p.panel).padding(Space.s16),
+        Modifier.fillMaxWidth().padding(end = Space.s24).raised(Radius.card).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
         questions.forEachIndexed { i, q ->
@@ -960,7 +957,7 @@ fun Questions(questions: List<String>?, onSend: suspend (String, String) -> Bool
                     textStyle = TextStyle(color = p.text, fontSize = Type.s16, lineHeight = Type.line24, fontFamily = Geist),
                     cursorBrush = SolidColor(p.text),
                     maxLines = 6, // one line to start with; it grows as you type
-                    modifier = Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line2, Radius.card).background(p.bg).padding(horizontal = Space.s12, vertical = Space.s8),
+                    modifier = Modifier.fillMaxWidth().clip(Radius.card).background(p.bg).padding(horizontal = Space.s12, vertical = Space.s8),
                 )
             }
         }

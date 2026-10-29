@@ -153,7 +153,7 @@ test('web: the page holds one panel beside the two chats, with the three pages i
 });
 
 test('web: side by side from 780px of the main column, by a container query: no script measures a width', () => {
-  assert.match(css, /\.panel \{[^}]*width: 380px;[^}]*border-left: 1px solid var\(--line\)/);
+  assert.match(css, /\.panel \{[^}]*width: 380px;[^}]*background: var\(--raise\);/, 'a lighter pane, no line beside the chat (#723)');
   assert.match(css, /@container column \(width < 780px\) \{\s*\.chat-row\.with-panel > \.view \{ display: none; \}/);
   assert.match(css, /\.main \{ container-type: inline-size; container-name: main column; \}/);
   assert.doesNotMatch(fs.readFileSync(path.join(PUBLIC, 'panel.js'), 'utf8'), /\d/, 'the decision knows no width');

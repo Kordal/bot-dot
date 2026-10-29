@@ -255,7 +255,7 @@ internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, onReview: () 
     val p = LocalPaper.current
     val shape = Radius.card
     val chief = chiefNamed()
-    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s8).clip(shape).background(p.warnSoft).border(1.dp, p.warn.copy(alpha = 0.25f), shape)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s8).raised(shape)) {
         for (w in waiting.take(NEEDS_ROWS)) Row(
             Modifier.fillMaxWidth().then(if (w.permission == null) Modifier.clickable(onClickLabel = tr("Needs you"), onClick = onReview) else Modifier)
                 .heightIn(min = 52.dp).padding(start = Space.s12, end = Space.s8, top = Space.s8, bottom = Space.s8),
@@ -263,6 +263,8 @@ internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, onReview: () 
         ) {
             if (w.color == null) BotFigure(chief.color, "idle", 28, chief.outfit) else BotFigure(w.color, "idle", 28, w.outfit)
             Spacer(Modifier.size(10.dp))
+            Box(Modifier.size(6.dp).clip(CircleShape).background(p.warn)) // what was the tinted frame (#723)
+            Spacer(Modifier.size(Space.s8))
             Text(w.text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             w.permission?.let { id ->
                 Spacer(Modifier.size(6.dp))
