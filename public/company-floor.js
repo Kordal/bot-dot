@@ -63,7 +63,15 @@ function task(input, bots) {
   return rest ? { text: rest, bot: fits.id } : { text, bot: null };
 }
 
-const api = { WIDE, room, floor, objectiveOf, task, seatOf };
+// A decision as the owner types it (#694): "Launch in Polish first because most users are Polish" is the decision and
+// its reason, split at the first "because" (Polish "bo", "ponieważ") or dash between words. { text, why }.
+function decision(input) {
+  const typed = String(input || '').replace(/\s+/g, ' ').trim();
+  const m = /^(.+?)\s+(?:because|bo|ponieważ|[—–-])\s+(.+)$/i.exec(typed);
+  return m ? { text: m[1].replace(/[,;:]$/, '').trim(), why: m[2] } : { text: typed, why: '' };
+}
+
+const api = { WIDE, room, floor, objectiveOf, task, seatOf, decision };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.CompanyFloor = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

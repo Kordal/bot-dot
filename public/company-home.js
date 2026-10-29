@@ -167,7 +167,22 @@
       ${asks ? planHTML(c) : ''}
       <div class="cf-rows">${rows}</div>
       <form class="co-ask small cf-add" id="cf-add"><button type="button" class="cf-who" data-cf-who aria-label="${esc(who ? who.name : tr('You'))}">${who ? head(who) : you}</button><input name="task" autocomplete="off" maxlength="300" placeholder="${tr('Add a task')}" aria-label="${tr('Add a task')}" /><button type="button" class="cf-when${when ? ' set' : ''}" data-cf-when aria-label="${tr('Due')}">${when ? esc(when) : CAL}</button><button type="submit" class="co-go">${tr('Add')}</button></form>
-      ${menuHTML(c)}`;
+      ${menuHTML(c)}
+      ${decisionsHTML(c)}`;
+  }
+  // The owner's decisions (#694): the last few, newest first, with their reason and day; Add a decision under them.
+  const DECISIONS_SHOWN = 5;
+  function decisionText(d) {
+    if (d.by === 'checkin' && d.day && DECIDED[d.decision]) return `${tr('Day {n} check-in', { n: d.day })}: ${DECIDED[d.decision]()}`;
+    return d.text;
+  }
+  function decisionsHTML(c) {
+    const shown = (c.decisions || []).slice(-DECISIONS_SHOWN).reverse();
+    const day = (at) => (at ? new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) : '');
+    return `<section class="cf-decisions"><h3>${tr('Decisions')}</h3>
+      ${shown.length ? `<ul class="cf-decision-list">${shown.map((d) => `<li class="cf-decision"><span class="cf-row-text">${esc(decisionText(d))}${d.why ? `<span>${esc(d.why)}</span>` : ''}</span><time>${esc(day(d.at))}</time><button type="button" class="icon-btn" data-cf-decision-x="${esc(d.id)}" aria-label="${tr('Remove')}">${X}</button></li>`).join('')}</ul>` : ''}
+      <form class="co-ask small cf-add" id="cf-decide"><input name="decision" autocomplete="off" maxlength="600" placeholder="${tr('Add a decision')}" aria-label="${tr('Add a decision')}" /><button type="submit" class="co-go">${tr('Add')}</button></form>
+    </section>`;
   }
   function teamHTML(c, team) {
     const o = CompanyFloor.objectiveOf(team, c.objectives);
@@ -187,7 +202,7 @@
     const team = teamOpen && c.teams.find((t) => t.id === teamOpen);
     if (!team) teamOpen = null;
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
-    const kept = ['#cf-add input', '#cf-change input'].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
+    const kept = ['#cf-add input', '#cf-change input', '#cf-decide input'].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
       <header class="cf-top"><h1>${esc(c.name || c.start)}</h1>${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
       ${c.day ? lineHTML(c) : ''}
@@ -249,6 +264,19 @@
     }
     $('[data-cf-suggest-add]', root)?.addEventListener('click', (e) => { e.currentTarget.disabled = true; send('/company/suggestion/add', 'POST', {}); });
     $('[data-cf-suggest-no]', root)?.addEventListener('click', () => send('/company/suggestion', 'DELETE'));
+    $$('[data-cf-decision-x]', root).forEach((b) => (b.onclick = () => send(`/company/decisions/${encodeURIComponent(b.dataset.cfDecisionX)}`, 'DELETE')));
+    const decide = $('#cf-decide', root);
+    if (decide) decide.onsubmit = async (e) => {
+      e.preventDefault();
+      const d = CompanyFloor.decision(decide.decision.value);
+      const button = decide.querySelector('.co-go');
+      if (!d.text || button.disabled) return;
+      button.disabled = true;
+      const typed = decide.decision.value;
+      decide.decision.value = '';
+      if (!(await send('/company/decisions', 'POST', d.why ? d : { text: d.text }))) { const now = $('#cf-decide input'); if (now) now.value = typed; }
+      button.disabled = false;
+    };
     const add = $('#cf-add', root);
     if (add) add.onsubmit = async (e) => {
       e.preventDefault();
