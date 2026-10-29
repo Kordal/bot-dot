@@ -49,7 +49,7 @@ The front door never runs as root. It asks for the new account with an empty fil
 
 ## Suspend, delete, and a lost passkey
 
-The admin page lists every account: its name, when it was made, when it was last seen, and whether it runs or is suspended. It never shows what is inside an account.
+The admin page lists every account: its name, when it was made, when it was last seen, and whether it runs or is suspended. It never shows what is inside an account. **Change share** sits on each account's card; the rest is under its **⋯**.
 
 - **Suspend** stops the account's botdot server and its computer (its whole rootless Docker), and keeps its data. Its owner sees only "Your account is paused by the admin". **Resume** starts it again as it was.
 - **Delete** asks you to type the account's name, then erases its data, containers and Linux user for good. Its owner can't delete it themselves: they ask you. Download a backup first if they want one (Settings → Backups, in their account).
