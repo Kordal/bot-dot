@@ -1538,5 +1538,10 @@
   "Place": "Miejsce",
   "About": "O firmie",
   "Team": "Zespół",
-  "Start": "Start"
+  "Start": "Start",
+  "Day {n} of 90": "Dzień {n} z 90",
+  "New team": "Nowy zespół",
+  "Lead": "Lider",
+  "Make lead": "Zrób liderem",
+  "Add a task": "Dodaj do zrobienia"
 }
