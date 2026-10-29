@@ -234,7 +234,7 @@ test("a bot's run gets its prompt in a private file that is gone when the run en
   assert.equal(fs.statSync(path.dirname(h.rec.promptFile.path)).mode & 0o777, 0o700, 'in a folder of its own user');
   assert.ok(!gone(h.rec), 'there while the run goes');
   // Its library skill is loaded with Claude Code's own memory off: the stand-in lists it as Claude Code does.
-  assert.deepEqual(h.rec.skills, ['botdot:weekly-report', 'kit:pages']);
+  assert.deepEqual(h.rec.skills, ['botdot:weekly-report', 'kit:pages', 'kit:shopping']);
   assert.match(h.rec.system, /- botdot:weekly-report: How the weekly report looks\./);
   // Today's date and the time zone, and how a repository's own instruction file reaches it now.
   assert.match(h.rec.system, NOW);

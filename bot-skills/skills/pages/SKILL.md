@@ -1,6 +1,6 @@
 ---
 name: pages
-description: "Build a page from blocks the app draws (hero, kpis, charts, tables), its numbers live from Board tiles, or an interactive page from the style kit. Use for a page, overview, report or status page."
+description: "Build a page from blocks (hero, kpis, charts, tables), its numbers live from Board tiles, or an interactive page. Use for a page, overview, report or status page."
 ---
 
 # A page from blocks

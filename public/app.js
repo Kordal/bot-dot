@@ -546,7 +546,7 @@ const MODE_INFO = {
 // by the rules both apps share (test/fixtures/markdown-cases.json), and mdHTML writes them with its own tags.
 // [botId]: a bot's reply, whose file paths open in the viewer (linkPaths, #251).
 function md(src, botId) {
-  const html = mdHTML(mdBlocks(src));
+  const html = mdHTML(mdBlocks(src), botId);
   return botId ? linkPaths(html, botId) : html;
 }
 
@@ -555,8 +555,11 @@ function md(src, botId) {
 // block that is not closed yet is drawn as code, a `mermaid` one is plain code even once closed (its fence loses the
 // word: a diagram is drawn only once the reply is whole, ADR 041), a table row that is still being written waits, and
 // so does the line of a fence that is still being opened. An unclosed ** or [ needs nothing: md draws it as the text it is.
+// A `products` fence that is not closed yet waits whole: its cards are drawn once it is (test/fixtures/products-cases.json).
 function draftSource(src) {
-  const lines = String(src ?? '').replace(/\r\n?/g, '\n').split('\n');
+  let lines = String(src ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const open = lines.reduce((at, l, i) => (/^\s*```/.test(l) ? (at < 0 ? i : -1) : at), -1);
+  if (open >= 0 && /^\s*```products\s*$/.test(lines[open])) lines = lines.slice(0, open);
   const fences = lines.filter((l) => /^\s*```/.test(l)).length;
   const last = lines.at(-1);
   if (fences % 2) {
@@ -645,7 +648,8 @@ function mdBlocks(src) {
 const COPY_ICON = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>';
 const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="${tr('Copy code')}" aria-label="${tr('Copy code')}">${COPY_ICON}</button>`;
 
-function mdHTML(blocks) {
+// [botId]: a bot's reply, whose product cards can be saved (products.js).
+function mdHTML(blocks, botId) {
   const inline = (t) =>
     t
       .replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -669,13 +673,18 @@ function mdHTML(blocks) {
     }
     return { html: `${html}</${tag}>`, next: i };
   };
+  // A block's text is escaped: the products are read from the text as written.
+  const productsOf = (t) => (typeof Products === 'object' ? Products.parse(t.replace(/&(lt|gt|quot|#39|amp);/g, (_, e) => ({ lt: '<', gt: '>', quot: '"', '#39': "'", amp: '&' })[e])) : null);
   const out = [];
+  let cards;
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
     if (b.type === 'item') { const l = list(i); out.push(l.html); i = l.next - 1; }
     else if (b.type === 'heading') out.push(`<h${b.level}>${inline(b.text)}</h${b.level}>`);
     else if (b.type === 'quote') out.push(`<blockquote>${text(b.text)}</blockquote>`);
     else if (b.type === 'rule') out.push('<hr>');
+    // Shopping results are product cards (products.js), and their code when they can't be read.
+    else if (b.type === 'code' && b.lang === 'products' && (cards = productsOf(b.text))) out.push(Products.html(cards, botId));
     // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be. Its drawing
     // takes the place of the <pre> inside the box, so Copy stays in the corner and copies the source.
     else if (b.type === 'code') out.push(`<div class="code-block"><pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>${CODE_COPY_BTN}</div>`);

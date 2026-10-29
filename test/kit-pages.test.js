@@ -40,9 +40,9 @@ test('the skill parses, is named pages, ships as the plugin "kit" and is listed 
   assert.ok(meta.description.length <= 200, 'short: every bot is told it with each run');
   assert.match(body, /^# /m);
   assert.equal(JSON.parse(fs.readFileSync(path.join(KIT_DIR, '.claude-plugin', 'plugin.json'), 'utf8')).name, 'kit');
-  assert.deepEqual(kitSkills().map((k) => k.name), ['pages']);
-  assert.deepEqual(kitSkills(['pages']), [], 'switched off by its name');
-  assert.deepEqual(kitSkills(['kit:pages']), [], 'or by its full name');
+  assert.deepEqual(kitSkills().map((k) => k.name), ['pages', 'shopping']);
+  assert.deepEqual(kitSkills(['pages']).map((k) => k.name), ['shopping'], 'switched off by its name');
+  assert.deepEqual(kitSkills(['kit:pages']).map((k) => k.name), ['shopping'], 'or by its full name');
   assert.ok(chiefSkills().some((x) => x.startsWith('- kit:pages: ')));
   assert.match(fs.readFileSync(path.join(ROOT, '.dockerignore'), 'utf8'), /^!bot-skills\/$/m, 'it goes into the image');
 });
