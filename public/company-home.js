@@ -51,7 +51,7 @@
     const { team } = r;
     const bench = r.bench.length ? `<div class="cf-bench">${r.bench.map((b) => `<button type="button" class="cf-sit" data-cf-bot="${esc(b.id)}" title="${esc(`${b.name} · ${lineOf(b)}`)}">${botFigure(b.color, b.state, 'sm', b.outfit)}</button>`).join('')}</div>` : '';
     return `<section class="cf-room${r.wide ? ' wide' : ''}${teamOpen === team.id ? ' here' : ''}" style="--c:${esc(team.color)}" data-cf-team="${esc(team.id)}" tabindex="0" aria-label="${esc(team.name)}">
-      <div class="cf-room-head"><i class="cf-dot"></i>${esc(team.name)}<span class="cf-n">${1 + r.desks.length + r.bench.length}</span></div>
+      <div class="cf-room-head"><i class="cf-dot"></i><button type="button" class="cf-team-name" data-cf-team-chat="${esc(team.id)}">${esc(team.name)}</button><span class="cf-n">${1 + r.desks.length + r.bench.length}</span></div>
       <div class="cf-lead">${deskHTML(r.lead, { lead: true, crown: !r.solo, count: r.count })}</div>
       ${r.desks.length ? `<div class="cf-desks">${r.desks.map((b) => deskHTML(b)).join('')}</div>` : ''}
       ${bench}
@@ -200,6 +200,8 @@
   function openTeam(id) { teamOpen = teamOpen === id ? null : id; Company.redraw(); }
   function wire(root, c) {
     $$('[data-cf-bot]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); setView('bot', b.dataset.cfBot); }));
+    // The team's name opens its chat, docked in the bottom row (#697).
+    $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openTeamChat(b.dataset.cfTeamChat); }));
     $$('[data-cf-team]', root).forEach((r) => {
       r.onclick = () => openTeam(r.dataset.cfTeam);
       r.onkeydown = (e) => { if (e.target === r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTeam(r.dataset.cfTeam); } };

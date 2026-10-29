@@ -1643,5 +1643,10 @@
     "few": "Jeszcze {n} czaty",
     "many": "Jeszcze {n} czatów"
   },
-  "Minimize": "Zwiń"
+  "Minimize": "Zwiń",
+  "{n} working": {
+    "one": "{n} pracuje",
+    "few": "{n} pracują",
+    "many": "{n} pracuje"
+  }
 }

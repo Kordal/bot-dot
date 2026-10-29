@@ -2549,6 +2549,8 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .cf-room:hover { border-color: #3a3a3a; }
 .cf-room.here { border-color: var(--c); box-shadow: 0 0 40px color-mix(in srgb, var(--c) 18%, transparent); }
 .cf-room-head { align-self: flex-start; display: flex; align-items: center; gap: 8px; max-width: 100%; font-size: 13px; }
+.cf-team-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 4px; margin: -2px -4px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
+.cf-team-name:hover { background: var(--sunk); }
 .cf-n { font: 11.5px var(--mono); color: var(--faint); }
 .cf-desks { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 16px; }
 .cf-bench { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; margin-top: auto; padding: 4px 8px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--sunk); }
@@ -2660,6 +2662,18 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
   .cf-home { padding-top: 16px; }
   .cf-top h1 { font-size: 26px; }
 }
+
+/* ---------- a team's chat (#697, groups.js): its faces in a row, the lead first with the crown, the team's colour on top ---------- */
+.group-pic.team-pic { display: flex; align-items: center; width: auto; }
+.group-pic.team-pic > i { position: relative; inset: auto; transform: none; flex: none; margin-left: -6px; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg); }
+.group-pic.team-pic > i:first-child { margin-left: 0; z-index: 3; }
+.group-pic.team-pic > i:nth-child(2) { z-index: 2; }
+.group-pic.team-pic.n1 > i, .contact .group-pic.team-pic > i { left: auto; top: auto; transform: none; }
+.group-pic > i svg.team-crown { position: absolute; top: -6px; left: -4px; width: 9px; height: 9px; padding: 2px; box-sizing: content-box; border-radius: 50%; fill: #f5c542; background: #1d1a10; }
+#group-pic .team-pic > i { width: 28px; height: 28px; }
+#view-group.team-chat { box-shadow: inset 0 2px 0 var(--team, var(--line-2)); }
+.dock-open .group-pic, .dock-menu .group-pic { height: 28px; }
+.dock-open .group-pic > i, .dock-menu .group-pic > i { width: 24px; height: 24px; }
 
 /* ---------- chats docked to the bottom of the Projects screen (#691, dock.js) ---------- */
 /* One row along the bottom of the main column: "+N", the bars, and the open chat as a 340x460 panel. */

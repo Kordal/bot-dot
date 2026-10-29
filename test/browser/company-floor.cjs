@@ -65,7 +65,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         const [w, n] = await Promise.all(['.cf-room[data-cf-team="t1"]', '.cf-room[data-cf-team="t2"]'].map((s) => page.locator(s).boundingBox()));
         assert.ok(w.width > n.width * 1.8, 'the big team spans two columns');
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-you.png`), fullPage: true });
-        await sales.locator('.cf-room-head').click();
+        await sales.locator('.cf-room-head .cf-n').click(); // the room, not its name: the name opens the team's chat (#697)
         await page.locator('.cf-panel h2', { hasText: 'Sales' }).waitFor();
         assert.match(await page.locator('.cf-team-kpi').innerText(), /Paying teams/);
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-team.png`), fullPage: true });
