@@ -74,3 +74,11 @@ test('task: "@Bot text" gives the bot the task, the longest name that fits; anyt
   assert.deepEqual(Floor.task('@QA', bots), { text: '@QA', bot: null });
   assert.deepEqual(Floor.task('Review notes for v2.3', bots), { text: 'Review notes for v2.3', bot: null });
 });
+
+test('a typed decision is split at its first "because", "bo" or dash into the decision and its reason (#694)', () => {
+  assert.deepEqual(Floor.decision('  Launch in Polish first because most users are Polish '), { text: 'Launch in Polish first', why: 'most users are Polish' });
+  assert.deepEqual(Floor.decision('Bez reklam, bo szkoda pieniędzy'), { text: 'Bez reklam', why: 'szkoda pieniędzy' });
+  assert.deepEqual(Floor.decision('No paid ads — too early'), { text: 'No paid ads', why: 'too early' });
+  assert.deepEqual(Floor.decision('Sign-ups first'), { text: 'Sign-ups first', why: '' });
+  assert.deepEqual(Floor.decision(''), { text: '', why: '' });
+});
