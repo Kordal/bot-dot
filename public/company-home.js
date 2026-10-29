@@ -319,7 +319,7 @@
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
     const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what'].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
-      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
+      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
       ${c.day ? lineHTML(c) : ''}
       ${c.checkin ? checkinHTML(c.checkin) : ''}
       ${goalsHTML(c)}
