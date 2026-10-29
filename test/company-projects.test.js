@@ -1,4 +1,4 @@
-// Several projects per account (#689, ADR 116): the company of ADR 110 becomes the first project of a list. Every
+// Several projects per account (#689, ADR 117): the company of ADR 110 becomes the first project of a list. Every
 // route takes `?project=<id>`, without it the first, as older apps had their one company; each project keeps its own
 // teams, goal and objectives, and a bot is in at most one team of each project.
 const { test, before, after } = require('node:test');
@@ -99,6 +99,18 @@ test('a bot on teams of two projects is told the to-dos of each and names the pr
   assert.deepEqual(r.decisions.map((d) => d.text), ['Vegetarian menus only']);
   r = (await self(srv, token, 'decisions', { action: 'list', project: 'Fernhill' })).data;
   assert.deepEqual(r.decisions, []);
+  // And the calendar: each project's own events.
+  assert.equal((await srv.api(at('/company/events', second), { method: 'POST', body: { title: 'Menu launch', day: '2099-01-06' } })).status, 201);
+  r = (await self(srv, token, 'calendar', { action: 'list', from: '2099-01-05', to: '2099-01-07', project: 'Mealwise' })).data;
+  assert.match(r.text, /Menu launch/);
+  r = (await self(srv, token, 'calendar', { action: 'list', from: '2099-01-05', to: '2099-01-07', project: 'Fernhill' })).data;
+  assert.doesNotMatch(r.text, /Menu launch/);
+  r = (await self(srv, token, 'calendar', { action: 'add', title: 'Tasting', day: '2099-01-07', project: 'Mealwise' })).data;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual((await srv.api(at('/company', second))).data.company.events.map((e) => e.title).sort(), ['Menu launch', 'Tasting']);
+  assert.deepEqual((await srv.api('/company')).data.company.events, []);
+  r = (await srv.api(`/company/calendar?from=2099-01-05&to=2099-01-07&project=${second}`)).data;
+  assert.ok(r.items.some((x) => x.kind === 'event' && x.title === 'Tasting'));
   srv.unhold();
 });
 
