@@ -152,7 +152,13 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         if (CompanySetup.shows(features)) a.company() else CompanyHeld(null)
     }
 
-    private val parts = listOf(bots, chief, recent, dashboard, version, needs, skills, groups, pages, company)
+    /** The account's projects, for mentions of projects (#700, #705): none from a botdot without `project-mentions`. */
+    val projects = Part { a ->
+        val features = (version.value.value ?: a.version().also { if (api.value === a) version.set(it) }).features
+        if (Mentions.PROJECT_MENTIONS in features) a.projectRefs(features) else emptyList()
+    }
+
+    private val parts = listOf(bots, chief, recent, dashboard, version, needs, skills, groups, pages, company, projects)
 
     /** Everything that waits for you, from the parts above: one list, so every screen counts the same. */
     val waiting: Flow<List<Waiting>> = combine(bots.value, chief.value, needs.value, dashboard.value) { b, c, n, d -> waitingOf(b.orEmpty(), c, n, d) }
@@ -174,6 +180,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         cardGroups.handle(ev) // the group a waiting job or tile was asked in
         pageSaves.handle(ev) // a bot saved a page (#346)
         if (ev.type == "page") pages.changed() // its title can be mentioned (#473)
+        if (ev.type == "company" || ev.type == "project") projects.changed() // its name can be mentioned (#700)
         // What happens in a group: who works in it, its newest reply, its question, its stopped line, its new replies.
         // At once, and again from botdot where a list fetched meanwhile may be from before the event.
         if (ev.type.startsWith("group_")) {

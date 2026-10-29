@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -68,6 +70,7 @@ import dev.botdot.app.data.hasGroupAll
 import dev.botdot.app.data.isTrue
 import dev.botdot.app.data.str
 import dev.botdot.app.data.tr
+import dev.botdot.app.data.trn
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.FlowPreview
@@ -376,7 +379,8 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     // the owner's message is drawn as a mention.
     val all = hasGroupAll(features)
     val (mentionPages, mentionTiles) = rememberMentionables(app) // a page or a tile, named for every turn (#473)
-    val mentions = remember(members, chatKey, all, mentionPages, mentionTiles) { Mentions.World(chatKey, members, emptyList(), all, pages = mentionPages, tiles = mentionTiles) }
+    val mentionProjects = rememberProjectMentions(app) // a project, named for every turn (#700)
+    val mentions = remember(members, chatKey, all, mentionPages, mentionTiles, mentionProjects) { Mentions.World(chatKey, members, emptyList(), all, pages = mentionPages, tiles = mentionTiles, projects = mentionProjects) }
     // Text selected in a message is quoted into this chat's message box (QuoteUi.kt).
     // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
     val api by app.api.collectAsState()
@@ -386,7 +390,17 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },
-            topBar = { ChatBar(null, "idle", group?.name.orEmpty(), onName = onSettings, onBack = onBack, nameLabel = tr("Its name and its members"), picture = { GroupPicture(members, 32) }) },
+            topBar = {
+                // A team's chat (#697, #705) follows its team in Projects: its faces in a row, the lead first, how many
+                // work, its colour on top, and no panel to rename it or change its members.
+                if (group?.team != null) Column {
+                    Box(Modifier.fillMaxWidth().height(3.dp).background(parseColor(group.color, p.muted)))
+                    val (n, at) = Groups.teamCount(group, bots)
+                    ChatBar(null, "idle", group.name, onName = {}, onBack = onBack, nameLabel = group.name, picture = { TeamPicture(Groups.teamFaces(group, bots), group.lead, 26) },
+                        beside = { Text(teamLine(n, at), color = p.muted, fontSize = Type.s12, maxLines = 1, modifier = Modifier.padding(start = Space.s8)) })
+                }
+                else ChatBar(null, "idle", group?.name.orEmpty(), onName = onSettings, onBack = onBack, nameLabel = tr("Its name and its members"), picture = { GroupPicture(members, 32) })
+            },
             bottomBar = {
                 Composer(
                     placeholder = group?.name?.let { tr("Message {name}…", "name" to it) } ?: tr("Message the group…"),
@@ -537,4 +551,10 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
             }
         }
     }
+}
+
+/** Under a team chat's name (#697): how many bots, and how many of them work now. */
+internal fun teamLine(n: Int, working: Int): String {
+    val bots = trn(n, "{n} bot", "{n} bots")
+    return if (working > 0) bots + " · " + trn(working, "{n} working", "{n} working") else bots
 }
