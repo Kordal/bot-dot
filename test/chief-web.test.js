@@ -106,6 +106,8 @@ test('after a web page, a change to the bots waits on a card, and reading stays 
   assert.equal(note.text, card.text);
   const reply = await turn.end();
   assert.ok(reply.messages.at(-1).read.includes('web'));
+  // Its chip says what waits, by the name asked for: the held answer names nothing (never "Created undefined").
+  assert.deepEqual(reply.messages.at(-1).actions?.map((a) => [a.kind, a.text]), [['created', 'Bot “Leaker” waits for your OK']]);
 
   // No: nothing is done, and nothing is told.
   assert.equal((await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: false } })).status, 200);
