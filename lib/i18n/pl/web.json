@@ -1630,5 +1630,12 @@
     "many": "{n} opinii"
   },
   "Standup": "Standup",
-  "Standup: {text}": "Standup: {text}"
+  "Standup: {text}": "Standup: {text}",
+  "Weekly": "Co tydzień",
+  "Monthly": "Co miesiąc",
+  "Every {n} days": "Co {n} dni",
+  "Tomorrow": "Jutro",
+  "Days": "Dni",
+  "Due": "Termin",
+  "To-do": "Do zrobienia"
 }
