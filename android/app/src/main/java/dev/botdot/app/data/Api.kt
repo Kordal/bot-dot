@@ -699,6 +699,20 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun duplicateIntoTeam(bot: String): Company = CompanySetup.of(send("POST", "/company/proposal/duplicate", buildJsonObject { put("bot", bot) }))
     suspend fun undoTeam(): Company = CompanySetup.of(send("POST", "/company/proposal/undo"))
     suspend fun createTeam(): Company = CompanySetup.of(send("POST", "/company/start"))
+    /** The office floor (#672, #675): a new team, "Make lead", the owner's tasks. */
+    suspend fun newCompanyTeam(name: String, bots: List<String>): Company =
+        CompanySetup.of(send("POST", "/company/teams", buildJsonObject { put("name", name); put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
+    suspend fun makeLead(team: String, bot: String): Company = CompanySetup.of(send("PUT", "/company/teams/${enc(team)}", buildJsonObject { put("lead", bot) }))
+    suspend fun addTodo(text: String, bot: String?): Company =
+        CompanySetup.of(send("POST", "/company/todos", buildJsonObject { put("text", text); if (bot != null) put("bot", bot) }))
+    suspend fun tickTodo(id: String, done: Boolean): Company = CompanySetup.of(send("PUT", "/company/todos/${enc(id)}", buildJsonObject { put("done", done) }))
+    /** The 90 days (#673): the check-in's answer, the week's plan, the bot the Chief suggests. */
+    suspend fun answerCheckin(day: Int, decision: String): CheckinAnswer =
+        json.decodeFromString(CheckinAnswer.serializer(), send("POST", "/company/checkins", buildJsonObject { put("day", day); put("decision", decision) }))
+    suspend fun approvePlan(): Company = CompanySetup.of(send("POST", "/company/plan/approve"))
+    suspend fun changePlan(text: String): Company = CompanySetup.of(send("POST", "/company/plan/change", buildJsonObject { put("text", text) }))
+    suspend fun addSuggested(): Company = CompanySetup.of(send("POST", "/company/suggestion/add"))
+    suspend fun dismissSuggested(): Company = CompanySetup.of(send("DELETE", "/company/suggestion"))
 
     // ---------- skills and connectors ----------
 

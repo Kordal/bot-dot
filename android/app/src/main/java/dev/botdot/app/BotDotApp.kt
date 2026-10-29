@@ -68,6 +68,9 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
     /** The search match to show when its chat opens (set by the home screen's search). */
     var jump: dev.botdot.app.data.ChatHit? = null
 
+    /** Words to start a new Chief chat with, taken once by the chat that opens (the Company's "Change direction"). */
+    var chiefWords: String? = null
+
     /** True while Bitwarden unlocks. It runs here, not in a screen, so you can keep using the app meanwhile. */
     val bwUnlocking = MutableStateFlow(false)
     /** Why the last unlock didn't work, shown on the Bitwarden card until the next try. */
