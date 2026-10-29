@@ -46,7 +46,7 @@
     const { team } = r;
     const bench = r.bench.length ? `<div class="cf-bench">${r.bench.map((b) => `<button type="button" class="cf-sit" data-cf-bot="${esc(b.id)}" title="${esc(`${b.name} · ${lineOf(b)}`)}">${botFigure(b.color, b.state, 'sm', b.outfit)}</button>`).join('')}</div>` : '';
     return `<section class="cf-room${r.wide ? ' wide' : ''}${teamOpen === team.id ? ' here' : ''}" style="--c:${esc(team.color)}" data-cf-team="${esc(team.id)}" tabindex="0" aria-label="${esc(team.name)}">
-      <div class="cf-room-head"><i class="cf-dot"></i>${esc(team.name)}<span class="cf-n">${team.bots.length}</span></div>
+      <div class="cf-room-head"><i class="cf-dot"></i>${esc(team.name)}<span class="cf-n">${1 + r.desks.length + r.bench.length}</span></div>
       <div class="cf-lead">${deskHTML(r.lead, { lead: true, crown: !r.solo, count: r.count })}</div>
       ${r.desks.length ? `<div class="cf-desks">${r.desks.map((b) => deskHTML(b)).join('')}</div>` : ''}
       ${bench}
@@ -130,7 +130,9 @@
       const button = add.querySelector('.co-go');
       if (button.disabled) return;
       button.disabled = true;
-      if (await send('/company/todos', 'POST', t.bot ? { text: t.text, bot: t.bot } : { text: t.text })) add.task.value = '';
+      const typed = add.task.value;
+      add.task.value = ''; // before the answer: the floor drawn again keeps what the field holds
+      if (!(await send('/company/todos', 'POST', t.bot ? { text: t.text, bot: t.bot } : { text: t.text }))) { const now = $('#cf-add input'); if (now) now.value = typed; }
       button.disabled = false;
     };
   }

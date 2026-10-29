@@ -77,6 +77,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await page.locator('#cf-add input').fill('@Weekly Report send the weekly numbers');
         await page.locator('#cf-add input').press('Enter');
         await page.locator('.cf-todo', { hasText: 'send the weekly numbers' }).waitFor();
+        assert.equal(await page.locator('#cf-add input').inputValue(), '');
         const todo = (await srv.api('/company')).data.company.todos.find((t) => t.text === 'send the weekly numbers');
         assert.equal(todo.bot, id('Weekly Report'));
         await page.locator('.cf-todo input[data-cf-todo="d1"]').check();
