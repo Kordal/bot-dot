@@ -6,7 +6,7 @@
 // the floor in one column and the panel under it. Everything shown is the bots' states, asks and working lines the
 // page already has: nothing new is asked of the server but the company's own routes. Under the header (#673): days
 // 30, 60 and 90 on a line, the check-in that waits above the floor, the week's plan at the top of You, and the bot
-// the Chief suggests as a dashed card on the floor.
+// the Chief suggests as a dashed card on the floor. At the floor's end, the Calendar tile (#695, company-calendar-view.js).
 (() => {
   const CROWN = '<svg class="cf-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
   const X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -91,6 +91,26 @@
       ${actions}
     </section>`;
   }
+  // The morning standup (#698): each team's lead's three lines, merged by the Chief, in the team's colour. What
+  // blocks a team and waits for the owner is an ask, with Reply into the lead's chat.
+  const DONE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const NEXT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>';
+  const BLOCKED = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16v.5"/></svg>';
+  const standupAsks = (c) => (c.standupToday?.leads || []).filter((l) => l.asks && botById(l.bot));
+  function standupHTML(c) {
+    const s = c.standupToday;
+    const leads = (s?.leads || []).filter((l) => l.at && c.teams.some((t) => t.id === l.team));
+    if (!leads.length) return '';
+    const row = (kind, icon, text, extra = '') => (text ? `<div class="cf-su ${kind}">${icon}<span class="cf-row-text">${esc(text)}</span>${extra}</div>` : '');
+    return `<section class="cf-plan cf-standup"><div class="cf-card-head"><h3>${tr('Standup')}</h3>${byChief()}</div>
+      ${leads.map((l) => {
+        const t = c.teams.find((x) => x.id === l.team);
+        const reply = l.asks && botById(l.bot) ? `<button type="button" class="btn sm" data-cf-standup-reply="${esc(l.team)}">${tr('Reply')}</button>` : '';
+        return `<div class="cf-su-team" style="--c:${esc(t.color)}"><div class="cf-su-name"><i class="cf-dot"></i>${esc(t.name)}</div>
+          ${row('done', DONE, l.done)}${row('next', NEXT, l.next)}${row(`blocked${l.asks ? ' asks' : ''}`, BLOCKED, l.blocked, reply)}</div>`;
+      }).join('')}
+    </section>`;
+  }
   // The bot the Chief suggests: a dashed card on the floor, in the colour of the team it would join.
   function suggestionHTML(c, s) {
     const color = c.teams.find((t) => t.id === s.team)?.color || '#8e7cff';
@@ -103,7 +123,7 @@
     const board = c.objectives.length ? `<div class="cf-board">${c.objectives.map(kpiHTML).join('')}</div>` : `<div class="cf-board empty">${esc(c.goal || '')}</div>`;
     const chief = `<button type="button" class="cf-chief" data-cf-chief><span class="cf-over">${line ? bubble(line, 'line') : ''}</span><span class="cf-table"><i></i></span><span class="cf-head">${chiefFigure()}</span><span class="cf-name">${esc(chiefTitle())}</span></button>`;
     const loose = f.loose.map((b) => `<div class="cf-loose">${deskHTML(b, { count: f.info.asks(b.id) })}</div>`).join('');
-    return `<div class="cf-floor">${board}${chief}${f.rooms.map(roomHTML).join('')}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
+    return `<div class="cf-floor">${board}${chief}${f.rooms.map(roomHTML).join('')}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button>${c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : ''}</div>`;
   }
 
   // ---------- the panel: the To-do (#692), or a team ----------
@@ -159,12 +179,12 @@
       ...asking.map((b) => `<div class="cf-row">${head(b)}<span class="cf-row-text">${esc(question(b))}</span><button type="button" class="btn sm" data-cf-reply="${esc(b.id)}">${tr('Reply')}</button></div>`),
       ...items.map(todoHTML),
     ].join('');
-    const n = filter === 'done' ? 0 : waits.length + asking.length + items.length;
+    const n = filter === 'done' ? 0 : waits.length + asking.length + items.length + (asks ? standupAsks(c).length : 0);
     const who = pick.bot && botById(pick.bot);
     const when = pick.repeat ? rhythmLabel(pick.repeat) : pick.due ? dueLabel(pick.due) : '';
     return `<div class="cf-panel-head"><h2>${tr('To-do')}</h2>${n ? `<span class="cf-count">${n}</span>` : ''}</div>
       <div class="kit-seg cf-filters" role="tablist">${CompanyTodo.FILTERS.map((k) => `<button type="button" role="tab" class="${filter === k ? 'on' : ''}" aria-selected="${filter === k}" data-cf-filter="${k}">${FILTER[k]()}</button>`).join('')}</div>
-      ${asks ? planHTML(c) : ''}
+      ${asks ? planHTML(c) + standupHTML(c) : ''}
       <div class="cf-rows">${rows}</div>
       <form class="co-ask small cf-add" id="cf-add"><button type="button" class="cf-who" data-cf-who aria-label="${esc(who ? who.name : tr('You'))}">${who ? head(who) : you}</button><input name="task" autocomplete="off" maxlength="300" placeholder="${tr('Add a task')}" aria-label="${tr('Add a task')}" /><button type="button" class="cf-when${when ? ' set' : ''}" data-cf-when aria-label="${tr('Due')}">${when ? esc(when) : CAL}</button><button type="submit" class="co-go">${tr('Add')}</button></form>
       ${menuHTML(c)}
@@ -223,10 +243,19 @@
     });
     $('[data-cf-chief]', root).onclick = () => setView('chief');
     $('[data-cf-new]', root).onclick = () => newTeam(c);
+    Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));
     const waits = needs();
     $$('[data-cf-need]', root).forEach((b) => (b.onclick = () => { const x = waits[Number(b.dataset.cfNeed)]; if (answersInline(x)) answerNeed(x, true, b); else openNeed(x); }));
     $$('[data-cf-reply]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.cfReply)));
+    // Reply to a standup's ask: the lead's chat, with what blocks the team quoted in the box.
+    $$('[data-cf-standup-reply]', root).forEach((b) => (b.onclick = () => {
+      const l = c.standupToday?.leads.find((x) => x.team === b.dataset.cfStandupReply);
+      if (!l) return;
+      setView('bot', l.bot);
+      const box = $('#view-bot textarea');
+      if (box) { box.value = `${tr('Standup: {text}', { text: l.blocked })}\n`; box.dispatchEvent(new Event('input')); box.focus(); }
+    }));
     $$('[data-cf-todo]', root).forEach((box) => (box.onchange = () => send(`/company/todos/${encodeURIComponent(box.dataset.cfTodo)}`, 'PUT', { done: box.checked })));
     $$('[data-cf-del]', root).forEach((b) => (b.onclick = () => send(`/company/todos/${encodeURIComponent(b.dataset.cfDel)}`, 'DELETE')));
     $$('[data-cf-filter]', root).forEach((b) => (b.onclick = () => { filter = b.dataset.cfFilter; Company.redraw(); }));
@@ -333,5 +362,5 @@
 
   Company.steps.home = home;
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [teamOpen, changing, filter, menu, pick, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
+  Company.steps.sig = () => [Company.calendar?.sig(), teamOpen, changing, filter, menu, pick, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
 })();

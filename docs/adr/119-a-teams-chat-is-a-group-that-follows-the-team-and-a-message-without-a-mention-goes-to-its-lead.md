@@ -1,4 +1,4 @@
-# ADR-116: A team's chat is a group that follows the team, and a message without a mention goes to its lead
+# ADR-119: A team's chat is a group that follows the team, and a message without a mention goes to its lead
 
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#697](https://github.com/Kordal/bot-dot/issues/697), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
