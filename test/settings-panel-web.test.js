@@ -141,7 +141,7 @@ test('web: the page holds one panel beside the two chats, with the three pages i
   const row = html.match(/<div class="chat-row" id="chat-row">([\s\S]*?)<\/div>\s*<section id="view-runs"/);
   assert.ok(row, 'a row around the chats and the panel');
   assert.match(row[1], /<section id="view-chief" class="view">/);
-  assert.match(row[1], /<section id="view-bot" class="view hidden">/);
+  assert.match(row[1], /<section id="view-bot" class="view bot-view hidden">/);
   const panel = row[1].match(/<aside id="panel" class="panel hidden"[^>]*>([\s\S]*?)<\/aside>/);
   assert.ok(panel, 'one panel, closed at the start');
   for (const id of ['botsettings', 'botjobs', 'chiefsettings']) {

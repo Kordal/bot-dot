@@ -263,7 +263,7 @@ function updateChatQueued(thread, chat, sent = null, arrives = false) {
 // why, in the server's words.
 async function steerQueued(chat, queuedId, button) {
   const [kind, id] = chatParts(chat);
-  const form = $(kind === 'chief' ? '#view-chief form' : '#view-bot form');
+  const form = kind === 'chief' ? $('#view-chief form') : botForm(id);
   const again = () => (kind === 'chief' ? (state.chatId === id ? showChat(id) : null) : refresh());
   if (button) button.disabled = true;
   try {
@@ -280,7 +280,7 @@ async function steerQueued(chat, queuedId, button) {
 // turn came first (409), the line above the box says so and the chat shows what started.
 async function takeBack(chat, queuedId, button) {
   const [kind, id] = chatParts(chat);
-  const form = $(kind === 'chief' ? '#view-chief form' : '#view-bot form');
+  const form = kind === 'chief' ? $('#view-chief form') : botForm(id);
   const again = () => (kind === 'chief' ? (state.chatId === id ? showChat(id) : null) : refresh());
   if (button) button.disabled = true;
   try {
@@ -304,7 +304,12 @@ async function takeBack(chat, queuedId, button) {
 // Whether the page's chat of that kind is this one (a bot's chat and the Chief's each keep one message box).
 function chatOpenIs(chat) {
   const [kind, id] = chatParts(chat);
-  return kind === 'chief' ? state.chatId === id : $('#view-bot')?.dataset.bot === id;
+  return kind === 'chief' ? state.chatId === id : $('#view-bot')?.dataset.bot === id || !!globalThis.Dock?.chatOf?.(id);
+}
+// A bot's message box: in its chat expanded in the dock (dock.js, #714), else the open view's.
+function botForm(id) {
+  const docked = globalThis.Dock?.chatOf?.(id);
+  return docked ? $('form', docked) : $('#view-bot form');
 }
 
 // ---------- a working bot's opening line ----------
@@ -323,17 +328,9 @@ const openingLines = OpeningLine.keeper();
 // work above the line, which then says "Working" with nothing to stop yet; with a bot at work or the Chief
 // replying, at the end, under the messages that already wait, and the line stays theirs.
 function placeStatusLines() {
-  const botId = $('#view-bot')?.dataset.bot;
-  const working = botId && state.runs.find((r) => r.botId === botId && r.status === 'running' && r.kind !== 'script');
-  const task = botId ? sentIn(`bot:${botId}`) : null;
-  const taskWaits = !!task && (!!working || queuedIn(`bot:${botId}`).length > 0);
-  const taskNew = sentArrives(arrivals.bot, $('#bot-thread'), `bot:${botId}`, task); // it arrives, once (a reply arrives)
-  updateChatQueued($('#bot-thread'), botId ? `bot:${botId}` : null, taskWaits ? task : null, taskNew);
-  // Each run at work says what it is doing in its own block (bot-chat.js, #625): its step line and Stop. The line under
-  // the chat is there only for the owner's message on its way to a bot that was free ("Working").
-  globalThis.drawBlockLines?.($('#bot-thread'));
-  drawStatusLine($('#bot-thread'), botId && !working ? `bot:${botId}` : null, botById(botId)?.color, null);
-  updateChatSent($('#bot-thread'), taskWaits ? null : task, `bot:${botId}`, taskNew);
+  placeBotLines($('#bot-thread'), $('#view-bot')?.dataset.bot, arrivals.bot);
+  // The bots' chats expanded in the dock (dock.js, #714), each with its own arrivals.
+  for (const chat of globalThis.Dock?.chats?.() || []) placeBotLines($('.chat-thread', chat), chat.dataset.bot, chat._arrivals ||= arrivalsKeeper());
   const chatId = $('#chat-thread')?.dataset.chat;
   chiefArrives($('#chat-thread')); // a reply that was just drawn there arrives
   const replying = !!chatId && chiefTurns.has(chatId);
@@ -345,6 +342,20 @@ function placeStatusLines() {
   drawStatusLine($('#chat-thread'), chatId ? `chief:${chatId}` : null, CHIEF_COLOR, replying ? { chief: chatId } : null, false, replying ? chiefTurns.get(chatId) : message ? tr('Working') : '');
   updateChatSent($('#chat-thread'), messageWaits ? null : message, `chief:${chatId || ''}`, messageNew);
   if (!onScreen($('#group-thread'))) arrivals.group.leave(); // a group's chat tells what it draws itself (groups.js): here, only that it was left
+}
+// A bot's chat, at its end: the waiting messages, the status line and the message on its way. keeper: the arrivals of
+// the place it is drawn in.
+function placeBotLines(thread, botId, keeper) {
+  const working = botId && state.runs.find((r) => r.botId === botId && r.status === 'running' && r.kind !== 'script');
+  const task = botId ? sentIn(`bot:${botId}`) : null;
+  const taskWaits = !!task && (!!working || queuedIn(`bot:${botId}`).length > 0);
+  const taskNew = sentArrives(keeper, thread, `bot:${botId}`, task); // it arrives, once (a reply arrives)
+  updateChatQueued(thread, botId ? `bot:${botId}` : null, taskWaits ? task : null, taskNew);
+  // Each run at work says what it is doing in its own block (bot-chat.js, #625): its step line and Stop. The line under
+  // the chat is there only for the owner's message on its way to a bot that was free ("Working").
+  globalThis.drawBlockLines?.(thread);
+  drawStatusLine(thread, botId && !working ? `bot:${botId}` : null, botById(botId)?.color, null);
+  updateChatSent(thread, taskWaits ? null : task, `bot:${botId}`, taskNew);
 }
 // stop: the bot's running run (its id), or the Chief's reply ({ chief: <chat id> }). held: the run waits for the
 // owner's answer (its `waitingFor`), and the line says that until the field goes. doing: what the Chief is doing,

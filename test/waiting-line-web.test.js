@@ -112,7 +112,7 @@ test('web: only "ok" on the chat\'s own running run holds the line', () => {
   // connected app") brings one when a run begins to wait and when it stops, and so does an ask that comes or goes.
   assert.match(app, /const \[bots, runs, activity, chief, computers, cfg\] = await Promise\.all\(\[api\('\/bots'\), api\('\/runs\?limit=200'\)/);
   assert.match(app, /\['run_started', 'run_finished', 'run_waits', 'bot_message', 'waiting', 'chief_reply', 'chief_suggestion', 'approvals', 'asks', 'bots', 'reset'\]\.forEach\(\(t\) => es\.addEventListener\(t, soon\)\);/);
-  assert.match(cut('function renderBotChat() {', '// Rejects when the task did not go'), /placeStatusLines\(\);\n\}/, 'a bot\'s chat places its line each time it is drawn');
+  assert.match(cut('function renderBotChat(root', '// Rejects when the task did not go'), /placeStatusLines\(\);\n\}/, 'a bot\'s chat places its line each time it is drawn');
 });
 
 // The page's botThreadHTML over a bot's runs, oldest first, with stand-ins for what a bubble holds.

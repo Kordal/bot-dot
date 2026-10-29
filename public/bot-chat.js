@@ -241,7 +241,7 @@ function loadInbox(botId) {
   api(`/bots/${encodeURIComponent(botId)}/inbox`).then((notes) => {
     const before = JSON.stringify(state.inbox[botId] || []);
     state.inbox[botId] = notes;
-    if (before !== JSON.stringify(notes) && state.view === 'bot' && state.botId === botId) renderBotChat();
+    if (before !== JSON.stringify(notes)) redrawBotChat(botId);
   }).catch(() => {});
 }
 
@@ -277,15 +277,15 @@ function planInReply(r, last) { return globalThis.Plan && r.plan && !(last && st
 const stoppedPlan = (r) => !!r && r.status !== 'success' && r.status !== 'running' && Plan.has(r.plan) && !Plan.finished(r.plan) && !Plan.dismissed(r.id);
 // A bot's plan above its message box (plan.js; docs/api.md, "The plan"): its running run's, else the newest run's
 // that was stopped or failed before its plan was done.
-function drawBotPlan(bot, runs) {
-  const slot = $('#view-bot .plan-slot');
+function drawBotPlan(bot, runs, root = $('#view-bot')) {
+  const slot = $('.plan-slot', root);
   if (!slot || !globalThis.Plan) return;
   slot.style.setProperty('--c', bot.color);
   const working = runs.find((r) => r.status === 'running');
   const last = runs[runs.length - 1];
   const view = working ? (working.plan ? { kind: 'live', plan: working.plan, id: working.id, who: bot.name } : null)
     : stoppedPlan(last) ? { kind: 'stopped', plan: last.plan, id: last.id, who: bot.name } : null;
-  Plan.draw(slot, `bot:${bot.id}`, view, () => { delete $('#view-bot').dataset.sig; renderBotChat(); });
+  Plan.draw(slot, `bot:${bot.id}`, view, () => { delete root.dataset.sig; redrawBotChat(bot.id); });
 }
 
 // The ⋯ of a bot's chat head (#635): its settings, its computer and "Add a bot to this chat", so the head holds
@@ -317,100 +317,109 @@ document.addEventListener('pointerdown', (e) => {
   }
 });
 
-function renderBotChat() {
-  const bot = state.bots.find((b) => b.id === state.botId);
-  const root = $('#view-bot');
-  if (!bot) { if (state.bots.length) leaveBot(); return; }
-  const newFirst = newLine.first(`bot:${bot.id}`); // the "New" line stays where it was put while the chat is open
+// A bot's chat, drawn in `root`: the open view's (#view-bot), or one of those expanded beside it at the bottom of the
+// Projects screen (dock.js, #714), which passes `docked`: { line, settings } (the run its "New" line stays above, and
+// what its figure and name open). Only the open view's parts have ids; each chat finds its own in its root.
+function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null) {
+  const bot = state.bots.find((b) => b.id === botId);
+  if (!bot) { if (state.bots.length && !docked) leaveBot(); return; }
+  const id = (name) => (docked ? '' : ` id="${name}"`);
+  const part = (name) => $(`.${name}`, root);
+  const newFirst = docked ? docked.line : newLine.first(`bot:${bot.id}`); // the "New" line stays where it was put while the chat is open
   // Its newest runs, and with a line every run back to it: one further back is read first, and drawn then. So is the
   // run its open question is from (bot.asks), however far back: "Needs you" on its key points at something to answer.
+  // A docked chat draws what the page holds.
   const back = chatBack(bot, newFirst);
-  const drawn = Unread.shown(chatRuns(bot.id, back), back);
-  if (drawn.missing) reachNew(bot.id, back);
+  const drawn = Unread.shown(docked ? state.runs.filter((r) => r.botId === bot.id) : chatRuns(bot.id, back), back);
+  if (drawn.missing && !docked) reachNew(bot.id, back);
   const runs = drawn.runs.reverse();
   if (root.dataset.bot !== bot.id) {
+    const typed = $('textarea', root)?.value;
+    if (root.dataset.bot && typed && (docked || globalThis.Dock?.docked())) carried.set(root.dataset.bot, typed); // into its chat in the dock (#714)
     root.dataset.bot = bot.id;
     delete root.dataset.sig; // not '': a bot with no runs yet has that signature too, and would never show its intro
     root.innerHTML = `
       <div class="chat-head">
         ${BACK_BTN}
-        <button class="chat-title" id="bot-settings" title="${tr('Settings')}">
-          <div id="bot-avatar"></div>
-          <div class="grow"><h2 id="bot-name"></h2></div>
+        <button class="chat-title"${id('bot-settings')} title="${tr('Settings')}">
+          <div class="bot-avatar"${id('bot-avatar')}></div>
+          <div class="grow"><h2 class="bot-name"${id('bot-name')}></h2></div>
         </button>
         <div class="actions-right">
-          <button class="icon-btn hidden" id="bot-files" title="${tr('Files')}" aria-label="${tr('Files')}">${ICON.folder}</button>
+          <button class="icon-btn hidden bot-files"${id('bot-files')} title="${tr('Files')}" aria-label="${tr('Files')}">${ICON.folder}</button>
           <div class="chat-more">
-            <button type="button" class="icon-btn" id="bot-more" title="${tr('More')}" aria-label="${tr('More')}" aria-haspopup="menu" aria-expanded="false">${MORE_ICON}</button>
+            <button type="button" class="icon-btn"${id('bot-more')} title="${tr('More')}" aria-label="${tr('More')}" aria-haspopup="menu" aria-expanded="false">${MORE_ICON}</button>
             <div class="chat-menu" role="menu" hidden>
               <button type="button" role="menuitem" data-more="settings">${tr('Settings')}</button>
-              <button type="button" role="menuitem" class="hidden" id="bot-screen">${tr('Its computer')}</button>
-              <button type="button" role="menuitem" class="hidden" id="bot-add-to-chat">${tr('Add a bot to this chat')}</button>
+              <button type="button" role="menuitem" class="hidden bot-screen"${id('bot-screen')}>${tr('Its computer')}</button>
+              <button type="button" role="menuitem" class="hidden bot-add-to-chat"${id('bot-add-to-chat')}>${tr('Add a bot to this chat')}</button>
             </div>
           </div>
         </div>
       </div>
-      <div class="chat-thread" id="bot-thread"></div>
-      <div class="pip hidden" id="bot-pip"></div>
+      <div class="chat-thread"${id('bot-thread')}></div>
+      ${docked ? '' : '<div class="pip hidden" id="bot-pip"></div>'}
       ${composerHTML(tr('Message {name}', { name: bot.name }))}
-      <div class="job-chips" id="bot-job-chips"></div>`;
+      <div class="job-chips"${id('bot-job-chips')}></div>`;
     const form = $('form', root);
     wireComposer(form, (text, files, key) => runBot(bot.id, text, files, key, replyingTo.get(bot.id)?.runId), () => `bot:${bot.id}`, bot.id);
     $('.attach-list', form).insertAdjacentHTML('beforebegin', '<div class="reply-chip hidden"></div>');
+    if (carried.has(bot.id)) { form.text.value = carried.get(bot.id); carried.delete(bot.id); form.text.dispatchEvent(new Event('input')); }
     drawReplyChip(bot.id);
-    $('#bot-settings').onclick = () => setPanel('toggle');
-    wireChatMenu($('.chat-more', root));
-    $('[data-more="settings"]', root).onclick = () => setPanel('toggle');
+    const settings = docked ? docked.settings : () => setPanel('toggle');
+    part('chat-title').onclick = settings;
+    wireChatMenu(part('chat-more'));
+    $('[data-more="settings"]', root).onclick = settings;
     // A group grown from this chat (groups.js): this bot and those picked. Its own chat stays as it is.
-    $('#bot-add-to-chat').onclick = () => { const b = state.bots.find((x) => x.id === state.botId); if (b && canMakeGroup(b)) openGroupMaker(b); };
-    $('#bot-screen').onclick = () => openScreen(state.botId);
-    $('#bot-files').onclick = () => { const b = state.bots.find((x) => x.id === state.botId); if (b) Files.open(b); }; // files.js (#603)
+    part('bot-add-to-chat').onclick = () => { const b = botById(bot.id); if (b && canMakeGroup(b)) openGroupMaker(b); };
+    part('bot-screen').onclick = () => openScreen(bot.id);
+    part('bot-files').onclick = () => { const b = botById(bot.id); if (b) Files.open(b); }; // files.js (#603)
     loadInbox(bot.id);
   }
-  const av = $('#bot-avatar');
+  const av = part('bot-avatar');
   const look = bot.color + bot.state + JSON.stringify(bot.outfit || '');
   if (av.dataset.sig !== look) { av.dataset.sig = look; av.innerHTML = botFigure(bot.color, bot.state, 'sm', bot.outfit); }
-  $('#bot-name').textContent = bot.name;
-  $('#bot-screen').classList.toggle('hidden', bot.computer !== 'linux' && bot.computer !== 'boat');
-  $('#bot-files').classList.toggle('hidden', !state.features.includes('files-explorer'));
+  part('bot-name').textContent = bot.name;
+  part('bot-screen').classList.toggle('hidden', bot.computer !== 'linux' && bot.computer !== 'boat');
+  part('bot-files').classList.toggle('hidden', !state.features.includes('files-explorer'));
   // In its ⋯ menu (#635), with its computer: only where a group can be made.
-  $('#bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));
+  part('bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));
   // An empty chat (#727): its jobs under the message box, which stands in the middle (style.css). A tap runs one now.
-  drawJobChips($('#bot-job-chips'), startableJobs(bot), (jobId) => runJobNow(bot.id, jobId));
+  drawJobChips(part('job-chips'), startableJobs(bot), (jobId) => runJobNow(bot.id, jobId));
 
   // Re-render the thread only when something changed, so live bits and scroll survive refreshes.
   const waiting = state.inbox[bot.id] || [];
   const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${stepsSig(r)}:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
-  const thread = $('#bot-thread');
+  const thread = part('chat-thread');
   if (root.dataset.sig !== sig) {
     const atBottom = !root.dataset.sig || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
     root.dataset.sig = sig;
     thread.innerHTML = botThreadHTML(bot, runs, newFirst) + waitingNotesHTML(bot.id, waiting);
     if (atBottom) thread.scrollTop = thread.scrollHeight;
-    scrollToNew(thread);
+    if (!docked) scrollToNew(thread);
     $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
     $$('[data-details]', thread).forEach((el) => (el.onclick = () => openRun(el.dataset.details)));
     // A block's step line opens and closes, and stays so; Stop in a running block's footer ends that run.
     $$('details.run-steps', thread).forEach((el) => el.addEventListener('toggle', () => { if (el.open) openSteps.set(el.dataset.steps, el.classList.contains('now')); else openSteps.delete(el.dataset.steps); }));
-    $$('[data-reply-run]', thread).forEach((el) => (el.onclick = () => pickReply(bot.id, el.dataset.replyRun)));
+    $$('[data-reply-run]', thread).forEach((el) => (el.onclick = () => pickReply(bot.id, el.dataset.replyRun, root)));
     $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
     foldLongReplies(thread);
     $$('[data-run-notes]', thread).forEach((el) => (el.onclick = () => runNotes(el.dataset.runNotes, el)));
     wireChoices(thread, (t, key) => sendFrom($('form', root), () => runBot(bot.id, t, [], key)));
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));
     // What it learned: a job opens its jobs, a change to its task, rules or skills its settings. A note opens nothing.
-    $$('[data-learned]', thread).forEach((el) => (el.onclick = () => openLearned(el, state.botId)));
+    $$('[data-learned]', thread).forEach((el) => (el.onclick = () => openLearned(el, bot.id)));
     // A skill's chip at the start of the owner's message opens it in the settings too; "/btw" is no skill.
     $$('.cmd', thread).forEach((el) => {
       const name = el.textContent.slice(1).toLowerCase();
       if (name === 'btw') return;
       el.classList.add('opens');
-      el.onclick = (e) => { e.stopPropagation(); state.openSkill = { bot: state.botId, name }; setView('botsettings', state.botId); };
+      el.onclick = (e) => { e.stopPropagation(); state.openSkill = { bot: bot.id, name }; setView('botsettings', bot.id); };
     });
-    followBotRuns(runs.filter((r) => r.status === 'running'));
-    markSearch(); // what you searched for, marked in the chat
+    followBotRuns(runs.filter((r) => r.status === 'running'), root);
+    if (!docked) markSearch(); // what you searched for, marked in the chat
     // From a search match: that run (older runs than the chat shows open on their own).
-    if (state.jump?.runId && state.jump.bot?.id === bot.id) {
+    if (!docked && state.jump?.runId && state.jump.bot?.id === bot.id) {
       const id = state.jump.runId;
       const row = $(`[data-details="${CSS.escape(id)}"]`, thread)?.closest('.bubble-row');
       // Between bots it's folded: open it (and the message that started it) so the match shows, and keep it open.
@@ -421,16 +430,25 @@ function renderBotChat() {
   }
   // A reply that is new in the open chat arrives (a reply arrives): the reply side of its run's row, with its
   // quick answers. What started the run stands still.
-  for (const id of repliesArrive(arrivals.bot, thread, `bot:${bot.id}`, botReplyIds(runs))) arrive($(`[data-details="${CSS.escape(id)}"]`, thread)?.closest('.bubble-row'));
+  for (const id of repliesArrive(docked ? (root._arrivals ||= arrivalsKeeper()) : arrivals.bot, thread, `bot:${bot.id}`, botReplyIds(runs))) arrive($(`[data-details="${CSS.escape(id)}"]`, thread)?.closest('.bubble-row'));
   // The large head of an empty chat follows the bot's state, colour and hat, like the one in the header.
   const big = $('.chat-empty .avatar', thread);
   if (big && thread.dataset.look !== look) big.outerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit);
   thread.dataset.look = look;
-  updateChatNeeds($('#bot-thread'), bot.id);
-  updatePip(bot, bot.computer === 'linux' ? runs.find((r) => r.status === 'running' && r.computer) : null); // a machine on boat.dev has no live screen beside its runs
+  updateChatNeeds(thread, bot.id);
+  if (!docked) updatePip(bot, bot.computer === 'linux' ? runs.find((r) => r.status === 'running' && r.computer) : null); // a machine on boat.dev has no live screen beside its runs
   setSendBusy($('form', root), false);
-  globalThis.drawBotPlan?.(bot, runs);
+  globalThis.drawBotPlan?.(bot, runs, root);
   placeStatusLines();
+}
+// What was typed in a bot's chat whose place changed, between the open view and the dock (#714): put back once.
+const carried = new Map();
+// The chats of a bot drawn on the page: the open view's, and the one expanded in the dock (dock.js, #714).
+const botChats = (botId) => [$('#view-bot'), ...(globalThis.Dock?.chats?.() || [])].filter((el) => el?.dataset.bot === botId);
+// A bot's chats drawn again: the open view's when it shows the bot, and its chat in the dock.
+function redrawBotChat(botId) {
+  if (state.view === 'bot' && state.botId === botId) renderBotChat();
+  globalThis.Dock?.drawChat?.(botId);
 }
 
 // Rejects when the task did not go, with nothing added to the chat (wireComposer, sendFrom). key: as sendToChief's.
@@ -442,7 +460,7 @@ function renderBotChat() {
 async function runBot(botId, text, attachments = [], key = messageKey(), replyTo = null) {
   const at = `bot:${botId}`;
   sentAtOnce(at, { key, text, attachments });
-  showSent($('#bot-thread'));
+  showSent(botThread(botId));
   let took;
   try {
     took = await api(`/bots/${botId}/run`, { method: 'POST', body: { prompt: text || undefined, attachments, key, ...(replyTo ? { replyTo } : {}) } });
@@ -456,8 +474,8 @@ async function runBot(botId, text, attachments = [], key = messageKey(), replyTo
     if (replyTo && replyingTo.get(botId)?.runId === replyTo) { replyingTo.delete(botId); drawReplyChip(botId); }
     sentOver(at, key);
     tookRun(botId, took, text, attachments);
-    if (state.view === 'bot' && state.botId === botId) renderBotChat(); else placeStatusLines();
-    const thread = $('#bot-thread');
+    if (state.view === 'bot' && state.botId === botId) renderBotChat(); else if (globalThis.Dock?.chatOf?.(botId)) Dock.drawChat(botId); else placeStatusLines();
+    const thread = botThread(botId);
     if (thread) thread.scrollTop = thread.scrollHeight;
   } catch (e) { console.error(e); }
   refresh(); // the bots, the list and the rest follow: never rejects, and nothing waits for it
@@ -473,53 +491,66 @@ function tookRun(botId, run, text, attachments) {
   setQueued(at, [...queuedIn(at), { id: run.id, text: String(text || '').trim(), attachments: Array.isArray(run.attachments) ? run.attachments : attachments, at: run.queuedAt }]);
 }
 
+// The thread a bot's message goes to: its chat expanded in the dock (dock.js, #714), else the open view's.
+function botThread(botId) {
+  const docked = globalThis.Dock?.chatOf?.(botId);
+  return docked ? $('.chat-thread', docked) : $('#bot-thread');
+}
+
 // Every run of the bot that is going, each from its start again, as the chat is drawn again: a message to a busy
-// bot starts beside the run that is going (ADR 062), and each has its draft and files in its own row.
-function followBotRuns(running) {
-  for (const es of state.botStreams.splice(0)) es.close();
-  running.forEach(followBotRun);
+// bot starts beside the run that is going (ADR 062), and each has its draft and files in its own row. The open
+// view's streams are the state's; a chat in the dock keeps its own.
+function followBotRuns(running, root = $('#view-bot')) {
+  const streams = root?.id === 'view-bot' ? state.botStreams : (root._streams ||= []);
+  for (const es of streams.splice(0)) es.close();
+  running.forEach((run) => followBotRun(run, root, streams));
 }
 // The run of a bot's chat the owner picked Reply on (#627), by bot: { runId, text }, until it is sent or ✕.
 const replyingTo = new Map();
 // Reply on a block: the chip above the box names the request of the block's first round, and the box takes the words.
-function pickReply(botId, runId) {
+function pickReply(botId, runId, root = $('#view-bot')) {
   const runs = state.runs.filter((r) => r.botId === botId);
   let first = runs.find((r) => r.id === runId);
   for (let i = 0; first?.replyTo && i < 50; i++) first = runs.find((r) => r.id === first.replyTo) || first;
   replyingTo.set(botId, { runId, text: firstLine(first?.prompt) || tr('this task') });
   drawReplyChip(botId);
-  $('#view-bot textarea')?.focus();
+  $('textarea', root)?.focus();
 }
+// In each chat of the bot on the page: the chat on screen that is another bot's keeps its own chip.
 function drawReplyChip(botId) {
-  const chip = $('#view-bot .reply-chip');
-  if (!chip || state.botId !== botId) return; // the chat on screen is another bot's: its own chip stays
-  const to = replyingTo.get(botId);
-  chip.classList.toggle('hidden', !to);
-  chip.innerHTML = to ? `<span class="grow">${tr('Reply to: {text}', { text: esc(to.text) })}</span><button type="button" aria-label="${tr("Don't reply to it")}">✕</button>` : '';
-  if (to) $('button', chip).onclick = () => { replyingTo.delete(botId); drawReplyChip(botId); };
+  for (const chat of botChats(botId)) {
+    const chip = $('.reply-chip', chat);
+    if (!chip) continue;
+    const to = replyingTo.get(botId);
+    chip.classList.toggle('hidden', !to);
+    chip.innerHTML = to ? `<span class="grow">${tr('Reply to: {text}', { text: esc(to.text) })}</span><button type="button" aria-label="${tr("Don't reply to it")}">✕</button>` : '';
+    if (to) $('button', chip).onclick = () => { replyingTo.delete(botId); drawReplyChip(botId); };
+  }
 }
 
 // A bot's running run as it happens: a file it attaches shows at once, its line goes to the status line as the
 // server says it (its steps are not put in words here), its reply draft into its row, then refresh when it ends.
-function followBotRun(run) {
+// root: the chat it is drawn in (the open view's, or one in the dock); streams: that chat's.
+function followBotRun(run, root = $('#view-bot'), streams = state.botStreams) {
   if (!run) return;
-  const es = watchRun(run.id, () => { state.botStreams = state.botStreams.filter((x) => x !== es); replyDrafts.end(run.id); refresh(); }, (file) => {
-    const live = $(`[data-live="${CSS.escape(run.id)}"]`);
+  const thread = () => $('.chat-thread', root);
+  const es = watchRun(run.id, () => { const at = streams.indexOf(es); if (at !== -1) streams.splice(at, 1); replyDrafts.end(run.id); refresh(); }, (file) => {
+    const live = $(`[data-live="${CSS.escape(run.id)}"]`, root);
     if (!live || $(`a[href="${CSS.escape(fileHref(file))}"]`, live)) return; // shown already (the stream replays)
     const list = $('.bubble-files', live);
     const html = botFilesHTML([file]);
     if (list) list.insertAdjacentHTML('beforeend', html.replace(/^<div class="bubble-files">|<\/div>$/g, ''));
     else live.insertAdjacentHTML('beforeend', html);
-    const t = $('#bot-thread');
+    const t = thread();
     if (t && t.scrollHeight - t.scrollTop - t.clientHeight < 200) t.scrollTop = t.scrollHeight;
   }, (line) => { if (openingLines.say(`bot:${run.botId}`, line, run.id)) { renderContacts(); placeStatusLines(); } },
-  (text) => replyDrafts.say(run.id, text, () => [$(`[data-live="${CSS.escape(run.id)}"]`), $('#bot-thread')]),
+  (text) => replyDrafts.say(run.id, text, () => [$(`[data-live="${CSS.escape(run.id)}"]`, root), thread()]),
   (plan) => {
     const held = state.runs.find((r) => r.id === run.id);
     if (held) { if (plan) held.plan = plan; else delete held.plan; }
-    if (state.view === 'bot' && state.botId === run.botId) renderBotChat();
+    redrawBotChat(run.botId);
   });
-  state.botStreams.push(es);
+  streams.push(es);
 }
 
 // Follow a running run (the stream replays what already happened first). onEnd() when the run finishes;

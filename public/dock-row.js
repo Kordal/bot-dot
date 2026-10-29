@@ -1,7 +1,7 @@
 // The row of chats docked to the bottom of the Projects screen (#691): its rules. This file draws nothing (dock.js
 // does):
 //   - what this device keeps: the panels in their order, oldest left, newest right, and how high a phone's sheet is.
-//   - a panel is { kind, id }: a bot's chat today, another kind (a team's chat) later.
+//   - a panel is { kind, id }: a bot's chat, or a team's; `open: true` when it stays expanded, not a bar (#714).
 //   - how many panels the width holds; the older ones go under "+N" at the left end; the open one is always shown.
 //   - a panel dragged sideways lands where its middle is.
 // A plain <script>, as window.DockRow; the tests load it with require.
@@ -24,7 +24,7 @@ function parse(raw) {
   const items = [];
   for (const p of Array.isArray(d?.items) ? d.items : []) {
     if (!p || typeof p.kind !== 'string' || !KINDS.test(p.kind) || typeof p.id !== 'string' || !p.id || p.id.length > 100) continue;
-    if (!items.some((x) => same(x, p))) items.push({ kind: p.kind, id: p.id });
+    if (!items.some((x) => same(x, p))) items.push({ kind: p.kind, id: p.id, ...(p.open === true ? { open: true } : {}) });
   }
   return { items: items.slice(-MAX), sheet: d?.sheet === 'full' ? 'full' : 'half' };
 }
@@ -35,6 +35,8 @@ function add(items, p) {
   return [...items, { kind: p.kind, id: p.id }].slice(-MAX);
 }
 const remove = (items, p) => items.filter((x) => !same(x, p));
+// The panel expanded (on) or a bar again; the others as they are.
+const expand = (items, p, on) => items.map((x) => (!same(x, p) || !!x.open === !!on ? x : on ? { ...x, open: true } : { kind: x.kind, id: x.id }));
 // The panel at `from` put at `to`, the others keeping their order.
 function move(items, from, to) {
   if (from === to || from < 0 || from >= items.length) return items;
@@ -75,7 +77,7 @@ function sheetAfter(sheet, dy) {
   return sheet;
 }
 
-const api = { parse, add, remove, move, fit, split, dropAt, sheetAfter, keyOf, same, ITEM, GAP, MORE };
+const api = { parse, add, remove, expand, move, fit, split, dropAt, sheetAfter, keyOf, same, ITEM, GAP, MORE };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.DockRow = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

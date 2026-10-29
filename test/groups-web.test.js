@@ -122,25 +122,26 @@ test('web: against a server without `groups` in `features` nothing of a group is
 // The owner at the test of Milestone 10 (GRP-011) put a plus right of the bot's name; Quiet keys (#635) keeps the head
 // to the figure, the name, Files and ⋯, and "Add a bot to this chat" is in the ⋯ menu.
 test('web: "Add a bot to this chat" is in the ⋯ menu of a bot\'s chat head, and not in its settings', () => {
-  const draw = cut('function renderBotChat() {', '// Re-render the thread only when something changed');
+  const draw = cut('function renderBotChat(root', '// Re-render the thread only when something changed');
   const head = draw.slice(draw.indexOf('<div class="chat-head">'), draw.indexOf('<div class="chat-thread"'));
-  assert.match(head, /<button class="chat-title" id="bot-settings" title="\$\{tr\('Settings'\)\}">(?:(?!<button)[\s\S])*<\/button>\s*<div class="actions-right">/, 'nothing between the name and the buttons on the right');
-  assert.match(head, /<button type="button" class="icon-btn" id="bot-more" title="\$\{tr\('More'\)\}" aria-label="\$\{tr\('More'\)\}" aria-haspopup="menu" aria-expanded="false">\$\{MORE_ICON\}<\/button>\s*<div class="chat-menu" role="menu" hidden>/);
-  assert.match(head, /<div class="chat-menu" role="menu" hidden>[\s\S]*<button type="button" role="menuitem" class="hidden" id="bot-add-to-chat">\$\{tr\('Add a bot to this chat'\)\}<\/button>\s*<\/div>/);
+  assert.match(head, /<button class="chat-title"\$\{id\('bot-settings'\)\} title="\$\{tr\('Settings'\)\}">(?:(?!<button)[\s\S])*<\/button>\s*<div class="actions-right">/, 'nothing between the name and the buttons on the right');
+  assert.match(head, /<button type="button" class="icon-btn"\$\{id\('bot-more'\)\} title="\$\{tr\('More'\)\}" aria-label="\$\{tr\('More'\)\}" aria-haspopup="menu" aria-expanded="false">\$\{MORE_ICON\}<\/button>\s*<div class="chat-menu" role="menu" hidden>/);
+  assert.match(head, /<div class="chat-menu" role="menu" hidden>[\s\S]*<button type="button" role="menuitem" class="hidden bot-add-to-chat"\$\{id\('bot-add-to-chat'\)\}>\$\{tr\('Add a bot to this chat'\)\}<\/button>\s*<\/div>/);
   assert.match(head, /<button type="button" role="menuitem" data-more="settings">\$\{tr\('Settings'\)\}<\/button>/, 'its settings are in the menu too');
   // Drawn hidden, and shown at every drawing only where a group can be made: a server without groups, or no other bot, never shows it.
-  assert.ok(draw.includes("$('#bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));"));
+  assert.ok(draw.includes("part('bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));"));
   // It opens the picker, for the bot whose chat is open; the name still opens the settings.
-  assert.ok(draw.includes("$('#bot-add-to-chat').onclick = () => { const b = state.bots.find((x) => x.id === state.botId); if (b && canMakeGroup(b)) openGroupMaker(b); };"));
-  assert.ok(draw.includes("$('#bot-settings').onclick = () => setPanel('toggle');"));
+  assert.ok(draw.includes("part('bot-add-to-chat').onclick = () => { const b = botById(bot.id); if (b && canMakeGroup(b)) openGroupMaker(b); };"));
+  assert.ok(draw.includes("const settings = docked ? docked.settings : () => setPanel('toggle');"));
+  assert.ok(draw.includes("part('chat-title').onclick = settings;"));
   // Only there: not in the bot's settings, the Chief's chat or a group's.
-  assert.equal(app.split('bot-add-to-chat').length - 1, 3, 'the menu, its click and its showing');
+  assert.equal(app.split('bot-add-to-chat').length - 1, 4, 'the menu (its class and its id), its click and its showing');
   assert.ok(!src.includes('bot-add-to-chat'));
   assert.ok(!app.includes('bs-add') && !css.includes('bs-add'));
   // A long name is cut, the buttons keep their size.
-  assert.match(css, /#view-bot \.chat-head h2 \{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; \}/);
+  assert.match(css, /\.bot-view \.chat-head h2 \{ overflow: hidden; text-overflow: ellipsis; white-space: nowrap; \}/);
   assert.match(css, /\.chat-title \{[^}]*min-width: 0;/);
-  assert.ok(css.includes('#view-bot .chat-head .back-btn { flex: none; }'), 'a long name does not squeeze the back button');
+  assert.ok(css.includes('.bot-view .chat-head .back-btn { flex: none; }'), 'a long name does not squeeze the back button');
   assert.match(css, /\.icon-btn\.sm \{[^}]*flex: none;/);
 });
 

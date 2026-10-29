@@ -139,10 +139,11 @@ test('web: the bot chat hands the run\'s drafts on, from a server with drafts on
 });
 
 test('web: the bot chat follows every run that is going, each in its own row (ADR 062), and the streams of runs drawn before close', () => {
-  const all = cut('function followBotRuns(running)', '// A bot\'s running run as it happens');
-  assert.match(all, /for \(const es of state\.botStreams\.splice\(0\)\) es\.close\(\);\n  running\.forEach\(followBotRun\);/);
-  assert.match(cut('function renderBotChat()', '// Rejects when the task did not go'), /followBotRuns\(runs\.filter\(\(r\) => r\.status === 'running'\)\);/);
-  assert.match(cut('function followBotRun(run)', '// Follow a running run'), /state\.botStreams\.push\(es\);/);
+  const all = cut('function followBotRuns(running', '// A bot\'s running run as it happens');
+  // The open view's streams are the state's; a chat in the Projects screen's dock (#714) keeps its own.
+  assert.match(all, /const streams = root\?\.id === 'view-bot' \? state\.botStreams : \(root\._streams \|\|= \[\]\);\n  for \(const es of streams\.splice\(0\)\) es\.close\(\);\n  running\.forEach\(\(run\) => followBotRun\(run, root, streams\)\);/);
+  assert.match(cut('function renderBotChat(root', '// Rejects when the task did not go'), /followBotRuns\(runs\.filter\(\(r\) => r\.status === 'running'\), root\);/);
+  assert.match(cut('function followBotRun(run', '// Follow a running run'), /streams\.push\(es\);/);
 });
 
 test('web: the bot chat draws the draft in the running run\'s row and nowhere else; its end and a refresh draw the reply as before', () => {
@@ -152,9 +153,9 @@ test('web: the bot chat draws the draft in the running run\'s row and nowhere el
   assert.match(running, /data-live="\$\{esc\(r\.id\)\}">\$\{draftHTML\(replyDrafts\.of\(r\.id\), true\)\}\$\{botFilesHTML\(r\.files\)\}<\/div>/, 'the draft stands in the reply\'s row, in a stack as a reply\'s bubble, also when the chat is drawn again');
   assert.equal(drafts().ctx.draftHTML('Text\nmore', true), '<div class="stack draft-stack"><div class="bubble from-bot draft"><div class="md"><p>Text<br>more</p></div></div></div>');
   assert.doesNotMatch(ended, /replyDrafts|draft/i, 'an ended run is drawn as it always was: the same HTML, footer, choices, files and chips');
-  const follow = cut('function followBotRun(run)', '// Follow a running run');
-  assert.match(follow, /watchRun\(run\.id, \(\) => \{ state\.botStreams = state\.botStreams\.filter\(\(x\) => x !== es\); replyDrafts\.end\(run\.id\); refresh\(\); \}/, 'the end takes the draft away before the reply is drawn: a Stop leaves none');
-  assert.match(follow, /\(text\) => replyDrafts\.say\(run\.id, text, \(\) => \[\$\(`\[data-live="\$\{CSS\.escape\(run\.id\)\}"\]`\), \$\('#bot-thread'\)\]\)/);
+  const follow = cut('function followBotRun(run', '// Follow a running run');
+  assert.match(follow, /watchRun\(run\.id, \(\) => \{ const at = streams\.indexOf\(es\); if \(at !== -1\) streams\.splice\(at, 1\); replyDrafts\.end\(run\.id\); refresh\(\); \}/, 'the end takes the draft away before the reply is drawn: a Stop leaves none');
+  assert.match(follow, /\(text\) => replyDrafts\.say\(run\.id, text, \(\) => \[\$\(`\[data-live="\$\{CSS\.escape\(run\.id\)\}"\]`, root\), thread\(\)\]\)/);
 });
 
 // ---------- the Chief chat ----------

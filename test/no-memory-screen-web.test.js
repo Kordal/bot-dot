@@ -76,7 +76,7 @@ test('web: a memory chip opens nothing; the chips for jobs, skills and instructi
   for (const kind of ['instructions', 'skill', 'skill-updated', 'skill-pending', 'connector']) assert.equal(learnedOpens(kind), 'botsettings', kind);
   for (const kind of ['memory', 'memory-shared', 'forgot', undefined]) assert.equal(learnedOpens(kind), '', String(kind));
   // The click goes where learnedOpens says, and nowhere for a chip that is no button.
-  assert.match(app, /\$\$\('\[data-learned\]', thread\)\.forEach\(\(el\) => \(el\.onclick = \(\) => openLearned\(el, state\.botId\)\)\);/);
+  assert.match(app, /\$\$\('\[data-learned\]', thread\)\.forEach\(\(el\) => \(el\.onclick = \(\) => openLearned\(el, bot\.id\)\)\);/);
   const tap = (learned, skill) => { chips.state.openSkill = undefined; opened.length = 0; openLearned({ dataset: { learned, ...(skill ? { skill } : {}) } }, 'b1'); return opened[0] ?? null; };
   assert.deepEqual(tap('job'), ['botjobs', 'b1', undefined]);
   assert.deepEqual(tap('instructions'), ['botsettings', 'b1', undefined]);

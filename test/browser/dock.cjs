@@ -1,8 +1,9 @@
 // Optional browser check of the chats docked on the Projects screen (#691): node test/browser/dock.cjs [shots dir]
 // A bot clicked on the floor opens its chat at the bottom of the screen, the floor still under it; the next one opens
-// right of it and the first becomes a bar with its unread count; Minimize, a bar's click, a sideways drag, Close and
-// "+N" in a narrow window; the row and the open chat survive a reload. A phone opens the chat as a sheet from the
-// bottom, half or full height. Scratch data only.
+// right of it and the first stays expanded beside it (#714), a full chat that sends, replies and is read; minimized it
+// is a bar with its unread count; Minimize, a bar's click, a sideways drag, Close and "+N" in a narrow window; the row
+// and the open chat survive a reload. A phone opens the chat as a sheet from the bottom, half or full height, the
+// others as bars. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -54,12 +55,34 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     await page.locator('#dock-panel #view-bot textarea').press('Enter');
     await page.waitForFunction((bot) => state.runs.some((r) => r.botId === bot && r.prompt === 'hello'), id('Launch Poster')); // sent from the docked chat
 
-    // Weekly Tracker opens right of it; Launch Poster becomes a bar.
+    // Weekly Tracker opens right of it; Launch Poster stays expanded beside it, with what was typed in it (#714).
+    await page.locator('#dock-panel #view-bot textarea').fill('half a thought');
     await desk('Weekly Tracker').click();
     await page.locator('#dock-panel #bot-name', { hasText: 'Weekly Tracker' }).waitFor();
     assert.deepEqual(await keys(), [`bot:${id('Launch Poster')}`, `bot:${id('Weekly Tracker')}`]);
-    // A reply that came while its chat is a bar: the bar counts it.
-    await srv.api(`/bots/${id('Launch Poster')}/run`, { method: 'POST', body: { prompt: 'Draft 3 posts' } });
+    const poster = page.locator(`.dock-chat[data-key="bot:${id('Launch Poster')}"]`);
+    await poster.locator('.bot-name', { hasText: 'Launch Poster' }).waitFor();
+    assert.equal(await poster.locator('textarea').inputValue(), 'half a thought', 'what was typed went with it');
+    const pb = await poster.boundingBox();
+    assert.equal(Math.round(pb.width), 340);
+    assert.equal(Math.round(pb.height), 460);
+    assert.equal(await page.locator('#bot-thread').count(), 1, 'one element with each id: the expanded chat has none');
+    // It is a full chat: it sends, its reply comes into it, and it is read while it is on screen.
+    await poster.locator('textarea').fill('Draft 3 posts');
+    await poster.locator('textarea').press('Enter');
+    await page.waitForFunction((bot) => state.runs.some((r) => r.botId === bot && r.prompt === 'Draft 3 posts' && r.status !== 'running'), id('Launch Poster'), { timeout: 20000 });
+    await poster.locator('[data-reply-run]').last().waitFor({ state: 'attached', timeout: 20000 });
+    await page.waitForFunction((bot) => botById(bot)?.unread === 0, id('Launch Poster'), { timeout: 20000 });
+    assert.equal((await srv.api(`/bots/${id('Launch Poster')}`)).data.unread, 0, 'read on the server');
+    // Reply on its block: the chip is in its own box, not in the open chat's.
+    await poster.locator('[data-reply-run]').last().evaluate((b) => b.click());
+    await poster.locator('.reply-chip:not(.hidden)').waitFor();
+    assert.ok(await page.locator('#dock-panel .reply-chip').isHidden());
+    if (shots) await page.screenshot({ path: path.join(shots, 'wide-two-open.png') });
+    // Its own Minimize: a bar, which counts a reply that comes now.
+    await poster.locator('[data-dock-min-chat]').click();
+    await page.locator(`.dock-bar[data-key="bot:${id('Launch Poster')}"]`).waitFor();
+    await srv.api(`/bots/${id('Launch Poster')}/run`, { method: 'POST', body: { prompt: 'One more' } });
     await page.locator('.dock-bar .dock-n').waitFor({ timeout: 20000 });
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-open.png') });
 
@@ -86,8 +109,11 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     await page.locator('#dock-panel #bot-name', { hasText: 'Launch Poster' }).waitFor();
     await page.locator(`.dock-bar[data-key="bot:${id('Launch Poster')}"]`).waitFor({ state: 'detached' });
 
-    // Three more: a narrower window shows two and "+N"; the open one is always shown.
-    for (const n of ['Demo Scheduler', 'Feedback Collector', 'Landing Page Builder']) { await desk(n).click(); await page.locator('#dock-panel #bot-name', { hasText: n }).waitFor(); }
+    // Three more: each stays expanded beside the next; a narrower window shows two and "+N"; the open one is always shown.
+    // The chats expanded at the bottom may stand over a desk: the click goes to it as the owner's would after a scroll.
+    for (const n of ['Demo Scheduler', 'Feedback Collector', 'Landing Page Builder']) { await desk(n).dispatchEvent('click'); await page.locator('#dock-panel #bot-name', { hasText: n }).waitFor(); }
+    assert.ok(await page.locator('.dock-chat').count() >= 1, 'those opened before stay expanded');
+    if (shots) await page.screenshot({ path: path.join(shots, 'wide-many-open.png') });
     await page.setViewportSize({ width: 1100, height: 900 });
     await page.locator('.dock-more').waitFor();
     const shown = await keys();
@@ -112,13 +138,13 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     assert.ok(!(await keys()).includes(`bot:${id('Weekly Tracker')}`));
     const n = (await page.evaluate(() => JSON.parse(localStorage.getItem('botdot.dock')).items.length));
     assert.equal(n, 4);
-    await page.locator('.dock-bar .dock-x').last().click();
+    await page.locator('#dock .dock-x, #dock [data-dock-close-chat]').last().click();
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('botdot.dock')).items.length === 3);
     // The Bots place: no row.
     await page.locator('#place-switch [data-place="bots"]').click();
     assert.ok(await page.locator('#dock').isHidden());
     await page.locator('#place-switch [data-place="company"]').click();
-    await page.locator('#dock .dock-bar').first().waitFor();
+    await page.locator('#dock > .dock-item').first().waitFor();
     assert.deepEqual(errors, []);
 
     // A phone: the chat slides up as a sheet, half height; the grip makes it full height.

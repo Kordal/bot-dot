@@ -56,10 +56,10 @@ function page(features, runs = [RUN]) {
     sentTo: () => [], said: (v) => (typeof v === 'string' ? v.trim() : ''), plain: (t) => String(t || ''), Date, CHIEF_COLOR: '#d85a30', chiefTurns: new Map(),
     botById: (id) => state.bots.find((b) => b.id === id) || null, stopRun() {}, updateChatQueued() {},
     renderContacts: () => { drawn.contacts++; }, refresh: () => { drawn.refreshed++; },
-    $: (sel, root) => (sel === '#view-bot' ? { dataset: { bot: NEWS.id } } : sel === '#bot-thread' ? thread : sel === '.status-line' ? root.line : sel === '[data-stop-run]' ? { dataset: {} } : null),
+    $: (sel, root) => (sel === '#view-bot' ? { dataset: { bot: NEWS.id } } : sel === '#bot-thread' || sel === '.chat-thread' ? thread : sel === '.status-line' ? root.line : sel === '[data-stop-run]' ? { dataset: {} } : null),
   });
   vm.runInContext(`${cut('function placeStatusLines() {', '// Stop a run.')}
-    ${cut('function followBotRun(run) {', '// ---------- live screen preview')}
+    ${cut('function followBotRun(run', '// ---------- live screen preview')}
     ${cut('  // A working bot said its opening line:', '  // Its run ended, with an answer or without')}
     ${cut('  // Its run ended, with an answer or without', '  // A tile\'s new value')}
     ${cut('const STEP_ICON = {', '// The running blocks\' lines')}

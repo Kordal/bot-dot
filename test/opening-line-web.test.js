@@ -152,7 +152,8 @@ test('web: the page draws it under the chat and takes it away when the run ends'
   // Drawn by OpeningLine.status only, in the bot's colour and the Chief's, above the cards that wait.
   // A bot's runs at work say it in their blocks (bot-chat.js, #625): the line under its chat is there only for the
   // owner's message on its way to a bot that was free.
-  assert.match(app, /globalThis\.drawBlockLines\?\.\(\$\('#bot-thread'\)\);\n\s*drawStatusLine\(\$\('#bot-thread'\), botId && !working \? `bot:\$\{botId\}` : null, botById\(botId\)\?\.color, null\);/);
+  assert.match(app, /placeBotLines\(\$\('#bot-thread'\), \$\('#view-bot'\)\?\.dataset\.bot, arrivals\.bot\);/);
+  assert.match(app, /globalThis\.drawBlockLines\?\.\(thread\);\n\s*drawStatusLine\(thread, botId && !working \? `bot:\$\{botId\}` : null, botById\(botId\)\?\.color, null\);/);
   assert.match(app, /const kept = chat \? openingLines\.of\(chat\) : '';\n\s*const html = OpeningLine\.status\(stop && typeof stop === 'object' \? OpeningLine\.chiefLine\(doing, kept\) : kept \|\| doing, color, stop, held\);/);
   assert.equal((app.match(/status-line/g) || []).length, 1, 'app.js only finds the line; its markup is OpeningLine\'s');
 });

@@ -191,7 +191,7 @@ test('web: Send stays: the box of a bot and of the Chief has Send whether or not
     assert.equal(p.boxes.chief.btn.type, 'submit');
     assert.equal(p.boxes.chief.btn.onclick, null);
   }
-  assert.match(cut('function renderBotChat() {', '// Rejects when the task did not go'), /setSendBusy\(\$\('form', root\), false\);/, 'a bot\'s box never had Stop');
+  assert.match(cut('function renderBotChat(root', '// Rejects when the task did not go'), /setSendBusy\(\$\('form', root\), false\);/, 'a bot\'s box never had Stop');
   assert.doesNotMatch(cut('function composerHTML(placeholder', '// Files attached in a composer'), /stop/i, 'the box is drawn with Send alone');
 });
 
