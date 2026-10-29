@@ -67,7 +67,10 @@ const { startServer, makeBot } = require('../helpers');
     assert.deepEqual(await st('Chief of Staff'), ['idle', 'Idle']);
     assert.equal(await page.locator('#kp-keys .key-dot').count(), 0, 'no dot on a head');
     const colour = (name) => page.locator(`#kp-keys .key[title^="${name}"] .key-st`).evaluate((el) => getComputedStyle(el).color);
-    assert.notEqual(await colour('News Monitor'), await colour('Home Helper'), 'each state in its colour');
+    assert.equal(await colour('News Monitor'), await colour('Inbox Triage'), 'muted words, the state\'s colour in its dot (#724)');
+    assert.notEqual(await colour('News Monitor'), await colour('Home Helper'), 'Needs you keeps its colour');
+    const dot = (name) => page.locator(`#kp-keys .key[title^="${name}"] .key-st`).evaluate((el) => getComputedStyle(el, '::before').backgroundColor);
+    assert.notEqual(await dot('News Monitor'), await dot('Inbox Triage'), 'each state in its dot\'s colour');
     const top = async (name) => (await page.locator(`#kp-keys .key[title^="${name}"]`).boundingBox()).y;
     assert.equal(await top('Inbox Triage'), await top('Server Watch'), 'the categories side by side');
     await page.evaluate((id) => setView('bot', id), watch.id); // its key in the soft box of the open one
