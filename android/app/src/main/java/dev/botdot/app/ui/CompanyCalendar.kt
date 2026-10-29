@@ -34,7 +34,6 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -259,12 +258,12 @@ private fun EventForm(ui: CompanyUi, day: LocalDate, event: CalendarItem?, onSav
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, p.line2, RoundedCornerShape(16.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             YouHead(28)
-            OutlinedTextField(title, { title = it.take(200) }, singleLine = true, enabled = !busy, placeholder = { Text(tr("Add an event")) },
+            Field(title, { title = it.take(200) }, singleLine = true, enabled = !busy, placeholder = { Text(tr("Add an event")) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { go() }),
                 modifier = Modifier.weight(1f).semantics { contentDescription = tr("Add an event") })
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(time, { time = it.take(5) }, singleLine = true, enabled = !busy, isError = hhmm == null, placeholder = { Text("--:--") },
+            Field(time, { time = it.take(5) }, singleLine = true, enabled = !busy, isError = hhmm == null, placeholder = { Text("--:--") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { go() }),
                 modifier = Modifier.widthIn(max = 110.dp).semantics { contentDescription = tr("Time") })
             if (event != null) Text(dueLabel(moveTo ?: day.toString()), color = p.text, fontSize = Type.s14,

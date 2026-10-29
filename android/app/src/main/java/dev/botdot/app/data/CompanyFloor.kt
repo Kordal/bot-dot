@@ -145,6 +145,14 @@ object CompanyFloor {
         runCatching { Instant.parse(it).plusSeconds(29L * 86_400).atZone(zone).toLocalDate() }.getOrNull()
     }
 
+    /** Where its number comes from (#699): the app and when it last gave a number, that its last read failed, or that the first read waits. Null without a source. */
+    fun sourceLine(o: Objective, now: Instant = Instant.now()): String? {
+        val s = o.source?.takeIf { it.app.isNotEmpty() } ?: return null
+        val at = s.readAt?.let { NotesWake.ago(it, now) }?.takeIf { it.isNotEmpty() }
+        val whenWords = if (s.failed != null) tr("Couldn't update") else at ?: tr("Updating…")
+        return "${CompanySetup.appName(s.app)} · $whenWords"
+    }
+
     /** How many of an objective's steps are done. */
     fun stepsDone(o: Objective): Int = o.steps.count { it.done }
 

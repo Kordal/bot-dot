@@ -102,7 +102,8 @@ data class TeamReport(val text: String = "", val at: String? = null, val bot: St
 /**
  * An objective of the 90 days (#669): its number now and the one aimed at, in its colour (a team of that colour moves
  * it). How it is shown (#690): [display] pace, bar or status (null: the app picks), [steps] the checklist of one with no
- * number, [done] the tick of one with neither, [history] its last value of each day it changed.
+ * number, [done] the tick of one with neither, [history] its last value of each day it changed. [source] the connected app
+ * its number is read from (#699).
  */
 @Serializable
 data class Objective(
@@ -116,7 +117,12 @@ data class Objective(
     val steps: List<ObjectiveStep> = emptyList(),
     val done: Boolean = false,
     val history: List<DayValue> = emptyList(),
+    val source: ObjectiveSource? = null,
 )
+
+/** Where an objective's number is read from (#699): the app, what is read there, when it last gave a number, why the last try failed. */
+@Serializable
+data class ObjectiveSource(val app: String = "", val what: String = "", val every: String = "daily", val readAt: String? = null, val triedAt: String? = null, val failed: String? = null)
 
 @Serializable
 data class ObjectiveStep(val text: String = "", val done: Boolean = false)

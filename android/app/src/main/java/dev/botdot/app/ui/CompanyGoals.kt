@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.BarChart
@@ -55,7 +56,8 @@ import java.time.format.DateTimeFormatter
  * The objectives above the floor (#690, #704; web: goalsHTML in public/company-home.js): a card each, drawn as the owner
  * picked under "Show as": a pace chart against the line to its target by default, a bar with the number, or its status
  * (an objective with no number shows its steps as a checklist, or one tick). On day 1 a numeric one shows where it
- * starts in place of a chart. The rules are [CompanyFloor]'s.
+ * starts in place of a chart, and one read from a connected app (#699) says when it last updated. The rules are
+ * [CompanyFloor]'s.
  */
 @Composable
 internal fun Goals(ui: CompanyUi, c: Company) {
@@ -79,6 +81,8 @@ private fun GoalCard(ui: CompanyUi, c: Company, o: Objective) {
             Dot(o.color)
             Text(o.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f).padding(horizontal = Space.s8))
+            CompanyFloor.sourceLine(o)?.let { Text(it, color = if (o.source?.failed != null) p.warnText else p.faint, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(end = Space.s8).widthIn(max = 140.dp)) }
             if (o.steps.isNotEmpty()) Text("${CompanyFloor.stepsDone(o)}/${o.steps.size}", color = p.faint, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(end = Space.s8))
             Box {

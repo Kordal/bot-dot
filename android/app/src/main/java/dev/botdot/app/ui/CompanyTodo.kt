@@ -35,7 +35,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -213,7 +212,7 @@ private fun AddTodo(ui: CompanyUi, c: Company, bots: List<Bot>) {
                 }
             }
         }
-        OutlinedTextField(typed, { typed = it.take(300) }, singleLine = true, enabled = !adding, placeholder = { Text(tr("Add a task")) },
+        Field(typed, { typed = it.take(300) }, singleLine = true, enabled = !adding, placeholder = { Text(tr("Add a task")) },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (typed.isNotBlank()) go() }),
             modifier = Modifier.weight(1f).semantics { contentDescription = tr("Add a task") })
         val r = repeat
@@ -252,7 +251,7 @@ private fun WhenSheet(due: String?, repeat: Repeat?, onChange: (String?, Repeat?
         }
         if (r?.every == "days") {
             var n by remember(r.n) { mutableStateOf((r.n ?: 2).toString()) }
-            OutlinedTextField(n, { v -> n = v.filter(Char::isDigit).take(3); n.toIntOrNull()?.let { onChange(due, ProjectTodo.everyN(r, it)) } }, singleLine = true,
+            Field(n, { v -> n = v.filter(Char::isDigit).take(3); n.toIntOrNull()?.let { onChange(due, ProjectTodo.everyN(r, it)) } }, singleLine = true,
                 label = { Text(tr("Days")) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.widthIn(max = 160.dp))
         }
     }

@@ -101,6 +101,17 @@ class CompanyGoalsTest {
         assertNull(CompanyFloor.checkinDate(null)); assertNull(CompanyFloor.checkinDate("soon"))
     }
 
+    @Test fun aGoalReadFromAnAppSaysWhenItLastUpdated() {
+        val now = java.time.Instant.parse("2026-10-29T12:00:00Z")
+        val read = CompanySetup.of("""{"id":"c","objectives":[{"id":"o","name":"Subs","target":50,"current":12,
+            "source":{"app":"stripe","what":"active subscriptions","every":"daily","readAt":"2026-10-29T10:00:00Z"}}]}""").objectives[0]
+        assertEquals("active subscriptions", read.source!!.what)
+        assertEquals("Stripe · 2h ago", CompanyFloor.sourceLine(read, now))
+        assertEquals("Stripe · Couldn't update", CompanyFloor.sourceLine(read.copy(source = read.source!!.copy(failed = "No number")), now))
+        assertEquals("Stripe · Updating…", CompanyFloor.sourceLine(read.copy(source = read.source!!.copy(readAt = null)), now))
+        assertNull(CompanyFloor.sourceLine(Objective(target = 5.0), now))
+    }
+
     @Test fun theGoalsAndReportsCallsGoWhereTheWebSendsThem() = runBlocking {
         repeat(5) { server.enqueue(json(running)) }
         val o2 = CompanySetup.of(running).objectives[1]
