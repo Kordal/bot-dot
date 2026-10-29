@@ -4,7 +4,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -15,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.DocumentExport
 import dev.botdot.app.data.tr
@@ -43,11 +41,11 @@ fun OpenAsDocument(text: String?, from: String) {
     if (!long) return
     val p = LocalPaper.current
     Row(
-        Modifier.padding(top = 10.dp).clip(RoundedCornerShape(99.dp)).border(1.dp, p.line2, RoundedCornerShape(99.dp))
+        Modifier.padding(top = Space.s12).clip(Radius.pill).border(1.dp, p.line2, Radius.pill)
             .clickable { DocViewer.open = DocViewer.Request(src = "", name = documentTitle(text), from = from, text = text) }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = Space.s12, vertical = Space.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(tr("Open as document") + "  ↗", color = p.text, fontSize = 13.sp)
+        Text(tr("Open as document") + "  ↗", color = p.text, fontSize = Type.s14)
     }
 }

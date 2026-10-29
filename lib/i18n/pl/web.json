@@ -1635,5 +1635,13 @@
   "Tomorrow": "Jutro",
   "Days": "Dni",
   "Due": "Termin",
-  "To-do": "Do zrobienia"
+  "To-do": "Do zrobienia",
+  "Chats": "Czaty",
+  "Taller or lower": "Wyżej lub niżej",
+  "{n} more chats": {
+    "one": "Jeszcze {n} czat",
+    "few": "Jeszcze {n} czaty",
+    "many": "Jeszcze {n} czatów"
+  },
+  "Minimize": "Zwiń"
 }

@@ -107,7 +107,7 @@ const Company = (() => {
   function drawSide() {
     const side = $('#company-side');
     if (!side || !shows()) return;
-    const here = state.view === 'company';
+    const here = state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked());
     const chief = `<button type="button" class="co-row co-chief${state.view === 'chief' ? ' here' : ''}" data-open-chief>${chiefFigure('sm')}<span>${esc(chiefTitle())}</span></button>`;
     if (!many()) {
       const c = company();
@@ -316,7 +316,7 @@ const Company = (() => {
     state.company = d.company;
     loaded = true;
     drawSide();
-    if (state.view === 'company') render();
+    if (state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked())) render();
   }
   // The feed's `project` event: one project as it is now, or null once deleted.
   function projectChanged(d) {

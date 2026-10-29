@@ -4,14 +4,12 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -202,8 +200,8 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                 state = listState,
                 reverseLayout = true,
                 // The top bar and the message box float over the messages, which scroll behind them.
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = pad.calculateTopPadding() + 4.dp, bottom = pad.calculateBottomPadding() + 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom), // few messages: at the bottom, by the message box
+                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
+                verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom), // few messages: at the bottom, by the message box
             ) {
                 // Last in the chat: the Chief's working line while it replies, then your messages that wait for the
                 // reply to end, then what it set up or asked for. Where Send stays, the line is all there is of its
@@ -223,7 +221,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                 // A new chat starts like the web page's: the Chief's figure, a heading and the suggestions, in the middle.
                 if (messages.isEmpty() && sent == null) item {
                     Column(
-                        Modifier.fillParentMaxSize().padding(horizontal = 8.dp),
+                        Modifier.fillParentMaxSize().padding(horizontal = Space.s8),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center,
                     ) {
@@ -233,12 +231,12 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                         Spacer(Modifier.size(6.dp))
                         Text(tr("Ask for anything. I'll hand it to the right bot, or build a new one."), color = p.muted, textAlign = TextAlign.Center)
                         Spacer(Modifier.size(22.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val shape = RoundedCornerShape(16.dp)
+                        Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                            val shape = Radius.card
                             SUGGESTIONS.forEach { s ->
-                                Text(s, color = p.muted, fontSize = 13.5.sp, lineHeight = 19.sp,
+                                Text(s, color = p.muted, fontSize = Type.s14, lineHeight = Type.line20,
                                     modifier = Modifier.fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line, shape)
-                                        .clickable { send(s, files.take()) }.padding(horizontal = 14.dp, vertical = 12.dp))
+                                        .clickable { send(s, files.take()) }.padding(horizontal = Space.s16, vertical = Space.s12))
                             }
                         }
                     }
@@ -246,7 +244,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                 itemsIndexed(newestFirst, key = { i, m -> "${first + messages.size - 1 - i}:${m.at}" }) { i, m ->
                     // A reply that is new in this open chat arrives; the owner's own message and a reply still
                     // being written are no replies, and stand still.
-                    Column(Modifier.arrives(arrivals, "${first + messages.size - 1 - i}".takeUnless { m.role == "user" || m.pending }), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.arrives(arrivals, "${first + messages.size - 1 - i}".takeUnless { m.role == "user" || m.pending }), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                         if (newAt >= 0 && messages.size - 1 - i == newAt) NewLine(CHIEF_COLOR)
                         val chips = m.actions.orEmpty().filterNot { MailCard.takesChip(m.draft, it) }.map { a -> // a mail draft's card names its bot in its footer
                             val bot = botById[a.botId]
@@ -306,7 +304,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
         // did so far stands here, with its draft from a server that sends one (ReplyDraft), growing in the reply's
         // place. Against a botdot from before `message-waits`, its bubble as it was.
         m.pending && draft.isNotEmpty() -> TheirBubble(chips = chips) { MarkdownText(draftSource(draft), copy = false) }
-        m.pending -> if (lineSaysIt) { if (chips.isNotEmpty()) ActionChips(chips) } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        m.pending -> if (lineSaysIt) { if (chips.isNotEmpty()) ActionChips(chips) } else Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Working(activity.lastOrNull()?.let { "$it…" } ?: tr("Thinking…"), activity)
             if (chips.isNotEmpty()) ActionChips(chips)
         }
@@ -335,7 +333,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
                         m.botPages.forEach { (botId, pages) -> PageChips(botId, pages, pages.first().bot) } // the pages its bots saved for it
                         // A reply that failed after writing: its problem, in a block of its own under the text.
                         if (error != null) MarkdownText(error, color = p.warnText,
-                            modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.warnSoft).padding(horizontal = 12.dp, vertical = 8.dp))
+                            modifier = Modifier.padding(top = Space.s8).fillMaxWidth().clip(Radius.card).background(p.warnSoft).padding(horizontal = Space.s12, vertical = Space.s8))
                         PlanFold(plan) // the steps of its work, folded under it
                     }
                 }
@@ -389,25 +387,25 @@ private fun FromLine(words: String, from: dev.botdot.app.data.BotRef?) {
         append("$words ")
         if (from != null) bot(named(w?.bot(from.id), from.name, from.color)) else append(tr("a bot"))
     }
-    FigureText(line, color = LocalPaper.current.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+    FigureText(line, color = LocalPaper.current.muted, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s8))
 }
 
 /** A bot's suggestion for the Chief: nothing happens until you tap Approve (or answer in your own words). */
 @Composable
 private fun Suggestion(m: ChiefMessage, onBuild: () -> Unit, onDismiss: () -> Unit) {
     val p = LocalPaper.current
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val shape = Radius.mine
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         FromLine(tr("Suggestion from"), m.from)
-        Column(Modifier.padding(start = 32.dp).clip(shape).holdToCopy(m.text).background(p.sunk).border(1.dp, p.line2, shape).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(Modifier.padding(start = Space.s32).clip(shape).holdToCopy(m.text).background(p.sunk).border(1.dp, p.line2, shape).padding(horizontal = Space.s16, vertical = Space.s12)) {
             MarkdownText(m.text)
         }
         when (m.status) {
-            "pending" -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            "pending" -> Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 OutlinedButton(onClick = onDismiss) { Text(tr("Decline"), color = p.text) }
                 Button(onClick = onBuild, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Approve")) }
             }
-            "dismissed" -> Text(tr("You declined it"), color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+            "dismissed" -> Text(tr("You declined it"), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s8))
         }
     }
 }
@@ -416,11 +414,11 @@ private fun Suggestion(m: ChiefMessage, onBuild: () -> Unit, onDismiss: () -> Un
 @Composable
 private fun Report(m: ChiefMessage) {
     val p = LocalPaper.current
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val shape = Radius.mine
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         FromLine(tr("Message from"), m.from)
         // A task it didn't finish (`error: true`) is drawn like a failed reply; its text says why.
-        Column(Modifier.padding(start = 32.dp).clip(shape).holdToCopy(m.text).background(if (m.failed) p.errSoft else p.sunk).border(1.dp, if (m.failed) p.err.copy(alpha = 0.3f) else p.line2, shape).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(Modifier.padding(start = Space.s32).clip(shape).holdToCopy(m.text).background(if (m.failed) p.errSoft else p.sunk).border(1.dp, if (m.failed) p.err.copy(alpha = 0.3f) else p.line2, shape).padding(horizontal = Space.s16, vertical = Space.s12)) {
             if (m.text.isNotBlank()) MarkdownText(m.text) // a file it sent while working has no text
             if (!m.failed) OpenAsDocument(m.text, m.from?.name.orEmpty())
             BotFilesRow(m.files, top = if (m.text.isNotBlank()) 8.dp else 0.dp)
