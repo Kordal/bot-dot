@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -156,12 +155,12 @@ fun SettingsScreen(
     ) { pad ->
         // One flat list (#636): a row per setting, its value and a chevron, and no helper text. Each row that holds
         // more opens under itself, closed whenever Settings opens.
-        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 6.dp)) {
+        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8)) {
             Link(tr("Skills"), onClick = onSkills)
             if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link(tr("Pages"), onClick = onPages) // every bot's pages (#361)
             Link(tr("Connectors"), onClick = onConnectors)
             Link(tr("Vault"), onClick = onVault)
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(Space.s16))
 
             Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
             if (canThink(edit.defaultModel)) Choice(tr("Reasoning"), edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
@@ -211,7 +210,7 @@ fun SettingsScreen(
                     if (keys && keyOpen && loginUrl == null) {
                         OutlinedTextField(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Button(onClick = { val key = apiKey; keyChange(tr("Saved. Bots now run on your API key")) { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
                                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
                             TextButton(onClick = { keyOpen = false; apiKey = "" }) { Text(tr("Cancel"), color = p.text) }
@@ -249,7 +248,7 @@ fun SettingsScreen(
                         OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }
                         OutlinedTextField(code, { code = it.trim() }, label = { Text(tr("Code")) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Button(onClick = {
                                 scope.launch {
                                     runCatching { api!!.claudeCode(code) }.onSuccess { tell(claudeCouldNotTell(it) ?: tr("Signed in to Claude")) }.onError { tell(it.message ?: tr("That code didn't work")) }
@@ -268,7 +267,7 @@ fun SettingsScreen(
                     if (!b.configured) Hint(tr("Turn them on in botdot's web page."))
                     else {
                         if (!b.error.isNullOrBlank()) Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                             OutlinedButton(enabled = !backingUp && !b.running, onClick = {
                                 backingUp = true
                                 scope.launch { runCatching { api!!.backupNow() }.onSuccess { backups = it; tell(tr("Backed up")) }.onError { tell(it.message ?: tr("Couldn't back up")) }; backingUp = false }
@@ -407,10 +406,10 @@ private fun KeyOffer(saved: Boolean, onUse: () -> Unit, onNew: () -> Unit) {
 private fun Link(text: String, value: String? = null, onClick: () -> Unit) {
     val p = LocalPaper.current
     Column {
-        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
             Text(text, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            if (!value.isNullOrBlank()) Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp).widthIn(max = 220.dp))
-            Text("›", color = p.faint, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
+            if (!value.isNullOrBlank()) Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12).widthIn(max = 220.dp))
+            Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
         }
         Rule()
     }

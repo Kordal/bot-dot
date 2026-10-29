@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -86,7 +85,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.Attachment
 import dev.botdot.app.data.FileMentions
@@ -139,7 +137,7 @@ fun RoundButton(label: String, modifier: Modifier = Modifier, size: Dp = 40.dp, 
         contentAlignment = Alignment.Center,
     ) {
         content()
-        if (dot) Box(Modifier.align(Alignment.TopEnd).padding(8.dp).size(7.dp).clip(CircleShape).background(p.warn))
+        if (dot) Box(Modifier.align(Alignment.TopEnd).padding(Space.s8).size(7.dp).clip(CircleShape).background(p.warn))
     }
 }
 
@@ -162,8 +160,8 @@ fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onB
     val toggle = LocalListToggle.current
     Row(
         Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(p.bg, p.bg.copy(alpha = 0.85f), p.bg.copy(alpha = 0f))))
-            .statusBarsPadding().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .statusBarsPadding().padding(start = Space.s12, end = Space.s12, top = Space.s8, bottom = Space.s12),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
         if (toggle == null) RoundButton(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), onClick = onBack)
         else RoundButton(tr("Show or hide the list"), onClick = toggle) {
@@ -179,12 +177,12 @@ fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onB
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Row(
                 Modifier.weight(1f, fill = false).height(40.dp).clip(CircleShape).background(p.sunk).border(1.dp, p.line2, CircleShape)
-                    .clickable(onClick = onName).semantics { contentDescription = nameLabel }.padding(start = 4.dp, end = 14.dp),
+                    .clickable(onClick = onName).semantics { contentDescription = nameLabel }.padding(start = Space.s4, end = Space.s16),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (picture != null) picture() else BotFigure(color, state, 32, outfit)
                 Spacer(Modifier.size(6.dp))
-                Text(name, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             beside?.invoke()
         }
@@ -239,15 +237,15 @@ fun FileChip(name: String, note: String? = null, onDark: Boolean = false, onRemo
     val p = LocalPaper.current
     val fg = if (onDark) p.inkText else p.text
     Row(
-        Modifier.clip(RoundedCornerShape(99.dp))
+        Modifier.clip(Radius.pill)
             .background(if (onDark) p.inkText.copy(alpha = 0.14f) else p.panel)
-            .border(1.dp, if (onDark) p.inkText.copy(alpha = 0.25f) else p.line2, RoundedCornerShape(99.dp))
-            .padding(start = 10.dp, end = if (onRemove != null) 2.dp else 10.dp, top = 4.dp, bottom = 4.dp),
+            .border(1.dp, if (onDark) p.inkText.copy(alpha = 0.25f) else p.line2, Radius.pill)
+            .padding(start = Space.s12, end = if (onRemove != null) Space.s4 else Space.s12, top = Space.s4, bottom = Space.s4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text("${fileIcon(name)} ", fontSize = 13.sp)
-        Text(name, color = fg, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 180.dp))
-        if (note != null) Text("  $note", color = p.faint, fontSize = 12.sp)
+        Text("${fileIcon(name)} ", fontSize = Type.s14)
+        Text(name, color = fg, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 180.dp))
+        if (note != null) Text("  $note", color = p.faint, fontSize = Type.s12)
         if (onRemove != null) IconButton(onClick = onRemove, modifier = Modifier.size(26.dp)) {
             Icon(Icons.Filled.Close, contentDescription = tr("Remove"), modifier = Modifier.size(14.dp), tint = p.faint)
         }
@@ -268,12 +266,12 @@ val LocalOwnFiles = compositionLocalOf<((Attachment) -> String?)?> { null }
 fun FilesRow(files: List<Attachment>, onDark: Boolean) {
     val paths = LocalPathActions.current
     val own = LocalOwnFiles.current
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+    Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
         files.forEach { f ->
             val src = if (paths == null && f.file.isNotBlank()) own?.invoke(f) else null
             when {
-                paths != null && f.file.isNotBlank() -> Box(Modifier.clip(RoundedCornerShape(99.dp)).clickable { paths.open(f.file, f.name) }) { FileChip(f.name, onDark = onDark) }
-                src != null -> Box(Modifier.clip(RoundedCornerShape(99.dp)).clickable { DocViewer.open = DocViewer.Request(src, f.name) }) { FileChip(f.name, onDark = onDark) }
+                paths != null && f.file.isNotBlank() -> Box(Modifier.clip(Radius.pill).clickable { paths.open(f.file, f.name) }) { FileChip(f.name, onDark = onDark) }
+                src != null -> Box(Modifier.clip(Radius.pill).clickable { DocViewer.open = DocViewer.Request(src, f.name) }) { FileChip(f.name, onDark = onDark) }
                 else -> FileChip(f.name, onDark = onDark)
             }
         }
@@ -305,11 +303,11 @@ fun BotFilesRow(files: List<Attachment>?, top: androidx.compose.ui.unit.Dp = 8.d
         Unit
     }
     val (images, others) = files.partition { isImage(it.name) }
-    Column(Modifier.padding(top = top), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.padding(top = top), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         images.forEach { f -> BotImage(f, onClick = { if (opening == null) open(f) }) }
-        if (others.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        if (others.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             others.forEach { f ->
-                Box(Modifier.clip(RoundedCornerShape(99.dp)).clickable(enabled = opening == null) { open(f) }) {
+                Box(Modifier.clip(Radius.pill).clickable(enabled = opening == null) { open(f) }) {
                     FileChip(f.name, note = if (opening == f.file) tr("opening…") else null)
                 }
             }
@@ -327,15 +325,15 @@ fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>, name: Str
     if (!dev.botdot.app.data.Pages.shows(server?.features)) return
     if (botId == dev.botdot.app.data.Pages.CHIEF && !dev.botdot.app.data.Pages.showsChief(server?.features)) return
     val from = name ?: LocalPathActions.current?.from.orEmpty()
-    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         pages.forEach { page ->
-            Row(Modifier.widthIn(max = 320.dp).clip(RoundedCornerShape(14.dp)).background(p.panel).border(1.dp, p.line2, RoundedCornerShape(14.dp))
-                .clickable { DocViewer.open = DocViewer.page(botId, page, from) }.padding(horizontal = 12.dp, vertical = 9.dp),
+            Row(Modifier.widthIn(max = 320.dp).clip(Radius.card).background(p.panel).border(1.dp, p.line2, Radius.card)
+                .clickable { DocViewer.open = DocViewer.page(botId, page, from) }.padding(horizontal = Space.s12, vertical = Space.s8),
                 verticalAlignment = Alignment.CenterVertically) {
-                Text("📄", fontSize = 18.sp)
-                Column(Modifier.padding(start = 10.dp)) {
-                    Text(page.title, color = p.text, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(tr("Page"), color = p.faint, fontSize = 12.sp)
+                Text("📄", fontSize = Type.s16)
+                Column(Modifier.padding(start = Space.s12)) {
+                    Text(page.title, color = p.text, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(tr("Page"), color = p.faint, fontSize = Type.s12)
                 }
             }
         }
@@ -351,17 +349,17 @@ fun ReconnectCards(cards: List<dev.botdot.app.data.ReconnectCard>) {
     val app = BotDotApp.of(context)
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
-    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         cards.forEach { card ->
             var step by remember(card.app) { mutableStateOf(dev.botdot.app.data.ReconnectStep.Ready) }
             var problem by remember(card.app) { mutableStateOf<String?>(null) }
-            Column(Modifier.widthIn(max = 320.dp).clip(RoundedCornerShape(14.dp)).background(p.panel).border(1.dp, p.line2, RoundedCornerShape(14.dp))
-                .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)) {
+            Column(Modifier.widthIn(max = 320.dp).clip(Radius.card).background(p.panel).border(1.dp, p.line2, Radius.card)
+                .padding(start = Space.s12, end = Space.s4, top = Space.s4, bottom = Space.s4)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(androidx.compose.ui.text.buildAnnotatedString {
                         withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(card.label) }
                         append(" " + tr("is signed out"))
-                    }, color = p.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    }, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     androidx.compose.material3.TextButton(enabled = step != dev.botdot.app.data.ReconnectStep.Opening, onClick = {
                         step = dev.botdot.app.data.ReconnectStep.Opening
                         problem = null
@@ -376,7 +374,7 @@ fun ReconnectCards(cards: List<dev.botdot.app.data.ReconnectCard>) {
                         }
                     }) { Text(step.button, color = p.okText) }
                 }
-                problem?.let { Text(it, color = p.err, fontSize = 13.sp, modifier = Modifier.padding(end = 8.dp, bottom = 6.dp)) }
+                problem?.let { Text(it, color = p.err, fontSize = Type.s14, modifier = Modifier.padding(end = Space.s8, bottom = Space.s8)) }
             }
         }
     }
@@ -392,7 +390,7 @@ private fun BotImage(f: Attachment, onClick: () -> Unit) {
     val api by app.api.collectAsState()
     val url = api?.url("/files/" + f.file.split('/').joinToString("/") { Api.enc(it) }) ?: return FileChip(f.name, note = tr("loading…"))
     var shown by remember(url) { mutableStateOf(false) }
-    val shape = RoundedCornerShape(10.dp)
+    val shape = Radius.small
     Box {
         // Decoded at the size it's shown (not the photo's own), and kept in memory and on disk (see BotDotApp).
         coil3.compose.AsyncImage(
@@ -414,7 +412,7 @@ fun UnreadDots(unread: Int, color: String?, modifier: Modifier = Modifier) {
     val shown = Unread.dots(unread)
     if (shown == 0) return
     val c = parseColor(color, LocalPaper.current.faint)
-    Row(modifier.semantics(mergeDescendants = true) { contentDescription = if (shown == 1) tr("New reply") else tr("New replies") }, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    Row(modifier.semantics(mergeDescendants = true) { contentDescription = if (shown == 1) tr("New reply") else tr("New replies") }, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
         repeat(shown) { Box(Modifier.size(7.dp).clip(CircleShape).background(c)) }
     }
 }
@@ -423,9 +421,9 @@ fun UnreadDots(unread: Int, color: String?, modifier: Modifier = Modifier) {
 @Composable
 fun NewLine(color: String?) {
     val c = parseColor(color, LocalPaper.current.faint)
-    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
         Box(Modifier.weight(1f).height(1.dp).background(c.copy(alpha = 0.45f)))
-        Text(tr("New"), color = c, fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr("New"), color = c, fontSize = Type.s12, fontWeight = FontWeight.SemiBold)
         Box(Modifier.weight(1f).height(1.dp).background(c.copy(alpha = 0.45f)))
     }
 }
@@ -456,15 +454,15 @@ fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (()
     val c = parseColor(color, p.faint)
     val clock = movingClock(!still)
     // With Stop the row is as high as its touch target, which then stands for the line's own space above and below.
-    Row(Modifier.fillMaxWidth().padding(start = 2.dp).then(if (onStop != null) Modifier else if (room) Modifier.heightIn(min = 48.dp) else Modifier.padding(top = 8.dp, bottom = 4.dp)), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = Space.s4).then(if (onStop != null) Modifier else if (room) Modifier.heightIn(min = 48.dp) else Modifier.padding(top = Space.s8, bottom = Space.s4)), verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f, fill = false).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             Canvas(Modifier.size(7.dp)) {
                 // As the web page's: down to a quarter and back, every 1.2 seconds.
                 val a = clock?.let { 0.625f + 0.375f * cos(2 * PI * (it.ms.longValue % 1200L) / 1200.0).toFloat() } ?: 1f
                 drawCircle(c.copy(alpha = a))
             }
-            Text(text, color = p.muted, fontSize = 13.sp, lineHeight = 18.sp)
+            Text(text, color = p.muted, fontSize = Type.s14, lineHeight = Type.line20)
         }
         if (onStop != null) WordButton(stopWord, p.faint, onStop)
     }
@@ -473,9 +471,9 @@ fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (()
 /** A small word that is a button ("Stop", "Take back"): 48 dp high and at least as wide to the touch, read out as a button. */
 @Composable
 fun WordButton(word: String, color: Color, onClick: () -> Unit) {
-    Box(Modifier.heightIn(min = 48.dp).widthIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 10.dp),
+    Box(Modifier.heightIn(min = 48.dp).widthIn(min = 48.dp).clip(Radius.small).clickable(role = Role.Button, onClick = onClick).padding(horizontal = Space.s12),
         contentAlignment = Alignment.Center) {
-        Text(word, color = color, fontSize = 12.sp)
+        Text(word, color = color, fontSize = Type.s12)
     }
 }
 
@@ -497,7 +495,7 @@ fun WaitingMessage(q: dev.botdot.app.data.Queued, who: String, onSteer: (() -> U
  */
 @Composable
 fun SentBubble(m: SentMessage, above: Boolean, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().padding(top = if (above) 0.dp else 6.dp, bottom = if (above) 10.dp else 0.dp).alpha(0.5f)) { MyBubble(m.text, m.attachments) }
+    Box(modifier.fillMaxWidth().padding(top = if (above) 0.dp else Space.s8, bottom = if (above) Space.s12 else 0.dp).alpha(0.5f)) { MyBubble(m.text, m.attachments) }
 }
 
 /** A waiting message with its words given: [waits] says what it waits for (in a group: for which members). */
@@ -507,7 +505,7 @@ fun WaitingMessage(text: String, attachments: List<Attachment>, waits: String, o
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         Box(Modifier.alpha(0.5f)) { MyBubble(text, attachments) }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(waits, color = p.faint, fontSize = 12.sp)
+            Text(waits, color = p.faint, fontSize = Type.s12)
             if (onSteer != null) WordButton(tr("Steer"), p.muted, onSteer)
             WordButton(tr("Take back"), p.muted, onTakeBack)
         }
@@ -518,7 +516,7 @@ fun WaitingMessage(text: String, attachments: List<Attachment>, waits: String, o
 @Composable
 fun WaitingMessages(queued: List<dev.botdot.app.data.Queued>, who: String, onSteer: ((dev.botdot.app.data.Queued) -> Unit)? = null, onTakeBack: (dev.botdot.app.data.Queued) -> Unit) {
     if (queued.isEmpty()) return
-    Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
         queued.forEach { q -> androidx.compose.runtime.key(q.id) { WaitingMessage(q, who, onSteer?.let { steer -> { steer(q) } }) { onTakeBack(q) } } }
     }
 }
@@ -532,7 +530,7 @@ fun SteeredMessage(m: dev.botdot.app.data.Steered) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
         MyBubble(m.text, m.attachments)
-        Text(m.at?.let { tr("Steered") + " · ${shortTime(it)}" } ?: tr("Steered"), color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp, end = 6.dp))
+        Text(m.at?.let { tr("Steered") + " · ${shortTime(it)}" } ?: tr("Steered"), color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4, end = Space.s8))
     }
 }
 
@@ -596,9 +594,9 @@ suspend fun LazyListState.showFromTop(index: () -> Int?) {
 @Composable
 fun MyBubble(text: String, files: List<Attachment>? = null) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().padding(start = 48.dp), horizontalArrangement = Arrangement.End) {
+    Row(Modifier.fillMaxWidth().padding(start = Space.s48), horizontalArrangement = Arrangement.End) {
         Column(
-            Modifier.clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).holdToCopy(text).background(p.ink).padding(horizontal = 14.dp, vertical = 10.dp),
+            Modifier.clip(Radius.mine).holdToCopy(text).background(p.ink).padding(horizontal = Space.s16, vertical = Space.s12),
         ) {
             val mentions = LocalMentions.current
             val shown = remember(text, mentions, p.mention) { withMentions(text, mentions, p.mention) }
@@ -615,8 +613,8 @@ fun MyBubble(text: String, files: List<Attachment>? = null) {
 fun Chip(text: String) {
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-        Text(text, color = p.muted, fontSize = 12.5.sp,
-            modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(p.sunk).padding(horizontal = 12.dp, vertical = 5.dp))
+        Text(text, color = p.muted, fontSize = Type.s12,
+            modifier = Modifier.clip(Radius.pill).background(p.sunk).padding(horizontal = Space.s12, vertical = Space.s4))
     }
 }
 
@@ -627,21 +625,21 @@ fun Chip(text: String) {
 @Composable
 fun TheirBubble(footer: String? = null, error: Boolean = false, copyText: String? = null, chips: List<Pair<CharSequence, (() -> Unit)?>> = emptyList(), footerEnd: (@Composable () -> Unit)? = null, wholeChips: Boolean = false, plain: Boolean = false, content: @Composable () -> Unit) {
     val p = LocalPaper.current
-    Column(Modifier.fillMaxWidth().padding(end = if (plain && !error) 0.dp else 32.dp)) {
-        if (plain && !error) Box(Modifier.padding(horizontal = 4.dp)) { content() }
+    Column(Modifier.fillMaxWidth().padding(end = if (plain && !error) 0.dp else Space.s32)) {
+        if (plain && !error) Box(Modifier.padding(horizontal = Space.s4)) { content() }
         else Box(
-            Modifier.clip(RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp))
+            Modifier.clip(Radius.theirs)
                 .holdToCopy(copyText)
                 .background(if (error) p.errSoft else p.panel)
-                .border(1.dp, if (error) p.err.copy(alpha = 0.3f) else p.line, RoundedCornerShape(20.dp, 20.dp, 20.dp, 6.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .border(1.dp, if (error) p.err.copy(alpha = 0.3f) else p.line, Radius.theirs)
+                .padding(horizontal = Space.s16, vertical = Space.s12),
         ) { content() }
         if (chips.isNotEmpty()) ActionChips(chips, wholeChips)
         // [footerEnd]: what sits on the time's line after it (👍 and 👎 under an unasked Chief message).
         if (footerEnd != null) Row(verticalAlignment = Alignment.CenterVertically) {
-            if (!footer.isNullOrBlank()) Text(footer, color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+            if (!footer.isNullOrBlank()) Text(footer, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(start = Space.s8))
             footerEnd()
-        } else if (!footer.isNullOrBlank()) Text(footer, color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp, top = 4.dp))
+        } else if (!footer.isNullOrBlank()) Text(footer, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(start = Space.s8, top = Space.s4))
     }
 }
 
@@ -655,12 +653,12 @@ fun TheirBubble(footer: String? = null, error: Boolean = false, copyText: String
 @Composable
 fun ActionChips(chips: List<Pair<CharSequence, (() -> Unit)?>>, whole: Boolean = false) {
     val p = LocalPaper.current
-    val shape = RoundedCornerShape(if (whole) 14.dp else 99.dp)
-    androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val shape = if (whole) Radius.card else Radius.pill
+    androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         for ((text, onClick) in chips) {
-            Text(chipShown(text, whole), color = p.muted, fontSize = 12.5.sp, maxLines = if (whole) Int.MAX_VALUE else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+            Text(chipShown(text, whole), color = p.muted, fontSize = Type.s12, maxLines = if (whole) Int.MAX_VALUE else 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 modifier = Modifier.clip(shape).background(p.sunk).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-                    .padding(horizontal = 12.dp, vertical = 5.dp))
+                    .padding(horizontal = Space.s12, vertical = Space.s4))
         }
     }
 }
@@ -714,14 +712,14 @@ fun copyToClipboard(context: android.content.Context, text: String) {
 fun Working(label: String, steps: List<String>) {
     val p = LocalPaper.current
     TheirBubble {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp, color = p.muted)
                 Spacer(Modifier.size(8.dp))
                 Text(label, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             steps.takeLast(4).dropLast(if (steps.isNotEmpty()) 1 else 0).forEach {
-                Text("✓ $it", color = p.faint, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("✓ $it", color = p.faint, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -820,9 +818,9 @@ fun Composer(
     }
     // It floats over the messages, which fade out behind it.
     Column(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(p.bg.copy(alpha = 0f), p.bg.copy(alpha = 0.85f), p.bg)))
-        .navigationBarsPadding().imePadding().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
+        .navigationBarsPadding().imePadding().padding(start = Space.s12, end = Space.s12, top = Space.s12, bottom = Space.s8)) {
         if (files != null && files.items.isNotEmpty()) {
-            Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(bottom = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 files.items.forEach { f ->
                     FileChip(f.name, note = when (f.status) { "uploading" -> tr("uploading…"); "failed" -> tr("failed"); else -> null }, onRemove = { files.remove(f.key) })
                 }
@@ -837,19 +835,19 @@ fun Composer(
         // Claude is signed out ([onSignIn] is given while it is): one standing line, and the way to sign in.
         if (onSignIn != null) Text(
             AnnotatedString.Builder().apply { append("$SIGNED_OUT "); pushStyle(SpanStyle(fontWeight = FontWeight.SemiBold)); append(tr("Sign in")); pop() }.toAnnotatedString(),
-            color = p.warnText, fontSize = 12.5.sp, lineHeight = 17.sp,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = tr("Sign in"), role = Role.Button, onClick = onSignIn)
-                .padding(start = 6.dp, end = 6.dp).wrapContentHeight(Alignment.CenterVertically),
+            color = p.warnText, fontSize = Type.s12, lineHeight = Type.line16,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(Radius.small).clickable(onClickLabel = tr("Sign in"), role = Role.Button, onClick = onSignIn)
+                .padding(start = Space.s8, end = Space.s8).wrapContentHeight(Alignment.CenterVertically),
         )
         // Why the last send failed, until the owner sends or edits.
         outbox.note?.let { note ->
-            Text(note, color = p.warnText, fontSize = 12.5.sp, lineHeight = 17.sp,
-                modifier = Modifier.padding(start = 6.dp, bottom = 8.dp).semantics { liveRegion = LiveRegionMode.Polite })
+            Text(note, color = p.warnText, fontSize = Type.s12, lineHeight = Type.line16,
+                modifier = Modifier.padding(start = Space.s8, bottom = Space.s8).semantics { liveRegion = LiveRegionMode.Polite })
         }
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             if (files != null) RoundButton(Icons.Filled.Add, tr("Attach files"), size = 48.dp) { pick.launch("*/*") }
             Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(p.sunk).border(1.dp, p.line2, RoundedCornerShape(24.dp)).padding(start = 16.dp, top = 4.dp, end = 4.dp, bottom = 4.dp),
+                Modifier.weight(1f).clip(Radius.pill).background(p.sunk).border(1.dp, p.line2, Radius.pill).padding(start = Space.s16, top = Space.s4, end = Space.s4, bottom = Space.s4),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 BasicTextField(
@@ -861,19 +859,19 @@ fun Composer(
                             picked = -1
                         } else text = v
                     },
-                    textStyle = TextStyle(color = p.text, fontSize = 16.sp, lineHeight = 22.sp, fontFamily = Geist),
+                    textStyle = TextStyle(color = p.text, fontSize = Type.s16, lineHeight = Type.line24, fontFamily = Geist),
                     cursorBrush = SolidColor(p.text),
                     maxLines = 6,
                     visualTransformation = remember(mentions, p.mention) { CommandChips(mentions, p.mention) },
-                    modifier = Modifier.weight(1f).padding(vertical = 9.dp).heightIn(min = 22.dp).focusRequester(focus),
+                    modifier = Modifier.weight(1f).padding(vertical = Space.s8).heightIn(min = 22.dp).focusRequester(focus),
                     decorationBox = { inner ->
-                        Box { if (text.text.isEmpty()) Text(placeholder, color = p.faint, fontSize = 16.sp); inner() }
+                        Box { if (text.text.isEmpty()) Text(placeholder, color = p.faint, fontSize = Type.s16); inner() }
                     },
                 )
                 // One message at a time: while one is on its way, Send waits for it.
                 val canSend = !outbox.sending && (text.text.isNotBlank() || files?.items?.any { it.status == "ready" } == true)
                 Box(
-                    Modifier.padding(2.dp).size(36.dp).clip(CircleShape).background(if (busy) p.err else if (canSend) p.ink else p.line).clickable(role = Role.Button) {
+                    Modifier.padding(Space.s4).size(36.dp).clip(CircleShape).background(if (busy) p.err else if (canSend) p.ink else p.line).clickable(role = Role.Button) {
                         if (busy) return@clickable onStop()
                         if (files?.uploading == true) return@clickable onError(tr("Wait a moment: the files are still uploading."))
                         if (!canSend) return@clickable
@@ -919,7 +917,7 @@ fun Choices(choices: List<String>?, yes: Int? = null, color: String? = null, onP
     var sending by remember(choices) { mutableStateOf(false) }
     val keys = remember(choices) { choices.map { messageKey() } } // before the return: they outlast a send that failed
     if (used || sending) return
-    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(start = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(start = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         choices.forEachIndexed { i, c ->
             val pick: () -> Unit = { sending = true; scope.launch { try { if (onPick(c, keys[i])) used = true } finally { sending = false } } }
             val fill = if (i == yes) color?.let { parseColor(it, Color.Unspecified) }?.takeIf { it != Color.Unspecified } else null
@@ -950,19 +948,19 @@ fun Questions(questions: List<String>?, onSend: suspend (String, String) -> Bool
     val answers = remember(questions) { mutableStateListOf(*Array(questions.size) { "" }) }
     val keys = remember(questions) { CardKey() }
     Column(
-        Modifier.fillMaxWidth().padding(end = 24.dp).clip(RoundedCornerShape(18.dp)).border(1.dp, p.line, RoundedCornerShape(18.dp)).background(p.panel).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        Modifier.fillMaxWidth().padding(end = Space.s24).clip(Radius.card).border(1.dp, p.line, Radius.card).background(p.panel).padding(Space.s16),
+        verticalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
         questions.forEachIndexed { i, q ->
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(q, color = p.text, fontSize = 14.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                Text(q, color = p.text, fontSize = Type.s14)
                 BasicTextField(
                     value = answers[i],
                     onValueChange = { answers[i] = it },
-                    textStyle = TextStyle(color = p.text, fontSize = 16.sp, lineHeight = 22.sp, fontFamily = Geist),
+                    textStyle = TextStyle(color = p.text, fontSize = Type.s16, lineHeight = Type.line24, fontFamily = Geist),
                     cursorBrush = SolidColor(p.text),
                     maxLines = 6, // one line to start with; it grows as you type
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, p.line2, RoundedCornerShape(12.dp)).background(p.bg).padding(horizontal = 12.dp, vertical = 9.dp),
+                    modifier = Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line2, Radius.card).background(p.bg).padding(horizontal = Space.s12, vertical = Space.s8),
                 )
             }
         }
@@ -1013,11 +1011,11 @@ internal fun WorkLine(w: Work, modifier: Modifier = Modifier, onClose: () -> Uni
     val p = LocalPaper.current
     val a by rememberInfiniteTransition(label = "work").animateFloat(1f, if (w.kind == "busy") 0.35f else 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "a")
     val err = w.kind == "err"
-    Row(modifier.clip(RoundedCornerShape(99.dp)).background(if (err) p.errSoft else p.sunk)
-        .then(if (err) Modifier.clickable { onClose(); w.retry?.invoke() } else Modifier).padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(modifier.clip(Radius.pill).background(if (err) p.errSoft else p.sunk)
+        .then(if (err) Modifier.clickable { onClose(); w.retry?.invoke() } else Modifier).padding(horizontal = Space.s12, vertical = Space.s8),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
         Box(Modifier.size(8.dp).alpha(a).clip(CircleShape).background(when (w.kind) { "ok" -> p.ok; "err" -> p.err; else -> p.dot }))
-        Text(w.text, color = if (err) p.err else p.text, fontSize = 13.sp)
-        if (err) Text("✕", color = p.err, fontSize = 12.sp, modifier = Modifier.clickable(onClick = onClose))
+        Text(w.text, color = if (err) p.err else p.text, fontSize = Type.s14)
+        if (err) Text("✕", color = p.err, fontSize = Type.s12, modifier = Modifier.clickable(onClick = onClose))
     }
 }

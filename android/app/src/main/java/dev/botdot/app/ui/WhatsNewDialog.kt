@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.WhatsNew
 
 /**
@@ -42,15 +41,15 @@ fun WhatsNewDialog(entries: List<WhatsNew.Entry>, onClose: () -> Unit) {
 @Composable
 fun WhatsNewEntries(entries: List<WhatsNew.Entry>, color: Color = Color.Unspecified) {
     val p = LocalPaper.current
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        WhatsNew.countLine(entries)?.let { Text(it, color = p.muted, fontSize = 13.sp) }
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+        WhatsNew.countLine(entries)?.let { Text(it, color = p.muted, fontSize = Type.s14) }
         entries.forEachIndexed { i, e ->
             // Past the newest few (#380): the title alone, its points on a tap.
             var open by remember(e.id) { mutableStateOf(WhatsNew.openAtFirst(i)) }
             val title = if (WhatsNew.openAtFirst(i)) Modifier else Modifier.clickable { open = !open }
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 Text(if (WhatsNew.openAtFirst(i)) e.title else (if (open) "▾  " else "▸  ") + e.title, color = color, fontWeight = FontWeight.SemiBold, modifier = title)
-                Unfold(open) { Column(verticalArrangement = Arrangement.spacedBy(4.dp)) { for (point in e.points) Text("•  $point", color = color) } }
+                Unfold(open) { Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) { for (point in e.points) Text("•  $point", color = color) } }
             }
         }
     }
