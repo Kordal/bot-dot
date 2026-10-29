@@ -242,7 +242,7 @@ function renderBotSettings(force = false) {
   const mayHave = docker || hasComputer || (accountComputer && !!state.status?.boat);
   const knownTools = new Set(PERMS.flatMap((p) => p.tools));
   const has = (p) => p.tools.every((t) => b.allowedTools.includes(t));
-  // Its head (figure, name, what it does), colour, category and main assignment, then one row per setting.
+  // Its head (figure, name, what it does), colour, category and main assignment, then its rows in three lists: how it runs, what it uses, who and what it may (#728).
   root.innerHTML = `
     <form id="bot-form" class="bot-settings" autocomplete="off">
       <div class="set-head">
@@ -253,8 +253,8 @@ function renderBotSettings(force = false) {
         </div>
       </div>
       <div class="swatches" role="radiogroup" aria-label="${esc(tr('Colour'))}">${BOT_COLORS.map(([c, n]) => `<label class="swatch" title="${n}"><input type="radio" name="color" value="${c}" ${b.color === c ? 'checked' : ''} aria-label="${n}"><i style="--c:${c}"></i></label>`).join('')}</div>
-      <div class="field">${tr('Category')}
-        <div class="group-picker" id="group-picker"></div>
+      <div class="field">
+        <div class="group-picker" id="group-picker" role="group" aria-label="${esc(tr('Category'))}"></div>
         <input type="hidden" name="group" value="${esc(b.group || '')}">
       </div>
       <label class="field">${tr('Main assignment')}
@@ -265,6 +265,17 @@ function renderBotSettings(force = false) {
         <label class="bs-row" title="${esc(tr('Pinned below the Chief'))}"><b>${tr('Pinned')}</b>
           <span class="switch"><input type="checkbox" id="bs-pinned" ${b.pinned > 0 ? 'checked' : ''} aria-label="${esc(tr('Pinned below the Chief'))}"><span></span></span></label>
         ${state.features.includes('bot-hotkeys') ? hotkeyRow(b) : ''}
+        <details class="bs-row bs-more" id="bs-model">
+          <summary><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmValue(b.model, b.effort))}</span>${CHEV}</summary>
+          <div class="bs-body">${llmFieldsHTML('bot', { model: b.model, effort: b.effort }, tr('Default ({model})', { model: llmSummary(state.settings?.defaultModel, state.settings?.defaultEffort) }))}</div>
+        </details>
+        <details class="bs-row bs-more" id="bs-rules">
+          <summary${tipAttrs(tr("Its personality and rules, added to Claude Code's system prompt."))}><b>${tr('Rules')}</b><span class="bs-val">${esc(b.systemPrompt.split('\n')[0])}</span>${CHEV}</summary>
+          <div class="bs-body"><textarea name="systemPrompt" rows="3" aria-label="${esc(tr('Personality and rules'))}">${esc(b.systemPrompt)}</textarea></div>
+        </details>
+      </div>
+
+      <div class="set-list">
         <div class="bs-row" id="bs-skills">
           <div class="grow"><b>${tr('Skills')}</b>${b.useSkills === false ? `<span class="bs-val">${tr('Off')} <button type="button" class="link-btn" data-skills-on>${tr('Turn on')}</button></span>` : `<div id="skill-picks"><span class="faint">${tr('Loading…')}</span></div>`}</div>
           ${b.useSkills === false ? '' : CHEV}
@@ -272,31 +283,30 @@ function renderBotSettings(force = false) {
         <div class="bs-row hidden" id="bs-apps">
           <div class="grow"><b>${tr('Apps')}</b><div id="app-picks"></div></div>${CHEV}
         </div>
-        <div class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}">
-          <div class="grow"><b>${tr('May message')}</b><div id="bot-picks"></div></div>${CHEV}
-        </div>
-        <label class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}"${tipAttrs(tr("Off keeps it to you: other bots don't see it among their teammates and can't message it."))}><b>${tr('Other bots may ask it')}</b>
-          <span class="switch"><input type="checkbox" name="othersMayAsk" ${b.othersMayAsk !== false ? 'checked' : ''} aria-label="${esc(tr('Other bots may ask it'))}"><span></span></span></label>
         <button type="button" class="bs-row bs-link" data-bs-jobs><b>${tr('Jobs')}</b><span class="bs-val" id="bs-jobs"></span>${CHEV}</button>
+        ${state.features.includes('bot-files') ? `<button type="button" class="bs-row bs-link" id="bs-files" data-bs-files><b>${tr('Files')}</b>${CHEV}</button>` : ''}
+        ${state.features.includes('pages') ? `<details class="bs-row bs-more" id="bs-pages">
+          <summary${tipAttrs(tr('Reports, memos and overviews it made for you. Open one to keep it up to date.'))}><b>${tr('Pages')}</b><span class="bs-val" id="bs-pages-val"></span>${CHEV}</summary>
+          <div class="bs-body pg-list" id="page-list"><span class="faint">${tr('Loading…')}</span></div>
+        </details>` : ''}
         ${boatChoice ? `<label class="bs-row"><b>${tr('Computer')}</b>
           <select name="computer" aria-label="${esc(tr('Computer'))}"><option value="none">${tr('None')}</option><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>${tr('This machine')}</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>${tr('External Virtual PC')}</option></select>${CHEV}
         </label>` : `<label class="bs-row ${mayHave ? '' : 'hidden'}"${accountComputer ? '' : tipAttrs(tr("Its own screen and browser on the account's computer, with sudo there, like every bot that uses it."))}><b>${tr('Uses the computer')}</b>
           <span class="switch"><input type="checkbox" name="computer" ${hasComputer ? 'checked' : ''} ${mayHave ? '' : 'disabled'} aria-label="${esc(tr('Uses the computer'))}"><span></span></span></label>`}
         <div class="bs-row bs-note" id="bs-move">${computerMoveLine(b)}</div>
         ${hasComputer ? `<button type="button" class="bs-row bs-link" data-bs-screen><b>${tr('Its screen')}</b>${CHEV}</button>` : ''}
-        <details class="bs-row bs-more" id="bs-model">
-          <summary><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmValue(b.model, b.effort))}</span>${CHEV}</summary>
-          <div class="bs-body">${llmFieldsHTML('bot', { model: b.model, effort: b.effort }, tr('Default ({model})', { model: llmSummary(state.settings?.defaultModel, state.settings?.defaultEffort) }))}</div>
-        </details>
+      </div>
+
+      <div class="set-list">
+        <div class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}">
+          <div class="grow"><b>${tr('May message')}</b><div id="bot-picks"></div></div>${CHEV}
+        </div>
+        <label class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}"${tipAttrs(tr("Off keeps it to you: other bots don't see it among their teammates and can't message it."))}><b>${tr('Other bots may ask it')}</b>
+          <span class="switch"><input type="checkbox" name="othersMayAsk" ${b.othersMayAsk !== false ? 'checked' : ''} aria-label="${esc(tr('Other bots may ask it'))}"><span></span></span></label>
         ${showsRoomSettings(b) ? `<label class="bs-row" id="bs-rooms"${tipAttrs(tr('It may join rooms with other accounts on this machine. There it only talks: no tools, no notes, nothing of yours.'))}><b>${tr('Shared rooms')}</b>
           <span class="switch"><input type="checkbox" name="allowRooms" ${b.rooms.allowRooms ? 'checked' : ''} aria-label="${esc(tr('Shared rooms'))}"><span></span></span></label>
         <label class="bs-row bs-rooms-who ${b.rooms.allowRooms ? '' : 'hidden'}"><b>${tr('Who may mention it')}</b>
           <select name="roomsWho" aria-label="${esc(tr('Who may mention it'))}">${ROOM_WHO.map(([v, label]) => `<option value="${v}" ${b.rooms.whoMayMention === v ? 'selected' : ''}>${label}</option>`).join('')}</select>${CHEV}</label>` : ''}
-        ${state.features.includes('bot-files') ? `<button type="button" class="bs-row bs-link" id="bs-files" data-bs-files><b>${tr('Files')}</b>${CHEV}</button>` : ''}
-        ${state.features.includes('pages') ? `<details class="bs-row bs-more" id="bs-pages">
-          <summary${tipAttrs(tr('Reports, memos and overviews it made for you. Open one to keep it up to date.'))}><b>${tr('Pages')}</b><span class="bs-val" id="bs-pages-val"></span>${CHEV}</summary>
-          <div class="bs-body pg-list" id="page-list"><span class="faint">${tr('Loading…')}</span></div>
-        </details>` : ''}
         <div class="bs-row" id="bs-always">
           <div class="grow"><b>${tr('Always approved')}</b><div id="always-picks"></div></div>${CHEV}
         </div>
@@ -314,10 +324,6 @@ function renderBotSettings(force = false) {
               <label class="field">${tr('Permission mode')}<select name="permissionMode">${Object.entries(MODE_INFO).map(([k, v]) => `<option value="${k}" ${k === b.permissionMode ? 'selected' : ''}>${k}: ${v}</option>`).join('')}</select></label>
             </details>
           </div>
-        </details>
-        <details class="bs-row bs-more" id="bs-rules">
-          <summary${tipAttrs(tr("Its personality and rules, added to Claude Code's system prompt."))}><b>${tr('Rules')}</b><span class="bs-val">${esc(b.systemPrompt.split('\n')[0])}</span>${CHEV}</summary>
-          <div class="bs-body"><textarea name="systemPrompt" rows="3" aria-label="${esc(tr('Personality and rules'))}">${esc(b.systemPrompt)}</textarea></div>
         </details>
       </div>
 

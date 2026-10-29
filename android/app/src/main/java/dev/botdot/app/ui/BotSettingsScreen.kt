@@ -210,7 +210,6 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 ColorPicker(color) { color = it }
                 Field(description, { description = it }, label = { Text(tr("What it does")) }, modifier = Modifier.fillMaxWidth())
                 Field(group, { group = it.take(40) }, label = { Text(tr("Category")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                SwitchRow(tr("Pinned below the Chief"), checked = pinned) { pinned = it }
             }
             Section(tr("Its main assignment")) {
                 Field(task, { task = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
@@ -225,7 +224,19 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                     }) { Text(tr("Undo last change"), color = p.text) }
                 }
             }
-            Section(tr("What it can do")) {
+            // Its rows in three groups (#728), as on the web page: how it runs, what it uses, who and what it may.
+            SettingsGroup {
+                SwitchRow(tr("Pinned below the Chief"), checked = pinned) { pinned = it }
+                // Its own key on the keypad (#366): only from a server that has it. A digit another bot holds moves here.
+                if (b.hotkey != null) FoldSection(tr("Key on the keypad"), if (hotkey in 1..9) "$hotkey" else tr("By its place")) {
+                    CheckRow(tr("By its place"), null, hotkey == 0) { hotkey = 0 }
+                    for (d in 1..9) CheckRow("$d", others.firstOrNull { it.hotkey == d }?.let { tr("Now {name}'s", "name" to it.name) }, hotkey == d) { on -> hotkey = if (on) d else 0 }
+                }
+                Choice(tr("Model"), model, listOf("" to tr("Default")) + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
+                val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
+                if (canThink) Choice(tr("Reasoning"), effort, listOf("" to tr("Default")) + choices.efforts.map { it.id to it.label }) { effort = it }
+            }
+            SettingsGroup {
                 // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here
                 // only whether. A server from before chose it per bot (ADR 088).
                 val accountComputer = "account-computer" in server?.features.orEmpty()
@@ -260,122 +271,65 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                     )
                     Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
                 }
-            }
-            // Skills, Apps, May message: what's picked in one line; tap to see everything with a checkbox.
-            // Opened from a skill's chip: the Skills open on that skill, its row open and in view; a skill that is gone, the Skills.
-            val skillsView = remember { BringIntoViewRequester() }
-            val focusRow = focusSkill?.takeIf { f -> f.isNotEmpty() && (library.any { it.name == f } || sysSkills.any { it.first.name == f }) }
-            LaunchedEffect(focusSkill, focusRow) { if (focusSkill != null && focusRow == null) { delay(350); skillsView.bringIntoView() } }
-            if (!useSkills) Section(tr("Skills"), modifier = Modifier.bringIntoViewRequester(skillsView)) {
-                Hint(tr("Skills are off for this bot."))
-                SecondaryButton(onClick = { useSkills = true }) { Text(tr("Turn them on"), color = p.text) }
-            } else {
-                // One list, as on the web: your library's skills, then the ones every bot has unless switched off here.
-                val count = { from: String -> sysSkills.count { (k, f) -> f == from && k.name !in disabled } }
-                val summary = listOfNotNull(
-                    skills.sorted().joinToString(", ").ifBlank { null },
-                    count("machine").takeIf { it > 0 }?.let { tr("{n} from your Claude account", "n" to it) },
-                    count("builtin").takeIf { it > 0 }?.let { tr("{n} built into Claude Code", "n" to it) },
-                ).joinToString(", ").ifBlank { tr("None") }
-                FoldSection(tr("Skills"), summary, startOpen = focusSkill != null, modifier = Modifier.bringIntoViewRequester(skillsView)) {
-                    val botName = { id: String -> (others + b).firstOrNull { it.id == id }?.name ?: tr("a deleted bot") }
-                    if (library.isNotEmpty()) GroupHead(tr("Your skills"))
-                    // In each group the ones it has come first (as saved, so rows don't jump while you tick them).
-                    library.sortedBy { it.name !in b.skills }.forEach { k ->
-                        val from = when {
-                            k.source == "github" -> tr("Installed by you from {source}", "source" to (k.sourceUrl ?: "GitHub"))
-                            k.createdBy?.startsWith("bot:") == true -> tr("Written by {name}", "name" to botName(k.createdBy.removePrefix("bot:")))
-                            k.createdBy == "chief" -> tr("Written by the Chief")
-                            else -> tr("Written by you")
-                        }
-                        val more = listOfNotNull(from, if (k.fileCount > 1) trn(k.fileCount, "{n} file", "{n} files") else null,
-                            if (k.usedBy.isNotEmpty()) tr("Used by {names}", "names" to k.usedBy.joinToString(", ") { botName(it) }) else tr("No bot uses it yet")).joinToString("\n") +
-                            if (k.instructions.isNotBlank()) "\n\n" + k.instructions.take(600) + (if (k.instructions.length > 600) "…" else "") else ""
-                        key(k.name) { SkillRow(k.name, k.description, more, k.name in skills, focus = k.name == focusRow) { on -> skills = if (on) skills + k.name else skills - k.name } } // its row keeps its open/closed state when the order changes
-                    }
-                    for (group in listOf("machine", "builtin")) {
-                        val list = sysSkills.filter { it.second == group }.sortedBy { it.first.name in b.disabledSkills }
-                        if (list.isEmpty()) continue
-                        GroupHead((if (group == "builtin") tr("built into Claude Code") else tr("from your Claude account")).replaceFirstChar { it.uppercase() })
-                        list.forEach { (k, _) ->
-                            val more = (if (group == "builtin") tr("Comes with Claude Code.") else tr("Installed in your Claude account.")) + " " + tr("Every bot has it unless you switch it off here.")
-                            key(k.name) { SkillRow(k.name, k.description, more, k.name !in disabled, focus = k.name == focusRow) { on -> disabled = if (on) disabled - k.name else disabled + k.name } }
-                        }
-                    }
-                }
-            }
-            if (apps.isNotEmpty() || connectors.isNotEmpty()) FoldSection(tr("Apps"), apps.filter { it.toolkit in connectors }.joinToString(", ") { it.app?.name ?: it.toolkit }.ifBlank { tr("None") }) {
-                apps.forEach { c ->
-                    CheckRow(c.app?.name ?: c.toolkit, null, c.toolkit in connectors) { on -> connectors = if (on) connectors + c.toolkit else connectors - c.toolkit }
-                }
-            }
-            if (others.isNotEmpty()) FoldSection(tr("May message"), if (others.size > 1 && others.all { it.id in mayMessage }) tr("Everyone") else others.filter { it.id in mayMessage }.joinToString(", ") { it.name }.ifBlank { tr("Nobody") }) {
-                others.forEach { o ->
-                    CheckRow(o.name, null, o.id in mayMessage) { on -> mayMessage = if (on) mayMessage + o.id else mayMessage - o.id }
-                }
-            }
-            // "Other bots may ask it" (#136): only from a server that has it.
-            if (others.isNotEmpty() && b.othersMayAsk != null) Section(tr("Other bots")) {
-                SwitchRow(tr("Other bots may ask it"), checked = othersMayAsk) { othersMayAsk = it }
-            }
-            // Shared rooms (ADR 060, #316): whether it may be in rooms with other accounts' bots, and who may mention it there.
-            if (dev.botdot.app.data.BotRooms.shows(server?.features) && b.rooms != null) Section(tr("Shared rooms")) {
-                SwitchRow(tr("May be in shared rooms"), checked = rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }
-                if (rooms.allowRooms) Choice(tr("Who may mention it"), rooms.whoMayMention, dev.botdot.app.data.BotRooms.WHO) { rooms = rooms.copy(whoMayMention = it) }
-            }
-            // Its own key on the keypad (#366): only from a server that has it. A digit another bot holds moves here.
-            if (b.hotkey != null) FoldSection(tr("Key on the keypad"), if (hotkey in 1..9) "$hotkey" else tr("By its place")) {
-                CheckRow(tr("By its place"), null, hotkey == 0) { hotkey = 0 }
-                for (d in 1..9) CheckRow("$d", others.firstOrNull { it.hotkey == d }?.let { tr("Now {name}'s", "name" to it.name) }, hotkey == d) { on -> hotkey = if (on) d else 0 }
-            }
-            // The jobs you said to always approve, whose later changes need no OK, and its lasting grants in connected apps
-            // (#474). Revoke takes one off (saved right away).
-            val trusted = b.jobs.filter { it.alwaysApprove }
-            val grants = b.alwaysAllowed
-            if (trusted.isNotEmpty() || grants.isNotEmpty()) FoldSection(tr("Always approved"), (trusted.map { it.name } + grants.map { it.label.ifBlank { it.action } }).joinToString(", ")) {
-                trusted.forEach { j ->
-                    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                            Text("${scheduleWords(j)} · " + if (j.kind == "script") tr("a script, no AI") else tr("uses AI"), color = p.muted, style = MaterialTheme.typography.bodySmall)
-                        }
-                        SecondaryButton(onClick = {
-                            scope.launch {
-                                runCatching { api!!.setJobAlwaysApprove(botId, j.id, false) }
-                                    .onSuccess { saved -> bot = b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }); tell(tr("Revoked: its next change waits for your OK")) }
-                                    .onError { tell(it.message ?: tr("Couldn't save")) }
+                // Skills, Apps, May message: what's picked in one line; tap to see everything with a checkbox.
+                // Opened from a skill's chip: the Skills open on that skill, its row open and in view; a skill that is gone, the Skills.
+                val skillsView = remember { BringIntoViewRequester() }
+                val focusRow = focusSkill?.takeIf { f -> f.isNotEmpty() && (library.any { it.name == f } || sysSkills.any { it.first.name == f }) }
+                LaunchedEffect(focusSkill, focusRow) { if (focusSkill != null && focusRow == null) { delay(350); skillsView.bringIntoView() } }
+                if (!useSkills) Section(tr("Skills"), modifier = Modifier.bringIntoViewRequester(skillsView)) {
+                    Hint(tr("Skills are off for this bot."))
+                    SecondaryButton(onClick = { useSkills = true }) { Text(tr("Turn them on"), color = p.text) }
+                } else {
+                    // One list, as on the web: your library's skills, then the ones every bot has unless switched off here.
+                    val count = { from: String -> sysSkills.count { (k, f) -> f == from && k.name !in disabled } }
+                    val summary = listOfNotNull(
+                        skills.sorted().joinToString(", ").ifBlank { null },
+                        count("machine").takeIf { it > 0 }?.let { tr("{n} from your Claude account", "n" to it) },
+                        count("builtin").takeIf { it > 0 }?.let { tr("{n} built into Claude Code", "n" to it) },
+                    ).joinToString(", ").ifBlank { tr("None") }
+                    FoldSection(tr("Skills"), summary, startOpen = focusSkill != null, modifier = Modifier.bringIntoViewRequester(skillsView)) {
+                        val botName = { id: String -> (others + b).firstOrNull { it.id == id }?.name ?: tr("a deleted bot") }
+                        if (library.isNotEmpty()) GroupHead(tr("Your skills"))
+                        // In each group the ones it has come first (as saved, so rows don't jump while you tick them).
+                        library.sortedBy { it.name !in b.skills }.forEach { k ->
+                            val from = when {
+                                k.source == "github" -> tr("Installed by you from {source}", "source" to (k.sourceUrl ?: "GitHub"))
+                                k.createdBy?.startsWith("bot:") == true -> tr("Written by {name}", "name" to botName(k.createdBy.removePrefix("bot:")))
+                                k.createdBy == "chief" -> tr("Written by the Chief")
+                                else -> tr("Written by you")
                             }
-                        }) { Text(tr("Revoke"), color = p.text) }
-                    }
-                }
-                grants.forEach { g ->
-                    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(g.label.ifBlank { g.action }, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-                        SecondaryButton(onClick = {
-                            scope.launch {
-                                runCatching { api!!.revokeAlwaysAllowed(botId, g.action) }
-                                    .onSuccess { bot = b.copy(alwaysAllowed = b.alwaysAllowed - g); tell(tr("Revoked: it asks you again")) }
-                                    .onError { tell(it.message ?: tr("Couldn't save")) }
-                            }
-                        }) { Text(tr("Revoke"), color = p.text) }
-                    }
-                }
-            }
-            // The rules you lifted for it with "Allow always for this bot" (#253). Revoke takes one back (saved right away).
-            if (b.overrides.isNotEmpty()) FoldSection(tr("Rules you lifted"), b.overrides.joinToString(", ") { it.action }) {
-                b.overrides.forEach { o ->
-                    androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(o.action, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                            Text(tr("Its rule: {rule}", "rule" to o.rule), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                            val more = listOfNotNull(from, if (k.fileCount > 1) trn(k.fileCount, "{n} file", "{n} files") else null,
+                                if (k.usedBy.isNotEmpty()) tr("Used by {names}", "names" to k.usedBy.joinToString(", ") { botName(it) }) else tr("No bot uses it yet")).joinToString("\n") +
+                                if (k.instructions.isNotBlank()) "\n\n" + k.instructions.take(600) + (if (k.instructions.length > 600) "…" else "") else ""
+                            key(k.name) { SkillRow(k.name, k.description, more, k.name in skills, focus = k.name == focusRow) { on -> skills = if (on) skills + k.name else skills - k.name } } // its row keeps its open/closed state when the order changes
                         }
-                        SecondaryButton(onClick = {
-                            scope.launch {
-                                runCatching { api!!.revokeOverride(botId, o.id) }
-                                    .onSuccess { saved -> bot = b.copy(overrides = saved.overrides); tell(tr("Revoked: it asks you again")) }
-                                    .onError { tell(it.message ?: tr("Couldn't save")) }
+                        for (group in listOf("machine", "builtin")) {
+                            val list = sysSkills.filter { it.second == group }.sortedBy { it.first.name in b.disabledSkills }
+                            if (list.isEmpty()) continue
+                            GroupHead((if (group == "builtin") tr("built into Claude Code") else tr("from your Claude account")).replaceFirstChar { it.uppercase() })
+                            list.forEach { (k, _) ->
+                                val more = (if (group == "builtin") tr("Comes with Claude Code.") else tr("Installed in your Claude account.")) + " " + tr("Every bot has it unless you switch it off here.")
+                                key(k.name) { SkillRow(k.name, k.description, more, k.name !in disabled, focus = k.name == focusRow) { on -> disabled = if (on) disabled - k.name else disabled + k.name } }
                             }
-                        }) { Text(tr("Revoke"), color = p.text) }
+                        }
+                    }
+                }
+                if (apps.isNotEmpty() || connectors.isNotEmpty()) FoldSection(tr("Apps"), apps.filter { it.toolkit in connectors }.joinToString(", ") { it.app?.name ?: it.toolkit }.ifBlank { tr("None") }) {
+                    apps.forEach { c ->
+                        CheckRow(c.app?.name ?: c.toolkit, null, c.toolkit in connectors) { on -> connectors = if (on) connectors + c.toolkit else connectors - c.toolkit }
+                    }
+                }
+                // Its pages (#346): what it made for you. Tap one to open it, and keep it up to date from there.
+                pages?.let { list ->
+                    FoldSection(tr("Pages"), if (list.isEmpty()) tr("None yet") else "${list.size}") {
+                        list.forEach { pg ->
+                            key(pg.slug) {
+                                Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(botId, dev.botdot.app.data.PageRef(pg.slug, pg.title), b.name) }.padding(vertical = Space.s8)) {
+                                    Text(pg.title, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                    Text(dev.botdot.app.data.Pages.line(pg), color = if (pg.keep != null) p.okText else p.muted, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -385,27 +339,75 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             // Its files (#235): what you gave it. Tap one to open it; keep one in mind so it comes with every task.
             if (keepsFiles && !explorer) FilesSection(api, botId, name, viewer = dev.botdot.app.data.DocumentView.shows(server?.features),
                 empty = tr("None yet."), tell = ::tell)
-            // Its pages (#346): what it made for you. Tap one to open it, and keep it up to date from there.
-            pages?.let { list ->
-                FoldSection(tr("Pages"), if (list.isEmpty()) tr("None yet") else "${list.size}") {
-                    list.forEach { pg ->
-                        key(pg.slug) {
-                            Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(botId, dev.botdot.app.data.PageRef(pg.slug, pg.title), b.name) }.padding(vertical = Space.s8)) {
-                                Text(pg.title, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                Text(dev.botdot.app.data.Pages.line(pg), color = if (pg.keep != null) p.okText else p.muted, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-            }
             // Its workspace (#296): every file in its folder, and in its folder on the account's computer.
             if (!explorer && dev.botdot.app.data.WorkspaceFiles.shows(server?.features)) {
                 WorkspaceSection(api, botId, b.name, usesComputer = b.computer == "linux", viewer = dev.botdot.app.data.DocumentView.shows(server?.features), tell = ::tell, folders = dev.botdot.app.data.WorkspaceFiles.folders(server?.features), projects = dev.botdot.app.data.Projects.shows(server?.features))
             }
-            Section(null) {
-                Choice(tr("Model"), model, listOf("" to tr("Default")) + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
-                val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
-                if (canThink) Choice(tr("Reasoning"), effort, listOf("" to tr("Default")) + choices.efforts.map { it.id to it.label }) { effort = it }
+            val trusted = b.jobs.filter { it.alwaysApprove }
+            val grants = b.alwaysAllowed
+            val roomsShown = dev.botdot.app.data.BotRooms.shows(server?.features) && b.rooms != null
+            if (others.isNotEmpty() || roomsShown || trusted.isNotEmpty() || grants.isNotEmpty() || b.overrides.isNotEmpty()) SettingsGroup {
+                if (others.isNotEmpty()) FoldSection(tr("May message"), if (others.size > 1 && others.all { it.id in mayMessage }) tr("Everyone") else others.filter { it.id in mayMessage }.joinToString(", ") { it.name }.ifBlank { tr("Nobody") }) {
+                    others.forEach { o ->
+                        CheckRow(o.name, null, o.id in mayMessage) { on -> mayMessage = if (on) mayMessage + o.id else mayMessage - o.id }
+                    }
+                }
+                // "Other bots may ask it" (#136): only from a server that has it.
+                if (others.isNotEmpty() && b.othersMayAsk != null) SwitchRow(tr("Other bots may ask it"), checked = othersMayAsk) { othersMayAsk = it }
+                // Shared rooms (ADR 060, #316): whether it may be in rooms with other accounts' bots, and who may mention it there.
+                if (roomsShown) {
+                    SwitchRow(tr("May be in shared rooms"), checked = rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }
+                    if (rooms.allowRooms) Choice(tr("Who may mention it"), rooms.whoMayMention, dev.botdot.app.data.BotRooms.WHO) { rooms = rooms.copy(whoMayMention = it) }
+                }
+                // The jobs you said to always approve, whose later changes need no OK, and its lasting grants in connected apps
+                // (#474). Revoke takes one off (saved right away).
+                if (trusted.isNotEmpty() || grants.isNotEmpty()) FoldSection(tr("Always approved"), (trusted.map { it.name } + grants.map { it.label.ifBlank { it.action } }).joinToString(", ")) {
+                    trusted.forEach { j ->
+                        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                Text("${scheduleWords(j)} · " + if (j.kind == "script") tr("a script, no AI") else tr("uses AI"), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                            }
+                            SecondaryButton(onClick = {
+                                scope.launch {
+                                    runCatching { api!!.setJobAlwaysApprove(botId, j.id, false) }
+                                        .onSuccess { saved -> bot = b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }); tell(tr("Revoked: its next change waits for your OK")) }
+                                        .onError { tell(it.message ?: tr("Couldn't save")) }
+                                }
+                            }) { Text(tr("Revoke"), color = p.text) }
+                        }
+                    }
+                    grants.forEach { g ->
+                        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(g.label.ifBlank { g.action }, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                            SecondaryButton(onClick = {
+                                scope.launch {
+                                    runCatching { api!!.revokeAlwaysAllowed(botId, g.action) }
+                                        .onSuccess { bot = b.copy(alwaysAllowed = b.alwaysAllowed - g); tell(tr("Revoked: it asks you again")) }
+                                        .onError { tell(it.message ?: tr("Couldn't save")) }
+                                }
+                            }) { Text(tr("Revoke"), color = p.text) }
+                        }
+                    }
+                }
+                // The rules you lifted for it with "Allow always for this bot" (#253). Revoke takes one back (saved right away).
+                if (b.overrides.isNotEmpty()) FoldSection(tr("Rules you lifted"), b.overrides.joinToString(", ") { it.action }) {
+                    b.overrides.forEach { o ->
+                        androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(o.action, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                Text(tr("Its rule: {rule}", "rule" to o.rule), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                            }
+                            SecondaryButton(onClick = {
+                                scope.launch {
+                                    runCatching { api!!.revokeOverride(botId, o.id) }
+                                        .onSuccess { saved -> bot = b.copy(overrides = saved.overrides); tell(tr("Revoked: it asks you again")) }
+                                        .onError { tell(it.message ?: tr("Couldn't save")) }
+                                }
+                            }) { Text(tr("Revoke"), color = p.text) }
+                        }
+                    }
+                }
             }
             if (dev.botdot.app.data.Duplicate.shows(server?.features)) SecondaryButton(onClick = {
                 scope.launch { runCatching { (api ?: error(tr("Not connected to botdot"))).copyPlan(botId) }.onSuccess { copyPlan = it; copyName = it.name }.onError { tell(it.message ?: tr("Couldn't load")) } }

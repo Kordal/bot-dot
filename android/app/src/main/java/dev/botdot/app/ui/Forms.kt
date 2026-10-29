@@ -22,6 +22,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,9 +58,24 @@ fun Section(title: String?, hint: String? = null, modifier: Modifier = Modifier,
     }
 }
 
+/** Inside a [SettingsGroup] a row draws no line under it: the group's surface holds its rows together (#728). */
+private val LocalInGroup = staticCompositionLocalOf { false }
+
+/**
+ * Rows of settings on one raised surface (#728), as a list on the web page: no line between them, and a wider gap
+ * between two groups than between two rows.
+ */
+@Composable
+fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    CompositionLocalProvider(LocalInGroup provides true) {
+        Column(modifier.padding(top = Space.s12).fillMaxWidth().raised(Radius.card).padding(horizontal = Space.s16, vertical = Space.s4)) { content() }
+    }
+}
+
 /**
  * A row of settings (#636): its name, its [value] in a word or a few, and a chevron; a tap opens what it holds under
- * it (closed at first, unless [startOpen]). A thin line under it, as the flat list of the web page.
+ * it (closed at first, unless [startOpen]). A thin line under it, as the flat list of the web page; none in a
+ * [SettingsGroup].
  */
 @Composable
 fun FoldSection(title: String, value: String? = null, startOpen: Boolean = false, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
@@ -73,7 +90,7 @@ fun FoldSection(title: String, value: String? = null, startOpen: Boolean = false
             Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12).rotate(turn))
         }
         Unfold(open) { Column(Modifier.padding(bottom = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) { content() } }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
+        if (!LocalInGroup.current) Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
     }
 }
 
