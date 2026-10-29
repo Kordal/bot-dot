@@ -32,7 +32,7 @@ const Company = (() => {
   }
 
   // ---------- the switch and the left column ----------
-  const switchHTML = (on) => `<button type="button" role="tab" data-place="bots" aria-selected="${!on}">${tr('Bots')}</button><button type="button" role="tab" data-place="company" aria-selected="${on}">${ICON.building}${tr('Company')}</button>`;
+  const switchHTML = (on) => `<button type="button" role="tab" data-place="bots" aria-selected="${!on}">${tr('Bots')}</button><button type="button" role="tab" data-place="company" aria-selected="${on}">${ICON.building}${tr('Projects')}</button>`;
   const wireSwitch = (root) => $$('[data-place]', root).forEach((b) => (b.onclick = () => choose(b.dataset.place)));
   function drawSwitch() {
     const sw = $('#place-switch');
@@ -60,7 +60,7 @@ const Company = (() => {
     if (!side || !shows()) return;
     const c = company();
     const here = state.view === 'company';
-    side.innerHTML = `<div class="co-label">${tr('Company')}</div>
+    side.innerHTML = `<div class="co-label">${tr('Projects')}</div>
       <button type="button" class="co-row${here ? ' here' : ''}" data-open-company>${ICON.building}<span>${esc(c?.phase === 'running' && c.name ? c.name : tr('Setting up'))}</span></button>
       <button type="button" class="co-row co-chief${state.view === 'chief' ? ' here' : ''}" data-open-chief>${chiefFigure('sm')}<span>${esc(chiefTitle())}</span></button>`;
     $('[data-open-company]', side).onclick = () => setView('company');

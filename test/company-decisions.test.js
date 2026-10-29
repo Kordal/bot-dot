@@ -68,7 +68,7 @@ test("a check-in's answer is logged as a decision", async () => {
 test("a team's bots get the last decisions in their run and read them with a tool; a bot in no team does not", async () => {
   let { rec, token } = await heldRun(srv, member, 'What next?');
   assert.equal(rec.self.env.SELF_PROJECT, '1', 'a member reads, and does not log');
-  assert.match(rec.system, /The owner's decisions for the company "Fernhill"/);
+  assert.match(rec.system, /The owner's decisions for the project "Fernhill"/);
   assert.match(rec.system, /- \d{4}-\d{2}-\d{2}: Day 30 check-in: Change direction\n- \d{4}-\d{2}-\d{2}: Launch in Polish first \(why: Most of the first users are Polish\)/);
   let r = await self(srv, token, 'decisions', { action: 'list' });
   assert.equal(r.data.ok, true);
@@ -80,7 +80,7 @@ test("a team's bots get the last decisions in their run and read them with a too
 
   ({ rec, token } = await heldRun(srv, loose, 'Hello'));
   assert.equal(rec.self.env.SELF_PROJECT, '0');
-  assert.doesNotMatch(rec.system, /The owner's decisions for the company/);
+  assert.doesNotMatch(rec.system, /The owner's decisions for the project/);
   assert.equal((await self(srv, token, 'decisions', { action: 'list' })).data.ok, false);
   srv.release(rec);
 });
