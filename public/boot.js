@@ -59,6 +59,8 @@ document.addEventListener('click', (e) => {
     if (!known) showList(); // phones start on the contact list
     showWhatsNew(); // after an update: what changed, once (whats-new.js)
   }
+  // No time zone of its own yet (#756): the botdot takes this device's, once, so bots say times in the owner's time.
+  if (setupNow && !setupNow.savedTimezone && deviceTimezone()) api('/setup', { method: 'PUT', body: { deviceTimezone: deviceTimezone() } }).catch(() => {});
   // Keep things fresh without clobbering an open dialog. The live feed says when something changed, so while
   // it's connected this only checks once a minute; nothing while the page is hidden.
   const live = () => state.feed?.readyState === 1;
