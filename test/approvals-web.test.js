@@ -585,7 +585,7 @@ test('web: a bot with `asks` reads "Asks: <question>" in the list\'s stronger co
   assert.match(app, /return contactLine\(b, state\.runs\.find\(\(r\) => r\.botId === b\.id\), working\);/, 'its newest run and its working line (botLine, also the keypad\'s)');
   assert.match(row, /<span class="time">\$\{esc\(shortTime\(r\?\.startedAt\)\)\}<\/span>\$\{line\.after\}<\/div>\s*<div class="prev \$\{line\.cls\}">\$\{esc\(line\.prev\)\}<\/div>/);
   assert.equal(Unread.mark('red;background:url(x)'), '<span class="asks-mark" style="--c:#888780" aria-label="Asks you">?</span>', 'only a colour gets into the style');
-  assert.match(css, /\.contact \.prev\.asks \{ color: var\(--text\); font-weight: 500; \}/);
+  assert.match(css, /\.contact \.prev\.asks \{ color: var\(--text\); font-weight: 600; \}/);
   assert.match(css, /\.asks-mark \{ width: 18px; height: 18px; border-radius: 50%; background: var\(--c\); color: #fff;[^}]*flex: none;[^}]*\}/, 'round, in the bot\'s colour, and never squeezed by a long name');
 });
 
@@ -623,7 +623,7 @@ test('web: it ends when the feed says so, also in a page that did not send the a
 
 test('web: at a phone\'s width the page\'s title, its line and the button wrap, and a card\'s buttons wrap in the card', () => {
   assert.match(css, /@container main \(max-width: 640px\) \{[\s\S]*?\.section-head \{ flex-wrap: wrap; \}/);
-  assert.match(css, /\.need-actions \{ display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end;/);
+  assert.match(css, /\.need-actions \{ display: flex; flex-wrap: wrap; gap: var\(--sp-8\); justify-content: flex-end;/);
   assert.match(css, /\.need-grid \{ display: grid; grid-template-columns: repeat\(auto-fill, minmax\(300px, 1fr\)\);/, 'one column of cards at 412 pixels, several at 1280');
   assert.match(css, /\.contact \.prev \{[^}]*white-space: nowrap; overflow: hidden; text-overflow: ellipsis; \}/, 'a long question ends in "…" at any width');
   assert.match(app, /<p class="needs-left">/);

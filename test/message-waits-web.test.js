@@ -415,8 +415,8 @@ test('web: the eleventh message is refused with the server\'s sentence and stays
 
 test('web: the look: the same bubble at half strength, its line under it at the right, as a sent message\'s', () => {
   assert.match(css, /\.bubble\.from-me\.waits \{ opacity: \.5; \}/);
-  assert.match(css, /\.chat-queued \{ display: flex; flex-direction: column; gap: 14px; \}/, 'the rows keep the chat\'s own distance');
-  assert.match(css, /\.chat-thread \{[^}]*gap: 14px;/);
+  assert.match(css, /\.chat-queued \{ display: flex; flex-direction: column; gap: var\(--sp-16\); \}/, 'the rows keep the chat\'s own distance');
+  assert.match(css, /\.chat-thread \{[^}]*gap: var\(--sp-16\);/);
   assert.match(css, /\.bubble-row\.from-me \.bubble-meta \{ justify-content: flex-end; \}/);
   assert.match(css, /\.bubble-meta \{[^}]*flex-wrap: wrap;/, 'at phone width the line wraps under the bubble');
   assert.match(css, /\.stack\.mine \{ align-items: flex-end; max-width: 76%; \}/);
