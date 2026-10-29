@@ -91,6 +91,14 @@ test('a bot on teams of two projects is told the to-dos of each and names the pr
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.ok((await srv.api(at('/company', second))).data.company.todos.some((x) => x.text === 'Buy flour'));
   assert.ok(!(await srv.api('/company')).data.company.todos.some((x) => x.text === 'Buy flour'));
+  // The owner's decisions too: each project's own.
+  assert.equal((await srv.api(at('/company/decisions', second), { method: 'POST', body: { text: 'Vegetarian menus only' } })).status, 201);
+  r = (await self(srv, token, 'decisions', { action: 'list' })).data;
+  assert.equal(r.ok, false);
+  r = (await self(srv, token, 'decisions', { action: 'list', project: 'Mealwise' })).data;
+  assert.deepEqual(r.decisions.map((d) => d.text), ['Vegetarian menus only']);
+  r = (await self(srv, token, 'decisions', { action: 'list', project: 'Fernhill' })).data;
+  assert.deepEqual(r.decisions, []);
   srv.unhold();
 });
 
