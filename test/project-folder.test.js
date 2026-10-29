@@ -48,6 +48,7 @@ test('a bot on the computer is told the folder on its computer; a bot without it
   let { rec } = await heldRun(srv, coder, 'Where are the files?');
   assert.match(rec.system, /Project folder, shared by its bots: "\/workspace\/projects\/Fernhill Shop" on your computer\./);
   assert.equal(rec.self.env.SELF_FOLDER, '0');
+  assert.match(rec.system, /Save each draft, text or other piece of work for the project there as a file as you make it, and name that file when you say it is written, ready or waiting for review: never say so of work that has no file there\./, 'no work said ready without its file');
   assert.doesNotMatch(rec.system, /Shared projects:/, 'said once, in the team note');
   srv.release(rec);
   ({ rec } = await heldRun(srv, writer, 'Where are the files?'));
