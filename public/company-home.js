@@ -205,13 +205,16 @@
 
   // The teams in the main area; the Chief, the bots in no team, a suggested bot and "New team" in a narrow column.
   function floorHTML(c, f) {
+    const cards = window.ProjectCards ? ProjectCards.html(c) : '';
+    const calendar = Company.onBoard(c, 'calendar') && c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : '';
+    // The board without its team floor (#780): the cards and whatever else the owner put on it.
+    if (!Company.onBoard(c, 'teams')) return `<div class="cf-floor bare">${cards}${calendar}</div>`;
     const line = chiefLine();
     const chief = `<button type="button" class="cf-chief" data-cf-chief><span class="cf-over">${line ? bubble(line, 'line') : ''}</span><span class="cf-table"><i></i></span><span class="cf-head">${chiefFigure()}</span><span class="cf-name">${esc(chiefTitle())}</span></button>`;
     const loose = f.loose.map((b) => `<div class="cf-loose">${deskHTML(b, { count: f.info.asks(b.id) })}</div>`).join('');
     const rooms = f.rooms.length ? `<div class="cf-rooms">${f.rooms.map(roomHTML).join('')}</div>` : '';
     // The cards made by Claude (#775, project-cards.js) in a row of their own at the top, so the rooms never move.
-    const cards = window.ProjectCards ? ProjectCards.html(c) : '';
-    return `<div class="cf-floor${rooms ? '' : ' bare'}">${cards}${rooms}<div class="cf-side">${chief}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>${c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : ''}</div>`;
+    return `<div class="cf-floor${rooms ? '' : ' bare'}">${cards}${rooms}<div class="cf-side">${chief}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>${calendar}</div>`;
   }
 
   // ---------- the panel: the To-do (#692), or a team ----------
@@ -316,16 +319,19 @@
   function home(root, c) {
     const known = info();
     const f = { ...CompanyFloor.floor(c, state.bots, known), info: known };
-    const team = teamOpen && c.teams.find((t) => t.id === teamOpen);
+    const team = teamOpen && Company.onBoard(c, 'teams') && c.teams.find((t) => t.id === teamOpen);
     if (!team) teamOpen = null;
+    // The pieces the owner put on the board (#780); a project made before has them all.
+    const days = c.day && Company.onBoard(c, 'days');
+    const panel = team || Company.onBoard(c, 'todo');
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
     const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what', ...(window.ProjectCards?.FIELDS || [])].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
-      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
-      ${c.day ? lineHTML(c) : ''}
-      ${c.checkin ? checkinHTML(c.checkin) : ''}
-      ${goalsHTML(c)}
-      <div class="cf-main">${floorHTML(c, f)}<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside></div>
+      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
+      ${days ? lineHTML(c) : ''}
+      ${days && c.checkin ? checkinHTML(c.checkin) : ''}
+      ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
+      <div class="cf-main${panel ? '' : ' solo'}">${floorHTML(c, f)}${panel ? `<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside>` : ''}</div>
     </div>`;
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
     wire(root, c);
@@ -340,8 +346,9 @@
       r.onclick = () => openTeam(r.dataset.cfTeam);
       r.onkeydown = (e) => { if (e.target === r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTeam(r.dataset.cfTeam); } };
     });
-    $('[data-cf-chief]', root).onclick = () => setView('chief');
-    $('[data-cf-new]', root).onclick = () => newTeam(c);
+    // Not there while the team floor is off the board (#780).
+    $('[data-cf-chief]', root)?.addEventListener('click', () => setView('chief'));
+    $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));
     window.ProjectCards?.wire(root); // the cards made by Claude (#775)
     Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));

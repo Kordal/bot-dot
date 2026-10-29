@@ -44,7 +44,15 @@
       + row(tr('Color'), swatches)
       + row(tr('Site or idea'), field('start', c.start, 500, tr('Site or idea')))
       + row(tr('Sources'), sources, 'top')
+      + boardHTML(c)
       + (c.folder ? row(tr('Folder'), `<span class="ps-path" title="${esc(c.folder.path)}">${esc(c.folder.path)}</span><button type="button" class="btn sm" data-ps-folder>${tr('Open')}</button>`) : ''));
+  }
+
+  // The pieces on its board (#780), each on or off; a project made before has them all on.
+  function boardHTML(c) {
+    if (!(state.features || []).includes('project-board')) return '';
+    const pieces = Company.PIECES.map((k) => { const on = Company.onBoard(c, k); return `<button type="button" data-ps-piece="${k}" aria-pressed="${on}" class="${on ? 'on' : ''}">${esc(Company.pieceLabel(k))}</button>`; }).join('');
+    return row(tr('Board'), `<div class="ps-seg ps-pieces" role="group">${pieces}</div>`);
   }
 
   function goalHTML(c) {
@@ -155,6 +163,11 @@
       el.onchange = () => { const v = el.value.trim(); if (el.dataset.psField === 'start' && !v) { el.value = c.start; return; } patch({ [el.dataset.psField]: v }); };
     });
     $$('[data-ps-color]', root).forEach((b) => (b.onclick = () => patch({ color: b.dataset.psColor })));
+    $$('[data-ps-piece]', root).forEach((b) => (b.onclick = () => {
+      const k = b.dataset.psPiece;
+      const list = Array.isArray(c.board) ? c.board : Company.PIECES;
+      patch({ board: list.includes(k) ? list.filter((x) => x !== k) : [...list, k] });
+    }));
     // Sources.
     $$('[data-ps-unsource]', root).forEach((b) => (b.onclick = () => patch({ sources: c.sources.filter((s) => s.id !== b.dataset.psUnsource) })));
     const files = $('[data-ps-files]', root);

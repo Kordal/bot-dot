@@ -61,6 +61,7 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -74,13 +75,16 @@ import dev.botdot.app.data.CompanySetup
 import dev.botdot.app.data.CompanyTeam
 import dev.botdot.app.data.Objective
 import dev.botdot.app.data.ManyProjects
+import dev.botdot.app.data.ProjectBoard
 import dev.botdot.app.data.ProjectStandup
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -128,7 +132,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
                         content()
                     } }
                 }
-                Card("general") { General(ui, c, ways, ::patch) }
+                Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, ::patch) }
                 Card("goal") { GoalRows(ui, c, features, ::patch) }
                 Card("team") { TeamRows(ui, c, bots) }
                 Card("reports") { ReportRows(ui, c, features) }
@@ -182,6 +186,24 @@ private fun General(ui: CompanyUi, c: Company, ways: CompanyWays, patch: (JsonOb
             Text(folder.path, color = p.text, fontSize = Type.s14, fontFamily = GeistMono, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         SmallButton(tr("Open")) { openFolder(folder.name) }
+    }
+}
+
+/** The pieces on its board (#780), each on or off; a project made before has them all on. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BoardRow(c: Company, patch: (JsonObject) -> Unit) {
+    val p = LocalPaper.current
+    Labeled(tr("Board")) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            ProjectBoard.PIECES.forEach { k ->
+                val on = ProjectBoard.shows(c, k)
+                Text(ProjectBoard.label(k), color = if (on) p.text else p.muted, fontSize = Type.s14,
+                    modifier = Modifier.clip(Radius.pill).background(if (on) p.sunk else androidx.compose.ui.graphics.Color.Transparent).border(1.dp, if (on) p.text else p.line2, Radius.pill)
+                        .clickable { patch(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(c, k).forEach { add(it) } } }) }
+                        .semantics { selected = on }.padding(horizontal = Space.s12, vertical = Space.s8))
+            }
+        }
     }
 }
 

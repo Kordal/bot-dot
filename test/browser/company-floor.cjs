@@ -22,7 +22,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     for (const [i, name] of names.entries()) bots.push(await makeBot(srv, { name, color: colors[i] }));
     const id = (name) => bots[names.indexOf(name)].id;
     assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'fernhill.app' } })).status, 201);
-    const c = (await srv.api('/company')).data.company;
+    const c = { ...(await srv.api('/company')).data.company, board: undefined }; // every piece on the board (#780)
     writeData(path.join(srv.data, 'company.json'), {
       ...c, phase: 'running', startedAt: new Date(Date.now() - 22 * 86_400_000).toISOString(),
       objectives: [{ id: 'o1', name: 'Paying teams', current: 23, target: 50, color: '#34c759' }, { id: 'o2', name: 'First support reply', current: 6, target: 4, color: '#ff7a45' }, { id: 'o3', name: 'Releases with notes', current: 3, target: 4, color: '#8e7cff' }],

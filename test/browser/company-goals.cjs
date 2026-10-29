@@ -17,7 +17,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     const poster = await makeBot(srv, { name: 'Launch Poster', color: '#d4537e' });
     const loose = await makeBot(srv, { name: 'test-researcher', color: '#639922' });
     assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'botdot.app' } })).status, 201);
-    const c = (await srv.api('/company')).data.company;
+    const c = { ...(await srv.api('/company')).data.company, board: undefined }; // every piece on the board (#780)
     const write = (days, objectives) => writeData(path.join(srv.data, 'company.json'), {
       ...c, phase: 'running', startedAt: new Date(Date.now() - (days - 1) * 86_400_000 - 3_600_000).toISOString(), objectives,
       teams: [{ id: 't1', name: 'Botdot Growth', color: '#34c759', bots: [lead.id, poster.id], lead: lead.id }],

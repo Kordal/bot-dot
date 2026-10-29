@@ -93,9 +93,18 @@
       <div class="pc-saids">${said}</div>${now}</div>`;
   }
 
+  // The pieces of the board the owner can add (#780), as picks under the ask of a new card.
+  function picksHTML(c) {
+    const left = Company.missing(c);
+    return left.length ? `<div class="pc-picks wide">${left.map((k) => `<button type="button" class="co-chip" data-pc-piece="${k}">${ICON.plus}${esc(Company.pieceLabel(k))}</button>`).join('')}</div>` : '';
+  }
+
   // ---------- the row ----------
+  // The project the row was drawn for, so a pick adds to its board.
+  let shown = null;
   function html(c) {
     if (!on() || c.phase !== 'running') return '';
+    shown = c;
     const cards = c.cards || [];
     for (const k of cards) {
       if (k.state === 'building') wasBuilding.add(k.id);
@@ -105,7 +114,7 @@
     if (open && open !== 'new' && !cards.some((k) => k.id === open)) open = null;
     const items = cards.map((k) => (open === k.id ? askHTML(k.title || k.ask, k.id) : k.state === 'asking' ? questionsHTML(k) : cardHTML(k)));
     const full = cards.length >= 12;
-    const tail = open === 'new' ? askHTML('') : full ? '' : `<button type="button" class="pc-new" data-pc-new>${ICON.plus}${tr('New card')}</button>`;
+    const tail = open === 'new' ? askHTML('') + picksHTML(c) : full ? '' : `<button type="button" class="pc-new" data-pc-new>${ICON.plus}${tr('New card')}</button>`;
     return `<div class="pc-row">${items.join('')}${tail}</div>`;
   }
 
@@ -135,6 +144,11 @@
         if (!(await send(cid ? at(cid) : '/company/cards', cid ? 'PUT' : 'POST', { ask: text }))) { open = was; Company.redraw(); const now = $('#pc-ask input'); if (now) now.value = text; }
       };
     }
+    $$('[data-pc-piece]', root).forEach((b) => (b.onclick = () => {
+      b.disabled = true;
+      open = null;
+      send('/company', 'PATCH', { board: [...(shown?.board || []), b.dataset.pcPiece] });
+    }));
     const answer = (cid, text) => send(at(cid, '/answer'), 'POST', { text });
     $$('[data-pc-pick]', root).forEach((b) => (b.onclick = () => { b.disabled = true; answer(b.closest('[data-pc-asking]').dataset.pcAsking, b.dataset.pcPick); }));
     const other = $('#pc-other', root);

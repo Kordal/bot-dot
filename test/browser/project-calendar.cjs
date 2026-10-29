@@ -17,7 +17,7 @@ const CAL = require('../../public/company-calendar.js');
     const a = await makeBot(srv, { name: 'Launch Poster', color: '#e24b8a' });
     const b = await makeBot(srv, { name: 'Weekly Tracker', color: '#d9a31a' });
     assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'botdot.app' } })).status, 201);
-    const base = (await srv.api('/company')).data.company;
+    const base = { ...(await srv.api('/company')).data.company, board: undefined }; // every piece on the board (#780)
     const now = CAL.today();
     const tomorrow = CAL.addDays(now, 1);
     writeData(path.join(srv.data, 'company.json'), {

@@ -28,7 +28,7 @@ const { shortName } = require('../../public/mentions.js');
     await srv.api('/company', { method: 'PATCH', body: { name: 'Botdot' } });
     const team = (await srv.api('/company/teams', { method: 'POST', body: { name: 'Botdot Growth', bots: names.map(id), lead: id('Demo Scheduler') } })).data.teams[0];
     // Running, as after Create: the team's chat was made with the team, through the route.
-    const c = (await srv.api('/company')).data.company;
+    const c = { ...(await srv.api('/company')).data.company, board: undefined }; // every piece on the board (#780)
     writeData(path.join(srv.data, 'company.json'), { ...c, phase: 'running', startedAt: new Date(Date.now() - 2 * 86_400_000).toISOString(), objectives: [{ id: 'o1', name: 'Active users', current: 7, target: 100, color: '#34c759' }], todos: [] });
     // Weekly Tracker is at work in its own chat.
     srv.hold();
