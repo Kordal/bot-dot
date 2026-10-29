@@ -73,7 +73,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         assert.ok(side.x > rooms.x + rooms.width - 1 && side.width < 220, 'the Chief, the bots in no team and New team in a narrow column beside the teams');
         assert.ok(await page.locator('.cf-side .cf-chief').count() && await page.locator('.cf-side .cf-loose').count() && await page.locator('.cf-side .cf-new').count());
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-you.png`), fullPage: true });
-        await sales.locator('.cf-room-head').click();
+        await sales.locator('.cf-room-head .cf-n').click(); // the room, not its name: the name opens the team's chat (#697)
         await page.locator('.cf-panel h2', { hasText: 'Sales' }).waitFor();
         assert.match(await page.locator('.cf-team-kpi').innerText(), /Paying teams/);
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-team.png`), fullPage: true });

@@ -221,13 +221,7 @@ function wireJobCard(card, bot) {
       refresh();
     } catch (err) { input.checked = !on; toast(err.message, true); }
   };
-  $('[data-run-job]', card).onclick = async () => {
-    try {
-      const r = await api(`${jobUrl()}/run`, { method: 'POST' });
-      toast(OpeningLine.text(r.skipped) || (r.queued ? tr('It will run as soon as the bot is free') : r.started === 'script' ? tr('Script started. Nothing to report means nothing shows in the chat.') : tr('Started'))); // skipped: why it did not start, in the server's words
-      refresh();
-    } catch (e) { toast(e.message, true); }
-  };
+  $('[data-run-job]', card).onclick = () => runJobNow(bot.id, card.dataset.job);
   const approve = $('[data-approve]', card);
   // Approve right here (the script is shown in the card).
   if (approve) approve.onclick = () => whileBusy(approve, tr('Approving…'), async () => {
@@ -240,6 +234,30 @@ function wireJobCard(card, bot) {
     } catch (e) { toast(e.message, true); }
   });
 }
+
+// "Run now": a bot's job starts at once, or waits for the bot to be free. From its card and from its chip in an
+// empty chat (#727).
+async function runJobNow(botId, jobId) {
+  try {
+    const r = await api(`/bots/${botId}/jobs/${jobId}/run`, { method: 'POST' });
+    toast(OpeningLine.text(r.skipped) || (r.queued ? tr('It will run as soon as the bot is free') : r.started === 'script' ? tr('Script started. Nothing to report means nothing shows in the chat.') : tr('Started'))); // skipped: why it did not start, in the server's words
+    refresh();
+  } catch (e) { toast(e.message, true); }
+}
+
+// An empty chat (#727): the jobs under its message box, each a chip with its name; a tap is run(id). Drawn again only
+// when they change.
+function drawJobChips(box, jobs, run) {
+  if (!box) return;
+  const sig = JSON.stringify(jobs.map((j) => [j.id, j.name]));
+  if (box.dataset.sig !== sig) {
+    box.dataset.sig = sig;
+    box.innerHTML = jobs.map((j) => `<button type="button" class="job-chip" data-job="${esc(j.id)}">${esc(j.name)}</button>`).join('');
+  }
+  box.onclick = (e) => { const b = e.target.closest('[data-job]'); if (b) run(b.dataset.job); };
+}
+// The jobs of a bot an empty chat offers: approved and on.
+const startableJobs = (bot) => (bot.jobs || []).filter((j) => j.approved !== false && j.enabled !== false);
 
 // A script job's run in the chat: what it printed, no AI involved.
 function scriptRunHTML(r) {

@@ -186,6 +186,9 @@ internal object Keypad {
         else -> Status(StatusKind.IDLE, tr("Idle"))
     }
 
+    /** Whether a key's status words keep their colour and weight (#724): only Needs you, the one that asks for the owner; the rest are muted, their colour in the dot. */
+    fun loud(kind: StatusKind) = kind == StatusKind.NEEDS
+
     /** How long a run has been going, beside a Working pill: "<1 min", "2 min", "1 h 5 min". [ms]: since its start. */
     fun since(ms: Long): String {
         val m = ms.coerceAtLeast(0) / 60_000
