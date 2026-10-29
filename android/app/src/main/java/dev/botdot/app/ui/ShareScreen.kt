@@ -61,9 +61,9 @@ fun ShareScreen(app: BotDotApp, count: Int, text: String, onPick: (String) -> Un
         LazyColumn(Modifier.padding(pad).fillMaxSize()) {
             if (text.isNotBlank()) item {
                 Text("“${text.take(200)}”", color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 3,
-                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = Space.s16, vertical = Space.s8))
             }
-            if (error != null) item { Text(error!!, color = p.err, modifier = Modifier.padding(20.dp)) }
+            if (error != null) item { Text(error!!, color = p.err, modifier = Modifier.padding(Space.s16)) }
             item { Pick(CHIEF_COLOR, LocalChiefName.current, tr("It can pass it on to the right bot"), FigureDef.CHIEF) { onPick("chief") } }
             items(bots.sortedBy { it.name.lowercase() }, key = { it.id }) { b -> Pick(b.color, b.name, b.description, b.outfit) { onPick(b.id) } }
         }
@@ -73,7 +73,7 @@ fun ShareScreen(app: BotDotApp, count: Int, text: String, onPick: (String) -> Un
 @Composable
 private fun Pick(color: String?, name: String, sub: String, outfit: JsonElement?, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s16, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
         BotFigure(color, "idle", 42, outfit)
         Spacer(Modifier.size(12.dp))
         androidx.compose.foundation.layout.Column(Modifier.weight(1f)) {

@@ -20,7 +20,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -66,7 +65,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.ApiException
@@ -305,11 +303,11 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     @Composable
     fun NeedsRow() {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(p.warnSoft)
-                .clickable(onClick = onNeedsYou).padding(horizontal = 14.dp, vertical = 9.dp),
+            Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s4).clip(Radius.card).background(p.warnSoft)
+                .clickable(onClick = onNeedsYou).padding(horizontal = Space.s16, vertical = Space.s8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(tr("Needs you"), color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)) // the figures say how many
+            Text(tr("Needs you"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f)) // the figures say how many
             Spacer(Modifier.size(10.dp))
             NeedsFigures(needsWho)
         }
@@ -318,8 +316,8 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     // Needs you as one card (#397) and Rooms.
     @Composable
     fun AboveKeys() {
-        error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(16.dp)) }
-        if (dev.botdot.app.data.AppUpdate.newer(server) != null) Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(Space.s16)) }
+        if (dev.botdot.app.data.AppUpdate.newer(server) != null) Column(Modifier.padding(horizontal = Space.s12, vertical = Space.s8)) {
             AppUpdateBanner(api, server) { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
         }
         BoardCards(dash, bots.orEmpty(), onClick = onDashboard, onEdit = if (dev.botdot.app.data.HomeTiles.shows(server?.features)) ({ choosingHome = true }) else null)
@@ -373,7 +371,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     CompositionLocalProvider(LocalListShows provides shows) {
     Column(modifier.background(p.bg)) {
         // The logo and the list's buttons: in a row, or one under the other in a list of figures, which has no search.
-        if (figures) Column(Modifier.fillMaxWidth().statusBarsPadding().padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (figures) Column(Modifier.fillMaxWidth().statusBarsPadding().padding(vertical = Space.s8), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
             if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = tr("Can't reach botdot") })
             RoundButton(Icons.Filled.Add, tr("New chat"), onClick = onNew)
@@ -382,21 +380,21 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback")) { feedbackOpen = true }
         }
         // A list of names: the logo, and the buttons under it, a little smaller, so that all three fit in 140.
-        else if (shows == ListWidth.Shows.NAMES) Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        else if (shows == ListWidth.Shows.NAMES) Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.s12, end = Space.s8, top = Space.s8, bottom = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
                 if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = tr("Can't reach botdot") })
             }
             // Four buttons don't fit in one row of 140: Feedback wraps under them there.
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 RoundButton(Icons.Filled.Search, tr("Search"), size = 34.dp) { searching = !searching; if (!searching) query = "" }
                 RoundButton(Icons.Filled.Add, tr("New chat"), size = 34.dp, onClick = onNew)
                 RoundButton(Icons.Filled.Settings, tr("Settings"), size = 34.dp) { onOpen("settings") }
                 if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback"), size = 34.dp) { feedbackOpen = true }
             }
         }
-        else Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        else Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.s16, end = Space.s12, top = Space.s8, bottom = Space.s8),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
             Spacer(Modifier.weight(1f))
             ConnectionDot(feedState)
@@ -408,7 +406,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         }
         // "Bots | Company" (#674), from a botdot that has the Company; a list of figures has its building in the column above.
         val places = onPlace != null && dev.botdot.app.data.CompanySetup.shows(server?.features)
-        if (places && !figures) PlaceSwitch(company = active == "company", Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), fill = true) { onPlace?.invoke(it) }
+        if (places && !figures) PlaceSwitch(company = active == "company", Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s4), fill = true) { onPlace?.invoke(it) }
         if ((searching || query.isNotEmpty()) && !figures) SearchField(query, askSearch) { query = it }
         // The keypad, while the search finds nothing to show in its place.
         if (keypad && q.isEmpty()) Column(Modifier.fillMaxSize().navigationBarsPadding()) {
@@ -426,7 +424,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         ) {
             KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0, chiefBusy = chiefBusy, folded = folded, onFold = foldPage) {
                 AboveKeys()
-                if (bots != null && pages.isEmpty()) Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(20.dp))
+                if (bots != null && pages.isEmpty()) Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(Space.s16))
             }
         }
         else PullToRefreshBox(
@@ -436,17 +434,17 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         ) {
             LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = WindowInsets.navigationBars.asPaddingValues()) {
                 if (error != null) item {
-                    Text(error!!, color = p.err, style = if (figures) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(if (figures) 6.dp else 16.dp))
+                    Text(error!!, color = p.err, style = if (figures) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(if (figures) Space.s8 else Space.s16))
                 }
                 if (dev.botdot.app.data.AppUpdate.newer(server) != null && !figures) item {
-                    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                    Column(Modifier.padding(horizontal = Space.s12, vertical = Space.s8)) {
                         AppUpdateBanner(api, server) { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
                     }
                 }
                 // "Needs you" in a list of figures: the first of the figures that wait, on the same ground.
                 if (needs > 0 && figures) item {
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp).clip(RoundedCornerShape(14.dp)).background(p.warnSoft)
-                        .clickable(onClickLabel = tr("Needs you"), onClick = onNeedsYou).padding(vertical = 9.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxWidth().padding(horizontal = Space.s8, vertical = Space.s4).clip(Radius.card).background(p.warnSoft)
+                        .clickable(onClickLabel = tr("Needs you"), onClick = onNeedsYou).padding(vertical = Space.s8), contentAlignment = Alignment.Center) {
                         NeedsFigures(needsWho, max = 1)
                     }
                 }
@@ -460,7 +458,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                     }
                     items(groups.filter { groupSearchText(it, list).contains(q) }, key = { ListLayout.groupRow(it.id) }) { g -> GroupContact(g) }
                     if (hits.isNotEmpty()) item(key = "hits") {
-                        Text(tr("Messages"), color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 2.dp))
+                        Text(tr("Messages"), color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = Space.s16, top = Space.s12, bottom = Space.s4))
                     }
                     items(hits.withIndex().toList(), key = { "hit:${it.index}" }) { (_, h) -> Hit(h, list) { onHit(h) } }
                     return@LazyColumn
@@ -477,7 +475,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                             val dragRow = dragging.let { it != null && it !in pins }
                             val ground by animateColorAsState(if (dragRow) p.sunk else p.bg, tween(200), label = "pins")
                             // A list of figures has no room for a row of them: one under the other, in the order they have.
-                            if (figures) Column(Modifier.fillMaxWidth().padding(vertical = 2.dp).background(ground), horizontalAlignment = Alignment.CenterHorizontally) {
+                            if (figures) Column(Modifier.fillMaxWidth().padding(vertical = Space.s4).background(ground), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Pin(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, active = active == CHIEF, outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief)
                                 for (id in pins) {
                                     val g = groupById[id]
@@ -488,7 +486,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                                     } else if (b != null) Pin(b.color, b.state, b.name, active = id == active, outfit = b.outfit, unread = b.unread, asks = asks(b)) { onBot(id) }
                                 }
                             }
-                            else LazyRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp).clip(RoundedCornerShape(16.dp)).background(ground), state = pinState) {
+                            else LazyRow(Modifier.fillMaxWidth().padding(horizontal = Space.s8, vertical = Space.s4).clip(Radius.card).background(ground), state = pinState) {
                                 item(key = CHIEF) { Pin(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, active = active == CHIEF, outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
                                 items(pins, key = { it }) { id ->
                                     // A pinned group: its picture as a big figure, in its place among the pinned ones.
@@ -519,22 +517,22 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                             val isFolded = category in folded
                             val turn by animateFloatAsState(if (isFolded) -90f else 0f, tween(200), label = "fold")
                             // A list of figures has no room for a category's name: a line stands where it begins.
-                            if (figures) Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp).height(1.dp).background(p.line))
+                            if (figures) Box(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s8).height(1.dp).background(p.line))
                             else Row(Modifier.fillMaxWidth().clickable(onClickLabel = if (isFolded) tr("Show this category") else tr("Hide this category")) { scope.launch { app.settings.toggleFolded(category) } }
-                                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(category.ifEmpty { tr("Other") }, color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                .padding(start = Space.s16, end = Space.s16, top = Space.s12, bottom = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                                Text(category.ifEmpty { tr("Other") }, color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Medium)
                                 Spacer(Modifier.size(6.dp))
-                                Text("▾", color = p.faint, fontSize = 12.sp, modifier = Modifier.graphicsLayer { rotationZ = turn })
+                                Text("▾", color = p.faint, fontSize = Type.s12, modifier = Modifier.graphicsLayer { rotationZ = turn })
                                 if (isFolded && members.any { it.running }) {
                                     Spacer(Modifier.size(8.dp))
-                                    Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(p.ok))
+                                    Box(Modifier.size(7.dp).clip(Radius.pill).background(p.ok))
                                 }
                             }
                         }
                     }
                 }
                 if (bots != null && list.isEmpty() && groups.isEmpty() && !figures) item {
-                    Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(20.dp))
+                    Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(Space.s16))
                 }
             }
         }
@@ -553,11 +551,11 @@ private fun SearchField(value: String, ask: Int, onChange: (String) -> Unit) {
         value, onChange, singleLine = true,
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = p.text),
         cursorBrush = androidx.compose.ui.graphics.SolidColor(p.text),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp).focusRequester(focus),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s4).focusRequester(focus),
         decorationBox = { field ->
-            Row(Modifier.clip(CircleShape).background(p.sunk).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.clip(CircleShape).background(p.sunk).padding(horizontal = Space.s16, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) { if (value.isEmpty()) Text(tr("Search"), color = p.faint, style = MaterialTheme.typography.bodyLarge); field() }
-                if (value.isNotEmpty()) Text("✕", color = p.muted, modifier = Modifier.clickable { onChange("") }.padding(start = 8.dp))
+                if (value.isNotEmpty()) Text("✕", color = p.muted, modifier = Modifier.clickable { onChange("") }.padding(start = Space.s8))
             }
         },
     )
@@ -585,10 +583,10 @@ private fun Hit(h: ChatHit, bots: List<Bot>, onClick: () -> Unit) {
             append(rest)
         }
     }
-    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s16, vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             FigureText(who, color = p.text, style = MaterialTheme.typography.titleSmall, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(shortTime(h.at), color = p.faint, fontSize = 12.sp)
+            Text(shortTime(h.at), color = p.faint, fontSize = Type.s12)
         }
         Text(text, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
@@ -598,7 +596,7 @@ private fun Hit(h: ChatHit, bots: List<Bot>, onClick: () -> Unit) {
 private fun ConnectionDot(state: Feed.State) {
     // Nothing while all is well; only a word when botdot can't be reached.
     if (state != Feed.State.Retrying) return
-    Text(tr("Can't reach botdot"), color = LocalPaper.current.warnText, fontSize = 12.sp, modifier = Modifier.padding(end = 4.dp))
+    Text(tr("Can't reach botdot"), color = LocalPaper.current.warnText, fontSize = Type.s12, modifier = Modifier.padding(end = Space.s4))
 }
 
 /**

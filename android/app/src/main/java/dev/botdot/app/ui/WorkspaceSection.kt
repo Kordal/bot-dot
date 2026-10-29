@@ -137,7 +137,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
             runCatching { a.projects() }.onSuccess { allProjects = it }
             runCatching { a.bots() }.onSuccess { allBots = it }
         }
-        if (usesComputer) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (usesComputer) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             val roots = listOf(WorkspaceFiles.SERVER to tr("On botdot"), WorkspaceFiles.COMPUTER to tr("On the computer")) +
                 (if (withProjects) Projects.of(botId, allProjects).map { WorkspaceFiles.projectRoot(it.name) to it.name } else emptyList())
             for ((r, label) in roots) {
@@ -165,7 +165,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
             crumbs.forEachIndexed { i, (name, to) ->
                 if (i == crumbs.lastIndex) Text(name, color = p.text, style = MaterialTheme.typography.bodyMedium)
                 else {
-                    Text(name, color = p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.clickable { path = to }.padding(vertical = 6.dp))
+                    Text(name, color = p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.clickable { path = to }.padding(vertical = Space.s8))
                     Text(" / ", color = p.faint)
                 }
             }
@@ -185,7 +185,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
             l == null -> Hint(tr("Loading…"))
             else -> {
                 val writes = WorkspaceFiles.writes(root, l, folders)
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { byDate = !byDate }) { Text(if (byDate) tr("Sorted by date") else tr("Sorted by name"), color = p.muted) }
                     val hid = WorkspaceFiles.hiddenCount(l.entries)
                     if (hid > 0) TextButton(onClick = { hidden = !hidden }) { Text(if (hidden) tr("Hide hidden ({n})", "n" to hid) else tr("Show hidden ({n})", "n" to hid), color = p.muted) }
@@ -243,7 +243,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
                     }
                 }
                 else Column {
-                    if (a.kind == "move") Text(tr("To which folder? A path in its folder, such as notes/old. Empty for the top."), color = p.muted, modifier = Modifier.padding(bottom = 8.dp))
+                    if (a.kind == "move") Text(tr("To which folder? A path in its folder, such as notes/old. Empty for the top."), color = p.muted, modifier = Modifier.padding(bottom = Space.s8))
                     OutlinedTextField(answer, { answer = it.take(255) }, singleLine = true, label = { Text(if (a.kind == "move") tr("Folder") else tr("Name")) }, modifier = Modifier.fillMaxWidth())
                 }
             },
@@ -273,7 +273,7 @@ private fun EntryRow(e: WorkspaceEntry, detail: String, onOpen: () -> Unit, onSa
     var menu by remember { mutableStateOf(false) }
     val icon = when (e.type) { "folder" -> "📁"; "link" -> "🔗"; else -> "📄" }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).clickable(enabled = e.type != "link", onClick = onOpen).padding(vertical = 6.dp)) {
+        Column(Modifier.weight(1f).clickable(enabled = e.type != "link", onClick = onOpen).padding(vertical = Space.s8)) {
             Text("$icon ${e.name}", color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val sub = listOfNotNull(detail.ifBlank { null }, if (kept) tr("Kept by botdot") else null).joinToString(" · ")
             if (sub.isNotEmpty()) Text(sub, color = p.muted, style = MaterialTheme.typography.bodySmall)

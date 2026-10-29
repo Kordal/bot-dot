@@ -58,7 +58,7 @@ fun ChiefNameQuestion(app: BotDotApp) {
         onDismissRequest = {}, // answered with Save or Skip
         title = { Text(tr("Name your Chief of Staff")) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Text(tr("It runs your team of bots and talks with you. Leave it empty to keep “Chief of Staff”. You can ask it for another name any time."))
                 OutlinedTextField(name, { name = it.take(ChiefName.MAX); error = null }, placeholder = { Text(ChiefName.role) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 error?.let { Text(it, color = p.err) }

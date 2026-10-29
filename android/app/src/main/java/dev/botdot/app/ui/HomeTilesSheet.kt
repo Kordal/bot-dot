@@ -41,7 +41,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Dashboard
 import dev.botdot.app.data.HomeTiles
 import dev.botdot.app.data.tr
@@ -78,7 +77,7 @@ internal fun HomeTilesSheet(dash: Dashboard, save: suspend (List<String>) -> Uni
         haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
     }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.panel) {
-        LazyColumn(Modifier.fillMaxWidth().testTag(HOME_TILES), state = listState, contentPadding = PaddingValues(start = 10.dp, end = 10.dp, bottom = 24.dp)) {
+        LazyColumn(Modifier.fillMaxWidth().testTag(HOME_TILES), state = listState, contentPadding = PaddingValues(start = Space.s12, end = Space.s12, bottom = Space.s24)) {
             items(on, key = { it }) { id ->
                 ReorderableItem(reorder, key = id) { lifted ->
                     HomeTileRow(titles[id].orEmpty(), checked = true, lifted = lifted, handle = Modifier.draggableHandle(
@@ -87,7 +86,7 @@ internal fun HomeTilesSheet(dash: Dashboard, save: suspend (List<String>) -> Uni
                     )) { change(HomeTiles.toggle(on, id)) }
                 }
             }
-            if (on.isNotEmpty() && rest.isNotEmpty()) item(key = "sep") { Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp).height(1.dp).background(p.line)) }
+            if (on.isNotEmpty() && rest.isNotEmpty()) item(key = "sep") { Box(Modifier.fillMaxWidth().padding(horizontal = Space.s8, vertical = Space.s4).height(1.dp).background(p.line)) }
             items(rest, key = { it }) { id -> HomeTileRow(titles[id].orEmpty(), checked = false) { change(HomeTiles.toggle(on, id)) } }
         }
     }
@@ -97,12 +96,12 @@ internal fun HomeTilesSheet(dash: Dashboard, save: suspend (List<String>) -> Uni
 private fun HomeTileRow(title: String, checked: Boolean, lifted: Boolean = false, handle: Modifier? = null, onToggle: () -> Unit) {
     val p = LocalPaper.current
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(if (lifted) p.sunk else p.panel)
+        Modifier.fillMaxWidth().clip(Radius.small).background(if (lifted) p.sunk else p.panel)
             .clickable(role = Role.Checkbox, onClickLabel = if (checked) tr("Take off home") else tr("Put on home"), onClick = onToggle)
             .semantics { contentDescription = "$title, " + if (checked) tr("on home") else tr("not on home") }
-            .padding(horizontal = 10.dp, vertical = 12.dp),
+            .padding(horizontal = Space.s12, vertical = Space.s12),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.s12),
     ) {
         if (handle != null) Icon(Icons.Filled.DragIndicator, contentDescription = tr("Drag"), tint = p.faint, modifier = handle.size(20.dp))
         else Spacer(Modifier.size(20.dp))
@@ -110,6 +109,6 @@ private fun HomeTileRow(title: String, checked: Boolean, lifted: Boolean = false
         Box(Modifier.size(20.dp).clip(box).then(if (checked) Modifier.background(p.text) else Modifier.border(1.5.dp, p.faint, box)), contentAlignment = Alignment.Center) {
             if (checked) Icon(Icons.Filled.Check, contentDescription = null, tint = p.bg, modifier = Modifier.size(15.dp))
         }
-        Text(title, color = if (checked) p.text else p.muted, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(title, color = if (checked) p.text else p.muted, fontSize = Type.s16, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

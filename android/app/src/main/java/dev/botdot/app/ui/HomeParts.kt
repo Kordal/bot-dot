@@ -46,7 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.tr
 import dev.botdot.app.data.trn
@@ -63,11 +62,11 @@ import kotlinx.serialization.json.JsonElement
 internal fun Pin(color: String?, state: String, name: String, modifier: Modifier = Modifier, active: Boolean = false, lifted: Boolean = false, outfit: JsonElement? = null, unread: Int = 0, asks: Boolean = false, picture: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
     val p = LocalPaper.current
     val lift by animateFloatAsState(if (lifted) 1f else 0f, spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow), label = "lift")
-    val shape = RoundedCornerShape(14.dp)
+    val shape = Radius.card
     val figures = LocalListShows.current == ListWidth.Shows.FIGURES // no room for its name
     Column(
         Modifier.width(if (figures) 64.dp else 74.dp).graphicsLayer { scaleX = 1f + 0.1f * lift; scaleY = scaleX }.clip(shape).background(if (active) p.sunk else Color.Transparent)
-            .then(modifier).clickable(onClickLabel = name, onClick = onClick).padding(horizontal = 4.dp, vertical = 6.dp),
+            .then(modifier).clickable(onClickLabel = name, onClick = onClick).padding(horizontal = Space.s4, vertical = Space.s8),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box {
@@ -76,7 +75,7 @@ internal fun Pin(color: String?, state: String, name: String, modifier: Modifier
         }
         // The dots have their room between the head and the name whether there are any, so a new reply moves nothing.
         Box(Modifier.height(9.dp), contentAlignment = Alignment.Center) { if (!asks) UnreadDots(unread, color) }
-        if (!figures) Text(name, color = p.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (!figures) Text(name, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -93,15 +92,15 @@ internal fun Contact(color: String?, state: String, name: String, sub: String, t
     LaunchedEffect(lifted) {
         if (lifted) { pulse.animateTo(1.25f, tween(140)); pulse.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMediumLow)) }
     }
-    val shape = RoundedCornerShape(14.dp)
+    val shape = Radius.card
     val shows = LocalListShows.current
     // A list of figures: the figure alone in the middle, the mark at its corner or the dots under it, as a big figure's.
     if (shows == ListWidth.Shows.FIGURES) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+            Modifier.fillMaxWidth().padding(horizontal = Space.s4)
                 .graphicsLayer { scaleX = 1f + 0.03f * lift; scaleY = scaleX }
                 .clip(shape).background(if (active) p.sunk else Color.Transparent)
-                .then(modifier).clickable(onClickLabel = name, onClick = onClick).padding(top = 7.dp, bottom = 2.dp),
+                .then(modifier).clickable(onClickLabel = name, onClick = onClick).padding(top = Space.s8, bottom = Space.s4),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(Modifier.graphicsLayer { scaleX = pulse.value; scaleY = pulse.value }) {
@@ -113,21 +112,21 @@ internal fun Contact(color: String?, state: String, name: String, sub: String, t
         return
     }
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+        Modifier.fillMaxWidth().padding(horizontal = Space.s8)
             .graphicsLayer { scaleX = 1f + 0.03f * lift; scaleY = scaleX }
             .then(if (lift > 0.01f) Modifier.shadow(8.dp * lift, shape).background(p.panel.copy(alpha = lift), shape) else Modifier)
             .clip(shape).background(if (active) p.sunk else Color.Transparent)
-            .then(modifier).clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 7.dp),
+            .then(modifier).clickable(onClick = onClick).padding(horizontal = Space.s8, vertical = Space.s8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.graphicsLayer { scaleX = pulse.value; scaleY = pulse.value }) { if (picture != null) picture() else BotFigure(color, state, 40, outfit) }
         Spacer(Modifier.size(10.dp))
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(name, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                if (time.isNotEmpty() && shows == ListWidth.Shows.ALL) Text(time, color = p.faint, fontSize = 12.sp, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
+                Text(name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (time.isNotEmpty() && shows == ListWidth.Shows.ALL) Text(time, color = p.faint, fontSize = Type.s12, maxLines = 1, modifier = Modifier.padding(start = Space.s8))
                 // It asks the owner something: the mark, in place of the dots. Else one dot per new reply, after the time.
-                if (asks) AsksMark(color, Modifier.padding(start = 8.dp)) else UnreadDots(unread, color, Modifier.padding(start = 8.dp))
+                if (asks) AsksMark(color, Modifier.padding(start = Space.s8)) else UnreadDots(unread, color, Modifier.padding(start = Space.s8))
             }
             // What it asks stands out from what a bot last said: the list's stronger colour, as on the web page.
             val line = if (who.isEmpty()) androidx.compose.ui.text.AnnotatedString(sub) else buildAnnotatedString {
@@ -135,7 +134,7 @@ internal fun Contact(color: String?, state: String, name: String, sub: String, t
                 append(sub)
             }
             if (sub.isNotBlank() && shows == ListWidth.Shows.ALL) Text(line, color = if (asks) p.text else if (state == "working") p.okText else p.muted, fontWeight = if (asks) FontWeight.Medium else null,
-                fontSize = 13.5.sp, lineHeight = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                fontSize = Type.s14, lineHeight = Type.line20, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -144,7 +143,7 @@ internal fun Contact(color: String?, state: String, name: String, sub: String, t
 @Composable
 internal fun AsksMark(color: String?, modifier: Modifier = Modifier) {
     Box(modifier.size(18.dp).clip(CircleShape).background(parseColor(color, LocalPaper.current.faint)).semantics { contentDescription = tr("Asks you") }, contentAlignment = Alignment.Center) {
-        Text("?", color = Color.White, fontSize = 11.sp, lineHeight = 11.sp, fontWeight = FontWeight.Bold)
+        Text("?", color = Color.White, fontSize = Type.s12, lineHeight = Type.line16, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -159,15 +158,15 @@ internal fun DashboardStrip(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot
     val tiles = stripTiles(dash) ?: return
     // A list of figures: the Board's mark, four small squares, in place of its tiles.
     if (LocalListShows.current == ListWidth.Shows.FIGURES) {
-        Box(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp).clip(RoundedCornerShape(12.dp)).clickable(onClickLabel = BoardWords.NAME, onClick = onClick).padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                repeat(2) { Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) { repeat(2) { Box(Modifier.size(7.dp).border(1.5.dp, p.muted, RoundedCornerShape(2.dp))) } } }
+        Box(Modifier.fillMaxWidth().padding(horizontal = Space.s8, vertical = Space.s4).clip(Radius.card).clickable(onClickLabel = BoardWords.NAME, onClick = onClick).padding(vertical = Space.s12), contentAlignment = Alignment.Center) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                repeat(2) { Row(horizontalArrangement = Arrangement.spacedBy(Space.s4)) { repeat(2) { Box(Modifier.size(7.dp).border(1.5.dp, p.muted, RoundedCornerShape(2.dp))) } } }
             }
         }
         return
     }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)
-        .padding(horizontal = 8.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s4).clip(Radius.card).clickable(onClick = onClick)
+        .padding(horizontal = Space.s8, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
         if (tiles.isEmpty()) Text(buildAnnotatedString {
             withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(BoardWords.NAME) }
             append(" · ${BoardWords.NOTHING}")
@@ -210,26 +209,26 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
         Text(buildAnnotatedString {
             withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(BoardWords.NAME) }
             append(" · ${BoardWords.NOTHING}")
-        }, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onEdit).padding(horizontal = 20.dp, vertical = 10.dp))
+        }, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onEdit).padding(horizontal = Space.s16, vertical = Space.s12))
         return
     }
-    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).testTag(BOARD_CARDS)) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s4).testTag(BOARD_CARDS)) {
         val cols = (maxWidth / 160.dp).toInt().coerceIn(2, 4)
         val narrow = cols == 2 // a phone: the numbers alone
         Column {
             for (row in tiles.chunked(cols)) Row(Modifier.fillMaxWidth()) {
                 for (t in row) {
                     val c = parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint)
-                    Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).combinedClickable(onClickLabel = BoardWords.NAME, onClick = onClick, onLongClickLabel = if (onEdit != null) HOME_TILES else null, onLongClick = onEdit).padding(horizontal = 8.dp, vertical = 8.dp)) {
+                    Box(Modifier.weight(1f).clip(Radius.card).combinedClickable(onClickLabel = BoardWords.NAME, onClick = onClick, onLongClickLabel = if (onEdit != null) HOME_TILES else null, onLongClick = onEdit).padding(horizontal = Space.s8, vertical = Space.s8)) {
                         val kpi = stripKpi(t)
                         if (kpi != null) KitKpi(if (narrow) kpi.copy(points = emptyList(), ratio = null) else kpi, tint(kpi.color, c), compact = true, small = true)
-                        else Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            Text(t.title, color = p.muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        else Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                            Text(t.title, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             val look = t.look?.dot
                             val dot = tint(look?.color, c)
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(Modifier.size(10.dp).clip(CircleShape).then(if (look != null && look.filled != true) Modifier.border(1.5.dp, dot, CircleShape) else Modifier.background(dot)))
-                                if (look?.big == true) Text(if (look.filled == true) tr("On") else if (look.filled == false) tr("Off") else "·", color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+                                if (look?.big == true) Text(if (look.filled == true) tr("On") else if (look.filled == false) tr("Off") else "·", color = p.text, fontSize = Type.s20, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
                             }
                         }
                     }
@@ -254,25 +253,25 @@ internal val HOME_TILES: String get() = tr("Tiles on home")
 @Composable
 internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, onReview: () -> Unit, onAnswer: (String, Boolean) -> Unit) {
     val p = LocalPaper.current
-    val shape = RoundedCornerShape(16.dp)
+    val shape = Radius.card
     val chief = chiefNamed()
-    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).clip(shape).background(p.warnSoft).border(1.dp, p.warn.copy(alpha = 0.25f), shape)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s8).clip(shape).background(p.warnSoft).border(1.dp, p.warn.copy(alpha = 0.25f), shape)) {
         for (w in waiting.take(NEEDS_ROWS)) Row(
             Modifier.fillMaxWidth().then(if (w.permission == null) Modifier.clickable(onClickLabel = tr("Needs you"), onClick = onReview) else Modifier)
-                .heightIn(min = 52.dp).padding(start = 12.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                .heightIn(min = 52.dp).padding(start = Space.s12, end = Space.s8, top = Space.s8, bottom = Space.s8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (w.color == null) BotFigure(chief.color, "idle", 28, chief.outfit) else BotFigure(w.color, "idle", 28, w.outfit)
             Spacer(Modifier.size(10.dp))
-            Text(w.text, color = p.text, fontSize = 14.sp, lineHeight = 19.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(w.text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             w.permission?.let { id ->
                 Spacer(Modifier.size(6.dp))
-                Text(tr("No"), color = p.muted, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(11.dp)).clickable { onAnswer(id, false) }.padding(horizontal = 12.dp, vertical = 9.dp))
-                Text(tr("Allow"), color = p.inkText, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.clip(RoundedCornerShape(11.dp)).background(p.ink).clickable { onAnswer(id, true) }.padding(horizontal = 14.dp, vertical = 9.dp))
+                Text(tr("No"), color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.clip(Radius.card).clickable { onAnswer(id, false) }.padding(horizontal = Space.s12, vertical = Space.s8))
+                Text(tr("Allow"), color = p.inkText, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.clip(Radius.card).background(p.ink).clickable { onAnswer(id, true) }.padding(horizontal = Space.s16, vertical = Space.s8))
             }
         }
-        if (waiting.size > NEEDS_ROWS) Text(tr("{n} more", "n" to waiting.size - NEEDS_ROWS), color = p.warnText, fontSize = 13.5.sp,
-            modifier = Modifier.fillMaxWidth().clickable(onClickLabel = tr("Needs you"), onClick = onReview).padding(horizontal = 14.dp, vertical = 10.dp))
+        if (waiting.size > NEEDS_ROWS) Text(tr("{n} more", "n" to waiting.size - NEEDS_ROWS), color = p.warnText, fontSize = Type.s14,
+            modifier = Modifier.fillMaxWidth().clickable(onClickLabel = tr("Needs you"), onClick = onReview).padding(horizontal = Space.s16, vertical = Space.s12))
     }
 }
 
