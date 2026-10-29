@@ -1,4 +1,4 @@
-# ADR-116: A morning standup is a short call per lead and one Chief message
+# ADR-117: A morning standup is a short call per lead and one Chief message
 
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#698](https://github.com/Kordal/bot-dot/issues/698), spec [#687](https://github.com/Kordal/bot-dot/issues/687)

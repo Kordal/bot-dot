@@ -1638,6 +1638,11 @@
   "Days": "Dni",
   "Due": "Termin",
   "To-do": "Do zrobienia",
+  "Calendar": "Kalendarz",
+  "Add an event": "Dodaj wydarzenie",
+  "Day": "Dzień",
+  "Previous month": "Poprzedni miesiąc",
+  "Next month": "Następny miesiąc",
   "Chats": "Czaty",
   "Taller or lower": "Wyżej lub niżej",
   "{n} more chats": {

@@ -1,4 +1,4 @@
-// The morning standup (#698, ADR 116): at the project's time each workday, outside quiet hours, each team lead
+// The morning standup (#698, ADR 117): at the project's time each workday, outside quiet hours, each team lead
 // writes three lines in one short call, and the Chief is told them once to merge into one message. One standup per
 // project per day; a failed lead is left out, the others go on. Driven by a fake clock.
 const { test, before, after } = require('node:test');
