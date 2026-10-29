@@ -58,6 +58,9 @@ test('a second project is made beside the first; each keeps its own teams, goal 
   assert.equal(r.data.objectives[0].current, 4);
   assert.equal((await srv.asChief(at('/company', 'nope'))).status, 404);
 
+  // Each project's teams have their chats (#697).
+  const chats = (await srv.api('/group-chats')).data.filter((g) => g.team).map((g) => g.name).sort();
+  assert.deepEqual(chats, ['Growth', 'Kitchen']);
   // With two projects the file holds them both.
   const kept = JSON.parse(fs.readFileSync(path.join(srv.data, 'company.json'), 'utf8'));
   assert.deepEqual(kept.projects.map((c) => c.id), ['old1', second]);

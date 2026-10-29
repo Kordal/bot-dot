@@ -5,7 +5,8 @@
 // from the bottom, half or full height. The rules are DockRow's (dock-row.js); this file draws them.
 // The open panel is the bot's chat itself (bot-chat.js): the chat's row is moved into the dock while the Projects
 // screen shows a bot, so sending, blocks, cards and @file are the chat's own. Minimize is the Projects screen again.
-// A panel is { kind, id }: `kinds` says how each kind is drawn and opened, so that another (a team's chat) can join.
+// A panel is { kind, id }: `kinds` says how each kind is drawn and opened: a bot's chat, or a team's (#697), which is
+// the group chat of that team (groups.js) and opens the same way, its row moved into the dock.
 const Dock = (() => {
   const KEY = 'botdot.dock';
   const ICON = {
@@ -23,13 +24,24 @@ const Dock = (() => {
       unread: (id) => Unread.count(botById(id) || {}),
       look: (id) => { const b = botById(id); return b ? [b.name, b.color, b.state, b.outfit, Unread.count(b)] : null; },
       open: (id) => setView('bot', id),
+      known: () => state.bots.length > 0,
+    },
+    team: {
+      exists: (id) => !!groupById(id)?.team,
+      name: (id) => groupById(id)?.name || '',
+      figure: (id) => { const g = groupById(id); return g ? groupPicture(g, 'sm') : ''; },
+      unread: (id) => Unread.count(groupById(id) || {}),
+      look: (id) => { const g = groupById(id); return g ? [g.name, groupLook(g), Unread.count(g)] : null; },
+      open: (id) => setView('group', id),
+      known: () => !!state.groupsKnown,
     },
   };
 
   const shows = () => typeof Company !== 'undefined' && (state.features || []).includes('company') && Company.place() === 'company';
-  // The Projects screen shows a bot: its chat is the open panel.
-  const docked = () => shows() && state.view === 'bot' && !!botById(state.botId);
-  const openOne = () => (docked() ? { kind: 'bot', id: state.botId } : null);
+  // The Projects screen shows a bot, or a team's chat: that chat is the open panel.
+  const openKind = () => (state.view === 'bot' && botById(state.botId) ? 'bot' : state.view === 'group' && groupById(state.groupId)?.team ? 'team' : null);
+  const docked = () => shows() && !!openKind();
+  const openOne = () => (docked() ? { kind: openKind(), id: openKind() === 'bot' ? state.botId : state.groupId } : null);
   const phone = () => matchMedia(PHONE).matches;
 
   // ---------- the row's elements ----------
@@ -59,11 +71,9 @@ const Dock = (() => {
     const on = shows() && (state.view === 'company' || docked());
     const open = on ? openOne() : null;
     if (open && !row.items.some((p) => DockRow.same(p, open))) { row.items = DockRow.add(row.items, open); save(); }
-    // A bot that is gone leaves the row, once the bots are known.
-    if (state.bots.length) {
-      const kept = row.items.filter((p) => kinds[p.kind]?.exists(p.id) || (p.kind !== 'bot' && !kinds[p.kind]));
-      if (kept.length !== row.items.length) { row.items = kept; save(); }
-    }
+    // A bot or a team that is gone leaves the row, once they are known.
+    const kept = row.items.filter((p) => !kinds[p.kind] || !kinds[p.kind].known() || kinds[p.kind].exists(p.id));
+    if (kept.length !== row.items.length) { row.items = kept; save(); }
     const chatRow = $('#chat-row');
     const app = $('#app');
     const was = app.classList.contains('docked');
@@ -132,9 +142,11 @@ const Dock = (() => {
 
   // The open chat's head carries Minimize and Close while it is docked.
   function syncHead(open) {
-    const right = $('#view-bot .chat-head .actions-right');
+    if (open?.kind !== 'team') $('#view-group .chat-head .dock-ctl')?.remove();
+    if (open?.kind !== 'bot') $('#view-bot .chat-head .dock-ctl')?.remove();
+    const right = open && $(`#view-${open.kind === 'team' ? 'group' : 'bot'} .chat-head .actions-right`);
     const ctl = right && $('.dock-ctl', right);
-    if (!open) { ctl?.remove(); return; }
+    if (!open) return;
     if (!right || ctl) return;
     right.insertAdjacentHTML('beforeend', `<span class="dock-ctl"><button type="button" class="icon-btn" data-dock-min aria-label="${tr('Minimize')}" title="${tr('Minimize')}">${ICON.min}</button><button type="button" class="icon-btn" data-dock-close-open aria-label="${tr('Close')}" title="${tr('Close')}">${ICON.x}</button></span>`);
     $('[data-dock-min]', right).onclick = minimize;

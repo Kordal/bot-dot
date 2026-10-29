@@ -47,13 +47,30 @@ const categoryNames = Keypad.categoryNames;
 const groupSearchText = (g) => `${g.name} ${g.category || ''} ${groupMembers(g).map((b) => b.name).join(' ')}`.toLowerCase();
 
 // The picture of a group: its members' heads, the first three, each with the face of its state.
+// A team's chat (#697) is a row of up to three faces, its lead first with the crown.
+const TEAM_CROWN = '<svg class="team-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
 function groupPicture(g, size = '') {
+  if (g?.team) {
+    const faces = groupMembers(g).slice(0, 3).map((b, i) => `<i>${Figure.svg(b.state || 'idle', b.color, b.outfit)}${i === 0 && b.id === g.lead && g.members.length > 1 ? TEAM_CROWN : ''}</i>`);
+    return `<div class="group-pic team-pic ${size} n${Math.max(1, faces.length)}">${faces.join('') || `<i>${Figure.svg('idle', '#888780', null)}</i>`}</div>`;
+  }
   const heads = groupMembers(g).slice(0, 3).map((b) => `<i>${Figure.svg(b.state || 'idle', b.color, b.outfit)}</i>`);
   if (!heads.length) heads.push(`<i>${Figure.svg('idle', '#888780', null)}</i>`); // its bots are all gone
   return `<div class="group-pic ${size} n${heads.length}">${heads.join('')}</div>`;
 }
 // What the picture is drawn from: it is drawn again when a member, its state, colour or hat changes.
-const groupLook = (g) => JSON.stringify(groupMembers(g).slice(0, 3).map((b) => [b.id, b.state, b.color, b.outfit || null]));
+const groupLook = (g) => JSON.stringify([g.lead || null, g.members?.length || 0, g.team ? groupMembers(g).filter((b) => b.running).length : 0, ...groupMembers(g).slice(0, 3).map((b) => [b.id, b.state, b.color, b.outfit || null])]);
+// Opens a team's chat (#697), from its name on the Projects floor: on the Projects screen it docks in the bottom row.
+function openTeamChat(teamId) {
+  const g = state.groups.find((x) => x.team === teamId);
+  if (g) setView('group', g.id);
+}
+// The line under a team chat's name: how many bots, and how many of them work now.
+function teamLine(g) {
+  const n = groupMembers(g).length;
+  const at = groupMembers(g).filter((b) => b.running).length;
+  return at ? `${trn(n, '{n} bot', '{n} bots')} · ${trn(at, '{n} working', '{n} working')}` : trn(n, '{n} bot', '{n} bots');
+}
 
 // A group's row in the list: the line under its name, the class that colours it, and what stands after its time.
 // While a member works: who, and what it says it is doing. Else "… asks" when a member asks the owner something,
@@ -246,20 +263,22 @@ function renderGroupSettings() {
   const name = $('#gs-name', root);
   if (document.activeElement !== name && name.value !== g.name) name.value = g.name; // renamed elsewhere; not under the cursor
   const members = groupMembers(g);
-  const sig = JSON.stringify([members.map((b) => [b.id, b.name, b.color, b.state, b.outfit || null]), state.bots.length]);
+  const sig = JSON.stringify([members.map((b) => [b.id, b.name, b.color, b.state, b.outfit || null]), state.bots.length, g.team || null, g.lead || null]);
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
   $('#gs-members', root).innerHTML = members.map((b) => `
     <div class="bs-row member-row">${botFigure(b.color, b.state, 'sm', b.outfit)}<span class="grow">${esc(b.name)}</span>
-      <button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="${esc(tr('Take {name} out of the group', { name: b.name }))}" aria-label="${esc(tr('Take {name} out of the group', { name: b.name }))}">✕</button></div>`).join('')
+      ${g.team ? '' : `<button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="${esc(tr('Take {name} out of the group', { name: b.name }))}" aria-label="${esc(tr('Take {name} out of the group', { name: b.name }))}">✕</button>`}</div>`).join('')
     || `<p class="faint">${tr('Its bots are all gone. Add one, or delete the group.')}</p>`;
   $$('[data-take-out]', root).forEach((b) => (b.onclick = () => {
     const now = groupById(root.dataset.group);
     if (now) changeGroup(now, { members: now.members.filter((id) => id !== b.dataset.takeOut) });
   }));
-  // Nothing to add: the group is full, or every bot is in it.
-  $('#gs-add', root).classList.toggle('hidden', g.members.length >= GROUP_MAX || !state.bots.some((b) => !g.members.includes(b.id)));
+  // Nothing to add: the group is full, or every bot is in it. A team's chat follows its team (#697): nothing here.
+  $('#gs-add', root).classList.toggle('hidden', !!g.team || g.members.length >= GROUP_MAX || !state.bots.some((b) => !g.members.includes(b.id)));
+  $('#gs-delete', root).classList.toggle('hidden', !!g.team);
+  name.disabled = !!g.team;
 }
 
 // ---------- a group's chat ----------
@@ -506,24 +525,26 @@ function renderGroupChat() {
     root.dataset.group = g.id;
     delete root.dataset.sig;
     root.innerHTML = `
-      <div class="chat-head">
+      <div class="chat-head${g.team ? ' team-head' : ''}"${g.team && /^#[0-9a-f]{6}$/i.test(g.color || '') ? ` style="--team:${g.color}"` : ''}>
         ${BACK_BTN}
-        <button class="chat-title" id="group-settings" title="${esc(tr('Its name and its members'))}">
+        <button class="chat-title" id="group-settings" title="${g.team ? '' : esc(tr('Its name and its members'))}">
           <div id="group-pic"></div>
           <div class="grow"><h2 id="group-name"></h2><div class="sub" id="group-sub"></div></div>
         </button>
+        <div class="actions-right"></div>
       </div>
       <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-drafts"></div><div class="g-tail"></div></div>
       ${composerHTML(tr('Message {name}', { name: g.name }))}`;
     wireComposer($('form', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
-    $('#group-settings').onclick = () => setPanel('toggle');
+    // A team's chat follows its team in Projects: it has no panel of its own to rename it or change its members.
+    $('#group-settings').onclick = () => { if (!groupById(state.groupId)?.team) setPanel('toggle'); };
     if (groupChat?.id !== g.id) loadGroupChat(g.id);
   }
   const pic = $('#group-pic');
   const look = groupLook(g);
   if (pic.dataset.sig !== look) { pic.dataset.sig = look; pic.innerHTML = groupPicture(g, 'sm'); }
   $('#group-name').textContent = g.name;
-  $('#group-sub').textContent = groupMembers(g).map((b) => b.name).join(', ');
+  $('#group-sub').textContent = g.team ? teamLine(g) : groupMembers(g).map((b) => b.name).join(', ');
   const form = $('form', root);
   form.text.placeholder = tr('Message {name}…', { name: g.name });
   const thread = $('#group-thread');

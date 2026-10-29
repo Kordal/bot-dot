@@ -230,7 +230,7 @@ test("web: the group's title opens its panel, and the panel is the group's own",
   assert.equal(Panel.page('group', 'jobs'), 'groupsettings', 'only a bot has jobs');
   assert.deepEqual(next('bot', 'settings', { view: 'group' }), ['group', 'settings'], 'another chat keeps the panel open');
   assert.deepEqual(next('group', 'settings', { gone: true }), ['chief', null], 'a deleted group leaves to the Chief');
-  assert.match(src, /\$\('#group-settings'\)\.onclick = \(\) => setPanel\('toggle'\);/);
+  assert.match(src, /\$\('#group-settings'\)\.onclick = \(\) => \{ if \(!groupById\(state\.groupId\)\?\.team\) setPanel\('toggle'\); \};/); // a team's chat has no panel (#697)
   assert.match(app, /if \(GROUP_NAMES\.includes\(v\) && sub\) state\.groupId = sub;/);
   assert.match(app, /if \(panelPage\(\) === 'groupsettings'\) renderGroupSettings\(\);/);
 });
