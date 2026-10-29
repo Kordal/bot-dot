@@ -2,6 +2,7 @@ package dev.botdot.app.ui
 
 import android.content.Context
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -81,6 +82,7 @@ import dev.botdot.app.data.CompanyHeld
 import dev.botdot.app.data.CompanySetup
 import dev.botdot.app.data.CompanySource
 import dev.botdot.app.data.FigureDef
+import dev.botdot.app.data.ProjectList
 import dev.botdot.app.data.SourceDraft
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.CoroutineScope
@@ -136,6 +138,8 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     var adding by mutableStateOf(false)
     var creating by mutableStateOf(false)
     var apps by mutableStateOf<Set<String>?>(null)
+    // The project's settings (#701, #703) over its screen.
+    var settingsOpen by mutableStateOf(false)
 
     val api: Api? get() = app.api.value
     val bots get() = app.store.bots.value
@@ -149,8 +153,21 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
         proposeFailed = ""; draft = ""; adding = false
     }
 
+    /** Show project [id] (#703), remembered on this device. */
+    fun show(id: String) {
+        app.store.showProject(id)
+        scope.launch { app.settings.setProject(id) }
+        step = null; settingsOpen = false
+    }
+
+    /** "New project": the start screen, for another one. */
+    fun startNew() {
+        app.store.newProject()
+        sources.clear(); step = null; settingsOpen = false
+    }
+
     fun tell(text: String?) = android.widget.Toast.makeText(context, text ?: tr("That didn't work"), android.widget.Toast.LENGTH_LONG).show()
-    fun took(c: Company) = app.store.company.set(CompanyHeld(c))
+    fun took(c: Company) = app.store.tookProject(c)
     fun company(): Company? = app.store.company.value.value?.company
 
     /** Saves [fields] as given, drawn at once as [now] has them; a refused save takes the server's company back. */
@@ -182,7 +199,21 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
     val ui = remember(app) { CompanyUi(app, scope, context) }
     val held by app.store.company.value.collectAsState()
     val error by app.store.company.error.collectAsState()
-    LaunchedEffect(Unit) { app.store.company.refresh() }
+    LaunchedEffect(Unit) {
+        app.settings.projectNow()?.let { app.store.showProject(it) } // the project this device showed last (#703)
+        app.store.company.refresh()
+    }
+    val server by app.store.version.value.collectAsState()
+    val many = ProjectList.many(server?.features)
+    val list by app.store.projectList.collectAsState()
+    val shownId = held?.company?.id
+    LaunchedEffect(shownId) { if (many && shownId != null) app.settings.setProject(shownId) }
+    val settingsOf = held?.company?.takeIf { ui.settingsOpen }
+    if (settingsOf != null) {
+        BackHandler { ui.settingsOpen = false }
+        ui.follow(settingsOf)
+        return ProjectSettings(ui, settingsOf, wide, ways)
+    }
     Column(Modifier.fillMaxSize().background(p.bg).imePadding()) {
         if (!wide) Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.s16, end = Space.s12, top = Space.s8, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {
             Logo()
@@ -194,11 +225,16 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
             held == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (error != null) Text(error!!, color = p.err, modifier = Modifier.padding(Space.s16)) else CircularProgressIndicator(color = p.muted, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
             }
-            c == null -> StartForm(ui)
+            c == null -> {
+                // A new project beside others (#703): their names over the start screen, to go back to one.
+                if (many && list.isNotEmpty()) ProjectTitle(ui, null, ways, Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s12, top = Space.s8))
+                StartForm(ui)
+            }
             // A running company: its home, the office floor (#675).
             c.running -> { ui.follow(c); CompanyHome(ui, c, ways) }
             else -> {
                 ui.follow(c)
+                if (many) ProjectTitle(ui, c, ways, Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s12, top = Space.s8))
                 val at = CompanySetup.stepOf(c, ui.step)
                 StepBar(at, enabled = !c.running) { ui.step = it }
                 Box(Modifier.weight(1f)) {

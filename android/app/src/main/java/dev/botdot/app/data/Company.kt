@@ -51,6 +51,10 @@ data class Company(
     val decisions: List<Decision> = emptyList(),
     val standup: StandupSetting? = null,
     val standupToday: Standup? = null,
+    /** Several projects (#689, #701, #702): its letter's colour in the list, archived (folded under Archived), its folder. */
+    val color: String? = null,
+    val archived: Boolean = false,
+    val folder: ProjectFolder? = null,
 ) {
     val running: Boolean get() = phase == "running"
     val site: Boolean get() = kind == "site"
@@ -59,8 +63,9 @@ data class Company(
     fun proposed(): List<Proposed>? = proposal?.map { Api.JSON.decodeFromJsonElement(Proposed.serializer(), it) }
 }
 
+/** A source; [upload] a file's, kept as it came so a PATCH of the sources keeps the file (#701). */
 @Serializable
-data class CompanySource(val id: String = "", val kind: String = "file", val name: String = "", val url: String? = null, val size: Long = 0)
+data class CompanySource(val id: String = "", val kind: String = "file", val name: String = "", val url: String? = null, val size: Long = 0, val upload: JsonObject? = null)
 
 @Serializable
 data class AboutCard(val key: String, val question: String = "", val answer: String = "", val chips: List<String>? = null, val open: Boolean = false)
@@ -351,6 +356,14 @@ object CompanySetup {
     fun patchStories(groups: List<StoryGroup>): JsonObject = JsonObject(mapOf("stories" to OUT.encodeToJsonElement(ListSerializer(StoryGroup.serializer()), groups)))
     fun patchText(field: String, value: String): JsonObject = buildJsonObject { put(field, value) }
     fun patchLines(field: String, value: List<String>): JsonObject = JsonObject(mapOf(field to JsonArray(value.map(::JsonPrimitive))))
+    /** The PATCH of the sources (#701): those kept as they came, then [added] (a link `{ kind, url, name }`, a file `{ kind, name, upload }`). */
+    fun patchSources(kept: List<CompanySource>, added: List<JsonObject> = emptyList()): JsonObject =
+        JsonObject(mapOf("sources" to JsonArray(kept.map { OUT.encodeToJsonElement(CompanySource.serializer(), it) } + added)))
+    /** A link added as a source: named without its scheme. */
+    fun linkSource(typed: String): JsonObject? = link("", typed)?.let { s -> buildJsonObject { put("kind", "link"); put("url", s.url); put("name", s.name) } }
+    fun fileSource(name: String, upload: Attachment): JsonObject = buildJsonObject { put("kind", "file"); put("name", name); put("upload", OUT.encodeToJsonElement(Attachment.serializer(), upload)) }
+    /** The PATCH of the objectives (#701): each as it is, so what the app does not draw is kept by its id. */
+    fun patchObjectives(list: List<Objective>): JsonObject = JsonObject(mapOf("objectives" to JsonArray(list.map { OUT.encodeToJsonElement(Objective.serializer(), it) })))
 
     /** The connected apps a proposed bot needs and the account has not connected: [connected] null while not known. */
     fun missing(p: Proposed, connected: Set<String>?): List<String> = if (connected == null) emptyList() else p.connects.filter { it !in connected }

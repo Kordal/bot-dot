@@ -146,10 +146,64 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         }
     }
 
-    /** The account's company (#674): none from a botdot without `company`, which is asked nothing about it. */
+    /**
+     * The account's company (#674): none from a botdot without `company`, which is asked nothing about it. From one with
+     * `projects-many` (#689, #703) the project shown: every project is read into [projectList], and the one this device
+     * chose ([showProject]) is shown, else the first; none while a new one is started ([newProject]). The Company's calls
+     * then name it (Api.project).
+     */
     val company = Part { a ->
         val features = (version.value.value ?: a.version().also { if (api.value === a) version.set(it) }).features
-        if (CompanySetup.shows(features)) a.company() else CompanyHeld(null)
+        when {
+            !CompanySetup.shows(features) -> CompanyHeld(null)
+            ProjectList.many(features) -> {
+                val list = a.companyList()
+                if (api.value === a) _projectList.value = list
+                CompanyHeld(ProjectList.shown(list, _shownProject.value, _addingProject.value)).also { if (api.value === a) a.project = it.company?.id }
+            }
+            else -> a.company()
+        }
+    }
+
+    private val _projectList = MutableStateFlow<List<Company>>(emptyList())
+    /** Every project (#689, #703), from a botdot with `projects-many`; empty from an older one. */
+    val projectList: StateFlow<List<Company>> = _projectList.asStateFlow()
+    private val _shownProject = MutableStateFlow<String?>(null)
+    private val _addingProject = MutableStateFlow(false)
+    /** "New project" is on screen: the start screen, for another project. */
+    val addingProject: StateFlow<Boolean> = _addingProject.asStateFlow()
+    private val many get() = ProjectList.many(version.value.value?.features)
+
+    /** Show project [id] (the device remembers it apart: Settings.project). */
+    fun showProject(id: String?) {
+        _shownProject.value = id
+        _addingProject.value = false
+        if (!many || _projectList.value.isEmpty()) return // not read yet: the read picks it
+        val c = ProjectList.shown(_projectList.value, id, false)
+        api.value?.project = c?.id
+        company.set(CompanyHeld(c))
+    }
+
+    /** "New project": the start screen; its Go makes one after the others. */
+    fun newProject() {
+        _addingProject.value = true
+        api.value?.project = null
+        company.set(CompanyHeld(null))
+    }
+
+    /** A project as botdot answered a change of it: shown when it is the one shown (or a new one just made), kept in the list either way. */
+    fun tookProject(c: Company) {
+        if (!many) return company.set(CompanyHeld(c))
+        val made = _addingProject.value && _projectList.value.none { it.id == c.id }
+        _projectList.value = ProjectList.changed(_projectList.value, c.id, c)
+        if (made) { _addingProject.value = false; _shownProject.value = c.id }
+        if (made || company.value.value?.company?.id == c.id) { api.value?.project = c.id; company.set(CompanyHeld(c)) }
+    }
+
+    /** The project shown was deleted: the first of the others is shown. */
+    fun projectGone(id: String) {
+        _projectList.value = ProjectList.changed(_projectList.value, id, null)
+        if (company.value.value?.company?.id == id) showProject(null)
     }
 
     /** The account's projects, for mentions of projects (#700, #705): none from a botdot without `project-mentions`. */
@@ -167,7 +221,10 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         // The botdot is known (right after the app starts) or another one was chosen: what's looked at loads (again).
         scope.launch {
             var had: String? = null
-            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); _chiefName.value = ChiefName.role; turnLines.clear(); cardGroups.clear(); answeredAway.clear(); pageSaves.clear(); parts.forEach { it.clear() }; had = a?.baseUrl } }
+            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); _chiefName.value = ChiefName.role; turnLines.clear(); cardGroups.clear(); answeredAway.clear(); pageSaves.clear(); parts.forEach { it.clear() }; _projectList.value = emptyList(); _addingProject.value = false; had = a?.baseUrl }
+                // A new Api for the same botdot (signed in again) acts on the project shown, as the one before it.
+                else if (a != null && many) a.project = company.value.value?.company?.id
+            }
         }
     }
 
@@ -187,7 +244,10 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
             groups.update { Groups.on(it, ev) }
             if (ev.type == "group_run_started" || ev.type == "group_run_finished" || ev.type == "group_unread") groups.changed()
         }
-        CompanySetup.event(ev)?.let { company.set(it) } // the company as it is now, from any app or the Chief's tools
+        // The company as it is now, from any app or the Chief's tools. With several projects `company` speaks only of
+        // the first, for older apps: `project` says the same of each (#689, #703).
+        if (many) ProjectList.event(ev)?.let { (id, c) -> onProject(id, c) }
+        else CompanySetup.event(ev)?.let { company.set(it) }
         bots.update { Asks.on(it, ev) } // a bot asks the owner something, or no longer does: its row says so at once
         when (ev.type) {
             "hello" -> {
@@ -230,6 +290,16 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
                 if (tile != null) dashboard.update { d -> d.copy(tiles = d.tiles.map { if (it.id == tile.id) tile else it }) } else dashboard.changed()
                 tileTicks.tick(tile?.id)
             }
+        }
+    }
+
+    private fun onProject(id: String, c: Company?) {
+        _projectList.value = ProjectList.changed(_projectList.value, id, c)
+        val shown = company.value.value?.company?.id
+        when {
+            c == null -> if (shown == id) showProject(null)
+            shown == id -> company.set(CompanyHeld(c))
+            shown == null && !_addingProject.value && company.value.value != null -> showProject(_shownProject.value)
         }
     }
 

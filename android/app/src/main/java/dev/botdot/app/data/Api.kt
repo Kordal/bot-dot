@@ -699,7 +699,26 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     // ---------- the Company (#669, #674; docs/api.md "The Company") ----------
 
-    suspend fun company(): CompanyHeld = CompanySetup.held(get("/company"))
+    /**
+     * The project the Company's calls act on (#689, #703): the one shown, from a botdot with `projects-many`; null for
+     * the first (an older botdot's one company) or while a new one is started.
+     */
+    @Volatile var project: String? = null
+    private fun co(path: String) = ProjectList.at(path, project)
+    /** Every project (#689): `GET /api/company/list`. */
+    suspend fun companyList(): List<Company> = ProjectList.list(get("/company/list"))
+    /** Deletes the project shown (#701); with [dropFolder] its folder (#702) goes with what it holds. */
+    suspend fun deleteCompany(dropFolder: Boolean) { send("DELETE", co(ProjectList.deletePath(dropFolder))) }
+    /** A team changed in the project's settings (#701): its name, bots and lead; or deleted. */
+    suspend fun editTeam(team: String, body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), body))
+    suspend fun addTeam(body: JsonObject): Company = CompanySetup.of(send("POST", co("/company/teams"), body))
+    suspend fun deleteTeam(team: String): Company = CompanySetup.of(send("DELETE", co("/company/teams/${enc(team)}")))
+    /** The morning standup (#698): on or off, or its time. */
+    suspend fun setStandup(body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/standup"), body))
+    /** An objective's other fields (#699, #701): `{ source }` and the like, as given. */
+    suspend fun putObjective(id: String, body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/objectives/${enc(id)}"), body))
+
+    suspend fun company(): CompanyHeld = CompanySetup.held(get(co("/company")))
     /** The account's projects a mention can name (#700): every one from a botdot with `projects-many`, else its one company. */
     suspend fun projectRefs(features: Collection<String>): List<Mentions.ProjectRef> {
         fun ref(o: JsonElement?): Mentions.ProjectRef? = (o as? JsonObject)?.let { c ->
@@ -708,55 +727,55 @@ class Api(val baseUrl: String, val session: Session? = null) {
         if (CompanySetup.MANY in features) return (JSON.parseToJsonElement(get("/company/list")) as? JsonObject)?.get("projects")?.let { it as? JsonArray }?.mapNotNull(::ref).orEmpty()
         return listOfNotNull(ref((JSON.parseToJsonElement(get("/company")) as? JsonObject)?.get("company")))
     }
-    suspend fun startCompany(start: String, sources: List<SourceDraft>): Company = CompanySetup.of(send("POST", "/company", CompanySetup.startBody(start, sources)))
-    suspend fun patchCompany(fields: JsonObject): Company = CompanySetup.of(send("PATCH", "/company", fields))
+    suspend fun startCompany(start: String, sources: List<SourceDraft>): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.startBody(start, sources)))
+    suspend fun patchCompany(fields: JsonObject): Company = CompanySetup.of(send("PATCH", co("/company"), fields))
     /** The Chief reads the site or names the idea: the company with its About cards. */
-    suspend fun readCompany(): Company = CompanySetup.of(send("POST", "/company/read"))
+    suspend fun readCompany(): Company = CompanySetup.of(send("POST", co("/company/read")))
     /** Chips for one question (an About card's key, or goal, never, time). */
-    suspend fun suggestForCompany(key: String): Company = CompanySetup.of(send("POST", "/company/suggest", buildJsonObject { put("key", key) }))
-    suspend fun companySwot(): Company = CompanySetup.of(send("POST", "/company/swot"))
-    suspend fun storyIdeas(who: String): StoryIdeas = json.decodeFromString(send("POST", "/company/stories/suggest", buildJsonObject { put("who", who) }))
+    suspend fun suggestForCompany(key: String): Company = CompanySetup.of(send("POST", co("/company/suggest"), buildJsonObject { put("key", key) }))
+    suspend fun companySwot(): Company = CompanySetup.of(send("POST", co("/company/swot")))
+    suspend fun storyIdeas(who: String): StoryIdeas = json.decodeFromString(send("POST", co("/company/stories/suggest"), buildJsonObject { put("who", who) }))
     /** The Team step: the Chief's proposal, "Change the team…", "Add existing bot", Undo, and "Create N bots". */
-    suspend fun proposeTeam(): Company = CompanySetup.of(send("POST", "/company/proposal"))
-    suspend fun changeTeam(text: String): Company = CompanySetup.of(send("POST", "/company/proposal/chat", buildJsonObject { put("text", text) }))
-    suspend fun duplicateIntoTeam(bot: String): Company = CompanySetup.of(send("POST", "/company/proposal/duplicate", buildJsonObject { put("bot", bot) }))
-    suspend fun undoTeam(): Company = CompanySetup.of(send("POST", "/company/proposal/undo"))
-    suspend fun createTeam(): Company = CompanySetup.of(send("POST", "/company/start"))
+    suspend fun proposeTeam(): Company = CompanySetup.of(send("POST", co("/company/proposal")))
+    suspend fun changeTeam(text: String): Company = CompanySetup.of(send("POST", co("/company/proposal/chat"), buildJsonObject { put("text", text) }))
+    suspend fun duplicateIntoTeam(bot: String): Company = CompanySetup.of(send("POST", co("/company/proposal/duplicate"), buildJsonObject { put("bot", bot) }))
+    suspend fun undoTeam(): Company = CompanySetup.of(send("POST", co("/company/proposal/undo")))
+    suspend fun createTeam(): Company = CompanySetup.of(send("POST", co("/company/start")))
     /** The office floor (#672, #675): a new team, "Make lead", the owner's tasks. */
     suspend fun newCompanyTeam(name: String, bots: List<String>): Company =
-        CompanySetup.of(send("POST", "/company/teams", buildJsonObject { put("name", name); put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
-    suspend fun makeLead(team: String, bot: String): Company = CompanySetup.of(send("PUT", "/company/teams/${enc(team)}", buildJsonObject { put("lead", bot) }))
+        CompanySetup.of(send("POST", co("/company/teams"), buildJsonObject { put("name", name); put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
+    suspend fun makeLead(team: String, bot: String): Company = CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("lead", bot) }))
     /** How often a team's lead reports (#696): daily, twice-weekly, weekly, or "" for none. */
     suspend fun setReportRhythm(team: String, every: String): Company =
-        CompanySetup.of(send("PUT", "/company/teams/${enc(team)}", buildJsonObject { put("report", every.ifEmpty { null }) }))
+        CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("report", every.ifEmpty { null }) }))
     /** An objective's display, steps or tick (#690): only what is given is sent. */
     suspend fun setObjective(id: String, display: String? = null, steps: List<ObjectiveStep>? = null, done: Boolean? = null): Company =
-        CompanySetup.of(send("PUT", "/company/objectives/${enc(id)}", CompanyFloor.objectiveBody(display, steps, done)))
+        CompanySetup.of(send("PUT", co("/company/objectives/${enc(id)}"), CompanyFloor.objectiveBody(display, steps, done)))
     suspend fun addTodo(text: String, bot: String?): Company =
-        CompanySetup.of(send("POST", "/company/todos", buildJsonObject { put("text", text); if (bot != null) put("bot", bot) }))
-    suspend fun tickTodo(id: String, done: Boolean): Company = CompanySetup.of(send("PUT", "/company/todos/${enc(id)}", buildJsonObject { put("done", done) }))
+        CompanySetup.of(send("POST", co("/company/todos"), buildJsonObject { put("text", text); if (bot != null) put("bot", bot) }))
+    suspend fun tickTodo(id: String, done: Boolean): Company = CompanySetup.of(send("PUT", co("/company/todos/${enc(id)}"), buildJsonObject { put("done", done) }))
     /** The project's To-do (#692): an item with whom it is for, its due day and how it repeats; Delete is the owner's. */
     suspend fun addTodo(text: String, bot: String?, due: String?, repeat: Repeat?): Company =
-        CompanySetup.of(send("POST", "/company/todos", ProjectTodo.addBody(text, bot, due, repeat)))
-    suspend fun deleteTodo(id: String): Company = CompanySetup.of(send("DELETE", "/company/todos/${enc(id)}"))
+        CompanySetup.of(send("POST", co("/company/todos"), ProjectTodo.addBody(text, bot, due, repeat)))
+    suspend fun deleteTodo(id: String): Company = CompanySetup.of(send("DELETE", co("/company/todos/${enc(id)}")))
     /** The project's calendar (#695): what falls on each day from [from] to [to], both included (at most 62 days). */
     suspend fun projectCalendar(from: String, to: String): List<CalendarItem> =
-        json.decodeFromString(CalendarAnswer.serializer(), get("/company/calendar?from=${enc(from)}&to=${enc(to)}")).items
+        json.decodeFromString(CalendarAnswer.serializer(), get(co("/company/calendar?from=${enc(from)}&to=${enc(to)}"))).items
     suspend fun addEvent(title: String, day: String, time: String): Company =
-        CompanySetup.of(send("POST", "/company/events", ProjectCalendar.eventBody(title, day, time.ifEmpty { null })))
+        CompanySetup.of(send("POST", co("/company/events"), ProjectCalendar.eventBody(title, day, time.ifEmpty { null })))
     suspend fun changeEvent(id: String, title: String, day: String, time: String): Company =
-        CompanySetup.of(send("PUT", "/company/events/${enc(id)}", ProjectCalendar.eventBody(title, day, time)))
-    suspend fun deleteEvent(id: String): Company = CompanySetup.of(send("DELETE", "/company/events/${enc(id)}"))
+        CompanySetup.of(send("PUT", co("/company/events/${enc(id)}"), ProjectCalendar.eventBody(title, day, time)))
+    suspend fun deleteEvent(id: String): Company = CompanySetup.of(send("DELETE", co("/company/events/${enc(id)}")))
     /** The owner's decisions (#694). */
-    suspend fun addDecision(typed: ProjectDecisions.Typed): Company = CompanySetup.of(send("POST", "/company/decisions", ProjectDecisions.addBody(typed)))
-    suspend fun deleteDecision(id: String): Company = CompanySetup.of(send("DELETE", "/company/decisions/${enc(id)}"))
+    suspend fun addDecision(typed: ProjectDecisions.Typed): Company = CompanySetup.of(send("POST", co("/company/decisions"), ProjectDecisions.addBody(typed)))
+    suspend fun deleteDecision(id: String): Company = CompanySetup.of(send("DELETE", co("/company/decisions/${enc(id)}")))
     /** The 90 days (#673): the check-in's answer, the week's plan, the bot the Chief suggests. */
     suspend fun answerCheckin(day: Int, decision: String): CheckinAnswer =
-        json.decodeFromString(CheckinAnswer.serializer(), send("POST", "/company/checkins", buildJsonObject { put("day", day); put("decision", decision) }))
-    suspend fun approvePlan(): Company = CompanySetup.of(send("POST", "/company/plan/approve"))
-    suspend fun changePlan(text: String): Company = CompanySetup.of(send("POST", "/company/plan/change", buildJsonObject { put("text", text) }))
-    suspend fun addSuggested(): Company = CompanySetup.of(send("POST", "/company/suggestion/add"))
-    suspend fun dismissSuggested(): Company = CompanySetup.of(send("DELETE", "/company/suggestion"))
+        json.decodeFromString(CheckinAnswer.serializer(), send("POST", co("/company/checkins"), buildJsonObject { put("day", day); put("decision", decision) }))
+    suspend fun approvePlan(): Company = CompanySetup.of(send("POST", co("/company/plan/approve")))
+    suspend fun changePlan(text: String): Company = CompanySetup.of(send("POST", co("/company/plan/change"), buildJsonObject { put("text", text) }))
+    suspend fun addSuggested(): Company = CompanySetup.of(send("POST", co("/company/suggestion/add")))
+    suspend fun dismissSuggested(): Company = CompanySetup.of(send("DELETE", co("/company/suggestion")))
 
     // ---------- skills and connectors ----------
 
