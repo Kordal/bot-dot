@@ -1,9 +1,10 @@
 // Optional browser check of the Company's home (#672): node test/browser/company-floor.cjs [shots dir]
-// A running company with three teams and a bot in no team: the header says its day, the whiteboard its objectives, a
+// A running company with three teams and a bot in no team: the header says its day, the objectives are charts, a
 // room of five spans two columns, the lead of a team sits at the head with a crown (none for a one-bot team), a bot
 // at work has a desk while the idle ones sit on the bench. A click on a room shows the team with "Make lead"; "@Bot
 // text" in Add a task gives that bot the task. The To-do (#692): its filters, and a repeating task added with the
-// picker comes back once ticked. A phone has the floor in one column and the To-do under it. Scratch data only.
+// picker comes back once ticked. The Chief, the bot in no team and New team sit in a narrow column beside
+// the teams (#690). A phone has the floor in one column and the To-do under it. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -44,7 +45,8 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       await page.goto(`${srv.base}/#company`);
       await page.locator('.cf-top h1', { hasText: 'Fernhill' }).waitFor({ timeout: 20000 });
       assert.equal(await page.locator('.cf-day').innerText(), 'Day 23 of 90');
-      assert.equal(await page.locator('.cf-kpi').count(), 3);
+      assert.equal(await page.locator('.cf-goal').count(), 3);
+      assert.equal(await page.locator('.cf-goal.pace .cf-chart').count(), 3); // day 23: each a pace chart
       const sales = page.locator('.cf-room[data-cf-team="t1"]');
       assert.equal(await sales.evaluate((el) => el.classList.contains('wide')), true);
       assert.equal(await sales.locator('.cf-lead .cf-crown').count(), 1);
@@ -67,6 +69,9 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         assert.ok(panel.x > floor.x + floor.width - 1, 'the panel beside the floor');
         const [w, n] = await Promise.all(['.cf-room[data-cf-team="t1"]', '.cf-room[data-cf-team="t2"]'].map((s) => page.locator(s).boundingBox()));
         assert.ok(w.width > n.width * 1.8, 'the big team spans two columns');
+        const [rooms, side] = await Promise.all(['.cf-rooms', '.cf-side'].map((s) => page.locator(s).boundingBox()));
+        assert.ok(side.x > rooms.x + rooms.width - 1 && side.width < 220, 'the Chief, the bots in no team and New team in a narrow column beside the teams');
+        assert.ok(await page.locator('.cf-side .cf-chief').count() && await page.locator('.cf-side .cf-loose').count() && await page.locator('.cf-side .cf-new').count());
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-you.png`), fullPage: true });
         await sales.locator('.cf-room-head .cf-n').click(); // the room, not its name: the name opens the team's chat (#697)
         await page.locator('.cf-panel h2', { hasText: 'Sales' }).waitFor();
@@ -105,6 +110,8 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       } else {
         const [floor, panel] = await Promise.all(['.cf-floor', '.cf-panel'].map((s) => page.locator(s).boundingBox()));
         assert.ok(panel.y >= floor.y + floor.height - 1, 'the panel under the floor');
+        const [rooms, side] = await Promise.all(['.cf-rooms', '.cf-side'].map((s) => page.locator(s).boundingBox()));
+        assert.ok(side.y >= rooms.y + rooms.height - 1, 'the narrow column under the teams');
         assert.ok(floor.width <= viewport.width, 'no sideways scroll');
         if (shots) await page.screenshot({ path: path.join(shots, `${name}.png`), fullPage: true });
       }
