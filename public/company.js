@@ -17,6 +17,7 @@ const Company = (() => {
     fold: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
     crown: '<svg class="ct-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>',
+    gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   };
   const KEY = 'botdot.place';
   const shows = () => (state.features || []).includes('company');
@@ -40,13 +41,18 @@ const Company = (() => {
   // Every project, the one shown as the page has it now (its parts change state.company as they save).
   const projects = () => (state.projects || (state.company ? [state.company] : [])).map((p) => (p.id === state.company?.id ? state.company : p));
   // A route of the project shown: `?project=<id>` from a server with several.
+  // The projects in the list: not the archived ones (#701), which fold under Archived at its end.
+  const listed = () => projects().filter((p) => !p.archived);
+  const archivedOnes = () => projects().filter((p) => p.archived);
+  // The project to show when none is chosen: the first not archived.
+  const firstShown = (list) => list.find((p) => !p.archived) || list[0] || null;
   const at = (path) => (many() && state.company?.id ? `${path}${path.includes('?') ? '&' : '?'}project=${encodeURIComponent(state.company.id)}` : path);
   async function load() {
     if (!shows()) return null;
     try {
       if (many()) {
         state.projects = (await api('/company/list')).projects || [];
-        state.company = adding ? null : state.projects.find((p) => p.id === shownId) || state.projects[0] || null;
+        state.company = adding ? null : state.projects.find((p) => p.id === shownId) || firstShown(state.projects);
       } else state.company = (await api('/company')).company;
       loaded = true;
     } catch (e) { console.warn(e.message); }
@@ -70,10 +76,12 @@ const Company = (() => {
     keepShown();
     state.company = p;
     current = null;
+    closeSettings(false);
     if (state.view === 'company') redraw(); else setView('company');
   }
   // "+": what are you working on, for a new project.
   function startNew() {
+    closeSettings(false);
     adding = true;
     state.company = null;
     current = null;
@@ -118,7 +126,7 @@ const Company = (() => {
       // Drawn again only when it changed: the left column is drawn at every tick of the page, and a click on a row
       // drawn again under the pointer is lost.
       const html = `<div class="co-label">${tr('Projects')}<button type="button" class="icon-btn ct-add-project" data-new-project aria-label="${tr('New project')}" title="${tr('New project')}">${ICON.plus}</button></div>
-        <div class="ct-tree" role="tree" aria-label="${tr('Projects')}">${projects().map((p) => treeHTML(p, here && !adding && p.id === state.company?.id)).join('')}</div>
+        <div class="ct-tree" role="tree" aria-label="${tr('Projects')}">${listed().map((p) => treeHTML(p, here && !adding && p.id === state.company?.id)).join('')}${archivedHTML(here)}</div>
         <div class="ct-sep"></div>${chief}`;
       if (side.dataset.html === html) return;
       side.dataset.html = html;
@@ -162,14 +170,44 @@ const Company = (() => {
       return `<div class="ct-node">${caret(key, tOpen, t.name)}<span class="ct-team" style="--c:${esc(t.color)}"><i class="ct-dot"></i><span class="ct-name">${esc(t.name)}</span><span class="ct-n">${t.members.length}</span></span></div>${bots}`;
     }).join('')}</div></div>`;
   }
+  // The archived projects, folded under Archived at the tree's end; open, each a row that shows it.
+  function archivedHTML(here) {
+    const list = archivedOnes();
+    if (!list.length) return '';
+    const open = isOpen('archived', false);
+    return `<div class="ct-branch ct-archived"><div class="ct-node">${caret('archived', open, tr('Archived'))}<button type="button" class="co-row" data-fold="archived" aria-expanded="${open}"><span class="ct-name">${tr('Archived')}</span><span class="ct-n">${list.length}</span></button></div>${open ? `<div class="ct-kids" role="group">${list.map((p) => `<button type="button" class="co-row${here && !adding && p.id === state.company?.id ? ' here' : ''}" role="treeitem" data-project="${esc(p.id)}"><span class="ct-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(nameOf(p).charAt(0).toUpperCase())}</span><span class="ct-name">${esc(nameOf(p))}</span></button>`).join('')}</div>` : ''}</div>`;
+  }
   // On a phone the project's name picks another, or a new one: a plain select laid over the name.
   function pickHTML(name) {
     if (!many()) return esc(name);
-    const list = projects();
-    return `<span class="co-pick">${esc(name)}${ICON.down}<select data-pick-project aria-label="${tr('Projects')}">${list.map((p) => `<option value="${esc(p.id)}"${!adding && p.id === state.company?.id ? ' selected' : ''}>${esc(nameOf(p))}</option>`).join('')}<option value=""${adding ? ' selected' : ''}>${tr('New project')}</option></select></span>`;
+    const option = (p) => `<option value="${esc(p.id)}"${!adding && p.id === state.company?.id ? ' selected' : ''}>${esc(nameOf(p))}</option>`;
+    const old = archivedOnes();
+    return `<span class="co-pick">${esc(name)}${ICON.down}<select data-pick-project aria-label="${tr('Projects')}">${listed().map(option).join('')}${old.length ? `<optgroup label="${tr('Archived')}">${old.map(option).join('')}</optgroup>` : ''}<option value=""${adding ? ' selected' : ''}>${tr('New project')}</option></select></span>`;
   }
+  // The gear beside a project's name: its settings (#701), from a server with `project-settings`.
+  const gearHTML = () => ((state.features || []).includes('project-settings') && state.company ? `<button type="button" class="icon-btn co-gear" data-project-settings aria-label="${tr('Project settings')}" title="${tr('Project settings')}">${ICON.gear}</button>` : '');
   function wirePick(root) {
     $$('[data-pick-project]', root).forEach((sel) => (sel.onchange = () => (sel.value ? show(sel.value) : startNew())));
+    $$('[data-project-settings]', root).forEach((b) => (b.onclick = openSettings));
+  }
+  // ---------- the settings (company-settings.js) ----------
+  let settingsOpen = false;
+  function openSettings() { if (!state.company || !steps.settings) return; settingsOpen = true; redraw(); $('#view-company')?.scrollTo?.(0, 0); }
+  function closeSettings(draw = true) {
+    if (!settingsOpen) return;
+    settingsOpen = false;
+    steps.settingsClosed?.();
+    if (draw) redraw();
+  }
+  // A project deleted from its settings: the list without it, and the first one left shown.
+  function removed(id) {
+    closeSettings(false);
+    state.projects = (state.projects || []).filter((p) => p.id !== id);
+    state.company = many() ? firstShown(state.projects) : null;
+    shownId = state.company?.id || null;
+    keepShown();
+    drawSide();
+    redraw();
   }
 
   // ---------- the main area ----------
@@ -183,9 +221,11 @@ const Company = (() => {
     if (c && many()) { shownId = c.id; keepShown(); }
     // Drawn again only when something it shows changed: a refresh would take a half-typed answer and the focus.
     // A part that shows more than the company (the bots' states on the home) adds it with steps.sig.
-    const sig = JSON.stringify([c, current, adding, many() ? projects().map((p) => [p.id, nameOf(p)]) : null, steps.sig ? steps.sig(c) : null]);
+    if (!c) settingsOpen = false;
+    const sig = JSON.stringify([c, current, adding, settingsOpen, many() ? projects().map((p) => [p.id, nameOf(p), !!p.archived]) : null, settingsOpen ? state.bots.map((b) => [b.id, b.name, colorOf(b), b.state]) : steps.sig ? steps.sig(c) : null]);
     if (root.dataset.sig === sig && root.firstElementChild) return;
     root.dataset.sig = sig;
+    if (settingsOpen) { steps.settings(root, c); phoneSwitch(root); return; }
     if (!c) drawStart(root);
     else if (c.phase === 'running' && steps.home && current !== 'start') steps.home(root, c);
     else {
@@ -197,7 +237,7 @@ const Company = (() => {
       if (c.phase !== 'running') $$('.co-steps [data-step]:not([data-step="start"])', root).forEach((li) => (li.onclick = () => go(li.dataset.step)));
     }
     // A phone has no left column: the project's name over the setup picks another (the floor has it in its header).
-    if (many() && !(c?.phase === 'running' && steps.home && current !== 'start') && projects().length) root.insertAdjacentHTML('afterbegin', `<div class="co-pick-line">${pickHTML(c ? nameOf(c) : tr('New project'))}</div>`);
+    if (many() && !(c?.phase === 'running' && steps.home && current !== 'start') && projects().length) root.insertAdjacentHTML('afterbegin', `<div class="co-pick-line">${pickHTML(c ? nameOf(c) : tr('New project'))}${c ? gearHTML() : ''}</div>`);
     wirePick(root);
     phoneSwitch(root);
   }
@@ -324,8 +364,9 @@ const Company = (() => {
     const list = (state.projects || []).filter((p) => p.id !== d.id || d.project);
     if (d.project) { const i = list.findIndex((p) => p.id === d.id); if (i >= 0) list[i] = d.project; else list.push(d.project); }
     state.projects = list;
-    if (state.company?.id === d.id) state.company = d.project || list[0] || null;
-    else if (!state.company && !adding) state.company = list[0] || null;
+    if (state.company?.id === d.id) state.company = d.project || firstShown(list);
+    else if (!state.company && !adding) state.company = firstShown(list);
+    if (!state.company) closeSettings(false);
     loaded = true;
     drawSide();
     if (state.view === 'company') render();
@@ -336,5 +377,5 @@ const Company = (() => {
     if (shows()) load().then(() => { drawSide(); if (place === 'company' && state.view !== 'company' && !location.hash.slice(1)) setView('company'); });
   }
 
-  return { init, render, redraw, drawSide, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew };
+  return { init, render, redraw, drawSide, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, closeSettings, removed };
 })();
