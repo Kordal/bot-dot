@@ -41,7 +41,6 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
@@ -107,26 +106,26 @@ fun BotPicker(title: String, bots: List<Bot>, max: Int, action: String, hint: (I
         containerColor = p.panel,
         title = { Text(title, style = MaterialTheme.typography.titleMedium, color = p.text) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 if (name != null) OutlinedTextField(named, { named = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
                     bots.forEach { b ->
                         val on = b.id in picked
                         val can = on || picked.size < max // full: nothing more can be ticked
-                        Row(Modifier.fillMaxWidth().clickable(enabled = can, role = Role.Checkbox) { picked = if (on) picked - b.id else picked + b.id }.padding(vertical = 4.dp),
+                        Row(Modifier.fillMaxWidth().clickable(enabled = can, role = Role.Checkbox) { picked = if (on) picked - b.id else picked + b.id }.padding(vertical = Space.s4),
                             verticalAlignment = Alignment.CenterVertically) {
                             BotFigure(b.color, "idle", 32, b.outfit)
                             Spacer(Modifier.size(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(b.name, color = if (can) p.text else p.faint, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (b.description.isNotBlank()) Text(b.description, color = p.faint, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(b.name, color = if (can) p.text else p.faint, fontSize = Type.s16, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (b.description.isNotBlank()) Text(b.description, color = p.faint, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             Checkbox(on, null, enabled = can, colors = CheckboxDefaults.colors(checkedColor = p.ink, checkmarkColor = p.inkText))
                         }
                     }
                 }
-                Text(hint(picked.size), color = p.faint, fontSize = 12.5.sp)
-                refused?.let { Text(it, color = p.err, fontSize = 13.sp, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
+                Text(hint(picked.size), color = p.faint, fontSize = Type.s12)
+                refused?.let { Text(it, color = p.err, fontSize = Type.s14, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) }
             }
         },
         confirmButton = {

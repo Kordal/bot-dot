@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -27,7 +26,6 @@ import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.ChiefInfo
@@ -146,8 +144,8 @@ fun slashAfterPick(was: TextFieldValue, typed: TextFieldValue, picked: Int): Tex
 @Composable
 fun MentionList(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.Row) -> Unit) {
     val p = LocalPaper.current
-    val shape = RoundedCornerShape(18.dp)
-    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) { MentionRows(rows, w, onPick) }
+    val shape = Radius.card
+    Column(Modifier.fillMaxWidth().padding(bottom = Space.s8).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) { MentionRows(rows, w, onPick) }
 }
 
 /** The rows of [MentionList], also under the files found (#604, FileMentionList). */
@@ -167,7 +165,7 @@ fun MentionRows(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.R
                 else -> append(r.label)
             }
         }
-        FigureText(label, color = p.text, fontSize = 15.sp, maxLines = 1,
-            modifier = Modifier.fillMaxWidth().clickable { onPick(r) }.padding(horizontal = 16.dp, vertical = 11.dp))
+        FigureText(label, color = p.text, fontSize = Type.s16, maxLines = 1,
+            modifier = Modifier.fillMaxWidth().clickable { onPick(r) }.padding(horizontal = Space.s16, vertical = Space.s12))
     }
 }

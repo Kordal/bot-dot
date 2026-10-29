@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -198,7 +197,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { SnackbarHost(snack) },
-        bottomBar = { work.now?.let { w -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(12.dp), contentAlignment = Alignment.Center) { WorkLine(w) { work.now = null } } } },
+        bottomBar = { work.now?.let { w -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(Space.s12), contentAlignment = Alignment.Center) { WorkLine(w) { work.now = null } } } },
         topBar = {
             // Beside the chat the panel has its close button; covering the chat, Back.
             TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
@@ -207,7 +206,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         },
     ) { pad ->
         val b = bot ?: return@Scaffold
-        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Section(tr("Who it is")) {
                 OutlinedTextField(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 ColorPicker(color) { color = it }
@@ -251,7 +250,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
                 if (b.computer == "linux" || (b.computer == "boat" && "boat-desktop" in server?.features.orEmpty())) OutlinedButton(onClick = onScreen) { Text("🖥 " + tr("See its screen"), color = p.text) }
                 val waiting = b.jobs.count { it.waits }
-                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onJobs).padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(onClick = onJobs).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
                     Text(tr("Scheduled jobs"), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                     Text(
                         when {
@@ -261,7 +260,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         },
                         color = if (waiting > 0) p.warnText else p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1,
                     )
-                    Text("›", color = p.faint, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
+                    Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
                 }
             }
             // Skills, Apps, May message: what's picked in one line; tap to see everything with a checkbox.
@@ -393,7 +392,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 FoldSection(tr("Pages"), if (list.isEmpty()) tr("None yet") else "${list.size}") {
                     list.forEach { pg ->
                         key(pg.slug) {
-                            Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(botId, dev.botdot.app.data.PageRef(pg.slug, pg.title), b.name) }.padding(vertical = 6.dp)) {
+                            Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(botId, dev.botdot.app.data.PageRef(pg.slug, pg.title), b.name) }.padding(vertical = Space.s8)) {
                                 Text(pg.title, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                 Text(dev.botdot.app.data.Pages.line(pg), color = if (pg.keep != null) p.okText else p.muted, style = MaterialTheme.typography.bodySmall)
                             }
@@ -427,7 +426,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             text = {
                 Column {
                     OutlinedTextField(copyName, { copyName = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Text(dev.botdot.app.data.Duplicate.text(plan), color = p.text, modifier = Modifier.padding(top = 12.dp))
+                    Text(dev.botdot.app.data.Duplicate.text(plan), color = p.text, modifier = Modifier.padding(top = Space.s12))
                 }
             },
             confirmButton = {
@@ -497,7 +496,7 @@ private fun ColorPicker(selected: String, onPick: (String) -> Unit) {
             androidx.compose.foundation.layout.Box(
                 Modifier.size(34.dp)
                     .border(2.dp, if (on) p.text else Color.Transparent, CircleShape)
-                    .padding(4.dp).clip(CircleShape).background(parseColor(hex, p.faint))
+                    .padding(Space.s4).clip(CircleShape).background(parseColor(hex, p.faint))
                     .clickable(onClickLabel = label) { onPick(hex) }
                     .semantics { contentDescription = label; this.selected = on },
             )
@@ -509,8 +508,8 @@ private fun ColorPicker(selected: String, onPick: (String) -> Unit) {
 fun scriptWarningText(name: String) = tr("It's a script: it runs as commands on botdot's computer with your permissions, without AI and without the bot's tool limits. If a web page or email ever tricks {name} into changing it, the new version would run on its schedule without you seeing it first.\n\nYou can take this back in {name}'s settings.", "name" to name)
 
 @Composable
-internal fun GroupHead(text: String) = Text(text, color = LocalPaper.current.muted, fontSize = 12.5.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-    modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
+internal fun GroupHead(text: String) = Text(text, color = LocalPaper.current.muted, fontSize = Type.s12, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+    modifier = Modifier.padding(top = Space.s8, bottom = Space.s4))
 
 /** A skill: the box switches it, a tap on its name shows more about it. */
 @Composable
@@ -521,10 +520,10 @@ internal fun SkillRow(name: String, desc: String, more: String, checked: Boolean
     LaunchedEffect(focus) { if (focus) { delay(350); view.bringIntoView() } } // once the Skills have unfolded
     androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth().bringIntoViewRequester(view)) {
         Checkbox(checked, onChange, colors = CheckboxDefaults.colors(checkedColor = p.ink, checkmarkColor = p.inkText))
-        Column(Modifier.weight(1f).clickable(onClickLabel = if (open) tr("Show less") else tr("Show more")) { open = !open }.padding(top = 12.dp, bottom = 6.dp)) {
+        Column(Modifier.weight(1f).clickable(onClickLabel = if (open) tr("Show less") else tr("Show more")) { open = !open }.padding(top = Space.s12, bottom = Space.s8)) {
             Text(name, color = p.text, style = MaterialTheme.typography.bodyLarge)
             if (desc.isNotBlank()) Text(desc, color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = if (open) Int.MAX_VALUE else 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-            if (open) Text(more, color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+            if (open) Text(more, color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = Space.s8))
         }
     }
 }

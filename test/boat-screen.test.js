@@ -17,7 +17,7 @@ const SECRET = 'hunter2-pass';
 
 // boat.dev with a machine as far as the screen uses it: the kit on its disk, computer-server and the bridge running
 // until it stops, detached commands, files.
-function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kitFails = false, desktopRefuses = false, installing = false, slow = false, bridgeDies = false } = {}) {
+function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kitFails = false, desktopRefuses = false, installing = false, slow = false, bridgeDies = false, silent = 0, unreachable = 0, notReady = 0 } = {}) {
   const machines = new Map();
   const calls = [];
   let n = 0;
@@ -44,6 +44,8 @@ function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE
     if (m[2] === 'files' && method === 'PUT') { box.files.set(data.path, Buffer.from(data.content, data.encoding === 'base64' ? 'base64' : 'utf8').toString()); return reply(200, { ok: true }); }
     if (m[2] !== 'commands') return reply(400, { ok: false });
     const c = data.command;
+    // boat.dev restarted a running machine under botdot (seen live): its commands are refused until it is back.
+    if (notReady > 0) { notReady -= 1; return reply(409, { ok: false, code: 'sandbox_not_ready' }); }
     if (data.detached) {
       if (c.includes('botdot-boat-kit')) box.installing = c.match(/botdot-boat-kit (\S+)/)[1];
       else if (c.includes('computer_server')) box.server = true;
@@ -59,6 +61,9 @@ function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE
       return ran('done\n');
     }
     if (c.includes('xhost')) {
+      // boat.dev's way to the machine broke (seen on a live machine): its start of the screen gets no answer.
+      if (unreachable > 0) { unreachable -= 1; return reply(502, { ok: false, code: 'sandbox_direct_failed' }); }
+      if (silent > 0) { silent -= 1; return reply(200, { ok: true, stdout: '', stderr: '', timedOut: true }); }
       if (box.kit !== boatLib.KIT_VERSION) return ran('kit\n');
       if (desktopRefuses) return ran("the machine's desktop (:0) did not let botdot in", 3);
       return ran(`${box.server ? 'server\n' : ''}${box.bridge ? 'bridge\n' : ''}sha ${box.bridgeSha || ''}\n`);
@@ -80,7 +85,7 @@ function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE
     }
     return ran('');
   };
-  return { fetch, calls, machines, commands: () => calls.filter((x) => x.path.endsWith('/commands')).map((x) => x.body) };
+  return { fetch, calls, machines, setNotReady: (n) => { notReady = n; }, commands: () => calls.filter((x) => x.path.endsWith('/commands')).map((x) => x.body) };
 }
 
 const machine = (opts, boatOpts = {}) => {
@@ -208,6 +213,37 @@ test("a desktop that won't let botdot in is said, and nothing is started", async
   const { b, boat } = machine({ kit: boatLib.KIT_VERSION, desktopRefuses: true });
   await assert.rejects(boat.ensureScreen('coder'), /screen didn't start: the machine's desktop \(:0\) did not let botdot in/);
   assert.equal(b.commands().filter((c) => c.detached).length, 0);
+});
+
+test("a machine that doesn't answer the screen's start is asked once more, and is never said to miss its kit", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const once = machine({ kit: boatLib.KIT_VERSION, silent: 1 });
+  assert.equal((await once.boat.request('coder', '/cmd', { command: 'screenshot', params: {} })).ok, true, 'the second ask started the screen');
+  const silent = machine({ kit: boatLib.KIT_VERSION, silent: 2 });
+  await assert.rejects(silent.boat.ensureScreen('coder'), (e) => /screen didn't start: your machine didn't answer in time/.test(e.message) && !/kit/.test(e.message));
+  const cut = machine({ kit: boatLib.KIT_VERSION, unreachable: 2 });
+  await assert.rejects(cut.boat.ensureScreen('coder'), (e) => /screen didn't start: boat\.dev couldn't reach your machine/.test(e.message) && !/kit/.test(e.message));
+  assert.equal(cut.b.commands().filter((c) => c.detached).length, 0, 'nothing started');
+});
+
+test("a machine boat.dev says is not ready is waited for and the call made once more; one that stays so says so", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const { b, boat } = machine({ kit: boatLib.KIT_VERSION });
+  assert.equal((await boat.runShell('coder', { command: 'echo ok' })).code, 0);
+  const [box] = b.machines.values();
+  b.setNotReady(2);
+  const r = await boat.runShell('coder', { command: 'echo ok' });
+  assert.equal(r.code, 0, `came back: ${r.error}`);
+  assert.equal([...b.machines.values()].length, 1, 'the same machine, no new one');
+  assert.equal(box.id, [...b.machines.keys()][0]);
+  let at = 0;
+  const stuck = machine({ kit: boatLib.KIT_VERSION }, { now: () => (at += 10_000) });
+  assert.equal((await stuck.boat.runShell('coder', { command: 'echo ok' })).code, 0);
+  stuck.b.setNotReady(1000);
+  const s = await stuck.boat.runShell('coder', { command: 'echo ok' });
+  assert.match(s.error, /your machine at boat\.dev isn't ready/);
 });
 
 test("a screen that doesn't come up says which part of it didn't, with the end of its log", async (t) => {

@@ -1634,5 +1634,30 @@
     "one": "{n} opinia",
     "few": "{n} opinie",
     "many": "{n} opinii"
-  }
+  },
+  "Standup": "Standup",
+  "Standup: {text}": "Standup: {text}",
+  "Weekly": "Co tydzień",
+  "Monthly": "Co miesiąc",
+  "Every {n} days": "Co {n} dni",
+  "Tomorrow": "Jutro",
+  "Days": "Dni",
+  "Due": "Termin",
+  "To-do": "Do zrobienia",
+  "Calendar": "Kalendarz",
+  "Add an event": "Dodaj wydarzenie",
+  "Day": "Dzień",
+  "Previous month": "Poprzedni miesiąc",
+  "Next month": "Następny miesiąc",
+  "Chats": "Czaty",
+  "Taller or lower": "Wyżej lub niżej",
+  "{n} more chats": {
+    "one": "Jeszcze {n} czat",
+    "few": "Jeszcze {n} czaty",
+    "many": "Jeszcze {n} czatów"
+  },
+  "Minimize": "Zwiń",
+  "Decisions": "Decyzje",
+  "Add a decision": "Dodaj decyzję",
+  "Remove": "Usuń"
 }

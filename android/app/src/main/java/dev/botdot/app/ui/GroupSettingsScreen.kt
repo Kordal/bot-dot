@@ -95,7 +95,7 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
     ) { pad ->
         val g = group ?: return@Scaffold
         val members = Groups.members(g, bots)
-        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { GroupPicture(members, 72) }
             // The name saves when the keyboard's Done is tapped or the box is left. An emptied box takes the old one back.
             var name by remember(g.id) { mutableStateOf(g.name) }

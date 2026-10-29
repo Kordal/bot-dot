@@ -102,7 +102,15 @@ const checkinDate = (startedAt) => (startedAt ? new Date(new Date(startedAt).get
 // How many of an objective's steps are done.
 const stepsDone = (o) => (o?.steps?.length ? o.steps.filter((x) => x.done).length : 0);
 
-const api = { WIDE, room, floor, objectiveOf, task, seatOf, displayOf, pace, chart, firstDay, checkinDate, stepsDone };
+// A decision as the owner types it (#694): "Launch in Polish first because most users are Polish" is the decision and
+// its reason, split at the first "because" (Polish "bo", "ponieważ") or dash between words. { text, why }.
+function decision(input) {
+  const typed = String(input || '').replace(/\s+/g, ' ').trim();
+  const m = /^(.+?)\s+(?:because|bo|ponieważ|[—–-])\s+(.+)$/i.exec(typed);
+  return m ? { text: m[1].replace(/[,;:]$/, '').trim(), why: m[2] } : { text: typed, why: '' };
+}
+
+const api = { WIDE, room, floor, objectiveOf, task, seatOf, decision, displayOf, pace, chart, firstDay, checkinDate, stepsDone };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.CompanyFloor = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

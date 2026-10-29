@@ -2,8 +2,9 @@
 // A running company with three teams and a bot in no team: the header says its day, the objectives are charts, a
 // room of five spans two columns, the lead of a team sits at the head with a crown (none for a one-bot team), a bot
 // at work has a desk while the idle ones sit on the bench. A click on a room shows the team with "Make lead"; "@Bot
-// text" in Add a task gives that bot the task. The Chief, the bot in no team and New team sit in a narrow column beside
-// the teams (#690). A phone has the floor in one column and You under it. Scratch data only.
+// text" in Add a task gives that bot the task. The To-do (#692): its filters, and a repeating task added with the
+// picker comes back once ticked. The Chief, the bot in no team and New team sit in a narrow column beside
+// the teams (#690). A phone has the floor in one column and the To-do under it. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -60,6 +61,8 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       assert.equal(await page.locator('.cf-room[data-cf-team="t3"] .cf-crown').count(), 0);
       assert.equal(await page.locator('.cf-loose .cf-name').innerText(), 'Weekly Report');
       await page.locator('.cf-new', { hasText: 'New team' }).waitFor();
+      // Ticked on the wide page, the task is under Done on the phone.
+      if (name === 'phone') await page.locator('[data-cf-filter="done"]').click();
       await page.locator('.cf-todo', { hasText: 'Review notes for v2.3' }).waitFor();
       if (name === 'wide') {
         const [floor, panel] = await Promise.all(['.cf-floor', '.cf-panel'].map((s) => page.locator(s).boundingBox()));
@@ -78,7 +81,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await waitFor(async () => (await srv.api('/company')).data.company.teams.find((t) => t.id === 't1').lead === id('Lead Finder'), { what: 'the new lead' });
         await sales.locator('.cf-lead .cf-name', { hasText: 'Lead Finder' }).waitFor();
         await page.locator('[data-cf-close]').click();
-        await page.locator('.cf-panel h2', { hasText: 'You' }).waitFor();
+        await page.locator('.cf-panel h2', { hasText: 'To-do' }).waitFor();
         await page.locator('#cf-add input').fill('@Weekly Report send the weekly numbers');
         await page.locator('#cf-add input').press('Enter');
         await page.locator('.cf-todo', { hasText: 'send the weekly numbers' }).waitFor();
@@ -87,6 +90,23 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         assert.equal(todo.bot, id('Weekly Report'));
         await page.locator('.cf-todo input[data-cf-todo="d1"]').check();
         await waitFor(async () => (await srv.api('/company')).data.company.todos.find((t) => t.id === 'd1').done, { what: 'the task ticked' });
+        // The filters: a bot's task under Bots, not under You.
+        await page.locator('[data-cf-filter="bots"]').click();
+        await page.locator('.cf-todo', { hasText: 'send the weekly numbers' }).waitFor();
+        await page.locator('[data-cf-filter="you"]').click();
+        await page.locator('.cf-todo', { hasText: 'send the weekly numbers' }).waitFor({ state: 'detached' });
+        await page.locator('[data-cf-filter="all"]').click();
+        // A weekly task on Mondays, picked under the field: ticked, the next one is there a week later.
+        await page.locator('[data-cf-when]').click();
+        await page.locator('[data-cf-due]').fill('2026-11-02');
+        await page.locator('[data-cf-due]').dispatchEvent('change');
+        await page.locator('[data-cf-rhythm="week"]').click();
+        await page.locator('#cf-add input').fill('Count active users');
+        await page.locator('#cf-add input').press('Enter');
+        const weekly = await waitFor(async () => (await srv.api('/company')).data.company.todos.find((t) => t.text === 'Count active users'), { what: 'the weekly task' });
+        assert.deepEqual([weekly.due, weekly.repeat], ['2026-11-02', { every: 'week', days: [1] }]);
+        await page.locator(`.cf-todo input[data-cf-todo="${weekly.id}"]`).check();
+        await waitFor(async () => (await srv.api('/company')).data.company.todos.some((t) => t.text === 'Count active users' && !t.done && t.due === '2026-11-09'), { what: 'the next weekly task' });
       } else {
         const [floor, panel] = await Promise.all(['.cf-floor', '.cf-panel'].map((s) => page.locator(s).boundingBox()));
         assert.ok(panel.y >= floor.y + floor.height - 1, 'the panel under the floor');

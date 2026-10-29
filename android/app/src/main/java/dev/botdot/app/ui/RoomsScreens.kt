@@ -56,7 +56,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -87,7 +86,7 @@ internal fun RoomsRow(app: BotDotApp, onClick: () -> Unit) {
     val list by app.rooms.list.collectAsState()
     if (!on) return
     val invites = list?.invites?.size ?: 0
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp).clickable(onClickLabel = ROOMS, onClick = onClick).padding(horizontal = 8.dp, vertical = 10.dp),
+    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s4).clickable(onClickLabel = ROOMS, onClick = onClick).padding(horizontal = Space.s8, vertical = Space.s12),
         verticalAlignment = Alignment.CenterVertically) {
         // One line however narrow the list (#493): the name and what waits in one text that ends in "…".
         val line = RoomWords.rowLine(invites)
@@ -154,12 +153,12 @@ fun RoomsScreen(app: BotDotApp, onRoom: (String) -> Unit, onMade: (String) -> Un
                 })
         },
     ) { pad ->
-        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             if (!on) item { Hint(tr("Shared rooms are off on this machine. The admin turns them on.")) }
             val invites = list?.invites.orEmpty()
             items(invites, key = { "invite:" + it.room.id }) { i ->
                 Section(i.room.name, tr("{name} invites you", "name" to i.by)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                         OutlinedButton(onClick = { act { app.rooms.took(app.api.value!!.acceptRoom(i.room.id)); onRoom(i.room.id) } }) { Text(tr("Accept"), color = p.text) }
                         TextButton(onClick = { act { app.api.value!!.declineRoom(i.room.id); app.rooms.gone(i.room.id) } }) { Text(tr("Decline"), color = p.text) }
                     }
@@ -175,12 +174,12 @@ fun RoomsScreen(app: BotDotApp, onRoom: (String) -> Unit, onMade: (String) -> Un
 @Composable
 private fun RoomRow(r: Room, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(r.name, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
             Text(Rooms.workingLine(r).ifEmpty { Rooms.summary(r) }, color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 1)
         }
-        Text(listTime(r.last?.at), color = p.faint, fontSize = 12.sp)
+        Text(listTime(r.last?.at), color = p.faint, fontSize = Type.s12)
     }
 }
 
@@ -196,7 +195,7 @@ private fun NameDialog(title: String, label: String, start: String, button: Stri
         onDismissRequest = { if (!busy) onClose() },
         title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 OutlinedTextField(text, { text = it.take(60); error = null }, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 error?.let { Text(it, color = p.err) }
             }
@@ -232,7 +231,7 @@ private fun JoinDialog(app: BotDotApp, onJoined: (String) -> Unit, onClose: () -
         onDismissRequest = { if (!busy) onClose() },
         title = { Text(seen?.let { tr("Join {name}?", "name" to it.room.name) } ?: tr("Join a room")) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 val room = seen
                 if (room == null) {
                     OutlinedTextField(text, { text = it.take(400); error = null }, label = { Text(tr("Invite link")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -369,23 +368,23 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
                 Modifier.fillMaxSize(),
                 state = listState,
                 reverseLayout = true,
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = pad.calculateTopPadding() + 4.dp, bottom = pad.calculateBottomPadding() + 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
+                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
+                verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom),
             ) {
                 item(key = "tail") {
                     Column {
                         if (sent != null) SentBubble(sent, above = false)
                         val working = room?.let { Rooms.workingLine(it) }.orEmpty()
-                        if (working.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(working, color = p.muted, fontSize = 13.sp, modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
+                        if (working.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+                            Text(working, color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
                             TextButton(onClick = { vm.stop() }) { Text(tr("Stop"), color = p.text) }
                         }
                     }
                 }
                 if (vm.loaded && vm.messages.isEmpty() && sent == null) item {
-                    Text(RoomChat.EMPTY, color = p.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(24.dp))
+                    Text(RoomChat.EMPTY, color = p.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(Space.s24))
                 }
-                vm.error?.let { e -> item { Text(e, color = p.err, modifier = Modifier.padding(16.dp)) } }
+                vm.error?.let { e -> item { Text(e, color = p.err, modifier = Modifier.padding(Space.s16)) } }
                 items(shown, key = { it.id }) { m -> RoomMessageRow(m, room, mine) }
             }
         }
@@ -403,7 +402,7 @@ internal object RoomChat {
 @Composable
 private fun RoomMark() {
     val p = LocalPaper.current
-    Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) { Text("#", color = p.muted, fontSize = 18.sp, fontWeight = FontWeight.SemiBold) }
+    Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) { Text("#", color = p.muted, fontSize = Type.s16, fontWeight = FontWeight.SemiBold) }
 }
 
 @Composable
@@ -411,20 +410,20 @@ private fun RoomMessageRow(m: RoomMessage, room: Room?, mine: String?) {
     val p = LocalPaper.current
     val mentioned = Rooms.mentionLine(m)
     when {
-        m.notice -> Text(m.text, color = p.faint, fontSize = 12.5.sp, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp))
+        m.notice -> Text(m.text, color = p.faint, fontSize = Type.s12, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = Space.s4))
         RoomChat.isMine(m, mine) -> Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
             MyBubble(m.text)
-            if (mentioned.isNotEmpty()) Text(mentioned, color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp, end = 6.dp))
+            if (mentioned.isNotEmpty()) Text(mentioned, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4, end = Space.s8))
         }
         else -> {
             // A bot in its colour (as the room has it now, else neutral); a person in plain words.
             val color = m.bot?.let { b -> room?.bots?.firstOrNull { it.account == m.account && it.id == b.id }?.color }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                if (m.bot != null) { Box(Modifier.padding(top = 18.dp)) { BotFigure(color ?: GONE_COLOR, "idle", 28, null) }; Spacer(Modifier.size(6.dp)) }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(Rooms.author(m), color = if (m.bot != null) parseColor(color, p.muted) else p.muted, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+                if (m.bot != null) { Box(Modifier.padding(top = Space.s16)) { BotFigure(color ?: GONE_COLOR, "idle", 28, null) }; Spacer(Modifier.size(6.dp)) }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    Text(Rooms.author(m), color = if (m.bot != null) parseColor(color, p.muted) else p.muted, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
                     TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text) }
-                    if (mentioned.isNotEmpty()) Text(mentioned, color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+                    if (mentioned.isNotEmpty()) Text(mentioned, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(start = Space.s8))
                 }
             }
         }
@@ -487,7 +486,7 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
         },
     ) { pad ->
         val r = room ?: return@Scaffold
-        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Section(tr("Name")) {
                 OutlinedTextField(name, { name = it.take(60) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 if (name.isNotBlank() && name.trim() != r.name) OutlinedButton(enabled = !busy, onClick = { act(tr("Saved")) { app.rooms.took(api().renameRoom(roomId, name.trim())) } }) { Text(tr("Save"), color = p.text) }
@@ -502,7 +501,7 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
                     OutlinedButton(enabled = !busy, onClick = { act { link = api().makeRoomLink(roomId) } }) { Text(tr("Make an invite link"), color = p.text) }
                 } else {
                     SelectionContainer { Text(l.url, color = p.text, style = MaterialTheme.typography.bodyMedium) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                         OutlinedButton(enabled = !busy, onClick = {
                             val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, l.url)
                             context.startActivity(Intent.createChooser(send, r.name))
@@ -535,7 +534,7 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
                     }
                 } else if (bots.orEmpty().none { it.rooms?.allowRooms == true }) Hint(tr("None of your bots may be in shared rooms yet: switch it on in a bot's settings."))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 OutlinedButton(enabled = !busy, onClick = { asking = "leave" }) { Text(tr("Leave"), color = p.err) }
                 if (Rooms.mayDelete(r, mine)) OutlinedButton(enabled = !busy, onClick = { asking = "delete" }) { Text(tr("Delete"), color = p.err) }
             }

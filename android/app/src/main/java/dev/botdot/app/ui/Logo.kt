@@ -16,11 +16,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 
 /** "bot" and the big coral dot. While [busy] (the Chief or a bot is working) the dot pulses softly. */
 @Composable
-fun Logo(size: TextUnit = 22.sp, busy: Boolean = false) {
+fun Logo(size: TextUnit = Type.s20, busy: Boolean = false) {
     val p = LocalPaper.current
     val em = with(LocalDensity.current) { size.toDp() }
     // On the figures' clock, running only while busy (it carries on where it was, so the pulse doesn't jump).
