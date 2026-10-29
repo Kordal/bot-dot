@@ -1623,5 +1623,11 @@
     "one": "Utwórz {n} bota",
     "few": "Utwórz {n} boty",
     "many": "Utwórz {n} botów"
+  },
+  "Save": "Zapisz",
+  "{n} reviews": {
+    "one": "{n} opinia",
+    "few": "{n} opinie",
+    "many": "{n} opinii"
   }
 }

@@ -1,0 +1,570 @@
+{
+  "about": "Shopping results in a reply (#682, ADR 113): a ```products fence holds a JSON list (or one product), the first is the pick. Read the same on the web page (Products.parse in public/products.js, test/products-web.test.js) and in the Android app. `products` is what a fence holds once read, or null when it stays a code block; `off` is how much less than `was` in whole percent, and `was` is kept only with it. `amounts` are prices and their numbers (null: none). `drafts` are replies still being written and what is drawn of them: a products fence waits whole until it is closed. A rule changes here and in both apps together.",
+  "amounts": [
+    [
+      "€379",
+      379
+    ],
+    [
+      "€1.299",
+      1299
+    ],
+    [
+      "379,99 zł",
+      379.99
+    ],
+    [
+      "$1,299.00",
+      1299
+    ],
+    [
+      "1 299 zł",
+      1299
+    ],
+    [
+      "1 299,50 zł",
+      1299.5
+    ],
+    [
+      "CHF 1'299.–",
+      1299
+    ],
+    [
+      "free",
+      null
+    ]
+  ],
+  "cases": [
+    {
+      "name": "the first is the pick, the rest are rows, each with what it has",
+      "source": "[{\"name\":\"Lift Pro 140\",\"url\":\"https://www.amazon.de/dp/B0C1\",\"image\":\"https://m.media-amazon.com/images/I/61a.jpg\",\"price\":\"€379\",\"store\":\"amazon.de\",\"rating\":4.6,\"reviews\":2140,\"arrives\":\"Arrives Friday\",\"why\":\"Two motors, steady at full height, 10-year frame warranty.\"},{\"name\":\"Ergo Frame S2\",\"url\":\"https://www.x-kom.pl/p/1\",\"price\":\"€339\",\"was\":\"€399\",\"store\":\"x-kom.pl\",\"rating\":4.4,\"arrives\":\"Arrives tomorrow\"},{\"name\":\"Oak Rise 140\",\"url\":\"https://www.ikea.com/pl/p/2\",\"price\":\"€349\",\"store\":\"ikea.pl\",\"rating\":\"4.3\"}]",
+      "products": [
+        {
+          "name": "Lift Pro 140",
+          "url": "https://www.amazon.de/dp/B0C1",
+          "image": "https://m.media-amazon.com/images/I/61a.jpg",
+          "price": "€379",
+          "was": "",
+          "off": 0,
+          "store": "amazon.de",
+          "rating": 4.6,
+          "reviews": 2140,
+          "arrives": "Arrives Friday",
+          "why": "Two motors, steady at full height, 10-year frame warranty."
+        },
+        {
+          "name": "Ergo Frame S2",
+          "url": "https://www.x-kom.pl/p/1",
+          "image": "",
+          "price": "€339",
+          "was": "€399",
+          "off": 15,
+          "store": "x-kom.pl",
+          "rating": 4.4,
+          "reviews": null,
+          "arrives": "Arrives tomorrow",
+          "why": ""
+        },
+        {
+          "name": "Oak Rise 140",
+          "url": "https://www.ikea.com/pl/p/2",
+          "image": "",
+          "price": "€349",
+          "was": "",
+          "off": 0,
+          "store": "ikea.pl",
+          "rating": 4.3,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "one product, not in a list, is a pick of its own",
+      "source": "{\"name\":\"Basic Stand 140\",\"url\":\"https://allegro.pl/oferta/3\",\"price\":\"1 299 zł\",\"was\":\"1 499 zł\"}",
+      "products": [
+        {
+          "name": "Basic Stand 140",
+          "url": "https://allegro.pl/oferta/3",
+          "image": "",
+          "price": "1 299 zł",
+          "was": "1 499 zł",
+          "off": 13,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "a product without a name is left out; one that is not an object too",
+      "source": "[{\"url\":\"https://a.example/1\",\"price\":\"€1\"},\"Desk\",7,null,[],{\"name\":\"  Desk   Two \",\"price\":12}]",
+      "products": [
+        {
+          "name": "Desk Two",
+          "url": "",
+          "image": "",
+          "price": "12",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "only an https address opens or shows a photo",
+      "source": "[{\"name\":\"A\",\"url\":\"http://shop.example/a\",\"image\":\"javascript:alert(1)\"},{\"name\":\"B\",\"url\":\"ftp://shop.example/b\",\"image\":\"data:image/png;base64,AAAA\"},{\"name\":\"C\",\"url\":\"https://shop.example/c?x=1&y=2\",\"image\":\"https://cdn.example/c.webp\"}]",
+      "products": [
+        {
+          "name": "A",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "B",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "C",
+          "url": "https://shop.example/c?x=1&y=2",
+          "image": "https://cdn.example/c.webp",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "an old price that is not higher is dropped, and so is its −%",
+      "source": "[{\"name\":\"A\",\"price\":\"€399\",\"was\":\"€399\"},{\"name\":\"B\",\"price\":\"€399\",\"was\":\"€299\"},{\"name\":\"C\",\"price\":\"free\",\"was\":\"€10\"},{\"name\":\"D\",\"price\":\"379,99 zł\",\"was\":\"449,99 zł\"},{\"name\":\"E\",\"price\":\"$1,299.00\",\"was\":\"$1,499.00\"}]",
+      "products": [
+        {
+          "name": "A",
+          "url": "",
+          "image": "",
+          "price": "€399",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "B",
+          "url": "",
+          "image": "",
+          "price": "€399",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "C",
+          "url": "",
+          "image": "",
+          "price": "free",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "D",
+          "url": "",
+          "image": "",
+          "price": "379,99 zł",
+          "was": "449,99 zł",
+          "off": 16,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "E",
+          "url": "",
+          "image": "",
+          "price": "$1,299.00",
+          "was": "$1,499.00",
+          "off": 13,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "a rating is from above 0 to 5, rounded to one decimal; reviews a whole count from 1",
+      "source": "[{\"name\":\"A\",\"rating\":4.66,\"reviews\":12.7},{\"name\":\"B\",\"rating\":0,\"reviews\":0},{\"name\":\"C\",\"rating\":7,\"reviews\":-3},{\"name\":\"D\",\"rating\":\"great\",\"reviews\":\"many\"}]",
+      "products": [
+        {
+          "name": "A",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": 4.7,
+          "reviews": 12,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "B",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "C",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "D",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "long words are cut: a name at 120, a why at 200",
+      "source": "[{\"name\":\"NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN\",\"why\":\"WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW\",\"store\":\"SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\",\"arrives\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\",\"price\":\"PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP\"}]",
+      "products": [
+        {
+          "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+          "url": "",
+          "image": "",
+          "price": "PPPPPPPPPPPPPPPPPPPPPPPPPPPPPP",
+          "was": "",
+          "off": 0,
+          "store": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+          "rating": null,
+          "reviews": null,
+          "arrives": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "why": "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW"
+        }
+      ]
+    },
+    {
+      "name": "at most ten are kept",
+      "source": "[{\"name\":\"P1\"},{\"name\":\"P2\"},{\"name\":\"P3\"},{\"name\":\"P4\"},{\"name\":\"P5\"},{\"name\":\"P6\"},{\"name\":\"P7\"},{\"name\":\"P8\"},{\"name\":\"P9\"},{\"name\":\"P10\"},{\"name\":\"P11\"},{\"name\":\"P12\"}]",
+      "products": [
+        {
+          "name": "P1",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "P2",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "P3",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "P4",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "P5",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "P6",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "P7",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "P8",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "P9",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "P10",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "an address is https in lowercase, with a host",
+      "source": "[{\"name\":\"A\",\"url\":\"HTTPS://shop.example/a\",\"image\":\"https:///x.jpg\"},{\"name\":\"B\",\"url\":\"https://shop.example\",\"image\":\"https://cdn.example/b.jpg?w=1#top\"}]",
+      "products": [
+        {
+          "name": "A",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "B",
+          "url": "https://shop.example",
+          "image": "https://cdn.example/b.jpg?w=1#top",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "a rating or a count is a number or a text of one, never a yes",
+      "source": "[{\"name\":\"A\",\"rating\":true,\"reviews\":true},{\"name\":\"B\",\"rating\":\" 4.5 \",\"reviews\":\"1200\"},{\"name\":\"C\",\"rating\":\"\",\"reviews\":null}]",
+      "products": [
+        {
+          "name": "A",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "B",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": 4.5,
+          "reviews": 1200,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "C",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "text that is not JSON is its code",
+      "source": "[{\"name\": \"Desk\", }",
+      "products": null
+    },
+    {
+      "name": "a list without one product is its code",
+      "source": "[]",
+      "products": null
+    },
+    {
+      "name": "a number is its code",
+      "source": "42",
+      "products": null
+    }
+  ],
+  "drafts": [
+    {
+      "name": "a products fence that is not closed waits, and the text before it is drawn",
+      "source": "Four fit.\n\n```products\n[{\"name\": \"Lift",
+      "draft": "Four fit.\n"
+    },
+    {
+      "name": "a products fence is drawn once it is closed",
+      "source": "Four fit.\n```products\n[{\"name\":\"A\"}]\n```",
+      "draft": "Four fit.\n```products\n[{\"name\":\"A\"}]\n```"
+    },
+    {
+      "name": "a fence still being opened waits as before",
+      "source": "Four fit.\n```prod",
+      "draft": "Four fit."
+    },
+    {
+      "name": "a reply that starts with an unclosed products fence draws nothing yet",
+      "source": "```products\n[{\"name\"",
+      "draft": ""
+    },
+    {
+      "name": "a closed fence before it is drawn, the open one after it waits",
+      "source": "```products\n[{\"name\":\"A\"}]\n```\nAnd more:\n```products\n[",
+      "draft": "```products\n[{\"name\":\"A\"}]\n```\nAnd more:"
+    }
+  ]
+}

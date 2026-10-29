@@ -683,6 +683,52 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
   .md .code-copy { opacity: 0; }
   .md .code-block:hover .code-copy, .md .code-copy:focus-visible { opacity: 1; }
 }
+/* Product cards (products.js, #682): the bot's pick as a card with its photo beside it (on top in a narrow chat), the
+   rest as rows under it. A reply that holds them takes the chat's width up to 680px. */
+.bubble:has(.md .products) { width: 100%; max-width: min(680px, 100%); }
+.md .products { container: products / inline-size; margin: .7em 0; display: flex; flex-direction: column; }
+.products .pc-img { position: relative; display: grid; place-items: center; overflow: hidden; border-radius: 12px; background: var(--sunk); color: var(--faint); }
+.products .pc-img > svg { width: 30%; min-width: 18px; max-width: 40px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.products .pc-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #fff; }
+.products .pc-pick { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; padding: 12px; border: 1px solid var(--line-2); border-radius: 20px; background: linear-gradient(180deg, #111, #0a0a0a); }
+.products .pc-pick .pc-img { aspect-ratio: 1; }
+.products .pc-t { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.products .pc-pick .pc-t { padding: 4px 4px 2px 0; }
+.products .pc-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.products .pc-pick .pc-name { font-size: 17px; font-weight: 600; white-space: normal; }
+.products .pc-price { display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+.products .pc-price b { font-weight: 600; }
+.products .pc-pick .pc-price b { font-size: 26px; letter-spacing: -.01em; line-height: 1.2; }
+.products .pc-price s { color: var(--faint); font-size: 13px; }
+.products .pc-price em { font: 12px var(--mono); font-style: normal; color: var(--ok-text); }
+.products .pc-facts { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.products .pc-facts > i { flex: none; width: 3px; height: 3px; border-radius: 50%; background: #5f5f5f; }
+.products .pc-star { display: inline-flex; align-items: center; gap: 4px; }
+.products .pc-star svg { width: 12px; height: 12px; fill: var(--warn); }
+.products .pc-why { margin: 0; color: #d0d0d0; }
+.products .pc-ship { color: var(--muted); font-size: 12.5px; }
+.products .pc-acts { display: flex; gap: 8px; margin-top: auto; padding-top: 6px; }
+.products .pc-btn { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: 99px; background: none; color: var(--text); font-size: 13.5px; font-weight: 500; text-decoration: none; cursor: pointer; white-space: nowrap; }
+.products .pc-btn:hover { background: var(--sunk); }
+.products .pc-btn.pri { background: var(--ink); color: var(--ink-text); border-color: var(--ink); }
+.products .pc-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.products .pc-btn[aria-pressed="true"] svg { fill: currentColor; }
+.products .pc-list { display: flex; flex-direction: column; margin-top: 12px; border-top: 1px solid var(--sunk); }
+.products .pc-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 4px; border-bottom: 1px solid var(--sunk); color: var(--text); text-decoration: none; }
+.products a.pc-row:hover { background: #0a0a0a; }
+.products .pc-row .pc-img { flex: none; width: 48px; height: 48px; border-radius: 10px; }
+.products .pc-row .pc-t { flex: 1; gap: 2px; }
+.products .pc-row .pc-price { flex-direction: column; align-items: flex-end; gap: 0; }
+.products .pc-row .pc-price b { font-size: 15px; }
+.products .pc-go { display: grid; color: var(--faint); }
+.products .pc-go svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.chat-thread .bubble.from-bot .md .products a, .md .products a { text-decoration: none; }
+.products a:focus-visible { outline: 2px solid var(--mention); outline-offset: 2px; }
+@container products (max-width: 520px) {
+  .products .pc-pick { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .products .pc-pick .pc-img { aspect-ratio: 16 / 9; }
+  .products .pc-btn { height: 34px; padding: 0 14px; font-size: 13px; }
+}
 /* A diagram (diagrams.js): the drawing as wide as the bubble allows, "Show code" under it; the note of one that
    could not be drawn under its code. */
 .md .diagram { margin: .6em 0; }
