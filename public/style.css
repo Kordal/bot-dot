@@ -328,6 +328,8 @@ a.more-btn { text-decoration: none; }
 .bubble.from-bot { max-width: 76%; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-14) var(--r-14) var(--r-14) var(--r-8); box-shadow: var(--shadow); }
 .bubble.from-bot.problem { background: var(--warn-soft); border-color: transparent; }
 /* In a chat a reply has no bubble (#635): plain text, as wide as the chat, its links underlined. A problem keeps its tint. */
+/* An answer's lines stop at about 62 characters, so they read on a wide screen; tables, code and cards keep the width. */
+.bubble.from-bot .md > p, .bubble.from-bot .md > ul, .bubble.from-bot .md > ol, .bubble.from-bot .md > blockquote, .bubble.from-bot .md > h1, .bubble.from-bot .md > h2, .bubble.from-bot .md > h3, .bubble.from-bot .md > h4 { max-width: 62ch; }
 .chat-thread .bubble.from-bot:not(.problem) { max-width: 100%; padding: 0 var(--sp-4); background: none; border: 0; border-radius: 0; box-shadow: none; }
 .chat-thread .bubble.from-bot .md a { text-decoration: underline; text-decoration-color: var(--faint); }
 .chat-thread .bubble.from-bot .md a:hover { text-decoration-color: currentColor; }
@@ -980,6 +982,8 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 .tile.big-dot .tile-title { max-width: 100%; white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .tile-val { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.03em; line-height: 1.1; margin-top: auto; overflow-wrap: anywhere; }
 .tile-val .unit { font-size: var(--fs-16); font-weight: 400; color: var(--muted); margin-left: var(--sp-4); }
+/* A value in words ("Eco until 17:00") at 20px, so it fits one line; a number stays big (kitIsWords). */
+.tile-val.words, .kit-num.words { font-size: var(--fs-20); letter-spacing: -.01em; }
 .tile-list { margin: 0; padding: 0; list-style: none; font-size: var(--fs-14); }
 .tile-list li { padding: var(--sp-4) 0; border-top: 1px solid var(--line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile-list li:first-child { border-top: 0; }
@@ -1659,6 +1663,7 @@ details.bs-row { display: block; }
 .kp-card .kit-kpi.has-spark, .kp-card .kit-kpi:has(> .kit-bar) { flex-direction: row; flex-wrap: nowrap; align-items: flex-end; gap: var(--sp-12); }
 .kp-card .kit-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kp-card .kit-num { font-size: var(--fs-32); letter-spacing: -.02em; overflow-wrap: anywhere; } /* a long value wraps: never cut */
+.kp-card .kit-num.words { font-size: var(--fs-20); letter-spacing: -.01em; } /* words on one line, as on the Board (#726) */
 .kp-card .kit-num small { font-size: var(--fs-12); color: var(--muted); font-weight: 400; }
 .kp-card .kit-spark { flex: none; width: 56px; min-width: 0; height: 22px; margin: 0 0 var(--sp-8) auto; }
 .kp-card .kit-spark polygon { display: none; }

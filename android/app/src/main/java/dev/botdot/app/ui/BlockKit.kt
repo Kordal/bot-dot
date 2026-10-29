@@ -79,6 +79,12 @@ object BoardKit {
     /** When the newest value came, in epoch ms; 0 while none has. */
     fun newestAt(tiles: List<Tile>): Long = tiles.maxOfOrNull { t -> t.at?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L } ?: 0L
 
+    private val number = Regex("^[-+−]?[\$€£¥]?\\d[\\d\\s.,:/'%]*[\\p{L}°%]{0,3}$")
+
+    /** A value in words ("Eco until 17:00") rather than a number ("21.5", "−3", "62%", "17:00", "1.2k"): drawn at 20,
+     *  so it fits one line, while a number stays big. kitIsWords on the web page says the same. */
+    fun isWords(text: String?): Boolean = text.orEmpty().trim().let { it.isNotEmpty() && !number.matches(it) }
+
     /** A tile whose face is one number (a value or a kpi): a kpi's head; a small one goes two across on a phone. */
     fun isKpiTile(t: Tile): Boolean = t.kind != "group" && t.look?.face?.singleOrNull()?.type in setOf("value", "kpi")
 
@@ -189,7 +195,7 @@ fun KitKpi(b: Block, color: Color, compact: Boolean, small: Boolean = false) {
                     append(b.text?.ifEmpty { "·" } ?: "·")
                     b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.faint)) { append(" $it") } }
                     b.of?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.faint)) { append("  " + tr("of {total}", "total" to it)) } }
-                }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = if (small) Type.s20 else Type.s32, fontWeight = FontWeight.SemiBold, lineHeight = if (small) Type.s24 else Type.s32, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis)
+                }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = if (small || BoardKit.isWords(b.text)) Type.s20 else Type.s32, fontWeight = FontWeight.SemiBold, lineHeight = if (small || BoardKit.isWords(b.text)) Type.s24 else Type.s32, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis)
                 b.delta?.let { d ->
                     Text(BoardKit.deltaLine(b), fontSize = Type.s12, color = when (d.good) { true -> p.okText; false -> p.err; null -> p.faint })
                 }

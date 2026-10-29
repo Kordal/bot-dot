@@ -107,7 +107,7 @@ function blockHTML(b, t, where) {
     case 'value':
       // With its recent values (a value tile's own number): drawn as a kpi, its change and a sparkline beside it.
       if (b.points?.length >= 2 || b.delta) return kitKpi(b, tintOf(b.color, t), (c) => tintOf(c, t, true));
-      return b.text ? `<div class="tile-val" ${b.color ? `style="color:${tintOf(b.color, t, true)}"` : ''}>${esc(b.text)}${b.unit ? `<span class="unit">${esc(b.unit)}</span>` : ''}</div>` : `<div class="tile-val">${faint}</div>`;
+      return b.text ? `<div class="tile-val${kitIsWords(b.text) ? ' words' : ''}" ${b.color ? `style="color:${tintOf(b.color, t, true)}"` : ''}>${esc(b.text)}${b.unit ? `<span class="unit">${esc(b.unit)}</span>` : ''}</div>` : `<div class="tile-val">${faint}</div>`;
     case 'kpi':
       return kitKpi(b, tintOf(b.color, t), (c) => tintOf(c, t, true));
     case 'status':

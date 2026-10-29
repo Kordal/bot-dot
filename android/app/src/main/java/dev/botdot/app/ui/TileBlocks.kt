@@ -160,7 +160,8 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
             else Text(buildAnnotatedString {
                 append(t)
                 b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.muted)) { append(" $it") } }
-            }, color = tint(b.color, p.text, words = true), fontSize = Type.s24, fontWeight = FontWeight.SemiBold, lineHeight = Type.line32)
+            }, color = tint(b.color, p.text, words = true), fontSize = if (BoardKit.isWords(t)) Type.s20 else Type.s24, fontWeight = FontWeight.SemiBold,
+                lineHeight = if (BoardKit.isWords(t)) Type.line28 else Type.line32)
         }
         "dot" -> Row(verticalAlignment = Alignment.CenterVertically) {
             TileDotView(b.filled, tint(b.color, color), b.big)
