@@ -1,4 +1,4 @@
-// The Chief's help with a company's setup (#670, ADR 111): one short call each, its answer never trusted. A site is
+// The Chief's help with a company's setup (#670, ADR 112): one short call each, its answer never trusted. A site is
 // read by botdot over HTTPS only and never from a private address; a bad, failed or late answer leaves the setup
 // working without chips. The stand-in Claude answers with $FAKE_OUT/company.txt (test/fixtures/fake-claude.js).
 const { test, before, after } = require('node:test');

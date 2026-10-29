@@ -1582,5 +1582,33 @@
   "New team": "Nowy zespół",
   "Lead": "Lider",
   "Make lead": "Zrób liderem",
-  "Add a task": "Dodaj do zrobienia"
+  "Add a task": "Dodaj do zrobienia",
+  "Company rules": "Zasady firmy",
+  "Every action": "Każde działanie",
+  "Never": "Nigdy",
+  "Add existing bot": "Dodaj istniejącego bota",
+  "Undo": "Cofnij",
+  "Change the team…": "Zmień zespół…",
+  "Never without asking": "Nigdy bez pytania",
+  "Company memory": "Pamięć firmy",
+  "Owns": "Zarządza",
+  "Connects": "Łączy",
+  "Routines": "Rutyny",
+  "Asks first": "Najpierw pyta",
+  "Week one": "Pierwszy tydzień",
+  "Connect {app}": "Połącz {app}",
+  "Added": "Dodano",
+  "Add a bot that ": "Dodaj bota, który ",
+  "Team ready": "Zespół gotowy",
+  "Creating your team": "Tworzę twój zespół",
+  "{n} facts": {
+    "one": "{n} fakt",
+    "few": "{n} fakty",
+    "many": "{n} faktów"
+  },
+  "Create {n} bots": {
+    "one": "Utwórz {n} bota",
+    "few": "Utwórz {n} boty",
+    "many": "Utwórz {n} botów"
+  }
 }
