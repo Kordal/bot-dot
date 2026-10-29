@@ -214,7 +214,7 @@ test('web: with no tile to show, the strip reads "Board · Nothing on it yet" an
   assert.match(css, /\.dash-strip \{[^}]*\bcolor: var\(--muted\);/);
   assert.match(css, /\.dash-strip \.tiles \{[^}]*overflow: hidden; white-space: nowrap;/);
   assert.match(css, /\.dash-strip \.none \{ flex: none; \}/);
-  assert.match(css, /\.dash-strip \.none b \{ color: var\(--text\); font-weight: 500; \}/);
+  assert.match(css, /\.dash-strip \.none b \{ color: var\(--text\); font-weight: 600; \}/);
   assert.doesNotMatch(cut('function fitStrip() {', 'new ResizeObserver(() => fitStrip())'), /empty|none/, 'fitStrip hides tiles only');
 });
 

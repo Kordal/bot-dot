@@ -46,6 +46,7 @@ object Unread {
         r.jobName != null -> Asked.JOB
         r.trigger == "schedule" -> Asked.SCHEDULE
         r.trigger == "hello" -> Asked.HELLO // a new bot's first message (#511): nobody asked, nothing stands above it
+        r.trigger == "project" -> Asked.HELLO // a lead's work for its project that botdot started (#696): drawn the same way
         r.kind == "reminder" -> Asked.REMINDER // a reminder it set went off (#343): botdot posted it, nobody asked
         // After the owner's OK it goes on with a request that stands above the first reply: nothing is drawn for it
         // a second time. A job's run and a teammate's request that carry on are drawn as the run they follow, above.
