@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -100,7 +99,7 @@ private fun SectionLabel(text: String) {
 @Composable
 private fun PageRow(page: PageInfo, board: ((PageInfo, Boolean) -> Unit)?) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().background(p.panel, Radius.card).border(1.dp, p.line, Radius.card)
+    Row(Modifier.fillMaxWidth().raised(Radius.card)
         .clickable { DocViewer.open = DocViewer.page(page.botId, PageRef(page.slug, page.title), page.bot) }.padding(Space.s12),
         verticalAlignment = Alignment.CenterVertically) {
         Text("📄", style = MaterialTheme.typography.titleMedium)

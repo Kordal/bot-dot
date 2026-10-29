@@ -198,5 +198,5 @@ test('web: a click that ends a selection in a folded message of yours does not u
 
 test('web: the Quote button is drawn dark like the page', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
-  assert.match(css, /\.quote-btn \{[^}]*position: fixed;[^}]*background: var\(--sunk\);[^}]*color: var\(--text\);/);
+  assert.match(css, /\.quote-btn \{[^}]*position: fixed;[^}]*background: var\(--fill\);[^}]*color: var\(--text\);/, 'a secondary button\'s fill, no ring (#723)');
 });

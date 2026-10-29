@@ -3,7 +3,6 @@ package dev.botdot.app.ui
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.draw.clip
@@ -452,8 +451,7 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
                 if (n.later) LaterPill()
             }
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(n.text), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = Space.s48).clip(Radius.mine).holdToCopy(n.text).background(p.sunk)
-                    .border(1.dp, p.line2, Radius.mine).padding(horizontal = Space.s16, vertical = Space.s12))
+                modifier = Modifier.padding(start = Space.s48).raised(Radius.mine).holdToCopy(n.text).padding(horizontal = Space.s16, vertical = Space.s12))
         } } }
         // Under the notes that wait (#225): how long the oldest has waited, and "Run now", which starts the bot with them.
         if (foot.isNotEmpty() || onRunNow != null) Row(Modifier.padding(horizontal = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
@@ -493,8 +491,7 @@ private fun FromBotBubble(r: Run, startOpen: Boolean = false) {
         }
         FigureText(line, color = p.muted, fontSize = Type.s14, maxLines = 1,
             modifier = Modifier.padding(start = Space.s48).clip(Radius.small).clickable { open = !open }.padding(horizontal = Space.s8, vertical = Space.s4))
-        Unfold(open) { Column(Modifier.padding(start = Space.s48).clip(Radius.mine).holdToCopy(r.prompt).background(p.sunk)
-                .border(1.dp, p.line2, Radius.mine).padding(horizontal = Space.s16, vertical = Space.s12)) {
+        Unfold(open) { Column(Modifier.padding(start = Space.s48).raised(Radius.mine).holdToCopy(r.prompt).padding(horizontal = Space.s16, vertical = Space.s12)) {
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(r.prompt), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge)
             if (!r.attachments.isNullOrEmpty()) FilesRow(r.attachments, onDark = false)
         } }

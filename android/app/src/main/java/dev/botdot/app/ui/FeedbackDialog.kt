@@ -9,7 +9,6 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +26,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -110,13 +108,13 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
                         Text(k.label)
                     }
                 }
-                OutlinedTextField(text, { text = it; error = null }, placeholder = { Text(tr("What happened, or what you would like")) },
+                Field(text, { text = it; error = null }, placeholder = { Text(tr("What happened, or what you would like")) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp))
                 if (shotsOn) {
                     if (shots.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                         shots.forEachIndexed { i, uri ->
                             val shape = Radius.small
-                            Box(Modifier.size(72.dp, 56.dp).clip(shape).border(1.dp, p.line2, shape)) {
+                            Box(Modifier.size(72.dp, 56.dp).clip(shape)) {
                                 coil3.compose.AsyncImage(model = uri, contentDescription = tr("Screenshot {n}", "n" to i + 1), modifier = Modifier.size(72.dp, 56.dp), contentScale = ContentScale.Crop)
                                 IconButton(onClick = { picked = shots.filterIndexed { j, _ -> j != i }.joinToString("\n"); ready.remove(uri); error = null },
                                     enabled = !sending && !reading, modifier = Modifier.align(Alignment.TopEnd).padding(Space.s4).size(22.dp).background(Color.Black.copy(alpha = 0.65f), CircleShape)) {

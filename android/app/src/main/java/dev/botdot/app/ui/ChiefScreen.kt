@@ -2,12 +2,10 @@ package dev.botdot.app.ui
 
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -382,12 +380,12 @@ private fun Suggestion(m: ChiefMessage, onBuild: () -> Unit, onDismiss: () -> Un
     val shape = Radius.mine
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         FromLine(tr("Suggestion from"), m.from)
-        Column(Modifier.padding(start = Space.s32).clip(shape).holdToCopy(m.text).background(p.sunk).border(1.dp, p.line2, shape).padding(horizontal = Space.s16, vertical = Space.s12)) {
+        Column(Modifier.padding(start = Space.s32).raised(shape).holdToCopy(m.text).padding(horizontal = Space.s16, vertical = Space.s12)) {
             MarkdownText(m.text)
         }
         when (m.status) {
             "pending" -> Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                OutlinedButton(onClick = onDismiss) { Text(tr("Decline"), color = p.text) }
+                SecondaryButton(onClick = onDismiss) { Text(tr("Decline"), color = p.text) }
                 Button(onClick = onBuild, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Approve")) }
             }
             "dismissed" -> Text(tr("You declined it"), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s8))
@@ -403,7 +401,7 @@ private fun Report(m: ChiefMessage) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         FromLine(tr("Message from"), m.from)
         // A task it didn't finish (`error: true`) is drawn like a failed reply; its text says why.
-        Column(Modifier.padding(start = Space.s32).clip(shape).holdToCopy(m.text).background(if (m.failed) p.errSoft else p.sunk).border(1.dp, if (m.failed) p.err.copy(alpha = 0.3f) else p.line2, shape).padding(horizontal = Space.s16, vertical = Space.s12)) {
+        Column(Modifier.padding(start = Space.s32).then(if (m.failed) Modifier.clip(shape).background(p.errSoft) else Modifier.raised(shape)).holdToCopy(m.text).padding(horizontal = Space.s16, vertical = Space.s12)) {
             if (m.text.isNotBlank()) MarkdownText(m.text) // a file it sent while working has no text
             if (!m.failed) OpenAsDocument(m.text, m.from?.name.orEmpty())
             BotFilesRow(m.files, top = if (m.text.isNotBlank()) 8.dp else 0.dp)

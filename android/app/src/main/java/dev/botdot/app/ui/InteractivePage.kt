@@ -22,7 +22,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -62,9 +61,9 @@ fun InteractiveBar(site: InteractiveView, full: Boolean, onFull: () -> Unit, onV
             Text(InteractivePages.ISOLATED, color = p.muted, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-            OutlinedButton(onClick = onFull) { Text(tr("Full screen"), color = p.text, fontSize = Type.s14) }
-            OutlinedButton(onClick = onVersions) { Text(tr("Versions"), color = p.text, fontSize = Type.s14) }
-            OutlinedButton(onClick = onDownload) { Text(tr("Download"), color = p.text, fontSize = Type.s14) }
+            SecondaryButton(onClick = onFull) { Text(tr("Full screen"), color = p.text, fontSize = Type.s14) }
+            SecondaryButton(onClick = onVersions) { Text(tr("Versions"), color = p.text, fontSize = Type.s14) }
+            SecondaryButton(onClick = onDownload) { Text(tr("Download"), color = p.text, fontSize = Type.s14) }
         }
         if (site.shown != site.current) Column(Modifier.fillMaxWidth().background(p.warnSoft).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Text(tr("You are looking at version {shown}. The page shows version {current}.", "shown" to site.shown, "current" to site.current), color = p.text, fontSize = Type.s14)
@@ -163,7 +162,7 @@ fun VersionsSheet(title: String, site: InteractiveView, onShow: (Int) -> Unit, o
                         Text("${NotesWake.ago(v.at)} · ${UploadedFiles.size(v.bytes)} · " + trn(v.files, "{n} file", "{n} files"), color = p.faint, fontSize = Type.s12)
                     }
                     TextButton(onClick = { onShow(v.n) }) { Text(tr("Show"), color = p.text) }
-                    if (v.n != site.current) OutlinedButton(onClick = { onCurrent(v.n) }) { Text(tr("Go back to it"), color = p.text, fontSize = Type.s14) }
+                    if (v.n != site.current) SecondaryButton(onClick = { onCurrent(v.n) }) { Text(tr("Go back to it"), color = p.text, fontSize = Type.s14) }
                 }
             }
         }

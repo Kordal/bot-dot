@@ -254,10 +254,10 @@ private fun QuietKey(look: KeyLook, size: KeySize, modifier: Modifier = Modifier
     val p = LocalPaper.current
     val pop = donePop(look.status.kind)
     val live = look.status.kind == Keypad.StatusKind.WORKING
-    val ground by animateColorAsState(if (lit || live) p.panel else Color.Transparent, Motion.enter(), label = "key ground")
+    val ground by animateColorAsState(if (lit) p.raise2 else if (live) p.panel else Color.Transparent, Motion.enter(), label = "key ground")
     Box(
-        modifier.width(size.width).graphicsLayer { scaleX = pop; scaleY = pop }.clip(KEY_SHAPE).background(ground)
-            .then(if (aimed || lit) Modifier.border(1.dp, if (aimed) p.text else p.line2, KEY_SHAPE) else Modifier)
+        modifier.width(size.width).graphicsLayer { scaleX = pop; scaleY = pop }.then(if (lit) Modifier.raised(KEY_SHAPE, ground) else Modifier.clip(KEY_SHAPE).background(ground))
+            .then(if (aimed) Modifier.border(1.dp, p.text, KEY_SHAPE) else Modifier)
             .semantics { selected = lit }.clickable(onClickLabel = look.name, onClick = onClick).padding(horizontal = Space.s8, vertical = Space.s12),
     ) {
         if (number in 1..9) Text("$number", color = p.faint, fontSize = Type.s12, fontFamily = FontFamily.Monospace, modifier = Modifier.align(Alignment.TopEnd))
@@ -365,7 +365,7 @@ internal fun KeypadSections(
         val shape = Radius.pill
         val name = LocalChiefName.current
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s8).clip(shape).background(p.panel).border(1.dp, p.line2, shape)
+            Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s8).raised(shape)
                 .clickable(onClickLabel = name, onClick = onChief).padding(horizontal = Space.s12, vertical = Space.s8).testTag(CHIEF_FIELD),
             verticalAlignment = Alignment.CenterVertically,
         ) {

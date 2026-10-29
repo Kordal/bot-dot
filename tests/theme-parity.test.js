@@ -15,9 +15,10 @@ const FILES = {
 };
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
-// Tokens only one app has. fig-ink: the web page's figures mix their deep shade towards it; the apps compute
-// that shade in their figure code (FigureDef.deep).
-const ONLY = { web: ['figInk'], android: [], mac: [] };
+// Tokens only some apps have. fig-ink: the web page's figures mix their deep shade towards it; the apps compute
+// that shade in their figure code (FigureDef.deep). The surfaces of depth (#723) came after the Mac app stopped (ADR 031).
+const DEPTH = ['raise', 'raise2', 'fill', 'hi'];
+const ONLY = { web: ['figInk', ...DEPTH], android: DEPTH, mac: [] };
 
 // `line-2` → `line2`, `warn-line` → `warnLine`: the apps' names for the web page's.
 const camel = (name) => name.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
@@ -37,7 +38,7 @@ function block(text, head, open = '{', close = '}') {
 // { name: '#rrggbb' } of each app: its dark value.
 function web(css) {
   assert.doesNotMatch(css, /prefers-color-scheme|data-theme/, 'style.css: one theme, no light one');
-  return Object.fromEntries([...block(css, ':root {').matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{6}|#[0-9a-f]{3})\b/gi)]
+  return Object.fromEntries([...block(css, ':root {').matchAll(/--([a-z0-9-]+):\s*(#[0-9a-f]{8}|#[0-9a-f]{6}|#[0-9a-f]{3})\b/gi)]
     .map(([, k, v]) => [camel(k), long(v)]));
 }
 

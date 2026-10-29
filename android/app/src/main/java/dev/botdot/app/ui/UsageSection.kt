@@ -15,8 +15,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -77,18 +75,18 @@ fun UsageSection(api: Api) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Usage.Preset.entries.forEach { option ->
                 if (option == preset) Button(onClick = { pick(option) }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(option.label) }
-                else OutlinedButton(onClick = { pick(option) }) { Text(option.label, color = p.text) }
+                else SecondaryButton(onClick = { pick(option) }) { Text(option.label, color = p.text) }
             }
         }
         if (preset == Usage.Preset.CUSTOM) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedTextField(from, { from = it.trim(); changed = "from" }, label = { Text(tr("From")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
+                Field(from, { from = it.trim(); changed = "from" }, label = { Text(tr("From")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false), modifier = Modifier.weight(1f))
-                OutlinedTextField(to, { to = it.trim(); changed = "to" }, label = { Text(tr("To")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
+                Field(to, { to = it.trim(); changed = "to" }, label = { Text(tr("To")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false), modifier = Modifier.weight(1f))
             }
             val range = Usage.custom(from, to, changed)
-            OutlinedButton(enabled = range != null, onClick = { range?.let { r -> scope.launch { load(r.first, r.second) } } }) { Text(tr("Show"), color = p.text) }
+            SecondaryButton(enabled = range != null, onClick = { range?.let { r -> scope.launch { load(r.first, r.second) } } }) { Text(tr("Show"), color = p.text) }
         }
         val a = answer
         when {

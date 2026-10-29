@@ -1,7 +1,5 @@
 package dev.botdot.app.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,7 +11,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -32,7 +29,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Job
@@ -102,7 +98,7 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
 private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApprove: () -> Unit) {
     val p = LocalPaper.current
     Column(
-        Modifier.fillMaxWidth().background(p.panel, Radius.card).border(1.dp, p.line, Radius.card).padding(horizontal = Space.s16, vertical = Space.s12),
+        Modifier.fillMaxWidth().raised(Radius.card).padding(horizontal = Space.s16, vertical = Space.s12),
         verticalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -130,9 +126,9 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
             Text(jobLine(l, shortTime(l.at)), color = when (jobLineTone(l)) { JobTone.FAILED -> p.err; JobTone.MISSED -> p.warnText; JobTone.FINE -> p.faint }, style = MaterialTheme.typography.bodySmall)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-            if (!j.approved) OutlinedButton(onClick = onApprove) { Text(tr("Review and approve"), color = p.text) }
-            else OutlinedButton(onClick = onRun) { Text(tr("Run now"), color = p.text) }
-            if (changeWaits(j)) OutlinedButton(onClick = onApprove) { Text(tr("Review the change"), color = p.text) }
+            if (!j.approved) SecondaryButton(onClick = onApprove) { Text(tr("Review and approve"), color = p.text) }
+            else SecondaryButton(onClick = onRun) { Text(tr("Run now"), color = p.text) }
+            if (changeWaits(j)) SecondaryButton(onClick = onApprove) { Text(tr("Review the change"), color = p.text) }
         }
     }
 }

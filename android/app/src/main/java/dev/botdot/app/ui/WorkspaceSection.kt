@@ -19,8 +19,6 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -142,7 +140,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
                 (if (withProjects) Projects.of(botId, allProjects).map { WorkspaceFiles.projectRoot(it.name) to it.name } else emptyList())
             for ((r, label) in roots) {
                 if (root == r) Button(onClick = {}, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(label) }
-                else OutlinedButton(onClick = { go(r, "") }) { Text(label, color = p.text) }
+                else SecondaryButton(onClick = { go(r, "") }) { Text(label, color = p.text) }
             }
             if (withProjects) TextButton(onClick = { answer = ""; ask = WorkspaceAsk("project") }) { Text("+ " + tr("Project"), color = p.text) }
         }
@@ -175,11 +173,11 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
         when {
             e != null && (e as? ApiException)?.status == 409 -> {
                 Hint(tr("The computer is off. botdot doesn't start it just to show its files."))
-                OutlinedButton(onClick = { act(tr("start it")) { it.startComputer(botId) } }) { Text(tr("Start the computer"), color = p.text) }
+                SecondaryButton(onClick = { act(tr("start it")) { it.startComputer(botId) } }) { Text(tr("Start the computer"), color = p.text) }
             }
             e != null && (e as? ApiException)?.status == 404 -> {
                 Hint(tr("This folder is gone."))
-                OutlinedButton(onClick = { path = "" }) { Text(tr("Back to the top"), color = p.text) }
+                SecondaryButton(onClick = { path = "" }) { Text(tr("Back to the top"), color = p.text) }
             }
             e != null -> Hint(e.message ?: tr("Couldn't load it."))
             l == null -> Hint(tr("Loading…"))
@@ -244,7 +242,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
                 }
                 else Column {
                     if (a.kind == "move") Text(tr("To which folder? A path in its folder, such as notes/old. Empty for the top."), color = p.muted, modifier = Modifier.padding(bottom = Space.s8))
-                    OutlinedTextField(answer, { answer = it.take(255) }, singleLine = true, label = { Text(if (a.kind == "move") tr("Folder") else tr("Name")) }, modifier = Modifier.fillMaxWidth())
+                    Field(answer, { answer = it.take(255) }, singleLine = true, label = { Text(if (a.kind == "move") tr("Folder") else tr("Name")) }, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {

@@ -1,6 +1,5 @@
 package dev.botdot.app.ui
 
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -11,9 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.DocumentExport
 import dev.botdot.app.data.tr
@@ -41,7 +38,7 @@ fun OpenAsDocument(text: String?, from: String) {
     if (!long) return
     val p = LocalPaper.current
     Row(
-        Modifier.padding(top = Space.s12).clip(Radius.pill).border(1.dp, p.line2, Radius.pill)
+        Modifier.padding(top = Space.s12).raised(Radius.pill)
             .clickable { DocViewer.open = DocViewer.Request(src = "", name = documentTitle(text), from = from, text = text) }
             .padding(horizontal = Space.s12, vertical = Space.s8),
         verticalAlignment = Alignment.CenterVertically,

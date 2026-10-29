@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -89,7 +88,7 @@ private fun placeIcon(root: String): ImageVector = when (root) { "server" -> Ico
 fun FileMentionList(view: FileMentions.View, mentions: List<Mentions.Row>, w: Mentions.World?, onFile: (FileMentions.Row) -> Unit, onMention: (Mentions.Row) -> Unit, onBack: () -> Unit, onSelf: () -> Unit) {
     val p = LocalPaper.current
     val shape = Radius.card
-    Column(Modifier.fillMaxWidth().padding(bottom = Space.s8).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) {
+    Column(Modifier.fillMaxWidth().padding(bottom = Space.s8).raised(shape)) {
         view.dir?.let { d ->
             Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("Back"), tint = p.muted,

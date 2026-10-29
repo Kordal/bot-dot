@@ -2,9 +2,7 @@ package dev.botdot.app.ui
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,7 +26,6 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -155,7 +152,7 @@ fun ProductCards(list: List<Product>, modifier: Modifier = Modifier) {
     val pick = list.first()
     Column(modifier.fillMaxWidth()) {
         Column(
-            Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line2, Radius.card).padding(Space.s12),
+            Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12),
             verticalArrangement = Arrangement.spacedBy(Space.s8),
         ) {
             ProductPhoto(pick.image, Modifier.fillMaxWidth().aspectRatio(16f / 9f), Radius.card)
@@ -251,9 +248,9 @@ private fun SaveButton(botId: String, x: Product) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(botId, api) { api?.let { SavedProducts.load(it, botId) } }
     val on = x.url in SavedProducts.urls[botId].orEmpty()
-    OutlinedButton(
+    SecondaryButton(
         onClick = {
-            val a = api ?: return@OutlinedButton
+            val a = api ?: return@SecondaryButton
             val next = !on
             val before = SavedProducts.urls[botId].orEmpty()
             SavedProducts.urls[botId] = if (next) before + x.url else before - x.url
@@ -264,7 +261,7 @@ private fun SaveButton(botId: String, x: Product) {
                 }
             }
         },
-        border = BorderStroke(1.dp, p.line2), colors = ButtonDefaults.outlinedButtonColors(contentColor = p.text), modifier = Modifier.heightIn(min = 36.dp),
+        modifier = Modifier.heightIn(min = 36.dp),
     ) {
         Icon(if (on) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(Space.s8))

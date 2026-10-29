@@ -373,8 +373,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                         (listOf("") + named).forEach { n ->
                             val on = n == filter
                             Text(n.ifEmpty { tr("All") }, color = if (on) p.inkText else p.text, fontSize = Type.s14,
-                                modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else Color.Transparent)
-                                    .border(1.dp, if (on) p.ink else p.line2, Radius.pill).clickable { filter = n }.padding(horizontal = Space.s16, vertical = Space.s8))
+                                modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.raise2).clickable { filter = n }.padding(horizontal = Space.s16, vertical = Space.s8))
                         }
                     }
                 }
@@ -458,7 +457,7 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
     val look = t.look
     val kpi = BoardKit.isKpiTile(t)
     Column(
-        Modifier.fillMaxWidth().heightIn(min = if (t.size == "big") 220.dp else 104.dp).alpha(if (waiting) 0.55f else 1f).clip(shape).background(if (open) p.sunk else p.panel).border(1.dp, if (open) p.line2 else p.line, shape)
+        Modifier.fillMaxWidth().heightIn(min = if (t.size == "big") 220.dp else 104.dp).alpha(if (waiting) 0.55f else 1f).raised(shape, if (open) p.fill else p.raise2)
             .then(click).padding(horizontal = Space.s16, vertical = Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
@@ -497,7 +496,7 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
                 if (t.kind == "page" && t.at != null) Text(dev.botdot.app.data.Pages.age(t.at, java.time.Instant.ofEpochMilli(now)), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = Space.s8))
                 if (t.ai && BoardKit.hasMarkdown(look?.face.orEmpty())) {
                     Text(BoardWords.WRITTEN_BY_AI, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1,
-                        modifier = Modifier.padding(start = Space.s8).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s8, vertical = 1.dp))
+                        modifier = Modifier.padding(start = Space.s8).background(p.fill, Radius.pill).padding(horizontal = Space.s8, vertical = 1.dp))
                 } else if (t.source != null && !kpi && !sourced) BoardKit.newestAt(listOf(t)).takeIf { it > 0 }?.let { Text(BoardKit.ageWords((now - it) / 1000), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = Space.s8)) }
             }
         }
@@ -546,7 +545,7 @@ private fun ControlRow(t: Tile, waiting: Boolean, flash: String?, click: Modifie
                     contentAlignment = if (on == true) Alignment.CenterEnd else Alignment.CenterStart) {
                     Box(Modifier.size(18.dp).clip(CircleShape).background(Color.White))
                 }
-            } else Box(Modifier.size(30.dp).clip(CircleShape).border(1.dp, p.line2, CircleShape), contentAlignment = Alignment.Center) {
+            } else Box(Modifier.size(30.dp).clip(CircleShape).background(p.fill), contentAlignment = Alignment.Center) {
                 Text("›", color = p.muted, fontSize = Type.s16)
             }
         }
@@ -576,7 +575,7 @@ fun SuggestedCard(x: dev.botdot.app.data.TileSuggestion, bot: Bot?, onAnswer: (B
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
-            androidx.compose.material3.OutlinedButton(onClick = { onAnswer(false) }) { Text("✕", color = p.text) }
+            SecondaryButton(onClick = { onAnswer(false) }) { Text("✕", color = p.text) }
             Spacer(Modifier.size(8.dp))
             androidx.compose.material3.Button(onClick = { onAnswer(true) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Add")) }
         }

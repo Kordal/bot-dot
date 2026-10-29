@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,7 +12,6 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -25,7 +23,6 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.ChiefInfo
@@ -145,7 +142,7 @@ fun slashAfterPick(was: TextFieldValue, typed: TextFieldValue, picked: Int): Tex
 fun MentionList(rows: List<Mentions.Row>, w: Mentions.World, onPick: (Mentions.Row) -> Unit) {
     val p = LocalPaper.current
     val shape = Radius.card
-    Column(Modifier.fillMaxWidth().padding(bottom = Space.s8).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) { MentionRows(rows, w, onPick) }
+    Column(Modifier.fillMaxWidth().padding(bottom = Space.s8).raised(shape)) { MentionRows(rows, w, onPick) }
 }
 
 /** The rows of [MentionList], also under the files found (#604, FileMentionList). */
