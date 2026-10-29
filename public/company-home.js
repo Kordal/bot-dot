@@ -6,7 +6,7 @@
 // the floor in one column and the panel under it. Everything shown is the bots' states, asks and working lines the
 // page already has: nothing new is asked of the server but the company's own routes. Under the header (#673): days
 // 30, 60 and 90 on a line, the check-in that waits above the floor, the week's plan at the top of You, and the bot
-// the Chief suggests as a dashed card on the floor.
+// the Chief suggests as a dashed card on the floor. At the floor's end, the Calendar tile (#695, company-calendar-view.js).
 (() => {
   const CROWN = '<svg class="cf-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
   const X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -106,7 +106,7 @@
     const board = c.objectives.length ? `<div class="cf-board">${c.objectives.map(kpiHTML).join('')}</div>` : `<div class="cf-board empty">${esc(c.goal || '')}</div>`;
     const chief = `<button type="button" class="cf-chief" data-cf-chief><span class="cf-over">${line ? bubble(line, 'line') : ''}</span><span class="cf-table"><i></i></span><span class="cf-head">${chiefFigure()}</span><span class="cf-name">${esc(chiefTitle())}</span></button>`;
     const loose = f.loose.map((b) => `<div class="cf-loose">${deskHTML(b, { count: f.info.asks(b.id) })}</div>`).join('');
-    return `<div class="cf-floor">${board}${chief}${f.rooms.map(roomHTML).join('')}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
+    return `<div class="cf-floor">${board}${chief}${f.rooms.map(roomHTML).join('')}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button>${c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : ''}</div>`;
   }
 
   // ---------- the panel: the To-do (#692), or a team ----------
@@ -233,6 +233,7 @@
     });
     $('[data-cf-chief]', root).onclick = () => setView('chief');
     $('[data-cf-new]', root).onclick = () => newTeam(c);
+    Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));
     const waits = needs();
     $$('[data-cf-need]', root).forEach((b) => (b.onclick = () => { const x = waits[Number(b.dataset.cfNeed)]; if (answersInline(x)) answerNeed(x, true, b); else openNeed(x); }));
@@ -344,5 +345,5 @@
 
   Company.steps.home = home;
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [teamOpen, changing, filter, menu, pick, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
+  Company.steps.sig = () => [Company.calendar?.sig(), teamOpen, changing, filter, menu, pick, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
 })();
