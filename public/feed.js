@@ -30,12 +30,16 @@ function followFeed() {
     let d = {};
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
     if (typeof Company !== 'undefined') Company.changed(d, true);
+    state.mentionProjectsAt = 0; // its name can be mentioned now (#700)
+    loadMentionProjects();
   });
   // One project changed, or was deleted (#689): from a server with several, the Projects place follows it.
   es.addEventListener('project', (e) => {
     let d = {};
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
     if (typeof Company !== 'undefined') Company.projectChanged(d);
+    state.mentionProjectsAt = 0;
+    loadMentionProjects();
   });
   // The Chief's own jobs changed (#408): their list in its settings follows.
   es.addEventListener('chief_jobs', (e) => {

@@ -130,6 +130,7 @@ function wireMentions(form, chat, grow) {
       const title = (mentionCtx(chat).pages || []).find((p) => p.bot === r.bot && p.slug === r.page)?.title || r.label;
       return bot ? `${botLabel(bot)} · ${esc(title)}` : esc(title);
     }
+    if (r.kind === 'project') { const p = (mentionCtx(chat).projects || []).find((x) => x.id === r.project); if (p) return projectChip(p, r.text); } // #700
     if (r.kind === 'command') return `/${esc(r.label)}${r.about ? ` <span class="about">${esc(r.about)}</span>` : ''}`; // a skill to run (#237)
     return esc(r.label);
   };
