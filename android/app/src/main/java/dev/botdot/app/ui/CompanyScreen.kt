@@ -109,7 +109,7 @@ internal fun PlaceSwitch(company: Boolean, modifier: Modifier = Modifier, fill: 
  * What one Company screen keeps beside the company itself: where the setup stands, what it waits for from the Chief,
  * and what was picked or typed and is not saved yet. The company is the Store's, kept up to date by the feed.
  */
-internal class CompanyUi(private val app: BotDotApp, val scope: CoroutineScope, private val context: Context) {
+internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private val context: Context) {
     var step by mutableStateOf<String?>(null)
     // The start screen: the sources picked before Go.
     val sources = mutableStateListOf<SourceDraft>()
@@ -172,11 +172,11 @@ internal class CompanyUi(private val app: BotDotApp, val scope: CoroutineScope, 
 
 /**
  * The Company place (#674; web: public/company*.js): "What are you working on?" without a company, then the setup's
- * steps About, Team and Start, each in its own file ([AboutStep], [TeamStep]). On a phone the switch is on top of it,
- * as the list is not beside it.
+ * steps About, Team and Start, each in its own file ([AboutStep], [TeamStep]), and once the team is made its home,
+ * the office floor ([CompanyHome]). On a phone the switch is on top of it, as the list is not beside it.
  */
 @Composable
-internal fun CompanyScreen(app: BotDotApp, wide: Boolean, onBots: () -> Unit) {
+internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = CompanyWays(), onBots: () -> Unit) {
     val p = LocalPaper.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -196,6 +196,8 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, onBots: () -> Unit) {
                 if (error != null) Text(error!!, color = p.err, modifier = Modifier.padding(20.dp)) else CircularProgressIndicator(color = p.muted, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
             }
             c == null -> StartForm(ui)
+            // A running company: its home, the office floor (#675).
+            c.running -> { ui.follow(c); CompanyHome(ui, c, ways) }
             else -> {
                 ui.follow(c)
                 val at = CompanySetup.stepOf(c, ui.step)

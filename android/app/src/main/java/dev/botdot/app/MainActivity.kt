@@ -359,7 +359,9 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("chief/{id}?attach={attach}", arguments = attachArg) { e ->
                         val (files, text) = remember { takeShared(e.arguments?.getString("attach") == "1") }
-                        ChiefScreen(app, e.arguments?.getString("id") ?: "latest", files, text, onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },
+                        // Words the Company's floor started for the owner (Change direction at a check-in), else what was shared.
+                        val words = remember { app.chiefWords?.also { app.chiefWords = null } ?: text }
+                        ChiefScreen(app, e.arguments?.getString("id") ?: "latest", files, words, onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },
                             onBot = { nav.navigate("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }) { nav.popBackStack() }
                     }
                     composable("group/{id}") { e ->
@@ -381,7 +383,15 @@ class MainActivity : ComponentActivity() {
                         val id = e.arguments?.getString("id") ?: ""
                         RoomSettingsScreen(app, id, onGone = { if (!nav.popBackStack("rooms", inclusive = false)) nav.popBackStack("home", inclusive = false) }) { nav.popBackStack() }
                     }
-                    composable("company") { CompanyScreen(app, wide = wide, onBots = { place(false) }) }
+                    composable("company") {
+                        // From the floor: a bot's chat, the Chief's, Needs you, and a new Chief chat with the owner's words started.
+                        CompanyScreen(app, wide = wide, ways = dev.botdot.app.ui.CompanyWays(
+                            onBot = { open("bot/$it") },
+                            onChief = { open("chief/latest") },
+                            onNeeds = { nav.navigate("needs") },
+                            onChiefSay = { app.chiefWords = it; open("chief/new") },
+                        ), onBots = { place(false) })
+                    }
                     composable("dashboard") { DashboardScreen(app, onBot = { nav.navigate("bot/$it") }, onNeeds = { nav.navigate("needs") }) { nav.popBackStack() } }
                     composable("needs") { e -> NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }, onDone = { if (nav.currentBackStackEntry == e) nav.popBackStack() }) { nav.popBackStack() } }
                     // A bot's files, or the Chief's (#603), full screen.

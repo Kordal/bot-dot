@@ -40,6 +40,12 @@ data class Company(
     val teamChat: List<TeamLine> = emptyList(),
     val canUndo: Boolean = false,
     val facts: Int = 0,
+    val objectives: List<Objective> = emptyList(),
+    val todos: List<Todo> = emptyList(),
+    val plan: WeekPlan? = null,
+    val checkins: List<Checkin> = emptyList(),
+    val checkin: CheckinDue? = null,
+    val suggestion: Suggested? = null,
 ) {
     val running: Boolean get() = phase == "running"
     val site: Boolean get() = kind == "site"
@@ -74,6 +80,37 @@ data class Suggestions(val goal: List<String> = emptyList(), val never: List<Str
 
 @Serializable
 data class CompanyTeam(val id: String = "", val name: String = "", val color: String? = null, val bots: List<String> = emptyList(), val lead: String? = null)
+
+/** An objective of the 90 days (#669): its number now and the one aimed at, in its colour (a team of that colour moves it). */
+@Serializable
+data class Objective(val id: String = "", val name: String = "", val target: Double = 0.0, val current: Double = 0.0, val color: String? = null, val onTrack: Boolean = false)
+
+/** One of the owner's tasks (#672): with [bot], what that bot was given. */
+@Serializable
+data class Todo(val id: String = "", val text: String = "", val bot: String? = null, val done: Boolean = false)
+
+/** The week's plan the Chief drafts (#673): each item with the objective it moves, approved or waiting for the owner. */
+@Serializable
+data class WeekPlan(val items: List<PlanItem> = emptyList(), val approved: Boolean = false, val week: String? = null)
+
+@Serializable
+data class PlanItem(val text: String = "", val objective: String? = null)
+
+/** A check-in the owner answered: day 30, 60 or 90, and keep, change or stop. */
+@Serializable
+data class Checkin(val day: Int = 0, val decision: String = "")
+
+/** The check-in that waits for the owner (#673): its day, and each objective on track or behind. */
+@Serializable
+data class CheckinDue(val day: Int = 0, val objectives: List<Objective> = emptyList())
+
+/** The bot the Chief suggests as the company grows (#673), with why and the team it would join. */
+@Serializable
+data class Suggested(val name: String = "", val description: String = "", val why: String = "", val team: String? = null)
+
+/** `POST /api/company/checkins`: the company, and with Stop how many jobs it switched off. */
+@Serializable
+data class CheckinAnswer(val company: Company, val paused: Int = 0)
 
 @Serializable
 data class TeamLine(val who: String = "chief", val text: String = "", val undo: Boolean = false)
