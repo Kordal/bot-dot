@@ -1628,5 +1628,7 @@
     "one": "{n} opinia",
     "few": "{n} opinie",
     "many": "{n} opinii"
-  }
+  },
+  "Standup": "Standup",
+  "Standup: {text}": "Standup: {text}"
 }

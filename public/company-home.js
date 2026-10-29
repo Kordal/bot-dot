@@ -90,6 +90,26 @@
       ${actions}
     </section>`;
   }
+  // The morning standup (#698): each team's lead's three lines, merged by the Chief, in the team's colour. What
+  // blocks a team and waits for the owner is an ask, with Reply into the lead's chat.
+  const DONE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  const NEXT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>';
+  const BLOCKED = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 8v5M12 16v.5"/></svg>';
+  const standupAsks = (c) => (c.standupToday?.leads || []).filter((l) => l.asks && botById(l.bot));
+  function standupHTML(c) {
+    const s = c.standupToday;
+    const leads = (s?.leads || []).filter((l) => l.at && c.teams.some((t) => t.id === l.team));
+    if (!leads.length) return '';
+    const row = (kind, icon, text, extra = '') => (text ? `<div class="cf-su ${kind}">${icon}<span class="cf-row-text">${esc(text)}</span>${extra}</div>` : '');
+    return `<section class="cf-plan cf-standup"><div class="cf-card-head"><h3>${tr('Standup')}</h3>${byChief()}</div>
+      ${leads.map((l) => {
+        const t = c.teams.find((x) => x.id === l.team);
+        const reply = l.asks && botById(l.bot) ? `<button type="button" class="btn sm" data-cf-standup-reply="${esc(l.team)}">${tr('Reply')}</button>` : '';
+        return `<div class="cf-su-team" style="--c:${esc(t.color)}"><div class="cf-su-name"><i class="cf-dot"></i>${esc(t.name)}</div>
+          ${row('done', DONE, l.done)}${row('next', NEXT, l.next)}${row(`blocked${l.asks ? ' asks' : ''}`, BLOCKED, l.blocked, reply)}</div>`;
+      }).join('')}
+    </section>`;
+  }
   // The bot the Chief suggests: a dashed card on the floor, in the colour of the team it would join.
   function suggestionHTML(c, s) {
     const color = c.teams.find((t) => t.id === s.team)?.color || '#8e7cff';
@@ -116,9 +136,10 @@
       ...asking.map((b) => `<div class="cf-row">${head(b)}<span class="cf-row-text">${esc(question(b))}</span><button type="button" class="btn sm" data-cf-reply="${esc(b.id)}">${tr('Reply')}</button></div>`),
       ...todos.map((t) => `<label class="cf-row cf-todo${t.done ? ' done' : ''}"><input type="checkbox" data-cf-todo="${esc(t.id)}"${t.done ? ' checked' : ''}>${t.bot && botById(t.bot) ? head(botById(t.bot)) : ''}<span class="cf-row-text">${esc(t.text)}</span></label>`),
     ].join('');
-    const n = waits.length + asking.length;
+    const n = waits.length + asking.length + standupAsks(c).length;
     return `<div class="cf-panel-head"><span class="cf-you">${YOU}</span><h2>${tr('You')}</h2>${n ? `<span class="cf-count">${n}</span>` : ''}</div>
       ${planHTML(c)}
+      ${standupHTML(c)}
       <div class="cf-rows">${rows}</div>
       <form class="co-ask small cf-add" id="cf-add"><input name="task" autocomplete="off" maxlength="300" placeholder="${tr('Add a task')}" aria-label="${tr('Add a task')}" /><button type="submit" class="co-go">${tr('Add')}</button></form>`;
   }
@@ -163,6 +184,14 @@
     const waits = needs();
     $$('[data-cf-need]', root).forEach((b) => (b.onclick = () => { const x = waits[Number(b.dataset.cfNeed)]; if (answersInline(x)) answerNeed(x, true, b); else openNeed(x); }));
     $$('[data-cf-reply]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.cfReply)));
+    // Reply to a standup's ask: the lead's chat, with what blocks the team quoted in the box.
+    $$('[data-cf-standup-reply]', root).forEach((b) => (b.onclick = () => {
+      const l = c.standupToday?.leads.find((x) => x.team === b.dataset.cfStandupReply);
+      if (!l) return;
+      setView('bot', l.bot);
+      const box = $('#view-bot textarea');
+      if (box) { box.value = `${tr('Standup: {text}', { text: l.blocked })}\n`; box.dispatchEvent(new Event('input')); box.focus(); }
+    }));
     $$('[data-cf-todo]', root).forEach((box) => (box.onchange = () => send(`/company/todos/${encodeURIComponent(box.dataset.cfTodo)}`, 'PUT', { done: box.checked })));
     $$('[data-cf-lead]', root).forEach((b) => (b.onclick = () => send(`/company/teams/${encodeURIComponent(teamOpen)}`, 'PUT', { lead: b.dataset.cfLead })));
     $$('[data-cf-checkin]', root).forEach((b) => (b.onclick = () => checkin(c.checkin, b.dataset.cfCheckin, b)));

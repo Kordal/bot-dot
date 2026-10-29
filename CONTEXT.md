@@ -110,6 +110,10 @@ _Avoid_: uploads, attachments (in what the user reads)
 A place of its own beside the bots, opened from the switch "Bots | Projects": what the user works on (a site or an idea), its 90-day goal and objectives, and its bots in teams that each have exactly one lead ([ADR 110](docs/adr/110-a-company-is-a-place-of-its-own-with-teams-that-each-have-one-lead.md)). The code and the API still call it the company (`/api/company`, feature `company`). Not a group, which is a chat, and not a category, which is a folder of the list.
 _Avoid_: company, firm (in what the user reads)
 
+**Standup**:
+A project's three lines per team each workday morning (done, next, blocked), written by each team's lead and merged by the Chief of Staff into one message and one card in Projects ([ADR 115](docs/adr/115-a-morning-standup-is-a-short-call-per-lead-and-one-chief-message.md)). Not a lead's report on its own rhythm, and not a checkup.
+_Avoid_: daily report, status update (for the standup itself)
+
 **The project's folder**:
 A folder on the account's computer, `/workspace/projects/<name>`, that the bots the user put in it work in together ([ADR 097](docs/adr/097-a-shared-project-is-a-folder-on-the-accounts-computer.md)). Only bots on the account's computer can be in one.
 _Avoid_: shared folder, team folder, repo (for the folder itself)
