@@ -2711,12 +2711,11 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .cf-chip.late { background: var(--warn-soft); color: var(--warn-text); }
 .cf-todo { cursor: default; }
 .cf-todo input { cursor: pointer; }
-.cf-del { display: none; flex: none; width: 26px; height: 26px; color: var(--faint); }
+.cf-del { flex: none; width: 26px; height: 26px; color: var(--faint); visibility: hidden; }
 .cf-del svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
-/* Delete takes the chip's place under the pointer; a touch screen always shows it. */
-.cf-todo:hover .cf-del, .cf-todo:focus-within .cf-del { display: grid; }
-.cf-todo:hover .cf-chip, .cf-todo:focus-within .cf-chip { display: none; }
-@media (hover: none) { .cf-del { display: grid; } .cf-todo:hover .cf-chip, .cf-todo:focus-within .cf-chip { display: inline; } }
+/* Delete keeps its place and only shows under the pointer, so the item never moves; a touch screen always shows it. */
+.cf-todo:hover .cf-del, .cf-todo:focus-within .cf-del { visibility: visible; }
+@media (hover: none) { .cf-del { visibility: visible; } }
 .cf-who .avatar { width: 28px; height: 28px; }
 .cf-who, .cf-when { display: grid; place-items: center; flex: none; min-width: 32px; height: 32px; padding: 0 4px; border: 0; border-radius: 99px; background: none; color: var(--muted); font: inherit; font-size: 12.5px; white-space: nowrap; cursor: pointer; }
 .cf-when svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
