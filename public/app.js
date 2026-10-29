@@ -33,16 +33,21 @@ const state = {
 // botdot does not answer: a request got no answer. One standing line says so, beside the logo and, where
 // the list is hidden, above the message box (composerHTML). It goes when a request is answered again or the
 // live feed opens again (followFeed). A failed request alone shows it: a proxy can hold the feed open.
-const away = { on: false };
+// on: botdot did not answer the last request, and the page asks again soon (boot.js, due). shown: it has not
+// answered for AWAY_AFTER_MS, and the line stands: one slow request while the page loads is no line.
+const AWAY_AFTER_MS = 2000;
+const away = { on: false, shown: false, timer: 0 };
 function setAway(on) {
   if (away.on === on) return;
   away.on = on;
-  drawAway();
+  clearTimeout(away.timer);
+  if (on) away.timer = setTimeout(() => { away.shown = true; drawAway(); }, AWAY_AFTER_MS);
+  else if (away.shown) { away.shown = false; drawAway(); }
 }
 function drawAway() {
-  $('#away')?.classList.toggle('hidden', !away.on);
-  $$('.away-line').forEach((el) => el.classList.toggle('hidden', !away.on));
-  const out = signedOut.on && !away.on; // "Can't reach botdot" wins: nobody knows then what Claude is
+  $('#away')?.classList.toggle('hidden', !away.shown);
+  $$('.away-line').forEach((el) => el.classList.toggle('hidden', !away.shown));
+  const out = signedOut.on && !away.shown; // "Can't reach botdot" wins: nobody knows then what Claude is
   $('#signed-out')?.classList.toggle('hidden', !out);
   $$('.claude-line').forEach((el) => el.classList.toggle('hidden', !out));
 }
