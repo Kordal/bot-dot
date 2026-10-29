@@ -398,5 +398,22 @@
   "The folder itself stays.": "Sam folder zostaje.",
   "Say what moves where.": "Powiedz, co i dokąd przenieść.",
   "A folder can't go into itself.": "Folder nie może trafić do samego siebie.",
-  "No small picture of this.": "Brak miniatury."
+  "No small picture of this.": "Brak miniatury.",
+  "Name": "Nazwa",
+  "Kind": "Rodzaj",
+  "When": "Kiedy",
+  "Task": "Zlecenie",
+  "Script": "Skrypt",
+  "A run of the bot, with AI": "Uruchomienie bota, z AI",
+  "A script, no AI": "Skrypt, bez AI",
+  "Then ask the AI": "Potem zapytaj AI",
+  "Only when it prints something": "Tylko gdy coś wypisze",
+  "Only when it fails": "Tylko gdy się nie uda",
+  "Every time it runs": "Za każdym uruchomieniem",
+  "Never, just show its output": "Nigdy, tylko pokaż wynik",
+  "Script time limit (seconds)": "Limit czasu skryptu (sekundy)",
+  "Why this kind": "Dlaczego ten rodzaj",
+  "Turned on": "Włączone",
+  "When called": "Gdy zostanie wywołane",
+  "{when}, and when called": "{when} oraz gdy zostanie wywołane"
 }

@@ -1,6 +1,6 @@
 # ADR-110: A company is a place of its own, with teams that each have one lead
 
-- **Status:** Accepted (2026-10-29); one company per account superseded by [ADR 114](114-an-account-has-several-projects-kept-as-a-list-in-one-file.md)
+- **Status:** Accepted (2026-10-29); one company per account superseded by [ADR 115](115-an-account-has-several-projects-kept-as-a-list-in-one-file.md)
 - **Owning task:** [#669](https://github.com/Kordal/bot-dot/issues/669), spec [#668](https://github.com/Kordal/bot-dot/issues/668)
 
 ## Context

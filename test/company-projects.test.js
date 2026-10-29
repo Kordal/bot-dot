@@ -1,4 +1,4 @@
-// Several projects per account (#689, ADR 114): the company of ADR 110 becomes the first project of a list. Every
+// Several projects per account (#689, ADR 115): the company of ADR 110 becomes the first project of a list. Every
 // route takes `?project=<id>`, without it the first, as older apps had their one company; each project keeps its own
 // teams, goal and objectives, and a bot is in at most one team of each project.
 const { test, before, after } = require('node:test');
@@ -97,6 +97,11 @@ test('the Chief is told each project with its id', () => {
   assert.match(note, /project p2: Mealwise .*project: "p2"/);
   assert.match(note, /90-day goal: G2/);
   assert.equal(s.of('p2').read().name, 'Mealwise');
+  // A bot in a team of each project is told of both.
+  fs.writeFileSync(file, JSON.stringify({ projects: [{ id: 'p1', name: 'Fernhill', start: 'x', teams: [{ id: 't1', name: 'Growth', bots: ['b1'] }] }, { id: 'p2', name: 'Mealwise', start: 'y', teams: [{ id: 't2', name: 'Kitchen', bots: ['b2', 'b1'] }] }] }));
+  const told = s.botNote('b1');
+  assert.match(told, /You lead team "Growth" in the owner's project "Fernhill"/);
+  assert.match(told, /You are on team "Kitchen" in the owner's project "Mealwise"/);
   assert.equal(s.of('gone').read(), null);
   fs.rmSync(dir, { recursive: true, force: true });
 });
