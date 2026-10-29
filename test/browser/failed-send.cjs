@@ -77,9 +77,12 @@ const NOTE = "Not sent: can't reach botdot. Your message is still here.";
       assert.ok(above, 'above the box');
       await shot('not-sent');
 
-      // "Can't reach botdot": beside the logo where the list shows; above the box on a phone, once the longer line went.
+      // "Can't reach botdot": under the logo where the list shows, once botdot stayed silent for AWAY_AFTER_MS; above
+      // the box on a phone, once the longer line went.
       if (!phone) {
-        assert.equal(await awayBeside.isVisible(), true);
+        await awayBeside.waitFor();
+        const [head, line] = await page.evaluate(() => [document.querySelector('.brand').getBoundingClientRect(), document.querySelector('#away').getBoundingClientRect()].map((r) => ({ bottom: r.bottom, top: r.top, height: r.height })));
+        assert.ok(line.top >= head.bottom && line.height < 24, 'one line under the logo, never a letter a line beside it');
         assert.equal(await awayBeside.innerText(), "Can't reach botdot");
         assert.equal(await awayAbove.isVisible(), false);
       } else {

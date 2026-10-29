@@ -10,13 +10,16 @@ const { app, read, cut, element, finders, answer, words } = require('./web-page'
 const css = read('style.css');
 const html = read('index.html');
 
+// The grace before the line stands (AWAY_AFTER_MS) has passed at once: each test that is not about it.
+const late = { setTimeout: (f) => { f(); return 0; }, clearTimeout() {} };
+
 // The page with its line beside the logo and one chat's line above the message box.
 function page(fetch) {
   const beside = element({}, { classes: ['hidden'] });
   const above = element({}, { classes: ['hidden'] });
   const doc = element({ '#away': beside, '.away-line': [above] });
-  const ctx = vm.createContext({ ...words, ...finders(doc), fetch, console: { warn() {} }, JSON, Object, Error, Promise });
-  vm.runInContext(`${cut('const away = { on: false };', 'function esc(s)')}\nthis.api = api; this.away = away; this.setAway = setAway;`, ctx);
+  const ctx = vm.createContext({ ...words, ...finders(doc), fetch, console: { warn() {} }, JSON, Object, Error, Promise, ...late });
+  vm.runInContext(`${cut('const AWAY_AFTER_MS', 'function esc(s)')}\nthis.api = api; this.away = away; this.setAway = setAway;`, ctx);
   const shown = () => [!beside.classList.contains('hidden'), !above.classList.contains('hidden')];
   return { ctx, shown };
 }
@@ -124,7 +127,7 @@ test('web: a gateway answering in botdot\'s place, with botdot down behind it, s
 test('web: the line is on the page: beside the logo, and above every message box, drawn as botdot is at that moment', () => {
   assert.match(html, /<div class="brand" id="brand"[^>]*>.*<\/div>\s*(<!--.*-->\s*)?<span class="away hidden" id="away" role="status" data-t>Can't reach botdot<\/span>\s*(<!--.*-->\s*)?<span class="away hidden" id="signed-out" role="status">.*<\/span>\s*(<!--.*-->\s*)?<div class="search">/, 'with the line for a signed-out Claude after it (test/signed-out-web.test.js), before the search (#635)');
   const composer = cut('function composerHTML(placeholder', '// Files attached in a composer');
-  assert.match(composer, /<div class="away-line\$\{away\.on \? '' : ' hidden'\}" role="status">\$\{tr\("Can't reach botdot\. Trying again…"\)\}<\/div>/);
+  assert.match(composer, /<div class="away-line\$\{away\.shown \? '' : ' hidden'\}" role="status">\$\{tr\("Can't reach botdot\. Trying again…"\)\}<\/div>/);
   assert.ok(composer.indexOf('away-line') < composer.indexOf('composer-box'), 'above the box');
 });
 
@@ -137,6 +140,8 @@ test('web: above the box only where the list is hidden, a phone\'s chat; both in
 
 test('web: the live feed opening again takes the line away', () => {
   const { ctx, shown } = page(noAnswer);
+  ctx.setAway(true);
+  assert.deepEqual(shown(), [true, true]);
   let feed;
   Object.assign(ctx, {
     window: { EventSource: true }, state: {}, setTimeout: () => 0, clearTimeout() {},
@@ -144,8 +149,6 @@ test('web: the live feed opening again takes the line away', () => {
   });
   vm.runInContext(`${cut('function followFeed()', '// ---------- boot ----------')}\nfollowFeed();`, ctx);
   assert.equal(feed.url, '/api/events?guarded=1'); // with the guarded memory changes (MEM-007)
-  ctx.setAway(true);
-  assert.deepEqual(shown(), [true, true]);
   feed.onopen();
   assert.deepEqual(shown(), [false, false]);
 });
@@ -190,4 +193,26 @@ test('web: a request the front door answers "Sign in first." goes to its sign-in
   other.ctx.location = { assign: (to) => went.push(to) };
   assert.equal((await thrown(other.ctx.api('/bots'))).message, 'Wrong key.');
   assert.deepEqual(went, ['/sign-in']);
+});
+
+// The owner's screenshot: "Can't reach botdot" while the page was still loading. One slow request is no line:
+// it stands only once botdot has not answered for AWAY_AFTER_MS, and the page asks again soon from the first.
+test('web: the line waits AWAY_AFTER_MS before it stands; an answer in that time means no line at all', async () => {
+  let reply = noAnswer;
+  const { ctx, shown } = page((...a) => reply(...a));
+  const timers = [];
+  Object.assign(ctx, { setTimeout: (f, ms) => timers.push({ f, ms }), clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].f = () => {}; } });
+  await thrown(ctx.api('/bots'));
+  assert.equal(ctx.away.on, true, 'asked again soon (boot.js, due)');
+  assert.deepEqual(shown(), [false, false], 'not yet');
+  assert.equal(timers.at(-1).ms, vm.runInContext('AWAY_AFTER_MS', ctx));
+  reply = answer(200, []);
+  await ctx.api('/bots');
+  timers.forEach((t) => t.f());
+  assert.deepEqual(shown(), [false, false], 'botdot answered in time');
+  reply = noAnswer;
+  await thrown(ctx.api('/bots'));
+  timers.at(-1).f();
+  assert.deepEqual(shown(), [true, true], 'still no answer');
+  assert.equal(vm.runInContext('AWAY_AFTER_MS', ctx), 2000);
 });

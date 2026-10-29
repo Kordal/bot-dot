@@ -18,8 +18,8 @@ function page() {
   const hidden = () => element({}, { classes: ['hidden'] });
   const el = { away: hidden(), awayLine: hidden(), out: hidden(), outLine: hidden() };
   const doc = element({ '#away': el.away, '.away-line': [el.awayLine], '#signed-out': el.out, '.claude-line': [el.outLine] });
-  const ctx = vm.createContext({ ...words, ...finders(doc), esc, fetch: async () => { throw new TypeError('Failed to fetch'); }, console: { warn() {} } });
-  vm.runInContext(`${cut('const away = { on: false };', 'function esc(s)')}
+  const ctx = vm.createContext({ ...words, ...finders(doc), esc, fetch: async () => { throw new TypeError('Failed to fetch'); }, console: { warn() {} }, setTimeout: (f) => { f(); return 0; }, clearTimeout() {} });
+  vm.runInContext(`${cut('const AWAY_AFTER_MS', 'function esc(s)')}
     Object.assign(this, { api, away, setAway, signedOut, setSignedOut, signedOutHTML, SIGNED_OUT });`, ctx);
   const shows = (x) => !x.classList.contains('hidden');
   // [Can't reach botdot, Claude is signed out], each as [beside the logo, above the box].
@@ -75,7 +75,7 @@ test('web: the line is on the page in both places, drawn as Claude is at that mo
   assert.equal(ctx.SIGNED_OUT, LINE);
   assert.equal(ctx.signedOutHTML(), 'Claude is signed out: bots can&#39;t work. <button type="button" data-sign-in>Sign in</button>');
   const composer = cut('function composerHTML(placeholder', '// Files attached in a composer');
-  assert.match(composer, /<div class="claude-line\$\{signedOut\.on && !away\.on \? '' : ' hidden'\}" role="status">\$\{signedOutHTML\(\)\}<\/div>/);
+  assert.match(composer, /<div class="claude-line\$\{signedOut\.on && !away\.shown \? '' : ' hidden'\}" role="status">\$\{signedOutHTML\(\)\}<\/div>/);
   assert.ok(composer.indexOf('away-line') < composer.indexOf('claude-line') && composer.indexOf('claude-line') < composer.indexOf('composer-box'), 'above the box');
 });
 
@@ -106,9 +106,10 @@ test('web: the look: the warning colour in both places; above the box only where
   assert.match(css, /\.away-line, \.send-note \{ font-size: var\(--fs-12\); color: var\(--warn-text\); padding: 0 0 var\(--sp-8\) var\(--sp-8\); \}/);
   assert.match(css, /@media \(min-width: 480px\) \{ \.claude-line \{ display: none; \} \}/);
   assert.match(css, /\.claude-line:has\(~ \.send-note:not\(\.hidden\)\) \{ display: none; \}/, 'a send that failed says more: its line stands alone');
-  // Beside the logo the sentence is longer than "Can't reach botdot": it wraps inside the head, and never pushes the logo out.
-  assert.match(css, /\.away \{[^}]*color: var\(--warn-text\);[^}]*text-align: right;[^}]*min-width: 0;[^}]*overflow-wrap: anywhere;/);
+  // Under the logo and the top bar's tools, the list's whole width: never squeezed between them, one letter a line.
+  assert.match(css, /\.away \{[^}]*color: var\(--warn-text\);[^}]*min-width: 0;[^}]*overflow-wrap: break-word;/);
+  assert.doesNotMatch(css, /\.away \{[^}]*overflow-wrap: anywhere/, 'a word is never broken where a line has room');
   assert.match(css, /\.side-head \{ display: flex; align-items: center;/);
-  assert.match(css, /\.away \{ flex: 1;/, 'between the logo and the top bar\'s tools (#635)');
+  assert.match(css, /\.side-head \{ flex-wrap: wrap; \}\s*\.away \{ order: 1; flex: 1 0 100%;/, 'a row of its own under the logo (#635)');
   assert.match(css, /\.away button, \.claude-line button \{[^}]*color: inherit;[^}]*font-weight: 600;[^}]*text-decoration: underline;/, '"Sign in" reads as the line\'s last words');
 });

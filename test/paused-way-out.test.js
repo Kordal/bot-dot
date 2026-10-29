@@ -56,11 +56,11 @@ test('web: the front door\'s paused answer reloads the page, which is then the p
   const doc = element({ '#away': hidden(), '.away-line': [hidden()] });
   let reloads = 0;
   const ctx = vm.createContext({
-    ...finders(doc), ...words, esc, console: { warn() {} },
+    ...finders(doc), ...words, esc, console: { warn() {} }, setTimeout: (f) => { f(); return 0; }, clearTimeout() {},
     location: { reload: () => { reloads++; }, assign() {} },
     fetch: async () => ({ ok: false, status: 503, json: async () => ({ error: 'Your account is paused by the admin.', paused: true }) }),
   });
-  vm.runInContext(`${cut('const away = { on: false };', 'function esc(s)')}
+  vm.runInContext(`${cut('const AWAY_AFTER_MS', 'function esc(s)')}
     Object.assign(this, { api });`, ctx);
   await assert.rejects(ctx.api('/bots'));
   assert.equal(reloads, 1);

@@ -416,8 +416,10 @@ button.chip:hover { color: var(--text); }
 .action-chip .waits { color: var(--warn-text); }
 /* A reply that failed after writing: its problem, in a block of its own under the text. */
 .problem-line { margin-top: var(--sp-8); padding: var(--sp-8) var(--sp-12); border-radius: var(--r-14); background: var(--warn-soft); font-size: var(--fs-14); }
-/* botdot does not answer: one standing line beside the logo; where the list is hidden (a phone's chat), above the message box. */
-.away { flex: 1; font-size: var(--fs-12); color: var(--warn-text); text-align: right; min-width: 0; margin-left: var(--sp-12); overflow-wrap: anywhere; }
+/* botdot does not answer: one standing line under the logo and its buttons, the list's whole width (never squeezed
+   between them); where the list is hidden (a phone's chat), above the message box. */
+.side-head { flex-wrap: wrap; }
+.away { order: 1; flex: 1 0 100%; font-size: var(--fs-12); color: var(--warn-text); min-width: 0; overflow-wrap: break-word; }
 .away-line, .send-note { font-size: var(--fs-12); color: var(--warn-text); padding: 0 0 var(--sp-8) var(--sp-8); }
 @media (min-width: 480px) { .away-line { display: none; } }
 /* A send that failed says more: its line stands alone. */
@@ -1277,7 +1279,7 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
    a mark, a category is a line, a figure's name is its title, and there is no search: it is back in a wider list. */
 @container side (max-width: 139px) {
   .side-head { flex-direction: column; gap: var(--sp-8); padding: var(--sp-16) var(--sp-4) var(--sp-12); }
-  .side-head .away { margin: 0; text-align: center; font-size: var(--fs-12); }
+  .side-head .away { order: 0; flex: none; text-align: center; }
   .side-tools { flex-direction: column; margin: 0; }
   .search, .sidebar.search-open .search, .sidebar.searching .search, #search-btn { display: none; }
   .contact { position: relative; justify-content: center; padding: var(--sp-8) 0; }

@@ -442,8 +442,8 @@ test('web: the box wired to the real senders keeps a failed message, in the Chie
 function reaching(reply) {
   const awayLine = element({}, { classes: ['hidden'] });
   const doc = element({ '.away-line': [awayLine] });
-  const ctx = vm.createContext({ ...words, ...finders(doc), fetch: (...a) => reply.now(...a), JSON, Object, Error, Promise });
-  vm.runInContext(`${cut('const away = { on: false };', 'function esc(s)')}\nthis.api = api;`, ctx);
+  const ctx = vm.createContext({ ...words, ...finders(doc), fetch: (...a) => reply.now(...a), JSON, Object, Error, Promise, setTimeout: (f) => { f(); return 0; }, clearTimeout() {} });
+  vm.runInContext(`${cut('const AWAY_AFTER_MS', 'function esc(s)')}\nthis.api = api;`, ctx);
   const send = (text) => ctx.api('/chief/chats/c1/messages', { method: 'POST', body: { text } });
   return { send, api: ctx.api, away: () => !awayLine.classList.contains('hidden') };
 }
@@ -515,7 +515,7 @@ test('web: the line is above the box, in the warning colour', () => {
 // Quiet keys (#635): the empty box says whom it messages, and on a phone, where the head names the chat, "Message".
 test('web: the empty box says "Message <name>", and "Message" on a phone', () => {
   const words = (phone) => {
-    const ctx = vm.createContext({ esc, ...require('./web-page').words, away: { on: false }, signedOut: { on: false }, signedOutHTML: () => '', ICON: {}, matchMedia: () => ({ matches: phone, addEventListener() {} }) });
+    const ctx = vm.createContext({ esc, ...require('./web-page').words, away: { on: false, shown: false }, signedOut: { on: false }, signedOutHTML: () => '', ICON: {}, matchMedia: () => ({ matches: phone, addEventListener() {} }) });
     vm.runInContext(`${cut('function composerHTML(placeholder', '// Files attached in a composer')}\nthis.composerHTML = composerHTML;`, ctx);
     return ctx.composerHTML('Message Server Watch').match(/placeholder="([^"]*)" data-placeholder="([^"]*)"/).slice(1);
   };
