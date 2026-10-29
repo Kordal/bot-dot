@@ -13,8 +13,16 @@ object UploadedFiles {
     const val CHIEF = "_chief"
     const val CHIEF_FEATURE = "chief-files"
 
-    /** The API path of whose files they are: a bot's, or the Chief's. */
-    fun owner(id: String): String = if (id == CHIEF) "/chief" else "/bots/${Api.enc(id)}"
+    /** A project's folder (#702, #703) as the owner of what Files shows: "project:<its folder's name>". No bot's id has a colon. */
+    const val FOLDER = "project:"
+    fun folderOf(id: String): String? = id.takeIf { it.startsWith(FOLDER) }?.removePrefix(FOLDER)?.takeIf { it.isNotEmpty() }
+
+    /** The API path of whose files they are: a bot's, the Chief's, or a project's folder (/api/projects/<name>, its one place). */
+    fun owner(id: String): String = when {
+        id == CHIEF -> "/chief"
+        folderOf(id) != null -> "/projects/${Api.enc(folderOf(id)!!)}"
+        else -> "/bots/${Api.enc(id)}"
+    }
 
     /** Whether the Chief's settings show its Files and Workspace. */
     fun chiefShows(features: Collection<String>?): Boolean = features != null && CHIEF_FEATURE in features

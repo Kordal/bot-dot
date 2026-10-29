@@ -67,7 +67,7 @@ internal fun Goals(ui: CompanyUi, c: Company) {
     }
 }
 
-private fun displayName(k: String): String = when (k) { "pace" -> tr("Pace chart"); "bar" -> tr("Bar"); else -> tr("Status") }
+internal fun displayName(k: String): String = when (k) { "pace" -> tr("Pace chart"); "bar" -> tr("Bar"); else -> tr("Status") }
 
 @Composable
 private fun GoalCard(ui: CompanyUi, c: Company, o: Objective) {
