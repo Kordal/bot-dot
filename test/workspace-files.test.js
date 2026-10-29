@@ -362,3 +362,25 @@ test('the computer scripts (#576) make a folder, put a file and move, inside the
     assert.deepEqual(fs.readdirSync(path.join(dir, 'other')), []);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("a project's folder is written over botdot (#702): in place of a file, the folders on the way made, never through a link or over a folder", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-ws-'));
+  const root = path.join(dir, 'site');
+  fs.mkdirSync(path.join(root, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(root, 'plan.md'), 'old');
+  fs.mkdirSync(path.join(dir, 'other'));
+  fs.symlinkSync(path.join(dir, 'other'), path.join(root, 'away'));
+  fs.symlinkSync(path.join(dir, 'other', 'x.txt'), path.join(root, 'x.txt'));
+  const run = (script, input) => execFileSync('sh', ['-c', script], { encoding: 'utf8', input });
+  try {
+    W.computerRemoved(run(W.writeScript(root, 'plan.md'), "new, it's"));
+    assert.equal(fs.readFileSync(path.join(root, 'plan.md'), 'utf8'), "new, it's");
+    W.computerRemoved(run(W.writeScript(root, 'site/css/main.css'), 'a{}'));
+    assert.equal(fs.readFileSync(path.join(root, 'site/css/main.css'), 'utf8'), 'a{}');
+    assert.throws(() => W.computerRemoved(run(W.writeScript(root, 'away/x.txt'))), { status: 403 });
+    assert.throws(() => W.computerRemoved(run(W.writeScript(root, 'x.txt'))), { status: 403 });
+    assert.throws(() => W.computerRemoved(run(W.writeScript(root, 'docs'))), { status: 400 });
+    assert.deepEqual(fs.readdirSync(path.join(dir, 'other')), [], 'nothing written through a link');
+    assert.deepEqual(fs.readdirSync(root).filter((n) => n.startsWith('.botdot')), [], 'no part left');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

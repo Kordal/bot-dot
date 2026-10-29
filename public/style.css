@@ -2205,6 +2205,8 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .fx-who b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fx-face { width: 32px; height: 32px; display: grid; place-items: center; flex: none; }
 .fx-face svg { width: 32px; height: 32px; }
+/* A project's folder (#702): its letter in the project's colour, as in the project list. */
+.fx-letter { width: 28px; height: 28px; border-radius: var(--r-8); background: var(--c); color: #fff; display: grid; place-items: center; font-size: var(--fs-14); font-weight: 600; }
 .fx-trail { display: flex; align-items: center; gap: var(--sp-8); min-width: 0; flex: 1; margin-left: var(--sp-12); font-size: var(--fs-16); white-space: nowrap; overflow: hidden; }
 .fx-trail b { overflow: hidden; text-overflow: ellipsis; }
 .fx-crumb { border: 0; background: none; padding: 0; color: var(--muted); cursor: pointer; font-size: inherit; }
@@ -2911,6 +2913,7 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .ps-swatches { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
 .ps-swatch { width: 32px; height: 32px; border: 0; border-radius: var(--r-8); background: var(--c); color: #fff; font: inherit; font-size: var(--fs-14); font-weight: 600; cursor: pointer; }
 .ps-swatch.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--text); }
+.ps-path { font-family: var(--mono); font-size: var(--fs-12); color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ps-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-4); }
 .ps-list li { display: flex; align-items: center; gap: var(--sp-8); min-height: 36px; }
 .ps-item { flex: 1; min-width: 0; font-size: var(--fs-14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
