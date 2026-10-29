@@ -377,7 +377,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
             if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = tr("Can't reach botdot") })
             RoundButton(Icons.Filled.Add, tr("New chat"), onClick = onNew)
-            if (onPlace != null && dev.botdot.app.data.CompanySetup.shows(server?.features)) RoundButton(Icons.Outlined.Business, tr("Company")) { onPlace(active != "company") }
+            if (onPlace != null && dev.botdot.app.data.CompanySetup.shows(server?.features)) RoundButton(Icons.Outlined.Business, tr("Projects")) { onPlace(active != "company") }
             RoundButton(Icons.Filled.Settings, tr("Settings")) { onOpen("settings") }
             if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback")) { feedbackOpen = true }
         }

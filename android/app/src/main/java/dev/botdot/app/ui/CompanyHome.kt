@@ -167,7 +167,7 @@ private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays) {
             val a = ui.api ?: run { ui.tell(tr("Can't reach botdot.")); busy = false; return@launch }
             runCatching { a.answerCheckin(k.day, decision) }.onSuccess { d ->
                 ui.took(d.company)
-                if (decision == "stop") ui.tell(trn(d.paused, "Switched off {n} job of the company's bots.", "Switched off {n} jobs of the company's bots."))
+                if (decision == "stop") ui.tell(trn(d.paused, "Switched off {n} job of the project's bots.", "Switched off {n} jobs of the project's bots."))
                 if (decision == "change") ways.onChiefSay(tr("Day {n} check-in: I want to change direction.", "n" to k.day) + " ")
             }.onFailure { ui.tell(it.message) }
             busy = false
