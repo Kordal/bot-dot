@@ -1,6 +1,6 @@
 // Chats docked to the bottom of the Projects screen (#691): a bot clicked there opens its chat as a panel at the
-// bottom, beside the chats opened before it, the newest on the right, the row ending before the panel on the right of
-// the screen. A bot's chat opened before stays expanded beside it (#714) until it is minimized; the others are bars
+// bottom, beside the chats opened before it, the newest on the right, across the whole width
+// of the screen. A bot's chat opened before stays expanded beside it (#714) until it is minimized; the others are bars
 // with their unread count; those that don't fit wait under "+N" at the left end. A bar or a panel's head dragged
 // sideways moves it in the row. A phone has the open chat as a sheet that slides up from the bottom, half or full
 // height, and the rest as bars. The rules are DockRow's (dock-row.js); this file draws them.
@@ -200,17 +200,14 @@ const Dock = (() => {
   document.addEventListener('visibilitychange', readChats);
   addEventListener('pagehide', () => { for (const r of readers.values()) r.show(null); });
 
-  // The row's left and right ends: the main column's padding, and on a wide Projects screen the panel on its right.
+  // The row's left and right ends: the main column's padding. It spans the whole column, over the bottom of the panel
+  // on the right of a wide Projects screen, so as many chats as the screen holds stand side by side.
   function place() {
     const main = $('.main').getBoundingClientRect();
     const side = phone() ? 12 : 24;
-    let right = side;
-    const aside = $('#view-company .cf-panel');
-    const r = aside?.getBoundingClientRect();
-    if (!phone() && r?.width && r.left > main.left + main.width / 2) right = Math.max(side, main.right - r.left + 16);
     dock.style.setProperty('--dock-l', `${side}px`);
-    dock.style.setProperty('--dock-r', `${right}px`);
-    return Math.max(0, main.width - side - right);
+    dock.style.setProperty('--dock-r', `${side}px`);
+    return Math.max(0, main.width - 2 * side);
   }
 
   const badge = (n) => (n ? `<span class="dock-n">${n > 99 ? '99+' : n}</span>` : '');

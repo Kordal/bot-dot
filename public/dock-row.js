@@ -11,7 +11,8 @@
 const KINDS = /^[a-z][a-z-]{0,19}$/;
 const MAX = 20; // panels kept: an older one than that is dropped
 const ITEM = 340; // a panel's width, open or as a bar
-const GAP = 10;
+const MIN = 300; // what a panel may narrow to, so one more fits (the style lets them shrink)
+const GAP = 12; // the style's .dock gap (--sp-12)
 const MORE = 44; // "+N"
 
 const keyOf = (p) => `${p.kind}:${p.id}`;
@@ -46,11 +47,11 @@ function move(items, from, to) {
   return out;
 }
 
-// How many panels a row this wide shows: at least one, and room for "+N" when some don't fit.
+// How many panels a row this wide shows, each at least MIN wide: at least one, and room for "+N" when some don't fit.
 function fit(count, width) {
-  const all = Math.max(1, Math.floor((width + GAP) / (ITEM + GAP)));
+  const all = Math.max(1, Math.floor((width + GAP) / (MIN + GAP)));
   if (count <= all) return count;
-  return Math.max(1, Math.floor((width - MORE) / (ITEM + GAP)));
+  return Math.max(1, Math.floor((width - MORE) / (MIN + GAP)));
 }
 
 // The row as drawn: the newest `n` shown, the rest under "+N" (newest first, as the menu lists them). The open panel
@@ -77,7 +78,7 @@ function sheetAfter(sheet, dy) {
   return sheet;
 }
 
-const api = { parse, add, remove, expand, move, fit, split, dropAt, sheetAfter, keyOf, same, ITEM, GAP, MORE };
+const api = { parse, add, remove, expand, move, fit, split, dropAt, sheetAfter, keyOf, same, ITEM, MIN, GAP, MORE };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.DockRow = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

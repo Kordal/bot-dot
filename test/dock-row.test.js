@@ -32,8 +32,11 @@ test('remove and move keep the others in their order', () => {
 
 test('fit: as many as the width holds, room for "+N" when some do not fit, never none', () => {
   assert.equal(Row.fit(2, 1000), 2);
-  assert.equal(Row.fit(3, 1040), 3); // 3 x 340 + 2 x 10
-  assert.equal(Row.fit(4, 1040), 2); // "+N" takes room
+  assert.equal(Row.fit(3, 924), 3); // 3 x 300, as narrow as a panel gets, + 2 x 12, the style's gap
+  assert.equal(Row.fit(3, 923), 2);
+  assert.equal(Row.fit(4, 924), 2); // "+N" takes room
+  assert.equal(Row.fit(4, 1092), 3, 'a 1440 px window: three and "+N"');
+  assert.equal(Row.fit(6, 1604), 5, 'a wide screen holds five, with "+N" for the sixth');
   assert.equal(Row.fit(5, 300), 1);
   assert.equal(Row.fit(0, 1000), 0);
 });
