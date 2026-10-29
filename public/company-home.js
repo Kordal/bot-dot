@@ -1,7 +1,8 @@
 // The Company's home (#672, ADR 110): a running company drawn as an office floor, with its rules in company-floor.js.
 // The header: its name and "Day N of 90". The floor: the whiteboard of objectives, the Chief of Staff in a small glass
 // office beside it, one room per team, the bots in no team on their own, and a dashed "New team". The panel beside it
-// is You (what waits for the owner, their tasks, Add a task), or the team whose room was clicked. A narrow window has
+// is the To-do (#692: what waits for the owner and the project's to-do, filtered All, You, Bots or Done, and Add a
+// task with who it is for, its day and how it repeats), or the team whose room was clicked. A narrow window has
 // the floor in one column and the panel under it. Everything shown is the bots' states, asks and working lines the
 // page already has: nothing new is asked of the server but the company's own routes. Under the header (#673): days
 // 30, 60 and 90 on a line, the check-in that waits above the floor, the week's plan at the top of You, and the bot
@@ -105,22 +106,68 @@
     return `<div class="cf-floor">${board}${chief}${f.rooms.map(roomHTML).join('')}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
   }
 
-  // ---------- the panel: You, or a team ----------
-  function youHTML(c) {
-    const waits = needs();
-    const asking = state.bots.filter((b) => question(b));
-    const todos = [...c.todos.filter((t) => !t.done), ...c.todos.filter((t) => t.done).slice(-5)];
-    const head = (b) => (b ? botFigure(colorOf(b), 'idle', 'sm', outfitOf(b)) : chiefFigure('sm'));
+  // ---------- the panel: the To-do (#692), or a team ----------
+  // The To-do's filter (All, You, Bots, Done) and what the Add field will give the new item: who it is for (null:
+  // the owner), its due day and how it repeats. `menu` is the open picker under the field: 'who', 'when' or null.
+  let filter = 'all';
+  const fresh = () => ({ bot: null, due: '', repeat: null });
+  let pick = fresh();
+  let menu = null;
+  const CAL = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>';
+  const FILTER = { all: () => tr('All'), you: () => tr('You'), bots: () => tr('Bots'), done: () => tr('Done') };
+  const RHYTHMS = [['', () => tr('None')], ['day', () => tr('Daily')], ['week', () => tr('Weekly')], ['month', () => tr('Monthly')], ['days', () => tr('Custom')]];
+  // A weekday's short name in the interface's language, Sunday 0 (1 November 2026 was a Sunday).
+  const weekday = (d) => new Date(Date.UTC(2026, 10, 1 + d)).toLocaleDateString(I18n.locale, { weekday: 'short', timeZone: 'UTC' });
+  const rhythmLabel = (r) => (r.every === 'day' || (r.every === 'week' && r.days?.length === 7) ? tr('Daily')
+    : r.every === 'week' ? (r.days || []).map(weekday).join(', ') : r.every === 'month' ? tr('Monthly') : tr('Every {n} days', { n: r.n }));
+  function dueLabel(due) {
+    const kind = CompanyTodo.dueKind(due, CompanyTodo.today());
+    if (kind === 'today') return tr('Today');
+    if (kind === 'tomorrow') return tr('Tomorrow');
+    return new Date(`${due}T12:00:00Z`).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  }
+  // The bots an item may be for: the project's, or every bot while it has no team.
+  const projectBots = (c) => { const ids = new Set(c.teams.flatMap((t) => t.bots)); const in_ = state.bots.filter((b) => ids.has(b.id)); return in_.length ? in_ : state.bots; };
+  const head = (b) => (b ? botFigure(colorOf(b), 'idle', 'sm', outfitOf(b)) : chiefFigure('sm'));
+  const you = `<span class="cf-you sm">${YOU}</span>`;
+  // An item's chip: how it repeats, else that its bot works now, else its due day.
+  function chipOf(t) {
+    if (t.repeat) return `<span class="cf-chip">${esc(rhythmLabel(t.repeat))}</span>`;
+    if (!t.done && t.bot && botById(t.bot)?.running) return `<span class="cf-chip work">${tr('Working')}</span>`;
+    if (t.due) return `<span class="cf-chip${!t.done && CompanyTodo.dueKind(t.due, CompanyTodo.today()) === 'late' ? ' late' : ''}">${esc(dueLabel(t.due))}</span>`;
+    return '';
+  }
+  const todoHTML = (t) => `<div class="cf-row cf-todo${t.done ? ' done' : ''}">${t.bot && botById(t.bot) ? head(botById(t.bot)) : you}<span class="cf-row-text">${esc(t.text)}</span>${chipOf(t)}<input type="checkbox" data-cf-todo="${esc(t.id)}"${t.done ? ' checked' : ''} aria-label="${tr('Done')}"><button type="button" class="icon-btn cf-del" data-cf-del="${esc(t.id)}" aria-label="${tr('Delete')}">${X}</button></div>`;
+  function menuHTML(c) {
+    if (menu === 'who') {
+      return `<div class="cf-menu" role="menu"><button type="button" role="menuitem" data-cf-pick="">${you}<span>${tr('You')}</span></button>${projectBots(c).map((b) => `<button type="button" role="menuitem" data-cf-pick="${esc(b.id)}">${head(b)}<span>${esc(b.name)}</span></button>`).join('')}</div>`;
+    }
+    if (menu !== 'when') return '';
+    const r = pick.repeat;
+    const days = r?.every === 'week' ? `<div class="cf-days">${[1, 2, 3, 4, 5, 6, 0].map((d) => `<button type="button" class="${r.days.includes(d) ? 'on' : ''}" data-cf-day="${d}">${esc(weekday(d))}</button>`).join('')}</div>` : '';
+    const n = r?.every === 'days' ? `<label class="cf-every">${tr('Every {n} days', { n: `<input type="number" min="2" max="365" value="${r.n}" data-cf-n aria-label="${tr('Days')}">` })}</label>` : '';
+    return `<div class="cf-menu cf-when-menu"><input type="date" value="${esc(pick.due)}" data-cf-due aria-label="${tr('Due')}">
+      <div class="kit-seg">${RHYTHMS.map(([k, label]) => `<button type="button" class="${(r?.every || '') === k ? 'on' : ''}" data-cf-rhythm="${k}">${label()}</button>`).join('')}</div>${days}${n}</div>`;
+  }
+  function todoPanelHTML(c) {
+    const asks = filter === 'all' || filter === 'you';
+    const waits = asks ? needs() : [];
+    const asking = asks ? state.bots.filter((b) => question(b)) : [];
+    const items = CompanyTodo.shown(c.todos, filter);
     const rows = [
       ...waits.map((x, i) => `<div class="cf-row">${head(x.bot)}<span class="cf-row-text">${esc(needLine(x))}</span><button type="button" class="btn sm" data-cf-need="${i}">${answersInline(x) ? tr('Approve') : tr('Review')}</button></div>`),
       ...asking.map((b) => `<div class="cf-row">${head(b)}<span class="cf-row-text">${esc(question(b))}</span><button type="button" class="btn sm" data-cf-reply="${esc(b.id)}">${tr('Reply')}</button></div>`),
-      ...todos.map((t) => `<label class="cf-row cf-todo${t.done ? ' done' : ''}"><input type="checkbox" data-cf-todo="${esc(t.id)}"${t.done ? ' checked' : ''}>${t.bot && botById(t.bot) ? head(botById(t.bot)) : ''}<span class="cf-row-text">${esc(t.text)}</span></label>`),
+      ...items.map(todoHTML),
     ].join('');
-    const n = waits.length + asking.length;
-    return `<div class="cf-panel-head"><span class="cf-you">${YOU}</span><h2>${tr('You')}</h2>${n ? `<span class="cf-count">${n}</span>` : ''}</div>
-      ${planHTML(c)}
+    const n = filter === 'done' ? 0 : waits.length + asking.length + items.length;
+    const who = pick.bot && botById(pick.bot);
+    const when = pick.repeat ? rhythmLabel(pick.repeat) : pick.due ? dueLabel(pick.due) : '';
+    return `<div class="cf-panel-head"><h2>${tr('To-do')}</h2>${n ? `<span class="cf-count">${n}</span>` : ''}</div>
+      <div class="kit-seg cf-filters" role="tablist">${CompanyTodo.FILTERS.map((k) => `<button type="button" role="tab" class="${filter === k ? 'on' : ''}" aria-selected="${filter === k}" data-cf-filter="${k}">${FILTER[k]()}</button>`).join('')}</div>
+      ${asks ? planHTML(c) : ''}
       <div class="cf-rows">${rows}</div>
-      <form class="co-ask small cf-add" id="cf-add"><input name="task" autocomplete="off" maxlength="300" placeholder="${tr('Add a task')}" aria-label="${tr('Add a task')}" /><button type="submit" class="co-go">${tr('Add')}</button></form>`;
+      <form class="co-ask small cf-add" id="cf-add"><button type="button" class="cf-who" data-cf-who aria-label="${esc(who ? who.name : tr('You'))}">${who ? head(who) : you}</button><input name="task" autocomplete="off" maxlength="300" placeholder="${tr('Add a task')}" aria-label="${tr('Add a task')}" /><button type="button" class="cf-when${when ? ' set' : ''}" data-cf-when aria-label="${tr('Due')}">${when ? esc(when) : CAL}</button><button type="submit" class="co-go">${tr('Add')}</button></form>
+      ${menuHTML(c)}`;
   }
   function teamHTML(c, team) {
     const o = CompanyFloor.objectiveOf(team, c.objectives);
@@ -145,7 +192,7 @@
       <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
       ${c.day ? lineHTML(c) : ''}
       ${c.checkin ? checkinHTML(c.checkin) : ''}
-      <div class="cf-main">${floorHTML(c, f)}<aside class="cf-panel">${team ? teamHTML(c, team) : youHTML(c)}</aside></div>
+      <div class="cf-main">${floorHTML(c, f)}<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside></div>
     </div>`;
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
     wire(root, c);
@@ -165,6 +212,25 @@
     $$('[data-cf-need]', root).forEach((b) => (b.onclick = () => { const x = waits[Number(b.dataset.cfNeed)]; if (answersInline(x)) answerNeed(x, true, b); else openNeed(x); }));
     $$('[data-cf-reply]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.cfReply)));
     $$('[data-cf-todo]', root).forEach((box) => (box.onchange = () => send(`/company/todos/${encodeURIComponent(box.dataset.cfTodo)}`, 'PUT', { done: box.checked })));
+    $$('[data-cf-del]', root).forEach((b) => (b.onclick = () => send(`/company/todos/${encodeURIComponent(b.dataset.cfDel)}`, 'DELETE')));
+    $$('[data-cf-filter]', root).forEach((b) => (b.onclick = () => { filter = b.dataset.cfFilter; Company.redraw(); }));
+    $('[data-cf-who]', root)?.addEventListener('click', () => { menu = menu === 'who' ? null : 'who'; Company.redraw(); });
+    $('[data-cf-when]', root)?.addEventListener('click', () => { menu = menu === 'when' ? null : 'when'; Company.redraw(); });
+    $$('[data-cf-pick]', root).forEach((b) => (b.onclick = () => { pick.bot = b.dataset.cfPick || null; menu = null; Company.redraw(); $('#cf-add input')?.focus(); }));
+    $('[data-cf-due]', root)?.addEventListener('change', (e) => { pick.due = e.target.value; Company.redraw(); });
+    $$('[data-cf-rhythm]', root).forEach((b) => (b.onclick = () => {
+      const k = b.dataset.cfRhythm;
+      const on = pick.due ? new Date(`${pick.due}T12:00:00Z`) : new Date();
+      pick.repeat = !k ? null : k === 'week' ? { every: 'week', days: [pick.due ? on.getUTCDay() : on.getDay()] } : k === 'days' ? { every: 'days', n: 2 } : { every: k };
+      Company.redraw();
+    }));
+    $$('[data-cf-day]', root).forEach((b) => (b.onclick = () => {
+      const d = Number(b.dataset.cfDay);
+      const days = pick.repeat.days.includes(d) ? pick.repeat.days.filter((x) => x !== d) : [...pick.repeat.days, d];
+      if (days.length) pick.repeat = { ...pick.repeat, days };
+      Company.redraw();
+    }));
+    $('[data-cf-n]', root)?.addEventListener('change', (e) => { pick.repeat = { ...pick.repeat, n: Math.max(2, Math.min(365, Math.round(Number(e.target.value)) || 2)) }; Company.redraw(); });
     $$('[data-cf-lead]', root).forEach((b) => (b.onclick = () => send(`/company/teams/${encodeURIComponent(teamOpen)}`, 'PUT', { lead: b.dataset.cfLead })));
     $$('[data-cf-checkin]', root).forEach((b) => (b.onclick = () => checkin(c.checkin, b.dataset.cfCheckin, b)));
     $('[data-cf-plan-approve]', root)?.addEventListener('click', (e) => { e.currentTarget.disabled = true; send('/company/plan/approve', 'POST', {}); });
@@ -192,8 +258,13 @@
       if (button.disabled) return;
       button.disabled = true;
       const typed = add.task.value;
+      const was = pick;
+      const bot = t.bot || pick.bot;
       add.task.value = ''; // before the answer: the floor drawn again keeps what the field holds
-      if (!(await send('/company/todos', 'POST', t.bot ? { text: t.text, bot: t.bot } : { text: t.text }))) { const now = $('#cf-add input'); if (now) now.value = typed; }
+      pick = fresh();
+      menu = null;
+      const body = { text: t.text, ...(bot ? { bot } : {}), ...(was.due ? { due: was.due } : {}), ...(was.repeat ? { repeat: was.repeat } : {}) };
+      if (!(await send('/company/todos', 'POST', body))) { pick = was; Company.redraw(); const now = $('#cf-add input'); if (now) now.value = typed; }
       button.disabled = false;
     };
   }
@@ -235,5 +306,5 @@
   // What waits for the owner of one bot, as its desk counts it: the tree of projects shows it too (#689).
   Company.asksOf = (id) => info().asks(id);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [teamOpen, changing, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
+  Company.steps.sig = () => [teamOpen, changing, filter, menu, pick, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
 })();

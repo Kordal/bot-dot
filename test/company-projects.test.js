@@ -1,4 +1,4 @@
-// Several projects per account (#689, ADR 115): the company of ADR 110 becomes the first project of a list. Every
+// Several projects per account (#689, ADR 116): the company of ADR 110 becomes the first project of a list. Every
 // route takes `?project=<id>`, without it the first, as older apps had their one company; each project keeps its own
 // teams, goal and objectives, and a bot is in at most one team of each project.
 const { test, before, after } = require('node:test');
@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { startServer, makeBot, writeData, feed } = require('./helpers');
+const { startServer, makeBot, writeData, feed, heldRun, self } = require('./helpers');
 const companyLib = require('../lib/company');
 
 let srv; let a; let b;
@@ -74,6 +74,26 @@ test('a deleted bot leaves its team in every project', async () => {
   assert.ok(list.every((c) => c.teams.every((t) => !t.bots.includes(extra.id))), JSON.stringify(list.map((c) => c.teams)));
 });
 
+test('a bot on teams of two projects is told the to-dos of each and names the project its tools work on', async () => {
+  const [first, second] = (await srv.api('/company/list')).data.projects.map((c) => c.id);
+  assert.equal((await srv.api(at('/company/teams', first), { method: 'POST', body: { name: 'Writers', bots: [b.id] } })).status, 200);
+  await srv.api(at('/company/todos', first), { method: 'POST', body: { text: 'Write the Fernhill post', bot: b.id, due: '2099-01-05' } });
+  await srv.api(at('/company/todos', second), { method: 'POST', body: { text: 'Plan the Mealwise menu', bot: b.id, due: '2099-01-05' } });
+  const { rec, token } = await heldRun(srv, b, 'What is on your list?');
+  assert.match(rec.system, /Project "Fernhill"[^]*Write the Fernhill post[^]*Project "Mealwise"[^]*Plan the Mealwise menu/);
+  let r = (await self(srv, token, 'todos', { action: 'list' })).data;
+  assert.equal(r.ok, false);
+  assert.match(r.error, /several projects \("Fernhill", "Mealwise"\)/);
+  r = (await self(srv, token, 'todos', { action: 'list', project: 'mealwise' })).data;
+  assert.match(r.text, /Plan the Mealwise menu/);
+  assert.doesNotMatch(r.text, /Fernhill post/);
+  r = (await self(srv, token, 'todos', { action: 'add', text: 'Buy flour', project: 'Mealwise' })).data;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok((await srv.api(at('/company', second))).data.company.todos.some((x) => x.text === 'Buy flour'));
+  assert.ok(!(await srv.api('/company')).data.company.todos.some((x) => x.text === 'Buy flour'));
+  srv.unhold();
+});
+
 test('deleting the first makes the next one the first, and older apps are told', async () => {
   const live = await feed(srv);
   const [first, second] = (await srv.api('/company/list')).data.projects.map((c) => c.id);
@@ -102,6 +122,9 @@ test('the Chief is told each project with its id', () => {
   const told = s.botNote('b1');
   assert.match(told, /You lead team "Growth" in the owner's project "Fernhill"/);
   assert.match(told, /You are on team "Kitchen" in the owner's project "Mealwise"/);
+  const todos = s.todoNote('b1');
+  assert.match(todos, /Project "Fernhill"/);
+  assert.match(todos, /Project "Mealwise"/);
   assert.equal(s.of('gone').read(), null);
   fs.rmSync(dir, { recursive: true, force: true });
 });

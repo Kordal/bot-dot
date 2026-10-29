@@ -1,4 +1,4 @@
-# ADR-115: An account has several projects, kept as a list in one file
+# ADR-116: An account has several projects, kept as a list in one file
 
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#689](https://github.com/Kordal/bot-dot/issues/689), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
@@ -15,6 +15,7 @@ ADR 110 kept one company per account and deferred a list, keeping an `id` on the
 - **Two feed events.** `project` `{ id, project }` for any project (`null` once deleted), for the apps that know `projects-many`; `company` `{ company }` keeps carrying the first project, sent when it changes or another becomes the first, so an older app is never handed a second project as its company.
 - **A bot is in at most one team of each project**, and may be in teams of several projects. A deleted bot leaves its teams in every project.
 - **The Chief is told every project with its id**, and each company tool takes an optional `project` (left out: the first). A held change of the Chief's (after it read the web) keeps its query, so the owner's yes does it to the project it was asked of.
+- **A bot on teams of several projects** is told its team and its to-dos in each (ADR 114, ADR 115), and its to-do tools take `project` (the project's name or id), needed only when it is on teams of more than one.
 - **Which project is shown is the device's**, like Bots or Projects (ADR 110): the server has no "current" project.
 
 ## Alternatives
