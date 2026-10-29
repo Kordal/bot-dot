@@ -50,7 +50,7 @@ test('web: index.html loads files.js and has its box; the chat head and the sett
   const scripts = [...html.matchAll(/<script src="\/([^"]+)"><\/script>/g)].map((m) => m[1]);
   assert.ok(scripts.indexOf('files.js') > scripts.indexOf('viewer.js'));
   assert.ok(!scripts.includes('workspace.js'), 'the old Workspace section is gone');
-  assert.match(read('bot-chat.js'), /\$\('#bot-files'\)\.classList\.toggle\('hidden', !state\.features\.includes\('files-explorer'\)\)/);
+  assert.match(read('bot-chat.js'), /part\('bot-files'\)\.classList\.toggle\('hidden', !state\.features\.includes\('files-explorer'\)\)/);
   assert.match(read('bots.js'), /files\.onclick = \(\) => Files\.open\(b\)/);
   assert.match(read('settings.js'), /link\.onclick = \(\) => Files\.open\(chiefAsBot\(\)\)/);
 });

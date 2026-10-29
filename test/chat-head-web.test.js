@@ -9,14 +9,15 @@ const { webSource } = require('./web-source');
 
 const app = webSource();
 const chief = app.slice(app.indexOf('function renderChief()')).match(/<div class="chat-head">[\s\S]*?<div class="chat-thread"/)[0];
-const head = app.slice(app.indexOf('function renderBotChat()')).match(/<div class="chat-head">[\s\S]*?<div class="chat-thread"/)[0];
+const head = app.slice(app.indexOf('function renderBotChat(root')).match(/<div class="chat-head">[\s\S]*?<div class="chat-thread"/)[0];
 
 test('web: a bot\'s figure and name open its settings, as in the apps: in the panel beside the chat, and close it again', () => {
-  const title = head.match(/<button class="chat-title" id="bot-settings"[^>]*>([\s\S]*?)<\/button>/);
+  const title = head.match(/<button class="chat-title"\$\{id\('bot-settings'\)\}[^>]*>([\s\S]*?)<\/button>/);
   assert.ok(title, 'one button around the figure and the name');
-  assert.match(title[1], /id="bot-avatar"/);
-  assert.match(title[1], /id="bot-name"/);
-  assert.match(app, /\$\('#bot-settings'\)\.onclick = \(\) => setPanel\('toggle'\);/);
+  assert.match(title[1], /class="bot-avatar"\$\{id\('bot-avatar'\)\}/);
+  assert.match(title[1], /class="bot-name"\$\{id\('bot-name'\)\}/);
+  // A chat in the Projects screen's dock (#714) opens the settings its own way: there, of the open chat.
+  assert.match(app, /const settings = docked \? docked\.settings : \(\) => setPanel\('toggle'\);\n\s*part\('chat-title'\)\.onclick = settings;/);
   assert.match(app, /function setPanel\(what\) \{ show\(Panel\.next\(state, \{ panel: what \}\)\); \}/);
 });
 
@@ -45,11 +46,11 @@ test('web: a chat head has no line under the name, and a bot\'s keeps its other 
   assert.doesNotMatch(head + chief, /class="sub"/);
   assert.doesNotMatch(app, /#bot-sub|#chief-sub/);
   const right = head.slice(head.indexOf('<div class="actions-right">'));
-  assert.deepEqual([...right.matchAll(/id="(bot-[a-z-]+)"/g)].map((m) => m[1]), ['bot-files', 'bot-more', 'bot-screen', 'bot-add-to-chat']);
-  assert.match(right, /<button type="button" role="menuitem" class="hidden" id=\"bot-screen\">\$\{tr\('Its computer'\)\}<\/button>/);
-  assert.match(app, /\$\('#bot-screen'\)\.onclick = \(\) => openScreen\(state\.botId\);/);
+  assert.deepEqual([...right.matchAll(/id\('(bot-[a-z-]+)'\)/g)].map((m) => m[1]), ['bot-files', 'bot-more', 'bot-screen', 'bot-add-to-chat']);
+  assert.match(right, /<button type="button" role="menuitem" class="hidden bot-screen"\$\{id\('bot-screen'\)\}>\$\{tr\('Its computer'\)\}<\/button>/);
+  assert.match(app, /part\('bot-screen'\)\.onclick = \(\) => openScreen\(bot\.id\);/);
   // Esc in the menu closes it and is not the keypad's Esc, which opens the Chief: that one skips a press already taken.
-  const menu = app.slice(app.indexOf('function wireChatMenu(wrap)'), app.indexOf('function renderBotChat()'));
+  const menu = app.slice(app.indexOf('function wireChatMenu(wrap)'), app.indexOf('function renderBotChat(root'));
   assert.match(menu, /if \(e\.key === 'Escape'\) \{ e\.preventDefault\(\); open\(false\); btn\.focus\(\); \}/);
   assert.match(app, /if \(e\.defaultPrevented \|\| e\.isComposing/);
 });

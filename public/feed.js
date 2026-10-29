@@ -131,6 +131,7 @@ function followFeed() {
     if (!held || JSON.stringify(held.plan ?? null) === JSON.stringify(d.plan ?? null)) return;
     if (d.plan) held.plan = d.plan; else delete held.plan;
     if (state.view === 'bot' && state.botId === held.botId) renderBotChat();
+    globalThis.Dock?.drawChat?.(held.botId); // and in the dock (#714)
   });
   // A working bot took a step (#633): its steps so far, rows and all, on its run as the page holds it, and its chat
   // drawn again when it is open, so a step line that is open grows as the run goes.
@@ -141,6 +142,7 @@ function followFeed() {
     if (!held || !d.steps || JSON.stringify(held.steps ?? null) === JSON.stringify(d.steps)) return;
     held.steps = d.steps;
     if (state.view === 'bot' && state.botId === held.botId) renderBotChat();
+    globalThis.Dock?.drawChat?.(held.botId); // and in the dock (#714)
   });
   // A reply in the Chief chat that's open, which this page isn't following: a bot's reply posted there, an unasked
   // message, or the Chief answering a message sent from the phone. Show it (after the Chief's own reply, if that's

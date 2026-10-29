@@ -64,3 +64,15 @@ test("sheetAfter: a phone's sheet goes up to full, down to half, and down from h
   assert.equal(Row.sheetAfter('half', 80), 'closed');
   assert.equal(Row.sheetAfter('full', 10), 'full');
 });
+
+test('parse keeps a panel that stays expanded; expand opens it or makes it a bar again (#714)', () => {
+  const kept = Row.parse(JSON.stringify({ items: [{ ...bot('a'), open: true }, { ...bot('b'), open: 'yes' }] })).items;
+  assert.deepEqual(kept, [{ ...bot('a'), open: true }, bot('b')], 'only `open: true` is kept');
+  const row = [bot('a'), bot('b')];
+  const on = Row.expand(row, bot('b'), true);
+  assert.deepEqual(on, [bot('a'), { ...bot('b'), open: true }]);
+  assert.equal(on[0], row[0], 'the others are the same panels');
+  assert.equal(Row.expand(on, bot('b'), true)[1], on[1], 'one already expanded stays as it is');
+  assert.deepEqual(Row.expand(on, bot('b'), false), row);
+  assert.deepEqual(Row.split(Row.expand(['a', 'b', 'c'].map(bot), bot('a'), true), 2, null).hidden, [{ ...bot('a'), open: true }], 'an expanded panel that does not fit waits under "+N" as it is');
+});

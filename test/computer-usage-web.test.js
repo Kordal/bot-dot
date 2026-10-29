@@ -85,5 +85,5 @@ test("web: a bot on boat.dev opens its own machine's desktop and line, with noth
   // Its runs show no screen: the picture-in-picture and the run's live screen are for the account's computer only.
   assert.match(app, /updatePip\(bot, bot\.computer === 'linux' \?/);
   assert.match(app, /ev\.meta\.computer && ev\.meta\.status === 'running' && state\.bots\.find\(\(b\) => b\.id === ev\.meta\.botId\)\?\.computer === 'linux'/);
-  assert.match(app, /'#bot-screen'\)\.classList\.toggle\('hidden', bot\.computer !== 'linux' && bot\.computer !== 'boat'\)/);
+  assert.match(app, /part\('bot-screen'\)\.classList\.toggle\('hidden', bot\.computer !== 'linux' && bot\.computer !== 'boat'\)/);
 });

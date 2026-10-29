@@ -560,6 +560,7 @@ function chatsOfAsk(x) {
 function drawChatCards() {
   if (state.view === 'bot' && state.botId && $('#view-bot')?.dataset.bot === state.botId) updateChatNeeds($('#bot-thread'), state.botId);
   if (state.view === 'chief' && state.chatId) updateChatNeeds($('#chat-thread'), 'chief');
+  for (const chat of globalThis.Dock?.chats?.() || []) updateChatNeeds($('.chat-thread', chat), chat.dataset.bot); // those in the dock (#714)
 }
 
 // The card a bot's run waits for, in its chat: "Waiting for your OK" scrolls to it (drawStatusLine). The run's

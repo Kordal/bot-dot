@@ -57,7 +57,7 @@ test("a tap runs the job by its own Run now: the same route and the same words",
   assert.deepEqual(p.calls, [['POST', '/bots/b1/jobs/j1/run']]);
   assert.deepEqual(p.toasts, [['It will run as soon as the bot is free', false]]);
   assert.match(app, /\$\('\[data-run-job\]', card\)\.onclick = \(\) => runJobNow\(bot\.id, card\.dataset\.job\)/, 'the card\'s Run now is the same function');
-  assert.match(app, /drawJobChips\(\$\('#bot-job-chips'\), startableJobs\(bot\), \(jobId\) => runJobNow\(bot\.id, jobId\)\)/);
+  assert.match(app, /drawJobChips\(part\('job-chips'\), startableJobs\(bot\), \(jobId\) => runJobNow\(bot\.id, jobId\)\)/);
 });
 
 test("the Chief's new chat: its own jobs that are on, and a tap runs one", async () => {

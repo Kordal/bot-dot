@@ -268,11 +268,11 @@ test('web: the Chief\'s chat marks its reply where it draws one: read from the s
 // ---------- the rows of a bot's chat ----------
 
 test('web: in a bot\'s chat only the reply side of a run\'s row is marked, each time the chat is drawn', () => {
-  const draw = cut('function renderBotChat() {', '// Rejects when the task did not go');
+  const draw = cut('function renderBotChat(root', '// Rejects when the task did not go');
   // Outside the part that builds the markup again (two spaces in, not four): the chat tells what it draws every
   // time, as a chat on screen does.
   const built = draw.indexOf('thread.innerHTML = botThreadHTML(');
-  const told = draw.indexOf('\n  for (const id of repliesArrive(arrivals.bot, thread, `bot:${bot.id}`, botReplyIds(runs)))');
+  const told = draw.indexOf('\n  for (const id of repliesArrive(docked ? (root._arrivals ||= arrivalsKeeper()) : arrivals.bot, thread, `bot:${bot.id}`, botReplyIds(runs)))');
   assert.ok(built > 0 && told > built && told < draw.lastIndexOf('placeStatusLines();'), 'after the rows are drawn, and before the owner\'s own message is looked at');
   // The reply's row is the one with its "Details": the row above it, with what started the run, is not touched.
   assert.match(draw, /arrive\(\$\(`\[data-details="\$\{CSS\.escape\(id\)\}"\]`, thread\)\?\.closest\('\.bubble-row'\)\);/);

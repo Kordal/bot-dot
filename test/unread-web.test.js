@@ -256,7 +256,8 @@ test('web: older runs are read page by page until the line\'s run is there', asy
 test('web: the app draws a bot\'s chat back to its "New" line', () => {
   const app = webSource();
   // Back to its "New" line, else to the run its open question is from (test/asks-in-chat-web.test.js).
-  assert.match(app, /const back = chatBack\(bot, newFirst\);\n\s*const drawn = Unread\.shown\(chatRuns\(bot\.id, back\), back\);\n\s*if \(drawn\.missing\) reachNew\(bot\.id, back\);\n\s*const runs = drawn\.runs\.reverse\(\);/);
+  // A chat in the Projects screen's dock (#714) draws what the page holds, its line kept from when it opened.
+  assert.match(app, /const back = chatBack\(bot, newFirst\);\n(\s*\/\/.*\n)*\s*const drawn = Unread\.shown\(docked \? state\.runs\.filter\(\(r\) => r\.botId === bot\.id\) : chatRuns\(bot\.id, back\), back\);\n\s*if \(drawn\.missing && !docked\) reachNew\(bot\.id, back\);\n\s*const runs = drawn\.runs\.reverse\(\);/);
   assert.match(app, /Unread\.reach\(first, page\)/);
   assert.match(app, /\/runs\?botId=\$\{encodeURIComponent\(botId\)\}&limit=200\$\{before \? `&before=\$\{encodeURIComponent\(before\)\}` : ''\}/);
   assert.doesNotMatch(app, /\.slice\(0, 40\)\.reverse\(\)/, 'no window of its own');

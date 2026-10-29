@@ -1,10 +1,13 @@
 // Chats docked to the bottom of the Projects screen (#691): a bot clicked there opens its chat as a panel at the
 // bottom, beside the chats opened before it, the newest on the right, the row ending before the panel on the right of
-// the screen. The others are bars with their unread count; those that don't fit wait under "+N" at the left end. A bar
-// or the open panel's head dragged sideways moves it in the row. A phone has the open chat as a sheet that slides up
-// from the bottom, half or full height. The rules are DockRow's (dock-row.js); this file draws them.
+// the screen. A bot's chat opened before stays expanded beside it (#714) until it is minimized; the others are bars
+// with their unread count; those that don't fit wait under "+N" at the left end. A bar or a panel's head dragged
+// sideways moves it in the row. A phone has the open chat as a sheet that slides up from the bottom, half or full
+// height, and the rest as bars. The rules are DockRow's (dock-row.js); this file draws them.
 // The open panel is the bot's chat itself (bot-chat.js): the chat's row is moved into the dock while the Projects
 // screen shows a bot, so sending, blocks, cards and @file are the chat's own. Minimize is the Projects screen again.
+// A bot's chat expanded beside it is the same chat drawn once more (renderBotChat in a root of its own), and is read
+// as the open one is: this page reports it under an app id of its own (docs/api.md, "New replies").
 // A panel is { kind, id }: `kinds` says how each kind is drawn and opened: a bot's chat, or a team's (#697), which is
 // the group chat of that team (groups.js) and opens the same way, its row moved into the dock.
 const Dock = (() => {
@@ -43,6 +46,8 @@ const Dock = (() => {
   const docked = () => shows() && !!openKind();
   const openOne = () => (docked() ? { kind: openKind(), id: openKind() === 'bot' ? state.botId : state.groupId } : null);
   const phone = () => matchMedia(PHONE).matches;
+  // A panel drawn expanded beside the open one: a bot's chat that stays open, on a screen wider than a phone.
+  const expanded = (p, open) => p.kind === 'bot' && p.open === true && !phone() && !(open && DockRow.same(p, open));
 
   // ---------- the row's elements ----------
   let dock = null; // #dock, in the main column
@@ -65,12 +70,15 @@ const Dock = (() => {
 
   // ---------- drawing ----------
   let drawn = '';
+  const chatEls = new Map(); // "bot:<id>" -> its expanded chat's .dock-item, kept while it stays, with what is typed and its scroll
   function draw() {
     if (!$('#chat-row')) return;
     build();
     const on = shows() && (state.view === 'company' || docked());
     const open = on ? openOne() : null;
     if (open && !row.items.some((p) => DockRow.same(p, open))) { row.items = DockRow.add(row.items, open); save(); }
+    // A bot's chat that is opened stays expanded once another one opens (#714).
+    if (open?.kind === 'bot' && !row.items.find((p) => DockRow.same(p, open)).open) { row.items = DockRow.expand(row.items, open, true); save(); }
     // A bot or a team that is gone leaves the row, once they are known.
     const kept = row.items.filter((p) => !kinds[p.kind] || !kinds[p.kind].known() || kinds[p.kind].exists(p.id));
     if (kept.length !== row.items.length) { row.items = kept; save(); }
@@ -87,25 +95,110 @@ const Dock = (() => {
     const items = on ? row.items.filter((p) => kinds[p.kind]?.exists(p.id)) : [];
     app.classList.toggle('dock-on', items.length > 0);
     dock.classList.toggle('hidden', !items.length);
-    if (!items.length) { panel.classList.add('hidden'); drawn = ''; return; }
+    if (!items.length) { panel.classList.add('hidden'); drawn = ''; keepChats([]); readChats(); app.classList.remove('dock-tall'); return; }
     const width = place();
     const s = DockRow.split(items, DockRow.fit(items.length, width), open);
     if (s.items !== items) { row.items = s.items; save(); }
     panel.dataset.sheet = row.sheet;
-    const sig = JSON.stringify([s.shown.map(DockRow.keyOf), s.hidden.map(DockRow.keyOf), open && DockRow.keyOf(open), items.map((p) => kinds[p.kind].look(p.id)), I18n.locale]);
-    if (sig === drawn) return;
-    drawn = sig;
-    // Everything but the open panel is drawn again around it: the chat in it keeps its scroll and what is typed.
-    [...dock.children].forEach((el) => { if (el !== panel) el.remove(); });
-    panel.classList.toggle('hidden', !open);
-    const make = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
-    const nodes = s.shown.map((p) => (open && DockRow.same(p, open) ? panel : make(barHTML(p))));
-    if (s.hidden.length) nodes.unshift(make(moreHTML(s.hidden)));
-    const at = nodes.indexOf(panel);
-    if (at === -1) dock.prepend(...nodes);
-    else { panel.before(...nodes.slice(0, at)); panel.after(...nodes.slice(at + 1)); }
-    panel.dataset.key = open ? DockRow.keyOf(open) : '';
+    const wide = s.shown.filter((p) => expanded(p, open));
+    keepChats(wide);
+    app.classList.toggle('dock-tall', !!open || wide.length > 0); // the screen scrolls clear of the expanded chats
+    const sig = JSON.stringify([s.shown.map(DockRow.keyOf), s.hidden.map(DockRow.keyOf), open && DockRow.keyOf(open), wide.map(DockRow.keyOf), items.map((p) => kinds[p.kind].look(p.id)), I18n.locale]);
+    if (sig !== drawn) {
+      drawn = sig;
+      // Everything but the open panel and the expanded chats is drawn again around them: those keep their scroll and
+      // what is typed.
+      [...dock.children].forEach((el) => { if (el !== panel && !el.classList.contains('dock-chat')) el.remove(); });
+      panel.classList.toggle('hidden', !open);
+      const make = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
+      const nodes = s.shown.map((p) => (open && DockRow.same(p, open) ? panel : chatEls.get(DockRow.keyOf(p)) || make(barHTML(p))));
+      if (s.hidden.length) nodes.unshift(make(moreHTML(s.hidden)));
+      // In their order, moving no element that already stands in it.
+      let at = dock.firstElementChild;
+      for (const el of nodes) {
+        if (el === at) { at = at.nextElementSibling; continue; }
+        dock.insertBefore(el, at);
+      }
+      panel.dataset.key = open ? DockRow.keyOf(open) : '';
+    }
+    for (const p of wide) drawChat(p.id);
+    readChats();
   }
+
+  // The expanded chats: those of `list` are made when new, the others go, with what was typed kept for the bot's chat.
+  function keepChats(list) {
+    const keys = new Set(list.map(DockRow.keyOf));
+    for (const [key, el] of chatEls) {
+      if (keys.has(key)) continue;
+      const root = $('.dock-view', el);
+      carry(root);
+      for (const es of (root._streams || []).splice(0)) es.close();
+      el.remove();
+      chatEls.delete(key);
+    }
+    for (const p of list) {
+      const key = DockRow.keyOf(p);
+      if (chatEls.has(key)) continue;
+      const el = document.createElement('section');
+      el.className = 'dock-item dock-panel dock-chat dock-in';
+      el.dataset.key = key;
+      el.innerHTML = '<section class="bot-view dock-view"></section>';
+      // Its "New" line stays above the reply that was new when it opened.
+      const bot = botById(p.id);
+      $('.dock-view', el)._line = Unread.count(bot || {}) ? bot.firstUnread ?? null : null;
+      chatEls.set(key, el);
+    }
+  }
+  // What was typed in a chat that leaves the dock: into the open view's box when that is the bot's now, else kept
+  // for the bot's next chat (bot-chat.js `carried`).
+  function carry(root) {
+    const typed = $('textarea', root)?.value;
+    const id = root?.dataset.bot;
+    if (!typed || !id) return;
+    const main = $('#view-bot');
+    const ta = main?.dataset.bot === id && $('textarea', main);
+    if (ta && !ta.value) { ta.value = typed; ta.dispatchEvent(new Event('input')); } else carried.set(id, typed);
+  }
+  // A bot's expanded chat, drawn again from what the page holds; its head carries Minimize and Close.
+  function drawChat(id) {
+    const el = chatEls.get(DockRow.keyOf({ kind: 'bot', id }));
+    if (!el) return;
+    const root = $('.dock-view', el);
+    const p = { kind: 'bot', id };
+    renderBotChat(root, id, { line: root._line, settings: () => setView('botsettings', id) });
+    const right = $('.chat-head .actions-right', root);
+    if (!right || $('.dock-ctl', right)) return;
+    right.insertAdjacentHTML('beforeend', ctlHTML('data-dock-min-chat', 'data-dock-close-chat'));
+    $('[data-dock-min-chat]', right).onclick = () => { row.items = DockRow.expand(row.items, p, false); save(); draw(); };
+    $('[data-dock-close-chat]', right).onclick = () => close(p);
+  }
+  // The expanded chats on the page, each the root its chat is drawn in.
+  const chats = () => [...chatEls.values()].filter((el) => el.isConnected).map((el) => $('.dock-view', el));
+  const chatOf = (id) => chats().find((root) => root.dataset.bot === id) || null;
+
+  // ---------- read ----------
+  // Each expanded chat is read while the page is in front, as the open one is (replies.js syncRead): the server takes
+  // one chat from each app, so each has an app id of its own (docs/api.md, "New replies").
+  const APP = `${Unread.appId()}-dock`;
+  let apps = 0;
+  const readers = new Map(); // "bot:<id>" -> its reporter
+  function readChats() {
+    const front = !!state.features?.includes('unread') && inFront();
+    for (const key of chatEls.keys()) {
+      let r = readers.get(key);
+      if (!r) readers.set(key, r = Unread.reporter({
+        app: `${APP}${++apps}`,
+        post: (body) => api('/read', { method: 'POST', body, keepalive: true }),
+        onRead: (chat) => { if (r.shown() === chat) setUnread(chat, { unread: 0, firstUnread: null }); },
+      }));
+      if (front && r.shown() !== key) Push.clear(window, key); // its notifications on this device go (push.js)
+      r.show(front ? key : null);
+    }
+    for (const [key, r] of readers) if (!chatEls.has(key)) { r.show(null); readers.delete(key); }
+  }
+  ['focus', 'blur', 'pageshow'].forEach((t) => addEventListener(t, readChats));
+  document.addEventListener('visibilitychange', readChats);
+  addEventListener('pagehide', () => { for (const r of readers.values()) r.show(null); });
 
   // The row's left and right ends: the main column's padding, and on a wide Projects screen the panel on its right.
   function place() {
@@ -140,6 +233,7 @@ const Dock = (() => {
     </div>`;
   }
 
+  const ctlHTML = (min, x) => `<span class="dock-ctl"><button type="button" class="icon-btn" ${min} aria-label="${tr('Minimize')}" title="${tr('Minimize')}">${ICON.min}</button><button type="button" class="icon-btn" ${x} aria-label="${tr('Close')}" title="${tr('Close')}">${ICON.x}</button></span>`;
   // The open chat's head carries Minimize and Close while it is docked.
   function syncHead(open) {
     if (open?.kind !== 'team') $('#view-group .chat-head .dock-ctl')?.remove();
@@ -148,7 +242,7 @@ const Dock = (() => {
     const ctl = right && $('.dock-ctl', right);
     if (!open) return;
     if (!right || ctl) return;
-    right.insertAdjacentHTML('beforeend', `<span class="dock-ctl"><button type="button" class="icon-btn" data-dock-min aria-label="${tr('Minimize')}" title="${tr('Minimize')}">${ICON.min}</button><button type="button" class="icon-btn" data-dock-close-open aria-label="${tr('Close')}" title="${tr('Close')}">${ICON.x}</button></span>`);
+    right.insertAdjacentHTML('beforeend', ctlHTML('data-dock-min', 'data-dock-close-open'));
     $('[data-dock-min]', right).onclick = minimize;
     $('[data-dock-close-open]', right).onclick = () => close(openOne());
   }
@@ -160,7 +254,13 @@ const Dock = (() => {
     if (newest) { row.items = DockRow.add(DockRow.remove(row.items, p), p); save(); }
     kinds[p.kind].open(p.id);
   }
-  function minimize() { if (docked()) setView('company'); }
+  // The open chat becomes a bar again; the chats expanded beside it stay.
+  function minimize() {
+    if (!docked()) return;
+    row.items = DockRow.expand(row.items, openOne(), false);
+    save();
+    setView('company');
+  }
   function close(p) {
     if (!p) return;
     row.items = DockRow.remove(row.items, p);
@@ -202,7 +302,7 @@ const Dock = (() => {
     if (e.button !== 0) return;
     if (e.target.closest('.dock-grip')) return sheetDrag(e);
     const item = e.target.closest('.dock-item');
-    if (!item || phone() || (item === panel && !e.target.closest('.chat-head'))) return;
+    if (!item || phone() || (item.classList.contains('dock-panel') && !e.target.closest('.chat-head'))) return;
     const x0 = e.clientX;
     let moved = false;
     const move = (m) => {
@@ -255,5 +355,7 @@ const Dock = (() => {
   let frame = 0;
   addEventListener('resize', () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { drawn = ''; if (dock) draw(); }); });
 
-  return { draw, docked, kinds, open, close, minimize };
+  return { draw, docked, kinds, open, close, minimize, chats, chatOf, drawChat };
 })();
+// On globalThis too: the chats' code (bot-chat.js, replies.js, needs.js, feed.js) asks for it where it may be missing.
+globalThis.Dock = Dock;
