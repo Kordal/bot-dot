@@ -1629,5 +1629,8 @@
     "one": "{n} opinia",
     "few": "{n} opinie",
     "many": "{n} opinii"
-  }
+  },
+  "Decisions": "Decyzje",
+  "Add a decision": "Dodaj decyzję",
+  "Remove": "Usuń"
 }
