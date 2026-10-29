@@ -107,7 +107,7 @@ test('a deleted bot leaves its team and the next bot leads', async () => {
   assert.deepEqual([after.bots, after.lead], [[c.id], c.id]);
 });
 
-test("objectives move by the owner or the Chief's tool; tasks are the owner's", async () => {
+test("objectives move by the owner or the Chief's tool; only the owner deletes a task (#692)", async () => {
   let r = await srv.api('/company');
   const o = r.data.company.objectives[0];
   r = await srv.asChief(`/company/objectives/${o.id}`, { method: 'PUT', body: { current: 14 } });
@@ -122,7 +122,7 @@ test("objectives move by the owner or the Chief's tool; tasks are the owner's", 
   assert.deepEqual([todo.text, todo.done, todo.bot], ['Review notes for v2.3', false, undefined]);
   r = await srv.api(`/company/todos/${todo.id}`, { method: 'PUT', body: { done: true } });
   assert.equal(r.data.todos.at(-1).done, true);
-  assert.equal((await srv.asChief('/company/todos', { method: 'POST', body: { text: 'x' } })).status, 403);
+  assert.equal((await srv.asChief(`/company/todos/${todo.id}`, { method: 'DELETE' })).status, 403);
   assert.equal((await srv.api('/company/todos', { method: 'POST', body: { text: '' } })).status, 400);
   assert.equal((await srv.api('/company/todos', { method: 'POST', body: { text: 'x', bot: 'nobody' } })).status, 400);
   r = await srv.api(`/company/todos/${todo.id}`, { method: 'DELETE' });
