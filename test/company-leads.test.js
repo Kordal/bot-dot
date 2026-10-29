@@ -119,6 +119,16 @@ test('a new lead asks how often to report; its answer is kept on the team, and i
   await runOf(a, 'how often you should send them the team');
 });
 
+test("a lead's report counts a draft as done only when its file is in the project's folder", async () => {
+  const co = (await srv.api('/company')).data.company;
+  const raw = JSON.parse(fs.readFileSync(path.join(srv.data, 'company.json'), 'utf8'));
+  const from = new Date(Date.now() - 3 * 86_400_000).toISOString();
+  writeData(path.join(srv.data, 'company.json'), { ...raw, teams: raw.teams.map((t) => ({ ...t, report: 'daily', reportFrom: from })) });
+  await srv.api(`/company/teams/${co.teams[0].id}`, { method: 'PUT', body: { name: 'Growth' } });
+  const run = await runOf(a, 'daily report of team');
+  assert.match(run.stdin, /First check the project's folder \(list_project_files, or the folder on your computer\): a draft, text or file counts as done or waiting for the owner only when it is there, whatever a run or a member said/);
+});
+
 test('approving the plan starts each lead on its team\'s items', async () => {
   const team = (await srv.api('/company')).data.company.teams[0];
   const r = await srv.asChief('/company/plan', { method: 'PUT', body: { items: [{ text: 'Ask 10 parents to pre-order', objective: 'o1', team: team.id }, { text: 'Write the FAQ', team: team.id }] } });
