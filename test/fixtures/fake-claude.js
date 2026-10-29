@@ -109,6 +109,23 @@ if (String(val('--system-prompt') || '').startsWith("You sort the owner's messag
   });
   return;
 }
+// The Chief's help with a company's setup (lib/company-chief.js, #670), told by its own system prompt: no run. It
+// writes what it was asked to $FAKE_OUT/company-<n>.txt and answers $FAKE_OUT/company.txt (or "No."), or fails when
+// $FAKE_OUT/company-fails exists.
+if (String(val('--system-prompt') || '').startsWith('You help a person set up their company')) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `company-${at}.txt`), asked);
+    if (has('company-fails')) { console.error('overloaded'); process.exit(1); }
+    let answer = 'No.';
+    try { answer = fs.readFileSync(path.join(OUT, 'company.txt'), 'utf8'); } catch { /* no answer */ }
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: answer, session_id: `company-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+    process.exit(0);
+  });
+  return;
+}
 // A replay's judge (lib/replay.js, ADR 101), told by its own system prompt: no run. It writes what it was asked to
 // $FAKE_OUT/judge-<n>.txt and picks the reply that holds the text of $FAKE_OUT/judge-picks.txt (or neither).
 if (String(val('--system-prompt') || '').startsWith('You compare two replies')) {
