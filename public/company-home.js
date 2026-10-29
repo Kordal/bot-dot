@@ -20,6 +20,9 @@
   let changing = false;
   // The objective whose "Show as" menu is open (#690), or null.
   let menuFor = null;
+  // The objective whose "Update from an app" form is open (#699), or null; the connected apps, once asked.
+  let sourceFor = null;
+  let apps = null;
 
   // ---------- what the page knows of each bot ----------
   // What waits for the owner: the cards of Needs you (needs.js) and the bots that ask a question (unread.js).
@@ -104,11 +107,40 @@
     else if (show === 'bar') body = `<div class="cf-goal-info">${numHTML(o)}${paceHTML(p)}</div><div class="cf-bar big"><i style="width:${(ratio * 100).toFixed(1)}%"></i></div>`;
     else body = `<div class="cf-goal-info">${numHTML(o)}${paceHTML(p)}</div>${chartHTML(o, c)}`;
     const count = o.steps?.length ? `<span class="cf-n">${CompanyFloor.stepsDone(o)}/${o.steps.length}</span>` : '';
-    const menu = menuFor === o.id ? `<div class="cf-menu" role="menu">${DISPLAYS.map(([k, label]) => `<button type="button" role="menuitemradio" aria-checked="${show === k}" data-cf-display="${k}">${label()}</button>`).join('')}</div>` : '';
+    const fromApp = numeric ? `<hr><button type="button" role="menuitem" data-cf-source="${esc(o.id)}">${tr('Update from an app')}</button>` : '';
+    const menu = menuFor === o.id ? `<div class="cf-menu" role="menu">${DISPLAYS.map(([k, label]) => `<button type="button" role="menuitemradio" aria-checked="${show === k}" data-cf-display="${k}">${label()}</button>`).join('')}${fromApp}</div>` : '';
     return `<section class="cf-goal ${show}" style="--c:${esc(o.color)}" data-cf-goal="${esc(o.id)}">
-      <div class="cf-goal-head"><i class="cf-dot"></i><h2>${esc(o.name)}</h2>${count}<button type="button" class="icon-btn" data-cf-show="${esc(o.id)}" aria-label="${tr('Show as')}" aria-expanded="${menuFor === o.id}">${SHOW}</button>${menu}</div>
-      <div class="cf-goal-body">${body}</div>
+      <div class="cf-goal-head"><i class="cf-dot"></i><h2>${esc(o.name)}</h2>${count}${sourceHTML(o)}<button type="button" class="icon-btn" data-cf-show="${esc(o.id)}" aria-label="${tr('Show as')}" aria-expanded="${menuFor === o.id}">${SHOW}</button>${menu}</div>
+      ${sourceFormHTML(o)}<div class="cf-goal-body">${body}</div>
     </section>`;
+  }
+  // ---------- where an objective's number comes from (#699) ----------
+  const appName = (slug) => apps?.find((a) => a.slug === slug)?.name || slug.charAt(0).toUpperCase() + slug.slice(1).replace(/_/g, ' ');
+  async function loadApps() {
+    try { apps = ((await api('/connectors')).connections || []).filter((x) => x.status === 'ACTIVE').map((x) => ({ slug: x.toolkit, name: x.app?.name || '' })); } catch { apps = []; }
+    apps = apps.filter((a, i) => apps.findIndex((b) => b.slug === a.slug) === i).map((a) => ({ ...a, name: a.name || appName(a.slug) }));
+    Company.redraw();
+  }
+  // On the card: the app and when it last gave a number, or that its last read failed.
+  function sourceHTML(o) {
+    const s = o.source;
+    if (!s) return '';
+    const when = s.failed ? tr("Couldn't update") : s.readAt ? ago(s.readAt) : tr('Updating…');
+    return `<span class="cf-src${s.failed ? ' failed' : ''}"${s.failed ? ` title="${esc(s.failed)}"` : ''}>${esc(appName(s.app))} · ${esc(when)}</span>`;
+  }
+  function sourceFormHTML(o) {
+    if (sourceFor !== o.id) return '';
+    const s = o.source;
+    const stop = s ? `<button type="button" class="btn sm" data-cf-source-stop>${tr('Stop updating')}</button>` : '';
+    const close = `<button type="button" class="icon-btn" data-cf-source-close aria-label="${tr('Close')}">${X}</button>`;
+    if (!apps) return `<div class="cf-source">${tr('Loading…')}</div>`;
+    if (!apps.length && !s) return `<div class="cf-source"><button type="button" class="btn sm" data-cf-source-connect>${tr('Connect an app')}</button>${close}</div>`;
+    const list = s && !apps.some((a) => a.slug === s.app) ? [...apps, { slug: s.app, name: appName(s.app) }] : apps;
+    return `<form class="cf-source" data-cf-source-form="${esc(o.id)}">
+      <select name="app" id="cf-source-app" aria-label="${tr('App')}">${list.map((a) => `<option value="${esc(a.slug)}"${s?.app === a.slug ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+      <input name="what" id="cf-source-what" maxlength="120" required value="${esc(s?.what || '')}" placeholder="${tr('What to read')}" aria-label="${tr('What to read')}">
+      <button type="submit" class="btn sm primary">${tr('Save')}</button>${stop}${close}
+    </form>`;
   }
   const goalsHTML = (c) => (c.objectives.length ? `<div class="cf-goals${c.objectives.length === 1 ? ' one' : ''}">${c.objectives.map((o) => goalHTML(o, c)).join('')}</div>` : '');
   // ---------- the 90 days (#673): the timeline, the check-in, the week's plan, a new bot ----------
@@ -285,7 +317,7 @@
     const team = teamOpen && c.teams.find((t) => t.id === teamOpen);
     if (!team) teamOpen = null;
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
-    const kept = ['#cf-add input', '#cf-change input', '#cf-decide input'].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
+    const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what'].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
       <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
       ${c.day ? lineHTML(c) : ''}
@@ -364,6 +396,23 @@
       const id = b.closest('[data-cf-goal]').dataset.cfGoal;
       menuFor = null;
       send(`/company/objectives/${encodeURIComponent(id)}`, 'PUT', { display: b.dataset.cfDisplay });
+    }));
+    $$('[data-cf-source]', root).forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      menuFor = null;
+      sourceFor = b.dataset.cfSource;
+      if (!apps) loadApps();
+      Company.redraw();
+    }));
+    const sourceSent = async (id, source) => { if (await send(`/company/objectives/${encodeURIComponent(id)}`, 'PUT', { source })) { sourceFor = null; Company.redraw(); } };
+    $$('[data-cf-source-close]', root).forEach((b) => (b.onclick = () => { sourceFor = null; Company.redraw(); }));
+    $$('[data-cf-source-stop]', root).forEach((b) => (b.onclick = () => sourceSent(b.closest('[data-cf-goal]').dataset.cfGoal, null)));
+    $$('[data-cf-source-connect]', root).forEach((b) => (b.onclick = () => { sourceFor = null; apps = null; show({ view: 'connectors' }); }));
+    $$('[data-cf-source-form]', root).forEach((form) => (form.onsubmit = (e) => {
+      e.preventDefault();
+      const what = form.what.value.trim();
+      if (!what || !form.app.value) return;
+      sourceSent(form.dataset.cfSourceForm, { app: form.app.value, what });
     }));
     $$('[data-cf-done]', root).forEach((box) => (box.onchange = () => send(`/company/objectives/${encodeURIComponent(box.dataset.cfDone)}`, 'PUT', { done: box.checked })));
     $$('[data-cf-step]', root).forEach((box) => (box.onchange = () => {
@@ -448,5 +497,5 @@
   // What waits for the owner of one bot, as its desk counts it: the tree of projects shows it too (#689).
   Company.asksOf = (id) => info().asks(id);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [Company.calendar?.sig(), teamOpen, changing, menuFor, filter, menu, pick, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
+  Company.steps.sig = () => [Company.calendar?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
 })();
