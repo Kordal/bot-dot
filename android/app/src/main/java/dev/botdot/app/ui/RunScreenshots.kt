@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -31,7 +30,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.botdot.app.BotDotApp
@@ -52,16 +50,16 @@ fun RunScreenshots(r: Run) {
     LaunchedEffect(r.id, open) {
         if (open && shots == null) runCatching { app.api.value?.runImages(r.id) }.onSuccess { shots = it }.onFailure { failed = true }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(tr("Screenshots") + if (open) " ⌄" else " ›", color = p.muted, fontSize = 13.5.sp,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Text(tr("Screenshots") + if (open) " ⌄" else " ›", color = p.muted, fontSize = Type.s14,
+            modifier = Modifier.clip(Radius.small).clickable { open = !open }.padding(horizontal = Space.s8, vertical = Space.s4))
         if (open) {
             val list = shots
             when {
-                failed -> Text(tr("Couldn't load them."), color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
-                list != null -> Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                failed -> Text(tr("Couldn't load them."), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s8))
+                list != null -> Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     list.forEachIndexed { i, path ->
-                        Shot(path, thumb = true, modifier = Modifier.height(110.dp).clip(RoundedCornerShape(8.dp)).border(1.dp, p.line2, RoundedCornerShape(8.dp)).clickable { showing = i })
+                        Shot(path, thumb = true, modifier = Modifier.height(110.dp).clip(Radius.small).border(1.dp, p.line2, Radius.small).clickable { showing = i })
                     }
                 }
             }

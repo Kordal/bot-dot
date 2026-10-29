@@ -1640,5 +1640,13 @@
   "Add an event": "Dodaj wydarzenie",
   "Day": "Dzień",
   "Previous month": "Poprzedni miesiąc",
-  "Next month": "Następny miesiąc"
+  "Next month": "Następny miesiąc",
+  "Chats": "Czaty",
+  "Taller or lower": "Wyżej lub niżej",
+  "{n} more chats": {
+    "one": "Jeszcze {n} czat",
+    "few": "Jeszcze {n} czaty",
+    "many": "Jeszcze {n} czatów"
+  },
+  "Minimize": "Zwiń"
 }

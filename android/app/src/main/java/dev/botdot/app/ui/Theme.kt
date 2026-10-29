@@ -11,6 +11,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.Typography
@@ -25,6 +26,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** botdot's "Mono" look, the same colors as the web page (public/style.css). Dark only, whatever the system says (#14). */
@@ -64,17 +66,60 @@ fun BotDotTheme(content: @Composable () -> Unit) {
         secondaryContainer = p.sunk, onSecondaryContainer = p.text,
     )
     val type = Typography(
-        titleLarge = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp),
-        titleMedium = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.SemiBold),
-        bodyLarge = TextStyle(fontSize = 15.sp, lineHeight = 22.sp),
-        bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
-        bodySmall = TextStyle(fontSize = 12.5.sp, lineHeight = 17.sp),
-        labelMedium = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Medium),
+        titleLarge = TextStyle(fontSize = Type.s20, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp),
+        titleMedium = TextStyle(fontSize = Type.s16, fontWeight = FontWeight.SemiBold),
+        bodyLarge = TextStyle(fontSize = Type.s16, lineHeight = Type.line24),
+        bodyMedium = TextStyle(fontSize = Type.s14, lineHeight = Type.line20),
+        bodySmall = TextStyle(fontSize = Type.s12, lineHeight = Type.line16),
+        labelMedium = TextStyle(fontSize = Type.s12, fontWeight = FontWeight.Medium),
     ).inGeist()
     val figure = (LocalContext.current.applicationContext as? BotDotApp)?.figure?.collectAsState()?.value
     CompositionLocalProvider(LocalPaper provides p, LocalFigure provides figure) {
         ProvideFigureClock { MaterialTheme(colorScheme = scheme, typography = type, content = content) }
     }
+}
+
+/**
+ * botdot's scales (#720), the same steps as the web page's: six text sizes, eight spaces and three corners. A size or a
+ * space between two steps takes the nearer one; text is no other size anywhere (TokenScaleTest keeps it so).
+ */
+object Type {
+    val s12 = 12.sp
+    val s14 = 14.sp
+    val s16 = 16.sp
+    val s20 = 20.sp
+    val s24 = 24.sp
+    val s32 = 32.sp
+    val line16 = 16.sp
+    val line20 = 20.sp
+    val line24 = 24.sp
+    val line28 = 28.sp
+    val line32 = 32.sp
+    val line40 = 40.sp
+    /** The spacing of an eyebrow's capitals. */
+    val wide = 1.5.sp
+}
+
+object Space {
+    val s4 = 4.dp
+    val s8 = 8.dp
+    val s12 = 12.dp
+    val s16 = 16.dp
+    val s24 = 24.dp
+    val s32 = 32.dp
+    val s48 = 48.dp
+    val s64 = 64.dp
+}
+
+/** Corners: 8 for small things, 14 for cards, the pill, and CircleShape for round ones. A chat bubble keeps its small corner by its sender. */
+object Radius {
+    val r8 = 8.dp
+    val r14 = 14.dp
+    val small = RoundedCornerShape(r8)
+    val card = RoundedCornerShape(r14)
+    val pill = RoundedCornerShape(50)
+    val mine = RoundedCornerShape(r14, r14, 6.dp, r14)
+    val theirs = RoundedCornerShape(r14, r14, r14, 6.dp)
 }
 
 /**
