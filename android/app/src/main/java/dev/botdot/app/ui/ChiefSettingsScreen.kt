@@ -131,93 +131,96 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             if (hasName) Section(tr("Name")) {
                 Field(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
             }
-            Section(null) {
-                Choice(tr("Model"), edit.chiefModel, listOf("" to tr("Same as the default")) + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }
-                if (canThink(edit.chiefModel.ifBlank { edit.defaultModel })) Choice(tr("Reasoning"), edit.chiefEffort, listOf("" to tr("Same as the default")) + info.efforts.map { it.id to it.label }) { edit = edit.copy(chiefEffort = it) }
-            }
             Section(tr("Your rules for it")) {
                 Field(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
             }
-            if (hasSkills) {
-                val picked = edit.chiefSkills.orEmpty()
-                FoldSection(ChiefSkills.TITLE, picked.sorted().joinToString(", ").ifBlank { tr("None") }) {
-                    if (library.isEmpty()) Hint(ChiefSkills.EMPTY)
-                    // The ones it has come first (as saved, so rows don't jump while you tick them).
-                    library.sortedBy { it.name !in info.settings.chiefSkills.orEmpty() }.forEach { k ->
-                        val more = k.instructions.take(600) + if (k.instructions.length > 600) "…" else ""
-                        key(k.name) { SkillRow(k.name, k.description, more, k.name in picked) { on -> edit = edit.copy(chiefSkills = ChiefSkills.toggle(picked, k.name, on)) } }
+            // Its rows in two groups on raised surfaces (#728), as on the web page: how it runs; what it does and has.
+            SettingsGroup {
+                Choice(tr("Model"), edit.chiefModel, listOf("" to tr("Same as the default")) + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }
+                if (canThink(edit.chiefModel.ifBlank { edit.defaultModel })) Choice(tr("Reasoning"), edit.chiefEffort, listOf("" to tr("Same as the default")) + info.efforts.map { it.id to it.label }) { edit = edit.copy(chiefEffort = it) }
+                if (hasSkills) {
+                    val picked = edit.chiefSkills.orEmpty()
+                    FoldSection(ChiefSkills.TITLE, picked.sorted().joinToString(", ").ifBlank { tr("None") }) {
+                        if (library.isEmpty()) Hint(ChiefSkills.EMPTY)
+                        // The ones it has come first (as saved, so rows don't jump while you tick them).
+                        library.sortedBy { it.name !in info.settings.chiefSkills.orEmpty() }.forEach { k ->
+                            val more = k.instructions.take(600) + if (k.instructions.length > 600) "…" else ""
+                            key(k.name) { SkillRow(k.name, k.description, more, k.name in picked) { on -> edit = edit.copy(chiefSkills = ChiefSkills.toggle(picked, k.name, on)) } }
+                        }
                     }
                 }
-            }
-            // Revoke takes one off at once; the Chief asks again next time.
-            if (grants.isNotEmpty()) FoldSection(ChiefGrant.TITLE, grants.joinToString(", ") { it.label }) {
-                grants.forEach { g ->
-                    key(g.kind, g.id) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(g.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                Text(g.kind.hint, color = p.muted, style = MaterialTheme.typography.bodySmall)
-                            }
-                            SecondaryButton(onClick = {
-                                scope.launch {
-                                    runCatching { api!!.revokeChiefGrant(g) }
-                                        .onSuccess { grants = grants - g; tell(ChiefGrant.REVOKED) }
-                                        .onError { tell(it.message ?: tr("Couldn't save")) }
+                // Revoke takes one off at once; the Chief asks again next time.
+                if (grants.isNotEmpty()) FoldSection(ChiefGrant.TITLE, grants.joinToString(", ") { it.label }) {
+                    grants.forEach { g ->
+                        key(g.kind, g.id) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(g.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                    Text(g.kind.hint, color = p.muted, style = MaterialTheme.typography.bodySmall)
                                 }
-                            }) { Text(tr("Revoke"), color = p.text) }
+                                SecondaryButton(onClick = {
+                                    scope.launch {
+                                        runCatching { api!!.revokeChiefGrant(g) }
+                                            .onSuccess { grants = grants - g; tell(ChiefGrant.REVOKED) }
+                                            .onError { tell(it.message ?: tr("Couldn't save")) }
+                                    }
+                                }) { Text(tr("Revoke"), color = p.text) }
+                            }
                         }
                     }
                 }
             }
-            // Its own jobs: a switch pauses one, Remove takes it away; they are made by chat.
-            jobs?.let { list ->
-                FoldSection(ChiefJobs.TITLE, if (list.isEmpty()) ChiefJobs.EMPTY else "${list.size}") {
-                    list.forEach { j ->
-                        key(j.id) {
-                            Row(Modifier.fillMaxWidth().padding(vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f).padding(end = Space.s8)) {
-                                    Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                    Text(ChiefJobs.line(j), color = p.muted, style = MaterialTheme.typography.bodySmall)
-                                    TextButton(onClick = {
-                                        scope.launch { runCatching { api!!.removeChiefJob(j.id) }.onSuccess { jobs = jobs.orEmpty().filter { it.id != j.id }; tell(tr("Removed.")) }.onError { tell(it.message ?: tr("Couldn't remove")) } }
-                                    }, contentPadding = PaddingValues(0.dp)) { Text(tr("Remove"), color = p.err) }
+            val filesLink = UploadedFiles.chiefShows(server?.features) && dev.botdot.app.data.FilesExplorer.shows(server?.features)
+            if (jobs != null || pages != null || filesLink || (checkup != null && hasCheckup)) SettingsGroup {
+                // Its own jobs: a switch pauses one, Remove takes it away; they are made by chat.
+                jobs?.let { list ->
+                    FoldSection(ChiefJobs.TITLE, if (list.isEmpty()) ChiefJobs.EMPTY else "${list.size}") {
+                        list.forEach { j ->
+                            key(j.id) {
+                                Row(Modifier.fillMaxWidth().padding(vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                                    Column(Modifier.weight(1f).padding(end = Space.s8)) {
+                                        Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                        Text(ChiefJobs.line(j), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                        TextButton(onClick = {
+                                            scope.launch { runCatching { api!!.removeChiefJob(j.id) }.onSuccess { jobs = jobs.orEmpty().filter { it.id != j.id }; tell(tr("Removed.")) }.onError { tell(it.message ?: tr("Couldn't remove")) } }
+                                        }, contentPadding = PaddingValues(0.dp)) { Text(tr("Remove"), color = p.err) }
+                                    }
+                                    Switch(checked = j.on, onCheckedChange = { on ->
+                                        scope.launch { runCatching { api!!.setChiefJobOn(j.id, on) }.onSuccess { now -> jobs = jobs.orEmpty().map { if (it.id == now.id) now else it } }.onError { tell(it.message ?: tr("Couldn't save")) } }
+                                    }, colors = switchColors())
                                 }
-                                Switch(checked = j.on, onCheckedChange = { on ->
-                                    scope.launch { runCatching { api!!.setChiefJobOn(j.id, on) }.onSuccess { now -> jobs = jobs.orEmpty().map { if (it.id == now.id) now else it } }.onError { tell(it.message ?: tr("Couldn't save")) } }
-                                }, colors = switchColors())
                             }
                         }
                     }
                 }
-            }
-            // Its pages: what it made for you. Tap one to open it, and keep it up to date from there.
-            pages?.let { list ->
-                val name = LocalChiefName.current
-                FoldSection(tr("Pages"), if (list.isEmpty()) tr("None yet") else "${list.size}") {
-                    list.forEach { pg ->
-                        key(pg.slug) {
-                            Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(Pages.CHIEF, PageRef(pg.slug, pg.title), name) }.padding(vertical = Space.s8)) {
-                                Text(pg.title, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                Text(Pages.line(pg), color = if (pg.keep != null) p.okText else p.muted, style = MaterialTheme.typography.bodySmall)
+                // Its pages: what it made for you. Tap one to open it, and keep it up to date from there.
+                pages?.let { list ->
+                    val name = LocalChiefName.current
+                    FoldSection(tr("Pages"), if (list.isEmpty()) tr("None yet") else "${list.size}") {
+                        list.forEach { pg ->
+                            key(pg.slug) {
+                                Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(Pages.CHIEF, PageRef(pg.slug, pg.title), name) }.padding(vertical = Space.s8)) {
+                                    Text(pg.title, color = p.text, style = MaterialTheme.typography.bodyLarge)
+                                    Text(Pages.line(pg), color = if (pg.keep != null) p.okText else p.muted, style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                         }
                     }
                 }
+                // Its files and workspace (#383), as a bot's: what you attached in its chats, and every file in its folder.
+                // In Files (#603), full screen, from a server that has it.
+                if (filesLink) FilesLink(onFiles)
+                checkup?.takeIf { hasCheckup }?.let { c ->
+                    SwitchRow(Checkup.LABEL, c.caption.ifEmpty { null }, c.on) { switch(c, "on", c.copy(on = it)) }
+                    SwitchRow(Checkup.WEB_SEARCH, checked = c.webSearch, enabled = c.webSearchUsable) { switch(c, "webSearch", c.copy(webSearch = it)) }
+                }
             }
-            // Its files and workspace (#383), as a bot's: what you attached in its chats, and every file in its folder.
-            // In Files (#603), full screen, from a server that has it.
-            if (UploadedFiles.chiefShows(server?.features) && dev.botdot.app.data.FilesExplorer.shows(server?.features)) FilesLink(onFiles)
-            else if (UploadedFiles.chiefShows(server?.features)) {
+            // From a server without Files: sections of their own.
+            if (!filesLink && UploadedFiles.chiefShows(server?.features)) {
                 val viewer = DocumentView.shows(server?.features)
                 FilesSection(api, UploadedFiles.CHIEF, LocalChiefName.current, viewer,
                     empty = tr("None yet."), tell = ::tell)
                 if (WorkspaceFiles.shows(server?.features)) WorkspaceSection(api, UploadedFiles.CHIEF, LocalChiefName.current, usesComputer = false, viewer = viewer, tell = ::tell, folders = WorkspaceFiles.folders(server?.features))
-            }
-            checkup?.takeIf { hasCheckup }?.let { c ->
-                Section(null) {
-                    SwitchRow(Checkup.LABEL, c.caption.ifEmpty { null }, c.on) { switch(c, "on", c.copy(on = it)) }
-                    SwitchRow(Checkup.WEB_SEARCH, checked = c.webSearch, enabled = c.webSearchUsable) { switch(c, "webSearch", c.copy(webSearch = it)) }
-                }
             }
             Section(tr("Earlier chats")) {
                 chats.take(15).forEach { c ->

@@ -22,6 +22,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -56,9 +58,23 @@ fun Section(title: String?, hint: String? = null, modifier: Modifier = Modifier,
     }
 }
 
+/** Whether a row stands in a [SettingsGroup], whose surface holds its rows together without a line between them (#728). */
+val LocalInGroup = staticCompositionLocalOf { false }
+
+/**
+ * A group of settings rows (#728), as on the web page: one raised surface with no line between its rows, a larger gap
+ * between two groups (the screen's) than between two rows (none).
+ */
+@Composable
+fun SettingsGroup(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Column(modifier.fillMaxWidth().raised(Radius.card).padding(horizontal = Space.s16)) {
+        CompositionLocalProvider(LocalInGroup provides true) { content() }
+    }
+}
+
 /**
  * A row of settings (#636): its name, its [value] in a word or a few, and a chevron; a tap opens what it holds under
- * it (closed at first, unless [startOpen]). A thin line under it, as the flat list of the web page.
+ * it (closed at first, unless [startOpen]). A thin line under it where it stands in no [SettingsGroup].
  */
 @Composable
 fun FoldSection(title: String, value: String? = null, startOpen: Boolean = false, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
@@ -73,7 +89,7 @@ fun FoldSection(title: String, value: String? = null, startOpen: Boolean = false
             Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12).rotate(turn))
         }
         Unfold(open) { Column(Modifier.padding(bottom = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) { content() } }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
+        Rule()
     }
 }
 
@@ -130,9 +146,21 @@ fun Choice(label: String, value: String, options: List<Pair<String, String>>, on
     }
 }
 
-/** The thin line between rows of a flat list (#636). */
+/** The thin line between rows of a flat list (#636); none in a [SettingsGroup] (#728). */
 @Composable
-fun Rule() = Box(Modifier.fillMaxWidth().height(1.dp).background(LocalPaper.current.line))
+fun Rule() { if (!LocalInGroup.current) Box(Modifier.fillMaxWidth().height(1.dp).background(LocalPaper.current.line)) }
+
+/** A row that opens another screen, as in a [SettingsGroup] (#728): its name, its [value] and a chevron. */
+@Composable
+fun LinkRow(label: String, value: String? = null, valueColor: Color? = null, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val p = LocalPaper.current
+    Row(modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        if (!value.isNullOrBlank()) Text(value, color = valueColor ?: p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = Space.s12).widthIn(max = 220.dp))
+        Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
+    }
+}
 
 /** "Saved" in a screen's top bar for two seconds after each save (#636): [count] goes up by one per save. */
 @Composable

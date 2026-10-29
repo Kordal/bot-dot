@@ -27,6 +27,6 @@ test('android: the bot has othersMayAsk, and its settings show the switch only w
   const models = fs.readFileSync(path.join(app, 'data', 'Models.kt'), 'utf8');
   const screen = fs.readFileSync(path.join(app, 'ui', 'BotSettingsScreen.kt'), 'utf8');
   assert.match(models, /val othersMayAsk: Boolean\? = null/);
-  assert.match(screen, /if \(others\.isNotEmpty\(\) && b\.othersMayAsk != null\) Section\(tr\("Other bots"\)\) \{\n\s+SwitchRow\(tr\("Other bots may ask it"\)/);
+  assert.match(screen, /if \(others\.isNotEmpty\(\) && b\.othersMayAsk != null\) SwitchRow\(tr\("Other bots may ask it"\), checked = othersMayAsk\)/, 'a row of its group (#728)');
   assert.match(screen, /if \(b\.othersMayAsk != null && othersMayAsk != b\.othersMayAsk\) put\("othersMayAsk", othersMayAsk\)/);
 });

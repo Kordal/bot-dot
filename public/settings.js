@@ -191,7 +191,9 @@ function renderChiefSettings() {
         </div>
         <div class="bs-row hidden" id="chief-always"${tipAttrs(tr('What you said to always allow on its cards. Revoke one and it asks you again.'))}>
           <div class="grow"><b>${tr('Always approved')}</b><div id="chief-always-picks"></div></div>${CHEV}
-        </div>${state.features.includes('chief-jobs') ? `
+        </div>
+      </div>
+      <div class="set-list">${state.features.includes('chief-jobs') ? `
         <details class="bs-row bs-more" id="chief-jobs">
           <summary${tipAttrs(tr('It looks things up on a schedule and tells you here; it changes nothing. Easiest: ask it, e.g. "every weekday at 8 tell me what\'s new on Hacker News".'))}><b>${tr('Jobs')}</b><span class="bs-val" id="chief-jobs-val"></span>${CHEV}</summary>
           <div class="bs-body" id="chief-job-list"><span class="faint">${tr('Loading…')}</span></div>
@@ -368,9 +370,13 @@ function renderSettings() {
         </div>
       </details>` : ''}
       ${state.features.includes('token-usage') ? '<details class="bs-row bs-more" id="usage-card"></details>' : ''}
+    </div>
+    <div class="set-list">
       <label class="bs-row"><b>${tr('Language')}</b><select id="settings-language" aria-label="${esc(tr('Language'))}">${LANGUAGE_NAMES.map(([id, name]) => `<option value="${id}"${id === (s.language || 'en') ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
       ${pushCardHTML()}
       <div class="bs-group" id="install-card" hidden></div>
+    </div>
+    <div class="set-list">
       <details class="bs-row bs-more" id="backups-card">
         <summary><b>${tr('Backups')}</b><span class="bs-val">${tr('Checking…')}</span>${CHEV}</summary>
       </details>

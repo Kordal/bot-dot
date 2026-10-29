@@ -681,9 +681,10 @@ private fun BarButton(icon: ImageVector, label: String, enabled: Boolean, danger
     }
 }
 
-/** The settings' way into Files (#603), in place of the Files and Workspace sections. */
+/** The settings' way into Files (#603), in place of the Files and Workspace sections: a row of its [SettingsGroup] there (#728). */
 @Composable
 fun FilesLink(onClick: () -> Unit) {
+    if (LocalInGroup.current) { LinkRow(tr("Files"), modifier = Modifier.testTag("files-link"), onClick = onClick); return }
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = Space.s16).testTag("files-link"),
         verticalAlignment = Alignment.CenterVertically) {

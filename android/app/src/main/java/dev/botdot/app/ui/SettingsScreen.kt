@@ -151,167 +151,174 @@ fun SettingsScreen(
         topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(tr("Settings"), style = MaterialTheme.typography.titleMedium) },
             actions = { SavedMark(savedAt) }) },
     ) { pad ->
-        // One flat list (#636): a row per setting, its value and a chevron, and no helper text. Each row that holds
-        // more opens under itself, closed whenever Settings opens.
-        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8)) {
-            Link(tr("Skills"), onClick = onSkills)
-            if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link(tr("Pages"), onClick = onPages) // every bot's pages (#361)
-            Link(tr("Connectors"), onClick = onConnectors)
-            Link(tr("Vault"), onClick = onVault)
-            Spacer(Modifier.height(Space.s16))
+        // A row per setting, its value and a chevron, and no helper text (#636), in three groups on raised surfaces (#728):
+        // the pages it opens; how bots run; the account. Each row that holds more opens under itself, closed whenever
+        // Settings opens.
+        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s24)) {
+            SettingsGroup {
+                Link(tr("Skills"), onClick = onSkills)
+                if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link(tr("Pages"), onClick = onPages) // every bot's pages (#361)
+                Link(tr("Connectors"), onClick = onConnectors)
+                Link(tr("Vault"), onClick = onVault)
+            }
 
-            Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
-            if (canThink(edit.defaultModel)) Choice(tr("Reasoning"), edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
-            Rule()
-
-            // The interface's language (#645): saved by itself, and every screen draws again in it at once.
-            if (server?.features?.contains(I18n.FEATURE) == true) {
-                Choice(tr("Language"), I18n.language, I18n.LANGUAGES) { to ->
-                    if (to == I18n.language) return@Choice
-                    scope.launch { runCatching { api!!.setLanguage(to); I18n.sync(api!!, server?.features) }.onSuccess { saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
-                }
+            SettingsGroup {
+                Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
+                if (canThink(edit.defaultModel)) Choice(tr("Reasoning"), edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
                 Rule()
-            }
 
-            if (boatSizes != null || computerPlace != null) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
-                computerPlace?.let { c ->
-                    Choice(tr("Where"), c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
-                        if (to == c.place) return@Choice
-                        // Every bot with a computer moves along: whether their files go too is asked first (#556).
-                        if (botsNow.orEmpty().any { it.computer == "linux" || it.computer == "boat" }) askPlace = to
-                        else scope.launch { runCatching { api!!.setComputerPlace(to, false) }.onSuccess { computerPlace = it; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
+                // The interface's language (#645): saved by itself, and every screen draws again in it at once.
+                if (server?.features?.contains(I18n.FEATURE) == true) {
+                    Choice(tr("Language"), I18n.language, I18n.LANGUAGES) { to ->
+                        if (to == I18n.language) return@Choice
+                        scope.launch { runCatching { api!!.setLanguage(to); I18n.sync(api!!, server?.features) }.onSuccess { saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
                     }
+                    Rule()
                 }
-                boatSizes?.takeIf { computerPlace == null || computerPlace?.place == "boat" }?.let { b ->
-                    // A new size reaches each machine when it starts next.
-                    Choice(tr("Size"), b.size, b.offered) { size ->
-                        scope.launch { runCatching { api!!.setBoatSize(size) }.onSuccess { boatSizes = it; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
-                    }
-                }
-            }
 
-            // Usage (#301): only from a server that counts it.
-            val usageApi = api
-            if (usageApi != null && dev.botdot.app.data.Usage.shows(server?.features)) UsageSection(usageApi)
-
-            // Claude's sign-in (the setup page's first step), for when it has to be done again.
-            setup?.let { s ->
-                // An Anthropic API key as well as the subscription (#35): only from a server that takes one.
-                val keys = s.claude.knowsKeys && server?.features?.contains("claude-api-key") == true
-                fun keyChange(said: String, call: suspend () -> dev.botdot.app.data.ClaudeStatus?) {
-                    scope.launch {
-                        runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = "" }.onError { tell(it.message ?: tr("Couldn't change it")) }
-                        load()
-                    }
-                }
-                FoldSection("Claude", claudeValue(s.claude)) {
-                    if (keys && keyOpen && loginUrl == null) {
-                        Field(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
-                            Button(onClick = { val key = apiKey; keyChange(tr("Saved. Bots now run on your API key")) { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
-                                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
-                            TextButton(onClick = { keyOpen = false; apiKey = "" }) { Text(tr("Cancel"), color = p.text) }
+                if (boatSizes != null || computerPlace != null) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
+                    computerPlace?.let { c ->
+                        Choice(tr("Where"), c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
+                            if (to == c.place) return@Choice
+                            // Every bot with a computer moves along: whether their files go too is asked first (#556).
+                            if (botsNow.orEmpty().any { it.computer == "linux" || it.computer == "boat" }) askPlace = to
+                            else scope.launch { runCatching { api!!.setComputerPlace(to, false) }.onSuccess { computerPlace = it; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
                         }
-                    } else if (s.claude.onApiKey && loginUrl == null) {
-                        Hint(claudeSays(s.claude))
-                        Row {
-                            if (s.claude.subscription == true) TextButton(onClick = { keyChange(tr("Bots now run on your Claude subscription")) { api!!.claudeUse("subscription") } }) {
-                                Text(tr("Use the subscription instead"), color = p.text)
+                    }
+                    boatSizes?.takeIf { computerPlace == null || computerPlace?.place == "boat" }?.let { b ->
+                        // A new size reaches each machine when it starts next.
+                        Choice(tr("Size"), b.size, b.offered) { size ->
+                            scope.launch { runCatching { api!!.setBoatSize(size) }.onSuccess { boatSizes = it; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
+                        }
+                    }
+                }
+
+                // Usage (#301): only from a server that counts it.
+                val usageApi = api
+                if (usageApi != null && dev.botdot.app.data.Usage.shows(server?.features)) UsageSection(usageApi)
+            }
+
+            SettingsGroup {
+
+                // Claude's sign-in (the setup page's first step), for when it has to be done again.
+                setup?.let { s ->
+                    // An Anthropic API key as well as the subscription (#35): only from a server that takes one.
+                    val keys = s.claude.knowsKeys && server?.features?.contains("claude-api-key") == true
+                    fun keyChange(said: String, call: suspend () -> dev.botdot.app.data.ClaudeStatus?) {
+                        scope.launch {
+                            runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = "" }.onError { tell(it.message ?: tr("Couldn't change it")) }
+                            load()
+                        }
+                    }
+                    FoldSection("Claude", claudeValue(s.claude)) {
+                        if (keys && keyOpen && loginUrl == null) {
+                            Field(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                            Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+                                Button(onClick = { val key = apiKey; keyChange(tr("Saved. Bots now run on your API key")) { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
+                                TextButton(onClick = { keyOpen = false; apiKey = "" }) { Text(tr("Cancel"), color = p.text) }
                             }
-                            TextButton(onClick = { confirmRemoveKey = true }) { Text(tr("Remove the key"), color = p.text) }
-                        }
-                    } else if (s.claude.loggedIn && loginUrl == null) {
-                        if (s.claude.fromEnv) Hint(claudeSays(s.claude))
-                        else {
+                        } else if (s.claude.onApiKey && loginUrl == null) {
                             Hint(claudeSays(s.claude))
                             Row {
-                                TextButton(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: tr("Couldn't start")) } } }) {
-                                    Text(tr("Use another account"), color = p.text)
+                                if (s.claude.subscription == true) TextButton(onClick = { keyChange(tr("Bots now run on your Claude subscription")) { api!!.claudeUse("subscription") } }) {
+                                    Text(tr("Use the subscription instead"), color = p.text)
                                 }
-                                // Ask with a fresh count of what's running, since signing out stops it.
-                                TextButton(onClick = { scope.launch { confirmLogout = runCatching { api!!.setup().running }.getOrDefault(0) } }) {
-                                    Text(tr("Sign out"), color = p.text)
+                                TextButton(onClick = { confirmRemoveKey = true }) { Text(tr("Remove the key"), color = p.text) }
+                            }
+                        } else if (s.claude.loggedIn && loginUrl == null) {
+                            if (s.claude.fromEnv) Hint(claudeSays(s.claude))
+                            else {
+                                Hint(claudeSays(s.claude))
+                                Row {
+                                    TextButton(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: tr("Couldn't start")) } } }) {
+                                        Text(tr("Use another account"), color = p.text)
+                                    }
+                                    // Ask with a fresh count of what's running, since signing out stops it.
+                                    TextButton(onClick = { scope.launch { confirmLogout = runCatching { api!!.setup().running }.getOrDefault(0) } }) {
+                                        Text(tr("Sign out"), color = p.text)
+                                    }
                                 }
                             }
-                        }
-                        if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
-                    } else if (loginUrl == null) {
-                        Hint(claudeSays(s.claude))
-                        Button(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: tr("Couldn't start")) } } },
-                            colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Sign in to Claude")) }
-                        if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
-                    } else {
-                        // Open the page, sign in and allow access, then paste the code it shows.
-                        SecondaryButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }
-                        Field(code, { code = it.trim() }, label = { Text(tr("Code")) }, singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
-                            Button(onClick = {
-                                scope.launch {
-                                    runCatching { api!!.claudeCode(code) }.onSuccess { tell(claudeCouldNotTell(it) ?: tr("Signed in to Claude")) }.onError { tell(it.message ?: tr("That code didn't work")) }
-                                    loginUrl = null; code = ""; load()
-                                }
-                            }, enabled = code.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Sign in")) }
-                            TextButton(onClick = { loginUrl = null; code = "" }) { Text(tr("Cancel"), color = p.text) }
-                        }
-                    }
-                }
-            }
-
-            backups?.let { b ->
-                FoldSection(tr("Backups"), backupValue(b, backingUp)) {
-                    // Turned on with a passphrase on the web page only.
-                    if (!b.configured) Hint(tr("Turn them on in botdot's web page."))
-                    else {
-                        if (!b.error.isNullOrBlank()) Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                            SecondaryButton(enabled = !backingUp && !b.running, onClick = {
-                                backingUp = true
-                                scope.launch { runCatching { api!!.backupNow() }.onSuccess { backups = it; tell(tr("Backed up")) }.onError { tell(it.message ?: tr("Couldn't back up")) }; backingUp = false }
-                            }) { Text(tr("Back up now"), color = p.text) }
-                            b.last?.let { f ->
-                                // To Downloads, with the app's session (BackupDownload): this account's backup alone.
-                                SecondaryButton(onClick = {
-                                    runCatching { dev.botdot.app.data.BackupDownload.start(context, api!!, f.name) }
-                                        .onSuccess { tell(tr("Downloading to Downloads")) }.onFailure { tell(it.message ?: tr("Couldn't download")) }
-                                }) { Text(tr("Download"), color = p.text) }
+                            if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
+                        } else if (loginUrl == null) {
+                            Hint(claudeSays(s.claude))
+                            Button(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: tr("Couldn't start")) } } },
+                                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Sign in to Claude")) }
+                            if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
+                        } else {
+                            // Open the page, sign in and allow access, then paste the code it shows.
+                            SecondaryButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }
+                            Field(code, { code = it.trim() }, label = { Text(tr("Code")) }, singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                            Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+                                Button(onClick = {
+                                    scope.launch {
+                                        runCatching { api!!.claudeCode(code) }.onSuccess { tell(claudeCouldNotTell(it) ?: tr("Signed in to Claude")) }.onError { tell(it.message ?: tr("That code didn't work")) }
+                                        loginUrl = null; code = ""; load()
+                                    }
+                                }, enabled = code.isNotBlank(), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Sign in")) }
+                                TextButton(onClick = { loginUrl = null; code = "" }) { Text(tr("Cancel"), color = p.text) }
                             }
                         }
                     }
                 }
-            }
 
-            update?.let { u ->
-                // On: always the latest botdot version. Off: the owner updates when ready, before the admin's deadline.
-                FoldSection(tr("Updates"), if (u.autoUpdate) tr("Automatic") else tr("By hand")) {
-                    SwitchRow(tr("Update automatically"), checked = u.autoUpdate) { on ->
-                        scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: tr("Couldn't change it")) } }
-                    }
-                    u.text().takeIf { it.isNotEmpty() }?.let { Hint(it) }
-                    if (u.canUpdate) SecondaryButton(onClick = { confirmUpdateNow = true }) { Text(tr("Update now"), color = p.text) }
-                    if (u.ready && updateNotes.isNotEmpty()) {
-                        Text(dev.botdot.app.data.WhatsNew.TITLE, color = p.text, style = MaterialTheme.typography.titleSmall)
-                        WhatsNewEntries(updateNotes, color = p.text)
+                backups?.let { b ->
+                    FoldSection(tr("Backups"), backupValue(b, backingUp)) {
+                        // Turned on with a passphrase on the web page only.
+                        if (!b.configured) Hint(tr("Turn them on in botdot's web page."))
+                        else {
+                            if (!b.error.isNullOrBlank()) Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                                SecondaryButton(enabled = !backingUp && !b.running, onClick = {
+                                    backingUp = true
+                                    scope.launch { runCatching { api!!.backupNow() }.onSuccess { backups = it; tell(tr("Backed up")) }.onError { tell(it.message ?: tr("Couldn't back up")) }; backingUp = false }
+                                }) { Text(tr("Back up now"), color = p.text) }
+                                b.last?.let { f ->
+                                    // To Downloads, with the app's session (BackupDownload): this account's backup alone.
+                                    SecondaryButton(onClick = {
+                                        runCatching { dev.botdot.app.data.BackupDownload.start(context, api!!, f.name) }
+                                            .onSuccess { tell(tr("Downloading to Downloads")) }.onFailure { tell(it.message ?: tr("Couldn't download")) }
+                                    }) { Text(tr("Download"), color = p.text) }
+                                }
+                            }
+                        }
                     }
                 }
-                // While it moves, the section follows it.
-                if (u.moving) LaunchedEffect(u, updatePolls) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it }; updatePolls++ }
-            }
 
-            if (notifyOn) Link(tr("Notifications"), value = tr("On"), onClick = onBattery)
-            else Link(tr("Notifications"), value = tr("Off")) {
-                context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
-            }
-
-            // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in
-            // again with its passkey (the dialog says so).
-            if (server?.features?.contains("accounts") == true) {
-                FoldSection(tr("Sign-ins")) {
-                    SecondaryButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
+                update?.let { u ->
+                    // On: always the latest botdot version. Off: the owner updates when ready, before the admin's deadline.
+                    FoldSection(tr("Updates"), if (u.autoUpdate) tr("Automatic") else tr("By hand")) {
+                        SwitchRow(tr("Update automatically"), checked = u.autoUpdate) { on ->
+                            scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: tr("Couldn't change it")) } }
+                        }
+                        u.text().takeIf { it.isNotEmpty() }?.let { Hint(it) }
+                        if (u.canUpdate) SecondaryButton(onClick = { confirmUpdateNow = true }) { Text(tr("Update now"), color = p.text) }
+                        if (u.ready && updateNotes.isNotEmpty()) {
+                            Text(dev.botdot.app.data.WhatsNew.TITLE, color = p.text, style = MaterialTheme.typography.titleSmall)
+                            WhatsNewEntries(updateNotes, color = p.text)
+                        }
+                    }
+                    // While it moves, the section follows it.
+                    if (u.moving) LaunchedEffect(u, updatePolls) { kotlinx.coroutines.delay(10_000); runCatching { api!!.ownUpdate() }.onSuccess { update = it }; updatePolls++ }
                 }
+
+                if (notifyOn) Link(tr("Notifications"), value = tr("On"), onClick = onBattery)
+                else Link(tr("Notifications"), value = tr("Off")) {
+                    context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
+                }
+
+                // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in
+                // again with its passkey (the dialog says so).
+                if (server?.features?.contains("accounts") == true) {
+                    FoldSection(tr("Sign-ins")) {
+                        SecondaryButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
+                    }
+                }
+                Link(tr("botdot's address"), value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'), onClick = onChangeServer)
             }
-            Link(tr("botdot's address"), value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'), onClick = onChangeServer)
         }
     }
 
@@ -399,7 +406,7 @@ private fun KeyOffer(saved: Boolean, onUse: () -> Unit, onNew: () -> Unit) {
     TextButton(onClick = if (saved) onUse else onNew) { Text(if (saved) tr("Use the API key instead") else tr("Use an API key instead"), color = p.text) }
 }
 
-/** A row that opens another screen (#636): its name, its [value] and a chevron, and a thin line under it. */
+/** A row that opens another screen (#636): its name, its [value] and a chevron, and a thin line under it outside a [SettingsGroup]. */
 @Composable
 private fun Link(text: String, value: String? = null, onClick: () -> Unit) {
     val p = LocalPaper.current

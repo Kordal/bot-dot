@@ -828,7 +828,7 @@ label.field .hint { font-weight: 400; color: var(--faint); }
 input[type=text], input[type=number], input[type=password], .conn-filters input[type=search], .req-others input[type=search], select, textarea { width: 100%; background: var(--raise-2); border: 0; box-shadow: var(--sink); border-radius: var(--r-14); padding: var(--sp-8) var(--sp-12); color: var(--text); }
 /* A field on a raised surface sinks below it, into the page's black. The Projects screens keep their fields until their own tickets (#720). */
 :is(#view-company, .company-side, .dock) :is(input, select, textarea) { box-shadow: none; }
-:is(.card, dialog, .tile, .fx-dialog, .ask-pop) :is(input[type=text], input[type=number], input[type=password], input[type=search], input[type=color], input[type=date], select, textarea) { background: var(--bg); }
+:is(.card, dialog, .tile, .fx-dialog, .ask-pop, .set-list) :is(input[type=text], input[type=number], input[type=password], input[type=search], input[type=color], input[type=date], select, textarea) { background: var(--bg); }
 textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 .composer textarea { width: auto; min-height: 22px; }
 textarea.mono { font-family: var(--mono); font-size: var(--fs-12); }
@@ -1505,14 +1505,14 @@ a.file-chip.link:hover { background: var(--fill); }
 .notes-fold[open] > summary .fold-peek { display: none; }
 .bubble.from-other-bot { background: var(--sunk); color: var(--text); border: 1px dashed var(--line-2); border-radius: var(--r-14) var(--r-14) var(--r-8) var(--r-14); white-space: pre-wrap; }
 
-/* Every settings screen (#635): one flat list of rows, its label left and its value right, muted, a › where the row
-   opens something, a switch where it is on or off; thin lines between them, a blank gap between two lists. */
-.set-list { display: flex; flex-direction: column; }
+/* Every settings screen (#635): rows, its label left and its value right, muted, a › where the row opens something,
+   a switch where it is on or off. The rows stand in groups (#728), each group one raised surface with no line between
+   its rows, and a larger gap between two groups than between two rows. */
+.set-list { display: flex; flex-direction: column; padding: 0 var(--sp-16); background: var(--raise-2); border-radius: var(--r-14); box-shadow: var(--lift); }
 .set-list + .set-list, * + .set-list { margin-top: var(--sp-24); }
 .set-list [hidden] { display: none !important; }
 .bs-group { display: contents; } /* rows drawn as one piece (the checkup, the members) stand in the list as its own */
-.bs-row { display: flex; align-items: flex-start; gap: var(--sp-12); min-height: 48px; padding: var(--sp-8) 0; font-size: var(--fs-14); line-height: 32px; border-top: 1px solid var(--line); }
-.set-list > .bs-row:first-child, .set-list > .bs-group:first-child > .bs-row:first-child { border-top: 0; }
+.bs-row { display: flex; align-items: flex-start; gap: var(--sp-12); min-height: 48px; padding: var(--sp-8) 0; font-size: var(--fs-14); line-height: 32px; }
 .bs-row b { font-weight: 400; }
 .bs-row > b, .bs-more > summary > b { flex: 1; min-width: 0; }
 /* A row whose value is a fold of picks (foldPicker): the summary right of the label, the list under both. */
@@ -1529,8 +1529,8 @@ a.file-chip.link:hover { background: var(--fill); }
 .bs-row .switch { margin-top: var(--sp-8); }
 label.bs-row { cursor: pointer; }
 /* A choice right of its label, as its value: the select shows only what is chosen (#366's key). */
-.bs-row > select { flex: none; width: auto; max-width: 55%; height: 32px; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--muted); font-size: var(--fs-14); text-align: right; text-align-last: right; appearance: none; cursor: pointer; }
-.bs-link { width: 100%; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; font-size: var(--fs-14); line-height: 32px; text-align: left; cursor: pointer; }
+.set-list .bs-row > select { flex: none; width: auto; max-width: 55%; height: 32px; margin: 0; padding: 0; border: 0; background: transparent; box-shadow: none; color: var(--muted); font-size: var(--fs-14); text-align: right; text-align-last: right; appearance: none; cursor: pointer; }
+.bs-link { width: 100%; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-14); line-height: 32px; text-align: left; cursor: pointer; }
 #bs-undo:empty { display: none; }
 .bs-danger b { color: var(--err); }
 .bs-note:empty { display: none; }
@@ -1541,7 +1541,6 @@ details.bs-row { display: block; }
 .bs-more > summary::-webkit-details-marker { display: none; }
 .bs-body { display: grid; gap: var(--sp-12); padding: var(--sp-8) 0 var(--sp-12); font-size: var(--fs-14); line-height: 1.5; }
 .bs-body p { margin: 0; }
-.bs-body .bs-row:first-child { border-top: 0; }
 .bs-body .toggle { font-size: var(--fs-14); color: var(--text); }
 .bs-exact { display: grid; gap: var(--sp-12); }
 .bs-exact > summary, .job-more > summary, .bs-history > summary { cursor: pointer; font-size: var(--fs-12); font-weight: 400; }
