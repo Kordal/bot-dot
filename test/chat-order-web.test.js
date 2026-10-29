@@ -119,7 +119,7 @@ test('web: a run\'s step line ends in how long it took, its skills in the accent
   assert.doesNotMatch(working, /step-took|bubble-meta block-foot">/);
   // The style: no frame round a block, no bubble round a reply, and what waits for a hover is there for a key and a touch.
   const css = read('style.css');
-  assert.match(css, /\.run-block \{ display: flex; flex-direction: column; gap: 10px; \}/);
+  assert.match(css, /\.run-block \{ display: flex; flex-direction: column; gap: var\(--sp-12\); \}/);
   assert.match(css, /\.chat-thread \.bubble\.from-bot:not\(\.problem\) \{[^}]*background: none; border: 0;/);
   assert.match(css, /\.chat-thread \.on-hover \{ opacity: 0;/);
   assert.match(css, /\.run-block:is\(:hover, :focus-within, \.tapped\) \.on-hover, \.bubble-row:is\(:hover, :focus-within, \.tapped\) \.on-hover \{ opacity: 1; \}/);

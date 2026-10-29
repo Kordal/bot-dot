@@ -42,7 +42,7 @@ test('web: the dot stands still and no dots follow the words', () => {
   assert.ok(dots > 0 && css.indexOf('.status-line.held span::after') > dots);
   assert.match(css, /\.status-line i \{[^}]*animation: status-pulse 1\.2s ease-in-out infinite;/);
   // The line is as wide as any status line, at phone and desktop width, and Stop keeps its look.
-  assert.match(css, /\.status-line \{ display: flex; align-items: center; gap: 8px;[^}]*font-size: 13px; \}/);
+  assert.match(css, /\.status-line \{ display: flex; align-items: center; gap: var\(--sp-8\);[^}]*font-size: var\(--fs-12\); \}/);
   assert.match(css, /\.status-line span \{ min-width: 0; overflow-wrap: anywhere; \}/);
   assert.match(css, /\.status-line button \{[^}]*color: var\(--faint\);/);
 });

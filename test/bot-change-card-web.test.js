@@ -145,7 +145,7 @@ test('web: a closed card shows the start of the old text and of the new: the new
   const clamp = css.indexOf('.need-card:not(.open) .need-body div.nb, .need-card:not(.open) .need-body pre.nb { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }');
   const old = css.indexOf('.need-card:not(.open) .need-change div.faint-strike { -webkit-line-clamp: 2; }');
   assert.ok(clamp > 0 && old > clamp, 'two lines of the old text, by a rule after the one that gives every block three, with the same weight');
-  assert.match(css, /\.need-change \.nb \+ \.nb \{ margin-top: 6px; \}/, 'a gap between what goes and what comes');
+  assert.match(css, /\.need-change \.nb \+ \.nb \{ margin-top: var\(--sp-8\); \}/, 'a gap between what goes and what comes');
   const p = page({ state: { asks: [ASSIGNMENT] } });
   const html = p.needCardHTML(p.item('ask:b2'));
   assert.doesNotMatch(html, /class="card need-card[^"]* open"/, 'the card is drawn closed');

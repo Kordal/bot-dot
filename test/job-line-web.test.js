@@ -101,7 +101,7 @@ test('web: a job\'s card is drawn with its line, in the warning colour when it f
   for (const status of ['success', 'quiet', 'held']) assert.equal(jobWarns(job({ last: { status } })), false, status);
   assert.equal(jobWarns(job()), false);
   // A long line wraps, at phone and desktop width, and takes the row to itself before it gets narrow.
-  assert.match(css, /\.job-foot \{ display: flex; align-items: center; gap: 8px; flex-wrap: wrap;/);
+  assert.match(css, /\.job-foot \{ display: flex; align-items: center; gap: var\(--sp-8\); flex-wrap: wrap;/);
   assert.match(css, /\.job-foot \.job-last \{ flex-basis: 200px; line-height: 1\.45; overflow-wrap: anywhere; \}/);
   assert.match(css, /\.job-foot \.job-last\.warn \{ color: var\(--warn-text\); \}/);
   assert.match(css, /\.grow \{ flex: 1; min-width: 0; \}/);

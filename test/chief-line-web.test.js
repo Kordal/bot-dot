@@ -35,7 +35,7 @@ test('web: the status line takes a stop that is not a run: the Chief\'s reply in
   // A bot's line and its Stop are as they were.
   assert.equal(OpeningLine.status('', '#378add', 'r1'),
     '<div class="status-line" role="status" style="--c:#378add"><i></i><span>Working</span><button type="button" data-stop-run="r1">Stop</button></div>');
-  assert.match(css, /\.status-line button \{[^}]*color: var\(--faint\);[^}]*font-size: 12px;/, 'the faint word, the same for both');
+  assert.match(css, /\.status-line button \{[^}]*color: var\(--faint\);[^}]*font-size: var\(--fs-12\);/, 'the faint word, the same for both');
 });
 
 // The Chief's chat that stands in for the one on screen, with the page's placeStatusLines and drawStatusLine.
