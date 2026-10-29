@@ -349,7 +349,7 @@ async function attention() {
     // A change to an approved job (`change: true`) says what the job would be: its kind and schedule as proposed.
     const change = changeOf(j);
     const waits = change ? { ...j, ...change.job, name: j.name } : j; // by the name the owner knows it by
-    const when = cronWords.describe(waits.cron);
+    const when = cronWords.describe(waits.cron, lang);
     const script = j.kind === 'script' || waits.kind === 'script';
     jobs.push({ botId: b.id, botName: b.name, botEmoji: b.emoji, botColor: b.color, jobId: j.id, jobName: j.name, kind: waits.kind === 'script' ? 'script' : 'ai', when, text: (change ? asksLib.jobChangeText : asksLib.jobText)(waits, when, lang), ...(change ? { change: true } : {}), ...(script ? { yesOn: 'card' } : {}), ...noOfWaiting(j, lang), ...thenOfWaiting(j, b.id, lang), ...groupOfCard(askedOf(j)?.runId) });
   }
