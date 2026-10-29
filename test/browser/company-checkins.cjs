@@ -74,7 +74,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       } else {
         const floor = await page.locator('.cf-floor').boundingBox();
         assert.ok(floor.width <= viewport.width, 'no sideways scroll');
-        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll');
+        await page.waitForFunction(() => document.documentElement.scrollWidth <= innerWidth, null, { timeout: 5000 }); // once the phone's slide-in is over
       }
       assert.deepEqual(errors, []);
       if (name === 'wide') on(31);

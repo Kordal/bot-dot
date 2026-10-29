@@ -75,6 +75,24 @@ if (String(val('--system-prompt') || '').startsWith('You route messages')) {
   });
   return;
 }
+// The Company's Team step (lib/company-team.js, #671), told by its own system prompt: no run. It writes what it was
+// asked to $FAKE_OUT/company-<n>.txt and answers $FAKE_OUT/company-team.txt (the proposal) or
+// $FAKE_OUT/company-chat.txt ("Change the team…"), or fails when $FAKE_OUT/company-fails exists.
+if (/^You (design a company's team|change a company's proposed team)/.test(String(val('--system-prompt') || ''))) {
+  const chat = String(val('--system-prompt')).startsWith('You change');
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `company-${at}.txt`), asked);
+    if (has('company-fails')) { console.error('overloaded'); process.exit(1); }
+    let answer = '{}';
+    try { answer = fs.readFileSync(path.join(OUT, chat ? 'company-chat.txt' : 'company-team.txt'), 'utf8'); } catch { /* nothing */ }
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: answer, session_id: `company-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+    process.exit(0);
+  });
+  return;
+}
 // The wake gate's question (lib/wake-gate.js, ADR 083), told by its own system prompt: no run. It writes what it was
 // asked to $FAKE_OUT/gate-<n>.txt and answers $FAKE_OUT/gate.txt (or '{"decision":"run"}').
 if (String(val('--system-prompt') || '').startsWith('You decide whether a message to an AI bot')) {
@@ -106,6 +124,23 @@ if (String(val('--system-prompt') || '').startsWith("You sort the owner's messag
       console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: read('follow-up.txt', '{"decision":"new"}'), session_id: `follow-up-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
       process.exit(0);
     }, slow && asked.includes(`The message: ${slow}`) ? 600 : 0);
+  });
+  return;
+}
+// The Chief's help with a company's setup (lib/company-chief.js, #670), told by its own system prompt: no run. It
+// writes what it was asked to $FAKE_OUT/company-<n>.txt and answers $FAKE_OUT/company.txt (or "No."), or fails when
+// $FAKE_OUT/company-fails exists.
+if (String(val('--system-prompt') || '').startsWith('You help a person set up their company')) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `company-${at}.txt`), asked);
+    if (has('company-fails')) { console.error('overloaded'); process.exit(1); }
+    let answer = 'No.';
+    try { answer = fs.readFileSync(path.join(OUT, 'company.txt'), 'utf8'); } catch { /* no answer */ }
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: answer, session_id: `company-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+    process.exit(0);
   });
   return;
 }

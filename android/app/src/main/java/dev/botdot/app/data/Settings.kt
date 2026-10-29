@@ -29,6 +29,10 @@ class Settings(private val context: Context) {
     private val LIST_WIDTH = intPreferencesKey("list_width") // dp, beside the chat on a wide screen; none: the standard one
     suspend fun listWidthNow(): Int? = context.store.data.first()[LIST_WIDTH]
     suspend fun setListWidth(dp: Int?) = context.store.edit { if (dp == null) it.remove(LIST_WIDTH) else it[LIST_WIDTH] = dp }
+
+    private val PLACE = stringPreferencesKey("place") // "Bots | Company" (#674): "company", or none for the bots
+    suspend fun companyNow(): Boolean = context.store.data.first()[PLACE] == "company"
+    suspend fun setCompany(on: Boolean) = context.store.edit { if (on) it[PLACE] = "company" else it.remove(PLACE) }
 }
 
 /** A saved address the app may still use. One saved before HTTPS was required (plain http to another computer)
