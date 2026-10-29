@@ -42,10 +42,14 @@ data class Company(
     val facts: Int = 0,
     val objectives: List<Objective> = emptyList(),
     val todos: List<Todo> = emptyList(),
+    val events: List<ProjectEvent> = emptyList(),
     val plan: WeekPlan? = null,
     val checkins: List<Checkin> = emptyList(),
     val checkin: CheckinDue? = null,
     val suggestion: Suggested? = null,
+    val decisions: List<Decision> = emptyList(),
+    val standup: StandupSetting? = null,
+    val standupToday: Standup? = null,
 ) {
     val running: Boolean get() = phase == "running"
     val site: Boolean get() = kind == "site"
@@ -85,9 +89,45 @@ data class CompanyTeam(val id: String = "", val name: String = "", val color: St
 @Serializable
 data class Objective(val id: String = "", val name: String = "", val target: Double = 0.0, val current: Double = 0.0, val color: String? = null, val onTrack: Boolean = false)
 
-/** One of the owner's tasks (#672): with [bot], what that bot was given. */
+/**
+ * An item of the project's To-do (#672, #692): [bot] the bot it is for (none: the owner), [due] a day "YYYY-MM-DD",
+ * [repeat] how it comes back once ticked, [by] who added it, [doneAt] when it was ticked.
+ */
 @Serializable
-data class Todo(val id: String = "", val text: String = "", val bot: String? = null, val done: Boolean = false)
+data class Todo(
+    val id: String = "",
+    val text: String = "",
+    val bot: String? = null,
+    val done: Boolean = false,
+    val due: String? = null,
+    val repeat: Repeat? = null,
+    val at: String? = null,
+    val by: String? = null,
+    val doneAt: String? = null,
+)
+
+/** How a to-do item repeats (#692): every day, on weekdays ([days], 0 is Sunday), on a day of the month, or every [n] days. */
+@Serializable
+data class Repeat(val every: String = "day", val days: List<Int>? = null, val day: Int? = null, val n: Int? = null)
+
+/** An event of the project's calendar (#695): its day, its time or none (whole-day), who added it. */
+@Serializable
+data class ProjectEvent(val id: String = "", val title: String = "", val day: String = "", val time: String? = null, val by: String? = null)
+
+/** A decision the owner made (#694): [by] "you", "chief", "bot" or "checkin" (then [day] and [decision] as a check-in's). */
+@Serializable
+data class Decision(val id: String = "", val text: String = "", val why: String? = null, val at: String? = null, val by: String = "you", val bot: String? = null, val day: Int? = null, val decision: String? = null)
+
+/** When the morning standup runs (#698). */
+@Serializable
+data class StandupSetting(val on: Boolean = true, val time: String = "09:00")
+
+/** Today's standup (#698): each team lead's three lines; a lead without [StandupLead.at] did not answer. */
+@Serializable
+data class Standup(val day: String = "", val leads: List<StandupLead> = emptyList())
+
+@Serializable
+data class StandupLead(val team: String = "", val bot: String = "", val done: String? = null, val next: String? = null, val blocked: String? = null, val asks: Boolean = false, val at: String? = null)
 
 /** The week's plan the Chief drafts (#673): each item with the objective it moves, approved or waiting for the owner. */
 @Serializable

@@ -82,7 +82,7 @@ test('web: pressing it copies its block\'s text and shows a check for 1.5 s', as
 
 test('web: the button stays in sight on a touch screen; with a mouse it shows on hover or focus; none in a draft or on a tile', () => {
   const css = read('style.css');
-  assert.match(css, /\.md \.code-block \{[^}]*position: relative;[^}]*padding-right: \d+px;/, 'a column of its own beside the code');
+  assert.match(css, /\.md \.code-block \{[^}]*position: relative;[^}]*padding-right: var\(--sp-\d+\);/, 'a column of its own beside the code');
   assert.match(css, /\.md \.code-copy \{[^}]*position: absolute;[^}]*top:[^}]*right:/);
   const hover = css.match(/@media \(hover: hover\) and \(pointer: fine\) \{([\s\S]*?)\n\}/g)?.find((m) => m.includes('.code-copy'));
   assert.ok(hover, 'the hiding is inside @media (hover: hover) and (pointer: fine)');

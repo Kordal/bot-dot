@@ -14,8 +14,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
@@ -129,16 +127,16 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
         snackbarHost = { SnackbarHost(snack) },
         topBar = { TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(LocalChiefName.current, style = MaterialTheme.typography.titleMedium) }, actions = { SavedMark(savedAt); PanelClose() }) },
     ) { pad ->
-        Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             if (hasName) Section(tr("Name")) {
-                OutlinedTextField(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
+                Field(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
             }
             Section(null) {
                 Choice(tr("Model"), edit.chiefModel, listOf("" to tr("Same as the default")) + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }
                 if (canThink(edit.chiefModel.ifBlank { edit.defaultModel })) Choice(tr("Reasoning"), edit.chiefEffort, listOf("" to tr("Same as the default")) + info.efforts.map { it.id to it.label }) { edit = edit.copy(chiefEffort = it) }
             }
             Section(tr("Your rules for it")) {
-                OutlinedTextField(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
+                Field(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
             }
             if (hasSkills) {
                 val picked = edit.chiefSkills.orEmpty()
@@ -160,7 +158,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                                 Text(g.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                 Text(g.kind.hint, color = p.muted, style = MaterialTheme.typography.bodySmall)
                             }
-                            OutlinedButton(onClick = {
+                            SecondaryButton(onClick = {
                                 scope.launch {
                                     runCatching { api!!.revokeChiefGrant(g) }
                                         .onSuccess { grants = grants - g; tell(ChiefGrant.REVOKED) }
@@ -176,8 +174,8 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                 FoldSection(ChiefJobs.TITLE, if (list.isEmpty()) ChiefJobs.EMPTY else "${list.size}") {
                     list.forEach { j ->
                         key(j.id) {
-                            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                            Row(Modifier.fillMaxWidth().padding(vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f).padding(end = Space.s8)) {
                                     Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                     Text(ChiefJobs.line(j), color = p.muted, style = MaterialTheme.typography.bodySmall)
                                     TextButton(onClick = {
@@ -198,7 +196,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                 FoldSection(tr("Pages"), if (list.isEmpty()) tr("None yet") else "${list.size}") {
                     list.forEach { pg ->
                         key(pg.slug) {
-                            Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(Pages.CHIEF, PageRef(pg.slug, pg.title), name) }.padding(vertical = 6.dp)) {
+                            Column(Modifier.fillMaxWidth().clickable { DocViewer.open = DocViewer.page(Pages.CHIEF, PageRef(pg.slug, pg.title), name) }.padding(vertical = Space.s8)) {
                                 Text(pg.title, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                 Text(Pages.line(pg), color = if (pg.keep != null) p.okText else p.muted, style = MaterialTheme.typography.bodySmall)
                             }
@@ -223,7 +221,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             }
             Section(tr("Earlier chats")) {
                 chats.take(15).forEach { c ->
-                    Text(c.title, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().clickable { onChat(c.id) }.padding(vertical = 10.dp))
+                    Text(c.title, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.fillMaxWidth().clickable { onChat(c.id) }.padding(vertical = Space.s12))
                 }
                 if (chats.isEmpty()) Text(tr("No earlier chats"), color = p.muted)
             }

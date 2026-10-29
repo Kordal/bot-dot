@@ -74,3 +74,48 @@ test('task: "@Bot text" gives the bot the task, the longest name that fits; anyt
   assert.deepEqual(Floor.task('@QA', bots), { text: '@QA', bot: null });
   assert.deepEqual(Floor.task('Review notes for v2.3', bots), { text: 'Review notes for v2.3', bot: null });
 });
+
+test('displayOf: the pick, else a pace chart with a target and the status without one', () => {
+  assert.equal(Floor.displayOf({ target: 100 }), 'pace');
+  assert.equal(Floor.displayOf({ target: 0 }), 'status');
+  assert.equal(Floor.displayOf({ target: 100, display: 'bar' }), 'bar');
+  assert.equal(Floor.displayOf({ target: 100, display: 'pie' }), 'pace');
+});
+
+test('pace: ahead, on track or behind the line from 0 on day 1 to the target on day 90', () => {
+  assert.equal(Floor.pace({ current: 7, target: 100 }, 1).state, 'ahead'); // the mockup's "7 / 100, Ahead" on day 1
+  assert.equal(Floor.pace({ current: 0, target: 100 }, 1).state, 'on');
+  assert.equal(Floor.pace({ current: 50, target: 100 }, 90).state, 'behind');
+  assert.equal(Floor.pace({ current: 100, target: 100 }, 90).state, 'on');
+  assert.equal(Floor.pace({ current: 34, target: 100 }, 30).state, 'on'); // the line is at about 32.6
+  assert.equal(Floor.pace({ current: 45, target: 100 }, 30).state, 'ahead');
+  assert.equal(Floor.pace({ current: 5, target: 0 }, 30), null);
+  assert.equal(Floor.pace({ current: 5, target: 10 }, null), null);
+});
+
+test('chart: the pace line, the history up to today and today, ticks at days 30, 60 and 90', () => {
+  const c = Floor.chart({ current: 40, target: 100, history: [{ day: 1, value: 0 }, { day: 10, value: 20 }, { day: 40, value: 99 }] }, 30);
+  assert.deepEqual(c.line, [0, 100, 100, 0]);
+  assert.deepEqual(c.actual.map(([x]) => Math.round(x)), [0, 10, 33]); // day 40 is after today: left out
+  assert.deepEqual(c.actual.map(([, y]) => y), [100, 80, 60]);
+  assert.deepEqual(c.ticks.map((t) => t.day), [30, 60, 90]);
+  const over = Floor.chart({ current: 200, target: 100 }, 5);
+  assert.deepEqual(over.actual, [[(4 / 89) * 100, 0]]); // past the target: the box grows to the highest value
+  assert.equal(over.line[3], 50);
+});
+
+test('firstDay and the first check-in date', () => {
+  assert.equal(Floor.firstDay({ phase: 'running', day: 1 }), true);
+  assert.equal(Floor.firstDay({ phase: 'running', day: 2 }), false);
+  assert.equal(Floor.firstDay({ phase: 'setup', day: null }), false);
+  assert.equal(Floor.checkinDate('2026-10-01T09:00:00.000Z').toISOString(), '2026-10-30T09:00:00.000Z');
+  assert.equal(Floor.stepsDone({ steps: [{ text: 'a', done: true }, { text: 'b', done: false }] }), 1);
+});
+
+test('a typed decision is split at its first "because", "bo" or dash into the decision and its reason (#694)', () => {
+  assert.deepEqual(Floor.decision('  Launch in Polish first because most users are Polish '), { text: 'Launch in Polish first', why: 'most users are Polish' });
+  assert.deepEqual(Floor.decision('Bez reklam, bo szkoda pieniędzy'), { text: 'Bez reklam', why: 'szkoda pieniędzy' });
+  assert.deepEqual(Floor.decision('No paid ads — too early'), { text: 'No paid ads', why: 'too early' });
+  assert.deepEqual(Floor.decision('Sign-ups first'), { text: 'Sign-ups first', why: '' });
+  assert.deepEqual(Floor.decision(''), { text: '', why: '' });
+});

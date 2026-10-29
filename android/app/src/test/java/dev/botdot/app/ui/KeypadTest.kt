@@ -271,6 +271,11 @@ class KeypadTest {
         assertEquals(Keypad.Home.KEYPAD, Keypad.home(840))
     }
 
+    // A key's status words are muted, its colour in the dot; only Needs you keeps colour and weight (#724)
+    @Test fun onlyNeedsYouIsLoud() {
+        assertEquals(listOf(Keypad.StatusKind.NEEDS), Keypad.StatusKind.values().filter { Keypad.loud(it) })
+    }
+
     // A key's status (#397): the web page's cases (test/keypad.test.js)
 
     @Test fun aKeysStatusIsWorkingThenNeedsYouThenUnreadThenWhatItsLastRunDid() {

@@ -11,7 +11,7 @@ const { cut, esc, words } = require('./web-page');
 const kitSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'blocks.js'), 'utf8');
 const kit = () => {
   const ctx = vm.createContext({ ...words, esc, md: (s) => `<p>${esc(s)}</p>`, $$: () => [], $: () => null });
-  vm.runInContext(`${kitSource}\nthis.kitStatus = kitStatus; this.kitCallout = kitCallout; this.kitClock = kitClock;`, ctx);
+  vm.runInContext(`${kitSource}\nthis.kitStatus = kitStatus; this.kitCallout = kitCallout; this.kitClock = kitClock; this.kitIsWords = kitIsWords;`, ctx);
   return ctx;
 };
 
@@ -27,6 +27,27 @@ test('web: a kpi says its number, unit and "of", its change since when, a sparkl
   assert.match(kitKpi({ text: '3', delta: { text: '2', dir: 'down', good: false } }, '#fff'), /<span class="kit-delta bad">▼ 2<\/span>/, 'no time: no "since"');
   assert.match(kitKpi({ text: '' }, '#fff'), /<span class="faint">·<\/span>/, 'nothing yet: a faint dot');
   assert.doesNotMatch(kitKpi({ text: '1', points: [1] }, '#fff'), /kit-spark/, 'one point: no line');
+});
+
+test('web: a value in words is drawn at 20px, a number stays big (#726)', () => {
+  const { kitKpi, kitIsWords } = kit();
+  for (const n of ['21.5', '−3', '-3', '+2', '1 204', '1,204.5', '62%', '17:00', '1.2k', '€12', '20°', '3 h', ' 7 ']) assert.equal(kitIsWords(n), false, n);
+  for (const w of ['Eco until 17:00', 'On', 'Heating', 'about 3 days', 'n/a']) assert.equal(kitIsWords(w), true, w);
+  assert.equal(kitIsWords(''), false, 'nothing yet is no words');
+  assert.equal(kitIsWords(undefined), false);
+  assert.match(kitKpi({ text: 'Eco until 17:00', points: [1, 2] }, '#fff'), /<div class="kit-num words">Eco until 17:00<\/div>/);
+  assert.match(kitKpi({ text: '21.5', unit: '°C', points: [1, 2] }, '#fff'), /<div class="kit-num">21\.5<small>°C<\/small><\/div>/, 'the unit on the number\'s baseline');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  assert.match(css, /\.tile-val\.words, \.kit-num\.words \{ font-size: var\(--fs-20\);/);
+  assert.match(css, /\.kp-card \.kit-num\.words \{ font-size: var\(--fs-20\);/, 'and on the home strip');
+  const board = fs.readFileSync(path.join(__dirname, '..', 'public', 'board.js'), 'utf8');
+  assert.match(board, /<div class="tile-val\$\{kitIsWords\(b\.text\) \? ' words' : ''\}"/, 'a value tile without recent values too');
+});
+
+test('web: an answer\'s lines stop at about 62 characters; tables, code and cards keep the width (#726)', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public', 'style.css'), 'utf8');
+  assert.ok(css.includes('.bubble.from-bot .md > p, .bubble.from-bot .md > ul, .bubble.from-bot .md > ol, .bubble.from-bot .md > blockquote, .bubble.from-bot .md > h1, .bubble.from-bot .md > h2, .bubble.from-bot .md > h3, .bubble.from-bot .md > h4 { max-width: 62ch; }'));
+  assert.match(css, /\.bubble\.from-me \{ max-width: 76%;/, 'the owner\'s bubbles keep their width');
 });
 
 test('web: status pills and callouts by level, the text escaped', () => {

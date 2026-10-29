@@ -20,8 +20,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -95,7 +93,7 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
     ) { pad ->
         val g = group ?: return@Scaffold
         val members = Groups.members(g, bots)
-        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { GroupPicture(members, 72) }
             // The name saves when the keyboard's Done is tapped or the box is left. An emptied box takes the old one back.
             var name by remember(g.id) { mutableStateOf(g.name) }
@@ -118,7 +116,7 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                     }
                 }
             }
-            OutlinedTextField(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true,
+            Field(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
                 modifier = Modifier.fillMaxWidth().onFocusChanged { if (focused && !it.isFocused) saveName(); focused = it.isFocused })
             Section(tr("Members")) {
@@ -134,9 +132,9 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                     }
                 }
                 // Nothing to add: the group is full, or every bot is in it.
-                if (Groups.addable(g, bots).isNotEmpty()) OutlinedButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
+                if (Groups.addable(g, bots).isNotEmpty()) SecondaryButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
             }
-            OutlinedButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete this group"), color = p.err) }
+            SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete this group"), color = p.err) }
         }
     }
 

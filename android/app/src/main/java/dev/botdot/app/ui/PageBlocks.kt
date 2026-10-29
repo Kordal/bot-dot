@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -10,7 +9,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -33,7 +31,7 @@ import dev.botdot.app.data.tr
  */
 @Composable
 fun PageParts(parts: List<PagePart>) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         parts.forEach { part ->
             when {
                 part.md != null -> MarkdownText(part.md, onWeb = null, paths = null)
@@ -48,12 +46,12 @@ fun PageParts(parts: List<PagePart>) {
 fun PageBlock(b: Block) {
     val p = LocalPaper.current
     when (b.type) {
-        "hero" -> Column(Modifier.padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            b.eyebrow?.let { Text(it.uppercase(), color = p.faint, fontSize = 11.sp, letterSpacing = 1.5.sp, fontFamily = FontFamily.Monospace) }
-            Text(b.title.orEmpty(), color = p.text, fontSize = 28.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold)
-            b.lead?.let { Text(it, color = p.muted, fontSize = 15.sp, lineHeight = 22.sp) }
-            if (b.tags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                b.tags.forEach { Text(it, color = p.muted, fontSize = 12.sp, modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(p.sunk).padding(horizontal = 10.dp, vertical = 3.dp)) }
+        "hero" -> Column(Modifier.padding(top = Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            b.eyebrow?.let { Text(it.uppercase(), color = p.faint, fontSize = Type.s12, letterSpacing = Type.wide, fontFamily = FontFamily.Monospace) }
+            Text(b.title.orEmpty(), color = p.text, fontSize = Type.s24, lineHeight = Type.line32, fontWeight = FontWeight.SemiBold)
+            b.lead?.let { Text(it, color = p.muted, fontSize = Type.s16, lineHeight = Type.line24) }
+            if (b.tags.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                b.tags.forEach { Text(it, color = p.muted, fontSize = Type.s12, modifier = Modifier.clip(Radius.pill).background(p.sunk).padding(horizontal = Space.s12, vertical = Space.s4)) }
             }
         }
         "kpi" -> PageCard { KitKpi(b, tint(b.color, p.mention), compact = false) }
@@ -62,18 +60,18 @@ fun PageBlock(b: Block) {
         "callout" -> KitCallout(b)
         "table" -> PageCard { KitTableView(b) }
         "grid" -> if (b.blocks.all { it.type == "status" }) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { b.blocks.forEach { KitStatus(it) } }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) { b.blocks.forEach { KitStatus(it) } }
         } else BoxWithConstraints {
             val wide = maxWidth >= 600.dp
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Pages.rows(b.blocks, b.columns, wide).forEach { row ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                         row.forEach { x -> Column(Modifier.weight(1f)) { PageBlock(x) } }
                     }
                 }
             }
         }
-        else -> Text(tr("This block could not be drawn"), color = p.faint, fontSize = 12.5.sp, fontStyle = FontStyle.Italic)
+        else -> Text(tr("This block could not be drawn"), color = p.faint, fontSize = Type.s12, fontStyle = FontStyle.Italic)
     }
 }
 
@@ -81,8 +79,8 @@ fun PageBlock(b: Block) {
 @Composable
 private fun PageCard(content: @Composable () -> Unit) {
     val p = LocalPaper.current
-    val shape = RoundedCornerShape(16.dp)
-    Column(Modifier.fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line, shape).padding(horizontal = 16.dp, vertical = 14.dp)) {
+    val shape = Radius.card
+    Column(Modifier.fillMaxWidth().raised(shape).padding(horizontal = Space.s16, vertical = Space.s16)) {
         content()
     }
 }

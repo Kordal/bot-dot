@@ -25,7 +25,7 @@ test('a site is told from an idea, and a site names the company', () => {
   assert.equal(companyLib.nameFrom('idea', 'A meal planner'), '');
 });
 
-test('there is no company, then the owner makes one; a second is refused; the Chief may not make one', async () => {
+test('there is no company, then the owner makes one; the Chief may not make one', async () => {
   let r = await srv.api('/company');
   assert.equal(r.status, 200);
   assert.deepEqual(r.data, { company: null });
@@ -38,7 +38,6 @@ test('there is no company, then the owner makes one; a second is refused; the Ch
   assert.equal(r.data.phase, 'setup');
   assert.equal(r.data.day, null);
   assert.deepEqual(r.data.sources.map((s) => [s.kind, s.name]), [['link', 'linkedin.com/company/fernhill'], ['file', 'deck.pdf']]);
-  assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'other.io' } })).status, 409);
   assert.equal((await srv.asChief('/company')).status, 200);
   assert.ok((await srv.api('/version')).data.features.includes('company'));
 });

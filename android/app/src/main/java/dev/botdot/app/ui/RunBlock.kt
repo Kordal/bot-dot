@@ -2,7 +2,6 @@ package dev.botdot.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.automirrored.outlined.Reply
@@ -58,7 +56,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.OpeningLine
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.RunSteps
@@ -80,11 +77,11 @@ fun RunBlock(onReply: (() -> Unit)? = null, onDetails: (() -> Unit)? = null, cop
     Column(
         Modifier.fillMaxWidth()
             .then(if (offers) Modifier.pointerInput(onReply, onDetails, copy) { detectTapGestures(onLongPress = { sheet = true }) } else Modifier)
-            .padding(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp), content = content,
+            .padding(vertical = Space.s4),
+        verticalArrangement = Arrangement.spacedBy(Space.s12), content = content,
     )
     if (sheet) ModalBottomSheet(onDismissRequest = { sheet = false }, containerColor = p.panel) {
-        Column(Modifier.padding(bottom = 8.dp)) {
+        Column(Modifier.padding(bottom = Space.s8)) {
             onReply?.let { SheetRow(Icons.AutoMirrored.Outlined.Reply, REPLY_TO_TASK) { sheet = false; it() } }
             onDetails?.let { SheetRow(Icons.Outlined.ExpandMore, DETAILS) { sheet = false; it() } }
             copy?.takeIf { it.isNotBlank() }?.let { text -> SheetRow(Icons.Outlined.ContentCopy, COPY) { sheet = false; copyToClipboard(context, text) } }
@@ -101,28 +98,28 @@ internal val COPY: String get() = tr("Copy")
 private fun SheetRow(icon: ImageVector, text: String, onClick: () -> Unit) {
     val p = LocalPaper.current
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(horizontal = 20.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(horizontal = Space.s16),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s16),
     ) {
         Icon(icon, null, tint = p.text, modifier = Modifier.size(24.dp))
-        Text(text, color = p.text, fontSize = 16.sp)
+        Text(text, color = p.text, fontSize = Type.s16)
     }
 }
 
 /** The line between two rounds of a block (#627). */
 @Composable
-fun RoundRule() = Spacer(Modifier.fillMaxWidth().padding(horizontal = 4.dp).height(1.dp).background(LocalPaper.current.line))
+fun RoundRule() = Spacer(Modifier.fillMaxWidth().padding(horizontal = Space.s4).height(1.dp).background(LocalPaper.current.line))
 
 /** Above the message box while a Reply is picked (#627): what it replies to, and ✕. */
 @Composable
 fun ReplyChip(text: String, onClear: () -> Unit) {
     val p = LocalPaper.current
-    val shape = RoundedCornerShape(12.dp)
+    val shape = Radius.card
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape).padding(start = 12.dp),
+        Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s4).raised(shape).padding(start = Space.s12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(tr("Reply to: {text}", "text" to text), color = p.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(tr("Reply to: {text}", "text" to text), color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, tr("Don't reply to it"), tint = p.muted, modifier = Modifier.size(18.dp)) }
     }
 }
@@ -149,21 +146,21 @@ fun StepLine(r: Run, line: String?, count: Int, held: Boolean, color: String?, o
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
-                Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (open) tr("Hide the steps") else tr("Show the steps")) { onOpen(!open) }
-                    .heightIn(min = 32.dp).padding(end = 6.dp)
+                Modifier.weight(1f).clip(Radius.small).clickable(onClickLabel = if (open) tr("Hide the steps") else tr("Show the steps")) { onOpen(!open) }
+                    .heightIn(min = 32.dp).padding(end = Space.s8)
                     .semantics(mergeDescendants = true) { contentDescription = label; if (r.isRunning) liveRegion = LiveRegionMode.Polite },
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8),
             ) {
                 if (r.isRunning) {
                     val accent = parseColor(color, p.ok)
                     if (held) Canvas(Modifier.size(8.dp)) { drawCircle(accent.copy(alpha = .5f)) }
                     else CircularProgressIndicator(Modifier.size(13.dp), strokeWidth = 2.dp, color = p.muted)
-                    Text(now, color = p.text, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (count > 0) { Dot(); Text(RunSteps.countWords(count), color = p.muted, fontSize = 12.5.sp, fontFamily = FontFamily.Monospace, maxLines = 1) }
+                    Text(now, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    if (count > 0) { Dot(); Text(RunSteps.countWords(count), color = p.muted, fontSize = Type.s12, fontFamily = FontFamily.Monospace, maxLines = 1) }
                 } else {
                     Icon(if (open) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, null, tint = p.muted, modifier = Modifier.size(15.dp))
                     Icon(Icons.Outlined.Check, null, tint = p.ok, modifier = Modifier.size(15.dp))
-                    Text(stepWords(count, skills, bots.map { it.name }, took, p.muted, p.dot, p.faint), fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(stepWords(count, skills, bots.map { it.name }, took, p.muted, p.dot, p.faint), fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (r.isRunning && onStop != null) WordButton(tr("Stop"), p.err, onStop)
@@ -188,7 +185,7 @@ private fun stepWords(count: Int, skills: List<String>, bots: List<String>, took
 }
 
 @Composable
-private fun Dot() = Text("·", color = LocalPaper.current.faint, fontSize = 13.sp)
+private fun Dot() = Text("·", color = LocalPaper.current.faint, fontSize = Type.s14)
 
 /** The open step line: a row per step, message and skill change, each with its time, along a thin line. */
 @Composable
@@ -198,19 +195,19 @@ private fun Timeline(r: Run) {
     if (rows.isEmpty()) return
     val rule = p.line2
     Column(
-        Modifier.padding(start = 14.dp, top = 8.dp).drawBehind { drawLine(rule, Offset(0f, 0f), Offset(0f, size.height), strokeWidth = 1.dp.toPx()) }.padding(start = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        Modifier.padding(start = Space.s16, top = Space.s8).drawBehind { drawLine(rule, Offset(0f, 0f), Offset(0f, size.height), strokeWidth = 1.dp.toPx()) }.padding(start = Space.s16),
+        verticalArrangement = Arrangement.spacedBy(Space.s4),
     ) {
         rows.forEach { row ->
-            Row(Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(row.at?.let { shortTime(it).substringAfterLast(", ") }.orEmpty(), color = p.faint, fontSize = 11.5.sp, fontFamily = FontFamily.Monospace, maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = 40.dp))
+            Row(Modifier.padding(vertical = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+                Text(row.at?.let { shortTime(it).substringAfterLast(", ") }.orEmpty(), color = p.faint, fontSize = Type.s12, fontFamily = FontFamily.Monospace, maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = 40.dp))
                 val icon: ImageVector = when (row.kind) { RunSteps.MESSAGE -> Icons.AutoMirrored.Outlined.Chat; RunSteps.SKILL, RunSteps.CHANGED -> Icons.Outlined.AutoAwesome; else -> Icons.Outlined.Check }
                 Icon(icon, null, tint = when (row.kind) { RunSteps.SKILL, RunSteps.CHANGED -> p.dot; "" -> p.ok; else -> p.muted }, modifier = Modifier.size(16.dp).padding(top = 1.dp))
                 Column {
                     val (head, rest) = row.text.split("\n", limit = 2).let { it[0] to it.getOrNull(1) }
                     val strong = row.kind == RunSteps.CHANGED || (row.kind == RunSteps.MESSAGE && rest != null) // what it sent and what it changed
-                    Text(if (row.n > 1) "$head ×${row.n}" else head, color = if (strong) p.text else p.muted, fontSize = 13.sp, fontWeight = if (strong) FontWeight.Medium else FontWeight.Normal)
-                    if (!rest.isNullOrBlank()) Text(rest, color = p.faint, fontSize = 12.5.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(if (row.n > 1) "$head ×${row.n}" else head, color = if (strong) p.text else p.muted, fontSize = Type.s14, fontWeight = if (strong) FontWeight.Medium else FontWeight.Normal)
+                    if (!rest.isNullOrBlank()) Text(rest, color = p.faint, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -225,8 +222,8 @@ private fun Timeline(r: Run) {
 fun BlockFoot(r: Run, onStop: () -> Unit) {
     if (!r.isRunning) return
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(shortTime(r.startedAt), color = p.faint, fontSize = 12.sp)
+    Row(Modifier.fillMaxWidth().padding(start = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+        Text(shortTime(r.startedAt), color = p.faint, fontSize = Type.s12)
         Spacer(Modifier.weight(1f))
         WordButton(tr("Stop"), p.err, onStop)
     }

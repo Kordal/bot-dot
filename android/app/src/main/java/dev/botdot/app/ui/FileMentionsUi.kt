@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -13,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.verticalScroll
@@ -52,7 +50,6 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.FileMentions
 import dev.botdot.app.data.Mentions
@@ -90,12 +87,12 @@ private fun placeIcon(root: String): ImageVector = when (root) { "server" -> Ico
 @Composable
 fun FileMentionList(view: FileMentions.View, mentions: List<Mentions.Row>, w: Mentions.World?, onFile: (FileMentions.Row) -> Unit, onMention: (Mentions.Row) -> Unit, onBack: () -> Unit, onSelf: () -> Unit) {
     val p = LocalPaper.current
-    val shape = RoundedCornerShape(18.dp)
-    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(shape).background(p.panel).border(1.dp, p.line2, shape)) {
+    val shape = Radius.card
+    Column(Modifier.fillMaxWidth().padding(bottom = Space.s8).raised(shape)) {
         view.dir?.let { d ->
-            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = Space.s4, vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("Back"), tint = p.muted,
-                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button, onClick = onBack).padding(10.dp))
+                    modifier = Modifier.size(44.dp).clip(Radius.small).clickable(role = Role.Button, onClick = onBack).padding(Space.s12))
                 Icon(placeIcon(d.root), null, tint = p.faint, modifier = Modifier.size(16.dp))
                 val trail = listOf(FileMentions.placeName(d.root, d.project)) + d.path.split('/').filter { it.isNotEmpty() }
                 Text(buildAnnotatedString {
@@ -103,8 +100,8 @@ fun FileMentionList(view: FileMentions.View, mentions: List<Mentions.Row>, w: Me
                         if (i < trail.size - 1) { append(t); withStyle(SpanStyle(color = p.faint)) { append("  /  ") } }
                         else withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(t) }
                     }
-                }, color = p.muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).clip(RoundedCornerShape(10.dp)).clickable(enabled = d.path.isNotEmpty(), onClickLabel = tr("Mention this folder"), onClick = onSelf).padding(horizontal = 8.dp, vertical = 12.dp))
+                }, color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).clip(Radius.small).clickable(enabled = d.path.isNotEmpty(), onClickLabel = tr("Mention this folder"), onClick = onSelf).padding(horizontal = Space.s8, vertical = Space.s12))
             }
             Row(Modifier.fillMaxWidth().heightIn(min = 1.dp).background(p.line)) {}
         }
@@ -119,8 +116,8 @@ fun FileMentionList(view: FileMentions.View, mentions: List<Mentions.Row>, w: Me
 private fun FileRowItem(r: FileMentions.Row, onPick: (FileMentions.Row) -> Unit) {
     val p = LocalPaper.current
     val kind = FileMentions.kindOf(r.name, r.type)
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onPick(r) }.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { onPick(r) }.padding(horizontal = Space.s16), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
         Icon(iconOf(kind), null, tint = tintOf(kind, p, p.muted), modifier = Modifier.size(20.dp))
         Text(buildAnnotatedString {
             val i = if (r.q.isEmpty()) -1 else r.name.indexOf(r.q, ignoreCase = true)
@@ -129,10 +126,10 @@ private fun FileRowItem(r: FileMentions.Row, onPick: (FileMentions.Row) -> Unit)
                 withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(r.name.substring(i, i + r.q.length)) }
                 append(r.name.substring(i + r.q.length))
             }
-        }, color = p.text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        if (!r.inFolder) Row(Modifier.widthIn(max = 140.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        }, color = p.text, fontSize = Type.s16, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        if (!r.inFolder) Row(Modifier.widthIn(max = 140.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             Icon(placeIcon(r.ref.root), null, tint = p.faint, modifier = Modifier.size(15.dp))
-            Text(FileMentions.whereOf(r.ref), color = p.faint, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(FileMentions.whereOf(r.ref), color = p.faint, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         if (r.folder) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = p.faint, modifier = Modifier.size(18.dp))
     }

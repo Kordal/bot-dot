@@ -19,8 +19,6 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -137,12 +135,12 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
             runCatching { a.projects() }.onSuccess { allProjects = it }
             runCatching { a.bots() }.onSuccess { allBots = it }
         }
-        if (usesComputer) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (usesComputer) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             val roots = listOf(WorkspaceFiles.SERVER to tr("On botdot"), WorkspaceFiles.COMPUTER to tr("On the computer")) +
                 (if (withProjects) Projects.of(botId, allProjects).map { WorkspaceFiles.projectRoot(it.name) to it.name } else emptyList())
             for ((r, label) in roots) {
                 if (root == r) Button(onClick = {}, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(label) }
-                else OutlinedButton(onClick = { go(r, "") }) { Text(label, color = p.text) }
+                else SecondaryButton(onClick = { go(r, "") }) { Text(label, color = p.text) }
             }
             if (withProjects) TextButton(onClick = { answer = ""; ask = WorkspaceAsk("project") }) { Text("+ " + tr("Project"), color = p.text) }
         }
@@ -165,7 +163,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
             crumbs.forEachIndexed { i, (name, to) ->
                 if (i == crumbs.lastIndex) Text(name, color = p.text, style = MaterialTheme.typography.bodyMedium)
                 else {
-                    Text(name, color = p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.clickable { path = to }.padding(vertical = 6.dp))
+                    Text(name, color = p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.clickable { path = to }.padding(vertical = Space.s8))
                     Text(" / ", color = p.faint)
                 }
             }
@@ -175,17 +173,17 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
         when {
             e != null && (e as? ApiException)?.status == 409 -> {
                 Hint(tr("The computer is off. botdot doesn't start it just to show its files."))
-                OutlinedButton(onClick = { act(tr("start it")) { it.startComputer(botId) } }) { Text(tr("Start the computer"), color = p.text) }
+                SecondaryButton(onClick = { act(tr("start it")) { it.startComputer(botId) } }) { Text(tr("Start the computer"), color = p.text) }
             }
             e != null && (e as? ApiException)?.status == 404 -> {
                 Hint(tr("This folder is gone."))
-                OutlinedButton(onClick = { path = "" }) { Text(tr("Back to the top"), color = p.text) }
+                SecondaryButton(onClick = { path = "" }) { Text(tr("Back to the top"), color = p.text) }
             }
             e != null -> Hint(e.message ?: tr("Couldn't load it."))
             l == null -> Hint(tr("Loading…"))
             else -> {
                 val writes = WorkspaceFiles.writes(root, l, folders)
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = { byDate = !byDate }) { Text(if (byDate) tr("Sorted by date") else tr("Sorted by name"), color = p.muted) }
                     val hid = WorkspaceFiles.hiddenCount(l.entries)
                     if (hid > 0) TextButton(onClick = { hidden = !hidden }) { Text(if (hidden) tr("Hide hidden ({n})", "n" to hid) else tr("Show hidden ({n})", "n" to hid), color = p.muted) }
@@ -243,8 +241,8 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
                     }
                 }
                 else Column {
-                    if (a.kind == "move") Text(tr("To which folder? A path in its folder, such as notes/old. Empty for the top."), color = p.muted, modifier = Modifier.padding(bottom = 8.dp))
-                    OutlinedTextField(answer, { answer = it.take(255) }, singleLine = true, label = { Text(if (a.kind == "move") tr("Folder") else tr("Name")) }, modifier = Modifier.fillMaxWidth())
+                    if (a.kind == "move") Text(tr("To which folder? A path in its folder, such as notes/old. Empty for the top."), color = p.muted, modifier = Modifier.padding(bottom = Space.s8))
+                    Field(answer, { answer = it.take(255) }, singleLine = true, label = { Text(if (a.kind == "move") tr("Folder") else tr("Name")) }, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -273,7 +271,7 @@ private fun EntryRow(e: WorkspaceEntry, detail: String, onOpen: () -> Unit, onSa
     var menu by remember { mutableStateOf(false) }
     val icon = when (e.type) { "folder" -> "📁"; "link" -> "🔗"; else -> "📄" }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).clickable(enabled = e.type != "link", onClick = onOpen).padding(vertical = 6.dp)) {
+        Column(Modifier.weight(1f).clickable(enabled = e.type != "link", onClick = onOpen).padding(vertical = Space.s8)) {
             Text("$icon ${e.name}", color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val sub = listOfNotNull(detail.ifBlank { null }, if (kept) tr("Kept by botdot") else null).joinToString(" · ")
             if (sub.isNotEmpty()) Text(sub, color = p.muted, style = MaterialTheme.typography.bodySmall)

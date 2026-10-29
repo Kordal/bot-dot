@@ -14,7 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.tr
@@ -68,15 +66,15 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
     }
 
     Column(
-        Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(24.dp),
+        Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(Space.s24),
         verticalArrangement = Arrangement.Center,
     ) {
-        Logo(size = 34.sp)
-        Spacer(Modifier.height(8.dp))
+        Logo(size = Type.s32)
+        Spacer(Modifier.height(Space.s8))
         Text(tr("Your botdot's address, the one you open in the browser. The phone reaches it through Tailscale, so keep Tailscale on."),
             color = p.muted, style = MaterialTheme.typography.bodyLarge)
-        Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
+        Spacer(Modifier.height(Space.s24))
+        Field(
             value = address,
             onValueChange = { address = it; error = null },
             label = { Text(tr("Address")) },
@@ -87,10 +85,10 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
             modifier = Modifier.fillMaxWidth(),
         )
         if (error != null) {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s12))
             Text(error!!, color = p.err, style = MaterialTheme.typography.bodyMedium)
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(Space.s16))
         Button(
             onClick = { connect() },
             enabled = !checking && address.isNotBlank(),

@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.BrowserSignIn
 import dev.botdot.app.data.tr
@@ -51,21 +50,21 @@ fun SignInScreen(app: BotDotApp, onChangeServer: () -> Unit) {
     }
 
     Column(
-        Modifier.fillMaxSize().systemBarsPadding().padding(24.dp),
+        Modifier.fillMaxSize().systemBarsPadding().padding(Space.s24),
         verticalArrangement = Arrangement.Center,
     ) {
-        Logo(size = 34.sp)
-        Spacer(Modifier.height(8.dp))
+        Logo(size = Type.s32)
+        Spacer(Modifier.height(Space.s8))
         Text(
             if (state == BrowserSignIn.State.Waiting) tr("Finish signing in in the browser. It brings you back here.")
             else tr("Sign in to your account on {host} with its passkey, in the browser: the password manager you use there answers it. The phone stays signed in until you sign out.", "host" to host),
             color = p.muted, style = MaterialTheme.typography.bodyLarge,
         )
         (state as? BrowserSignIn.State.Failed)?.let {
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(Space.s12))
             Text(it.words, color = p.err, style = MaterialTheme.typography.bodyMedium)
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(Space.s16))
         val finishing = state == BrowserSignIn.State.Finishing
         Button(
             onClick = { signIn() },
@@ -73,7 +72,7 @@ fun SignInScreen(app: BotDotApp, onChangeServer: () -> Unit) {
             colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText),
             modifier = Modifier.fillMaxWidth().height(50.dp),
         ) { Text(when (state) { BrowserSignIn.State.Finishing -> tr("Signing in…"); BrowserSignIn.State.Waiting -> tr("Open the sign-in again"); else -> tr("Sign in with your passkey") }) }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Space.s8))
         TextButton(onClick = onChangeServer, modifier = Modifier.fillMaxWidth()) { Text(tr("Change botdot's address"), color = p.text) }
     }
 }

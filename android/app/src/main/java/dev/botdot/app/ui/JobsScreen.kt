@@ -1,7 +1,5 @@
 package dev.botdot.app.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,10 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -33,7 +29,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Job
@@ -70,9 +65,9 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
         },
     ) { pad ->
         val jobs = bot?.jobs.orEmpty()
-        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             if (bot != null && jobs.isEmpty()) item {
-                Text(tr("{name} has no scheduled jobs. Ask it, or the Chief, for one: \"check the news every morning at 8\".", "name" to bot.name), color = p.muted, modifier = Modifier.padding(8.dp))
+                Text(tr("{name} has no scheduled jobs. Ask it, or the Chief, for one: \"check the news every morning at 8\".", "name" to bot.name), color = p.muted, modifier = Modifier.padding(Space.s8))
             }
             items(jobs, key = { it.id }) { j ->
                 JobRow(j,
@@ -103,8 +98,8 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
 private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApprove: () -> Unit) {
     val p = LocalPaper.current
     Column(
-        Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(16.dp)).border(1.dp, p.line, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        Modifier.fillMaxWidth().raised(Radius.card).padding(horizontal = Space.s16, vertical = Space.s12),
+        verticalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -130,10 +125,10 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
         j.last?.let { l ->
             Text(jobLine(l, shortTime(l.at)), color = when (jobLineTone(l)) { JobTone.FAILED -> p.err; JobTone.MISSED -> p.warnText; JobTone.FINE -> p.faint }, style = MaterialTheme.typography.bodySmall)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!j.approved) OutlinedButton(onClick = onApprove) { Text(tr("Review and approve"), color = p.text) }
-            else OutlinedButton(onClick = onRun) { Text(tr("Run now"), color = p.text) }
-            if (changeWaits(j)) OutlinedButton(onClick = onApprove) { Text(tr("Review the change"), color = p.text) }
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            if (!j.approved) SecondaryButton(onClick = onApprove) { Text(tr("Review and approve"), color = p.text) }
+            else SecondaryButton(onClick = onRun) { Text(tr("Run now"), color = p.text) }
+            if (changeWaits(j)) SecondaryButton(onClick = onApprove) { Text(tr("Review the change"), color = p.text) }
         }
     }
 }

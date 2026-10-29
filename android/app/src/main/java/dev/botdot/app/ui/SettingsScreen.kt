@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,8 +23,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -156,12 +153,12 @@ fun SettingsScreen(
     ) { pad ->
         // One flat list (#636): a row per setting, its value and a chevron, and no helper text. Each row that holds
         // more opens under itself, closed whenever Settings opens.
-        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 6.dp)) {
+        Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8)) {
             Link(tr("Skills"), onClick = onSkills)
             if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link(tr("Pages"), onClick = onPages) // every bot's pages (#361)
             Link(tr("Connectors"), onClick = onConnectors)
             Link(tr("Vault"), onClick = onVault)
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(Space.s16))
 
             Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
             if (canThink(edit.defaultModel)) Choice(tr("Reasoning"), edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
@@ -209,9 +206,9 @@ fun SettingsScreen(
                 }
                 FoldSection("Claude", claudeValue(s.claude)) {
                     if (keys && keyOpen && loginUrl == null) {
-                        OutlinedTextField(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        Field(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Button(onClick = { val key = apiKey; keyChange(tr("Saved. Bots now run on your API key")) { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
                                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
                             TextButton(onClick = { keyOpen = false; apiKey = "" }) { Text(tr("Cancel"), color = p.text) }
@@ -246,10 +243,10 @@ fun SettingsScreen(
                         if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
                     } else {
                         // Open the page, sign in and allow access, then paste the code it shows.
-                        OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }
-                        OutlinedTextField(code, { code = it.trim() }, label = { Text(tr("Code")) }, singleLine = true,
+                        SecondaryButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }
+                        Field(code, { code = it.trim() }, label = { Text(tr("Code")) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Button(onClick = {
                                 scope.launch {
                                     runCatching { api!!.claudeCode(code) }.onSuccess { tell(claudeCouldNotTell(it) ?: tr("Signed in to Claude")) }.onError { tell(it.message ?: tr("That code didn't work")) }
@@ -268,14 +265,14 @@ fun SettingsScreen(
                     if (!b.configured) Hint(tr("Turn them on in botdot's web page."))
                     else {
                         if (!b.error.isNullOrBlank()) Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(enabled = !backingUp && !b.running, onClick = {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                            SecondaryButton(enabled = !backingUp && !b.running, onClick = {
                                 backingUp = true
                                 scope.launch { runCatching { api!!.backupNow() }.onSuccess { backups = it; tell(tr("Backed up")) }.onError { tell(it.message ?: tr("Couldn't back up")) }; backingUp = false }
                             }) { Text(tr("Back up now"), color = p.text) }
                             b.last?.let { f ->
                                 // To Downloads, with the app's session (BackupDownload): this account's backup alone.
-                                OutlinedButton(onClick = {
+                                SecondaryButton(onClick = {
                                     runCatching { dev.botdot.app.data.BackupDownload.start(context, api!!, f.name) }
                                         .onSuccess { tell(tr("Downloading to Downloads")) }.onFailure { tell(it.message ?: tr("Couldn't download")) }
                                 }) { Text(tr("Download"), color = p.text) }
@@ -292,7 +289,7 @@ fun SettingsScreen(
                         scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: tr("Couldn't change it")) } }
                     }
                     u.text().takeIf { it.isNotEmpty() }?.let { Hint(it) }
-                    if (u.canUpdate) OutlinedButton(onClick = { confirmUpdateNow = true }) { Text(tr("Update now"), color = p.text) }
+                    if (u.canUpdate) SecondaryButton(onClick = { confirmUpdateNow = true }) { Text(tr("Update now"), color = p.text) }
                     if (u.ready && updateNotes.isNotEmpty()) {
                         Text(dev.botdot.app.data.WhatsNew.TITLE, color = p.text, style = MaterialTheme.typography.titleSmall)
                         WhatsNewEntries(updateNotes, color = p.text)
@@ -311,7 +308,7 @@ fun SettingsScreen(
             // again with its passkey (the dialog says so).
             if (server?.features?.contains("accounts") == true) {
                 FoldSection(tr("Sign-ins")) {
-                    OutlinedButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
+                    SecondaryButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
                 }
             }
             Link(tr("botdot's address"), value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'), onClick = onChangeServer)
@@ -407,10 +404,10 @@ private fun KeyOffer(saved: Boolean, onUse: () -> Unit, onNew: () -> Unit) {
 private fun Link(text: String, value: String? = null, onClick: () -> Unit) {
     val p = LocalPaper.current
     Column {
-        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(onClick = onClick).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
             Text(text, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-            if (!value.isNullOrBlank()) Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp).widthIn(max = 220.dp))
-            Text("›", color = p.faint, fontSize = 18.sp, modifier = Modifier.padding(start = 10.dp))
+            if (!value.isNullOrBlank()) Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12).widthIn(max = 220.dp))
+            Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
         }
         Rule()
     }

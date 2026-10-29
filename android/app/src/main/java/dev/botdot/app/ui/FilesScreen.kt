@@ -29,7 +29,6 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
@@ -71,8 +70,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -314,26 +311,26 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
             Column(Modifier.background(p.bg)) {
-                Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                     if (selecting) {
                         IconButton(onClick = { selected = emptySet() }) { Icon(Icons.Filled.Close, contentDescription = tr("Clear the selection")) }
-                        Text(tr("{n} selected", "n" to selected.size), color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = 8.dp))
-                        OutlinedButton(onClick = { selected = shown.map { it.path }.toSet() }, modifier = Modifier.padding(end = 8.dp)) { Text(tr("All"), color = p.text) }
+                        Text(tr("{n} selected", "n" to selected.size), color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = Space.s8))
+                        SecondaryButton(onClick = { selected = shown.map { it.path }.toSet() }, modifier = Modifier.padding(end = Space.s8)) { Text(tr("All"), color = p.text) }
                     } else {
                         BackButton(onBack)
-                        Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                        Column(Modifier.weight(1f).padding(start = Space.s4)) {
                             Text(path.substringAfterLast('/').ifEmpty { name }, color = p.text, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text("${FilesExplorer.placeName(place)} ▾", color = p.muted, style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { sheet = FxSheet.Places }.padding(vertical = 2.dp).testTag("files-place"))
+                                modifier = Modifier.clip(Radius.small).clickable { sheet = FxSheet.Places }.padding(vertical = Space.s4).testTag("files-place"))
                         }
                         IconButton(onClick = { sheet = FxSheet.Sort }) { Icon(Icons.Outlined.SwapVert, contentDescription = tr("Sort"), tint = p.text) }
                         IconButton(onClick = { grid = !grid }) { Icon(if (grid) Icons.AutoMirrored.Outlined.ViewList else Icons.Outlined.GridView, contentDescription = if (grid) tr("List") else tr("Grid"), tint = p.text) }
                     }
                 }
-                if (searches && !selecting) OutlinedTextField(query, { query = it.take(100) }, singleLine = true, placeholder = { Text(tr("Search"), color = p.faint) },
+                if (searches && !selecting) Field(query, { query = it.take(100) }, singleLine = true, placeholder = { Text(tr("Search"), color = p.faint) },
                     leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = p.muted) },
-                    shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp))
-                if (found == null && place != FilesExplorer.KEPT && path.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    shape = Radius.card, modifier = Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s4))
+                if (found == null && place != FilesExplorer.KEPT && path.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                     val crumbs = FilesExplorer.crumbs(path, name)
                     crumbs.forEachIndexed { i, (n, to) ->
                         if (i == crumbs.lastIndex) Text(n, color = p.text, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyLarge)
@@ -346,7 +343,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
             }
         },
         bottomBar = {
-            if (selecting) Row(Modifier.fillMaxWidth().background(p.panel).navigationBarsPadding().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+            if (selecting) Row(Modifier.fillMaxWidth().background(p.panel).navigationBarsPadding().padding(vertical = Space.s8), horizontalArrangement = Arrangement.SpaceEvenly) {
                 val cans = chosen.map { can(it) }
                 BarButton(Icons.AutoMirrored.Outlined.DriveFileMove, tr("Move"), cans.isNotEmpty() && cans.all { it.move }) { startCarry(true, chosen) }
                 BarButton(Icons.Outlined.ContentCopy, tr("Copy"), cans.isNotEmpty() && cans.all { it.copy }) { startCarry(false, chosen) }
@@ -355,7 +352,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
             }
         },
         floatingActionButton = {
-            if (writesHere && !selecting && busy == null) FloatingActionButton(onClick = { sheet = FxSheet.Add }, containerColor = p.ink, contentColor = p.inkText, shape = RoundedCornerShape(20.dp)) {
+            if (writesHere && !selecting && busy == null) FloatingActionButton(onClick = { sheet = FxSheet.Add }, containerColor = p.ink, contentColor = p.inkText, shape = Radius.card) {
                 Icon(Icons.Filled.Add, contentDescription = tr("Add"))
             }
         },
@@ -365,24 +362,24 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
             when {
                 found == null && place != FilesExplorer.KEPT && e != null && (e as? ApiException)?.status == 409 -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(tr("The computer is off."), color = p.muted)
-                    Button(onClick = { act(tr("start it")) { it.startComputer(ownerId) } }, modifier = Modifier.padding(top = 12.dp), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
+                    Button(onClick = { act(tr("start it")) { it.startComputer(ownerId) } }, modifier = Modifier.padding(top = Space.s12), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
                 }
                 found == null && place != FilesExplorer.KEPT && e != null && (e as? ApiException)?.status == 404 -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(tr("This folder is gone."), color = p.muted)
-                    OutlinedButton(onClick = { path = "" }, modifier = Modifier.padding(top = 12.dp)) { Text(tr("Back to the top"), color = p.text) }
+                    SecondaryButton(onClick = { path = "" }, modifier = Modifier.padding(top = Space.s12)) { Text(tr("Back to the top"), color = p.text) }
                 }
-                found == null && place != FilesExplorer.KEPT && e != null -> Text(e.message ?: tr("Couldn't load it."), color = p.muted, modifier = Modifier.align(Alignment.Center).padding(24.dp))
+                found == null && place != FilesExplorer.KEPT && e != null -> Text(e.message ?: tr("Couldn't load it."), color = p.muted, modifier = Modifier.align(Alignment.Center).padding(Space.s24))
                 found == null && place != FilesExplorer.KEPT && listing == null -> Text(tr("Loading…"), color = p.faint, modifier = Modifier.align(Alignment.Center))
                 shown.isEmpty() -> Text(if (found != null) tr("Nothing by that name.") else tr("Empty."), color = p.faint, modifier = Modifier.align(Alignment.Center))
-                grid -> LazyVerticalGrid(GridCells.Adaptive(108.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 96.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                grid -> LazyVerticalGrid(GridCells.Adaptive(108.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.s12, Space.s8, Space.s12, 96.dp),
+                    horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                     itemsIndexed(shown, key = { i, x -> shownAt[i] + "\u0000" + x.path }) { i, entry ->
                         val thumb = if (FilesExplorer.thumbs(entry)) api?.url(WorkspaceFiles.thumb(ownerId, shownAt[i], entry.path)) else null
                         FileCard(entry, thumb, entry.path in selected, onTap = { tap(entry, shownAt[i]) }, onHold = { if (hits == null) selected = selected + entry.path })
                     }
                 }
                 else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
-                    busy?.let { b -> item { Text(b, color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) } }
+                    busy?.let { b -> item { Text(b, color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Space.s16, vertical = Space.s8)) } }
                     itemsIndexed(shown, key = { i, x -> shownAt[i] + "\u0000" + x.path }) { i, entry ->
                         val detail = if (hits != null) listOf(FilesExplorer.placeName(shownAt[i]), WorkspaceFiles.parentOf(entry.path)).filter { it.isNotEmpty() }.joinToString(" / ") else FilesExplorer.detail(entry)
                         val c = can(entry)
@@ -399,15 +396,15 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
 
     sheet?.let { s ->
         ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = p.panel) {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 16.dp)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = Space.s16)) {
                 when (s) {
                     FxSheet.Places -> {
                         (places + FilesExplorer.KEPT).forEach { pl ->
-                            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { sheet = null; go(pl, "") }.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { sheet = null; go(pl, "") }.padding(horizontal = Space.s16), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(placeIcon(pl), contentDescription = null, tint = p.text, modifier = Modifier.size(24.dp))
-                                Text(FilesExplorer.placeName(pl), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 18.dp))
+                                Text(FilesExplorer.placeName(pl), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = Space.s16))
                                 if (pl == FilesExplorer.KEPT && pinned.isNotEmpty()) Text("  ${pinned.size}", color = p.faint)
-                                if (pl == place) Icon(Icons.Filled.Check, contentDescription = tr("Here"), tint = p.text, modifier = Modifier.padding(start = 12.dp).size(20.dp))
+                                if (pl == place) Icon(Icons.Filled.Check, contentDescription = tr("Here"), tint = p.text, modifier = Modifier.padding(start = Space.s12).size(20.dp))
                                 Spacer(Modifier.weight(1f))
                                 WorkspaceFiles.projectOf(pl)?.let { pr -> IconButton(onClick = { sheet = FxSheet.Project(pr) }) { Icon(Icons.Filled.MoreHoriz, contentDescription = tr("Project"), tint = p.muted) } }
                             }
@@ -415,7 +412,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                         if (withProjects) SheetRow(Icons.Outlined.CreateNewFolder, tr("New project")) { sheet = null; answer = ""; ask = FxAsk("project") }
                     }
                     FxSheet.Sort -> FilesExplorer.Sort.entries.forEach { o ->
-                        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { sheet = null; sortName = o.name }.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { sheet = null; sortName = o.name }.padding(horizontal = Space.s16), verticalAlignment = Alignment.CenterVertically) {
                             Text(o.label, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                             if (o == sort) Icon(Icons.Filled.Check, contentDescription = tr("Sorted so"), tint = p.text)
                         }
@@ -428,14 +425,14 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                     is FxSheet.Entry -> {
                         val en = s.e
                         val c = can(en)
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                             KindIcon(en, 28.dp)
-                            Column(Modifier.padding(start = 16.dp)) {
+                            Column(Modifier.padding(start = Space.s16)) {
                                 Text(en.name, color = p.text, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 Text(FilesExplorer.detail(en), color = p.muted, style = MaterialTheme.typography.bodyMedium)
                             }
                         }
-                        HorizontalDivider(color = p.line2, modifier = Modifier.padding(vertical = 6.dp))
+                        HorizontalDivider(color = p.line2, modifier = Modifier.padding(vertical = Space.s8))
                         if (c.open) SheetRow(Icons.AutoMirrored.Outlined.InsertDriveFile, tr("Open")) { sheet = null; open(en) }
                         if (c.rename) SheetRow(Icons.Outlined.DriveFileRenameOutline, tr("Rename")) { sheet = null; answer = en.name; ask = FxAsk("rename", listOf(en)) }
                         if (c.move) SheetRow(Icons.AutoMirrored.Outlined.DriveFileMove, tr("Move to…")) { sheet = null; startCarry(true, listOf(en)) }
@@ -447,9 +444,9 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                     }
                     is FxSheet.Project -> {
                         val pr = projects.firstOrNull { it.name == s.name }
-                        Text(s.name, color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                        if (pr != null) Text(Projects.members(pr, allBots), color = p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = 20.dp))
-                        HorizontalDivider(color = p.line2, modifier = Modifier.padding(vertical = 6.dp))
+                        Text(s.name, color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = Space.s16, vertical = Space.s8))
+                        if (pr != null) Text(Projects.members(pr, allBots), color = p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(horizontal = Space.s16))
+                        HorizontalDivider(color = p.line2, modifier = Modifier.padding(vertical = Space.s8))
                         SheetRow(Icons.Outlined.Dns, tr("Bots…")) { sheet = null; picked = pr?.bots.orEmpty().toSet(); ask = FxAsk("members", project = s.name) }
                         SheetRow(Icons.Outlined.Delete, tr("Delete project"), danger = true) {
                             sheet = null
@@ -486,7 +483,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
                             }
                         }
                     }
-                    else -> OutlinedTextField(answer, { answer = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth())
+                    else -> Field(answer, { answer = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -573,17 +570,17 @@ private fun CarryDialog(api: Api?, ownerId: String, c: FxCarry, places: List<Str
                     nodes.forEach { n -> key(slot(n.root, n.path)) {
                         val ok = FilesExplorer.takes(c.from, paths, n.root, n.path)
                         val here = c.to == n.root && c.folder == n.path
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (here) p.sunk else Color.Transparent)
+                        Row(Modifier.fillMaxWidth().clip(Radius.small).background(if (here) p.sunk else Color.Transparent)
                             .clickable(enabled = ok) { onPick(n.root, n.path) }.heightIn(min = 44.dp).padding(start = (n.depth * 18).dp), verticalAlignment = Alignment.CenterVertically) {
                             IconButton(onClick = { toggle(n.root, n.path) }, modifier = Modifier.size(36.dp)) {
                                 Icon(if (slot(n.root, n.path) in open) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, contentDescription = tr("Open"), tint = p.muted)
                             }
                             Icon(if (n.depth == 0) placeIcon(n.root) else Icons.Outlined.Folder, contentDescription = null, tint = if (ok) p.text else p.faint, modifier = Modifier.size(20.dp))
-                            Text(n.name, color = if (ok) p.text else p.faint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 10.dp))
+                            Text(n.name, color = if (ok) p.text else p.faint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12))
                         }
                     } }
                 }
-                if (naming) OutlinedTextField(newName, { newName = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                if (naming) Field(newName, { newName = it.take(255) }, singleLine = true, label = { Text(tr("Name")) }, modifier = Modifier.fillMaxWidth().padding(top = Space.s8))
             }
         },
         confirmButton = {
@@ -636,15 +633,15 @@ private fun FileRow(e: WorkspaceEntry, detail: String, selecting: Boolean, on: B
     val p = LocalPaper.current
     Column {
         Row(Modifier.fillMaxWidth().background(if (on) p.sunk else Color.Transparent).combinedClickable(onClick = onTap, onLongClick = onHold)
-            .heightIn(min = 64.dp).padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp).testTag("files-row"), verticalAlignment = Alignment.CenterVertically) {
-            if (selecting) Checkbox(on, { onTap() }, colors = CheckboxDefaults.colors(checkedColor = p.mention, checkmarkColor = p.text), modifier = Modifier.padding(end = 6.dp))
+            .heightIn(min = 64.dp).padding(start = Space.s16, end = Space.s4, top = Space.s8, bottom = Space.s8).testTag("files-row"), verticalAlignment = Alignment.CenterVertically) {
+            if (selecting) Checkbox(on, { onTap() }, colors = CheckboxDefaults.colors(checkedColor = p.mention, checkmarkColor = p.text), modifier = Modifier.padding(end = Space.s8))
             KindIcon(e)
-            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+            Column(Modifier.weight(1f).padding(start = Space.s16)) {
                 Text(e.name, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (detail.isNotEmpty()) Text(detail, color = p.muted, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (!selecting && onMore != null) IconButton(onClick = onMore) { Icon(Icons.Filled.MoreHoriz, contentDescription = tr("More"), tint = p.faint) }
-            else Spacer(Modifier.width(12.dp))
+            else Spacer(Modifier.width(Space.s12))
         }
         HorizontalDivider(color = p.line)
     }
@@ -655,22 +652,22 @@ private fun FileRow(e: WorkspaceEntry, detail: String, selecting: Boolean, on: B
 @Composable
 private fun FileCard(e: WorkspaceEntry, thumb: String?, on: Boolean, onTap: () -> Unit, onHold: () -> Unit) {
     val p = LocalPaper.current
-    Column(Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) p.sunk else p.panel).combinedClickable(onClick = onTap, onLongClick = onHold).padding(8.dp),
+    Column(Modifier.clip(Radius.card).background(if (on) p.sunk else p.panel).combinedClickable(onClick = onTap, onLongClick = onHold).padding(Space.s8),
         horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.fillMaxWidth().aspectRatio(1.2f).clip(RoundedCornerShape(8.dp)).background(p.bg), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1.2f).clip(Radius.small).background(p.bg), contentAlignment = Alignment.Center) {
             KindIcon(e, 36.dp)
             if (thumb != null) AsyncImage(thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
-        Text(e.name, color = p.text, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+        Text(e.name, color = p.text, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = Space.s8))
     }
 }
 
 @Composable
 private fun SheetRow(icon: ImageVector, label: String, danger: Boolean = false, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(onClick = onClick).padding(horizontal = Space.s16), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = if (danger) p.err else p.text, modifier = Modifier.size(24.dp))
-        Text(label, color = if (danger) p.err else p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = 18.dp))
+        Text(label, color = if (danger) p.err else p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = Space.s16))
     }
 }
 
@@ -678,7 +675,7 @@ private fun SheetRow(icon: ImageVector, label: String, danger: Boolean = false, 
 private fun BarButton(icon: ImageVector, label: String, enabled: Boolean, danger: Boolean = false, onClick: () -> Unit) {
     val p = LocalPaper.current
     val tint = when { !enabled -> p.faint; danger -> p.err; else -> p.text }
-    Column(Modifier.clip(RoundedCornerShape(10.dp)).clickable(enabled = enabled, onClick = onClick).padding(horizontal = 14.dp, vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(Modifier.clip(Radius.small).clickable(enabled = enabled, onClick = onClick).padding(horizontal = Space.s16, vertical = Space.s8), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(icon, contentDescription = null, tint = tint)
         Text(label, color = tint, style = MaterialTheme.typography.bodySmall)
     }
@@ -688,10 +685,10 @@ private fun BarButton(icon: ImageVector, label: String, enabled: Boolean, danger
 @Composable
 fun FilesLink(onClick: () -> Unit) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.panel).clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = 16.dp).testTag("files-link"),
+    Row(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = Space.s16).testTag("files-link"),
         verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Outlined.Folder, contentDescription = null, tint = p.text, modifier = Modifier.size(22.dp))
-        Text(tr("Files"), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(start = 14.dp))
+        Text(tr("Files"), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(start = Space.s16))
         Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = p.faint)
     }
 }

@@ -41,7 +41,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -49,8 +48,6 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -86,7 +83,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Answered
 import dev.botdot.app.data.Api
@@ -248,18 +244,18 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                         Button(onClick = {
                             all.jobs.forEach { (b, j) -> decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, true) { api!!.approveJob(b.id, j.id, true) } }
                             all.memory.forEach { m -> decide("m:${m.id}", memWho(m), memoryCard(m, features).title, true) { api!!.settleMemoryChange(m.id, true) } }
-                        }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText), modifier = Modifier.padding(end = 8.dp)) { Text(label) }
+                        }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText), modifier = Modifier.padding(end = Space.s8)) { Text(label) }
                     }
                 })
         },
     ) { pad ->
         PullToRefreshBox(isRefreshing = refreshing, onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } }, modifier = Modifier.padding(pad).fillMaxSize()) {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 if (loaded && requests.isEmpty() && !locked && waitingJobs.isEmpty() && memory.isEmpty() && plans.isEmpty() && asks.isEmpty() && tiles.isEmpty()) item {
-                    Text(tr("All done."), color = p.muted, modifier = Modifier.padding(12.dp))
+                    Text(tr("All done."), color = p.muted, modifier = Modifier.padding(Space.s12))
                 }
                 // What the button above leaves for its own card, in one line.
-                all.line?.let { line -> item(key = "left") { Text(line, color = p.muted, fontSize = 12.5.sp, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth()) } }
+                all.line?.let { line -> item(key = "left") { Text(line, color = p.muted, fontSize = Type.s12, textAlign = TextAlign.End, modifier = Modifier.fillMaxWidth()) } }
                 if (locked) item {
                     if (unlocking) Busy(tr("Unlocking Password Manager…"))
                     else BitwardenCard(bw, bw.wantedBy?.let { w -> whoOf(w.id, w.name) }, unlockError) { pw -> api?.let { app.unlockBitwarden(it, pw) } }
@@ -334,7 +330,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                     val title = tr("A plan for the Chief: {title}", "title" to c.title)
                     Card(who, title, tr("Nothing happens until you approve it"), expandable = true) {
                         Body(c.waiting.text.replace("**", "").replace(Regex("""(?m)^\s*[-*#]+\s+"""), ""))
-                        Text(tr("Open chat"), color = p.muted, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onChat(c.id) }.padding(6.dp))
+                        Text(tr("Open chat"), color = p.muted, fontSize = Type.s14, modifier = Modifier.clip(Radius.small).clickable { onChat(c.id) }.padding(Space.s8))
                         Buttons(tr("Approve"), { decide("p:${c.id}", who, title, true, tr("Approved · the Chief is on it")) { api!!.sendToChief(c.id, PLAN_APPROVAL, emptyList()); null } },
                             tr("Decline"), { decide("p:${c.id}", who, title, false) { api!!.dismissSuggestion(c.id); null } })
                     }
@@ -425,9 +421,9 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
         )
     }
     if (decided.isEmpty() && jobs.isEmpty() && mems.isEmpty() && myAsks.isEmpty() && reqs.isEmpty() && myTiles.isEmpty() && mySuggestions.isEmpty()) return
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        decided.forEach { Text("${it.title} · ${it.label}", color = p.muted, fontSize = 12.5.sp) }
-        if (error != null) Text(error!!, color = p.err, fontSize = 12.5.sp)
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+        decided.forEach { Text("${it.title} · ${it.label}", color = p.muted, fontSize = Type.s12) }
+        if (error != null) Text(error!!, color = p.err, fontSize = Type.s12)
         reqs.forEach { r ->
             val who = if (chief || group != null) r.bot?.let { named(bots.firstOrNull { b -> b.id == it.id }, it.name, null) } else null
             Card(who, if (r.kind == "card") tr("Pay on {site}", "site" to r.site) else tr("A login for {site}", "site" to r.site), if (r.kind == "card") r.amount else r.reason) {
@@ -716,16 +712,16 @@ private fun Card(who: Named?, title: String, meta: String? = null, done: Boolean
     val p = LocalPaper.current
     var open by remember { mutableStateOf(!expandable) }
     Column(
-        Modifier.fillMaxWidth().alpha(if (done) 0.4f else 1f).background(p.panel, RoundedCornerShape(18.dp)).border(1.dp, p.line, RoundedCornerShape(18.dp))
-            .then(if (expandable) Modifier.clickable(onClickLabel = if (open) tr("Show less") else tr("Show all")) { open = !open } else Modifier).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().alpha(if (done) 0.4f else 1f).raised(Radius.card)
+            .then(if (expandable) Modifier.clickable(onClickLabel = if (open) tr("Show less") else tr("Show all")) { open = !open } else Modifier).padding(Space.s16),
+        verticalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
         if (who != null) Row(verticalAlignment = Alignment.CenterVertically) {
             SmallFigure(who.color, who.outfit, 16.dp)
-            Text(" ${who.name}", color = p.muted, fontSize = 12.5.sp)
+            Text(" ${who.name}", color = p.muted, fontSize = Type.s12)
         }
         Text(title, style = MaterialTheme.typography.titleMedium, color = p.text, maxLines = if (open) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
-        if (!meta.isNullOrBlank()) Text(meta, color = p.muted, fontSize = 12.5.sp, maxLines = if (open) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis)
+        if (!meta.isNullOrBlank()) Text(meta, color = p.muted, fontSize = Type.s12, maxLines = if (open) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis)
         CompositionLocalProvider(LocalCardOpen provides open) { content() }
     }
 }
@@ -734,9 +730,9 @@ private fun Card(who: Named?, title: String, meta: String? = null, done: Boolean
 @Composable
 private fun Body(text: String, mono: Boolean = false) {
     val p = LocalPaper.current
-    Text(text, color = p.text, fontSize = 13.sp, fontFamily = if (mono) GeistMono else null,
+    Text(text, color = p.text, fontSize = Type.s14, fontFamily = if (mono) GeistMono else null,
         maxLines = if (LocalCardOpen.current) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp)).then(if (mono) Modifier.horizontalScroll(rememberScrollState()) else Modifier).padding(10.dp))
+        modifier = Modifier.fillMaxWidth().background(p.sunk, Radius.small).then(if (mono) Modifier.horizontalScroll(rememberScrollState()) else Modifier).padding(Space.s12))
 }
 
 // Each answer sent from a card, once the server said yes or no and the cards are loaded again: a card still there
@@ -777,9 +773,9 @@ private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, o
     // A yes of a card that turns on a call or a notify address ([connects]) turns a spinner in its button while it says so.
     val spins = { label: String -> connects && pressed == label && label != secondary }
     val word = { label: String -> if (pressed == label) busyWord(label, spins(label)) else label }
-    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-        OutlinedButton(onClick = press(secondary, onSecondary), enabled = pressed == null) { Text(word(secondary), color = p.text) }
-        if (onAlways != null) OutlinedButton(onClick = press(alwaysLabel, onAlways), enabled = pressed == null) {
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8, Alignment.End)) {
+        SecondaryButton(onClick = press(secondary, onSecondary), enabled = pressed == null) { Text(word(secondary), color = p.text) }
+        if (onAlways != null) SecondaryButton(onClick = press(alwaysLabel, onAlways), enabled = pressed == null) {
             if (spins(alwaysLabel)) ButtonSpinner(p.text)
             Text(word(alwaysLabel), color = p.text)
         }
@@ -794,7 +790,7 @@ private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, o
 @Composable
 private fun ButtonSpinner(color: Color) {
     CircularProgressIndicator(Modifier.size(14.dp), color = color, strokeWidth = 2.dp)
-    Spacer(Modifier.width(8.dp))
+    Spacer(Modifier.width(Space.s8))
 }
 
 @Composable
@@ -803,12 +799,12 @@ private fun Muted(text: String) = Text(text, color = LocalPaper.current.muted, s
 /** Who carries on after the yes, in the server's sentence: one line under the card's body, also on a closed card. Nothing without one. */
 @Composable
 private fun ThenLine(text: String?) {
-    if (!text.isNullOrBlank()) Text(text, color = LocalPaper.current.muted, fontSize = 12.5.sp)
+    if (!text.isNullOrBlank()) Text(text, color = LocalPaper.current.muted, fontSize = Type.s12)
 }
 
 @Composable
 internal fun PasswordField(value: String, onChange: (String) -> Unit, label: String) {
-    OutlinedTextField(
+    Field(
         value = value, onValueChange = onChange, label = { Text(label) }, singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
@@ -819,7 +815,7 @@ internal fun PasswordField(value: String, onChange: (String) -> Unit, label: Str
 /** A secret of several lines (a private key, #155): masked as a password is, its line breaks kept. */
 @Composable
 internal fun SecretBox(value: String, onChange: (String) -> Unit, label: String) {
-    OutlinedTextField(
+    Field(
         value = value, onValueChange = onChange, label = { Text(label) }, minLines = 3, maxLines = 6,
         visualTransformation = PasswordVisualTransformation(),
         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -848,7 +844,7 @@ private fun BitwardenCard(bw: BitwardenStatus, who: Named?, error: String?, onUn
 private fun Busy(text: String) {
     val p = LocalPaper.current
     val a by rememberInfiniteTransition(label = "unlocking").animateFloat(1f, 0.35f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "a")
-    Row(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.padding(horizontal = Space.s8, vertical = Space.s4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
         Box(Modifier.size(9.dp).alpha(a).clip(CircleShape).background(p.dot))
         Text(text, color = p.muted, style = MaterialTheme.typography.bodyMedium)
     }
@@ -880,22 +876,22 @@ private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boole
             if (usable.isNotEmpty()) {
                 Muted(tr("Let it use a login you already saved:"))
                 usable.forEach { e ->
-                    OutlinedButton(onClick = { onUse(e.id) }, modifier = Modifier.fillMaxWidth()) {
+                    SecondaryButton(onClick = { onUse(e.id) }, modifier = Modifier.fillMaxWidth()) {
                         Text(tr("Use {name}", "name" to e.name + (if (e.username.isNotBlank()) " (${e.username})" else "")), color = p.text)
                     }
                 }
             }
             if (sending) Busy(OtherLogins.SENDING)
             else if (others.isNotEmpty()) {
-                Text(OtherLogins.OPEN, color = p.muted, fontSize = 13.sp,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClickLabel = if (othersOpen) tr("Hide the list") else tr("Show the list")) { othersOpen = !othersOpen }.padding(6.dp))
+                Text(OtherLogins.OPEN, color = p.muted, fontSize = Type.s14,
+                    modifier = Modifier.clip(Radius.small).clickable(onClickLabel = if (othersOpen) tr("Hide the list") else tr("Show the list")) { othersOpen = !othersOpen }.padding(Space.s8))
                 if (othersOpen) OtherLoginsList(others, typed, { typed = it }) { picked = it.id }
             }
             if (usable.isNotEmpty()) Muted(tr("Or save a new one:"))
             else Muted(tr("It goes straight into your vault{where}. The bot never sees the password.", "where" to if (bitwardenLocked) " (Bitwarden)" else ""))
             if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.options(features, r.type), onType)
             fields.username?.let { label ->
-                OutlinedTextField(user, onUser, label = { Text(label) }, singleLine = true,
+                Field(user, onUser, label = { Text(label) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
                     modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Username })
             }
@@ -920,17 +916,17 @@ private fun OtherLoginsList(others: List<OtherLogin>, typed: String, onTyped: (S
     val long = OtherLogins.hasSearch(others)
     val rows = if (long) OtherLogins.shown(others, typed) else others
     Muted(OtherLogins.HEADING)
-    if (long) OutlinedTextField(typed, onTyped, label = { Text(OtherLogins.SEARCH) }, singleLine = true,
+    if (long) Field(typed, onTyped, label = { Text(OtherLogins.SEARCH) }, singleLine = true,
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
     if (rows.isEmpty()) Muted(OtherLogins.NO_MATCH)
     else Column(
         Modifier.fillMaxWidth().then(if (long) Modifier.heightIn(max = 240.dp).verticalScroll(rememberScrollState()) else Modifier),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
         rows.forEach { e ->
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).border(1.dp, p.line, RoundedCornerShape(10.dp)).clickable(onClickLabel = OtherLogins.USE) { onPick(e) }.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Text(OtherLogins.label(e), color = p.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (e.site.isNotBlank()) Text(e.site, color = p.muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.fillMaxWidth().raised(Radius.small).clickable(onClickLabel = OtherLogins.USE) { onPick(e) }.padding(horizontal = Space.s12, vertical = Space.s8)) {
+                Text(OtherLogins.label(e), color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (e.site.isNotBlank()) Text(e.site, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -973,7 +969,7 @@ private fun JobApproval(who: Named?, j: Job, then: String?, onAlways: () -> Unit
         val open = LocalCardOpen.current
         // The change in its proposer's sentence: closed, it stands for what goes and what comes.
         if (card.summary != null) {
-            Text(card.summary, color = LocalPaper.current.text, fontSize = 14.sp)
+            Text(card.summary, color = LocalPaper.current.text, fontSize = Type.s14)
             if (!open) Faint(SEE_FULL_CHANGE)
         }
         if (showsFull(card, open)) {
@@ -994,16 +990,16 @@ private fun JobApproval(who: Named?, j: Job, then: String?, onAlways: () -> Unit
 
 /** A faint label above a box: which of two scripts it is. */
 @Composable
-private fun Faint(text: String) = Text(text, color = LocalPaper.current.faint, fontSize = 12.5.sp)
+private fun Faint(text: String) = Text(text, color = LocalPaper.current.faint, fontSize = Type.s12)
 
 /** A text that changes, in one box: what goes, struck, above what comes (as a changed text of a bot change is drawn). */
 @Composable
 private fun WasNow(was: String, now: String) {
     val p = LocalPaper.current
     val open = LocalCardOpen.current
-    Column(Modifier.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(was, color = p.muted, fontSize = 13.sp, textDecoration = TextDecoration.LineThrough, maxLines = if (open) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
-        if (now.isNotEmpty()) Text(now, color = p.text, fontSize = 13.sp, maxLines = if (open) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
+    Column(Modifier.fillMaxWidth().background(p.sunk, Radius.small).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Text(was, color = p.muted, fontSize = Type.s14, textDecoration = TextDecoration.LineThrough, maxLines = if (open) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
+        if (now.isNotEmpty()) Text(now, color = p.text, fontSize = Type.s14, maxLines = if (open) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -1053,8 +1049,8 @@ private fun AlwaysQuestion(text: String, label: String, done: (Boolean) -> Unit)
 @Composable
 private fun Warning(text: String) {
     val p = LocalPaper.current
-    Text("⚠️ $text", color = p.text, fontSize = 13.sp, maxLines = if (LocalCardOpen.current) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp)).border(1.dp, p.warnLine, RoundedCornerShape(10.dp)).padding(10.dp))
+    Text("⚠️ $text", color = p.text, fontSize = Type.s14, maxLines = if (LocalCardOpen.current) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.fillMaxWidth().background(p.sunk, Radius.small).border(1.dp, p.warnLine, Radius.small).padding(Space.s12))
 }
 
 /**
@@ -1078,11 +1074,11 @@ private fun Facts(rows: List<ToolCard.Fact>, whole: Boolean = true) {
     Layout(
         content = {
             rows.forEach { f ->
-                Text(f.label, color = p.faint, fontSize = 13.sp, maxLines = lines, overflow = TextOverflow.Ellipsis)
-                Text(f.value, color = p.text, fontSize = 13.sp, maxLines = lines, overflow = TextOverflow.Ellipsis)
+                Text(f.label, color = p.faint, fontSize = Type.s14, maxLines = lines, overflow = TextOverflow.Ellipsis)
+                Text(f.value, color = p.text, fontSize = Type.s14, maxLines = lines, overflow = TextOverflow.Ellipsis)
             }
         },
-        modifier = Modifier.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp)).padding(10.dp),
+        modifier = Modifier.fillMaxWidth().background(p.sunk, Radius.small).padding(Space.s12),
     ) { measurables, constraints ->
         val gap = 12.dp.roundToPx()
         val between = 2.dp.roundToPx()
@@ -1131,11 +1127,11 @@ private fun ChangedParts(parts: List<ChangedPart>) {
     partGroups(parts).forEach { group ->
         val t = group.first()
         if (t.was == null) Facts(group.map { ToolCard.Fact(it.label, it.now) }, whole = open)
-        else Column(Modifier.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (parts.size > 1) Text(t.label, color = p.faint, fontSize = 12.5.sp)
-            if (t.was.isNotEmpty()) Text(t.was, color = p.muted, fontSize = 13.sp, textDecoration = TextDecoration.LineThrough,
+        else Column(Modifier.fillMaxWidth().background(p.sunk, Radius.small).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            if (parts.size > 1) Text(t.label, color = p.faint, fontSize = Type.s12)
+            if (t.was.isNotEmpty()) Text(t.was, color = p.muted, fontSize = Type.s14, textDecoration = TextDecoration.LineThrough,
                 maxLines = if (open) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
-            if (t.now.isNotEmpty()) Text(t.now, color = p.text, fontSize = 13.sp, maxLines = if (open) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
+            if (t.now.isNotEmpty()) Text(t.now, color = p.text, fontSize = Type.s14, maxLines = if (open) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -1149,15 +1145,15 @@ private fun AskBatchCard(card: AskCard.Several, who: Named?, onAll: (Boolean) ->
     // Busy while the answer goes: a second tap sends nothing.
     var busy by remember(card.id) { mutableStateOf(false) }
     val all = { yes: Boolean -> if (!busy) { busy = true; onAll(yes).invokeOnCompletion { busy = false } } }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Card(who, card.title.ifBlank { trn(card.asks.size, "{n} thing waits for your OK", "{n} things wait for your OK") }) {
             batchOwnLine(card.asks)?.let { Muted(it) }
             if (card.asks.any { it.batch?.own != true && !it.rowsCut }) Buttons(tr("Allow all"), { all(true) }, tr("Decline all"), { all(false) }, enabled = !busy)
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { all(false) }, enabled = !busy) { Text(tr("Decline all"), color = LocalPaper.current.text) }
+                SecondaryButton(onClick = { all(false) }, enabled = !busy) { Text(tr("Decline all"), color = LocalPaper.current.text) }
             }
         }
-        Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { card.asks.forEach { each(it) } }
+        Column(Modifier.padding(start = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) { card.asks.forEach { each(it) } }
     }
 }
 
@@ -1224,12 +1220,12 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         Card(who, a.title, connectorState(who?.name ?: a.bot?.name?.ifBlank { null } ?: tr("The bot"), a.held, a.stoppedAt) ?: a.reason, expandable = true) {
             if (rows.isNotEmpty()) Facts(rows, whole = LocalCardOpen.current)
             if (connectorDetails(a)) Body(a.details)
-            if (connectorTooLong(a)) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
+            if (connectorTooLong(a)) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = Type.s12)
             ThenLine(then)
             if (connectorAlways(a)) TextButton(onClick = { asking = true }) { Text(always) }
             if (connectorOnce(a)) Buttons(tr("Allow once"), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) })
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
+                SecondaryButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
             }
         }
     } else if (a.kind == "chief-action") {
@@ -1243,12 +1239,12 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         if (asking && always != null) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { "$always?" }, always) { asking = false; if (it) answer(a.title, true, tr("Always allowed"), true) }
         Card(who, a.title, a.chiefActionLine, expandable = true) {
             if (a.rows.isNotEmpty()) Facts(a.rows, whole = LocalCardOpen.current)
-            if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
+            if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = Type.s12)
             ThenLine(then)
             if (a.chiefActionYes) Buttons(tr("Approve"), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) },
                 onAlways = always?.let { { asking = true } }, alwaysLabel = always ?: tr("Always approve"))
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
+                SecondaryButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
             }
         }
     } else if (a.isRoomCard) {
@@ -1257,10 +1253,10 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         // offers Decline alone.
         Card(who, a.title, a.roomLine, expandable = true) {
             if (a.rows.isNotEmpty()) Facts(a.rows, whole = LocalCardOpen.current)
-            if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = 12.5.sp)
+            if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = Type.s12)
             if (a.roomYes) Buttons(a.yes ?: tr("Allow"), { decide(a.title, true, tr("Allowed")) }, tr("Decline"), { decide(a.title, false, null) })
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
+                SecondaryButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
             }
         }
     } else if (a.kind == "bot-change") {

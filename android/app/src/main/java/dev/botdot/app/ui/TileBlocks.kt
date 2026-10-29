@@ -25,8 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
@@ -62,7 +60,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Block
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -125,7 +122,7 @@ fun TileDotView(filled: Boolean?, color: Color, big: Boolean) {
 
 @Composable
 fun Blocks(list: List<Block>, color: Color, where: String, ctl: TileControls, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(if (where == "panel") 18.dp else 8.dp)) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(if (where == "panel") Space.s16 else Space.s8)) {
         list.forEach { BlockView(it, color, where, ctl) }
     }
 }
@@ -147,7 +144,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
     when (b.type) {
         "text" -> {
             val t = b.text.orEmpty()
-            val size = when (b.size) { "small" -> 12.sp; "large" -> 18.sp; else -> 13.5.sp }
+            val size = when (b.size) { "small" -> Type.s12; "large" -> Type.s16; else -> Type.s14 }
             when {
                 t.isEmpty() -> Faint()
                 b.markdown && b.lines == null -> MarkdownText(t, color = if (b.muted) p.muted else p.text, copy = false)
@@ -161,25 +158,26 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
             if (t.isEmpty()) Faint()
             else Text(buildAnnotatedString {
                 append(t)
-                b.unit?.let { withStyle(SpanStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, color = p.muted)) { append(" $it") } }
-            }, color = tint(b.color, p.text, words = true), fontSize = 26.sp, fontWeight = FontWeight.SemiBold, lineHeight = 30.sp)
+                b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.muted)) { append(" $it") } }
+            }, color = tint(b.color, p.text, words = true), fontSize = if (BoardKit.isWords(t)) Type.s20 else Type.s24, fontWeight = FontWeight.SemiBold,
+                lineHeight = if (BoardKit.isWords(t)) Type.line28 else Type.line32)
         }
         "dot" -> Row(verticalAlignment = Alignment.CenterVertically) {
             TileDotView(b.filled, tint(b.color, color), b.big)
-            b.label?.let { Spacer(Modifier.size(8.dp)); Text(it, color = p.text, fontSize = 13.5.sp) }
+            b.label?.let { Spacer(Modifier.size(8.dp)); Text(it, color = p.text, fontSize = Type.s14) }
         }
         "list" -> Column {
             val max = b.max.toInt()
             if (b.items.isEmpty()) Faint()
-            b.items.take(max).forEach { Text(it, color = p.text, fontSize = 13.5.sp, maxLines = if (where != "panel") 1 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(vertical = 2.dp)) }
-            if (b.items.size > max) Text("…", color = p.faint, fontSize = 13.5.sp)
+            b.items.take(max).forEach { Text(it, color = p.text, fontSize = Type.s14, maxLines = if (where != "panel") 1 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(vertical = Space.s4)) }
+            if (b.items.size > max) Text("…", color = p.faint, fontSize = Type.s14)
         }
-        "progress" -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        "progress" -> Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             val c = tint(b.color, color)
-            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(99.dp)).background(p.sunk)) {
-                Box(Modifier.fillMaxWidth((b.ratio ?: 0.0).toFloat()).height(6.dp).clip(RoundedCornerShape(99.dp)).background(c))
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(Radius.pill).background(p.sunk)) {
+                Box(Modifier.fillMaxWidth((b.ratio ?: 0.0).toFloat()).height(6.dp).clip(Radius.pill).background(c))
             }
-            b.text?.takeIf { it.isNotEmpty() }?.let { Text(it, color = p.muted, fontSize = 12.5.sp) }
+            b.text?.takeIf { it.isNotEmpty() }?.let { Text(it, color = p.muted, fontSize = Type.s12) }
         }
         "gauge" -> Box(Modifier.widthIn(max = 150.dp).fillMaxWidth().aspectRatio(96f / 54f), contentAlignment = Alignment.BottomCenter) {
             val c = tint(b.color, color)
@@ -191,7 +189,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
                 drawArc(track, 180f, 180f, false, topLeft, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
                 drawArc(c, 180f, 180f * (b.ratio ?: 0.0).toFloat(), false, topLeft, Size(d, d), style = Stroke(stroke, cap = StrokeCap.Round))
             }
-            Text(b.text?.ifEmpty { "·" } ?: "·", color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(b.text?.ifEmpty { "·" } ?: "·", color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
         }
         // A small tile's face has no room for the axes' numbers; the tooltip says them.
         "chart" -> KitChart(b, tint(b.color, color), axes = where == "panel" || where == "wide")
@@ -206,18 +204,18 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
         }
         "switch" -> Row(verticalAlignment = Alignment.CenterVertically) {
             var on by remember(b.on) { mutableStateOf(b.on == true) }
-            Text(b.label.orEmpty(), color = p.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+            Text(b.label.orEmpty(), color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f))
             Switch(checked = on, onCheckedChange = { on = it; ctl.act(b.key!!, JsonPrimitive(it), true) },
                 colors = SwitchDefaults.colors(checkedTrackColor = p.ok, checkedThumbColor = Color.White))
         }
-        "button" -> OutlinedButton(onClick = { ctl.act(b.key!!, null, true) }) { Text(b.label.orEmpty(), color = p.text) }
+        "button" -> SecondaryButton(onClick = { ctl.act(b.key!!, null, true) }) { Text(b.label.orEmpty(), color = p.text) }
         "slider" -> Column {
             val known = b.value.num()
             var v by remember(known) { mutableFloatStateOf((known ?: b.min).toFloat()) }
             var touched by remember(known) { mutableStateOf(known != null) }
             Row {
-                Text(b.label.orEmpty(), color = p.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                Text(if (touched) sliderText(b, v.toDouble()) else "·", color = p.muted, fontSize = 14.sp)
+                Text(b.label.orEmpty(), color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f))
+                Text(if (touched) sliderText(b, v.toDouble()) else "·", color = p.muted, fontSize = Type.s14)
             }
             Slider(
                 value = v, valueRange = b.min.toFloat()..b.max.toFloat(),
@@ -230,23 +228,22 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
         "color" -> if (where != "panel") {
             Box(Modifier.size(30.dp).clip(CircleShape).background(b.value.str()?.let { parseColor(it, p.line2) } ?: p.line2).clickable { ctl.openColor(b.key!!) })
         } else ColorWheel(b, ctl)
-        "choice" -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            b.label?.let { Text(it, color = p.text, fontSize = 14.sp) }
+        "choice" -> Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            b.label?.let { Text(it, color = p.text, fontSize = Type.s14) }
             var picked by remember(b.value) { mutableStateOf(b.value.str()) }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 b.options.forEach { o ->
                     val on = o.value.str() == picked
-                    Text(o.label, color = if (on) p.inkText else p.text, fontSize = 13.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (on) p.ink else Color.Transparent)
-                            .border(1.dp, if (on) p.ink else p.line2, RoundedCornerShape(99.dp))
-                            .clickable { picked = o.value.str(); ctl.act(b.key!!, o.value, true) }.padding(horizontal = 12.dp, vertical = 6.dp))
+                    Text(o.label, color = if (on) p.inkText else p.text, fontSize = Type.s14,
+                        modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.raise2)
+                            .clickable { picked = o.value.str(); ctl.act(b.key!!, o.value, true) }.padding(horizontal = Space.s12, vertical = Space.s8))
                 }
             }
         }
-        "row" -> Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        "row" -> Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
             b.blocks.forEach { Box(Modifier.weight(1f)) { BlockView(it, color, where, ctl) } }
         }
-        "column" -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        "column" -> Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             b.blocks.forEach { BlockView(it, color, where, ctl) }
         }
     }
@@ -268,7 +265,7 @@ private fun TileImage(b: Block, ctl: TileControls) {
             .build()
     }
     val h = when (b.height) { "small" -> 90.dp; "large" -> 280.dp; else -> 160.dp }
-    Box(Modifier.fillMaxWidth().height(h).clip(RoundedCornerShape(12.dp)).background(p.sunk)) {
+    Box(Modifier.fillMaxWidth().height(h).clip(Radius.card).background(p.sunk)) {
         coil3.compose.AsyncImage(request, null, Modifier.fillMaxSize(), contentScale = if (b.fit == "contain") ContentScale.Fit else ContentScale.Crop,
             onSuccess = { showing = url })
     }
@@ -303,7 +300,7 @@ private fun ColorWheel(b: Block, ctl: TileControls) {
         if (done || now - last > 350) { last = now; act(b.key!!, JsonPrimitive(picked), done) }
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        b.label?.let { Text(it, color = LocalPaper.current.text, fontSize = 14.sp, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) }
+        b.label?.let { Text(it, color = LocalPaper.current.text, fontSize = Type.s14, modifier = Modifier.fillMaxWidth().padding(bottom = Space.s8)) }
         Box(
             Modifier.size(wheel)
                 .pointerInput(Unit) { detectTapGestures { pick(it, size.width, true) } }

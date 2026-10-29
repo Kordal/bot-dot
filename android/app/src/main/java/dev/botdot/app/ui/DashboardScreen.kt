@@ -80,7 +80,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -201,7 +200,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                     Blocks(list, parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint), "panel", controlsFor(t),
                         Modifier.heightIn(max = 520.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()))
                     // How often it refreshes, and who changes it (#42); not under one block's own pop-up.
-                    refreshLine(t)?.takeIf { only == null }?.let { Text(it, color = p.faint, fontSize = 12.5.sp, modifier = Modifier.padding(top = 14.dp)) }
+                    refreshLine(t)?.takeIf { only == null }?.let { Text(it, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s16)) }
                 }
             },
             confirmButton = {},
@@ -239,14 +238,14 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
         var text by remember(t.id) { mutableStateOf("") }
         var sending by remember(t.id) { mutableStateOf(false) }
         ModalBottomSheet(onDismissRequest = { asking = null }, containerColor = p.panel) {
-            Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, bottom = 24.dp).imePadding()) {
-                Text(t.title, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s16, bottom = Space.s24).imePadding()) {
+                Text(t.title, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 BasicTextField(
                     text, { text = it },
-                    textStyle = TextStyle(color = p.text, fontSize = 16.sp, lineHeight = 22.sp),
+                    textStyle = TextStyle(color = p.text, fontSize = Type.s16, lineHeight = Type.line24),
                     cursorBrush = SolidColor(p.text),
-                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp).heightIn(min = 88.dp),
-                    decorationBox = { inner -> Box { if (text.isEmpty()) Text(TileAsk.PLACEHOLDER, color = p.faint, fontSize = 16.sp); inner() } },
+                    modifier = Modifier.fillMaxWidth().padding(top = Space.s12).heightIn(min = 88.dp),
+                    decorationBox = { inner -> Box { if (text.isEmpty()) Text(TileAsk.PLACEHOLDER, color = p.faint, fontSize = Type.s16); inner() } },
                 )
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { asking = null; removing = t }) { Icon(Icons.Outlined.Delete, contentDescription = tr("Remove from Board"), tint = p.faint) }
@@ -280,11 +279,11 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                     if (dash?.tiles.orEmpty().any { it.source != null }) {
                         val turn by rememberInfiniteTransition(label = "refresh").animateFloat(0f, 360f, infiniteRepeatable(tween(800, easing = LinearEasing), RepeatMode.Restart), label = "turn")
                         Row(
-                            Modifier.clip(CircleShape).clickable(onClickLabel = tr("Refresh")) { refreshAll() }.padding(end = 6.dp, top = 2.dp, bottom = 2.dp),
+                            Modifier.clip(CircleShape).clickable(onClickLabel = tr("Refresh")) { refreshAll() }.padding(end = Space.s8, top = Space.s4, bottom = Space.s4),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Icon(Icons.Filled.Refresh, contentDescription = tr("Refresh"), tint = p.okText, modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = if (refreshing) turn else 0f })
-                            if (newest > 0) Text(" " + BoardKit.ageWords((now - newest) / 1000), color = p.okText, fontSize = 12.sp)
+                            if (newest > 0) Text(" " + BoardKit.ageWords((now - newest) / 1000), color = p.okText, fontSize = Type.s12)
                         }
                     }
                 }
@@ -366,16 +365,15 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             BoxWithConstraints(Modifier.fillMaxSize()) {
             val cols = BoardKit.columns(maxWidth.value)
             val gap = 10.dp
-            LazyVerticalGrid(GridCells.Fixed(cols), Modifier.fillMaxSize(), state = gridState, contentPadding = PaddingValues(14.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+            LazyVerticalGrid(GridCells.Fixed(cols), Modifier.fillMaxSize(), state = gridState, contentPadding = PaddingValues(Space.s16), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 if (d != null && d.tiles.isEmpty()) item(span = { GridItemSpan(maxLineSpan) }) { Empty() }
                 // One heading at a time, or all of them.
                 if (named.size > 1) item(key = "f:filter", span = { GridItemSpan(maxLineSpan) }) {
-                    androidx.compose.foundation.layout.FlowRow(Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    androidx.compose.foundation.layout.FlowRow(Modifier.padding(bottom = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                         (listOf("") + named).forEach { n ->
                             val on = n == filter
-                            Text(n.ifEmpty { tr("All") }, color = if (on) p.inkText else p.text, fontSize = 13.sp,
-                                modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (on) p.ink else Color.Transparent)
-                                    .border(1.dp, if (on) p.ink else p.line2, RoundedCornerShape(99.dp)).clickable { filter = n }.padding(horizontal = 14.dp, vertical = 6.dp))
+                            Text(n.ifEmpty { tr("All") }, color = if (on) p.inkText else p.text, fontSize = Type.s14,
+                                modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.raise2).clickable { filter = n }.padding(horizontal = Space.s16, vertical = Space.s8))
                         }
                     }
                 }
@@ -392,7 +390,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                             k.startsWith("in:") -> {
                                 // The top of an open group's tiles; "Nothing in it yet" while it's empty.
                                 val empty = d?.tiles.orEmpty().none { it.parent == k.removePrefix("in:") }
-                                if (empty) Text(tr("Nothing in it yet."), color = p.faint, fontSize = 13.sp, modifier = Modifier.padding(start = 4.dp))
+                                if (empty) Text(tr("Nothing in it yet."), color = p.faint, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s4))
                                 else Spacer(Modifier.size(1.dp))
                             }
                             k.startsWith("out:") -> Spacer(Modifier.fillMaxWidth().size(1.dp).background(p.line))
@@ -419,7 +417,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                 // What bots suggested: faded, who and why, Add or ✕.
                 val suggested = d?.suggestions.orEmpty()
                 if (suggested.isNotEmpty()) item(key = "s:suggested", span = { GridItemSpan(maxLineSpan) }) {
-                    Text(tr("Suggested"), color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 2.dp, top = 10.dp))
+                    Text(tr("Suggested"), color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s4, top = Space.s12))
                 }
                 items(suggested, key = { "sug:${it.id}" }, span = { GridItemSpan(maxLineSpan) }) { x ->
                     val b = bots.firstOrNull { it.id == x.bot }
@@ -437,7 +435,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
 @Composable
 private fun Empty() {
     val p = LocalPaper.current
-    Column(Modifier.padding(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.padding(horizontal = Space.s4, vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Text(BoardWords.WHAT_FOR, color = p.muted, style = MaterialTheme.typography.bodyLarge)
         Text(buildAnnotatedString {
             append(BoardWords.TELL)
@@ -455,20 +453,20 @@ private fun Empty() {
 private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, ctl: TileControls, click: Modifier, now: Long, inside: List<Pair<Tile, String>> = emptyList(), open: Boolean = false, where: String = "face", sourced: Boolean = false) {
     val p = LocalPaper.current
     val c = parseColor(color, p.faint)
-    val shape = RoundedCornerShape(18.dp)
+    val shape = Radius.card
     val look = t.look
     val kpi = BoardKit.isKpiTile(t)
     Column(
-        Modifier.fillMaxWidth().heightIn(min = if (t.size == "big") 220.dp else 104.dp).alpha(if (waiting) 0.55f else 1f).clip(shape).background(if (open) p.sunk else p.panel).border(1.dp, if (open) p.line2 else p.line, shape)
-            .then(click).padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.fillMaxWidth().heightIn(min = if (t.size == "big") 220.dp else 104.dp).alpha(if (waiting) 0.55f else 1f).raised(shape, if (open) p.fill else p.raise2)
+            .then(click).padding(horizontal = Space.s16, vertical = Space.s16),
+        verticalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
         val dot = look?.dot
         when {
             // A group: one dot per tile inside (filled when on, in its own colour).
             t.kind == "group" -> {
                 Title(t.title)
-                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                     if (inside.isEmpty()) Text("·", color = p.faint)
                     inside.forEach { (x, hex) ->
                         val xd = x.look?.dot
@@ -491,20 +489,20 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
                 } else if (dot != null) { TileDotView(dot.filled, tint(dot.color, c), false); Spacer(Modifier.size(8.dp)) }
                 if (t.kind == "page") { Icon(Icons.Outlined.Description, contentDescription = null, tint = p.muted, modifier = Modifier.size(15.dp)); Spacer(Modifier.size(8.dp)) }
                 Box(Modifier.weight(1f, fill = false)) {
-                    if (kpi) Text(t.title, color = p.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) else Title(t.title)
+                    if (kpi) Text(t.title, color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis) else Title(t.title)
                 }
-                if (t.kind == "note" && t.at != null) Text("  " + shortTime(t.at), color = p.faint, fontSize = 12.5.sp, maxLines = 1)
+                if (t.kind == "note" && t.at != null) Text("  " + shortTime(t.at), color = p.faint, fontSize = Type.s12, maxLines = 1)
                 Spacer(Modifier.weight(1f).size(1.dp))
-                if (t.kind == "page" && t.at != null) Text(dev.botdot.app.data.Pages.age(t.at, java.time.Instant.ofEpochMilli(now)), color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp))
+                if (t.kind == "page" && t.at != null) Text(dev.botdot.app.data.Pages.age(t.at, java.time.Instant.ofEpochMilli(now)), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = Space.s8))
                 if (t.ai && BoardKit.hasMarkdown(look?.face.orEmpty())) {
-                    Text(BoardWords.WRITTEN_BY_AI, color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1,
-                        modifier = Modifier.padding(start = 8.dp).border(1.dp, p.line2, RoundedCornerShape(99.dp)).padding(horizontal = 8.dp, vertical = 1.dp))
-                } else if (t.source != null && !kpi && !sourced) BoardKit.newestAt(listOf(t)).takeIf { it > 0 }?.let { Text(BoardKit.ageWords((now - it) / 1000), color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp)) }
+                    Text(BoardWords.WRITTEN_BY_AI, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1,
+                        modifier = Modifier.padding(start = Space.s8).background(p.fill, Radius.pill).padding(horizontal = Space.s8, vertical = 1.dp))
+                } else if (t.source != null && !kpi && !sourced) BoardKit.newestAt(listOf(t)).takeIf { it > 0 }?.let { Text(BoardKit.ageWords((now - it) / 1000), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = Space.s8)) }
             }
         }
         if (t.kind != "group" && look != null) Blocks(look.face, c, where, ctl)
         val note = if (waiting) tr("Waiting for your OK") else flash ?: if (t.error != null) tr("Couldn't update") else null
-        if (note != null) Text(note, color = p.muted, fontSize = 12.sp)
+        if (note != null) Text(note, color = p.muted, fontSize = Type.s12)
     }
 }
 
@@ -512,13 +510,13 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
 @Composable
 private fun SectionHead(name: String, tiles: List<Tile>, bots: List<Bot>, now: Long) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().padding(start = 2.dp, top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(name, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+    Row(Modifier.fillMaxWidth().padding(start = Space.s4, top = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+        Text(name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1)
         BoardKit.sectionBots(tiles, bots).takeIf { it.isNotEmpty() }?.let {
-            Text("  $it", color = p.faint, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Text("  $it", color = p.faint, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         }
         Spacer(Modifier.weight(1f).size(1.dp))
-        BoardKit.newestAt(tiles.filter { it.source != null }).takeIf { it > 0 && BoardKit.sectionSource(tiles).isNotEmpty() }?.let { Text(BoardKit.ageWords((now - it) / 1000), color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = 8.dp)) }
+        BoardKit.newestAt(tiles.filter { it.source != null }).takeIf { it > 0 && BoardKit.sectionSource(tiles).isNotEmpty() }?.let { Text(BoardKit.ageWords((now - it) / 1000), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = Space.s8)) }
     }
 }
 
@@ -530,25 +528,25 @@ private fun SectionHead(name: String, tiles: List<Tile>, bots: List<Bot>, now: L
 @Composable
 private fun ControlRow(t: Tile, waiting: Boolean, flash: String?, click: Modifier, first: Boolean, last: Boolean) {
     val p = LocalPaper.current
-    val r = 18.dp
+    val r = Radius.r14
     val shape = RoundedCornerShape(topStart = if (first) r else 0.dp, topEnd = if (first) r else 0.dp, bottomStart = if (last) r else 0.dp, bottomEnd = if (last) r else 0.dp)
     val note = if (waiting) tr("Waiting for your OK") else flash ?: if (t.error != null) tr("Couldn't update") else null
-    Column(Modifier.fillMaxWidth().alpha(if (waiting) 0.55f else 1f).clip(shape).background(p.panel).padding(horizontal = 16.dp)) {
-        if (first) Text(BoardWords.CONTROLS, color = p.text, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 14.dp, bottom = 2.dp))
+    Column(Modifier.fillMaxWidth().alpha(if (waiting) 0.55f else 1f).clip(shape).background(p.panel).padding(horizontal = Space.s16)) {
+        if (first) Text(BoardWords.CONTROLS, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = Space.s16, bottom = Space.s4))
         else Box(Modifier.fillMaxWidth().size(1.dp).background(p.line))
-        Row(Modifier.fillMaxWidth().then(click).padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().then(click).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(t.title, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                note?.let { Text(it, color = p.muted, fontSize = 12.sp) }
+                Text(t.title, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                note?.let { Text(it, color = p.muted, fontSize = Type.s12) }
             }
             if (t.kind == "switch") {
                 val on = t.look?.dot?.filled
-                Box(Modifier.size(width = 40.dp, height = 24.dp).alpha(if (on == null) 0.5f else 1f).clip(RoundedCornerShape(99.dp)).background(if (on == true) p.ok else p.line2).padding(3.dp),
+                Box(Modifier.size(width = 40.dp, height = 24.dp).alpha(if (on == null) 0.5f else 1f).clip(Radius.pill).background(if (on == true) p.ok else p.line2).padding(Space.s4),
                     contentAlignment = if (on == true) Alignment.CenterEnd else Alignment.CenterStart) {
                     Box(Modifier.size(18.dp).clip(CircleShape).background(Color.White))
                 }
-            } else Box(Modifier.size(30.dp).clip(CircleShape).border(1.dp, p.line2, CircleShape), contentAlignment = Alignment.Center) {
-                Text("›", color = p.muted, fontSize = 16.sp)
+            } else Box(Modifier.size(30.dp).clip(CircleShape).background(p.fill), contentAlignment = Alignment.Center) {
+                Text("›", color = p.muted, fontSize = Type.s16)
             }
         }
         if (last) Spacer(Modifier.size(4.dp))
@@ -559,9 +557,9 @@ private fun ControlRow(t: Tile, waiting: Boolean, flash: String?, click: Modifie
 @Composable
 fun SuggestedCard(x: dev.botdot.app.data.TileSuggestion, bot: Bot?, onAnswer: (Boolean) -> Unit) {
     val p = LocalPaper.current
-    val shape = RoundedCornerShape(18.dp)
+    val shape = Radius.card
     var script by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().clip(shape).border(1.dp, p.line2, shape).padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().clip(shape).border(1.dp, p.line2, shape).padding(horizontal = Space.s16, vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.alpha(0.75f)) {
             Box(Modifier.size(10.dp).clip(CircleShape).background(parseColor(bot?.color ?: CHIEF_COLOR, p.faint)))
             Spacer(Modifier.size(8.dp))
@@ -570,14 +568,14 @@ fun SuggestedCard(x: dev.botdot.app.data.TileSuggestion, bot: Bot?, onAnswer: (B
         Text(buildAnnotatedString {
             if (bot != null) { withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.SemiBold)) { append(bot.name) }; append(" · ") }
             append(x.reason)
-        }, color = p.muted, fontSize = 13.sp)
+        }, color = p.muted, fontSize = Type.s14)
         if (x.tile.scripts.isNotEmpty()) {
-            Text(if (script) tr("Hide its script") else tr("Its script"), color = p.muted, fontSize = 12.5.sp, modifier = Modifier.clip(RoundedCornerShape(6.dp)).combinedClickable(onClick = { script = !script }).padding(vertical = 2.dp))
-            if (script) x.tile.scripts.forEach { Text(it, color = p.text, fontSize = 12.sp, fontFamily = GeistMono, modifier = Modifier.fillMaxWidth().background(p.sunk, RoundedCornerShape(8.dp)).padding(8.dp)) }
+            Text(if (script) tr("Hide its script") else tr("Its script"), color = p.muted, fontSize = Type.s12, modifier = Modifier.clip(Radius.small).combinedClickable(onClick = { script = !script }).padding(vertical = Space.s4))
+            if (script) x.tile.scripts.forEach { Text(it, color = p.text, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.fillMaxWidth().background(p.sunk, Radius.small).padding(Space.s8)) }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
-            androidx.compose.material3.OutlinedButton(onClick = { onAnswer(false) }) { Text("✕", color = p.text) }
+            SecondaryButton(onClick = { onAnswer(false) }) { Text("✕", color = p.text) }
             Spacer(Modifier.size(8.dp))
             androidx.compose.material3.Button(onClick = { onAnswer(true) }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Add")) }
         }
@@ -586,7 +584,7 @@ fun SuggestedCard(x: dev.botdot.app.data.TileSuggestion, bot: Bot?, onAnswer: (B
 
 @Composable
 private fun Title(text: String, lines: Int = 1) =
-    Text(text, color = LocalPaper.current.text, fontSize = 13.5.sp, fontWeight = FontWeight.SemiBold, maxLines = lines, overflow = TextOverflow.Ellipsis)
+    Text(text, color = LocalPaper.current.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, maxLines = lines, overflow = TextOverflow.Ellipsis)
 
 /** A tile's dot colour: its own, else its bot's. A group has no bot: it takes the one whose tiles are in it (the Chief's when they're mixed). */
 internal fun tileColor(t: Tile, tiles: List<Tile>, bots: List<Bot>): String {

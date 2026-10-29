@@ -2,9 +2,7 @@ package dev.botdot.app.ui
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,7 +26,6 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -52,7 +49,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.tr
@@ -156,45 +152,45 @@ fun ProductCards(list: List<Product>, modifier: Modifier = Modifier) {
     val pick = list.first()
     Column(modifier.fillMaxWidth()) {
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.panel).border(1.dp, p.line2, RoundedCornerShape(20.dp)).padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12),
+            verticalArrangement = Arrangement.spacedBy(Space.s8),
         ) {
-            ProductPhoto(pick.image, Modifier.fillMaxWidth().aspectRatio(16f / 9f), 12)
-            Spacer(Modifier.height(4.dp))
-            Text(pick.name, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-            if (pick.price.isNotEmpty()) Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(pick.price, color = p.text, fontSize = 26.sp, fontWeight = FontWeight.SemiBold)
-                if (pick.was.isNotEmpty()) Text(pick.was, color = p.faint, fontSize = 13.sp, textDecoration = TextDecoration.LineThrough, modifier = Modifier.padding(bottom = 4.dp))
-                if (pick.off > 0) Text("−${pick.off}%", color = p.okText, fontSize = 12.sp, fontFamily = GeistMono, modifier = Modifier.padding(bottom = 5.dp))
+            ProductPhoto(pick.image, Modifier.fillMaxWidth().aspectRatio(16f / 9f), Radius.card)
+            Spacer(Modifier.height(Space.s4))
+            Text(pick.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
+            if (pick.price.isNotEmpty()) Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                Text(pick.price, color = p.text, fontSize = Type.s24, fontWeight = FontWeight.SemiBold)
+                if (pick.was.isNotEmpty()) Text(pick.was, color = p.faint, fontSize = Type.s14, textDecoration = TextDecoration.LineThrough, modifier = Modifier.padding(bottom = Space.s4))
+                if (pick.off > 0) Text("−${pick.off}%", color = p.okText, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.padding(bottom = Space.s4))
             }
             ProductFacts(pick, arrives = false)
-            if (pick.why.isNotEmpty()) Text(pick.why, color = Color(0xFFD0D0D0), fontSize = 14.5.sp)
-            if (pick.arrives.isNotEmpty()) Text(pick.arrives, color = p.muted, fontSize = 12.5.sp)
+            if (pick.why.isNotEmpty()) Text(pick.why, color = Color(0xFFD0D0D0), fontSize = Type.s14)
+            if (pick.arrives.isNotEmpty()) Text(pick.arrives, color = p.muted, fontSize = Type.s12)
             val saver = LocalProductSaver.current?.takeIf { pick.url.isNotEmpty() }
-            if (pick.url.isNotEmpty()) Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (pick.url.isNotEmpty()) Row(Modifier.padding(top = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Button(onClick = { open(pick.url) }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText), modifier = Modifier.heightIn(min = 36.dp)) {
                     Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(tr("Open"), fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.width(Space.s8))
+                    Text(tr("Open"), fontSize = Type.s14, fontWeight = FontWeight.Medium)
                 }
                 if (saver != null) SaveButton(saver, pick)
             }
         }
-        if (list.size > 1) Column(Modifier.padding(top = 12.dp).fillMaxWidth()) {
+        if (list.size > 1) Column(Modifier.padding(top = Space.s12).fillMaxWidth()) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(p.sunk))
             list.drop(1).forEach { r ->
                 Row(
-                    Modifier.fillMaxWidth().heightIn(min = 64.dp).let { if (r.url.isNotEmpty()) it.clickable { open(r.url) } else it }.padding(vertical = 8.dp, horizontal = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    Modifier.fillMaxWidth().heightIn(min = 64.dp).let { if (r.url.isNotEmpty()) it.clickable { open(r.url) } else it }.padding(vertical = Space.s8, horizontal = Space.s4),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12),
                 ) {
-                    ProductPhoto(r.image, Modifier.size(48.dp), 10)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(r.name, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    ProductPhoto(r.image, Modifier.size(48.dp), Radius.small)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                        Text(r.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         ProductFacts(r, arrives = true)
                     }
                     if (r.price.isNotEmpty()) Column(horizontalAlignment = Alignment.End) {
-                        Text(r.price, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                        if (r.off > 0) Text("−${r.off}%", color = p.okText, fontSize = 12.sp, fontFamily = GeistMono)
+                        Text(r.price, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        if (r.off > 0) Text("−${r.off}%", color = p.okText, fontSize = Type.s12, fontFamily = GeistMono)
                     }
                     if (r.url.isNotEmpty()) Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, tint = p.faint, modifier = Modifier.size(16.dp))
                 }
@@ -214,26 +210,26 @@ private fun ProductFacts(x: Product, arrives: Boolean) {
         x.arrives.takeIf { arrives && it.isNotEmpty() },
     )
     if (x.rating == null && bits.isEmpty()) return
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
         if (x.rating != null) {
             Icon(Icons.Filled.Star, contentDescription = null, tint = p.warn, modifier = Modifier.size(12.dp))
-            Text(String.format(java.util.Locale.ROOT, "%.1f", x.rating), color = p.muted, fontSize = 12.5.sp, maxLines = 1)
+            Text(String.format(java.util.Locale.ROOT, "%.1f", x.rating), color = p.muted, fontSize = Type.s12, maxLines = 1)
         }
         bits.forEachIndexed { i, b ->
             if (i > 0 || x.rating != null) Box(Modifier.size(3.dp).clip(CircleShape).background(Color(0xFF5F5F5F)))
-            Text(b, color = p.muted, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Text(b, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         }
     }
 }
 
 /** A product's photo through botdot (/api/product-image), never from the store; the bag where there is none. */
 @Composable
-private fun ProductPhoto(image: String, modifier: Modifier, radius: Int) {
+private fun ProductPhoto(image: String, modifier: Modifier, shape: RoundedCornerShape) {
     val p = LocalPaper.current
     val api by BotDotApp.of(LocalContext.current).api.collectAsState()
     var failed by remember(image) { mutableStateOf(false) }
     val a = api
-    Box(modifier.clip(RoundedCornerShape(radius.dp)).background(p.sunk), contentAlignment = Alignment.Center) {
+    Box(modifier.clip(shape).background(p.sunk), contentAlignment = Alignment.Center) {
         Icon(Icons.Outlined.ShoppingBag, contentDescription = null, tint = p.faint, modifier = Modifier.size(22.dp))
         if (image.isNotEmpty() && !failed && a != null) {
             coil3.compose.AsyncImage(model = a.url("/product-image?url=" + Api.enc(image)), contentDescription = null, contentScale = ContentScale.Fit,
@@ -252,9 +248,9 @@ private fun SaveButton(botId: String, x: Product) {
     val scope = rememberCoroutineScope()
     LaunchedEffect(botId, api) { api?.let { SavedProducts.load(it, botId) } }
     val on = x.url in SavedProducts.urls[botId].orEmpty()
-    OutlinedButton(
+    SecondaryButton(
         onClick = {
-            val a = api ?: return@OutlinedButton
+            val a = api ?: return@SecondaryButton
             val next = !on
             val before = SavedProducts.urls[botId].orEmpty()
             SavedProducts.urls[botId] = if (next) before + x.url else before - x.url
@@ -265,10 +261,10 @@ private fun SaveButton(botId: String, x: Product) {
                 }
             }
         },
-        border = BorderStroke(1.dp, p.line2), colors = ButtonDefaults.outlinedButtonColors(contentColor = p.text), modifier = Modifier.heightIn(min = 36.dp),
+        modifier = Modifier.heightIn(min = 36.dp),
     ) {
         Icon(if (on) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(if (on) tr("Saved") else tr("Save"), fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(Space.s8))
+        Text(if (on) tr("Saved") else tr("Save"), fontSize = Type.s14, fontWeight = FontWeight.Medium)
     }
 }

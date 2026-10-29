@@ -67,7 +67,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.FilePaths
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
@@ -181,33 +180,35 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
             blocks.forEachIndexed { i, b ->
                 val st = styled[i]
                 val above = Modifier.padding(top = gapAbove(blocks.getOrNull(i - 1), b))
+                // Lines of text stop at about 62 characters (#726); code, tables and cards keep the width.
+                val prose = above.widthIn(max = Space.answer)
                 when (b) {
-                    is Block.Heading -> Text(st[0], color = color, fontWeight = FontWeight.SemiBold, fontSize = headingSize(b.level), modifier = above, inlineContent = icons)
-                    is Block.Para -> PathText(st[0], color, paths, above, icons)
+                    is Block.Heading -> Text(st[0], color = color, fontWeight = FontWeight.SemiBold, fontSize = headingSize(b.level), modifier = prose, inlineContent = icons)
+                    is Block.Para -> PathText(st[0], color, paths, prose, icons)
                     // The indent moves the whole row, so a sub-item's text starts right of its parent's text.
-                    is Block.Item -> Row(above.padding(start = itemIndent(b.indent))) {
+                    is Block.Item -> Row(prose.padding(start = itemIndent(b.indent))) {
                         // A task item shows its checkbox in place of the marker; it only says done or not (#267).
                         if (b.task != null) Icon(if (b.task == "done") Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank, contentDescription = null, tint = p.muted,
-                            modifier = Modifier.padding(top = 3.dp, end = 6.dp).size(18.dp).semantics {
+                            modifier = Modifier.padding(top = Space.s4, end = Space.s8).size(18.dp).semantics {
                                 role = Role.Checkbox
                                 toggleableState = if (b.task == "done") ToggleableState.On else ToggleableState.Off
                             })
                         else Text(if (b.number != null) "${b.number}." else "•", color = p.muted, style = MaterialTheme.typography.bodyLarge,
-                            maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = markerWidth(b.number != null)).padding(end = 4.dp))
+                            maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = markerWidth(b.number != null)).padding(end = Space.s4))
                         PathText(st[0], color, paths, Modifier, icons)
                     }
                     is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
-                        modifier = above.padding(start = 10.dp), inlineContent = icons)
+                        modifier = prose.padding(start = Space.s12), inlineContent = icons)
                     is Block.Code -> if (products[i] != null) ProductCards(products[i]!!, above) else {
                         // Copy in its top-right corner (#285), in a column of its own that the code scrolls beside.
-                        Row(above.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp))) {
-                            Text(b.text, fontFamily = GeistMono, fontSize = 12.5.sp, color = color,
-                                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(10.dp))
+                        Row(above.fillMaxWidth().background(p.sunk, Radius.small)) {
+                            Text(b.text, fontFamily = GeistMono, fontSize = Type.s12, color = color,
+                                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(Space.s12))
                             if (copy) copyTextOf(b)?.let { key(i, it) { CopyCode(it) } }
                         }
                         webLinkUnder(b, onWeb)?.let { url ->
                             Text(buildAnnotatedString { withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = p.muted, textDecoration = TextDecoration.Underline)))) { append(tr("Open on web")) } },
-                                fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                                fontSize = Type.s14, modifier = Modifier.padding(top = Space.s4))
                         }
                     }
                     is Block.Table -> Box(above) { Table(b.rows, st, color, p, icons) }
@@ -227,7 +228,7 @@ private fun PathText(text: AnnotatedString, color: Color, paths: PathActions?, m
     val p = LocalPaper.current
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     val icon = remember(p) {
-        mapOf(FILE_ICON to InlineTextContent(Placeholder(15.sp, 15.sp, PlaceholderVerticalAlign.TextCenter)) {
+        mapOf(FILE_ICON to InlineTextContent(Placeholder(Type.s16, Type.s16, PlaceholderVerticalAlign.TextCenter)) {
             Icon(Icons.Outlined.Description, contentDescription = null, tint = p.mention)
         })
     }
@@ -259,7 +260,7 @@ private fun Modifier.pathLongPress(text: AnnotatedString, layout: () -> TextLayo
 }
 
 /** A title is larger than the text (15sp), down to level 4, which is the text's size in semi-bold. */
-internal fun headingSize(level: Int): TextUnit = when (level) { 1 -> 20.sp; 2 -> 18.sp; 3 -> 16.5.sp; else -> 15.sp }
+internal fun headingSize(level: Int): TextUnit = if (level == 1) Type.s20 else Type.s16
 
 /** The space above a block: none above the first, more above a title, less between two items of a list. */
 internal fun gapAbove(previous: Block?, block: Block): Dp = when {
@@ -285,13 +286,13 @@ private fun Table(rows: List<List<String>>, cells: List<AnnotatedString>, color:
     Layout(
         content = {
             for ((ri, row) in rows.withIndex()) for (c in 0 until cols) {
-                Text(if (c < row.size) cells[starts[ri] + c] else AnnotatedString(""), color = color, fontSize = 14.sp, inlineContent = sites,
+                Text(if (c < row.size) cells[starts[ri] + c] else AnnotatedString(""), color = color, fontSize = Type.s14, inlineContent = sites,
                     fontWeight = if (ri == 0) FontWeight.SemiBold else null)
             }
             Box(Modifier.background(p.line2))
         },
-        modifier = Modifier.fillMaxWidth().background(p.sunk.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-            .horizontalScroll(rememberScrollState()).padding(10.dp),
+        modifier = Modifier.fillMaxWidth().background(p.sunk.copy(alpha = 0.6f), Radius.small)
+            .horizontalScroll(rememberScrollState()).padding(Space.s12),
     ) { measurables, _ ->
         val gapX = 14.dp.roundToPx(); val gapY = 6.dp.roundToPx(); val maxCell = 240.dp.roundToPx()
         val cells = measurables.dropLast(1)
@@ -521,7 +522,7 @@ private fun AnnotatedString.Builder.siteIcon(url: String) {
 /** The inline content for the site icons in [texts]: one per site. */
 internal fun siteIconsIn(texts: List<AnnotatedString>): Map<String, InlineTextContent> =
     texts.flatMap { t -> t.getStringAnnotations(SITE_TAG, 0, t.length).map { it.item } }.toSet().associate { host ->
-        SITE_ICON + host to InlineTextContent(Placeholder(16.sp, 16.sp, PlaceholderVerticalAlign.TextCenter)) { SiteIcon(host) }
+        SITE_ICON + host to InlineTextContent(Placeholder(Type.s16, Type.s16, PlaceholderVerticalAlign.TextCenter)) { SiteIcon(host) }
     }
 
 /** The icon botdot keeps for [host] (/api/favicon), on a light rounded backing so a dark icon shows on the dark
@@ -572,9 +573,9 @@ internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? =
         when {
             g[1].isNotEmpty() || g[2].isNotEmpty() -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(inlineText(g[1].ifEmpty { g[2] }, color, p, paths, sites)) }
             g[3].isNotEmpty() && paths != null && FilePaths.isPath(g[4]) -> pathLink(g[4], p, paths) {
-                withStyle(SpanStyle(fontFamily = GeistMono, background = p.sunk, fontSize = 13.sp)) { append(g[4]) }
+                withStyle(SpanStyle(fontFamily = GeistMono, background = p.sunk, fontSize = Type.s14)) { append(g[4]) }
             }
-            g[3].isNotEmpty() -> withStyle(SpanStyle(fontFamily = GeistMono, background = p.sunk, fontSize = 13.sp)) { append(g[4]) }
+            g[3].isNotEmpty() -> withStyle(SpanStyle(fontFamily = GeistMono, background = p.sunk, fontSize = Type.s14)) { append(g[4]) }
             g[5].isNotEmpty() -> {
                 val target = runCatching { java.net.URI(g[6]) }.getOrNull()
                 if (target?.scheme?.lowercase() in listOf("http", "https") && !target?.host.isNullOrEmpty()) {

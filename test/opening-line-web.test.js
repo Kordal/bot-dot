@@ -158,7 +158,7 @@ test('web: the page draws it under the chat and takes it away when the run ends'
 });
 
 test('web: the look: a pulsing dot in the bot\'s colour, the line, an ellipsis', () => {
-  assert.match(css, /\.status-line \{[^}]*color: var\(--muted\);[^}]*font-size: 13px;/);
+  assert.match(css, /\.status-line \{[^}]*color: var\(--muted\);[^}]*font-size: var\(--fs-12\);/);
   assert.match(css, /\.status-line i \{[^}]*width: 7px; height: 7px; border-radius: 50%; background: var\(--c\); animation: status-pulse 1\.2s ease-in-out infinite;/);
   assert.match(css, /\.status-line span::after \{ content: '…'; \}/);
   assert.match(css, /@keyframes status-pulse \{ 50% \{ opacity: \.25; \} \}/);

@@ -287,7 +287,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'workspace-folders', 'projects', 'account-computer', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'company-checkins', 'product-cards', 'project-todos'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'workspace-folders', 'projects', 'account-computer', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -498,10 +498,11 @@ function chiefChatOf(req, by) {
 // the owner let through after the web (chief/after-web, #280). Of its own files it lists them and keeps one in mind
 // (chief/files, #383), only in a turn the owner started, which the route checks; only the owner opens or deletes one.
 // Of the company (#669) it reads it and changes its teams and its objectives' numbers, drafts the week's plan and
-// suggests a new bot (#673), and adds, assigns and ticks items of its to-do (#692); making, deleting, deleting a
-// to-do item, the check-ins, Approve and Add stay the owner's.
+// suggests a new bot (#673), adds, assigns and ticks items of its to-do (#692), logs a decision the owner told
+// it, in a turn the owner started (#694), and reads its calendar and adds, moves and deletes its events (#695);
+// and sets and starts the morning standup (#698); making, deleting, deleting a to-do item or a decision, the check-ins, Approve and Add stay the owner's.
 const CHIEF_ROUTES = [
-  ['GET', /^(company|bots|skills|connectors|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
+  ['GET', /^(company|company\/list|company\/calendar|bots|skills|connectors|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
   ['GET', /^runs\/[^/]+\/wait$/],
   ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)$/],
@@ -510,9 +511,9 @@ const CHIEF_ROUTES = [
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
   ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|chief\/jobs|chief\/jobs\/[^/]+\/run|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|connectors\/session\/(actions|run|wait))$/],
   ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
-  ['POST', /^company\/(teams|todos)$/],
-  ['PUT', /^(company\/(plan|suggestion)|company\/(teams|objectives|todos)\/[^/]+|chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
-  ['DELETE', /^(chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
+  ['POST', /^company\/(teams|todos|decisions|events)$/],
+  ['PUT', /^(company\/(plan|suggestion|standup)|company\/(teams|objectives|todos|events)\/[^/]+|chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
+  ['DELETE', /^(company\/events\/[^/]+|chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
 const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method && re.test(parts.join('/')));
 
@@ -592,15 +593,17 @@ function heldTitle(method, parts, body) {
 // The request waits on a card in Needs you (an ask of kind "chief-action"), and the Chief is told so: nothing was
 // done. Its answer has `held: true`, which the Chief's tools pass on as it is (mcp-server.js).
 // read: the body, when the route has read it already.
+// The query (`?project=`, #689) is kept with it: the change is done to the project it was asked of.
 async function holdAfterWeb(req, res, method, parts, chatId, turn, read = null) {
+  const query = new URL(req.url || '/', 'http://botdot').search;
   const body = read || (method === 'DELETE' ? {} : await readBody(req));
   // A type the owner always allowed on such a card (#280) is done now, as a yes on its card would do it.
   const type = asksLib.afterWebType(method, parts.join('/'), body);
   if (type && B.settings.afterWeb().includes(type)) {
-    const out = await replayAsChief({ method, path: parts.join('/'), body, chatId, startedBy: turn.startedBy });
+    const out = await replayAsChief({ method, path: parts.join('/'), query, body, chatId, startedBy: turn.startedBy });
     return send(res, out.status, out.body);
   }
-  const a = asks.add({ kind: 'chief-action', botId: null, chatId, method, path: parts.join('/'), body, title: heldTitle(method, parts, body), startedBy: turn.startedBy });
+  const a = asks.add({ kind: 'chief-action', botId: null, chatId, method, path: parts.join('/'), ...(query ? { query } : {}), body, title: heldTitle(method, parts, body), startedBy: turn.startedBy });
   return send(res, 202, { held: true, id: a.id, say: "Not done yet: you read the web in this chat, so this waits for the user's OK on a card in Needs you. When they approve, botdot does it exactly as you sent it and tells you in this chat. Tell the user in one line that it waits for them; don't send it again." });
 }
 // The owner's yes on such a card: the request is done now, as it was sent, with the Chief's rights and nothing
@@ -621,7 +624,7 @@ async function doHeldAction(a, always = false) {
 // The held request through api() itself, with a request and an answer of its own: { status, body }.
 function replayAsChief(a) {
   return new Promise((resolve) => {
-    const req = Object.assign(Readable.from([Buffer.from(JSON.stringify(a.body || {}))]), { method: a.method, url: `/api/${a.path}`, headers: { 'x-bot-dot': '1' }, socket: {} });
+    const req = Object.assign(Readable.from([Buffer.from(JSON.stringify(a.body || {}))]), { method: a.method, url: `/api/${a.path}${a.query || ''}`, headers: { 'x-bot-dot': '1' }, socket: {} });
     let status = 200;
     const res = {
       req, headersSent: false,
@@ -630,7 +633,7 @@ function replayAsChief(a) {
       end(text) { let body = {}; try { body = text ? JSON.parse(String(text)) : {}; } catch { /* not JSON */ } resolve({ status, body }); },
     };
     const chatId = a.chatId && chief.readChat(a.chatId) ? a.chatId : null;
-    api(req, res, new URL(`http://botdot/api/${a.path}`), { chatId, standing: { startedBy: a.startedBy || 'botdot', read: [], replyId: null, web: false } })
+    api(req, res, new URL(`http://botdot/api/${a.path}${a.query || ''}`), { chatId, standing: { startedBy: a.startedBy || 'botdot', read: [], replyId: null, web: false } })
       .then(() => { if (!res.headersSent) resolve({ status: 404, body: { error: 'Unknown endpoint' } }); })
       .catch((e) => resolve({ status: e.status || 400, body: { error: e.message } }));
   });

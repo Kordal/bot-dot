@@ -2,21 +2,15 @@ package dev.botdot.app.ui
 
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,7 +25,6 @@ import androidx.compose.material.icons.outlined.ThumbDown as ThumbDownOutline
 import androidx.compose.material.icons.outlined.ThumbUp as ThumbUpOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -59,7 +52,9 @@ import dev.botdot.app.data.Attachment
 import dev.botdot.app.data.ChiefChat
 import dev.botdot.app.data.ChiefChatSummary
 import dev.botdot.app.data.ChiefMessage
+import dev.botdot.app.data.ChiefJobs
 import dev.botdot.app.data.DocumentView
+import dev.botdot.app.data.EmptyChatJobs
 import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.Mentions
 import dev.botdot.app.data.PlanView
@@ -68,13 +63,6 @@ import dev.botdot.app.data.Unread
 import dev.botdot.app.data.str
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
-
-private val SUGGESTIONS = listOf(
-    tr("What bots do I have, and what is each one good at?"),
-    tr("Create a bot that checks the news on a topic every morning and sends me the highlights."),
-    tr("Make a bot that uses the computer to work on websites for me."),
-    tr("Make a research bot that finds fresh game design ideas on the web."),
-)
 
 /** The Chief of Staff: a chat that manages your bots. chatId "latest" opens the newest chat. */
 @Composable
@@ -154,6 +142,27 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     fun send(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments) }
     // From a quick answer, a question card, a plan's Approve: whether it went. What was tapped stays until it did.
     suspend fun sendFrom(text: String, key: String): Boolean = vm.send(text, emptyList(), box = false, key = key).await()
+    // A new chat (#727): the box in the middle, under its head and name, and its own jobs (#408) under it. Gone with the first message.
+    val empty = chat?.messages.isNullOrEmpty() && vm.sent == null && vm.queued.isEmpty() && (chatId == null || chat != null)
+    @Composable fun box() = Composer(
+        placeholder = tr("Message the Chief…"),
+        files = files,
+        busy = boxStops(busy, features),
+        outbox = vm.outbox,
+        onSend = { t, a -> send(t, a) },
+        onStop = { vm.stop() },
+        onError = { scope.launch { snack.showSnackbar(it) } },
+        initialText = sharedText,
+        onSignIn = onSignIn.takeIf { signedOut },
+    )
+    var ownJobs by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
+    LaunchedEffect(empty, features) {
+        if (empty && ChiefJobs.shows(features)) ownJobs = runCatching { app.api.value?.chiefJobs() }.getOrNull()?.let { EmptyChatJobs.chiefJobs(it) } ?: emptyList()
+    }
+    fun runOwnJob(id: String) = scope.launch {
+        val r = runCatching { app.api.value!!.runChiefJob(id) }
+        snack.showSnackbar(r.fold({ tr("Started") }, { it.message ?: tr("Couldn't start it") }))
+    }
 
     // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles. And where Quote
     // puts text selected in a message: this chat's message box (QuoteUi.kt).
@@ -173,23 +182,18 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                     RoundButton(Icons.Filled.Add, tr("New chat")) { vm.open(null) }
                 }
             },
-            bottomBar = { Column {
+            bottomBar = { if (!empty) Column {
                 PlanDock(planView, CHIEF_COLOR, LocalChiefName.current, planFolded,
                     onFold = { planFolded = it; app.plans.setFolded(planChat, it) },
                     onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
-                Composer(
-                    placeholder = tr("Message the Chief…"),
-                    files = files,
-                    busy = boxStops(busy, features),
-                    outbox = vm.outbox,
-                    onSend = { t, a -> send(t, a) },
-                    onStop = { vm.stop() },
-                    onError = { scope.launch { snack.showSnackbar(it) } },
-                    initialText = sharedText,
-                    onSignIn = onSignIn.takeIf { signedOut },
-                )
+                box()
             } },
         ) { pad ->
+            if (empty) {
+                EmptyChat(pad, LocalChiefName.current, ownJobs, onJob = { runOwnJob(it) },
+                    figure = { BotFigure(CHIEF_COLOR, if (busy) "working" else "idle", 56, FigureDef.CHIEF) }) { box() }
+                return@Scaffold
+            }
             val messages = chat?.messages.orEmpty()
             val first = chat?.offset ?: 0 // where the loaded messages start in the whole chat
             val newestFirst = remember(messages) { messages.asReversed() }
@@ -202,8 +206,8 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                 state = listState,
                 reverseLayout = true,
                 // The top bar and the message box float over the messages, which scroll behind them.
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = pad.calculateTopPadding() + 4.dp, bottom = pad.calculateBottomPadding() + 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom), // few messages: at the bottom, by the message box
+                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
+                verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom), // few messages: at the bottom, by the message box
             ) {
                 // Last in the chat: the Chief's working line while it replies, then your messages that wait for the
                 // reply to end, then what it set up or asked for. Where Send stays, the line is all there is of its
@@ -220,33 +224,10 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                         ChatNeeds(app, "chief", onNeeds, chiefChat = chatId)
                     }
                 }
-                // A new chat starts like the web page's: the Chief's figure, a heading and the suggestions, in the middle.
-                if (messages.isEmpty() && sent == null) item {
-                    Column(
-                        Modifier.fillParentMaxSize().padding(horizontal = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        BotFigure(CHIEF_COLOR, if (busy) "working" else "idle", 56, FigureDef.CHIEF)
-                        Spacer(Modifier.size(14.dp))
-                        Text(tr("What should the team work on?"), style = MaterialTheme.typography.titleLarge, color = p.text, textAlign = TextAlign.Center)
-                        Spacer(Modifier.size(6.dp))
-                        Text(tr("Ask for anything. I'll hand it to the right bot, or build a new one."), color = p.muted, textAlign = TextAlign.Center)
-                        Spacer(Modifier.size(22.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            val shape = RoundedCornerShape(16.dp)
-                            SUGGESTIONS.forEach { s ->
-                                Text(s, color = p.muted, fontSize = 13.5.sp, lineHeight = 19.sp,
-                                    modifier = Modifier.fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line, shape)
-                                        .clickable { send(s, files.take()) }.padding(horizontal = 14.dp, vertical = 12.dp))
-                            }
-                        }
-                    }
-                }
                 itemsIndexed(newestFirst, key = { i, m -> "${first + messages.size - 1 - i}:${m.at}" }) { i, m ->
                     // A reply that is new in this open chat arrives; the owner's own message and a reply still
                     // being written are no replies, and stand still.
-                    Column(Modifier.arrives(arrivals, "${first + messages.size - 1 - i}".takeUnless { m.role == "user" || m.pending }), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.arrives(arrivals, "${first + messages.size - 1 - i}".takeUnless { m.role == "user" || m.pending }), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                         if (newAt >= 0 && messages.size - 1 - i == newAt) NewLine(CHIEF_COLOR)
                         val chips = m.actions.orEmpty().filterNot { MailCard.takesChip(m.draft, it) }.map { a -> // a mail draft's card names its bot in its footer
                             val bot = botById[a.botId]
@@ -306,7 +287,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
         // did so far stands here, with its draft from a server that sends one (ReplyDraft), growing in the reply's
         // place. Against a botdot from before `message-waits`, its bubble as it was.
         m.pending && draft.isNotEmpty() -> TheirBubble(chips = chips) { MarkdownText(draftSource(draft), copy = false) }
-        m.pending -> if (lineSaysIt) { if (chips.isNotEmpty()) ActionChips(chips) } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        m.pending -> if (lineSaysIt) { if (chips.isNotEmpty()) ActionChips(chips) } else Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Working(activity.lastOrNull()?.let { "$it…" } ?: tr("Thinking…"), activity)
             if (chips.isNotEmpty()) ActionChips(chips)
         }
@@ -335,7 +316,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
                         m.botPages.forEach { (botId, pages) -> PageChips(botId, pages, pages.first().bot) } // the pages its bots saved for it
                         // A reply that failed after writing: its problem, in a block of its own under the text.
                         if (error != null) MarkdownText(error, color = p.warnText,
-                            modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.warnSoft).padding(horizontal = 12.dp, vertical = 8.dp))
+                            modifier = Modifier.padding(top = Space.s8).fillMaxWidth().clip(Radius.card).background(p.warnSoft).padding(horizontal = Space.s12, vertical = Space.s8))
                         PlanFold(plan) // the steps of its work, folded under it
                     }
                 }
@@ -389,25 +370,25 @@ private fun FromLine(words: String, from: dev.botdot.app.data.BotRef?) {
         append("$words ")
         if (from != null) bot(named(w?.bot(from.id), from.name, from.color)) else append(tr("a bot"))
     }
-    FigureText(line, color = LocalPaper.current.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+    FigureText(line, color = LocalPaper.current.muted, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s8))
 }
 
 /** A bot's suggestion for the Chief: nothing happens until you tap Approve (or answer in your own words). */
 @Composable
 private fun Suggestion(m: ChiefMessage, onBuild: () -> Unit, onDismiss: () -> Unit) {
     val p = LocalPaper.current
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val shape = Radius.mine
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         FromLine(tr("Suggestion from"), m.from)
-        Column(Modifier.padding(start = 32.dp).clip(shape).holdToCopy(m.text).background(p.sunk).border(1.dp, p.line2, shape).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(Modifier.padding(start = Space.s32).raised(shape).holdToCopy(m.text).padding(horizontal = Space.s16, vertical = Space.s12)) {
             MarkdownText(m.text)
         }
         when (m.status) {
-            "pending" -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = onDismiss) { Text(tr("Decline"), color = p.text) }
+            "pending" -> Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                SecondaryButton(onClick = onDismiss) { Text(tr("Decline"), color = p.text) }
                 Button(onClick = onBuild, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Approve")) }
             }
-            "dismissed" -> Text(tr("You declined it"), color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+            "dismissed" -> Text(tr("You declined it"), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s8))
         }
     }
 }
@@ -416,11 +397,11 @@ private fun Suggestion(m: ChiefMessage, onBuild: () -> Unit, onDismiss: () -> Un
 @Composable
 private fun Report(m: ChiefMessage) {
     val p = LocalPaper.current
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val shape = Radius.mine
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         FromLine(tr("Message from"), m.from)
         // A task it didn't finish (`error: true`) is drawn like a failed reply; its text says why.
-        Column(Modifier.padding(start = 32.dp).clip(shape).holdToCopy(m.text).background(if (m.failed) p.errSoft else p.sunk).border(1.dp, if (m.failed) p.err.copy(alpha = 0.3f) else p.line2, shape).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(Modifier.padding(start = Space.s32).then(if (m.failed) Modifier.clip(shape).background(p.errSoft) else Modifier.raised(shape)).holdToCopy(m.text).padding(horizontal = Space.s16, vertical = Space.s12)) {
             if (m.text.isNotBlank()) MarkdownText(m.text) // a file it sent while working has no text
             if (!m.failed) OpenAsDocument(m.text, m.from?.name.orEmpty())
             BotFilesRow(m.files, top = if (m.text.isNotBlank()) 8.dp else 0.dp)
