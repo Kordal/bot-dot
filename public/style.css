@@ -3124,3 +3124,28 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
   .dock-panel.dock-in { animation: dock-up var(--t3) var(--out); }
 }
 
+
+/* A project's board as a free canvas (#783, board-canvas-view.js): each tile where the owner put it, the canvas scaled
+   to the width. Arrange: the body drags, the edges and corners resize. */
+.bc-wrap { position: relative; width: 100%; min-width: 0; overflow: hidden; }
+.bc-wrap.arranging { background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: 24px 24px; }
+.bc-canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.bc-tile { position: absolute; display: flex; flex-direction: column; gap: var(--sp-16); min-width: 0; overflow: auto; border-radius: var(--r-14); }
+.bc-tile > :not(i) { flex: 1 1 auto; min-height: 0; margin: 0; }
+.bc-tile > .cf-line { flex: none; }
+.bc-tile[data-tile="days"] { padding: var(--sp-16) var(--sp-8) 0; overflow: hidden; }
+.bc-cover { position: absolute; inset: 0; z-index: 2; border-radius: var(--r-14); outline: 1px dashed var(--line-2); outline-offset: -1px; cursor: grab; touch-action: none; }
+.bc-tile.moving { z-index: 3; }
+.bc-tile.moving .bc-cover { outline: 2px solid var(--text); cursor: grabbing; }
+.bc-tile:focus-visible { outline: none; }
+.bc-tile:focus-visible .bc-cover { outline: 2px solid var(--text); }
+.bc-h { position: absolute; z-index: 3; touch-action: none; background: none; border-radius: 0; }
+.bc-h[data-edge="n"], .bc-h[data-edge="s"] { left: 16px; right: 16px; height: 10px; cursor: ns-resize; }
+.bc-h[data-edge="e"], .bc-h[data-edge="w"] { top: 16px; bottom: 16px; width: 10px; cursor: ew-resize; }
+.bc-h[data-edge="n"] { top: 0; } .bc-h[data-edge="s"] { bottom: 0; } .bc-h[data-edge="e"] { right: 0; } .bc-h[data-edge="w"] { left: 0; }
+.bc-h[data-edge="ne"], .bc-h[data-edge="se"], .bc-h[data-edge="sw"], .bc-h[data-edge="nw"] { width: 18px; height: 18px; }
+.bc-h[data-edge="ne"] { top: 0; right: 0; cursor: nesw-resize; } .bc-h[data-edge="sw"] { bottom: 0; left: 0; cursor: nesw-resize; }
+.bc-h[data-edge="nw"] { top: 0; left: 0; cursor: nwse-resize; }
+.bc-h[data-edge="se"] { bottom: 0; right: 0; cursor: nwse-resize; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); border-bottom-right-radius: var(--r-14); }
+.bc-arrange[aria-pressed="true"] { background: var(--ink); color: var(--ink-text); }
+.cf-top .bc-arrange svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
