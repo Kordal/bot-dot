@@ -2385,3 +2385,96 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
   .co-swot-cell:nth-child(odd) { border-right: 0; }
 }
 #view-company:has(.co-foot) { padding-bottom: 0; }
+/* ---------- the Company's home: an office floor (#672, company-home.js) ---------- */
+#view-company { container-type: inline-size; container-name: company; }
+.cf-home { max-width: 1240px; margin: 0 auto; padding-top: 24px; }
+.cf-top { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+.cf-top h1 { margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-day { flex: none; padding: 4px 10px; border: 1px solid var(--line-2); border-radius: 99px; font: 12px var(--mono); color: var(--muted); }
+.cf-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-items: start; }
+.cf-floor { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 22px; background-color: #070707; background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); background-size: 24px 24px; }
+.cf-home svg.cf-crown { width: 12px; height: 12px; fill: #f5c542; stroke: none; }
+.cf-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+/* The whiteboard: one number per objective over a bar in its colour. */
+.cf-board { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 28px; padding: 20px 22px; border: 1px solid var(--line-2); border-radius: 16px; background: var(--panel); }
+.cf-board.empty { color: var(--muted); }
+.cf-kpi { flex: 1 1 110px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.cf-kpi-name { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-kpi-num { font-size: 24px; font-weight: 600; letter-spacing: -.01em; }
+.cf-kpi-num span, .cf-team-kpi b span { font-size: 13px; font-weight: 400; color: var(--faint); }
+.cf-bar { height: 3px; border-radius: 3px; background: var(--line-2); overflow: hidden; }
+.cf-bar i { display: block; height: 100%; background: var(--c); }
+/* A desk: a bubble over it, the table with its monitor (lit in the bot's colour while it works or asks), the head, the name. */
+.cf-desk, .cf-chief { position: relative; display: flex; flex-direction: column; align-items: center; width: 100px; padding: 0; border: 0; background: none; color: var(--text); cursor: pointer; }
+.cf-desk.on { background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 20%, transparent), transparent); }
+.cf-over { display: flex; align-items: flex-end; justify-content: center; min-height: 26px; max-width: 170px; margin-bottom: 6px; }
+.cf-table { display: flex; justify-content: center; width: 80px; height: 30px; padding-top: 6px; border: 1px solid #333; border-radius: 8px; background: linear-gradient(#2a2a2a, #161616); }
+.cf-table i { width: 70%; height: 4px; border-radius: 3px; background: #333; }
+.cf-desk.on .cf-table i { background: var(--c); box-shadow: 0 0 12px var(--c); }
+.cf-head { position: relative; margin-top: -14px; }
+.cf-desk:not(.on) .cf-head .avatar, .cf-sit .avatar { opacity: .55; }
+.cf-head .cf-crown, .cf-member .cf-crown { position: absolute; top: -4px; right: -8px; box-sizing: content-box; padding: 3px; border-radius: 50%; background: #1d1a10; }
+.cf-head .cf-crown { top: 10px; right: -6px; }
+.cf-name { margin-top: 6px; font-size: 12.5px; color: var(--muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.cf-desk.on .cf-name, .cf-desk.lead .cf-name { color: var(--text); }
+.cf-desk.lead { width: 140px; }
+.cf-desk.lead .cf-table { width: 124px; height: 42px; }
+.cf-bubble { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 3px 10px; border: 1px solid var(--line-2); border-radius: 99px; background: var(--sunk); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cf-bubble.line::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--c, var(--ok)); }
+.cf-bubble.count { justify-content: center; min-width: 24px; border-color: #fff; background: #fff; color: #000; font-weight: 600; }
+.cf-bubble.asks { border-color: var(--warn); background: var(--warn-soft); color: var(--warn-text); font-weight: 600; }
+.cf-bubble.dot { width: 10px; height: 10px; padding: 0; border: 0; background: var(--c); font-size: 0; }
+/* The Chief's small glass office, beside the whiteboard. */
+.cf-chief { width: auto; justify-content: center; min-height: 150px; padding: 12px; border: 1px solid rgba(58, 160, 255, .35); border-radius: 16px; background: linear-gradient(160deg, rgba(58, 160, 255, .12), rgba(58, 160, 255, .03)); --c: #3aa0ff; }
+.cf-chief .cf-table i { background: var(--c); box-shadow: 0 0 12px var(--c); }
+.cf-chief .cf-name { color: var(--text); }
+/* A team's room: its name, the lead at the head, the desks, the bench. */
+.cf-room { display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0; min-height: 220px; padding: 12px 12px 16px; border: 1px solid var(--line-2); border-radius: 16px; background: #0a0a0a; cursor: pointer; }
+.cf-room:hover { border-color: #3a3a3a; }
+.cf-room.here { border-color: var(--c); box-shadow: 0 0 40px color-mix(in srgb, var(--c) 18%, transparent); }
+.cf-room-head { align-self: flex-start; display: flex; align-items: center; gap: 8px; max-width: 100%; font-size: 13px; }
+.cf-n { font: 11.5px var(--mono); color: var(--faint); }
+.cf-desks { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 16px; }
+.cf-bench { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; margin-top: auto; padding: 4px 8px; border: 1px solid var(--line-2); border-radius: 14px; background: var(--sunk); }
+.cf-sit { padding: 0; border: 0; background: none; cursor: pointer; }
+.cf-loose { display: flex; align-items: center; justify-content: center; min-height: 160px; }
+.cf-new { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 160px; border: 1px dashed var(--line-2); border-radius: 16px; background: transparent; color: var(--muted); font-size: 14px; cursor: pointer; }
+.cf-new:hover { color: var(--text); border-color: var(--muted); }
+.cf-new svg, .cf-you svg, .cf-panel-head .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* The panel: You, or the team that was clicked. */
+.cf-panel { display: flex; flex-direction: column; gap: 14px; padding: 18px; border: 1px solid var(--line); border-radius: 22px; background: var(--panel); }
+.cf-panel-head { display: flex; align-items: center; gap: 10px; }
+.cf-panel-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-panel-head .cf-dot { width: 10px; height: 10px; }
+.cf-you { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #fff; color: #000; }
+.cf-you svg { width: 18px; height: 18px; }
+.cf-count { display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px; background: #fff; color: #000; font-size: 12px; font-weight: 600; }
+.cf-team-kpi { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14px; color: var(--muted); }
+.cf-team-kpi b { font-size: 22px; color: var(--text); }
+.cf-rows { display: flex; flex-direction: column; }
+.cf-row { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 0; border-top: 1px solid var(--line); }
+.cf-row:first-child { border-top: 0; }
+.cf-row-text { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+.cf-member { position: relative; display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.cf-member .cf-crown { left: 24px; right: auto; }
+.cf-member .cf-row-text span { display: block; font-size: 12.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-todo { cursor: pointer; }
+.cf-todo input { flex: none; width: 18px; height: 18px; margin: 0 8px; accent-color: #fff; }
+.cf-todo.done .cf-row-text { color: var(--faint); text-decoration: line-through; }
+.cf-lead-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; background: rgba(245, 197, 66, .12); color: #f5c542; font-size: 12px; }
+.cf-lead-chip .cf-crown { position: static; padding: 0; background: none; }
+.cf-add { margin-top: 4px; }
+/* A wide floor: three columns, the whiteboard over two, a big team's room over two. */
+@container company (min-width: 640px) {
+  .cf-floor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cf-board, .cf-room.wide { grid-column: span 2; }
+}
+/* Room for the panel beside the floor. */
+@container company (min-width: 980px) {
+  .cf-main { grid-template-columns: minmax(0, 1fr) 320px; }
+  .cf-panel { position: sticky; top: 16px; }
+}
+@media (max-width: 479px) {
+  .cf-home { padding-top: 16px; }
+  .cf-top h1 { font-size: 26px; }
+}

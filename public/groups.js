@@ -119,12 +119,13 @@ const canMakeGroup = (bot) => hasGroups() && state.bots.some((b) => b.id !== bot
 
 // The picker of bots, in the page's dialog: rows to tick, at most `max`, and with `name` a name to give.
 // done(picked, name) saves and rejects with the server's sentence, which is then shown here, with nothing lost.
-function openBotPicker({ title, bots, max, name = null, hint, action, done }) {
+// placeholder: what the empty name field shows.
+function openBotPicker({ title, bots, max, name = null, placeholder = tr('What the group is called'), hint, action, done }) {
   const m = openModal(`
     <form id="bot-picker" autocomplete="off">
       <div class="modal-head"><h2>${esc(title)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        ${name === null ? '' : `<label class="field">${tr('Name')}<input type="text" name="name" maxlength="60" value="${esc(name)}" placeholder="${esc(tr('What the group is called'))}"></label>`}
+        ${name === null ? '' : `<label class="field">${tr('Name')}<input type="text" name="name" maxlength="60" value="${esc(name)}" placeholder="${esc(placeholder)}"></label>`}
         <div class="pick-bots">${bots.map((b) => `
           <button type="button" class="pick-bot" data-pick="${esc(b.id)}" aria-pressed="false">
             ${botFigure(b.color, 'idle', 'sm', b.outfit)}

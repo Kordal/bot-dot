@@ -1577,5 +1577,10 @@
   },
   "First test": "Pierwszy test",
   "Asks before": "Pyta przed",
-  "Time": "Czas"
+  "Time": "Czas",
+  "Day {n} of 90": "Dzień {n} z 90",
+  "New team": "Nowy zespół",
+  "Lead": "Lider",
+  "Make lead": "Zrób liderem",
+  "Add a task": "Dodaj do zrobienia"
 }
