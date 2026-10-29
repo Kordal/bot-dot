@@ -180,11 +180,13 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
             blocks.forEachIndexed { i, b ->
                 val st = styled[i]
                 val above = Modifier.padding(top = gapAbove(blocks.getOrNull(i - 1), b))
+                // Lines of text stop at about 62 characters (#726); code, tables and cards keep the width.
+                val prose = above.widthIn(max = Space.answer)
                 when (b) {
-                    is Block.Heading -> Text(st[0], color = color, fontWeight = FontWeight.SemiBold, fontSize = headingSize(b.level), modifier = above, inlineContent = icons)
-                    is Block.Para -> PathText(st[0], color, paths, above, icons)
+                    is Block.Heading -> Text(st[0], color = color, fontWeight = FontWeight.SemiBold, fontSize = headingSize(b.level), modifier = prose, inlineContent = icons)
+                    is Block.Para -> PathText(st[0], color, paths, prose, icons)
                     // The indent moves the whole row, so a sub-item's text starts right of its parent's text.
-                    is Block.Item -> Row(above.padding(start = itemIndent(b.indent))) {
+                    is Block.Item -> Row(prose.padding(start = itemIndent(b.indent))) {
                         // A task item shows its checkbox in place of the marker; it only says done or not (#267).
                         if (b.task != null) Icon(if (b.task == "done") Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank, contentDescription = null, tint = p.muted,
                             modifier = Modifier.padding(top = Space.s4, end = Space.s8).size(18.dp).semantics {
@@ -196,7 +198,7 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                         PathText(st[0], color, paths, Modifier, icons)
                     }
                     is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
-                        modifier = above.padding(start = Space.s12), inlineContent = icons)
+                        modifier = prose.padding(start = Space.s12), inlineContent = icons)
                     is Block.Code -> if (products[i] != null) ProductCards(products[i]!!, above) else {
                         // Copy in its top-right corner (#285), in a column of its own that the code scrolls beside.
                         Row(above.fillMaxWidth().background(p.sunk, Radius.small)) {

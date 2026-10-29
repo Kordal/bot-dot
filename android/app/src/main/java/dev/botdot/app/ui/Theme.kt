@@ -130,6 +130,8 @@ object Space {
     val s32 = 32.dp
     val s48 = 48.dp
     val s64 = 64.dp
+    /** The widest an answer's lines run: about 62 characters of body text, so they read on a tablet or in landscape. */
+    val answer = 640.dp
 }
 
 /** Corners: 8 for small things, 14 for cards, the pill, and CircleShape for round ones. A chat bubble keeps its small corner by its sender. */

@@ -17,6 +17,14 @@ class BoardKitTest {
     private fun tile(id: String, kind: String, face: List<Block> = emptyList(), size: String = "small", bot: String? = null, source: String? = null) =
         Tile(id = id, kind = kind, size = size, bot = bot, source = source, look = TileLook(face = face))
 
+    @Test fun aValueInWordsIsDrawnSmallerThanANumber() { // #726, as kitIsWords on the web page
+        listOf("21.5", "−3", "-3", "+2", "1 204", "1,204.5", "62%", "17:00", "1.2k", "€12", "20°", "3 h", " 7 ")
+            .forEach { assertFalse(it, BoardKit.isWords(it)) }
+        listOf("Eco until 17:00", "On", "Heating", "about 3 days", "n/a").forEach { assertTrue(it, BoardKit.isWords(it)) }
+        assertFalse("nothing yet is no words", BoardKit.isWords(""))
+        assertFalse(BoardKit.isWords(null))
+    }
+
     @Test fun theRefreshButtonSaysTheAgeOfTheNewestValue() {
         assertEquals("a tile and a heading say only how long ago it read", "1 min ago", BoardKit.ageWords(65))
         assertEquals("3s ago", BoardKit.ageWords(3))
