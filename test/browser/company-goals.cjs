@@ -65,8 +65,8 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await page.keyboard.press('Escape');
         await page.locator('.cf-menu').waitFor({ state: 'detached' });
       } else {
-        const box = await goal.boundingBox();
-        assert.ok(box.x >= 0 && box.x + box.width <= viewport.width, 'no sideways scroll');
+        // The view slides in: the card ends up inside the window, no wider than the phone.
+        await page.waitForFunction((w) => { const r = document.querySelector('.cf-goal').getBoundingClientRect(); return r.left >= 0 && r.right <= w; }, viewport.width, { timeout: 5000 });
       }
       assert.deepEqual(errors, []);
     }
