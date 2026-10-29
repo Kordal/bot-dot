@@ -59,7 +59,7 @@ const Company = (() => {
     const side = $('#company-side');
     if (!side || !shows()) return;
     const c = company();
-    const here = state.view === 'company';
+    const here = state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked());
     side.innerHTML = `<div class="co-label">${tr('Company')}</div>
       <button type="button" class="co-row${here ? ' here' : ''}" data-open-company>${ICON.building}<span>${esc(c?.phase === 'running' && c.name ? c.name : tr('Setting up'))}</span></button>
       <button type="button" class="co-row co-chief${state.view === 'chief' ? ' here' : ''}" data-open-chief>${chiefFigure('sm')}<span>${esc(chiefTitle())}</span></button>`;
@@ -201,7 +201,7 @@ const Company = (() => {
     state.company = d.company;
     loaded = true;
     drawSide();
-    if (state.view === 'company') render();
+    if (state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked())) render();
   }
 
   function init() {

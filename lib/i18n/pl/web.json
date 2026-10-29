@@ -1629,5 +1629,13 @@
     "one": "{n} opinia",
     "few": "{n} opinie",
     "many": "{n} opinii"
-  }
+  },
+  "Chats": "Czaty",
+  "Taller or lower": "Wyżej lub niżej",
+  "{n} more chats": {
+    "one": "Jeszcze {n} czat",
+    "few": "Jeszcze {n} czaty",
+    "many": "Jeszcze {n} czatów"
+  },
+  "Minimize": "Zwiń"
 }
