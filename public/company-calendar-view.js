@@ -20,7 +20,7 @@
     return JSON.stringify([c.id, c.startedAt, c.events, c.todos, c.checkins, c.teams, jobs, CAL.today()]);
   }
   async function ask(from, to) {
-    return (await api(`/company/calendar?from=${from}&to=${to}`)).items || [];
+    return (await api(Company.at(`/company/calendar?from=${from}&to=${to}`))).items || [];
   }
   function refresh(c) {
     const key = sourceKey(c);
@@ -158,7 +158,7 @@
   // A change to the calendar: the answer is the project; the tile and the month ask again.
   async function change(path, method, body) {
     try {
-      Company.changed({ company: await api(path, { method, body }) });
+      Company.changed({ company: await api(Company.at(path), { method, body }) });
       await month.load();
       return true;
     } catch (e) { toast(e.message, true); return false; }

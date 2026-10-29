@@ -2331,6 +2331,37 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .co-row:hover, .co-row.here { background: var(--sunk); }
 .co-row .avatar { width: 30px; height: 30px; }
 .co-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Several projects (#689): PROJECTS with "+", each a tree of its teams and bots that folds. */
+.co-label:has(.ct-add-project) { display: flex; align-items: center; justify-content: space-between; padding-right: 2px; }
+.ct-add-project { width: 26px; height: 26px; color: var(--muted); }
+.ct-tree { display: flex; flex-direction: column; gap: 2px; }
+.ct-node { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.ct-node > .co-row, .ct-node > .ct-team { flex: 1; min-width: 0; }
+.ct-caret { flex: none; display: inline-grid; place-items: center; width: 20px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--faint); cursor: pointer; }
+.ct-caret svg { width: 12px; height: 12px; transition: transform var(--t1, .15s); }
+.ct-caret.open svg { transform: rotate(90deg); }
+.ct-kids { display: flex; flex-direction: column; gap: 2px; margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--line); }
+.ct-av { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 7px; background: var(--c); color: #fff; font-size: 12px; font-weight: 600; }
+.ct-name { flex: 1; min-width: 0; }
+.ct-count { flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; background: var(--text); color: var(--bg); font-size: 11px; font-weight: 600; line-height: 20px; text-align: center; }
+.ct-team { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 4px 10px; font-size: 13px; color: var(--muted); }
+.ct-team span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ct-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+.ct-n { flex: none; font: 11px var(--mono); color: var(--faint); }
+.co-row.ct-bot { min-height: 34px; padding: 4px 10px; font-size: 13.5px; }
+.co-row .ct-head { position: relative; flex: none; display: inline-flex; overflow: visible; }
+.ct-head .avatar { width: 30px; height: 30px; margin: -4px -4px -4px -6px; }
+/* A head in the left column is the figure's own drawing, not one of its line icons. */
+.company-side .avatar svg { width: 100%; height: 100%; stroke: none; }
+.ct-head .ct-crown { position: absolute; top: -5px; left: 50%; width: 12px; height: 12px; transform: translateX(-50%); fill: #ffb020; stroke: none; }
+.ct-state { flex: none; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; background: var(--line-2); }
+.ct-state.on { background: #34c759; }
+.ct-sep { height: 1px; margin: 8px 8px; background: var(--line); }
+/* On a phone the project's name picks another: a select laid over it, shown where the left column is not. */
+.co-pick { position: relative; display: inline-flex; align-items: center; gap: 6px; max-width: 100%; }
+.co-pick > svg { display: none; flex: none; width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.co-pick select { display: none; position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font-size: 16px; }
+.co-pick-line { display: none; }
 
 #view-company { padding: 0 24px 40px; overflow-y: auto; }
 .co-phone-switch { display: none; }
@@ -2443,6 +2474,8 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
   .company-side { padding: 4px 12px 10px; }
   #view-company { padding: 0 16px 32px; }
   #view-company .co-phone-switch { display: flex; margin: 12px 0 0; }
+  .co-pick > svg, .co-pick select { display: block; }
+  .co-pick-line { display: block; margin: 14px 0 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
   .co-start { padding-top: 6vh; }
   .co-start h1 { font-size: 26px; }
 }

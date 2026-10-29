@@ -21,13 +21,13 @@
     try { for (const c of (await api('/connectors')).connections || []) if (c.status === 'ACTIVE') ui.apps.add(c.toolkit); } catch { /* none connected */ }
     Company.redraw();
   }
-  const took = (c) => { state.company = c; Company.redraw(); };
+  const took = (c) => { Company.put(c); Company.redraw(); };
   async function call(path, body, method = 'POST') {
-    try { took(await api(path, { method, ...(body ? { body } : {}) })); return true; } catch (e) { toast(e.message, true); return false; }
+    try { took(await api(Company.at(path), { method, ...(body ? { body } : {}) })); return true; } catch (e) { toast(e.message, true); return false; }
   }
   async function propose() {
     ui.asking = true; ui.failed = '';
-    try { took(await api('/company/proposal', { method: 'POST' })); } catch (e) { ui.failed = e.message; }
+    try { took(await api(Company.at('/company/proposal'), { method: 'POST' })); } catch (e) { ui.failed = e.message; }
     ui.asking = false;
     Company.redraw();
   }
@@ -104,7 +104,7 @@
       if (!text || ui.sending) return;
       ui.sending = true;
       Company.redraw();
-      try { const next = await api('/company/proposal/chat', { method: 'POST', body: { text } }); ui.draft = ''; state.company = next; } catch (err) { toast(err.message, true); }
+      try { const next = await api(Company.at('/company/proposal/chat'), { method: 'POST', body: { text } }); ui.draft = ''; Company.put(next); } catch (err) { toast(err.message, true); }
       ui.sending = false;
       Company.redraw();
       $('#co-change input')?.focus();
@@ -143,7 +143,7 @@
     if (ui.creating) return;
     ui.creating = true;
     Company.go('start');
-    try { state.company = await api('/company/start', { method: 'POST' }); } catch (e) { toast(e.message, true); ui.creating = false; return Company.go('team'); }
+    try { Company.put(await api(Company.at('/company/start'), { method: 'POST' })); } catch (e) { toast(e.message, true); ui.creating = false; return Company.go('team'); }
     ui.creating = false;
     Company.redraw();
   }

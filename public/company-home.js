@@ -236,7 +236,7 @@
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
     const kept = ['#cf-add input', '#cf-change input', '#cf-decide input'].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
-      <header class="cf-top"><h1>${esc(c.name || c.start)}</h1>${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
+      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
       ${c.day ? lineHTML(c) : ''}
       ${c.checkin ? checkinHTML(c.checkin) : ''}
       <div class="cf-main">${floorHTML(c, f)}<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside></div>
@@ -246,6 +246,7 @@
   }
   function openTeam(id) { teamOpen = teamOpen === id ? null : id; Company.redraw(); }
   function wire(root, c) {
+    Company.wirePick(root);
     $$('[data-cf-bot]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); setView('bot', b.dataset.cfBot); }));
     // The team's name opens its chat, docked in the bottom row (#697).
     $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openTeamChat(b.dataset.cfTeamChat); }));
@@ -341,7 +342,7 @@
   }
   // A change to the company: the answer is the company as it is now. What the server refuses is said in its words.
   async function send(path, method, body) {
-    try { Company.changed({ company: await api(path, { method, body }) }); return true; } catch (e) { toast(e.message, true); Company.redraw(); return false; }
+    try { Company.changed({ company: await api(Company.at(path), { method, body }) }); return true; } catch (e) { toast(e.message, true); Company.redraw(); return false; }
   }
   // The owner's answer at a check-in. Change direction opens a new chat with the Chief, the words started for them;
   // Stop says how many jobs it switched off.
@@ -349,7 +350,7 @@
     if (!k || button.disabled) return;
     button.disabled = true;
     let d;
-    try { d = await api('/company/checkins', { method: 'POST', body: { day: k.day, decision } }); } catch (e) { toast(e.message, true); button.disabled = false; return; }
+    try { d = await api(Company.at('/company/checkins'), { method: 'POST', body: { day: k.day, decision } }); } catch (e) { toast(e.message, true); button.disabled = false; return; }
     Company.changed({ company: d.company });
     if (decision === 'stop') toast(trn(d.paused || 0, "Switched off {n} job of the project's bots.", "Switched off {n} jobs of the project's bots."));
     if (decision === 'change') {
@@ -369,11 +370,13 @@
       max: 40,
       action: tr('Create'),
       hint: () => '',
-      done: async (picked, name) => { Company.changed({ company: await api('/company/teams', { method: 'POST', body: { name, bots: picked } }) }); },
+      done: async (picked, name) => { Company.changed({ company: await api(Company.at('/company/teams'), { method: 'POST', body: { name, bots: picked } }) }); },
     });
   }
 
   Company.steps.home = home;
+  // What waits for the owner of one bot, as its desk counts it: the tree of projects shows it too (#689).
+  Company.asksOf = (id) => info().asks(id);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
   Company.steps.sig = () => [Company.calendar?.sig(), teamOpen, changing, filter, menu, pick, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
 })();
