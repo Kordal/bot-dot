@@ -28,6 +28,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -57,6 +59,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.botdot.app.data.BoardCanvas
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Groups
 import dev.botdot.app.data.CheckinDue
@@ -124,12 +127,41 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     var teamOpen by rememberSaveable { mutableStateOf<String?>(null) }
     // The pieces the owner put on the board (#780); a project made before has them all.
     fun on(k: String) = dev.botdot.app.data.ProjectBoard.shows(c, k)
+    val canvas = BoardCanvas.FEATURE in features
+    val saved = remember(c.layout) { BoardCanvas.of(c.layout) }
+    var arranging by rememberSaveable(c.id) { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s12).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         // Its name picks another project and its gear opens its settings (#703).
         ProjectTitle(ui, c, ways) {
+            // Arrange (#784): the tiles move and resize while it is on.
+            if (canvas) RoundButton(if (arranging) Icons.Filled.Check else Icons.Filled.OpenWith, if (arranging) tr("Done") else tr("Arrange"), Modifier.padding(start = Space.s4)) { arranging = !arranging }
             c.day?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(start = Space.s12).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
+        // The owner's arrangement (#784): every tile where it was put, on a canvas scaled to the screen.
+        if (canvas && (saved != null || arranging)) {
+            val cards = rememberCards(ui, c)
+            val tiles = buildList {
+                if (on("days")) c.day?.let { day -> add(Tile("days") { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
+                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o) } }) }
+                if (dev.botdot.app.data.ProjectCards.shows(features, c)) dev.botdot.app.data.ProjectCards.slots(c.cards, cards.shown).forEach { s ->
+                    add(Tile(cards.tileOf(s)) { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                        CardSlot(cards, s, Modifier.fillMaxWidth().weight(1f, fill = false))
+                        if (s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null) CardPicks(cards, dev.botdot.app.data.ProjectBoard.missing(features, c))
+                    } })
+                }
+                if (on("teams")) {
+                    floor.rooms.forEach { r -> add(Tile("room:${r.team.id}") { m -> Box(m) { TeamRoom(r, here = teamOpen == r.team.id, line = { lineOf(it) }, onBot = ways.onBot, onChat = teamChat(r.team.id)) { teamOpen = r.team.id } } }) }
+                    add(Tile("chief") { m -> Box(m) { ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief) } })
+                    floor.loose.forEach { s -> add(Tile("bot:${s.bot.id}") { m -> Box(m, contentAlignment = Alignment.Center) { Desk(s.bot, s.seat, count = info.asks(s.bot.id), line = lineOf(s.bot), onClick = { ways.onBot(s.bot.id) }) } }) }
+                    c.suggestion?.let { sg -> add(Tile("suggest") { m -> Box(m) { SuggestedCard(ui, c, sg) } }) }
+                    add(Tile("new-team") { m -> Box(m) { NewTeam(ui, c) } })
+                }
+                if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m -> Box(m) { CalendarTile(ui, c, bots) } })
+                if (on("todo")) add(Tile("todo") { m -> Column(m) { TodoPanel(ui, c, bots, waiting, ways, features) } })
+            }
+            BoardCanvasView(tiles, saved, arranging) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
+        } else {
         if (on("days")) {
             c.day?.let { DaysLine(c, it) }
             c.checkin?.let { CheckinCard(ui, it, ways) }
@@ -152,6 +184,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) CalendarTile(ui, c, bots)
         }
         if (on("todo")) TodoPanel(ui, c, bots, waiting, ways, features)
+        }
     }
     val team = teamOpen?.takeIf { on("teams") }?.let { id -> c.teams.firstOrNull { it.id == id } }
     if (team != null) ModalBottomSheet(onDismissRequest = { teamOpen = null }, containerColor = p.panel) {
