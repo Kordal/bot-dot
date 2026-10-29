@@ -1629,6 +1629,13 @@
     "few": "{n} opinie",
     "many": "{n} opinii"
   },
+  "Weekly": "Co tydzień",
+  "Monthly": "Co miesiąc",
+  "Every {n} days": "Co {n} dni",
+  "Tomorrow": "Jutro",
+  "Days": "Dni",
+  "Due": "Termin",
+  "To-do": "Do zrobienia",
   "Chats": "Czaty",
   "Taller or lower": "Wyżej lub niżej",
   "{n} more chats": {
