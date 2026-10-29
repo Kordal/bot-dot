@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -560,6 +561,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun setCheckup(field: String, value: Boolean): Checkup? = Checkup.answer(send("PUT", "/settings/checkup", buildJsonObject { put(field, value) }))
     suspend fun setup(): SetupInfo = json.decodeFromString(get("/setup?fresh"))
     /** The owner's answer to the question for the Chief's name (ChiefName): "" keeps "Chief of Staff". A refusal throws the server's words. */
+    /** This device's time zone for a botdot with none of its own (#756): it takes it once, so bots say times in the owner's time. */
+    suspend fun deviceTimezone(zone: String) { send("PUT", "/setup", buildJsonObject { put("deviceTimezone", zone) }) }
     suspend fun nameChief(name: String): SetupInfo = json.decodeFromString(send("PUT", "/setup", buildJsonObject { put("chiefName", name) }))
     /** Renames the Chief from its settings (ChiefName): "" gives back "Chief of Staff". Returns the name it now has; a refusal throws the server's words. */
     suspend fun renameChief(name: String): String = json.parseToJsonElement(send("PUT", "/settings/chief-name", buildJsonObject { put("name", name) })).jsonObject["name"]?.jsonPrimitive?.content ?: ChiefName.ROLE
@@ -697,6 +700,14 @@ class Api(val baseUrl: String, val session: Session? = null) {
     // ---------- the Company (#669, #674; docs/api.md "The Company") ----------
 
     suspend fun company(): CompanyHeld = CompanySetup.held(get("/company"))
+    /** The account's projects a mention can name (#700): every one from a botdot with `projects-many`, else its one company. */
+    suspend fun projectRefs(features: Collection<String>): List<Mentions.ProjectRef> {
+        fun ref(o: JsonElement?): Mentions.ProjectRef? = (o as? JsonObject)?.let { c ->
+            Mentions.ProjectRef(c.str("id"), c.str("name"), c.str("color").ifEmpty { null }).takeIf { it.id.isNotEmpty() }
+        }
+        if (CompanySetup.MANY in features) return (JSON.parseToJsonElement(get("/company/list")) as? JsonObject)?.get("projects")?.let { it as? JsonArray }?.mapNotNull(::ref).orEmpty()
+        return listOfNotNull(ref((JSON.parseToJsonElement(get("/company")) as? JsonObject)?.get("company")))
+    }
     suspend fun startCompany(start: String, sources: List<SourceDraft>): Company = CompanySetup.of(send("POST", "/company", CompanySetup.startBody(start, sources)))
     suspend fun patchCompany(fields: JsonObject): Company = CompanySetup.of(send("PATCH", "/company", fields))
     /** The Chief reads the site or names the idea: the company with its About cards. */

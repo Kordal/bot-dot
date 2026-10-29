@@ -44,6 +44,26 @@ for (const c of table.picks) {
   });
 }
 
+// Projects (#700): a section of its own, with its own world.
+for (const c of table.projects.cases) {
+  test(`table project: ${c.name}`, () => {
+    const ctx = { chat: c.chat, ...table.projects.world };
+    if (c.matches) assert.deepEqual(findMentions(c.text, ctx).map(({ start, end, ...m }) => { assert.equal(c.text.slice(start, end), m.text); return m; }), c.matches);
+    if (c.suggestions) assert.deepEqual(suggest(c.typed, ctx).map((r) => r.text), c.suggestions);
+  });
+}
+for (const c of table.projects.picks) {
+  test(`table project pick: ${c.name}`, () => {
+    const ctx = { chat: c.chat, ...table.projects.world };
+    const [text, at] = caret(c.before);
+    const row = suggest(text.slice(0, at), ctx).find((r) => r.text === c.pick);
+    assert.ok(row, `${c.pick} is offered`);
+    const done = pick(text, at, row);
+    assert.equal(withCaret(done.text, done.cursor), c.after);
+    assert.equal(done.jobsNext, c.jobsNext);
+  });
+}
+
 for (const c of table.commands) {
   test(`table command: ${c.name}`, () => {
     assert.deepEqual(command(c.text, { chat: c.chat, ...table.worlds[c.world] }), c.command);

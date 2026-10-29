@@ -106,10 +106,12 @@ const Company = (() => {
     wireSwitch(root.firstElementChild);
   }
   function choose(p) {
+    // The Projects screen is up, or a chat docked on it (#757): asked before the place changes, as Dock asks the place.
+    const onProjects = state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked());
     place = p === 'company' ? 'company' : 'bots';
     keep();
     drawSwitch();
-    if (place === 'company') { drawSide(); setView('company'); } else if (state.view === 'company') { setView('chief'); showList(); renderContacts(); }
+    if (place === 'company') { drawSide(); setView('company'); } else if (onProjects) { setView('chief'); showList(); renderContacts(); }
   }
 
   function drawSide() {

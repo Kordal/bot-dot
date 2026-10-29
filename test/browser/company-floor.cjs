@@ -98,6 +98,15 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         assert.equal(todo.bot, id('Weekly Report'));
         await page.locator('.cf-todo input[data-cf-todo="d1"]').check();
         await waitFor(async () => (await srv.api('/company')).data.company.todos.find((t) => t.id === 'd1').done, { what: 'the task ticked' });
+        // A bot's chat docked on the Projects screen, then Bots: the Chief's chat, not the Projects screen (#757).
+        await page.locator(`.cf-room[data-cf-team="t2"] [data-cf-bot="${id('Billing Helper')}"]`).click();
+        await page.waitForFunction(() => document.querySelector('#app')?.classList.contains('docked'));
+        await page.locator('.place-switch [data-place="bots"]').first().click();
+        await page.waitForFunction(() => state.view === 'chief');
+        assert.equal(await page.evaluate(() => document.querySelector('#app').classList.contains('docked')), false, 'no chat docked');
+        assert.equal(await page.locator('#view-company').isVisible(), false, 'the Projects screen is gone');
+        await page.locator('.place-switch [data-place="company"]').first().click();
+        await page.waitForFunction(() => state.view === 'company');
         // The filters: a bot's task under Bots, not under You.
         await page.locator('[data-cf-filter="bots"]').click();
         await page.locator('.cf-todo', { hasText: 'send the weekly numbers' }).waitFor();

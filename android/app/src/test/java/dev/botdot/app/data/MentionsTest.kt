@@ -22,11 +22,14 @@ class MentionsTest {
 
     @Serializable
     data class World(val bots: List<Bot>, val library: List<Library>, val all: Boolean = false, val account: List<Library> = emptyList(),
-                     val pages: List<Page> = emptyList(), val tiles: List<Tile> = emptyList())
+                     val pages: List<Page> = emptyList(), val tiles: List<Tile> = emptyList(), val projects: List<ProjectRef> = emptyList())
+
+    @Serializable
+    data class ProjectRef(val id: String, val name: String = "")
 
     @Serializable
     data class Match(val kind: String, val text: String, val bot: String? = null, val job: String? = null, val skill: String? = null,
-                     val page: String? = null, val tile: String? = null)
+                     val page: String? = null, val tile: String? = null, val project: String? = null)
 
     @Serializable
     data class Case(val name: String, val world: String, val chat: String, val text: String? = null, val matches: List<Match>? = null,
@@ -71,19 +74,31 @@ class MentionsTest {
     @Serializable
     data class Files(val found: List<FileFound>, val texts: List<FileText>, val typing: List<TypingCase>, val picks: List<FilePick>)
 
+    /** Projects (#700): a section with a world of its own; its cases and picks have no world name. */
+    @Serializable
+    data class ProjectCase(val name: String, val chat: String, val text: String? = null, val matches: List<Match>? = null, val typed: String? = null, val suggestions: List<String>? = null)
+
+    @Serializable
+    data class ProjectPick(val name: String, val chat: String, val before: String, val pick: String, val after: String, val jobsNext: Boolean)
+
+    @Serializable
+    data class Projects(val world: World, val cases: List<ProjectCase>, val picks: List<ProjectPick>)
+
     @Serializable
     data class Table(val maxRows: Int, val shortNames: List<List<String>>, val worlds: Map<String, World>, val cases: List<Case>,
-                     val picks: List<Pick>, val commands: List<CommandCase> = emptyList(), val marks: List<MarkCase> = emptyList(), val files: Files, val about: JsonElement? = null)
+                     val picks: List<Pick>, val commands: List<CommandCase> = emptyList(), val marks: List<MarkCase> = emptyList(), val files: Files, val projects: Projects, val about: JsonElement? = null)
 
     private val table: Table = Json { ignoreUnknownKeys = true }.decodeFromString(
         Table.serializer(),
         File(System.getProperty("mentionsTable") ?: "../../test/fixtures/mentions.json").readText(),
     )
 
-    private fun world(name: String, chat: String) = table.worlds.getValue(name).let {
+    private fun world(name: String, chat: String) = worldOf(table.worlds.getValue(name), chat)
+    private fun worldOf(w: World, chat: String) = w.let {
         Mentions.World(chat, it.bots, it.library.map { k -> k.name }, all = it.all,
             about = it.account.associate { k -> k.name to k.description } + it.library.associate { k -> k.name to k.description }, account = it.account.map { k -> k.name },
-            pages = it.pages.map { p -> Mentions.PageRef(p.bot, p.slug, p.title) }, tiles = it.tiles.map { t -> Mentions.TileRef(t.id, t.title, t.kind) })
+            pages = it.pages.map { p -> Mentions.PageRef(p.bot, p.slug, p.title) }, tiles = it.tiles.map { t -> Mentions.TileRef(t.id, t.title, t.kind) },
+            projects = it.projects.map { p -> Mentions.ProjectRef(p.id, p.name) })
     }
     private fun world(c: Case) = world(c.world, c.chat)
 
@@ -95,7 +110,7 @@ class MentionsTest {
         val cases = table.cases.filter { it.text != null }
         assert(cases.isNotEmpty())
         cases.forEach { c ->
-            val found = Mentions.find(c.text!!, world(c)).map { Match(it.kind.name.lowercase(), it.text, it.bot, it.job, it.skill, it.page, it.tile) }
+            val found = Mentions.find(c.text!!, world(c)).map { Match(it.kind.name.lowercase(), it.text, it.bot, it.job, it.skill, it.page, it.tile, it.project) }
             assertEquals(c.name, c.matches, found)
             // Where each one is: its text, at its place in the message.
             Mentions.find(c.text, world(c)).forEach { assertEquals(c.name, it.text, c.text.substring(it.start, it.end)) }
@@ -155,6 +170,26 @@ class MentionsTest {
         val at = c.before.indexOf('|')
         val done = Mentions.putAt(text, Mentions.fileTyping(text.substring(0, at))!!.start, at, Mentions.fileText(Mentions.FileRef(c.ref.root, c.ref.path, c.ref.project))!!)
         assertEquals(c.before, c.after, done.text.substring(0, done.cursor) + "|" + done.text.substring(done.cursor))
+    }
+
+    // Projects (#700).
+    @Test fun projects() {
+        val t = table.projects
+        assert(t.cases.isNotEmpty() && t.picks.isNotEmpty())
+        t.cases.forEach { c ->
+            val w = worldOf(t.world, c.chat)
+            if (c.text != null) assertEquals(c.name, c.matches, Mentions.find(c.text, w).map { Match(it.kind.name.lowercase(), it.text, it.bot, it.job, it.skill, it.page, it.tile, it.project) })
+            if (c.typed != null) assertEquals(c.name, c.suggestions, Mentions.suggest(c.typed, w).map { it.text })
+        }
+        t.picks.forEach { c ->
+            val text = c.before.replace("|", "")
+            val at = c.before.indexOf('|')
+            val row = Mentions.suggest(text.substring(0, at), worldOf(t.world, c.chat)).firstOrNull { it.text == c.pick }
+            assertNotNull("${c.name}: ${c.pick} is offered", row)
+            val done = Mentions.pick(text, at, row!!)!!
+            assertEquals(c.name, c.after, done.text.substring(0, done.cursor) + "|" + done.text.substring(done.cursor))
+            assertEquals(c.name, c.jobsNext, done.jobsNext)
+        }
     }
 
     @Test fun aSkillToRunShowsItsDescription() =

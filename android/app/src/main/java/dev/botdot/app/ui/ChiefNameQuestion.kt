@@ -36,7 +36,10 @@ fun ChiefNameQuestion(app: BotDotApp) {
         val a = api ?: return@LaunchedEffect
         val features = version?.features ?: return@LaunchedEffect
         if (ChiefName.FEATURE !in features) return@LaunchedEffect // a botdot from before the name: nothing to ask
-        asking = ChiefName.ask(features, runCatching { a.setup() }.getOrNull())
+        val setup = runCatching { a.setup() }.getOrNull()
+        // No time zone of its own yet (#756): the botdot takes this device's, once.
+        if (setup != null && setup.savedTimezone == null) runCatching { a.deviceTimezone(java.util.TimeZone.getDefault().id) }
+        asking = ChiefName.ask(features, setup)
     }
     if (!asking) return
     var name by remember { mutableStateOf("") }

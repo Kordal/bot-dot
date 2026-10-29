@@ -145,3 +145,18 @@ test('web: a dropped folder keeps its tree inside the folder made for it', () =>
   const plan = F.folderPlan([{ file: { name: 'a.css' }, rel: 'site/css/a.css' }, { file: { name: 'i.html' }, rel: 'site/i.html' }], 'site (2)');
   assert.deepEqual(plan.map((x) => x.dir), ['site (2)/css', 'site (2)']);
 });
+
+test("web: a project's folder (#702) opens alone, at its top, under the project's letter, with no other place", async () => {
+  const { F, calls } = page({ answers: { '/projects/Fernhill%20Shop/workspace': { ...LIST, root: 'project' } } });
+  await F.openFolder({ folder: 'Fernhill Shop', name: 'Fernhill', color: '#34c759' });
+  await settle();
+  const c = F.now();
+  assert.ok(calls.some(([u]) => u === '/projects/Fernhill%20Shop/workspace?root=project&project=Fernhill%20Shop&path='), JSON.stringify(calls.map((x) => x[0])));
+  assert.ok(!calls.some(([u]) => u.includes('/files') || u === '/projects'), 'no kept files and no other projects');
+  const html = F.html(c);
+  assert.match(html, /class="fx-letter" style="--c:#34c759">F</);
+  assert.doesNotMatch(html, /On botdot|Kept in mind|New project/);
+  assert.equal(JSON.stringify(F.places(c)), JSON.stringify([{ root: 'project', project: 'Fernhill Shop' }]));
+  assert.equal(F.canDo(c, LIST.entries.find((e) => e.name === 'prices.csv')).del, true);
+  assert.equal(F.canDo(c, LIST.entries.find((e) => e.name === 'prices.csv')).keep, false);
+});

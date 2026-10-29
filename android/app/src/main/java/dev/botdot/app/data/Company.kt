@@ -236,6 +236,8 @@ sealed interface AboutScreen {
 
 object CompanySetup {
     const val FEATURE = "company"
+    /** Several projects (#689, ADR 120): `GET /api/company/list` answers them all. */
+    const val MANY = "projects-many"
     const val ABOUT = "company-about"
     const val TEAM = "company-team"
     /** The setup's steps, as the bar shows them. */

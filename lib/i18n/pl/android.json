@@ -421,7 +421,6 @@
   "Undone": "Cofnięto",
   "Couldn't undo": "Nie udało się cofnąć",
   "Undo last change": "Cofnij ostatnią zmianę",
-  "What it can do": "Co potrafi",
   "Uses the computer": "Używa komputera",
   "Copying files": "Kopiowanie plików",
   "Files not copied: {why}": "Pliki nie zostały skopiowane: {why}",
@@ -455,7 +454,6 @@
   "May message": "Może pisać do",
   "Everyone": "Wszyscy",
   "Nobody": "Nikt",
-  "Other bots": "Inne boty",
   "Other bots may ask it": "Inne boty mogą go prosić",
   "Shared rooms": "Wspólne pokoje",
   "May be in shared rooms": "Może być we wspólnych pokojach",
@@ -1241,5 +1239,8 @@
     "one": "{n} opinia",
     "few": "{n} opinie",
     "many": "{n} opinii"
-  }
+  },
+  "Team chat": "Czat zespołu",
+  "Half height": "Połowa wysokości",
+  "Full height": "Pełna wysokość"
 }

@@ -62,6 +62,12 @@ data class Group(
     @SerialName("working") val workingValue: JsonElement? = null,
     @SerialName("asks") val asksValue: JsonElement? = null,
     @SerialName("limit") val limitValue: JsonElement? = null,
+    /** A team's chat (#697, feature [Groups.TEAM_CHATS]): its team's id in the project; it follows its team, which is changed in Projects. */
+    val team: String? = null,
+    /** A team chat's lead, the first of its members: a message that names nobody goes to it. */
+    val lead: String? = null,
+    /** A team chat's colour, its team's (`#rrggbb`). */
+    val color: String? = null,
 ) {
     /** Its members' ids, in the group's order. */
     val members: List<String> get() = texts(membersValue)
@@ -348,6 +354,18 @@ class TurnLines(private val features: () -> Collection<String>? = { null }) {
 
 /** The groups, and what the feed says of them at once, before the list is read again. */
 object Groups {
+    /** The feature of a botdot that gives each team of a project a chat (#697, ADR 119). */
+    const val TEAM_CHATS = "team-chats"
+
+    /** The chat of the team [teamId] (#697); null without one. */
+    fun teamChat(groups: List<Group>, teamId: String): Group? = groups.firstOrNull { it.team == teamId }
+
+    /** A team chat's faces (#697): its first three members, the lead first as the server orders them. */
+    fun teamFaces(g: Group, bots: List<Bot>): List<Bot> = members(g, bots).take(3)
+
+    /** How many bots a team chat has, and how many of them work now (#697). */
+    fun teamCount(g: Group, bots: List<Bot>): Pair<Int, Int> = members(g, bots).let { m -> m.size to m.count { it.running } }
+
     /** The pinned groups, in the order of `pinned`: after the pinned bots, unless they share one order ([PINS_SHARED]). */
     fun pinned(groups: List<Group>): List<Group> = groups.filter { it.pinned > 0 }.sortedBy { it.pinned }
 

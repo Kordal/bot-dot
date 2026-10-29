@@ -34,6 +34,20 @@ class GroupsTest {
         for (other in listOf("bot:g1", "chief:c1", "chief", "group:", "g1", null)) assertNull("$other", groupOfChat(other))
     }
 
+    // A team's chat (#697, #705): a group with team, lead and colour, its members the lead first.
+    @Test fun aTeamsChatIsFoundByItsTeamAndCountsItsBots() {
+        val list = groups("""[$dev,{"id":"t9","name":"Growth","members":["lead","a","b","c"],"team":"tm1","lead":"lead","color":"#3b82f6","category":"","pinned":0,"order":2}]""")
+        val g = Groups.teamChat(list, "tm1")!!
+        assertEquals(listOf("t9", "tm1", "lead", "#3b82f6"), listOf(g.id, g.team, g.lead, g.color))
+        assertNull("a group the owner made is no team's chat", list.first().team)
+        assertNull(Groups.teamChat(list, "nope"))
+        val bots = listOf(Bot(id = "a", name = "A", running = true), Bot(id = "lead", name = "Lead"), Bot(id = "b", name = "B"), Bot(id = "c", name = "C", running = true))
+        assertEquals("the lead first, three at most", listOf("lead", "a", "b"), Groups.teamFaces(g, bots).map { it.id })
+        assertEquals(4 to 2, Groups.teamCount(g, bots))
+        assertEquals("a bot that is gone is not counted", 3 to 1, Groups.teamCount(g, bots.drop(1)))
+        assertTrue(Groups.TEAM_CHATS == "team-chats")
+    }
+
     @Test fun aGroupCarriesItsMembersItsPlaceAndWhatItsChatHolds() {
         val g = groups("[$dev]").single()
         assertEquals(listOf("coder", "reviewer", "writer"), g.members)

@@ -10,8 +10,8 @@ class TokenScaleTest {
     private val sources = generateSequence(File("").absoluteFile) { it.parentFile }
         .map { File(it, "src/main/java") }.first { it.exists() }
 
-    /** Theme.kt holds the scale; the Projects screens move onto it after their own tickets (#720). */
-    private val allowed = setOf("Theme.kt", "CompanyAbout.kt", "CompanyHome.kt", "CompanyScreen.kt", "CompanyTeam.kt")
+    /** Theme.kt holds the scale; every screen, the Projects screens too (#741), takes its steps. */
+    private val allowed = setOf("Theme.kt")
 
     private val literal = Regex("""(?<![\w.])\d+(\.\d+)?\.sp\b""")
 

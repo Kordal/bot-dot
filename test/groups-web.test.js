@@ -514,7 +514,7 @@ test('web: the gap opens where the dragged row would land: a group among the gro
 });
 
 test('web: a folder of bots is called a category wherever the page said group', () => {
-  for (const said of [/Rename or remove this category/, /<h2>\$\{tr\('Category: \{name\}', \{ name: esc\(group\) \}\)\}<\/h2>/, />\$\{tr\('Remove category'\)\}<\/button>/, /tr\('Category removed'\)/, /<div class="field">\$\{tr\('Category'\)\}\s*<div class="group-picker"/, /placeholder="\$\{tr\('Category name'\)\}" aria-label="\$\{tr\('New category name'\)\}"/, /data-new title="\$\{tr\('New category'\)\}" aria-label="\$\{tr\('New category'\)\}">＋<\/button>/, /title="\$\{isFolded \? tr\('Show this category'\) : tr\('Hide this category'\)\}"/]) assert.match(app, said);
+  for (const said of [/Rename or remove this category/, /<h2>\$\{tr\('Category: \{name\}', \{ name: esc\(group\) \}\)\}<\/h2>/, />\$\{tr\('Remove category'\)\}<\/button>/, /tr\('Category removed'\)/, /<div class="group-picker" id="group-picker" role="group" aria-label="\$\{esc\(tr\('Category'\)\)\}">/, /placeholder="\$\{tr\('Category name'\)\}" aria-label="\$\{tr\('New category name'\)\}"/, /data-new title="\$\{tr\('New category'\)\}" aria-label="\$\{tr\('New category'\)\}">＋<\/button>/, /title="\$\{isFolded \? tr\('Show this category'\) : tr\('Hide this category'\)\}"/]) assert.match(app, said);
   for (const gone of [/Rename or remove this group/, /<h2>Group: /, /Remove group/, /Group removed/, /<div class="field">Group\b/, /New group name/, /＋ New group/, /Group name/]) assert.doesNotMatch(app, gone);
   // What the page calls a group now is the chat with several bots.
   assert.match(src, /title: tr\('New group'\)/);

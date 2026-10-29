@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -65,6 +66,20 @@ fun GroupPicture(members: List<Bot>, size: Int) {
                 Box(Modifier.align(Alignment.TopCenter)) { BotFigure(heads[0].color, heads[0].state, head, heads[0].outfit) }
                 Box(Modifier.align(Alignment.BottomStart)) { BotFigure(heads[1].color, heads[1].state, head, heads[1].outfit) }
                 Box(Modifier.align(Alignment.BottomEnd)) { BotFigure(heads[2].color, heads[2].state, head, heads[2].outfit) }
+            }
+        }
+    }
+}
+
+/** A team's chat (#697, #705): up to three faces in a row, the lead first with the crown (as the web page draws it). */
+@Composable
+fun TeamPicture(faces: List<Bot>, lead: String?, size: Int) {
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (faces.isEmpty()) BotFigure(GONE_COLOR, "idle", size)
+        faces.forEachIndexed { i, b ->
+            Box {
+                BotFigure(b.color, b.state, size, b.outfit)
+                if (i == 0 && b.id == lead && faces.size > 1) Crown(Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp))
             }
         }
     }

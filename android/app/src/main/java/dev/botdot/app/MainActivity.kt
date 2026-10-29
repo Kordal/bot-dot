@@ -63,6 +63,7 @@ import androidx.navigation.navArgument
 import dev.botdot.app.data.BotFiles
 import dev.botdot.app.data.BrowserSignIn
 import dev.botdot.app.data.Handoff
+import dev.botdot.app.data.ProjectChats
 import dev.botdot.app.data.UploadedFiles
 import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.groupOfChat
@@ -73,6 +74,7 @@ import dev.botdot.app.ui.BoatScreen
 import dev.botdot.app.ui.BotChatScreen
 import dev.botdot.app.ui.BotSettingsScreen
 import dev.botdot.app.ui.GroupChatScreen
+import dev.botdot.app.ui.ProjectChatSheet
 import dev.botdot.app.ui.GroupSettingsScreen
 import dev.botdot.app.ui.ChiefSettingsScreen
 import dev.botdot.app.ui.ConnectorsScreen
@@ -265,7 +267,8 @@ class MainActivity : ComponentActivity() {
                 fun place(company: Boolean) {
                     scope.launch { app.settings.setCompany(company) }
                     if (company) { panelKept = null; if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true } }
-                    else if (route == "company") nav.popBackStack("home", inclusive = false)
+                    // From the Company, or a chat opened on it (#757): back to the Chief's chat.
+                    else if (route == "company" || runCatching { nav.getBackStackEntry("company") }.isSuccess) nav.popBackStack("home", inclusive = false)
                 }
                 // A device that was on the Company opens on it again, once the botdot says it has one.
                 val features = app.store.version.value.collectAsState().value?.features
@@ -386,14 +389,36 @@ class MainActivity : ComponentActivity() {
                         RoomSettingsScreen(app, id, onGone = { if (!nav.popBackStack("rooms", inclusive = false)) nav.popBackStack("home", inclusive = false) }) { nav.popBackStack() }
                     }
                     composable("company") {
-                        // From the floor: a bot's chat, the Chief's, Needs you, and a new Chief chat with the owner's words started.
-                        CompanyScreen(app, wide = wide, ways = dev.botdot.app.ui.CompanyWays(
-                            onBot = { open("bot/$it") },
-                            onBotSay = { bot, words -> app.botWords = bot to words; open("bot/$bot") },
-                            onChief = { open("chief/latest") },
-                            onNeeds = { nav.navigate("needs") },
-                            onChiefSay = { app.chiefWords = it; open("chief/new") },
-                        ), onBots = { place(false) })
+                        // From the floor: a bot's or a team's chat as a sheet over it (#705), the Chief's, Needs you, and a
+                        // new Chief chat with the owner's words started.
+                        var docked by rememberSaveable { mutableStateOf<String?>(null) }
+                        var dockHeight by rememberSaveable { mutableStateOf(ProjectChats.Height.CLOSED) }
+                        fun dock(o: ProjectChats.Open) { docked = o.key; dockHeight = ProjectChats.Height.HALF }
+                        fun undock(then: () -> Unit = {}) { dockHeight = ProjectChats.Height.CLOSED; then() }
+                        Box(Modifier.fillMaxSize()) {
+                            CompanyScreen(app, wide = wide, ways = dev.botdot.app.ui.CompanyWays(
+                                onBot = { dock(ProjectChats.Open(ProjectChats.BOT, it)) },
+                                onBotSay = { bot, words -> app.botWords = bot to words; dock(ProjectChats.Open(ProjectChats.BOT, bot)) },
+                                onChief = { open("chief/latest") },
+                                onNeeds = { nav.navigate("needs") },
+                                onChiefSay = { app.chiefWords = it; open("chief/new") },
+                                onTeam = { dock(ProjectChats.Open(ProjectChats.TEAM, it)) },
+                            ), onBots = { place(false) })
+                            ProjectChatSheet(ProjectChats.of(docked), dockHeight, onHeight = { dockHeight = it }) { o ->
+                                androidx.compose.runtime.key(o.key) {
+                                    if (o.kind == ProjectChats.TEAM) GroupChatScreen(app, o.id, onSettings = {}, onNeeds = { undock { nav.navigate("needs") } },
+                                        onSignIn = { undock { nav.navigate("settings") { launchSingleTop = true } } }) { undock() }
+                                    else {
+                                        // Words the floor started for this bot (a standup's Reply).
+                                        val text = remember { app.botWords?.takeIf { it.first == o.id }?.second?.also { app.botWords = null } ?: "" }
+                                        BotChatScreen(app, o.id, emptyList(), text, onJobs = { panelKept = SettingsPanel.jobs(panelKept, o.id) }, onSettings = { panelKept = SettingsPanel.toggle(panelKept, o.id) },
+                                            onNeeds = { undock { nav.navigate("needs") } }, onLearned = { panelKept = SettingsPanel.settings(o.id, it) },
+                                            onSignIn = { undock { nav.navigate("settings") { launchSingleTop = true } } }, onGroup = { undock { openGroup(it) } },
+                                            onScreen = { undock { nav.navigate("screen/${o.id}") } }, onFiles = { undock { nav.navigate("files/${o.id}") } }) { undock() }
+                                    }
+                                }
+                            }
+                        }
                     }
                     composable("dashboard") { DashboardScreen(app, onBot = { nav.navigate("bot/$it") }, onNeeds = { nav.navigate("needs") }) { nav.popBackStack() } }
                     composable("needs") { e -> NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }, onDone = { if (nav.currentBackStackEntry == e) nav.popBackStack() }) { nav.popBackStack() } }

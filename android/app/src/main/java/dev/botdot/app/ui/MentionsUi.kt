@@ -44,13 +44,14 @@ fun rememberMentions(app: BotDotApp, chat: String): Mentions.World? {
     val server by app.store.version.value.collectAsState()
     val runsSkills = server?.features?.contains(Mentions.SKILL_COMMANDS) == true // "/" runs a skill (#237)
     val (pages, tiles) = rememberMentionables(app)
-    return remember(bots, skills, chat, name, runsSkills, pages, tiles) {
+    val projects = rememberProjectMentions(app)
+    return remember(bots, skills, chat, name, runsSkills, pages, tiles, projects) {
         bots?.let {
             val library = skills?.library.orEmpty()
             val account = skills?.machine.orEmpty()
             Mentions.World(chat, listOf(chiefBot(name)) + it, library.map { k -> k.name },
                 about = (account.associate { k -> k.name to k.description } + library.associate { k -> k.name to k.description }),
-                runsSkills = runsSkills, account = account.map { k -> k.name }, pages = pages, tiles = tiles)
+                runsSkills = runsSkills, account = account.map { k -> k.name }, pages = pages, tiles = tiles, projects = projects)
         }
     }
 }
@@ -68,6 +69,16 @@ fun rememberMentionables(app: BotDotApp): Pair<List<Mentions.PageRef>, List<Ment
         else pages.orEmpty().map { Mentions.PageRef(it.botId, it.slug, it.title) } to
             board?.tiles.orEmpty().filter { it.approved }.map { Mentions.TileRef(it.id, it.title, it.kind) }
     }
+}
+
+/** The account's projects, which a mention can name on a botdot that hands them to the run (feature `project-mentions`,
+ *  #700, #705); none without it. Never in a shared room. */
+@Composable
+fun rememberProjectMentions(app: BotDotApp): List<Mentions.ProjectRef> {
+    val server by app.store.version.value.collectAsState()
+    val projects by app.store.projects.value.collectAsState()
+    val on = server?.features?.contains(Mentions.PROJECT_MENTIONS) == true
+    return remember(on, projects) { if (on) projects.orEmpty() else emptyList() }
 }
 
 /**
@@ -90,7 +101,7 @@ fun withMentions(text: String, w: Mentions.World?, tint: Color): AnnotatedString
             append(text.substring(at, m.start))
             when (m.kind) {
                 Mentions.Kind.BOT -> w!!.bot(m.bot).let { b -> bot(b?.name ?: m.text, b?.color, b?.outfit) }
-                Mentions.Kind.JOB, Mentions.Kind.SKILL, Mentions.Kind.ALL, Mentions.Kind.COMMAND, Mentions.Kind.PAGE, Mentions.Kind.TILE -> withStyle(SpanStyle(color = tint)) { append(m.text) }
+                Mentions.Kind.JOB, Mentions.Kind.SKILL, Mentions.Kind.ALL, Mentions.Kind.COMMAND, Mentions.Kind.PAGE, Mentions.Kind.TILE, Mentions.Kind.PROJECT -> withStyle(SpanStyle(color = tint)) { append(m.text) }
                 // A file (#604): a chip, which opens it in a bot's own chat.
                 Mentions.Kind.FILE -> fileChip(m.file!!, w!!.chat.takeIf { c -> c != Mentions.CHIEF && w.bots.any { it.id == c } }, Color.Black.copy(alpha = 0.08f))
             }
