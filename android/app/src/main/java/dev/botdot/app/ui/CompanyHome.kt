@@ -136,6 +136,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s12),
             verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             if (!goals) Board(c)
+            // The cards made by Claude, at the top of the floor (#776).
+            if (dev.botdot.app.data.ProjectCards.shows(features, c)) ProjectCardsRow(ui, c)
             floor.rooms.forEach { r -> TeamRoom(r, here = teamOpen == r.team.id, line = { lineOf(it) }, onBot = ways.onBot, onChat = teamChat(r.team.id)) { teamOpen = r.team.id } }
             ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief)
             if (floor.loose.isNotEmpty()) FlowRowCentered { floor.loose.forEach { s -> Desk(s.bot, s.seat, count = info.asks(s.bot.id), line = lineOf(s.bot), onClick = { ways.onBot(s.bot.id) }) } }
@@ -451,7 +453,7 @@ private fun NewTeam(ui: CompanyUi, c: Company) {
     }
 }
 
-private fun Modifier.dashedBox(color: Color): Modifier = clip(Radius.card).drawBehind {
+internal fun Modifier.dashedBox(color: Color): Modifier = clip(Radius.card).drawBehind {
     drawRoundRect(color, cornerRadius = CornerRadius(14.dp.toPx()), style = Stroke(1.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 4.dp.toPx()))))
 }
 

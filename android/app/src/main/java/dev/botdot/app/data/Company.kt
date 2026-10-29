@@ -55,6 +55,8 @@ data class Company(
     val color: String? = null,
     val archived: Boolean = false,
     val folder: ProjectFolder? = null,
+    /** The cards made by Claude on its board (#776), on a botdot with `project-cards`. */
+    val cards: List<ProjectCard> = emptyList(),
 ) {
     val running: Boolean get() = phase == "running"
     val site: Boolean get() = kind == "site"
