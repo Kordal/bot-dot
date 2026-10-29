@@ -3,13 +3,17 @@
 // office beside it, one room per team, the bots in no team on their own, and a dashed "New team". The panel beside it
 // is You (what waits for the owner, their tasks, Add a task), or the team whose room was clicked. A narrow window has
 // the floor in one column and the panel under it. Everything shown is the bots' states, asks and working lines the
-// page already has: nothing new is asked of the server but the company's own routes.
+// page already has: nothing new is asked of the server but the company's own routes. Under the header (#673): days
+// 30, 60 and 90 on a line, the check-in that waits above the floor, the week's plan at the top of You, and the bot
+// the Chief suggests as a dashed card on the floor.
 (() => {
   const CROWN = '<svg class="cf-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
   const X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   const YOU = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
   // The team whose room was clicked: the panel shows it in place of You. null: You.
   let teamOpen = null;
+  // The week's plan has its Change field open (#673).
+  let changing = false;
 
   // ---------- what the page knows of each bot ----------
   // What waits for the owner: the cards of Needs you (needs.js) and the bots that ask a question (unread.js).
@@ -56,12 +60,49 @@
     const ratio = o.target > 0 ? Math.max(0, Math.min(1, o.current / o.target)) : 0;
     return `<div class="cf-kpi" style="--c:${esc(o.color)}"><div class="cf-kpi-name"><i class="cf-dot"></i>${esc(o.name)}</div><div class="cf-kpi-num">${esc(String(o.current))}<span> / ${esc(String(o.target))}</span></div><div class="cf-bar"><i style="width:${(ratio * 100).toFixed(1)}%"></i></div></div>`;
   };
+  // ---------- the 90 days (#673): the timeline, the check-in, the week's plan, a new bot ----------
+  const DECIDED = { keep: () => tr('Keep going'), change: () => tr('Change direction'), stop: () => tr('Stop') };
+  const byChief = () => `<span class="cf-by">${chiefFigure('sm')}${esc(chiefTitle())}</span>`;
+  // Days 30, 60 and 90 on a thin line, filled up to today; an answered day in the colour of its answer.
+  function lineHTML(c) {
+    const marks = [30, 60, 90].map((d) => {
+      const k = c.checkins.find((x) => x.day === d);
+      const cls = [k && k.decision, c.checkin?.day === d && 'due', d <= c.day && 'past'].filter(Boolean).join(' ');
+      return `<span class="cf-mark${cls ? ` ${cls}` : ''}" style="left:${((d / 90) * 100).toFixed(2)}%"${k ? ` title="${esc(DECIDED[k.decision]())}"` : ''}><i></i><b>${tr('Day {n}', { n: d })}</b></span>`;
+    }).join('');
+    return `<div class="cf-line"><i class="cf-line-fill" style="width:${((Math.min(c.day - 1, 90) / 90) * 100).toFixed(2)}%"></i>${marks}</div>`;
+  }
+  function checkinHTML(k) {
+    return `<section class="cf-card cf-checkin"><div class="cf-card-head"><h2>${tr('Day {n} check-in', { n: k.day })}</h2>${byChief()}</div>
+      <div class="cf-rows">${k.objectives.map((o) => `<div class="cf-row" style="--c:${esc(o.color)}"><i class="cf-dot"></i><span class="cf-row-text">${esc(o.name)}</span><span class="cf-num">${esc(String(o.current))} / ${esc(String(o.target))}</span><span class="cf-pace${o.onTrack ? '' : ' behind'}">${o.onTrack ? tr('On track') : tr('Behind')}</span></div>`).join('')}</div>
+      <div class="cf-actions"><button type="button" class="btn ghost" data-cf-checkin="stop">${tr('Stop')}</button><span class="grow"></span><button type="button" class="btn" data-cf-checkin="change">${tr('Change direction')}</button><button type="button" class="btn primary" data-cf-checkin="keep">${tr('Keep going')}</button></div>
+    </section>`;
+  }
+  function planHTML(c) {
+    const p = c.plan;
+    if (!p?.items.length) return '';
+    const colorOfItem = (x) => c.objectives.find((o) => o.id === x.objective)?.color;
+    const actions = p.approved ? ''
+      : changing ? `<form class="co-ask small" id="cf-change"><input name="text" autocomplete="off" maxlength="1000" aria-label="${tr('Change')}" /><button type="submit" class="co-go">${tr('Send')}</button></form>`
+        : `<div class="cf-actions"><span class="grow"></span><button type="button" class="btn ghost sm" data-cf-plan-change>${tr('Change')}</button><button type="button" class="btn primary sm" data-cf-plan-approve>${tr('Approve')}</button></div>`;
+    return `<section class="cf-plan${p.approved ? ' approved' : ''}"><div class="cf-card-head"><h3>${tr('This week')}</h3>${byChief()}</div>
+      <ol class="cf-plan-items">${p.items.map((x) => `<li${colorOfItem(x) ? ` style="--c:${esc(colorOfItem(x))}"` : ''}><span class="cf-row-text">${esc(x.text)}</span>${colorOfItem(x) ? '<i class="cf-dot"></i>' : ''}</li>`).join('')}</ol>
+      ${actions}
+    </section>`;
+  }
+  // The bot the Chief suggests: a dashed card on the floor, in the colour of the team it would join.
+  function suggestionHTML(c, s) {
+    const color = c.teams.find((t) => t.id === s.team)?.color || '#8e7cff';
+    return `<div class="cf-suggest" style="--c:${esc(color)}">${botFigure(color, 'idle', 'lg')}<div class="cf-suggest-text"><b>${esc(s.name)}</b>${s.why ? `<span>${esc(s.why)}</span>` : ''}</div>
+      <div class="cf-actions"><button type="button" class="icon-btn" data-cf-suggest-no aria-label="${tr('Dismiss')}">${X}</button><button type="button" class="btn primary sm" data-cf-suggest-add>${Company.ICON.plus}${tr('Add')}</button></div></div>`;
+  }
+
   function floorHTML(c, f) {
     const line = chiefLine();
     const board = c.objectives.length ? `<div class="cf-board">${c.objectives.map(kpiHTML).join('')}</div>` : `<div class="cf-board empty">${esc(c.goal || '')}</div>`;
     const chief = `<button type="button" class="cf-chief" data-cf-chief><span class="cf-over">${line ? bubble(line, 'line') : ''}</span><span class="cf-table"><i></i></span><span class="cf-head">${chiefFigure()}</span><span class="cf-name">${esc(chiefTitle())}</span></button>`;
     const loose = f.loose.map((b) => `<div class="cf-loose">${deskHTML(b, { count: f.info.asks(b.id) })}</div>`).join('');
-    return `<div class="cf-floor">${board}${chief}${f.rooms.map(roomHTML).join('')}${loose}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
+    return `<div class="cf-floor">${board}${chief}${f.rooms.map(roomHTML).join('')}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
   }
 
   // ---------- the panel: You, or a team ----------
@@ -77,6 +118,7 @@
     ].join('');
     const n = waits.length + asking.length;
     return `<div class="cf-panel-head"><span class="cf-you">${YOU}</span><h2>${tr('You')}</h2>${n ? `<span class="cf-count">${n}</span>` : ''}</div>
+      ${planHTML(c)}
       <div class="cf-rows">${rows}</div>
       <form class="co-ask small cf-add" id="cf-add"><input name="task" autocomplete="off" maxlength="300" placeholder="${tr('Add a task')}" aria-label="${tr('Add a task')}" /><button type="submit" class="co-go">${tr('Add')}</button></form>`;
   }
@@ -97,14 +139,15 @@
     const f = { ...CompanyFloor.floor(c, state.bots, known), info: known };
     const team = teamOpen && c.teams.find((t) => t.id === teamOpen);
     if (!team) teamOpen = null;
-    const typed = $('#cf-add input', root);
-    const kept = typed ? { value: typed.value, focus: document.activeElement === typed } : null;
+    // What the fields hold, and which has the focus: the floor drawn again keeps them.
+    const kept = ['#cf-add input', '#cf-change input'].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
       <header class="cf-top"><h1>${esc(c.name || c.start)}</h1>${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
+      ${c.day ? lineHTML(c) : ''}
+      ${c.checkin ? checkinHTML(c.checkin) : ''}
       <div class="cf-main">${floorHTML(c, f)}<aside class="cf-panel">${team ? teamHTML(c, team) : youHTML(c)}</aside></div>
     </div>`;
-    const add = $('#cf-add', root);
-    if (add && kept) { add.task.value = kept.value; if (kept.focus) add.task.focus(); }
+    for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
     wire(root, c);
   }
   function openTeam(id) { teamOpen = teamOpen === id ? null : id; Company.redraw(); }
@@ -122,6 +165,23 @@
     $$('[data-cf-reply]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.cfReply)));
     $$('[data-cf-todo]', root).forEach((box) => (box.onchange = () => send(`/company/todos/${encodeURIComponent(box.dataset.cfTodo)}`, 'PUT', { done: box.checked })));
     $$('[data-cf-lead]', root).forEach((b) => (b.onclick = () => send(`/company/teams/${encodeURIComponent(teamOpen)}`, 'PUT', { lead: b.dataset.cfLead })));
+    $$('[data-cf-checkin]', root).forEach((b) => (b.onclick = () => checkin(c.checkin, b.dataset.cfCheckin, b)));
+    $('[data-cf-plan-approve]', root)?.addEventListener('click', (e) => { e.currentTarget.disabled = true; send('/company/plan/approve', 'POST', {}); });
+    $('[data-cf-plan-change]', root)?.addEventListener('click', () => { changing = true; Company.redraw(); $('#cf-change input')?.focus(); });
+    const change = $('#cf-change', root);
+    if (change) {
+      change.text.onkeydown = (e) => { if (e.key === 'Escape') { changing = false; Company.redraw(); } };
+      change.onsubmit = async (e) => {
+        e.preventDefault();
+        const text = change.text.value.trim();
+        if (!text) return;
+        changing = false;
+        change.text.value = '';
+        if (!(await send('/company/plan/change', 'POST', { text }))) { changing = true; Company.redraw(); const now = $('#cf-change input'); if (now) now.value = text; }
+      };
+    }
+    $('[data-cf-suggest-add]', root)?.addEventListener('click', (e) => { e.currentTarget.disabled = true; send('/company/suggestion/add', 'POST', {}); });
+    $('[data-cf-suggest-no]', root)?.addEventListener('click', () => send('/company/suggestion', 'DELETE'));
     const add = $('#cf-add', root);
     if (add) add.onsubmit = async (e) => {
       e.preventDefault();
@@ -140,6 +200,21 @@
   async function send(path, method, body) {
     try { Company.changed({ company: await api(path, { method, body }) }); return true; } catch (e) { toast(e.message, true); Company.redraw(); return false; }
   }
+  // The owner's answer at a check-in. Change direction opens a new chat with the Chief, the words started for them;
+  // Stop says how many jobs it switched off.
+  async function checkin(k, decision, button) {
+    if (!k || button.disabled) return;
+    button.disabled = true;
+    let d;
+    try { d = await api('/company/checkins', { method: 'POST', body: { day: k.day, decision } }); } catch (e) { toast(e.message, true); button.disabled = false; return; }
+    Company.changed({ company: d.company });
+    if (decision === 'stop') toast(trn(d.paused || 0, "Switched off {n} job of the company's bots.", "Switched off {n} jobs of the company's bots."));
+    if (decision === 'change') {
+      openChiefChat(null);
+      const box = $('#view-chief form')?.text;
+      if (box) { box.value = `${tr('Day {n} check-in: I want to change direction.', { n: k.day })} `; box.dispatchEvent(new Event('input')); box.focus(); }
+    }
+  }
   // "New team": a name and its bots, the first picked its lead; the bots in no team are offered first.
   function newTeam(c) {
     const inTeam = new Set(c.teams.flatMap((t) => t.bots));
@@ -157,5 +232,5 @@
 
   Company.steps.home = home;
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [teamOpen, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
+  Company.steps.sig = () => [teamOpen, changing, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
 })();

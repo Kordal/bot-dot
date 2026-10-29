@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { startServer, makeBot } = require('./helpers');
+const { startServer, makeBot, writeData, waitFor } = require('./helpers');
 const companyLib = require('../lib/company');
 
 let srv; let a; let b; let c;
@@ -135,6 +135,115 @@ test('"@Bot task" gives the bot the task as a message of the owner', async () =>
   assert.equal(r.data.todos.at(-1).bot, b.id);
   const runs = (await srv.api(`/runs?botId=${b.id}&limit=5`)).data;
   assert.ok((runs.runs || runs).some((x) => x.prompt === 'Find 5 parents'), JSON.stringify(runs).slice(0, 400));
+});
+
+// A running company on its day `day`, with two objectives and the bots a and b in a team.
+async function running(day, more = {}) {
+  const c = (await srv.api('/company')).data.company;
+  writeData(path.join(srv.data, 'company.json'), {
+    ...c, phase: 'running', startedAt: new Date(Date.now() - (day - 1) * 86_400_000 - 3_600_000).toISOString(),
+    objectives: [{ id: 'o1', name: 'Sign-ups', current: 20, target: 50 }, { id: 'o2', name: 'Paying users', current: 0, target: 4 }],
+    teams: [{ id: 't1', name: 'Growth', bots: [a.id, b.id], lead: a.id }], checkins: [], plan: null, suggestion: null, ...more,
+  });
+}
+
+test('a check-in waits from day 30 until it is answered; Stop switches off the jobs of the company\'s bots', async () => {
+  await running(12);
+  assert.equal((await srv.api('/company')).data.company.checkin, null, 'none before day 30');
+  await running(31);
+  let co = (await srv.api('/company')).data.company;
+  assert.equal(co.day, 31);
+  assert.equal(co.checkin.day, 30);
+  // 30 of the 90 days gone: 20 / 50 is on track, 0 / 4 behind.
+  assert.deepEqual(co.checkin.objectives.map((o) => [o.id, o.onTrack]), [['o1', true], ['o2', false]]);
+  assert.ok(srv.api('/version').then((r) => r.data.features.includes('company-checkins')));
+  assert.equal((await srv.asChief('/company/checkins', { method: 'POST', body: { day: 30, decision: 'keep' } })).status, 403);
+  assert.equal((await srv.api('/company/checkins', { method: 'POST', body: { day: 30, decision: 'maybe' } })).status, 400);
+  assert.equal((await srv.api('/company/checkins', { method: 'POST', body: { day: 60, decision: 'keep' } })).status, 409);
+  let r = await srv.api('/company/checkins', { method: 'POST', body: { day: 30, decision: 'keep' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.company.checkin, null);
+  assert.deepEqual(r.data.company.checkins.map((k) => [k.day, k.decision]), [[30, 'keep']]);
+  assert.equal(r.data.paused, undefined);
+  assert.equal((await srv.api('/company/checkins', { method: 'POST', body: { day: 30, decision: 'keep' } })).status, 409, 'answered once');
+
+  // Day 61: Stop. Every job of a and b is switched off; c, in no team, keeps its own.
+  await running(61, { checkins: [{ day: 30, decision: 'keep', at: null }] });
+  co = (await srv.api('/company')).data.company;
+  assert.equal(co.checkin.day, 60);
+  const on = async (id) => (await srv.api(`/bots/${id}`)).data.jobs.filter((j) => j.enabled).length;
+  const before = { a: await on(a.id), b: await on(b.id), c: await on(c.id) };
+  r = await srv.api('/company/checkins', { method: 'POST', body: { day: 60, decision: 'stop' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.paused, before.a + before.b);
+  assert.deepEqual([await on(a.id), await on(b.id), await on(c.id)], [0, 0, before.c]);
+});
+
+test('the Chief drafts the week\'s plan; the owner approves it or asks for a change', async () => {
+  await running(10);
+  assert.equal((await srv.api('/company/plan/approve', { method: 'POST', body: {} })).status, 404);
+  assert.equal((await srv.asChief('/company/plan', { method: 'PUT', body: { items: [] } })).status, 400);
+  let r = await srv.asChief('/company/plan', { method: 'PUT', body: { items: [{ text: 'Ask 10 parents to pre-order', objective: 'o2' }, { text: 'Get the page to 25 sign-ups', objective: 'o1' }, { text: 'Book 5 interviews', objective: 'nope' }] } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data.plan.items, [{ text: 'Ask 10 parents to pre-order', objective: 'o2' }, { text: 'Get the page to 25 sign-ups', objective: 'o1' }, { text: 'Book 5 interviews' }]);
+  assert.equal(r.data.plan.approved, false);
+  assert.equal(r.data.plan.week, companyLib.weekOf(new Date()));
+  assert.equal((await srv.asChief('/company/plan/approve', { method: 'POST', body: {} })).status, 403);
+  assert.equal((await srv.api('/company/plan/change', { method: 'POST', body: { text: ' ' } })).status, 400);
+  r = await srv.api('/company/plan/change', { method: 'POST', body: { text: 'Less outreach this week' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  r = await srv.api('/company/plan/approve', { method: 'POST', body: {} });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.plan.approved, true);
+  // Both were the Chief's turns: they landed in a Chief chat.
+  await waitFor(async () => (await srv.api('/chief')).data.chats.some((x) => x.title === 'Company'), { what: 'a Chief chat' });
+});
+
+test('a new week is due once a plan of it was neither drafted nor asked for', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'company-'));
+  const file = path.join(dir, 'company.json');
+  const monday = new Date(2026, 10, 2, 9); // Monday 2 November 2026, local time
+  fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'running', startedAt: '2026-10-01T09:00:00Z', plan: { items: [{ text: 'x' }], week: '2026-10-26' } }));
+  const s = companyLib.create({ file, now: () => monday });
+  assert.equal(companyLib.weekOf(new Date(2026, 10, 8, 23)), '2026-11-02', 'a Sunday is the end of its week');
+  assert.equal(s.planDue(), '2026-11-02');
+  s.planAsked('2026-11-02');
+  assert.equal(s.planDue(), null, 'asked once a week');
+  assert.equal(s.planDue(undefined, new Date(2026, 10, 9, 0, 30)), '2026-11-09');
+  s.setPlan({ items: [{ text: 'y' }] });
+  assert.equal(s.read().plan.week, '2026-11-02');
+  assert.match(s.promptNote(), /This week's plan \(waits for the owner\): y/);
+  assert.match(s.promptNote(), /The day 30 check-in waits for the owner\./);
+  assert.match(s.promptNote(), /suggest_company_bot/);
+  fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'setup' }));
+  assert.equal(s.planDue(), null, 'not while it is set up');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('the Chief suggests one bot at a time; Add makes it in its team, dismiss keeps its name from coming back', async () => {
+  await running(20);
+  assert.equal((await srv.asChief('/company/suggestion', { method: 'PUT', body: { name: 'Support Desk' } })).status, 400);
+  assert.equal((await srv.asChief('/company/suggestion', { method: 'PUT', body: { name: 'Support Desk', prompt: 'Answer sign-up questions.', why: 'Sign-ups are coming in', team: 'gone' } })).status, 400);
+  let r = await srv.asChief('/company/suggestion', { method: 'PUT', body: { name: 'Support Desk', description: 'Answers questions from your first users', prompt: 'Answer sign-up questions.', why: 'Sign-ups are coming in', team: 't1' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.suggestion.name, 'Support Desk');
+  assert.equal((await srv.asChief('/company/suggestion', { method: 'PUT', body: { name: 'Other', prompt: 'x', why: 'y' } })).status, 409, 'one at a time');
+  assert.equal((await srv.asChief('/company/suggestion/add', { method: 'POST', body: {} })).status, 403);
+  r = await srv.api('/company/suggestion/add', { method: 'POST', body: {} });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.equal(r.data.suggestion, null);
+  const made = (await srv.api('/bots')).data.find((x) => x.name === 'Support Desk');
+  assert.ok(made, 'the bot is made');
+  assert.deepEqual(r.data.teams[0].bots, [a.id, b.id, made.id]);
+
+  r = await srv.asChief('/company/suggestion', { method: 'PUT', body: { name: 'Billing Helper', prompt: 'Answer billing.', why: 'First payments' } });
+  assert.equal(r.status, 200);
+  r = await srv.api('/company/suggestion', { method: 'DELETE' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual([r.data.suggestion, r.data.dismissed], [null, ['Billing Helper']]);
+  assert.equal((await srv.asChief('/company/suggestion', { method: 'PUT', body: { name: 'billing helper', prompt: 'x', why: 'y' } })).status, 409);
+  assert.equal((await srv.api('/company/suggestion', { method: 'DELETE' })).status, 404);
+  assert.equal((await srv.api(`/bots/${made.id}`, { method: 'DELETE' })).status, 200);
 });
 
 test('deleting the company keeps its bots', async () => {
