@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -81,7 +80,7 @@ fun PageBlock(b: Block) {
 private fun PageCard(content: @Composable () -> Unit) {
     val p = LocalPaper.current
     val shape = Radius.card
-    Column(Modifier.fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line, shape).padding(horizontal = Space.s16, vertical = Space.s16)) {
+    Column(Modifier.fillMaxWidth().raised(shape).padding(horizontal = Space.s16, vertical = Space.s16)) {
         content()
     }
 }

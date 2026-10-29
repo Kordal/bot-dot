@@ -72,7 +72,7 @@ fun PlanDock(view: PlanView?, color: String?, who: String, folded: Boolean, onFo
     val plan = view.plan
     val shape = Radius.card
     Column(
-        Modifier.fillMaxWidth().padding(start = Space.s12, end = Space.s12, top = Space.s8).clip(shape).background(p.panel).border(1.dp, p.line2, shape)
+        Modifier.fillMaxWidth().padding(start = Space.s12, end = Space.s12, top = Space.s8).raised(shape)
             .semantics { paneTitle = if (view.stopped) tr("{who}'s plan, stopped", "who" to who) else tr("{who}'s plan", "who" to who) },
     ) {
         when {

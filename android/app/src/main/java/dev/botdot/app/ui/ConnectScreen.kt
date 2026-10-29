@@ -14,7 +14,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -75,7 +74,7 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
         Text(tr("Your botdot's address, the one you open in the browser. The phone reaches it through Tailscale, so keep Tailscale on."),
             color = p.muted, style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(Space.s24))
-        OutlinedTextField(
+        Field(
             value = address,
             onValueChange = { address = it; error = null },
             label = { Text(tr("Address")) },

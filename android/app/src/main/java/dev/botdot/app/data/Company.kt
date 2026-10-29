@@ -26,6 +26,7 @@ data class Company(
     val start: String = "",
     val phase: String = "setup",
     val day: Int? = null,
+    val startedAt: String? = null,
     val sources: List<CompanySource> = emptyList(),
     val about: List<AboutCard> = emptyList(),
     val stories: List<StoryGroup> = emptyList(),
@@ -42,10 +43,14 @@ data class Company(
     val facts: Int = 0,
     val objectives: List<Objective> = emptyList(),
     val todos: List<Todo> = emptyList(),
+    val events: List<ProjectEvent> = emptyList(),
     val plan: WeekPlan? = null,
     val checkins: List<Checkin> = emptyList(),
     val checkin: CheckinDue? = null,
     val suggestion: Suggested? = null,
+    val decisions: List<Decision> = emptyList(),
+    val standup: StandupSetting? = null,
+    val standupToday: Standup? = null,
 ) {
     val running: Boolean get() = phase == "running"
     val site: Boolean get() = kind == "site"
@@ -78,23 +83,100 @@ data class Swot(
 @Serializable
 data class Suggestions(val goal: List<String> = emptyList(), val never: List<String> = emptyList(), val time: List<String> = emptyList())
 
+/** A team (#669); [report] how often its lead reports (#696): daily, twice-weekly, weekly or none, and [lastReport] its latest. */
 @Serializable
-data class CompanyTeam(val id: String = "", val name: String = "", val color: String? = null, val bots: List<String> = emptyList(), val lead: String? = null)
+data class CompanyTeam(
+    val id: String = "",
+    val name: String = "",
+    val color: String? = null,
+    val bots: List<String> = emptyList(),
+    val lead: String? = null,
+    val report: String? = null,
+    val lastReport: TeamReport? = null,
+)
 
-/** An objective of the 90 days (#669): its number now and the one aimed at, in its colour (a team of that colour moves it). */
+/** A lead's latest report (#696): plain text in lines, when, and the bot that wrote it. */
 @Serializable
-data class Objective(val id: String = "", val name: String = "", val target: Double = 0.0, val current: Double = 0.0, val color: String? = null, val onTrack: Boolean = false)
+data class TeamReport(val text: String = "", val at: String? = null, val bot: String? = null)
 
-/** One of the owner's tasks (#672): with [bot], what that bot was given. */
+/**
+ * An objective of the 90 days (#669): its number now and the one aimed at, in its colour (a team of that colour moves
+ * it). How it is shown (#690): [display] pace, bar or status (null: the app picks), [steps] the checklist of one with no
+ * number, [done] the tick of one with neither, [history] its last value of each day it changed. [source] the connected app
+ * its number is read from (#699).
+ */
 @Serializable
-data class Todo(val id: String = "", val text: String = "", val bot: String? = null, val done: Boolean = false)
+data class Objective(
+    val id: String = "",
+    val name: String = "",
+    val target: Double = 0.0,
+    val current: Double = 0.0,
+    val color: String? = null,
+    val onTrack: Boolean = false,
+    val display: String? = null,
+    val steps: List<ObjectiveStep> = emptyList(),
+    val done: Boolean = false,
+    val history: List<DayValue> = emptyList(),
+    val source: ObjectiveSource? = null,
+)
+
+/** Where an objective's number is read from (#699): the app, what is read there, when it last gave a number, why the last try failed. */
+@Serializable
+data class ObjectiveSource(val app: String = "", val what: String = "", val every: String = "daily", val readAt: String? = null, val triedAt: String? = null, val failed: String? = null)
+
+@Serializable
+data class ObjectiveStep(val text: String = "", val done: Boolean = false)
+
+@Serializable
+data class DayValue(val day: Int = 0, val value: Double = 0.0)
+
+/**
+ * An item of the project's To-do (#672, #692): [bot] the bot it is for (none: the owner), [due] a day "YYYY-MM-DD",
+ * [repeat] how it comes back once ticked, [by] who added it, [doneAt] when it was ticked.
+ */
+@Serializable
+data class Todo(
+    val id: String = "",
+    val text: String = "",
+    val bot: String? = null,
+    val done: Boolean = false,
+    val due: String? = null,
+    val repeat: Repeat? = null,
+    val at: String? = null,
+    val by: String? = null,
+    val doneAt: String? = null,
+)
+
+/** How a to-do item repeats (#692): every day, on weekdays ([days], 0 is Sunday), on a day of the month, or every [n] days. */
+@Serializable
+data class Repeat(val every: String = "day", val days: List<Int>? = null, val day: Int? = null, val n: Int? = null)
+
+/** An event of the project's calendar (#695): its day, its time or none (whole-day), who added it. */
+@Serializable
+data class ProjectEvent(val id: String = "", val title: String = "", val day: String = "", val time: String? = null, val by: String? = null)
+
+/** A decision the owner made (#694): [by] "you", "chief", "bot" or "checkin" (then [day] and [decision] as a check-in's). */
+@Serializable
+data class Decision(val id: String = "", val text: String = "", val why: String? = null, val at: String? = null, val by: String = "you", val bot: String? = null, val day: Int? = null, val decision: String? = null)
+
+/** When the morning standup runs (#698). */
+@Serializable
+data class StandupSetting(val on: Boolean = true, val time: String = "09:00")
+
+/** Today's standup (#698): each team lead's three lines; a lead without [StandupLead.at] did not answer. */
+@Serializable
+data class Standup(val day: String = "", val leads: List<StandupLead> = emptyList())
+
+@Serializable
+data class StandupLead(val team: String = "", val bot: String = "", val done: String? = null, val next: String? = null, val blocked: String? = null, val asks: Boolean = false, val at: String? = null)
 
 /** The week's plan the Chief drafts (#673): each item with the objective it moves, approved or waiting for the owner. */
 @Serializable
 data class WeekPlan(val items: List<PlanItem> = emptyList(), val approved: Boolean = false, val week: String? = null)
 
+/** An item of the week's plan: the objective it moves, and the team that does it (#696). */
 @Serializable
-data class PlanItem(val text: String = "", val objective: String? = null)
+data class PlanItem(val text: String = "", val objective: String? = null, val team: String? = null)
 
 /** A check-in the owner answered: day 30, 60 or 90, and keep, change or stop. */
 @Serializable

@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -105,11 +104,11 @@ fun KitTableView(b: Block) {
             Text("${b.rows.size}", color = p.faint, fontSize = Type.s12, fontFamily = FontFamily.Monospace)
         }
         if (b.search) BasicTextField(query, { query = it; page = 0 }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = Type.s14), cursorBrush = SolidColor(p.text),
-            modifier = Modifier.fillMaxWidth().border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s16, vertical = Space.s8),
+            modifier = Modifier.fillMaxWidth().background(p.raise2, Radius.pill).padding(horizontal = Space.s16, vertical = Space.s8),
             decorationBox = { inner -> if (query.isEmpty()) Text(tr("Search"), color = p.faint, fontSize = Type.s14); inner() })
         b.filter?.let { f ->
             val on = f.options.firstOrNull { it.equals(filter, ignoreCase = true) }.orEmpty()
-            FlowRow(Modifier.border(1.dp, p.line2, Radius.pill).padding(Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+            FlowRow(Modifier.background(p.raise2, Radius.pill).padding(Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                 (listOf("") + f.options).forEach { o ->
                     Text(o.ifEmpty { tr("All") }, color = if (o.equals(on, ignoreCase = true)) p.text else p.muted, fontSize = Type.s12,
                         modifier = Modifier.clip(Radius.pill).background(if (o.equals(on, ignoreCase = true)) p.sunk else androidx.compose.ui.graphics.Color.Transparent)

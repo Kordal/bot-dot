@@ -12,6 +12,10 @@ const kitLevel = (l) => (KIT_LEVELS.includes(l) ? l : 'info');
 // A time as the owner's clock shows it: "08:00".
 const kitClock = (ms) => { const d = new Date(ms); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 const kitNum = (n) => (Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '');
+// A value in words ("Eco until 17:00") rather than a number ("21.5", "−3", "1 204", "62%", "17:00", "1.2k", "€12"):
+// drawn at 20px so it fits one line, while a number stays big. BoardKit.isWords on Android says the same.
+const KIT_NUMBER = /^[-+−]?[$€£¥]?\d[\d\s.,:/'%]*[\p{L}°%]{0,3}$/u;
+const kitIsWords = (text) => { const t = String(text ?? '').trim(); return t !== '' && !KIT_NUMBER.test(t); };
 
 // A number's change: "▲ 0.8 since 08:00", green when it is good news, red when bad, grey when neither.
 function kitDelta(b) {
@@ -41,7 +45,7 @@ function kitKpi(b, c, tint = (x) => x) {
   return `<div class="kit-kpi ${b.points?.length >= 2 ? 'has-spark' : ''}">
     <div class="kit-kpi-main">
       ${b.label ? `<div class="kit-label">${esc(b.label)}</div>` : ''}
-      <div class="kit-num"${b.type === 'value' && b.color ? ` style="color:${tint(b.color)}"` : ''}>${b.text ? esc(b.text) : '<span class="faint">·</span>'}${b.unit ? `<small>${esc(b.unit)}</small>` : ''}${b.of ? `<small class="of">${tr('of {total}', { total: esc(b.of) })}</small>` : ''}</div>
+      <div class="kit-num${kitIsWords(b.text) ? ' words' : ''}"${b.type === 'value' && b.color ? ` style="color:${tint(b.color)}"` : ''}>${b.text ? esc(b.text) : '<span class="faint">·</span>'}${b.unit ? `<small>${esc(b.unit)}</small>` : ''}${b.of ? `<small class="of">${tr('of {total}', { total: esc(b.of) })}</small>` : ''}</div>
       ${kitDelta(b)}${sub}
     </div>
     ${kitSpark(b.points, c)}

@@ -22,8 +22,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -159,7 +157,7 @@ fun RoomsScreen(app: BotDotApp, onRoom: (String) -> Unit, onMade: (String) -> Un
             items(invites, key = { "invite:" + it.room.id }) { i ->
                 Section(i.room.name, tr("{name} invites you", "name" to i.by)) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                        OutlinedButton(onClick = { act { app.rooms.took(app.api.value!!.acceptRoom(i.room.id)); onRoom(i.room.id) } }) { Text(tr("Accept"), color = p.text) }
+                        SecondaryButton(onClick = { act { app.rooms.took(app.api.value!!.acceptRoom(i.room.id)); onRoom(i.room.id) } }) { Text(tr("Accept"), color = p.text) }
                         TextButton(onClick = { act { app.api.value!!.declineRoom(i.room.id); app.rooms.gone(i.room.id) } }) { Text(tr("Decline"), color = p.text) }
                     }
                 }
@@ -196,7 +194,7 @@ private fun NameDialog(title: String, label: String, start: String, button: Stri
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                OutlinedTextField(text, { text = it.take(60); error = null }, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Field(text, { text = it.take(60); error = null }, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 error?.let { Text(it, color = p.err) }
             }
         },
@@ -234,7 +232,7 @@ private fun JoinDialog(app: BotDotApp, onJoined: (String) -> Unit, onClose: () -
             Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 val room = seen
                 if (room == null) {
-                    OutlinedTextField(text, { text = it.take(400); error = null }, label = { Text(tr("Invite link")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Field(text, { text = it.take(400); error = null }, label = { Text(tr("Invite link")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 } else {
                     Text(tr("{name} made this room and shared its invite link.", "name" to room.room.by.ifBlank { tr("Someone") }), color = p.text)
                 }
@@ -488,8 +486,8 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
         val r = room ?: return@Scaffold
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Section(tr("Name")) {
-                OutlinedTextField(name, { name = it.take(60) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                if (name.isNotBlank() && name.trim() != r.name) OutlinedButton(enabled = !busy, onClick = { act(tr("Saved")) { app.rooms.took(api().renameRoom(roomId, name.trim())) } }) { Text(tr("Save"), color = p.text) }
+                Field(name, { name = it.take(60) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (name.isNotBlank() && name.trim() != r.name) SecondaryButton(enabled = !busy, onClick = { act(tr("Saved")) { app.rooms.took(api().renameRoom(roomId, name.trim())) } }) { Text(tr("Save"), color = p.text) }
             }
             Section(tr("People")) {
                 r.members.forEach { m -> Text(m.account + if (m.account == mine) " " + tr("(you)") else "", color = p.text, style = MaterialTheme.typography.bodyLarge) }
@@ -498,11 +496,11 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
             if (maker && linkRead) Section(tr("Invite link")) {
                 val l = link
                 if (l == null) {
-                    OutlinedButton(enabled = !busy, onClick = { act { link = api().makeRoomLink(roomId) } }) { Text(tr("Make an invite link"), color = p.text) }
+                    SecondaryButton(enabled = !busy, onClick = { act { link = api().makeRoomLink(roomId) } }) { Text(tr("Make an invite link"), color = p.text) }
                 } else {
                     SelectionContainer { Text(l.url, color = p.text, style = MaterialTheme.typography.bodyMedium) }
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                        OutlinedButton(enabled = !busy, onClick = {
+                        SecondaryButton(enabled = !busy, onClick = {
                             val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, l.url)
                             context.startActivity(Intent.createChooser(send, r.name))
                         }) { Text(tr("Share"), color = p.text) }
@@ -535,8 +533,8 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
                 } else if (bots.orEmpty().none { it.rooms?.allowRooms == true }) Hint(tr("None of your bots may be in shared rooms yet: switch it on in a bot's settings."))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                OutlinedButton(enabled = !busy, onClick = { asking = "leave" }) { Text(tr("Leave"), color = p.err) }
-                if (Rooms.mayDelete(r, mine)) OutlinedButton(enabled = !busy, onClick = { asking = "delete" }) { Text(tr("Delete"), color = p.err) }
+                SecondaryButton(enabled = !busy, onClick = { asking = "leave" }) { Text(tr("Leave"), color = p.err) }
+                if (Rooms.mayDelete(r, mine)) SecondaryButton(enabled = !busy, onClick = { asking = "delete" }) { Text(tr("Delete"), color = p.err) }
             }
         }
     }

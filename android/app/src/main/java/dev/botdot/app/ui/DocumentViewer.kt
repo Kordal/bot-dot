@@ -34,7 +34,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -128,7 +127,7 @@ private fun PathSheet(req: DocViewer.Request) {
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Button(onClick = { DocViewer.held = null; DocViewer.open = req }, modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Open")) }
-                OutlinedButton(onClick = {
+                SecondaryButton(onClick = {
                     context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(android.content.ClipData.newPlainText("botdot", req.path.orEmpty()))
                     DocViewer.held = null
                 }, modifier = Modifier.weight(1f)) { Text(tr("Copy path"), color = p.text) }
@@ -310,27 +309,27 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             e != null -> {
                 val status = (e as? ApiException)?.status
                 when (status) {
-                    404 -> ViewerState(tr("This file is gone"), tr("Nothing is at this path any more. It may have been moved or deleted.")) { OutlinedButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
+                    404 -> ViewerState(tr("This file is gone"), tr("Nothing is at this path any more. It may have been moved or deleted.")) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
                     409 -> ViewerState(tr("The computer is off"), tr("This file is on the account's computer, which is stopped. Start it to open the file.")) {
                         req.botId?.let { botId ->
                             Button(onClick = { withApi(tr("start it")) { it.startComputer(botId); tries++ } }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
                         }
-                        OutlinedButton(onClick = onBack) { Text(tr("Not now"), color = p.text) }
+                        SecondaryButton(onClick = onBack) { Text(tr("Not now"), color = p.text) }
                     }
-                    else -> ViewerState(tr("Couldn't open it"), e.message.orEmpty()) { OutlinedButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
+                    else -> ViewerState(tr("Couldn't open it"), e.message.orEmpty()) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
                 }
             }
             v == null -> Column(Modifier.padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 listOf(0.6f, 0.92f, 0.84f, 0.7f, 0.88f).forEach { w -> Box(Modifier.fillMaxWidth(w).height(12.dp).clip(Radius.small).background(p.sunk)) }
             }
             !v.downloadable && v.kind == "none" -> ViewerState(tr("Too large to bring out of the computer"), tr("Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.")) {
-                OutlinedButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) }
+                SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) }
             }
             site != null && req.page != null -> InteractiveFrame(site, values, onDownload = download)
             v.kind == "none" -> ViewerState(tr("No preview for this kind of file"), tr("The app shows Markdown, text, code, CSV and pictures. Open this one on your phone.")) {
                 Button(onClick = { withApi(tr("save it")) { BotFiles.saveToDownloads(context, it, req.src, req.name); tell(tr("Saving {name} to Downloads", "name" to req.name)) } },
                     colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save to Downloads")) }
-                OutlinedButton(onClick = { withApi(tr("open it")) { BotFiles.openElsewhere(context, it, req.src, req.name) } }) { Text(tr("Open in another app"), color = p.text) }
+                SecondaryButton(onClick = { withApi(tr("open it")) { BotFiles.openElsewhere(context, it, req.src, req.name) } }) { Text(tr("Open in another app"), color = p.text) }
             }
             v.kind == "image" -> Box(Modifier.fillMaxSize().padding(Space.s12), contentAlignment = Alignment.Center) {
                 api?.let { AsyncImage(it.url(req.src), contentDescription = req.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
@@ -445,7 +444,7 @@ private fun SheetRow(label: String, end: String, onClick: () -> Unit) {
 private fun ModeChip(label: String, on: Boolean, onClick: () -> Unit) {
     val p = LocalPaper.current
     Text(label, color = if (on) p.inkText else p.text, fontSize = Type.s14,
-        modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.bg).border(1.dp, if (on) p.ink else p.line2, Radius.pill)
+        modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.raise2)
             .clickable(onClick = onClick).padding(horizontal = Space.s16, vertical = Space.s8))
 }
 
@@ -486,7 +485,7 @@ private fun CsvTable(text: String, sep: Char) {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(horizontal = Space.s16, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
             BasicTextField(find, { find = it }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = Type.s14), cursorBrush = SolidColor(p.text),
-                modifier = Modifier.weight(1f).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s16, vertical = Space.s8),
+                modifier = Modifier.weight(1f).background(p.raise2, Radius.pill).padding(horizontal = Space.s16, vertical = Space.s8),
                 decorationBox = { inner -> if (find.isEmpty()) Text(tr("Find in table"), color = p.faint, fontSize = Type.s14); inner() })
             Text(trn(t.total, "{n} row", "{n} rows") + " · " + trn(t.cols, "{n} column", "{n} columns"), color = p.muted, fontSize = Type.s12)
         }
@@ -519,11 +518,11 @@ private fun PageBar(page: PageInfo, onBoard: Boolean, board: (() -> Unit)?, onKe
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s8),
         horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         val keep = page.keep
-        if (keep == null) OutlinedButton(onClick = onKeep) { Text(tr("Keep up to date"), color = p.text) }
+        if (keep == null) SecondaryButton(onClick = onKeep) { Text(tr("Keep up to date"), color = p.text) }
         else {
             Text("↻ " + tr("Keeps up to date") + " · ${keep.`when`}", color = p.okText, fontSize = Type.s12,
                 modifier = Modifier.align(Alignment.CenterVertically).clip(Radius.pill).background(p.okSoft).padding(horizontal = Space.s12, vertical = Space.s8))
-            OutlinedButton(onClick = onRefresh) { Text(tr("Refresh now"), color = p.text) }
+            SecondaryButton(onClick = onRefresh) { Text(tr("Refresh now"), color = p.text) }
             androidx.compose.material3.TextButton(onClick = onKeep) { Text(tr("Change"), color = p.muted) }
             androidx.compose.material3.TextButton(onClick = onStop) { Text(tr("Stop"), color = p.muted) }
         }
@@ -538,7 +537,7 @@ private fun BoardButton(on: Boolean, onClick: () -> Unit) {
     val label = if (on) tr("On Board") else tr("Board")
     if (on) androidx.compose.material3.Button(onClick = onClick, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = p.text, contentColor = p.bg)) {
         androidx.compose.material3.Icon(Icons.Outlined.GridView, contentDescription = null, modifier = Modifier.size(16.dp)); Spacer(Modifier.size(6.dp)); Text(label)
-    } else OutlinedButton(onClick = onClick) {
+    } else SecondaryButton(onClick = onClick) {
         androidx.compose.material3.Icon(Icons.Outlined.GridView, contentDescription = null, tint = p.text, modifier = Modifier.size(16.dp)); Spacer(Modifier.size(6.dp)); Text(label, color = p.text)
     }
 }
@@ -564,7 +563,7 @@ private fun KeepSheet(page: PageInfo, from: String, draft: KeepDraft?, onDismiss
             if (every != "hour") {
                 Text(tr("At"), color = p.muted, fontSize = Type.s12)
                 BasicTextField(time, { time = it.take(5) }, singleLine = true, textStyle = TextStyle(color = p.text, fontSize = Type.s16), cursorBrush = SolidColor(p.text),
-                    modifier = Modifier.width(110.dp).border(1.dp, p.line2, Radius.card).padding(horizontal = Space.s12, vertical = Space.s8))
+                    modifier = Modifier.width(110.dp).background(p.raise2, Radius.card).padding(horizontal = Space.s12, vertical = Space.s8))
             }
             Text(tr("Tell me"), color = p.muted, fontSize = Type.s12)
             listOf("report-only" to (tr("Only when something needs me") to tr("A quiet update otherwise. The page shows when it changed.")),
@@ -579,9 +578,9 @@ private fun KeepSheet(page: PageInfo, from: String, draft: KeepDraft?, onDismiss
             }
             Text(tr("What to check"), color = p.muted, fontSize = Type.s12)
             BasicTextField(check, { check = it.take(600) }, textStyle = TextStyle(color = p.text, fontSize = Type.s14), cursorBrush = SolidColor(p.text),
-                modifier = Modifier.fillMaxWidth().height(90.dp).border(1.dp, p.line2, Radius.card).padding(Space.s12))
+                modifier = Modifier.fillMaxWidth().height(90.dp).background(p.raise2, Radius.card).padding(Space.s12))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
-                OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(tr("Cancel"), color = p.text) }
+                SecondaryButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(tr("Cancel"), color = p.text) }
                 Button(onClick = { onKeep(KeepDraft(every, time, notify, check)) }, modifier = Modifier.weight(1.4f),
                     colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Keep it up to date")) }
             }

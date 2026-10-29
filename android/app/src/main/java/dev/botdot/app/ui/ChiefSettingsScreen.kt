@@ -14,8 +14,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.TextButton
@@ -131,14 +129,14 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             if (hasName) Section(tr("Name")) {
-                OutlinedTextField(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
+                Field(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
             }
             Section(null) {
                 Choice(tr("Model"), edit.chiefModel, listOf("" to tr("Same as the default")) + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }
                 if (canThink(edit.chiefModel.ifBlank { edit.defaultModel })) Choice(tr("Reasoning"), edit.chiefEffort, listOf("" to tr("Same as the default")) + info.efforts.map { it.id to it.label }) { edit = edit.copy(chiefEffort = it) }
             }
             Section(tr("Your rules for it")) {
-                OutlinedTextField(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
+                Field(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
             }
             if (hasSkills) {
                 val picked = edit.chiefSkills.orEmpty()
@@ -160,7 +158,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                                 Text(g.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                 Text(g.kind.hint, color = p.muted, style = MaterialTheme.typography.bodySmall)
                             }
-                            OutlinedButton(onClick = {
+                            SecondaryButton(onClick = {
                                 scope.launch {
                                     runCatching { api!!.revokeChiefGrant(g) }
                                         .onSuccess { grants = grants - g; tell(ChiefGrant.REVOKED) }

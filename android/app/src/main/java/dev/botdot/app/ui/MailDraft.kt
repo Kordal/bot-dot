@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -80,7 +78,7 @@ fun MailDraftCard(d: MailDraft, bot: String?, screen: Boolean, onBot: () -> Unit
     var textShown by rememberSaveable(d.state) { mutableStateOf(d.state != "sent") }
     if (!open) {
         Text(tr("Earlier version · show"), color = p.faint, fontSize = Type.s12,
-            modifier = Modifier.clip(Radius.pill).border(1.dp, p.line2, Radius.pill)
+            modifier = Modifier.clip(Radius.pill).background(p.raise2)
                 .clickable(role = Role.Button) { open = true }.heightIn(min = 44.dp).padding(horizontal = Space.s16, vertical = Space.s12))
         return
     }
@@ -90,7 +88,7 @@ fun MailDraftCard(d: MailDraft, bot: String?, screen: Boolean, onBot: () -> Unit
     var used by remember(actions) { mutableStateOf(false) }
     val shape = Radius.card
     Column(Modifier.padding(end = Space.s32)) {
-        Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line2, shape).semantics { paneTitle = tr("Mail draft"); contentDescription = tr("Mail draft") }) {
+        Column(Modifier.widthIn(max = 560.dp).fillMaxWidth().raised(shape).semantics { paneTitle = tr("Mail draft"); contentDescription = tr("Mail draft") }) {
             Column(Modifier.padding(start = Space.s16, end = Space.s16, top = Space.s16, bottom = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 for ((label, value) in listOf(tr("To") to d.to, tr("Subject") to d.subject)) Row {
                     Text(label, color = p.faint, fontSize = Type.s14, modifier = Modifier.widthIn(min = 60.dp))
@@ -109,7 +107,7 @@ fun MailDraftCard(d: MailDraft, bot: String?, screen: Boolean, onBot: () -> Unit
                 actions.forEachIndexed { i, c ->
                     val pick = { scope.launch { if (onPick(c, keys[i])) used = true }; Unit }
                     if (i == 0) Button(onClick = pick, modifier = Modifier.heightIn(min = 44.dp), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(c) }
-                    else OutlinedButton(onClick = pick, modifier = Modifier.heightIn(min = 44.dp)) { Text(c, color = p.text) }
+                    else SecondaryButton(onClick = pick, modifier = Modifier.heightIn(min = 44.dp)) { Text(c, color = p.text) }
                 }
             }
             if (bot != null) Row(Modifier.padding(start = Space.s16, end = Space.s16, top = if (sent) Space.s4 else 0.dp, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {

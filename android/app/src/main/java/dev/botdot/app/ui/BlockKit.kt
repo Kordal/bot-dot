@@ -2,7 +2,6 @@ package dev.botdot.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -79,6 +78,12 @@ object BoardKit {
     /** When the newest value came, in epoch ms; 0 while none has. */
     fun newestAt(tiles: List<Tile>): Long = tiles.maxOfOrNull { t -> t.at?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L } ?: 0L
 
+    private val number = Regex("^[-+−]?[\$€£¥]?\\d[\\d\\s.,:/'%]*[\\p{L}°%]{0,3}$")
+
+    /** A value in words ("Eco until 17:00") rather than a number ("21.5", "−3", "62%", "17:00", "1.2k"): drawn at 20,
+     *  so it fits one line, while a number stays big. kitIsWords on the web page says the same. */
+    fun isWords(text: String?): Boolean = text.orEmpty().trim().let { it.isNotEmpty() && !number.matches(it) }
+
     /** A tile whose face is one number (a value or a kpi): a kpi's head; a small one goes two across on a phone. */
     fun isKpiTile(t: Tile): Boolean = t.kind != "group" && t.look?.face?.singleOrNull()?.type in setOf("value", "kpi")
 
@@ -148,7 +153,7 @@ fun KitCallout(b: Block) {
     val lv = BoardKit.level(b.level)
     val (fg, bg) = if (lv == "info" || lv == "plan") p.text to p.sunk else levelColors(lv)
     val shape = Radius.card
-    Column(Modifier.fillMaxWidth().clip(shape).background(bg).border(1.dp, if (lv == "info" || lv == "plan") p.line2 else fg.copy(alpha = 0.3f), shape).padding(horizontal = Space.s16, vertical = Space.s12)) {
+    Column(Modifier.fillMaxWidth().clip(shape).background(bg).padding(horizontal = Space.s16, vertical = Space.s12)) {
         b.title?.let { Text(it, color = fg, fontSize = Type.s14, fontWeight = FontWeight.SemiBold) }
         MarkdownText(b.text.orEmpty(), color = p.text, copy = false)
     }
@@ -189,7 +194,7 @@ fun KitKpi(b: Block, color: Color, compact: Boolean, small: Boolean = false) {
                     append(b.text?.ifEmpty { "·" } ?: "·")
                     b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.faint)) { append(" $it") } }
                     b.of?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.faint)) { append("  " + tr("of {total}", "total" to it)) } }
-                }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = if (small) Type.s20 else Type.s32, fontWeight = FontWeight.SemiBold, lineHeight = if (small) Type.s24 else Type.s32, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis)
+                }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = if (small || BoardKit.isWords(b.text)) Type.s20 else Type.s32, fontWeight = FontWeight.SemiBold, lineHeight = if (small || BoardKit.isWords(b.text)) Type.s24 else Type.s32, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis)
                 b.delta?.let { d ->
                     Text(BoardKit.deltaLine(b), fontSize = Type.s12, color = when (d.good) { true -> p.okText; false -> p.err; null -> p.faint })
                 }
@@ -307,8 +312,7 @@ fun KitChart(b: Block, color: Color, axes: Boolean) {
                 val tipWidth = 150.dp
                 val x = (pad + plotWidth * frac - tipWidth / 2).coerceIn(0.dp, maxOf(0.dp, maxWidth - tipWidth))
                 Column(
-                    Modifier.offset { IntOffset(with(density) { x.roundToPx() }, 0) }.width(tipWidth).clip(Radius.small)
-                        .background(Color(0xFF1C1C1C)).border(1.dp, p.line2, Radius.small).padding(horizontal = Space.s12, vertical = Space.s8),
+                    Modifier.offset { IntOffset(with(density) { x.roundToPx() }, 0) }.width(tipWidth).raised(Radius.small, p.fill).padding(horizontal = Space.s12, vertical = Space.s8),
                 ) {
                     names.getOrNull(i)?.takeIf { it.isNotEmpty() }?.let { Text(it, color = p.text, fontSize = Type.s12, fontWeight = FontWeight.SemiBold) }
                     Text(words.ifEmpty { "·" }, color = p.text, fontSize = Type.s12)

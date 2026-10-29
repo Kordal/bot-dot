@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -59,7 +58,7 @@ fun RunScreenshots(r: Run) {
                 failed -> Text(tr("Couldn't load them."), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s8))
                 list != null -> Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     list.forEachIndexed { i, path ->
-                        Shot(path, thumb = true, modifier = Modifier.height(110.dp).clip(Radius.small).border(1.dp, p.line2, Radius.small).clickable { showing = i })
+                        Shot(path, thumb = true, modifier = Modifier.height(110.dp).clip(Radius.small).clickable { showing = i })
                     }
                 }
             }

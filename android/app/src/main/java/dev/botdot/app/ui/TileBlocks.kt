@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
@@ -160,7 +159,8 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
             else Text(buildAnnotatedString {
                 append(t)
                 b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.muted)) { append(" $it") } }
-            }, color = tint(b.color, p.text, words = true), fontSize = Type.s24, fontWeight = FontWeight.SemiBold, lineHeight = Type.line32)
+            }, color = tint(b.color, p.text, words = true), fontSize = if (BoardKit.isWords(t)) Type.s20 else Type.s24, fontWeight = FontWeight.SemiBold,
+                lineHeight = if (BoardKit.isWords(t)) Type.line28 else Type.line32)
         }
         "dot" -> Row(verticalAlignment = Alignment.CenterVertically) {
             TileDotView(b.filled, tint(b.color, color), b.big)
@@ -208,7 +208,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
             Switch(checked = on, onCheckedChange = { on = it; ctl.act(b.key!!, JsonPrimitive(it), true) },
                 colors = SwitchDefaults.colors(checkedTrackColor = p.ok, checkedThumbColor = Color.White))
         }
-        "button" -> OutlinedButton(onClick = { ctl.act(b.key!!, null, true) }) { Text(b.label.orEmpty(), color = p.text) }
+        "button" -> SecondaryButton(onClick = { ctl.act(b.key!!, null, true) }) { Text(b.label.orEmpty(), color = p.text) }
         "slider" -> Column {
             val known = b.value.num()
             var v by remember(known) { mutableFloatStateOf((known ?: b.min).toFloat()) }
@@ -235,8 +235,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
                 b.options.forEach { o ->
                     val on = o.value.str() == picked
                     Text(o.label, color = if (on) p.inkText else p.text, fontSize = Type.s14,
-                        modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else Color.Transparent)
-                            .border(1.dp, if (on) p.ink else p.line2, Radius.pill)
+                        modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.raise2)
                             .clickable { picked = o.value.str(); ctl.act(b.key!!, o.value, true) }.padding(horizontal = Space.s12, vertical = Space.s8))
                 }
             }

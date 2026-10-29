@@ -48,8 +48,6 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -714,7 +712,7 @@ private fun Card(who: Named?, title: String, meta: String? = null, done: Boolean
     val p = LocalPaper.current
     var open by remember { mutableStateOf(!expandable) }
     Column(
-        Modifier.fillMaxWidth().alpha(if (done) 0.4f else 1f).background(p.panel, Radius.card).border(1.dp, p.line, Radius.card)
+        Modifier.fillMaxWidth().alpha(if (done) 0.4f else 1f).raised(Radius.card)
             .then(if (expandable) Modifier.clickable(onClickLabel = if (open) tr("Show less") else tr("Show all")) { open = !open } else Modifier).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
@@ -776,8 +774,8 @@ private fun Buttons(primary: String, onPrimary: () -> Unit, secondary: String, o
     val spins = { label: String -> connects && pressed == label && label != secondary }
     val word = { label: String -> if (pressed == label) busyWord(label, spins(label)) else label }
     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8, Alignment.End)) {
-        OutlinedButton(onClick = press(secondary, onSecondary), enabled = pressed == null) { Text(word(secondary), color = p.text) }
-        if (onAlways != null) OutlinedButton(onClick = press(alwaysLabel, onAlways), enabled = pressed == null) {
+        SecondaryButton(onClick = press(secondary, onSecondary), enabled = pressed == null) { Text(word(secondary), color = p.text) }
+        if (onAlways != null) SecondaryButton(onClick = press(alwaysLabel, onAlways), enabled = pressed == null) {
             if (spins(alwaysLabel)) ButtonSpinner(p.text)
             Text(word(alwaysLabel), color = p.text)
         }
@@ -806,7 +804,7 @@ private fun ThenLine(text: String?) {
 
 @Composable
 internal fun PasswordField(value: String, onChange: (String) -> Unit, label: String) {
-    OutlinedTextField(
+    Field(
         value = value, onValueChange = onChange, label = { Text(label) }, singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
@@ -817,7 +815,7 @@ internal fun PasswordField(value: String, onChange: (String) -> Unit, label: Str
 /** A secret of several lines (a private key, #155): masked as a password is, its line breaks kept. */
 @Composable
 internal fun SecretBox(value: String, onChange: (String) -> Unit, label: String) {
-    OutlinedTextField(
+    Field(
         value = value, onValueChange = onChange, label = { Text(label) }, minLines = 3, maxLines = 6,
         visualTransformation = PasswordVisualTransformation(),
         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -878,7 +876,7 @@ private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boole
             if (usable.isNotEmpty()) {
                 Muted(tr("Let it use a login you already saved:"))
                 usable.forEach { e ->
-                    OutlinedButton(onClick = { onUse(e.id) }, modifier = Modifier.fillMaxWidth()) {
+                    SecondaryButton(onClick = { onUse(e.id) }, modifier = Modifier.fillMaxWidth()) {
                         Text(tr("Use {name}", "name" to e.name + (if (e.username.isNotBlank()) " (${e.username})" else "")), color = p.text)
                     }
                 }
@@ -893,7 +891,7 @@ private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boole
             else Muted(tr("It goes straight into your vault{where}. The bot never sees the password.", "where" to if (bitwardenLocked) " (Bitwarden)" else ""))
             if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.options(features, r.type), onType)
             fields.username?.let { label ->
-                OutlinedTextField(user, onUser, label = { Text(label) }, singleLine = true,
+                Field(user, onUser, label = { Text(label) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
                     modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Username })
             }
@@ -918,7 +916,7 @@ private fun OtherLoginsList(others: List<OtherLogin>, typed: String, onTyped: (S
     val long = OtherLogins.hasSearch(others)
     val rows = if (long) OtherLogins.shown(others, typed) else others
     Muted(OtherLogins.HEADING)
-    if (long) OutlinedTextField(typed, onTyped, label = { Text(OtherLogins.SEARCH) }, singleLine = true,
+    if (long) Field(typed, onTyped, label = { Text(OtherLogins.SEARCH) }, singleLine = true,
         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
     if (rows.isEmpty()) Muted(OtherLogins.NO_MATCH)
     else Column(
@@ -926,7 +924,7 @@ private fun OtherLoginsList(others: List<OtherLogin>, typed: String, onTyped: (S
         verticalArrangement = Arrangement.spacedBy(Space.s8),
     ) {
         rows.forEach { e ->
-            Column(Modifier.fillMaxWidth().clip(Radius.small).border(1.dp, p.line, Radius.small).clickable(onClickLabel = OtherLogins.USE) { onPick(e) }.padding(horizontal = Space.s12, vertical = Space.s8)) {
+            Column(Modifier.fillMaxWidth().raised(Radius.small).clickable(onClickLabel = OtherLogins.USE) { onPick(e) }.padding(horizontal = Space.s12, vertical = Space.s8)) {
                 Text(OtherLogins.label(e), color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (e.site.isNotBlank()) Text(e.site, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -1152,7 +1150,7 @@ private fun AskBatchCard(card: AskCard.Several, who: Named?, onAll: (Boolean) ->
             batchOwnLine(card.asks)?.let { Muted(it) }
             if (card.asks.any { it.batch?.own != true && !it.rowsCut }) Buttons(tr("Allow all"), { all(true) }, tr("Decline all"), { all(false) }, enabled = !busy)
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { all(false) }, enabled = !busy) { Text(tr("Decline all"), color = LocalPaper.current.text) }
+                SecondaryButton(onClick = { all(false) }, enabled = !busy) { Text(tr("Decline all"), color = LocalPaper.current.text) }
             }
         }
         Column(Modifier.padding(start = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) { card.asks.forEach { each(it) } }
@@ -1227,7 +1225,7 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             if (connectorAlways(a)) TextButton(onClick = { asking = true }) { Text(always) }
             if (connectorOnce(a)) Buttons(tr("Allow once"), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) })
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
+                SecondaryButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
             }
         }
     } else if (a.kind == "chief-action") {
@@ -1246,7 +1244,7 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             if (a.chiefActionYes) Buttons(tr("Approve"), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) },
                 onAlways = always?.let { { asking = true } }, alwaysLabel = always ?: tr("Always approve"))
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
+                SecondaryButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
             }
         }
     } else if (a.isRoomCard) {
@@ -1258,7 +1256,7 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = Type.s12)
             if (a.roomYes) Buttons(a.yes ?: tr("Allow"), { decide(a.title, true, tr("Allowed")) }, tr("Decline"), { decide(a.title, false, null) })
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                OutlinedButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
+                SecondaryButton(onClick = { decide(a.title, false, null) }) { Text(tr("Decline"), color = LocalPaper.current.text) }
             }
         }
     } else if (a.kind == "bot-change") {

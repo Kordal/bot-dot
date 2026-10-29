@@ -23,8 +23,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -208,7 +206,7 @@ fun SettingsScreen(
                 }
                 FoldSection("Claude", claudeValue(s.claude)) {
                     if (keys && keyOpen && loginUrl == null) {
-                        OutlinedTextField(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        Field(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Button(onClick = { val key = apiKey; keyChange(tr("Saved. Bots now run on your API key")) { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
@@ -245,8 +243,8 @@ fun SettingsScreen(
                         if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
                     } else {
                         // Open the page, sign in and allow access, then paste the code it shows.
-                        OutlinedButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }
-                        OutlinedTextField(code, { code = it.trim() }, label = { Text(tr("Code")) }, singleLine = true,
+                        SecondaryButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }
+                        Field(code, { code = it.trim() }, label = { Text(tr("Code")) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Button(onClick = {
@@ -268,13 +266,13 @@ fun SettingsScreen(
                     else {
                         if (!b.error.isNullOrBlank()) Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                            OutlinedButton(enabled = !backingUp && !b.running, onClick = {
+                            SecondaryButton(enabled = !backingUp && !b.running, onClick = {
                                 backingUp = true
                                 scope.launch { runCatching { api!!.backupNow() }.onSuccess { backups = it; tell(tr("Backed up")) }.onError { tell(it.message ?: tr("Couldn't back up")) }; backingUp = false }
                             }) { Text(tr("Back up now"), color = p.text) }
                             b.last?.let { f ->
                                 // To Downloads, with the app's session (BackupDownload): this account's backup alone.
-                                OutlinedButton(onClick = {
+                                SecondaryButton(onClick = {
                                     runCatching { dev.botdot.app.data.BackupDownload.start(context, api!!, f.name) }
                                         .onSuccess { tell(tr("Downloading to Downloads")) }.onFailure { tell(it.message ?: tr("Couldn't download")) }
                                 }) { Text(tr("Download"), color = p.text) }
@@ -291,7 +289,7 @@ fun SettingsScreen(
                         scope.launch { runCatching { api!!.setAutoUpdate(on) }.onSuccess { update = it; saved() }.onError { tell(it.message ?: tr("Couldn't change it")) } }
                     }
                     u.text().takeIf { it.isNotEmpty() }?.let { Hint(it) }
-                    if (u.canUpdate) OutlinedButton(onClick = { confirmUpdateNow = true }) { Text(tr("Update now"), color = p.text) }
+                    if (u.canUpdate) SecondaryButton(onClick = { confirmUpdateNow = true }) { Text(tr("Update now"), color = p.text) }
                     if (u.ready && updateNotes.isNotEmpty()) {
                         Text(dev.botdot.app.data.WhatsNew.TITLE, color = p.text, style = MaterialTheme.typography.titleSmall)
                         WhatsNewEntries(updateNotes, color = p.text)
@@ -310,7 +308,7 @@ fun SettingsScreen(
             // again with its passkey (the dialog says so).
             if (server?.features?.contains("accounts") == true) {
                 FoldSection(tr("Sign-ins")) {
-                    OutlinedButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
+                    SecondaryButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
                 }
             }
             Link(tr("botdot's address"), value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'), onClick = onChangeServer)
