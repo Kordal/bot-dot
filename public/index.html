@@ -35,6 +35,9 @@
           <button class="more-btn" id="more-btn" title="Settings" aria-label="Settings" data-t-title data-t-aria-label><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
         </nav>
       </div>
+      <!-- Bots or Company (company.js, #669): the company's own place, from a server with `company`. -->
+      <div class="place-switch hidden" id="place-switch" role="tablist" aria-label="Place" data-t-aria-label></div>
+      <nav class="company-side" id="company-side" aria-label="Company" data-t-aria-label></nav>
       <!-- A wide window's home in place of the list (list.js, drawKeypad; ADR 029): the Board's values and Needs you,
            then the Chief and the pinned keys, then every category (#508, #635). The stylesheet shows one or the other. -->
       <div class="keypad" id="keypad">
@@ -88,6 +91,8 @@
       <section id="view-settings" class="view page hidden"></section>
       <section id="view-setup" class="view page hidden"></section>
       <section id="view-needs" class="view page hidden"></section>
+      <!-- The company: its setup, then its home (company.js, #669). -->
+      <section id="view-company" class="view page hidden"></section>
     </main>
   </div>
 
@@ -145,5 +150,6 @@
   <script src="/claude-card.js"></script>
   <script src="/quiet-runs.js"></script>
   <script src="/skills-search.js"></script>
+  <script src="/company.js"></script>
 </body>
 </html>

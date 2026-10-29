@@ -1524,5 +1524,19 @@
   "Pick the file.": "Wybierz plik.",
   "That file is {size} KB. A file in the Vault can be at most 64 KB.": "Ten plik ma {size} KB. Plik w Sejfie może mieć najwyżej 64 KB.",
   "Adding the file…": "Dodawanie pliku…",
-  "Message the Chief of Staff": "Wiadomość do Szefa sztabu"
+  "Message the Chief of Staff": "Wiadomość do Szefa sztabu",
+  "Company": "Firma",
+  "Setting up": "Konfiguracja",
+  "What are you working on?": "Nad czym pracujesz?",
+  "Your site, or your idea in one sentence": "Twoja witryna albo pomysł w jednym zdaniu",
+  "Go": "Dalej",
+  "Add files": "Dodaj pliki",
+  "Add a link": "Dodaj link",
+  "page": "witryna",
+  "Add at most 20 sources.": "Dodaj najwyżej 20 źródeł.",
+  "Wait for the files to finish uploading.": "Poczekaj, aż pliki się wyślą.",
+  "Place": "Miejsce",
+  "About": "O firmie",
+  "Team": "Zespół",
+  "Start": "Start"
 }

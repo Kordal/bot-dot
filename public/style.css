@@ -2242,3 +2242,64 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .fx-phone .fx-dialog { top: auto; bottom: 0; transform: translateX(-50%); width: 100%; max-height: 85%; border-radius: 22px 22px 0 0; }
 @keyframes fx-up { from { opacity: 0; translate: 0 32px; } }
 @media (prefers-reduced-motion: no-preference) { .fx-sheet { animation: fx-up var(--t2) var(--out); } }
+
+/* ---------- the Company (#669, company.js) ---------- */
+/* "Bots | Company" at the top of the left column; in Company the bots' list, keypad and phone home make way. */
+.place-switch { display: flex; gap: 2px; margin: 0 14px 12px 24px; padding: 3px; border: 1px solid var(--line-2); border-radius: 12px; }
+.place-switch.hidden { display: none; }
+.place-switch button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; }
+.place-switch button[aria-selected="true"] { background: var(--sunk); color: var(--text); }
+.place-switch svg, .company-side svg, .co-start svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.company-side { display: none; flex-direction: column; gap: 4px; padding: 4px 14px 10px 24px; }
+.app.place-company .company-side { display: flex; }
+.app.place-company .keypad, .app.place-company .contacts, .app.place-company .kp-phone { display: none !important; }
+.co-label { font: 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--faint); padding: 10px 8px 8px; }
+.co-row { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--text); text-align: left; cursor: pointer; }
+.co-row:hover, .co-row.here { background: var(--sunk); }
+.co-row .avatar { width: 30px; height: 30px; }
+.co-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+#view-company { padding: 0 24px 40px; overflow-y: auto; }
+.co-phone-switch { display: none; }
+/* A wide window in Company: the left column as in the mockups, the company beside it. */
+@media (min-width: 1001px) {
+  .app.place-company .sidebar { flex: none; width: 300px; background: var(--bg); border-right: 1px solid var(--line); }
+  .app.place-company .chat-grip { display: none; }
+  .app.place-company .main { flex: 1; width: auto; max-width: none; }
+}
+.co-steps { display: flex; gap: 6px; list-style: none; margin: 0 auto; padding: 18px 0 0; max-width: 984px; }
+.co-steps li { flex: 1; padding-top: 10px; border-top: 2px solid var(--line-2); font-size: 12px; color: var(--faint); }
+.co-steps li.on { border-color: var(--text); color: var(--text); }
+.co-steps li.done { border-color: var(--muted); color: var(--muted); }
+.co-start { max-width: 620px; margin: 0 auto; padding-top: 14vh; display: flex; flex-direction: column; gap: 14px; }
+.co-body .co-start { padding-top: 10vh; }
+.co-start h1 { margin: 0 0 8px; font-size: 32px; line-height: 1.15; letter-spacing: -.02em; }
+.co-given { margin: 0; color: var(--muted); }
+.co-ask { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 18px; border: 1px solid var(--line-2); border-radius: 99px; background: var(--panel); }
+.co-ask input { flex: 1; min-width: 0; height: 44px; border: 0; background: transparent; outline: none; font-size: 16px; }
+.co-ask.small { padding: 4px 4px 4px 14px; }
+.co-ask.small input { height: 34px; font-size: 14px; }
+.co-go { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px; border: 0; border-radius: 99px; background: var(--ink); color: var(--ink-text); font-weight: 500; cursor: pointer; }
+.co-ask.small .co-go { min-height: 34px; padding: 0 14px; }
+.co-go:disabled { background: var(--line-2); color: var(--muted); cursor: default; }
+.co-chips, .co-add { display: flex; flex-wrap: wrap; gap: 8px; }
+.co-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 99px; background: transparent; color: var(--text); font-size: 13px; cursor: pointer; }
+.co-chip.dashed { border-style: dashed; }
+.co-chip:hover { background: var(--sunk); }
+.co-add { margin-top: 10px; }
+.co-add .btn { display: inline-flex; align-items: center; gap: 8px; border-radius: 99px; }
+.co-sources { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line-2); border-radius: 14px; overflow: hidden; }
+.co-sources li { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 0 8px 0 16px; border-top: 1px solid var(--line); }
+.co-sources li:first-child { border-top: 0; }
+.co-sources li.failed { color: var(--err); }
+.co-src-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-src-size { font: 12px var(--mono); color: var(--faint); }
+#co-sources { display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 479px) {
+  .place-switch { margin: 0 12px 10px; }
+  .company-side { padding: 4px 12px 10px; }
+  #view-company { padding: 0 16px 32px; }
+  #view-company .co-phone-switch { display: flex; margin: 12px 0 0; }
+  .co-start { padding-top: 6vh; }
+  .co-start h1 { font-size: 26px; }
+}

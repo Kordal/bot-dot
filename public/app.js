@@ -945,6 +945,7 @@ function render() {
   if (state.view === 'connectors') renderConnectors();
   if (state.view === 'settings') renderSettings();
   if (state.view === 'setup') renderSetup();
+  if (typeof Company !== 'undefined') { if (state.view === 'company') Company.render(); else Company.drawSide(); }
   placeStatusLines();
   showNeeds();
   markMore();
