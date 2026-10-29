@@ -1629,6 +1629,8 @@
     "few": "{n} opinie",
     "many": "{n} opinii"
   },
+  "Standup": "Standup",
+  "Standup: {text}": "Standup: {text}",
   "Weekly": "Co tydzień",
   "Monthly": "Co miesiąc",
   "Every {n} days": "Co {n} dni",
