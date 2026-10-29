@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -40,7 +39,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.CompanySetup
 import dev.botdot.app.data.Proposed
@@ -68,7 +66,7 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
         }
         return StepPage(null) {
             if (ui.proposeFailed.isNotEmpty()) {
-                Text(ui.proposeFailed, color = p.muted, fontSize = 15.sp)
+                Text(ui.proposeFailed, color = p.muted, fontSize = Type.s16)
                 GoButton(tr("Try again")) { ui.proposeFailed = "" }
             } else ChiefAtWork()
         }
@@ -102,10 +100,10 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
             CoChip(tr("Add existing bot"), on = false, dashed = false, icon = Icons.Filled.Add) { ui.adding = !ui.adding }
             if (ui.adding) Existing(ui, proposed)
             c.teamChat.forEach { m ->
-                if (m.who == "you") Text(m.text, color = p.text, fontSize = 14.sp, modifier = Modifier.fillMaxWidth().padding(start = 32.dp).clip(RoundedCornerShape(12.dp)).background(p.sunk).padding(10.dp))
-                else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (m.who == "you") Text(m.text, color = p.text, fontSize = Type.s14, modifier = Modifier.fillMaxWidth().padding(start = Space.s32).clip(Radius.card).background(p.sunk).padding(Space.s12))
+                else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     BotFigure(CHIEF_COLOR, "idle", 24, dev.botdot.app.data.FigureDef.CHIEF)
-                    Text(m.text, color = p.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Text(m.text, color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f))
                     if (m.undo && c.canUndo) WordsButton(tr("Undo")) { ui.call({ it.undoTeam() }) }
                 }
             }
@@ -120,7 +118,7 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
             c.never.forEachIndexed { i, t ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Lock, null, tint = p.muted, modifier = Modifier.size(16.dp))
-                    Text(t, color = p.text, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
+                    Text(t, color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f).padding(horizontal = Space.s12))
                     RoundButton(Icons.Filled.Close, tr("Remove"), size = 36.dp) {
                         val next = c.never.filterIndexed { x, _ -> x != i }
                         ui.save(CompanySetup.patchLines("never", next)) { it.copy(never = next) }
@@ -128,15 +126,15 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
                 }
             }
         }
-        CoPanel(tr("Project memory")) { Text(trn(c.facts, "{n} fact", "{n} facts"), color = p.text, fontSize = 14.sp) }
+        CoPanel(tr("Project memory")) { Text(trn(c.facts, "{n} fact", "{n} facts"), color = p.text, fontSize = Type.s14) }
     }
 }
 
 @Composable
 private fun CoPanel(title: String? = null, content: @Composable () -> Unit) {
     val p = LocalPaper.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (title != null) Text(title, color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+        if (title != null) Text(title, color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Medium)
         content()
     }
 }
@@ -148,13 +146,13 @@ private fun Existing(ui: CompanyUi, proposed: List<Proposed>) {
     val bots by ui.bots.collectAsState()
     CompanySetup.existing(bots.orEmpty(), proposed).forEach { b ->
         val added = CompanySetup.added(proposed, b.id)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
             BotFigure(b.color, "idle", 28, b.outfit)
             Column(Modifier.weight(1f)) {
-                Text(b.name, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                if (b.description.isNotEmpty()) Text(b.description, color = p.muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(b.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium)
+                if (b.description.isNotEmpty()) Text(b.description, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            if (added) Text(tr("Added"), color = p.muted, fontSize = 13.sp)
+            if (added) Text(tr("Added"), color = p.muted, fontSize = Type.s12)
             else WordsButton(tr("Duplicate")) { ui.call({ it.duplicateIntoTeam(b.id) }) }
         }
     }
@@ -169,19 +167,19 @@ private fun BotCard(ui: CompanyUi, c: Company, b: Proposed, onRename: (String) -
     var renaming by remember(b.key) { mutableStateOf(false) }
     var name by remember(b.key, b.name) { mutableStateOf(b.name) }
     val missing = CompanySetup.missing(b, ui.apps)
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, p.line, RoundedCornerShape(16.dp)).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line, Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BotFigure(b.color, "idle", 40)
-            Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Column(Modifier.weight(1f).padding(horizontal = Space.s12)) {
                 if (renaming) AskField(name, { name = it.take(60) }, label = tr("Name"), button = tr("Save"), focus = true) {
                     renaming = false
                     val v = name.trim()
                     if (v.isNotEmpty() && v != b.name) onRename(v)
                 } else Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(b.name, color = p.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f, fill = false))
+                    Text(b.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f, fill = false))
                     RoundButton(Icons.Outlined.Edit, tr("Rename"), size = 32.dp) { renaming = true }
                 }
-                if (b.description.isNotEmpty() && !renaming) Text(b.description, color = p.muted, fontSize = 13.sp)
+                if (b.description.isNotEmpty() && !renaming) Text(b.description, color = p.muted, fontSize = Type.s12)
             }
             RoundButton(Icons.Outlined.Delete, tr("Remove"), size = 36.dp, onClick = onRemove)
         }
@@ -191,16 +189,16 @@ private fun BotCard(ui: CompanyUi, c: Company, b: Proposed, onRename: (String) -
             if (b.routines.isEmpty()) None()
             else Row(verticalAlignment = Alignment.CenterVertically) {
                 Switch(b.routinesOn, { onChange(mapOf("routinesOn" to JsonPrimitive(it))) }, colors = switchColors())
-                Text(b.routines, color = p.text, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
+                Text(b.routines, color = p.text, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8))
             }
         }
         if (b.from == null) Choice(tr("Asks first"), b.asksFirst, listOf("rules" to tr("Project rules"), "every" to tr("Every action"), "never" to tr("Never"))) {
             onChange(mapOf("asksFirst" to JsonPrimitive(it)))
         }
-        if (b.preview.isNotEmpty() || missing.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.sunk).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (b.preview.isNotEmpty() || missing.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.sunk).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Row {
-                Text(if (c.site) tr("Yesterday") else tr("Week one"), color = p.muted, fontSize = 13.sp, modifier = Modifier.width(84.dp))
-                Text(b.preview.ifEmpty { "—" }, color = p.text, fontSize = 14.sp)
+                Text(if (c.site) tr("Yesterday") else tr("Week one"), color = p.muted, fontSize = Type.s12, modifier = Modifier.width(84.dp))
+                Text(b.preview.ifEmpty { "—" }, color = p.text, fontSize = Type.s14)
             }
             missing.forEach { app ->
                 WordsButton(tr("Connect {app}", "app" to CompanySetup.appName(app))) {
@@ -221,19 +219,19 @@ private fun BotCard(ui: CompanyUi, c: Company, b: Proposed, onRename: (String) -
 private fun Row2(label: String, content: @Composable () -> Unit) {
     val p = LocalPaper.current
     Row(verticalAlignment = Alignment.Top) {
-        Text(label, color = p.muted, fontSize = 13.sp, modifier = Modifier.width(84.dp).padding(top = 6.dp))
-        FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+        Text(label, color = p.muted, fontSize = Type.s12, modifier = Modifier.width(84.dp).padding(top = Space.s8))
+        FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) { content() }
     }
 }
 
 @Composable
-private fun None() = Text(tr("None"), color = LocalPaper.current.faint, fontSize = 14.sp, modifier = Modifier.padding(top = 5.dp))
+private fun None() = Text(tr("None"), color = LocalPaper.current.faint, fontSize = Type.s14, modifier = Modifier.padding(top = Space.s4))
 
 @Composable
 private fun Tag(text: String, off: Boolean = false, link: Boolean = false) {
     val p = LocalPaper.current
-    Row(Modifier.clip(RoundedCornerShape(8.dp)).background(p.sunk).padding(horizontal = 8.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.clip(Radius.small).background(p.sunk).padding(horizontal = Space.s8, vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
         if (link) { Icon(Icons.Outlined.Link, null, tint = if (off) p.faint else p.muted, modifier = Modifier.size(13.dp)); Spacer(Modifier.size(4.dp)) }
-        Text(text, color = if (off) p.faint else p.text, fontSize = 13.sp)
+        Text(text, color = if (off) p.faint else p.text, fontSize = Type.s12)
     }
 }

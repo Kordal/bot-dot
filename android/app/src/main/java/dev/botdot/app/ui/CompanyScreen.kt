@@ -73,7 +73,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.AboutScreen
 import dev.botdot.app.data.Api
@@ -92,14 +91,14 @@ import kotlinx.serialization.json.JsonObject
 @Composable
 internal fun PlaceSwitch(company: Boolean, modifier: Modifier = Modifier, fill: Boolean = false, onPick: (Boolean) -> Unit) {
     val p = LocalPaper.current
-    Row(modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, p.line2, RoundedCornerShape(12.dp)).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    Row(modifier.clip(Radius.card).border(1.dp, p.line2, Radius.card).padding(Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
         listOf(false to tr("Bots"), true to tr("Projects")).forEach { (on, label) ->
             val here = on == company
-            Row((if (fill) Modifier.weight(1f) else Modifier).clip(RoundedCornerShape(9.dp)).background(if (here) p.sunk else Color.Transparent).clickable(onClickLabel = label) { if (!here) onPick(on) }
-                .padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Row((if (fill) Modifier.weight(1f) else Modifier).clip(Radius.small).background(if (here) p.sunk else Color.Transparent).clickable(onClickLabel = label) { if (!here) onPick(on) }
+                .padding(horizontal = Space.s12, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 if (on) Icon(Icons.Outlined.Business, null, tint = if (here) p.text else p.muted, modifier = Modifier.size(16.dp).padding(end = 0.dp))
                 if (on) Spacer(Modifier.size(6.dp))
-                Text(label, color = if (here) p.text else p.muted, fontSize = 14.sp)
+                Text(label, color = if (here) p.text else p.muted, fontSize = Type.s14)
             }
         }
     }
@@ -185,7 +184,7 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
     val error by app.store.company.error.collectAsState()
     LaunchedEffect(Unit) { app.store.company.refresh() }
     Column(Modifier.fillMaxSize().background(p.bg).imePadding()) {
-        if (!wide) Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 16.dp, end = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (!wide) Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.s16, end = Space.s12, top = Space.s8, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {
             Logo()
             Spacer(Modifier.weight(1f))
             PlaceSwitch(company = true) { if (!it) onBots() }
@@ -193,7 +192,7 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
         val c = held?.company
         when {
             held == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                if (error != null) Text(error!!, color = p.err, modifier = Modifier.padding(20.dp)) else CircularProgressIndicator(color = p.muted, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
+                if (error != null) Text(error!!, color = p.err, modifier = Modifier.padding(Space.s16)) else CircularProgressIndicator(color = p.muted, strokeWidth = 2.dp, modifier = Modifier.size(22.dp))
             }
             c == null -> StartForm(ui)
             // A running company: its home, the office floor (#675).
@@ -220,12 +219,12 @@ private fun StepBar(at: String, enabled: Boolean, onStep: (String) -> Unit) {
     val p = LocalPaper.current
     val i = CompanySetup.STEPS.indexOf(at)
     val labels = mapOf("about" to tr("About"), "team" to tr("Team"), "start" to tr("Start"))
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
         CompanySetup.STEPS.forEachIndexed { n, k ->
             val tappable = enabled && k != "start"
-            Column(Modifier.weight(1f).clickable(enabled = tappable, onClickLabel = labels[k]) { onStep(k) }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(Modifier.weight(1f).clickable(enabled = tappable, onClickLabel = labels[k]) { onStep(k) }, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (n <= i) p.text else p.line2))
-                Text(labels[k].orEmpty(), color = if (n == i) p.text else p.muted, fontSize = 13.sp)
+                Text(labels[k].orEmpty(), color = if (n == i) p.text else p.muted, fontSize = Type.s12)
             }
         }
     }
@@ -250,13 +249,13 @@ private fun StartForm(ui: CompanyUi) {
         ui.going = true
         ui.call({ it.startCompany(start, ui.sources.toList()) }) { ok -> ui.going = false; if (ok) { ui.sources.clear(); ui.step = "about" } }
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s24), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         CoTitle(tr("What are you working on?"))
         AskField(what, { what = it.take(500) }, label = tr("What are you working on?"), placeholder = tr("Your site, or your idea in one sentence"), button = tr("Go"), busy = ui.going, onGo = ::go)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             CompanySetup.EXAMPLES.forEachIndexed { i, text -> CoChip(text, icon = if (i == 0) Icons.Outlined.Link else Icons.Filled.Add) { what = text } }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             CoChip(tr("Add files"), on = false, dashed = false, icon = Icons.AutoMirrored.Outlined.InsertDriveFile) { pick.launch("*/*") }
             CoChip(tr("Add a link"), on = false, dashed = false, icon = Icons.Outlined.Link) { linking = true }
         }
@@ -294,13 +293,13 @@ private fun addFiles(ui: CompanyUi, context: Context, uris: List<Uri>) {
 internal fun SourceList(list: List<CompanySource>, failed: Set<String> = emptySet(), busy: Set<String> = emptySet(), onRemove: ((String) -> Unit)? = null) {
     val p = LocalPaper.current
     if (list.isEmpty()) return
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, p.line, RoundedCornerShape(12.dp))) {
+    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line, Radius.card)) {
         list.forEachIndexed { i, s ->
             if (i > 0) Rule()
-            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(start = Space.s12, end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                 Icon(if (s.kind == "link") Icons.Outlined.Link else Icons.AutoMirrored.Outlined.InsertDriveFile, null, tint = if (s.id in failed) p.err else p.muted, modifier = Modifier.size(16.dp))
-                Text(s.name, color = if (s.id in failed) p.err else p.text, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
-                Text(if (s.id in busy) "…" else if (s.kind == "link") tr("page") else if (s.size > 0) fmtSize(s.size) else "", color = p.faint, fontSize = 12.sp)
+                Text(s.name, color = if (s.id in failed) p.err else p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = Space.s12))
+                Text(if (s.id in busy) "…" else if (s.kind == "link") tr("page") else if (s.size > 0) fmtSize(s.size) else "", color = p.faint, fontSize = Type.s12)
                 if (onRemove != null) RoundButton(Icons.Filled.Close, tr("Remove"), size = 36.dp) { onRemove(s.id) } else Spacer(Modifier.size(8.dp))
             }
         }
@@ -314,25 +313,25 @@ internal fun SourceList(list: List<CompanySource>, failed: Set<String> = emptySe
 private fun MadeStep(ui: CompanyUi, c: Company) {
     val p = LocalPaper.current
     val bots by ui.bots.collectAsState()
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s24), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         CoTitle(if (c.running) tr("Team ready") else tr("Creating your team"))
         if (c.running) c.teams.forEach { t ->
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Space.s8)) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(parseColor(t.color, p.muted)))
-                Text(t.name, color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+                Text(t.name, color = p.text, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
             }
             t.bots.forEach { id ->
                 val b = bots?.firstOrNull { it.id == id }
                 val proposed = c.proposed()?.firstOrNull { it.bot == id }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                     BotFigure(b?.color ?: proposed?.color, "idle", 32, b?.outfit)
                     Text(b?.name ?: proposed?.name.orEmpty(), color = p.text, modifier = Modifier.weight(1f))
-                    if (id == t.lead && t.bots.size > 1) Text(tr("Lead"), color = p.muted, fontSize = 12.sp)
+                    if (id == t.lead && t.bots.size > 1) Text(tr("Lead"), color = p.muted, fontSize = Type.s12)
                     Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.size(18.dp))
                 }
             }
         } else c.proposed().orEmpty().forEach { b ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                 BotFigure(b.color, "working", 32)
                 Text(b.name, color = p.text)
             }
@@ -343,19 +342,19 @@ private fun MadeStep(ui: CompanyUi, c: Company) {
 // ---------- shared pieces of the steps ----------
 
 @Composable
-internal fun CoTitle(text: String) = Text(text, color = LocalPaper.current.text, fontSize = 26.sp, lineHeight = 31.sp, fontWeight = FontWeight.SemiBold)
+internal fun CoTitle(text: String) = Text(text, color = LocalPaper.current.text, fontSize = Type.s24, lineHeight = Type.line32, fontWeight = FontWeight.SemiBold)
 
 /** A chip: [on] filled, else dashed (a suggestion) or plain. */
 @Composable
 internal fun CoChip(text: String, on: Boolean = false, dashed: Boolean = true, icon: ImageVector? = null, onClick: () -> Unit) {
     val p = LocalPaper.current
-    val shape = RoundedCornerShape(99.dp)
+    val shape = Radius.pill
     Row(Modifier.clip(shape).background(if (on) p.ink else Color.Transparent)
         .then(if (on) Modifier else if (dashed) Modifier.dashedBorder(p.line2) else Modifier.border(1.dp, p.line2, shape))
-        .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        .clickable(onClick = onClick).padding(horizontal = Space.s12, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
         val shown = if (on) Icons.Filled.Check else icon
         if (shown != null) { Icon(shown, null, tint = if (on) p.inkText else p.muted, modifier = Modifier.size(15.dp)); Spacer(Modifier.size(6.dp)) }
-        Text(text, color = if (on) p.inkText else p.text, fontSize = 14.sp)
+        Text(text, color = if (on) p.inkText else p.text, fontSize = Type.s14)
     }
 }
 
@@ -372,7 +371,7 @@ internal fun Modifier.dashedBorder(color: Color): Modifier = drawBehind {
 internal fun ChipQuestion(ui: CompanyUi, id: String, chief: List<String>, picked: List<String>, multi: Boolean = false, plus: Boolean = false, label: (String) -> String = { it }, onPick: (List<String>) -> Unit) {
     var writing by remember(id) { mutableStateOf(false) }
     var typed by remember(id) { mutableStateOf("") }
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         CompanySetup.chips(chief, picked, ui.own[id].orEmpty()).forEach { t ->
             CoChip(label(t), on = t in picked, icon = if (plus) Icons.Filled.Add else null) { onPick(CompanySetup.pick(picked, t, multi)) }
         }
@@ -393,7 +392,7 @@ internal fun ChipQuestion(ui: CompanyUi, id: String, chief: List<String>, picked
 internal fun AskField(value: String, onValue: (String) -> Unit, label: String, placeholder: String? = null, button: String, busy: Boolean = false, enabled: Boolean = true, focus: Boolean = false, onGo: () -> Unit) {
     val requester = remember { FocusRequester() }
     if (focus) LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
         OutlinedTextField(value, onValue, singleLine = true, enabled = enabled && !busy, placeholder = placeholder?.let { { Text(it) } },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (value.isNotBlank()) onGo() }),
             modifier = Modifier.weight(1f).focusRequester(requester).semanticsLabel(label))
@@ -407,12 +406,12 @@ private fun Modifier.semanticsLabel(label: String) = semantics { contentDescript
 @Composable
 internal fun GoButton(label: String, enabled: Boolean = true, busy: Boolean = false, arrow: Boolean = false, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Row(Modifier.clip(RoundedCornerShape(99.dp)).background(if (enabled) p.ink else p.sunk).clickable(enabled = enabled && !busy, onClick = onClick)
-        .heightIn(min = 44.dp).padding(horizontal = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.clip(Radius.pill).background(if (enabled) p.ink else p.sunk).clickable(enabled = enabled && !busy, onClick = onClick)
+        .heightIn(min = 44.dp).padding(horizontal = Space.s16), verticalAlignment = Alignment.CenterVertically) {
         if (busy) CircularProgressIndicator(color = p.inkText, strokeWidth = 2.dp, modifier = Modifier.size(16.dp).padding(end = 0.dp))
         else {
-            Text(label, color = if (enabled) p.inkText else p.faint, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-            if (arrow) Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = if (enabled) p.inkText else p.faint, modifier = Modifier.padding(start = 6.dp).size(16.dp))
+            Text(label, color = if (enabled) p.inkText else p.faint, fontSize = Type.s16, fontWeight = FontWeight.Medium)
+            if (arrow) Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = if (enabled) p.inkText else p.faint, modifier = Modifier.padding(start = Space.s8).size(16.dp))
         }
     }
 }
@@ -421,8 +420,8 @@ internal fun GoButton(label: String, enabled: Boolean = true, busy: Boolean = fa
 @Composable
 internal fun WordsButton(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Text(label, color = if (enabled) p.muted else p.faint, fontSize = 15.sp,
-        modifier = Modifier.clip(RoundedCornerShape(99.dp)).clickable(enabled = enabled, onClick = onClick).heightIn(min = 44.dp).padding(horizontal = 12.dp, vertical = 12.dp))
+    Text(label, color = if (enabled) p.muted else p.faint, fontSize = Type.s16,
+        modifier = Modifier.clip(Radius.pill).clickable(enabled = enabled, onClick = onClick).heightIn(min = 44.dp).padding(horizontal = Space.s12, vertical = Space.s12))
 }
 
 /** A step's foot: Back (and Skip) left, the step's button right. */
@@ -431,7 +430,7 @@ internal fun Foot(left: @Composable () -> Unit, right: @Composable () -> Unit) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
             left()
             Spacer(Modifier.weight(1f))
             right()
@@ -443,8 +442,8 @@ internal fun Foot(left: @Composable () -> Unit, right: @Composable () -> Unit) {
 @Composable
 internal fun StepPage(foot: (@Composable () -> Unit)?, content: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) { content() }
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+            Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(Space.s16)) { content() }
         }
         foot?.invoke()
     }
@@ -452,4 +451,4 @@ internal fun StepPage(foot: (@Composable () -> Unit)?, content: @Composable () -
 
 /** The Chief, at work for the setup. */
 @Composable
-internal fun ChiefAtWork() = Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) { BotFigure(CHIEF_COLOR, "working", 56, FigureDef.CHIEF) }
+internal fun ChiefAtWork() = Box(Modifier.fillMaxWidth().padding(vertical = Space.s24), contentAlignment = Alignment.Center) { BotFigure(CHIEF_COLOR, "working", 56, FigureDef.CHIEF) }

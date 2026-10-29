@@ -29,7 +29,7 @@ test('what may stay a literal is not found', () => {
   assert.deepEqual(literals(css), []);
 });
 
-test('the Projects sections are held until their own tickets land', () => {
+test('no section is held: the Projects screens keep to the scales too (#741)', () => {
   const css = '/* ---------- the Company (#669) ---------- */\n.co-a { gap: 10px; }\n/* ---------- the Board ---------- */\n.b { gap: 10px; }';
-  assert.deepEqual(literals(css).map((f) => f.line), [4]);
+  assert.deepEqual(literals(css).map((f) => f.line), [2, 4]);
 });
