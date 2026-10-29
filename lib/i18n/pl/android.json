@@ -1242,5 +1242,12 @@
   },
   "Team chat": "Czat zespołu",
   "Half height": "Połowa wysokości",
-  "Full height": "Pełna wysokość"
+  "Full height": "Pełna wysokość",
+  "New card": "Nowa karta",
+  "Starting": "Zaczynam",
+  "Searching {what}": "Szukam: {what}",
+  "Searching the web": "Szukam w sieci",
+  "Reading {what}": "Czytam {what}",
+  "Reading": "Czytam",
+  "Could not build it": "Nie udało się jej zbudować"
 }
