@@ -35,7 +35,7 @@ function followFeed() {
   es.addEventListener('chief_jobs', (e) => {
     let d = {};
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
-    if (Array.isArray(d.jobs)) drawChiefJobs(d.jobs);
+    if (Array.isArray(d.jobs)) { drawChiefJobs(d.jobs); drawChiefJobChips(d.jobs); }
   });
   // A chat's new replies changed: its dots follow, in every app.
   es.addEventListener('unread', (e) => {

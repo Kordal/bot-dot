@@ -11,7 +11,6 @@ function botThreadHTML(bot, runs, newFirst = null) {
       <div class="chat-empty">
         ${botFigure(bot.color, bot.state, 'lg', bot.outfit)}
         <h3>${esc(bot.name)}</h3>
-        <p class="muted">${esc(bot.description || '')}</p>
       </div>`;
   }
   // A block stands where its reply ended, below what came while its run worked (a "/btw", another run): Unread.order (#460).
@@ -352,7 +351,8 @@ function renderBotChat() {
       </div>
       <div class="chat-thread" id="bot-thread"></div>
       <div class="pip hidden" id="bot-pip"></div>
-      ${composerHTML(tr('Message {name}', { name: bot.name }))}`;
+      ${composerHTML(tr('Message {name}', { name: bot.name }))}
+      <div class="job-chips" id="bot-job-chips"></div>`;
     const form = $('form', root);
     wireComposer(form, (text, files, key) => runBot(bot.id, text, files, key, replyingTo.get(bot.id)?.runId), () => `bot:${bot.id}`, bot.id);
     $('.attach-list', form).insertAdjacentHTML('beforebegin', '<div class="reply-chip hidden"></div>');
@@ -374,6 +374,8 @@ function renderBotChat() {
   $('#bot-files').classList.toggle('hidden', !state.features.includes('files-explorer'));
   // In its ⋯ menu (#635), with its computer: only where a group can be made.
   $('#bot-add-to-chat').classList.toggle('hidden', !canMakeGroup(bot));
+  // An empty chat (#727): its jobs under the message box, which stands in the middle (style.css). A tap runs one now.
+  drawJobChips($('#bot-job-chips'), startableJobs(bot), (jobId) => runJobNow(bot.id, jobId));
 
   // Re-render the thread only when something changed, so live bits and scroll survive refreshes.
   const waiting = state.inbox[bot.id] || [];

@@ -412,7 +412,8 @@ function renderChief() {
         </div>
       </div>
       <div class="chat-thread" id="chat-thread"></div>
-      ${composerHTML(messageChief())}`;
+      ${composerHTML(messageChief())}
+      <div class="job-chips" id="chief-job-chips"></div>`;
     wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
     if ($('#chief-files-btn')) $('#chief-files-btn').onclick = () => Files.open(chiefAsBot()); // files.js (#603)
@@ -426,6 +427,17 @@ function renderChief() {
   const drawn = $('#chat-thread').dataset.mentions;
   if (state.chatId && drawn && drawn !== mentionSig()) showChat(state.chatId);
   renderChatList();
+}
+
+// A new chat (#727): the Chief's own jobs (#408) under its message box, each a chip; a tap runs one now. From the feed's
+// chief_jobs, which carries the whole list, or read from the server.
+async function drawChiefJobChips(jobs = null) {
+  const box = $('#chief-job-chips');
+  if (!box || !state.features.includes('chief-jobs')) return;
+  try { jobs ||= (await api('/chief/jobs')).jobs; } catch { return; } // no chips is all a failed read costs
+  drawJobChips(box, jobs.filter((j) => j.on !== false), async (id) => {
+    try { await api(`/chief/jobs/${encodeURIComponent(id)}/run`, { method: 'POST' }); toast(tr('Started')); } catch (e) { toast(e.message, true); }
+  });
 }
 
 // The Chief's previous chats, in its settings. Picking one shows it: a panel that covers the chat makes way.
@@ -618,7 +630,8 @@ async function showChat(id) {
     delete thread.dataset.mentions;
     delete thread.dataset.chat;
     // A new chat is the Chief's head and the message box (#635): no tagline, no example requests.
-    thread.innerHTML = `<div class="chief-empty">${chiefFigure('lg')}</div>`;
+    thread.innerHTML = `<div class="chief-empty">${chiefFigure('lg')}<h3>${esc(chiefTitle())}</h3></div>`;
+    drawChiefJobChips();
     setSendBusy(form, false);
     globalThis.drawChiefPlan?.(null, null);
     placeStatusLines(); // a line of the chat that was here goes
