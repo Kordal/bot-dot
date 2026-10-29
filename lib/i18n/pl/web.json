@@ -1635,5 +1635,10 @@
   "Tomorrow": "Jutro",
   "Days": "Dni",
   "Due": "Termin",
-  "To-do": "Do zrobienia"
+  "To-do": "Do zrobienia",
+  "Calendar": "Kalendarz",
+  "Add an event": "Dodaj wydarzenie",
+  "Day": "Dzień",
+  "Previous month": "Poprzedni miesiąc",
+  "Next month": "Następny miesiąc"
 }
