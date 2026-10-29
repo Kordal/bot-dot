@@ -67,7 +67,7 @@ test("a check-in's answer is logged as a decision", async () => {
 
 test("a team's bots get the last decisions in their run and read them with a tool; a bot in no team does not", async () => {
   let { rec, token } = await heldRun(srv, member, 'What next?');
-  assert.equal(rec.self.env.SELF_PROJECT, '1', 'a member reads, and does not log');
+  assert.equal(rec.self.env.SELF_DECISIONS, '1', 'a member reads, and does not log');
   assert.match(rec.system, /The owner's decisions for the project "Fernhill"/);
   assert.match(rec.system, /- \d{4}-\d{2}-\d{2}: Day 30 check-in: Change direction\n- \d{4}-\d{2}-\d{2}: Launch in Polish first \(why: Most of the first users are Polish\)/);
   let r = await self(srv, token, 'decisions', { action: 'list' });
@@ -79,7 +79,7 @@ test("a team's bots get the last decisions in their run and read them with a too
   srv.release(rec);
 
   ({ rec, token } = await heldRun(srv, loose, 'Hello'));
-  assert.equal(rec.self.env.SELF_PROJECT, '0');
+  assert.equal(rec.self.env.SELF_DECISIONS, '0');
   assert.doesNotMatch(rec.system, /The owner's decisions for the project/);
   assert.equal((await self(srv, token, 'decisions', { action: 'list' })).data.ok, false);
   srv.release(rec);
@@ -87,7 +87,7 @@ test("a team's bots get the last decisions in their run and read them with a too
 
 test("the team's lead logs a decision the owner told it in its chat", async () => {
   const { rec, token } = await heldRun(srv, lead, 'We stop cold e-mails, they annoy people');
-  assert.equal(rec.self.env.SELF_PROJECT, '2');
+  assert.equal(rec.self.env.SELF_DECISIONS, '2');
   const r = await self(srv, token, 'decisions', { action: 'add', text: 'Stop cold e-mails', why: 'They annoy people' });
   assert.equal(r.data.ok, true, JSON.stringify(r.data));
   assert.deepEqual([r.data.decision.text, r.data.decision.by, r.data.decision.bot], ['Stop cold e-mails', 'bot', lead.id]);
