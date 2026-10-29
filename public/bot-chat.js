@@ -182,6 +182,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     : r.trigger === 'schedule'
     ? `<div class="bubble-row from-me"><span class="chip">⏰ ${tr('Scheduled run · {time}', { time: esc(msgTime(r.startedAt)) })}</span></div>`
     : r.trigger === 'hello' ? '' // a new bot's first message (#511): you asked nothing
+    : r.trigger === 'project' ? '' // a lead's work for its project that botdot started (#696): you asked nothing
     : r.kind === 'reminder' ? '' // a reminder it set went off (#343): botdot posted it, nobody asked
     : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
     : r.customPrompt === false

@@ -293,12 +293,12 @@ test('web: against a botdot server without `ask-continues` every card and label 
 
 test('web: the line is in the text\'s colour under the body, whole also on a closed card', () => {
   assert.match(css, /\.need-meta\.need-then \{ color: var\(--text\); \}/);
-  const meta = css.indexOf('.need-meta { font-size: 12.5px; color: var(--muted); }');
+  const meta = css.indexOf('.need-meta { font-size: var(--fs-12); color: var(--muted); }');
   assert.ok(meta > 0 && css.indexOf('.need-meta.need-then { color: var(--text); }') > meta, 'after the rule of the lines under a title');
   // A closed card cuts the lines under its title to one; who carries on is said whole.
   assert.match(css, /\.need-card:not\(\.open\) \.need-meta \{ white-space: nowrap; overflow: hidden; text-overflow: ellipsis; \}/);
   assert.match(css, /\.need-card:not\(\.open\) \.need-meta\.need-then \{ white-space: normal; \}/);
   // The card stays as wide as the prototype's at both widths: one column of 560 px at most in a chat, a grid on the page.
-  assert.match(css, /\.chat-needs \{ display: grid; grid-template-columns: minmax\(0, 1fr\); gap: 10px; max-width: 560px; \}/);
-  assert.match(css, /\.need-grid \{ display: grid; grid-template-columns: repeat\(auto-fill, minmax\(300px, 1fr\)\); gap: 14px; align-items: stretch; \}/);
+  assert.match(css, /\.chat-needs \{ display: grid; grid-template-columns: minmax\(0, 1fr\); gap: var\(--sp-12\); max-width: 560px; \}/);
+  assert.match(css, /\.need-grid \{ display: grid; grid-template-columns: repeat\(auto-fill, minmax\(300px, 1fr\)\); gap: var\(--sp-16\); align-items: stretch; \}/);
 });

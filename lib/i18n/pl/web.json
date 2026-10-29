@@ -1635,6 +1635,9 @@
     "few": "{n} opinie",
     "many": "{n} opinii"
   },
+  "Reports": "Raporty",
+  "Daily": "Codziennie",
+  "Twice a week": "Dwa razy w tygodniu",
   "Standup": "Standup",
   "Standup: {text}": "Standup: {text}",
   "Weekly": "Co tydzień",

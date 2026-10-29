@@ -102,8 +102,8 @@ test('web: the feed says it: `hello.claude` at the start and the `claude` event 
 });
 
 test('web: the look: the warning colour in both places; above the box only where the list is hidden; nothing is cut', () => {
-  assert.match(css, /\.claude-line \{ font-size: 12\.5px; color: var\(--warn-text\); padding: 0 0 8px 6px; \}/, 'as the line it stands in for');
-  assert.match(css, /\.away-line, \.send-note \{ font-size: 12\.5px; color: var\(--warn-text\); padding: 0 0 8px 6px; \}/);
+  assert.match(css, /\.claude-line \{ font-size: var\(--fs-12\); color: var\(--warn-text\); padding: 0 0 var\(--sp-8\) var\(--sp-8\); \}/, 'as the line it stands in for');
+  assert.match(css, /\.away-line, \.send-note \{ font-size: var\(--fs-12\); color: var\(--warn-text\); padding: 0 0 var\(--sp-8\) var\(--sp-8\); \}/);
   assert.match(css, /@media \(min-width: 480px\) \{ \.claude-line \{ display: none; \} \}/);
   assert.match(css, /\.claude-line:has\(~ \.send-note:not\(\.hidden\)\) \{ display: none; \}/, 'a send that failed says more: its line stands alone');
   // Beside the logo the sentence is longer than "Can't reach botdot": it wraps inside the head, and never pushes the logo out.
