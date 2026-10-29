@@ -57,7 +57,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.CalendarItem
 import dev.botdot.app.data.Company
@@ -106,9 +105,9 @@ private fun ItemRow(x: CalendarItem, bots: List<Bot>, whenText: String, onEdit: 
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(10.dp)).background(if (picked) p.sunk else p.panel.copy(alpha = 0f))
         .then(if (onEdit != null) Modifier.clickable(onClickLabel = x.title, onClick = onEdit) else Modifier), verticalAlignment = Alignment.CenterVertically) {
-        Text(whenText, color = p.faint, fontSize = 12.sp, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.width(72.dp))
+        Text(whenText, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.width(72.dp))
         WhoHead(x, bots)
-        Text(titleOf(x), color = if (x.done) p.faint else p.text, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
+        Text(titleOf(x), color = if (x.done) p.faint else p.text, fontSize = Type.s14, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
         if (x.repeat != null || (x.runs ?: 0) > 1) Icon(Icons.Filled.Repeat, null, tint = p.faint, modifier = Modifier.size(16.dp))
         if (onDelete != null) RoundButton(Icons.Filled.Close, tr("Delete"), size = 32.dp, onClick = onDelete)
     }
@@ -136,7 +135,7 @@ internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(PROJECT_COLOR)
-            Text(tr("Calendar"), color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 8.dp))
+            Text(tr("Calendar"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 8.dp))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             ProjectCalendar.week(today).forEach { d ->
@@ -145,8 +144,8 @@ internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
                 Column(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (isToday) p.ink else p.sunk).clickable(onClickLabel = short(d, "EEE d")) { open = d.toString() }
                     .padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     val ink = if (isToday) p.inkText else if (d.isBefore(today)) p.faint else p.text
-                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = if (isToday) p.inkText else p.faint, fontSize = 10.sp, maxLines = 1)
-                    Text(d.dayOfMonth.toString(), color = ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = if (isToday) p.inkText else p.faint, fontSize = Type.s12, maxLines = 1)
+                    Text(d.dayOfMonth.toString(), color = ink, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
                     Box(Modifier.padding(top = 3.dp).size(5.dp).clip(CircleShape).background(if (on.isEmpty()) p.panel.copy(alpha = 0f) else parseColor(colorOf(on.first(), bots), p.muted)))
                 }
             }
@@ -187,7 +186,7 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = p.bg, dragHandle = null) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(month.atDay(1).format(DateTimeFormatter.ofPattern("LLLL yyyy", I18n.locale)).replaceFirstChar { it.uppercase() }, color = p.text, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                Text(month.atDay(1).format(DateTimeFormatter.ofPattern("LLLL yyyy", I18n.locale)).replaceFirstChar { it.uppercase() }, color = p.text, fontSize = Type.s20, fontWeight = FontWeight.SemiBold)
                 RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("Previous month"), size = 36.dp, modifier = Modifier.padding(start = 12.dp)) { ym = month.minusMonths(1).toString(); picked = month.minusMonths(1).atDay(1).toString(); editing = null }
                 RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, tr("Next month"), size = 36.dp, modifier = Modifier.padding(start = 6.dp)) { ym = month.plusMonths(1).toString(); picked = month.plusMonths(1).atDay(1).toString(); editing = null }
                 Spacer(Modifier.weight(1f))
@@ -195,7 +194,7 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
             }
             Row(Modifier.fillMaxWidth()) {
                 ProjectCalendar.week(today).forEach { d ->
-                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = p.faint, fontSize = 11.sp, fontFamily = GeistMono, textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(vertical = 6.dp))
+                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(vertical = 6.dp))
                 }
             }
             cells.chunked(7).forEach { week ->
@@ -211,7 +210,7 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
                             }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             val isToday = d == today
                             Box(Modifier.size(28.dp).clip(CircleShape).background(if (isToday) p.ink else p.bg.copy(alpha = 0f)), contentAlignment = Alignment.Center) {
-                                Text(d.dayOfMonth.toString(), color = if (isToday) p.inkText else if (out) p.faint else p.text, fontSize = 14.sp, fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal)
+                                Text(d.dayOfMonth.toString(), color = if (isToday) p.inkText else if (out) p.faint else p.text, fontSize = Type.s14, fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal)
                             }
                             Row(Modifier.padding(top = 3.dp).heightIn(min = 5.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                 on.take(ProjectCalendar.IN_DAY).forEach { x -> Box(Modifier.size(5.dp).clip(CircleShape).background(parseColor(colorOf(x, bots), p.muted))) }
@@ -223,7 +222,7 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
             val day = LocalDate.parse(picked)
             val list = days[picked].orEmpty()
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(short(day, "EEE, d MMM").replaceFirstChar { it.uppercase() }, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                Text(short(day, "EEE, d MMM").replaceFirstChar { it.uppercase() }, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
                 list.forEach { x ->
                     if (ProjectCalendar.editable(x) && x.id != null) ItemRow(x, bots, x.time.orEmpty(), picked = editing == x.id,
                         onEdit = { editing = if (editing == x.id) null else x.id }, onDelete = { ui.call({ it.deleteEvent(x.id) }) { ok -> if (ok && editing == x.id) editing = null } })
@@ -268,7 +267,7 @@ private fun EventForm(ui: CompanyUi, day: LocalDate, event: CalendarItem?, onSav
             OutlinedTextField(time, { time = it.take(5) }, singleLine = true, enabled = !busy, isError = hhmm == null, placeholder = { Text("--:--") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { go() }),
                 modifier = Modifier.widthIn(max = 110.dp).semantics { contentDescription = tr("Time") })
-            if (event != null) Text(dueLabel(moveTo ?: day.toString()), color = p.text, fontSize = 14.sp,
+            if (event != null) Text(dueLabel(moveTo ?: day.toString()), color = p.text, fontSize = Type.s14,
                 modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(p.sunk).clickable(onClickLabel = tr("Day")) { picking = true }.padding(horizontal = 12.dp, vertical = 10.dp))
             Spacer(Modifier.weight(1f))
             GoButton(if (event != null) tr("Save") else tr("Add"), enabled = ready, busy = busy) { go() }

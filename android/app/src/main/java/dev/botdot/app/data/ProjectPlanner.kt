@@ -156,7 +156,7 @@ object ProjectCalendar {
     /** What the tile, the month and the feed's changes are made of: asked again when it changes. */
     fun sourceKey(c: Company, bots: List<Bot>, today: String): List<Any?> {
         val ids = c.teams.flatMap { it.bots }.toSet()
-        val jobs = bots.filter { it.id in ids }.map { b -> b.id to b.jobs.map { listOf(it.id, it.name, it.cron, it.enabled, it.approved) } }
+        val jobs = bots.filter { it.id in ids }.map { b -> b.id to b.jobs.map { listOf(it.id, it.name, it.words, it.nextRunAt, it.enabled, it.approved) } }
         return listOf(c.id, c.day, c.events, c.todos, c.checkins, c.teams, jobs, today)
     }
 
