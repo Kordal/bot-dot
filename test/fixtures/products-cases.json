@@ -448,6 +448,83 @@
       ]
     },
     {
+      "name": "an address is https in lowercase, with a host",
+      "source": "[{\"name\":\"A\",\"url\":\"HTTPS://shop.example/a\",\"image\":\"https:///x.jpg\"},{\"name\":\"B\",\"url\":\"https://shop.example\",\"image\":\"https://cdn.example/b.jpg?w=1#top\"}]",
+      "products": [
+        {
+          "name": "A",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "B",
+          "url": "https://shop.example",
+          "image": "https://cdn.example/b.jpg?w=1#top",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
+      "name": "a rating or a count is a number or a text of one, never a yes",
+      "source": "[{\"name\":\"A\",\"rating\":true,\"reviews\":true},{\"name\":\"B\",\"rating\":\" 4.5 \",\"reviews\":\"1200\"},{\"name\":\"C\",\"rating\":\"\",\"reviews\":null}]",
+      "products": [
+        {
+          "name": "A",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "B",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": 4.5,
+          "reviews": 1200,
+          "arrives": "",
+          "why": ""
+        },
+        {
+          "name": "C",
+          "url": "",
+          "image": "",
+          "price": "",
+          "was": "",
+          "off": 0,
+          "store": "",
+          "rating": null,
+          "reviews": null,
+          "arrives": "",
+          "why": ""
+        }
+      ]
+    },
+    {
       "name": "text that is not JSON is its code",
       "source": "[{\"name\": \"Desk\", }",
       "products": null
@@ -478,6 +555,16 @@
       "name": "a fence still being opened waits as before",
       "source": "Four fit.\n```prod",
       "draft": "Four fit."
+    },
+    {
+      "name": "a reply that starts with an unclosed products fence draws nothing yet",
+      "source": "```products\n[{\"name\"",
+      "draft": ""
+    },
+    {
+      "name": "a closed fence before it is drawn, the open one after it waits",
+      "source": "```products\n[{\"name\":\"A\"}]\n```\nAnd more:\n```products\n[",
+      "draft": "```products\n[{\"name\":\"A\"}]\n```\nAnd more:"
     }
   ]
 }

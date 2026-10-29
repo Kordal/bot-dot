@@ -8,11 +8,9 @@
 const Products = (() => {
   const MAX = 10;
   const str = (v, n) => (typeof v === 'string' || typeof v === 'number' ? String(v).replace(/\s+/g, ' ').trim().slice(0, n) : '');
-  const https = (v) => {
-    const s = str(v, 2000);
-    if (!/^https:\/\/[^\s]+$/i.test(s)) return '';
-    try { return new URL(s).protocol === 'https:' ? s : ''; } catch { return ''; }
-  };
+  const https = (v) => { const s = str(v, 2000); return /^https:\/\/[^\s/?#]+\S*$/.test(s) ? s : ''; };
+  // A number, or a text that is one; anything else is none.
+  const num = (v) => (typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN);
 
   // A price's number: "€1.299" 1299, "379,99 zł" 379.99, "$1,299.00" 1299; NaN without digits. A separator followed by
   // one or two digits at the number's end is its decimal point; any other is a thousands separator.
@@ -40,8 +38,8 @@ const Products = (() => {
       if (!p || typeof p !== 'object' || Array.isArray(p)) return [];
       const name = str(p.name, 120);
       if (!name) return [];
-      const rating = Number(p.rating);
-      const reviews = Number(p.reviews);
+      const rating = num(p.rating);
+      const reviews = num(p.reviews);
       const price = str(p.price, 30), was = str(p.was, 30);
       return [{
         name,
