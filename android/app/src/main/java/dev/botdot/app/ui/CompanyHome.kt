@@ -80,6 +80,8 @@ internal class CompanyWays(
     val onBotSay: (bot: String, words: String) -> Unit = { bot, _ -> onBot(bot) },
     /** A team's chat, from its name (#697, #705): the id of its group; null where the botdot has no team chats. */
     val onTeam: ((String) -> Unit)? = null,
+    /** A project's folder in Files, alone (#702, #703): its name. */
+    val onFolder: ((String) -> Unit)? = null,
 )
 
 private val GOLD = Color(0xFFE8B44A)
@@ -121,8 +123,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     fun lineOf(b: Bot): String = question(b) ?: if (b.running) OpeningLine.status(lines["bot:${b.id}"], working = true) else b.description
     var teamOpen by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s12).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(c.name.ifEmpty { c.start }, color = p.text, fontSize = Type.s24, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+        // Its name picks another project and its gear opens its settings (#703).
+        ProjectTitle(ui, c, ways) {
             c.day?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(start = Space.s12).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }

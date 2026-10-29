@@ -403,6 +403,7 @@ class MainActivity : ComponentActivity() {
                                 onNeeds = { nav.navigate("needs") },
                                 onChiefSay = { app.chiefWords = it; open("chief/new") },
                                 onTeam = { dock(ProjectChats.Open(ProjectChats.TEAM, it)) },
+                                onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
                             ), onBots = { place(false) })
                             ProjectChatSheet(ProjectChats.of(docked), dockHeight, onHeight = { dockHeight = it }) { o ->
                                 androidx.compose.runtime.key(o.key) {

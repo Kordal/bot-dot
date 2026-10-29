@@ -33,6 +33,13 @@ class Settings(private val context: Context) {
     private val PLACE = stringPreferencesKey("place") // "Bots | Company" (#674): "company", or none for the bots
     suspend fun companyNow(): Boolean = context.store.data.first()[PLACE] == "company"
     suspend fun setCompany(on: Boolean) = context.store.edit { if (on) it[PLACE] = "company" else it.remove(PLACE) }
+
+    private val PROJECT = stringPreferencesKey("project") // the project shown (#703), of the botdot this device is on
+    private val TREE = stringSetPreferencesKey("project_tree") // the tree's nodes turned from how they start: "<key>=1" folded, "=0" open
+    suspend fun projectNow(): String? = context.store.data.first()[PROJECT]
+    suspend fun setProject(id: String?) = context.store.edit { if (id == null) it.remove(PROJECT) else it[PROJECT] = id }
+    suspend fun treeNow(): Map<String, Boolean> = context.store.data.first()[TREE].orEmpty().mapNotNull { e -> e.substringBeforeLast('=').takeIf { it.isNotEmpty() }?.let { it to e.endsWith("=1") } }.toMap()
+    suspend fun setTree(folds: Map<String, Boolean>) = context.store.edit { it[TREE] = folds.map { (k, v) -> "$k=${if (v) 1 else 0}" }.toSet() }
 }
 
 /** A saved address the app may still use. One saved before HTTPS was required (plain http to another computer)

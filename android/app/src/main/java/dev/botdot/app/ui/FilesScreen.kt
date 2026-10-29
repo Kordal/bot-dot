@@ -159,17 +159,19 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
     val chief = ownerId == UploadedFiles.CHIEF
     val bot = bots?.firstOrNull { it.id == ownerId }
     val chiefName = LocalChiefName.current
-    val name = if (chief) chiefName else bot?.name.orEmpty()
-    val computer = if (chief) "none" else bot?.computer ?: "none"
+    // A project's folder (#703), opened from its settings: its one place, nothing kept in mind, no search.
+    val folder = UploadedFiles.folderOf(ownerId)
+    val name = if (chief) chiefName else folder ?: bot?.name.orEmpty()
+    val computer = if (chief) "none" else if (folder != null) "linux" else bot?.computer ?: "none"
     val viewer = DocumentView.shows(features)
-    val withProjects = !chief && computer == "linux" && Projects.shows(features)
-    val searches = FilesExplorer.searches(features)
+    val withProjects = !chief && folder == null && computer == "linux" && Projects.shows(features)
+    val searches = folder == null && FilesExplorer.searches(features)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snack = remember { SnackbarHostState() }
     fun tell(s: String) { scope.launch { snack.showSnackbar(s) } }
 
-    var place by rememberSaveable(ownerId) { mutableStateOf(WorkspaceFiles.SERVER) }
+    var place by rememberSaveable(ownerId) { mutableStateOf(folder?.let(WorkspaceFiles::projectRoot) ?: WorkspaceFiles.SERVER) }
     var path by rememberSaveable(ownerId) { mutableStateOf("") }
     var sortName by rememberSaveable { mutableStateOf(FilesExplorer.Sort.NAME.name) }
     val sort = FilesExplorer.Sort.valueOf(sortName)
@@ -199,7 +201,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
     }
 
     // What is kept in mind: the pins of files on botdot, and a place of its own.
-    LaunchedEffect(api, tries) { val a = api ?: return@LaunchedEffect; runCatching { a.botFiles(ownerId) }.onSuccess { kept = it.files } }
+    if (folder == null) LaunchedEffect(api, tries) { val a = api ?: return@LaunchedEffect; runCatching { a.botFiles(ownerId) }.onSuccess { kept = it.files } }
     LaunchedEffect(api, place, path, tries) {
         val a = api ?: return@LaunchedEffect
         if (place == FilesExplorer.KEPT) { listing = null; failed = null; return@LaunchedEffect }
@@ -219,7 +221,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         runCatching { a.searchFiles(ownerId, query.trim()) }.onSuccess { found = it.results }.onError { found = emptyList() }
     }
 
-    val places = FilesExplorer.places(ownerId, computer, projects)
+    val places = folder?.let { listOf(WorkspaceFiles.projectRoot(it)) } ?: FilesExplorer.places(ownerId, computer, projects)
     val hits = found
     val shown: List<WorkspaceEntry> = when {
         hits != null -> hits.map { WorkspaceEntry(it.name, it.path, it.type, it.size, at = it.at) }
@@ -269,7 +271,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
         if (e.type == "folder") return go(at, e.path)
         if (e.type != "file") return
         val src = WorkspaceFiles.file(ownerId, at, e.path)
-        if (viewer) DocViewer.open = DocViewer.Request(src, e.name, name, botId = if (at != WorkspaceFiles.SERVER) ownerId else null)
+        if (viewer) DocViewer.open = DocViewer.Request(src, e.name, name, botId = if (at != WorkspaceFiles.SERVER && folder == null) ownerId else null)
         else act(tr("open it")) { BotFiles.openElsewhere(context, it, src, e.name) }
     }
     fun download(list: List<WorkspaceEntry>) {
@@ -362,7 +364,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
             when {
                 found == null && place != FilesExplorer.KEPT && e != null && (e as? ApiException)?.status == 409 -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(tr("The computer is off."), color = p.muted)
-                    Button(onClick = { act(tr("start it")) { it.startComputer(ownerId) } }, modifier = Modifier.padding(top = Space.s12), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
+                    Button(onClick = { act(tr("start it")) { if (folder == null) it.startComputer(ownerId) } }, modifier = Modifier.padding(top = Space.s12), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
                 }
                 found == null && place != FilesExplorer.KEPT && e != null && (e as? ApiException)?.status == 404 -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(tr("This folder is gone."), color = p.muted)
@@ -399,7 +401,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = Space.s16)) {
                 when (s) {
                     FxSheet.Places -> {
-                        (places + FilesExplorer.KEPT).forEach { pl ->
+                        (places + listOfNotNull(FilesExplorer.KEPT.takeIf { folder == null })).forEach { pl ->
                             Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable { sheet = null; go(pl, "") }.padding(horizontal = Space.s16), verticalAlignment = Alignment.CenterVertically) {
                                 Icon(placeIcon(pl), contentDescription = null, tint = p.text, modifier = Modifier.size(24.dp))
                                 Text(FilesExplorer.placeName(pl), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = Space.s16))
