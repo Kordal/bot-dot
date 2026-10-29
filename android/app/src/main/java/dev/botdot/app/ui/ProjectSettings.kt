@@ -74,7 +74,7 @@ import dev.botdot.app.data.CompanyFloor
 import dev.botdot.app.data.CompanySetup
 import dev.botdot.app.data.CompanyTeam
 import dev.botdot.app.data.Objective
-import dev.botdot.app.data.ProjectList
+import dev.botdot.app.data.ManyProjects
 import dev.botdot.app.data.ProjectStandup
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
@@ -113,7 +113,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
     Column(Modifier.fillMaxSize().background(p.bg).statusBarsPadding().imePadding()) {
         Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s16, top = Space.s8), verticalAlignment = Alignment.CenterVertically) {
             BackButton { ui.settingsOpen = false }
-            Text(ProjectList.nameOf(c), color = p.text, fontSize = Type.s24, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(ManyProjects.nameOf(c), color = p.text, fontSize = Type.s24, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             SECTIONS.forEach { k ->
@@ -153,12 +153,12 @@ private fun General(ui: CompanyUi, c: Company, ways: CompanyWays, patch: (JsonOb
     Labeled(tr("Name")) { SaveField(c.name, tr("Name"), 80) { patch(CompanySetup.patchText("name", it)) } }
     Labeled(tr("Color")) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            ProjectList.COLORS.forEach { col ->
+            ManyProjects.COLORS.forEach { col ->
                 val on = col.equals(c.color, ignoreCase = true)
                 val fill = parseColor(col, p.muted)
                 Box(Modifier.size(36.dp).clip(Radius.small).background(fill).then(if (on) Modifier.border(2.dp, p.text, Radius.small) else Modifier)
                     .clickable(onClickLabel = col) { if (!on) patch(buildJsonObject { put("color", col) }) }.semantics { contentDescription = col }, contentAlignment = Alignment.Center) {
-                    if (on) Text(ProjectList.nameOf(c).take(1).uppercase(), color = inkOn(fill), fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
+                    if (on) Text(ManyProjects.nameOf(c).take(1).uppercase(), color = inkOn(fill), fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -213,18 +213,18 @@ private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (
         c.objectives.forEach { o ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Box(Modifier.size(8.dp).clip(CircleShape).background(parseColor(o.color, p.muted)))
-                SaveField(o.name, tr("Objective"), 80, Modifier.weight(1f)) { patch(CompanySetup.patchObjectives(ProjectList.objectivesAfter(c.objectives, o.id, name = it))) }
-                SaveField(ProjectList.shownNumber(o.current), tr("Now"), 16, Modifier.width(72.dp), number = true) { t ->
-                    ProjectList.number(t)?.let { patch(CompanySetup.patchObjectives(ProjectList.objectivesAfter(c.objectives, o.id, current = it))) }
+                SaveField(o.name, tr("Objective"), 80, Modifier.weight(1f)) { patch(CompanySetup.patchObjectives(ManyProjects.objectivesAfter(c.objectives, o.id, name = it))) }
+                SaveField(ManyProjects.shownNumber(o.current), tr("Now"), 16, Modifier.width(72.dp), number = true) { t ->
+                    ManyProjects.number(t)?.let { patch(CompanySetup.patchObjectives(ManyProjects.objectivesAfter(c.objectives, o.id, current = it))) }
                 }
                 Text("/", color = p.faint)
-                SaveField(ProjectList.shownNumber(o.target), tr("Target"), 16, Modifier.width(72.dp), number = true) { t ->
-                    ProjectList.number(t)?.let { patch(CompanySetup.patchObjectives(ProjectList.objectivesAfter(c.objectives, o.id, target = it))) }
+                SaveField(ManyProjects.shownNumber(o.target), tr("Target"), 16, Modifier.width(72.dp), number = true) { t ->
+                    ManyProjects.number(t)?.let { patch(CompanySetup.patchObjectives(ManyProjects.objectivesAfter(c.objectives, o.id, target = it))) }
                 }
                 RoundButton(Icons.Filled.Close, tr("Remove"), size = 36.dp) { patch(CompanySetup.patchObjectives(c.objectives.filter { it.id != o.id })) }
             }
         }
-        if (c.objectives.size < ProjectList.MAX_OBJECTIVES) AddField(tr("New objective"), tr("New objective"), 80) { name ->
+        if (c.objectives.size < ManyProjects.MAX_OBJECTIVES) AddField(tr("New objective"), tr("New objective"), 80) { name ->
             patch(CompanySetup.patchObjectives(c.objectives + Objective(name = name)))
         }
     }
@@ -259,10 +259,10 @@ private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (
         var picking by remember { mutableStateOf(false) }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(tr("Start"), color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f))
-            SmallButton(ProjectList.startDay(c).ifEmpty { "—" }) { picking = true }
+            SmallButton(ManyProjects.startDay(c).ifEmpty { "—" }) { picking = true }
         }
         if (picking) {
-            val day = runCatching { LocalDate.parse(ProjectList.startDay(c)) }.getOrNull() ?: LocalDate.now()
+            val day = runCatching { LocalDate.parse(ManyProjects.startDay(c)) }.getOrNull() ?: LocalDate.now()
             val state = rememberDatePickerState(initialSelectedDateMillis = day.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
             DatePickerDialog(onDismissRequest = { picking = false },
                 confirmButton = { TextButton({ state.selectedDateMillis?.let { ms -> patch(buildJsonObject { put("startDay", Instant.ofEpochMilli(ms).atZone(ZoneOffset.UTC).toLocalDate().toString()) }) }; picking = false }) { Text(tr("Save")) } },
@@ -330,7 +330,7 @@ private fun TeamEditor(d: TeamDraft, bots: List<Bot>, onDelete: (() -> Unit)?, o
                 bots.forEach { b ->
                     val on = b.id in d.bots
                     Row(Modifier.clip(Radius.pill).background(if (on) p.sunk else androidx.compose.ui.graphics.Color.Transparent).border(1.dp, if (on) p.text else p.line2, Radius.pill)
-                        .clickable { d.bots = ProjectList.toggle(d.bots, b.id) }.padding(start = Space.s4, end = Space.s12, top = Space.s4, bottom = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                        .clickable { d.bots = ManyProjects.toggle(d.bots, b.id) }.padding(start = Space.s4, end = Space.s12, top = Space.s4, bottom = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                         BotFigure(b.color, b.state, 22, b.outfit)
                         Text(b.name, color = if (on) p.text else p.muted, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8))
                     }
@@ -343,7 +343,7 @@ private fun TeamEditor(d: TeamDraft, bots: List<Bot>, onDelete: (() -> Unit)?, o
             if (onDelete != null) TextButton(onDelete) { Text(tr("Delete team"), color = p.err) }
             Spacer(Modifier.weight(1f))
             WordsButton(tr("Cancel"), onClick = onCancel)
-            val body = ProjectList.teamBody(d.name, d.bots, d.lead)
+            val body = ManyProjects.teamBody(d.name, d.bots, d.lead)
             GoButton(tr("Save"), enabled = body != null) { body?.let(onSave) }
         }
     }
@@ -356,7 +356,7 @@ private fun ReportRows(ui: CompanyUi, c: Company, features: List<String>) {
     val p = LocalPaper.current
     if (CompanyFloor.LEADS in features) c.teams.forEach { t ->
         Labeled(t.name) {
-            Chips(ProjectList.RHYTHMS.map { it to rhythmName(it) }, t.report.orEmpty()) { every -> ui.call({ it.setReportRhythm(t.id, every) }) }
+            Chips(ManyProjects.RHYTHMS.map { it to rhythmName(it) }, t.report.orEmpty()) { every -> ui.call({ it.setReportRhythm(t.id, every) }) }
         }
     }
     if (ProjectStandup.FEATURE in features) {
@@ -387,7 +387,7 @@ private fun RuleRows(c: Company, patch: (JsonObject) -> Unit) {
                 RoundButton(Icons.Filled.Close, tr("Remove"), size = 36.dp) { patch(CompanySetup.patchLines("never", c.never.filterIndexed { x, _ -> x != i })) }
             }
         }
-        if (c.never.size < ProjectList.MAX_NEVER) AddField(tr("Never without asking"), tr("Add"), 80) { patch(CompanySetup.patchLines("never", c.never + it)) }
+        if (c.never.size < ManyProjects.MAX_NEVER) AddField(tr("Never without asking"), tr("Add"), 80) { patch(CompanySetup.patchLines("never", c.never + it)) }
     }
     Labeled(tr("Time")) { SaveField(c.time, tr("Time"), 80) { patch(CompanySetup.patchText("time", it)) } }
 }
@@ -415,7 +415,7 @@ private fun ArchiveRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) 
     }
     // With a folder (#702) it asks whether the folder goes too.
     if (asking) AlertDialog(onDismissRequest = { asking = false }, containerColor = p.panel,
-        title = { Text(tr("Delete the project {name}? Its bots stay.", "name" to ProjectList.nameOf(c))) },
+        title = { Text(tr("Delete the project {name}? Its bots stay.", "name" to ManyProjects.nameOf(c))) },
         confirmButton = {
             if (c.folder != null) TextButton({ delete(true) }) { Text(tr("Delete its folder too"), color = p.err) }
             else TextButton({ delete(false) }) { Text(tr("Delete"), color = p.err) }

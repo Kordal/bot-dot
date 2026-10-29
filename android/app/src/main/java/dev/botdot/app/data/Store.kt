@@ -156,10 +156,10 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         val features = (version.value.value ?: a.version().also { if (api.value === a) version.set(it) }).features
         when {
             !CompanySetup.shows(features) -> CompanyHeld(null)
-            ProjectList.many(features) -> {
+            ManyProjects.many(features) -> {
                 val list = a.companyList()
                 if (api.value === a) _projectList.value = list
-                CompanyHeld(ProjectList.shown(list, _shownProject.value, _addingProject.value)).also { if (api.value === a) a.project = it.company?.id }
+                CompanyHeld(ManyProjects.shown(list, _shownProject.value, _addingProject.value)).also { if (api.value === a) a.project = it.company?.id }
             }
             else -> a.company()
         }
@@ -172,14 +172,14 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     private val _addingProject = MutableStateFlow(false)
     /** "New project" is on screen: the start screen, for another project. */
     val addingProject: StateFlow<Boolean> = _addingProject.asStateFlow()
-    private val many get() = ProjectList.many(version.value.value?.features)
+    private val many get() = ManyProjects.many(version.value.value?.features)
 
     /** Show project [id] (the device remembers it apart: Settings.project). */
     fun showProject(id: String?) {
         _shownProject.value = id
         _addingProject.value = false
         if (!many || _projectList.value.isEmpty()) return // not read yet: the read picks it
-        val c = ProjectList.shown(_projectList.value, id, false)
+        val c = ManyProjects.shown(_projectList.value, id, false)
         api.value?.project = c?.id
         company.set(CompanyHeld(c))
     }
@@ -195,14 +195,14 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     fun tookProject(c: Company) {
         if (!many) return company.set(CompanyHeld(c))
         val made = _addingProject.value && _projectList.value.none { it.id == c.id }
-        _projectList.value = ProjectList.changed(_projectList.value, c.id, c)
+        _projectList.value = ManyProjects.changed(_projectList.value, c.id, c)
         if (made) { _addingProject.value = false; _shownProject.value = c.id }
         if (made || company.value.value?.company?.id == c.id) { api.value?.project = c.id; company.set(CompanyHeld(c)) }
     }
 
     /** The project shown was deleted: the first of the others is shown. */
     fun projectGone(id: String) {
-        _projectList.value = ProjectList.changed(_projectList.value, id, null)
+        _projectList.value = ManyProjects.changed(_projectList.value, id, null)
         if (company.value.value?.company?.id == id) showProject(null)
     }
 
@@ -246,7 +246,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         }
         // The company as it is now, from any app or the Chief's tools. With several projects `company` speaks only of
         // the first, for older apps: `project` says the same of each (#689, #703).
-        if (many) ProjectList.event(ev)?.let { (id, c) -> onProject(id, c) }
+        if (many) ManyProjects.event(ev)?.let { (id, c) -> onProject(id, c) }
         else CompanySetup.event(ev)?.let { company.set(it) }
         bots.update { Asks.on(it, ev) } // a bot asks the owner something, or no longer does: its row says so at once
         when (ev.type) {
@@ -294,7 +294,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
     }
 
     private fun onProject(id: String, c: Company?) {
-        _projectList.value = ProjectList.changed(_projectList.value, id, c)
+        _projectList.value = ManyProjects.changed(_projectList.value, id, c)
         val shown = company.value.value?.company?.id
         when {
             c == null -> if (shown == id) showProject(null)

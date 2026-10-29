@@ -82,7 +82,7 @@ import dev.botdot.app.data.CompanyHeld
 import dev.botdot.app.data.CompanySetup
 import dev.botdot.app.data.CompanySource
 import dev.botdot.app.data.FigureDef
-import dev.botdot.app.data.ProjectList
+import dev.botdot.app.data.ManyProjects
 import dev.botdot.app.data.SourceDraft
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.CoroutineScope
@@ -204,7 +204,7 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
         app.store.company.refresh()
     }
     val server by app.store.version.value.collectAsState()
-    val many = ProjectList.many(server?.features)
+    val many = ManyProjects.many(server?.features)
     val list by app.store.projectList.collectAsState()
     val shownId = held?.company?.id
     LaunchedEffect(shownId) { if (many && shownId != null) app.settings.setProject(shownId) }

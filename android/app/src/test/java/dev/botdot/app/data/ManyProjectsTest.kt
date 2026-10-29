@@ -20,7 +20,7 @@ import org.junit.Test
  * project shown as the web page does (`?project=<id>`), the feed's `project` event changes one, the tree's folds, and
  * the settings page's bodies (docs/api.md "The Company").
  */
-class ProjectListTest {
+class ManyProjectsTest {
     private lateinit var server: MockWebServer
     private lateinit var api: Api
 
@@ -48,8 +48,8 @@ class ProjectListTest {
         assertEquals(listOf("p1", "p2"), list.map { it.id })
         assertEquals("#34c759", list[0].color)
         assertEquals("/workspace/projects/Botdot", list[0].folder!!.path)
-        assertEquals(listOf("p1"), ProjectList.open(list).map { it.id })
-        assertEquals(listOf("p2"), ProjectList.archived(list).map { it.id })
+        assertEquals(listOf("p1"), ManyProjects.open(list).map { it.id })
+        assertEquals(listOf("p2"), ManyProjects.archived(list).map { it.id })
 
         api.project = "p2"
         server.enqueue(json(project("p2", "Bakery")))
@@ -59,7 +59,7 @@ class ProjectListTest {
         api.projectCalendar("2026-10-01", "2026-10-07")
         assertEquals("/api/company/calendar?from=2026-10-01&to=2026-10-07&project=p2", server.takeRequest().target)
         server.enqueue(json(project("p2", "Bakery")))
-        api.editTeam("t1", ProjectList.teamBody(" Growth  team ", listOf("b1", "b2"), "b2")!!)
+        api.editTeam("t1", ManyProjects.teamBody(" Growth  team ", listOf("b1", "b2"), "b2")!!)
         val r = server.takeRequest()
         assertEquals("PUT" to "/api/company/teams/t1?project=p2", r.method to r.target)
         assertEquals("Growth team", Api.JSON.parseToJsonElement(r.body!!.utf8()).jsonObject["name"]!!.jsonPrimitive.content)
@@ -76,58 +76,58 @@ class ProjectListTest {
 
     @Test fun theOneShownIsTheOneChosenElseTheFirst() {
         val list = listOf(Company("p1"), Company("p2"))
-        assertEquals("p2", ProjectList.shown(list, "p2", adding = false)!!.id)
-        assertEquals("p1", ProjectList.shown(list, "gone", adding = false)!!.id)
-        assertNull(ProjectList.shown(list, "p2", adding = true))
-        assertNull(ProjectList.shown(emptyList(), null, adding = false))
+        assertEquals("p2", ManyProjects.shown(list, "p2", adding = false)!!.id)
+        assertEquals("p1", ManyProjects.shown(list, "gone", adding = false)!!.id)
+        assertNull(ManyProjects.shown(list, "p2", adding = true))
+        assertNull(ManyProjects.shown(emptyList(), null, adding = false))
     }
 
     @Test fun theFeedChangesOneProject() {
         val ev = FeedEvent("1", "project", Api.JSON.parseToJsonElement("""{"id":"p2","project":${project("p2", "Bakery")}}""").jsonObject)
-        val (id, c) = ProjectList.event(ev)!!
+        val (id, c) = ManyProjects.event(ev)!!
         assertEquals("p2", id)
         assertEquals("Bakery", c!!.name)
-        val gone = ProjectList.event(FeedEvent("2", "project", Api.JSON.parseToJsonElement("""{"id":"p1","project":null}""").jsonObject))!!
+        val gone = ManyProjects.event(FeedEvent("2", "project", Api.JSON.parseToJsonElement("""{"id":"p1","project":null}""").jsonObject))!!
         assertNull(gone.second)
-        assertNull(ProjectList.event(FeedEvent("3", "company", JsonObject(emptyMap()))))
+        assertNull(ManyProjects.event(FeedEvent("3", "company", JsonObject(emptyMap()))))
 
         val list = listOf(Company("p1", name = "A"), Company("p2", name = "B"))
-        assertEquals(listOf("A", "B2"), ProjectList.changed(list, "p2", Company("p2", name = "B2")).map { it.name })
-        assertEquals(listOf("p1", "p2", "p3"), ProjectList.changed(list, "p3", Company("p3")).map { it.id })
-        assertEquals(listOf("p2"), ProjectList.changed(list, "p1", null).map { it.id })
+        assertEquals(listOf("A", "B2"), ManyProjects.changed(list, "p2", Company("p2", name = "B2")).map { it.name })
+        assertEquals(listOf("p1", "p2", "p3"), ManyProjects.changed(list, "p3", Company("p3")).map { it.id })
+        assertEquals(listOf("p2"), ManyProjects.changed(list, "p1", null).map { it.id })
     }
 
     @Test fun pathsNameTheProject() {
-        assertEquals("/company", ProjectList.at("/company", null))
-        assertEquals("/company?project=p%201", ProjectList.at("/company", "p 1"))
-        assertEquals("/company/calendar?from=x&project=p1", ProjectList.at("/company/calendar?from=x", "p1"))
+        assertEquals("/company", ManyProjects.at("/company", null))
+        assertEquals("/company?project=p%201", ManyProjects.at("/company", "p 1"))
+        assertEquals("/company/calendar?from=x&project=p1", ManyProjects.at("/company/calendar?from=x", "p1"))
     }
 
     @Test fun theTreeHasTeamsWithTheirBotsLeadFirstAndFolds() {
         val c = Api.JSON.decodeFromString(Company.serializer(), project("p1", "Botdot"))
         val bots = listOf(Bot(id = "b1", name = "One"), Bot(id = "b2", name = "Two"))
-        val branches = ProjectList.branches(c, bots)
+        val branches = ManyProjects.branches(c, bots)
         assertEquals(listOf("b2", "b1"), branches.single().bots.map { it.id })
-        assertEquals(3, ProjectList.waits(c, bots) { if (it == "b1") 2 else 1 })
-        assertTrue(ProjectList.branches(c.copy(teams = c.teams.map { it.copy(bots = listOf("gone")) }), bots).isEmpty())
+        assertEquals(3, ManyProjects.waits(c, bots) { if (it == "b1") 2 else 1 })
+        assertTrue(ManyProjects.branches(c.copy(teams = c.teams.map { it.copy(bots = listOf("gone")) }), bots).isEmpty())
 
         // A project is open while shown, a team always; a turn is kept the other way.
-        assertTrue(ProjectList.isOpen(emptyMap(), "p1", shown = "p1"))
-        assertFalse(ProjectList.isOpen(emptyMap(), "p2", shown = "p1"))
-        assertTrue(ProjectList.isOpen(emptyMap(), "p2:t1", shown = "p1"))
-        val folded = ProjectList.fold(emptyMap(), "p1", shown = "p1")
-        assertFalse(ProjectList.isOpen(folded, "p1", shown = "p1"))
-        assertTrue(ProjectList.isOpen(ProjectList.fold(folded, "p1", shown = "p1"), "p1", shown = "p1"))
-        assertEquals("Botdot", ProjectList.nameOf(c))
-        assertEquals("Botdot idea", ProjectList.nameOf(c.copy(name = "")))
+        assertTrue(ManyProjects.isOpen(emptyMap(), "p1", shown = "p1"))
+        assertFalse(ManyProjects.isOpen(emptyMap(), "p2", shown = "p1"))
+        assertTrue(ManyProjects.isOpen(emptyMap(), "p2:t1", shown = "p1"))
+        val folded = ManyProjects.fold(emptyMap(), "p1", shown = "p1")
+        assertFalse(ManyProjects.isOpen(folded, "p1", shown = "p1"))
+        assertTrue(ManyProjects.isOpen(ManyProjects.fold(folded, "p1", shown = "p1"), "p1", shown = "p1"))
+        assertEquals("Botdot", ManyProjects.nameOf(c))
+        assertEquals("Botdot idea", ManyProjects.nameOf(c.copy(name = "")))
     }
 
     @Test fun theSettingsPageSendsWhatTheWebSends() {
-        assertNull(ProjectList.teamBody("  ", listOf("b1"), null))
-        assertNull(ProjectList.teamBody("Growth", emptyList(), null))
-        assertEquals("b1", ProjectList.teamBody("Growth", listOf("b1", "b2"), "gone")!!["lead"]!!.jsonPrimitive.content)
-        assertEquals(listOf("b1"), ProjectList.toggle(listOf("b1", "b2"), "b2"))
-        assertEquals(listOf("b1", "b2"), ProjectList.toggle(listOf("b1"), "b2"))
+        assertNull(ManyProjects.teamBody("  ", listOf("b1"), null))
+        assertNull(ManyProjects.teamBody("Growth", emptyList(), null))
+        assertEquals("b1", ManyProjects.teamBody("Growth", listOf("b1", "b2"), "gone")!!["lead"]!!.jsonPrimitive.content)
+        assertEquals(listOf("b1"), ManyProjects.toggle(listOf("b1", "b2"), "b2"))
+        assertEquals(listOf("b1", "b2"), ManyProjects.toggle(listOf("b1"), "b2"))
 
         val c = Api.JSON.decodeFromString(Company.serializer(), project("p1", "Botdot"))
         val kept = CompanySetup.patchSources(c.sources, listOfNotNull(CompanySetup.linkSource("https://fernhill.app")))["sources"]!!.jsonArray.map { it.jsonObject }
@@ -136,11 +136,11 @@ class ProjectListTest {
         assertNull(CompanySetup.linkSource("  "))
 
         val objectives = listOf(Objective(id = "o1", name = "Users", target = 100.0), Objective(id = "o2", name = "Posts"))
-        assertEquals(listOf(100.0 to 7.0), ProjectList.objectivesAfter(objectives, "o1", current = 7.0).filter { it.id == "o1" }.map { it.target to it.current })
-        assertEquals(listOf("o2"), ProjectList.objectivesAfter(objectives, "o1", name = " ").map { it.id })
-        assertEquals(12.5, ProjectList.number("12,5")!!, 0.0)
-        assertNull(ProjectList.number("x"))
-        assertEquals("12", ProjectList.shownNumber(12.0))
-        assertEquals("2026-10-01", ProjectList.startDay(Company("p", startedAt = "2026-10-01T00:00:00.000Z")))
+        assertEquals(listOf(100.0 to 7.0), ManyProjects.objectivesAfter(objectives, "o1", current = 7.0).filter { it.id == "o1" }.map { it.target to it.current })
+        assertEquals(listOf("o2"), ManyProjects.objectivesAfter(objectives, "o1", name = " ").map { it.id })
+        assertEquals(12.5, ManyProjects.number("12,5")!!, 0.0)
+        assertNull(ManyProjects.number("x"))
+        assertEquals("12", ManyProjects.shownNumber(12.0))
+        assertEquals("2026-10-01", ManyProjects.startDay(Company("p", startedAt = "2026-10-01T00:00:00.000Z")))
     }
 }

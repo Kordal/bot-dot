@@ -19,7 +19,7 @@ data class ProjectFolder(val name: String = "", val path: String = "")
  * says one project changed or is gone; `company` then only speaks of the first, for older apps, and is ignored.
  * The tree (project > teams > bots) is drawn from here: a team with none of its bots left is not shown.
  */
-object ProjectList {
+object ManyProjects {
     const val SETTINGS = "project-settings"
     const val FOLDER = "project-folder"
     /** lib/company.js PROJECT_COLORS: the swatches of a project's colour. */

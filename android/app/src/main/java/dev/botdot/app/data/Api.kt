@@ -704,11 +704,11 @@ class Api(val baseUrl: String, val session: Session? = null) {
      * the first (an older botdot's one company) or while a new one is started.
      */
     @Volatile var project: String? = null
-    private fun co(path: String) = ProjectList.at(path, project)
+    private fun co(path: String) = ManyProjects.at(path, project)
     /** Every project (#689): `GET /api/company/list`. */
-    suspend fun companyList(): List<Company> = ProjectList.list(get("/company/list"))
+    suspend fun companyList(): List<Company> = ManyProjects.list(get("/company/list"))
     /** Deletes the project shown (#701); with [dropFolder] its folder (#702) goes with what it holds. */
-    suspend fun deleteCompany(dropFolder: Boolean) { send("DELETE", co(ProjectList.deletePath(dropFolder))) }
+    suspend fun deleteCompany(dropFolder: Boolean) { send("DELETE", co(ManyProjects.deletePath(dropFolder))) }
     /** A team changed in the project's settings (#701): its name, bots and lead; or deleted. */
     suspend fun editTeam(team: String, body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), body))
     suspend fun addTeam(body: JsonObject): Company = CompanySetup.of(send("POST", co("/company/teams"), body))

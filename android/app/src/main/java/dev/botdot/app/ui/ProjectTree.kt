@@ -41,7 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Company
-import dev.botdot.app.data.ProjectList
+import dev.botdot.app.data.ManyProjects
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
@@ -56,9 +56,9 @@ internal fun ProjectTitle(ui: CompanyUi, c: Company?, ways: CompanyWays, modifie
     val p = LocalPaper.current
     val server by ui.app.store.version.value.collectAsState()
     val features = server?.features
-    val many = ProjectList.many(features)
+    val many = ManyProjects.many(features)
     var open by remember { mutableStateOf(false) }
-    val name = c?.let(ProjectList::nameOf) ?: tr("New project")
+    val name = c?.let(ManyProjects::nameOf) ?: tr("New project")
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f, fill = false)) {
             Row(Modifier.clip(Radius.small).clickable(enabled = many, onClickLabel = tr("Projects")) { open = true }.padding(vertical = Space.s4),
@@ -70,7 +70,7 @@ internal fun ProjectTitle(ui: CompanyUi, c: Company?, ways: CompanyWays, modifie
                 ProjectTree(ui, c?.id, ways) { open = false }
             }
         }
-        if (c != null && features != null && ProjectList.SETTINGS in features) RoundButton(Icons.Outlined.Settings, tr("Project settings"), Modifier.padding(start = Space.s4)) { ui.settingsOpen = true }
+        if (c != null && features != null && ManyProjects.SETTINGS in features) RoundButton(Icons.Outlined.Settings, tr("Project settings"), Modifier.padding(start = Space.s4)) { ui.settingsOpen = true }
         after()
     }
 }
@@ -89,14 +89,14 @@ private fun ProjectTree(ui: CompanyUi, shown: String?, ways: CompanyWays, close:
     }
     var folds by remember { mutableStateOf<Map<String, Boolean>>(emptyMap()) }
     LaunchedEffect(Unit) { folds = ui.app.settings.treeNow() }
-    fun turn(key: String) { folds = ProjectList.fold(folds, key, shown); val now = folds; ui.scope.launch { ui.app.settings.setTree(now) } }
+    fun turn(key: String) { folds = ManyProjects.fold(folds, key, shown); val now = folds; ui.scope.launch { ui.app.settings.setTree(now) } }
     val adding by ui.app.store.addingProject.collectAsState()
 
     Column(Modifier.padding(vertical = Space.s4)) {
-        ProjectList.open(list).forEach { c -> ProjectBranch(c, here = !adding && c.id == shown, bots, asks, folds, shown, ::turn, onShow = { ui.show(c.id); close() }, onBot = { ways.onBot(it); close() }) }
-        val archived = ProjectList.archived(list)
+        ManyProjects.open(list).forEach { c -> ProjectBranch(c, here = !adding && c.id == shown, bots, asks, folds, shown, ::turn, onShow = { ui.show(c.id); close() }, onBot = { ways.onBot(it); close() }) }
+        val archived = ManyProjects.archived(list)
         if (archived.isNotEmpty()) {
-            val open = ProjectList.isOpen(folds, "archived:", shown)
+            val open = ManyProjects.isOpen(folds, "archived:", shown)
             TreeRow(level = 0, caret = open, onCaret = { turn("archived:") }, onClick = { turn("archived:") }) {
                 Text(tr("Archived"), color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f))
                 Text(archived.size.toString(), color = p.faint, fontSize = Type.s12)
@@ -114,20 +114,20 @@ private fun ProjectTree(ui: CompanyUi, shown: String?, ways: CompanyWays, close:
 @Composable
 private fun ProjectBranch(c: Company, here: Boolean, bots: List<Bot>, asks: (String) -> Int, folds: Map<String, Boolean>, shown: String?, turn: (String) -> Unit, onShow: () -> Unit, onBot: (String) -> Unit) {
     val p = LocalPaper.current
-    val branches = ProjectList.branches(c, bots)
-    val open = branches.isNotEmpty() && ProjectList.isOpen(folds, c.id, shown)
-    val name = ProjectList.nameOf(c)
+    val branches = ManyProjects.branches(c, bots)
+    val open = branches.isNotEmpty() && ManyProjects.isOpen(folds, c.id, shown)
+    val name = ManyProjects.nameOf(c)
     TreeRow(level = 0, caret = if (branches.isEmpty()) null else open, here = here, onCaret = { turn(c.id) }, onClick = onShow) {
-        Box(Modifier.size(24.dp).clip(Radius.small).background(parseColor(c.color ?: ProjectList.DEFAULT_COLOR, p.muted)), contentAlignment = Alignment.Center) {
-            Text(name.take(1).uppercase(), color = inkOn(parseColor(c.color ?: ProjectList.DEFAULT_COLOR, p.muted)), fontSize = Type.s12, fontWeight = FontWeight.SemiBold)
+        Box(Modifier.size(24.dp).clip(Radius.small).background(parseColor(c.color ?: ManyProjects.DEFAULT_COLOR, p.muted)), contentAlignment = Alignment.Center) {
+            Text(name.take(1).uppercase(), color = inkOn(parseColor(c.color ?: ManyProjects.DEFAULT_COLOR, p.muted)), fontSize = Type.s12, fontWeight = FontWeight.SemiBold)
         }
         Text(name, color = p.text, fontSize = Type.s14, fontWeight = if (here) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = Space.s12))
-        Count(ProjectList.waits(c, bots, asks))
+        Count(ManyProjects.waits(c, bots, asks))
     }
     if (open) branches.forEach { b ->
         val key = "${c.id}:${b.team.id}"
-        val teamOpen = ProjectList.isOpen(folds, key, shown)
+        val teamOpen = ManyProjects.isOpen(folds, key, shown)
         TreeRow(level = 1, caret = teamOpen, onCaret = { turn(key) }, onClick = { turn(key) }) {
             Box(Modifier.size(8.dp).clip(CircleShape).background(parseColor(b.team.color, p.muted)))
             Text(b.team.name, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = Space.s12))
