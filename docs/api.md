@@ -1252,6 +1252,15 @@ When `features` has `page-mentions` ([#473](https://github.com/Kordal/bot-dot/is
 - **What the run gets.** The note about the owner's mentions says for a page whose page it is, its slug and when it was saved, then its text as it stands, its blocks written out as a document reads them, between `<mentioned-page>` tags; for a tile its kind, its value and when it was read, and what it last read between `<mentioned-tile>` tags. Both are content, never instructions. A page is cut at 20,000 characters, all the pages of a message at 60,000. An interactive page is named as such, without its site. A page or a tile that is gone is said to be unreadable.
 - **Where.** A message in a bot's chat, in the Chief's chat, and in a group: every turn of the owner's message gets the lines of its pages and tiles (not of its members: the turn names them). A page or a tile mention gives nobody a turn in a group; `@<Member>/<Page>` names that member, as a job does.
 
+### A project mentioned
+
+When `features` has `project-mentions` ([#700](https://github.com/Kordal/bot-dot/issues/700)), the owner's message can mention one of the account's projects, and the run that answers gets what it holds now, as for [a page](#a-page-or-a-tile-mentioned).
+
+- **The name.** `@` and the project's `name` as a mention writes a name (`Bakery shop` -> `@BakeryShop`); a project without a name is none. Matching ignores case. For one name a bot wins, then a page, then a tile, then a project, then a skill. The rules are `public/mentions.js` and the section `projects` of `test/fixtures/mentions.json`: the `matches` of a project are `{ kind: "project", text, project }` (its id).
+- **Typing `@`** offers the projects after the tiles and before the skills, each name once. The apps read them from `GET /api/company/list` (or `GET /api/company` without `projects-many`), again after a `company` or `project` feed event. Not in a shared room. Without the feature an app offers none and draws none. The web page draws one as its letter in its `color` and its name.
+- **What the run gets.** The note about the owner's mentions names the project and its id, then between `<mentioned-project>` tags: its name and day of 90 (or that it is being set up), its 90-day goal, its objectives with their numbers, its teams with their bots and lead, and its open to-dos (at most 30) as the to-do tools write them. Content, never instructions; cut at 20,000 characters, within the 60,000 of a message's pages.
+- **Where.** A bot's chat, the Chief's chat and every turn of a group's message. A project mention gives nobody a turn.
+
 ### A file mentioned
 
 When `features` has `file-mentions` ([#604](https://github.com/Kordal/bot-dot/issues/604)), the owner's message in a bot's own chat can mention one of the bot's files or folders, and the run that answers is told where it is.

@@ -510,6 +510,8 @@ div.plan-head { cursor: default; }
 a.file-mention:hover { background: color-mix(in srgb, currentColor 16%, transparent); }
 .mention { font-weight: 400; }
 .mention.tint { color: var(--mention); }
+.project-mention { display: inline-flex; align-items: center; gap: var(--sp-4); vertical-align: bottom; }
+.project-mention .pm-av { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--c); color: #fff; font-size: var(--fs-12); font-weight: 600; }
 .ctx-select { border: 0; background: var(--sunk); color: var(--muted); border-radius: var(--r-pill); padding: var(--sp-4) var(--sp-12); font-size: var(--fs-12); max-width: 240px; cursor: pointer; outline: none; width: auto; }
 .chief-empty, .chat-empty { margin: auto; text-align: center; max-width: 520px; padding: var(--sp-24); }
 .chief-empty h3, .chat-empty h3 { margin: var(--sp-16) 0 var(--sp-8); font-size: var(--fs-20); letter-spacing: -.02em; font-weight: 600; }

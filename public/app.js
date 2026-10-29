@@ -173,9 +173,21 @@ const botLabel = (b) => (b ? `${botMark(b)}${esc(b.name)}` : '');
 const mentionCtx = (chat) => (String(chat).startsWith('group:') ? { chat, bots: groupMembers(groupById(String(chat).slice(6))), library: [], all: state.features.includes('group-all'), ...mentionables() }
   : String(chat).startsWith('room:') ? { chat, bots: roomMentionBots(String(chat).slice(5)), library: [] } // a shared room's bots (rooms.js)
   : { chat, bots: [CHIEF_BOT, ...state.bots], library: state.skillLib || [], account: state.skillAccount || [], ...mentionables() });
+// The account's projects too, on a botdot that hands them over (feature `project-mentions`, #700).
 function mentionables() {
-  if (!state.features.includes('page-mentions')) return {};
-  return { pages: state.mentionPages || [], tiles: (state.dash?.tiles || []).filter((t) => t.approved !== false).map(({ id, title, kind }) => ({ id, title, kind })) };
+  const projects = state.features.includes('project-mentions') ? { projects: state.mentionProjects || [] } : {};
+  if (!state.features.includes('page-mentions')) return projects;
+  return { pages: state.mentionPages || [], tiles: (state.dash?.tiles || []).filter((t) => t.approved !== false).map(({ id, title, kind }) => ({ id, title, kind })), ...projects };
+}
+// The account's projects, for mentions (#700): fetched with the page's data, at most once a minute, and again after a
+// project changes (feed.js).
+function loadMentionProjects() {
+  if (!state.features.includes('project-mentions') || Date.now() - (state.mentionProjectsAt || 0) < 60000) return null;
+  state.mentionProjectsAt = Date.now();
+  const many = state.features.includes('projects-many');
+  return api(many ? '/company/list' : '/company').then((d) => {
+    state.mentionProjects = (many ? d.projects || [] : d.company ? [d.company] : []).map(({ id, name, color }) => ({ id, name, color }));
+  }).catch(() => { state.mentionProjectsAt = 0; });
 }
 // Every page of the account, for mentions (#473): fetched with the page's data, at most once a minute, and again after a
 // page is saved (feed.js).
@@ -197,6 +209,7 @@ function escMentions(text, chat) {
   for (const m of s.includes('@') ? Mentions.findMentions(s, ctx).filter((x) => x.start >= at) : []) {
     out += esc(s.slice(at, m.start)) + (m.kind === 'file' ? FileMentions.chipHTML(m, chat) : m.kind === 'bot'
       ? `<span class="mention" title="${esc(m.text)}">${botLabel(ctx.bots.find((b) => b.id === m.bot))}</span>`
+      : m.kind === 'project' ? projectChip(ctx.projects.find((p) => p.id === m.project), m.text)
       : `<span class="mention tint">${esc(m.text)}</span>`);
     at = m.end;
   }
@@ -209,12 +222,14 @@ function markOf(text, chat) {
   const m = Mentions.commandMark(text, mentionCtx(chat));
   return m && (m.kind !== 'skill' || state.features.includes('skill-commands')) ? m : null;
 }
+// A project mentioned (#700): its letter in its colour, as in the Projects tree, and its name.
+const projectChip = (p, text) => `<span class="mention project-mention" title="${esc(text)}"><span class="pm-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(p.name.charAt(0).toUpperCase())}</span>${esc(p.name)}</span>`;
 const markHTML = (m) => `<span class="cmd">${esc(m.text)}</span>`;
 // What mentions match against, so a chat redraws when a name changes (a renamed bot's old mentions go plain).
 function mentionSig() {
   const bots = state.bots.map((b) => [b.name, ...(b.jobs || []).map((j) => j.name), b.useSkills === false ? '' : (b.skills || []).join(',')].join('/'));
   const more = mentionables();
-  return [...bots, ...(state.skillLib || []).map((k) => k.name), ...(more.pages || []).map((p) => `${p.bot}/${p.title}`), ...(more.tiles || []).map((t) => t.title)].join('|');
+  return [...bots, ...(state.skillLib || []).map((k) => k.name), ...(more.pages || []).map((p) => `${p.bot}/${p.title}`), ...(more.tiles || []).map((t) => t.title), ...(more.projects || []).map((p) => p.name)].join('|');
 }
 // The skill library, for mentions: fetched with the page's data, at most once a minute.
 function loadSkillLib() {
@@ -903,6 +918,7 @@ async function refresh() {
   try {
     const skillLib = loadSkillLib(); // for mentions
     loadMentionPages(); // for mentions of pages (#473)
+    loadMentionProjects(); // and of projects (#700)
     const groupsRead = loadGroups(); // the groups, beside the bots (groups.js): never rejects
     const [bots, runs, activity, chief, computers, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/runs?groups&limit=200').catch(() => null), api('/chief'), api('/computers').catch(() => ({})), api('/settings').catch(() => null)]);
     if (!state.skillLib) await skillLib; // the first time, the chats wait for it
