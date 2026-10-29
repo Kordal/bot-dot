@@ -577,7 +577,7 @@ function heldTitle(method, parts, body) {
     [/^chief\/reminders\/[^/]+$/, 'DELETE', () => tr(lang, 'Cancel a reminder')],
     [/^(bots\/[^/]+\/)?computer\/restart$/, 'POST', () => tr(lang, "Restart the account's computer")],
     [/^dashboard/, null, () => tr(lang, 'Change your Board')],
-    [/^company/, null, () => tr(lang, 'Change your company')],
+    [/^company/, null, () => tr(lang, 'Change your project')],
     [/^memory/, null, () => tr(lang, 'Change how memory works')],
     [/^settings\/quiet-hours$/, null, () => tr(lang, 'Change your quiet hours')],
     [/^settings\/writing-first$/, null, () => tr(lang, 'Change when the Chief writes first')],

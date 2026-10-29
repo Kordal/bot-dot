@@ -209,7 +209,7 @@
     let d;
     try { d = await api(Company.at('/company/checkins'), { method: 'POST', body: { day: k.day, decision } }); } catch (e) { toast(e.message, true); button.disabled = false; return; }
     Company.changed({ company: d.company });
-    if (decision === 'stop') toast(trn(d.paused || 0, "Switched off {n} job of the company's bots.", "Switched off {n} jobs of the company's bots."));
+    if (decision === 'stop') toast(trn(d.paused || 0, "Switched off {n} job of the project's bots.", "Switched off {n} jobs of the project's bots."));
     if (decision === 'change') {
       openChiefChat(null);
       const box = $('#view-chief form')?.text;

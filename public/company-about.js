@@ -25,7 +25,7 @@
   const ASKED = {
     who: () => tr('Who is it for?'), today: () => tr('What do they do today?'), why: () => tr('Why you?'),
     signal: () => tr('What would show it works in 90 days?'), test: () => tr('What can you test this week?'),
-    about: () => tr('What is your company about?'), serves: () => tr('Who do you serve?'),
+    about: () => tr('What is your project about?'), serves: () => tr('Who do you serve?'),
   };
   const questionOf = (c, a) => (ASKED[a.key] && !(c.kind === 'site' && a.key === 'today') ? ASKED[a.key]() : a.key === 'today' ? tr('How do you work today?') : a.question);
   const WHO = ['users', 'customers', 'clients', 'members', 'students', 'team', 'partners'];
