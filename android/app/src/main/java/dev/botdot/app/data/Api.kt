@@ -451,6 +451,16 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** Makes the copy, with [name] or the suggested one when blank. A refusal throws the server's sentence. */
     suspend fun duplicateBot(botId: String, name: String): Bot =
         json.decodeFromString(send("POST", "/bots/${enc(botId)}/duplicate", buildJsonObject { if (name.isNotBlank()) put("name", name.trim()) }))
+    /** The addresses of the products saved from a bot's replies (#685): lines of its Saved-products file. */
+    suspend fun savedProducts(botId: String): Set<String> =
+        (json.parseToJsonElement(get("/bots/${enc(botId)}/saved-products")).jsonObject["urls"]?.jsonArray ?: JsonArray(emptyList())).map { it.jsonPrimitive.content }.toSet()
+    /** Saves a product of a product card in the bot's Saved-products file, or takes it out ([saved] false). */
+    suspend fun saveProduct(botId: String, name: String, url: String, price: String, store: String, saved: Boolean) {
+        send("POST", "/bots/${enc(botId)}/saved-products", buildJsonObject {
+            put("product", buildJsonObject { put("name", name); put("url", url); put("price", price); put("store", store) })
+            put("saved", saved)
+        })
+    }
     /** A bot's files (#235), newest first. Only with `bot-files` in its features. */
     suspend fun botFiles(botId: String): UploadedFileList = json.decodeFromString(get(UploadedFiles.owner(botId) + "/files"))
     /** Keeps one of its files in mind, or stops; answers the list as it is now. */

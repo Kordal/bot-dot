@@ -1240,5 +1240,12 @@
     "one": "{count} folder",
     "few": "{count} foldery",
     "many": "{count} folderów"
+  },
+  "Saved": "Zapisano",
+  "Couldn't save it": "Nie udało się zapisać",
+  "{n} reviews": {
+    "one": "{n} opinia",
+    "few": "{n} opinie",
+    "many": "{n} opinii"
   }
 }
