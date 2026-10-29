@@ -34,7 +34,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ComputerInfo
@@ -151,8 +150,8 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         Column(Modifier.padding(pad).fillMaxSize()) {
             // The bot's old computer of its own, kept and stopped until its files are copied and it is erased (#107).
             info?.old?.let { old ->
-                Column(Modifier.fillMaxWidth().background(p.sunk).padding(horizontal = 16.dp, vertical = 10.dp)) {
-                    Text(old.text, color = p.text, fontSize = 13.sp)
+                Column(Modifier.fillMaxWidth().background(p.sunk).padding(horizontal = Space.s16, vertical = Space.s12)) {
+                    Text(old.text, color = p.text, fontSize = Type.s14)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = { copyOld() }) { Text(old.copy.ifBlank { tr("Copy its files") }, color = p.text) }
                         TextButton(onClick = { askErase = true }) { Text(old.erase.ifBlank { tr("Erase it") }, color = p.err) }
@@ -189,30 +188,30 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
-                    "off" -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
+                    "off" -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(Space.s24)) {
                         Text(info?.screenOff?.text.orEmpty(), color = Color.White)
                         TextButton(onClick = { startScreen() }) { Text(info?.screenOff?.start?.ifBlank { null } ?: tr("Start its screen"), color = Color.White) }
                     }
-                    "error" -> Text(error ?: tr("Couldn't start its computer."), color = Color.White, modifier = Modifier.padding(24.dp))
+                    "error" -> Text(error ?: tr("Couldn't start its computer."), color = Color.White, modifier = Modifier.padding(Space.s24))
                     "reset" -> Text(
                         if (info?.resetsAll == true) tr("The account's computer was erased. The next computer tool of any bot starts it again, fresh.")
                         else tr("Its computer was erased. The next run starts from a fresh desktop."),
-                        color = Color.White, modifier = Modifier.padding(24.dp),
+                        color = Color.White, modifier = Modifier.padding(Space.s24),
                     )
                     else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = Color.White)
-                        Text(when (state) { "starting" -> tr("Starting its computer…"); "resetting" -> tr("Resetting…"); "updating" -> tr("Updating…"); else -> "" }, color = Color.White, modifier = Modifier.padding(top = 12.dp))
+                        Text(when (state) { "starting" -> tr("Starting its computer…"); "resetting" -> tr("Resetting…"); "updating" -> tr("Updating…"); else -> "" }, color = Color.White, modifier = Modifier.padding(top = Space.s12))
                     }
                 }
             }
             // What each bot uses of the account's computer, most memory first (#109).
             info?.usage?.let { u ->
-                Column(Modifier.fillMaxWidth().background(p.sunk).padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    if (u.text.isNotBlank()) Text(u.text, color = p.muted, fontSize = 12.sp)
+                Column(Modifier.fillMaxWidth().background(p.sunk).padding(horizontal = Space.s16, vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    if (u.text.isNotBlank()) Text(u.text, color = p.muted, fontSize = Type.s12)
                     (u.bots + listOfNotNull(u.other)).forEach { row ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(row.name, color = p.text, fontSize = 13.sp, maxLines = 1, modifier = Modifier.weight(1f, fill = false).padding(end = 12.dp))
-                            Text(row.text, color = p.muted, fontSize = 13.sp)
+                            Text(row.name, color = p.text, fontSize = Type.s14, maxLines = 1, modifier = Modifier.weight(1f, fill = false).padding(end = Space.s12))
+                            Text(row.text, color = p.muted, fontSize = Type.s14)
                         }
                     }
                 }
