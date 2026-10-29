@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -29,7 +27,6 @@ import androidx.compose.material.icons.outlined.ThumbDown as ThumbDownOutline
 import androidx.compose.material.icons.outlined.ThumbUp as ThumbUpOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -57,7 +54,9 @@ import dev.botdot.app.data.Attachment
 import dev.botdot.app.data.ChiefChat
 import dev.botdot.app.data.ChiefChatSummary
 import dev.botdot.app.data.ChiefMessage
+import dev.botdot.app.data.ChiefJobs
 import dev.botdot.app.data.DocumentView
+import dev.botdot.app.data.EmptyChatJobs
 import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.Mentions
 import dev.botdot.app.data.PlanView
@@ -66,13 +65,6 @@ import dev.botdot.app.data.Unread
 import dev.botdot.app.data.str
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
-
-private val SUGGESTIONS = listOf(
-    tr("What bots do I have, and what is each one good at?"),
-    tr("Create a bot that checks the news on a topic every morning and sends me the highlights."),
-    tr("Make a bot that uses the computer to work on websites for me."),
-    tr("Make a research bot that finds fresh game design ideas on the web."),
-)
 
 /** The Chief of Staff: a chat that manages your bots. chatId "latest" opens the newest chat. */
 @Composable
@@ -152,6 +144,27 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     fun send(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments) }
     // From a quick answer, a question card, a plan's Approve: whether it went. What was tapped stays until it did.
     suspend fun sendFrom(text: String, key: String): Boolean = vm.send(text, emptyList(), box = false, key = key).await()
+    // A new chat (#727): the box in the middle, under its head and name, and its own jobs (#408) under it. Gone with the first message.
+    val empty = chat?.messages.isNullOrEmpty() && vm.sent == null && vm.queued.isEmpty() && (chatId == null || chat != null)
+    @Composable fun box() = Composer(
+        placeholder = tr("Message the Chief…"),
+        files = files,
+        busy = boxStops(busy, features),
+        outbox = vm.outbox,
+        onSend = { t, a -> send(t, a) },
+        onStop = { vm.stop() },
+        onError = { scope.launch { snack.showSnackbar(it) } },
+        initialText = sharedText,
+        onSignIn = onSignIn.takeIf { signedOut },
+    )
+    var ownJobs by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
+    LaunchedEffect(empty, features) {
+        if (empty && ChiefJobs.shows(features)) ownJobs = runCatching { app.api.value?.chiefJobs() }.getOrNull()?.let { EmptyChatJobs.chiefJobs(it) } ?: emptyList()
+    }
+    fun runOwnJob(id: String) = scope.launch {
+        val r = runCatching { app.api.value!!.runChiefJob(id) }
+        snack.showSnackbar(r.fold({ tr("Started") }, { it.message ?: tr("Couldn't start it") }))
+    }
 
     // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles. And where Quote
     // puts text selected in a message: this chat's message box (QuoteUi.kt).
@@ -171,23 +184,18 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                     RoundButton(Icons.Filled.Add, tr("New chat")) { vm.open(null) }
                 }
             },
-            bottomBar = { Column {
+            bottomBar = { if (!empty) Column {
                 PlanDock(planView, CHIEF_COLOR, LocalChiefName.current, planFolded,
                     onFold = { planFolded = it; app.plans.setFolded(planChat, it) },
                     onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
-                Composer(
-                    placeholder = tr("Message the Chief…"),
-                    files = files,
-                    busy = boxStops(busy, features),
-                    outbox = vm.outbox,
-                    onSend = { t, a -> send(t, a) },
-                    onStop = { vm.stop() },
-                    onError = { scope.launch { snack.showSnackbar(it) } },
-                    initialText = sharedText,
-                    onSignIn = onSignIn.takeIf { signedOut },
-                )
+                box()
             } },
         ) { pad ->
+            if (empty) {
+                EmptyChat(pad, LocalChiefName.current, ownJobs, onJob = { runOwnJob(it) },
+                    figure = { BotFigure(CHIEF_COLOR, if (busy) "working" else "idle", 56, FigureDef.CHIEF) }) { box() }
+                return@Scaffold
+            }
             val messages = chat?.messages.orEmpty()
             val first = chat?.offset ?: 0 // where the loaded messages start in the whole chat
             val newestFirst = remember(messages) { messages.asReversed() }
@@ -216,29 +224,6 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                         WaitingMessages(vm.queued, tr("the Chief"), onSteer = if (canSteerChief(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                         if (sent != null && busy) SentBubble(sent, above = false, sentArrives)
                         ChatNeeds(app, "chief", onNeeds, chiefChat = chatId)
-                    }
-                }
-                // A new chat starts like the web page's: the Chief's figure, a heading and the suggestions, in the middle.
-                if (messages.isEmpty() && sent == null) item {
-                    Column(
-                        Modifier.fillParentMaxSize().padding(horizontal = Space.s8),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                    ) {
-                        BotFigure(CHIEF_COLOR, if (busy) "working" else "idle", 56, FigureDef.CHIEF)
-                        Spacer(Modifier.size(14.dp))
-                        Text(tr("What should the team work on?"), style = MaterialTheme.typography.titleLarge, color = p.text, textAlign = TextAlign.Center)
-                        Spacer(Modifier.size(6.dp))
-                        Text(tr("Ask for anything. I'll hand it to the right bot, or build a new one."), color = p.muted, textAlign = TextAlign.Center)
-                        Spacer(Modifier.size(22.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                            val shape = Radius.card
-                            SUGGESTIONS.forEach { s ->
-                                Text(s, color = p.muted, fontSize = Type.s14, lineHeight = Type.line20,
-                                    modifier = Modifier.fillMaxWidth().clip(shape).background(p.panel).border(1.dp, p.line, shape)
-                                        .clickable { send(s, files.take()) }.padding(horizontal = Space.s16, vertical = Space.s12))
-                            }
-                        }
                     }
                 }
                 itemsIndexed(newestFirst, key = { i, m -> "${first + messages.size - 1 - i}:${m.at}" }) { i, m ->
