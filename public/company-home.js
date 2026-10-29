@@ -209,7 +209,9 @@
     const chief = `<button type="button" class="cf-chief" data-cf-chief><span class="cf-over">${line ? bubble(line, 'line') : ''}</span><span class="cf-table"><i></i></span><span class="cf-head">${chiefFigure()}</span><span class="cf-name">${esc(chiefTitle())}</span></button>`;
     const loose = f.loose.map((b) => `<div class="cf-loose">${deskHTML(b, { count: f.info.asks(b.id) })}</div>`).join('');
     const rooms = f.rooms.length ? `<div class="cf-rooms">${f.rooms.map(roomHTML).join('')}</div>` : '';
-    return `<div class="cf-floor${rooms ? '' : ' bare'}">${rooms}<div class="cf-side">${chief}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>${c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : ''}</div>`;
+    // The cards made by Claude (#775, project-cards.js) in a row of their own at the top, so the rooms never move.
+    const cards = window.ProjectCards ? ProjectCards.html(c) : '';
+    return `<div class="cf-floor${rooms ? '' : ' bare'}">${cards}${rooms}<div class="cf-side">${chief}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>${c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : ''}</div>`;
   }
 
   // ---------- the panel: the To-do (#692), or a team ----------
@@ -317,7 +319,7 @@
     const team = teamOpen && c.teams.find((t) => t.id === teamOpen);
     if (!team) teamOpen = null;
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
-    const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what'].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
+    const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what', ...(window.ProjectCards?.FIELDS || [])].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
       <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
       ${c.day ? lineHTML(c) : ''}
@@ -340,6 +342,7 @@
     });
     $('[data-cf-chief]', root).onclick = () => setView('chief');
     $('[data-cf-new]', root).onclick = () => newTeam(c);
+    window.ProjectCards?.wire(root); // the cards made by Claude (#775)
     Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));
     const waits = needs();

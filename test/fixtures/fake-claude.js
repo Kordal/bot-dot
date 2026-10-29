@@ -127,6 +127,23 @@ if (String(val('--system-prompt') || '').startsWith("You sort the owner's messag
   });
   return;
 }
+// The Chief's questions for a card on a project's board (lib/project-cards.js, #775), told by its own system prompt: no
+// run. It writes what it was asked to $FAKE_OUT/card-<n>.txt and answers $FAKE_OUT/card-questions.txt (or no
+// questions), or fails when $FAKE_OUT/card-fails exists.
+if (String(val('--system-prompt') || '').startsWith('You help a person put a small live card')) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `card-${at}.txt`), asked);
+    if (has('card-fails')) { console.error('overloaded'); process.exit(1); }
+    let answer = '{"title":"","questions":[],"apps":[]}';
+    try { answer = fs.readFileSync(path.join(OUT, 'card-questions.txt'), 'utf8'); } catch { /* none */ }
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: answer, session_id: `card-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+    process.exit(0);
+  });
+  return;
+}
 // The Chief's help with a company's setup (lib/company-chief.js, #670), told by its own system prompt: no run. It
 // writes what it was asked to $FAKE_OUT/company-<n>.txt and answers $FAKE_OUT/company.txt (or "No."), or fails when
 // $FAKE_OUT/company-fails exists.

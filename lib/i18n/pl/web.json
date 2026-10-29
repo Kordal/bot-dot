@@ -1696,5 +1696,12 @@
   "Delete the team {name}? Its bots stay.": "Usunąć zespół {name}? Jego boty zostają.",
   "Delete the project {name}? Its bots stay.": "Usunąć projekt {name}? Jego boty zostają.",
   "Keep its folder": "Zostaw jego folder",
-  "Delete its folder too": "Usuń też jego folder"
+  "Delete its folder too": "Usuń też jego folder",
+  "Starting": "Zaczynam",
+  "Searching {what}": "Szukam: {what}",
+  "Searching the web": "Szukam w sieci",
+  "Reading {what}": "Czytam {what}",
+  "Reading": "Czytam",
+  "Could not build it": "Nie udało się jej zbudować",
+  "New card": "Nowa karta"
 }

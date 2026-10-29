@@ -2123,6 +2123,89 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .ask-dim { position: fixed; inset: 0; z-index: 59; background: rgba(0, 0, 0, .55); }
 .nowrap { white-space: nowrap; }
 
+/* Cards made by Claude on a project's board (#775): a row of their own at the top of the floor, two to a row on a
+   phone and three on a wide floor; a table, the ask and the questions over two. */
+.pc-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-12); align-items: start; }
+.pc-card, .pc-new, .pc-ask, .pc-questions { position: relative; min-width: 0; border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); padding: var(--sp-16); }
+.pc-row .wide, .pc-row .tall { grid-column: 1 / -1; }
+.pc-card { display: flex; flex-direction: column; gap: var(--sp-8); min-height: 150px; transition: box-shadow var(--t2) var(--out), border-color var(--t2) var(--out); }
+.pc-card.fresh { border-color: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+.pc-head { position: relative; display: flex; align-items: center; gap: var(--sp-4); }
+.pc-title { flex: 1; min-width: 0; color: var(--muted); font-size: var(--fs-14); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-icon { width: 28px; height: 28px; color: var(--faint); }
+.pc-icon:hover { color: var(--text); }
+.pc-icon svg, .pc-menu svg, .pc-new svg, .pc-go svg, .pc-ask .icon-btn svg, .pc-qhead .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pc-icon[data-pc-menu] svg circle { fill: currentColor; stroke: none; }
+.pc-icon.spin svg { animation: btn-spin 1s linear infinite; }
+.pc-menu { position: absolute; top: 32px; right: 0; z-index: 5; display: grid; min-width: 160px; padding: var(--sp-4); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--shadow-lg); }
+.pc-menu button { display: flex; align-items: center; gap: var(--sp-12); padding: var(--sp-8) var(--sp-12); border: 0; border-radius: var(--r-8); background: transparent; color: var(--text); font-size: var(--fs-14); text-align: left; cursor: pointer; }
+.pc-menu button:hover { background: var(--fill); }
+.pc-menu .danger { color: var(--err); }
+.pc-big { display: flex; align-items: baseline; gap: var(--sp-8); min-width: 0; }
+.pc-big b { font-size: var(--fs-32); font-weight: 600; letter-spacing: -.02em; line-height: 1.1; white-space: nowrap; }
+.pc-sub { color: var(--faint); font-family: var(--mono); font-size: var(--fs-12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-sub.ok { color: var(--ok-text); }
+.pc-sub.bad { color: var(--err); }
+.pc-card .kit-spark { width: 100%; height: 48px; margin-top: auto; }
+.pc-bars { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--sp-8); align-items: end; height: 72px; margin-top: auto; }
+.pc-bar { display: grid; grid-template-rows: 1fr auto; gap: var(--sp-4); height: 100%; text-align: center; }
+.pc-bar i { align-self: end; display: block; border-radius: var(--r-8); background: var(--fill); }
+.pc-bar.last i { background: var(--ok); }
+.pc-bar small { color: var(--faint); font-family: var(--mono); font-size: var(--fs-12); }
+.pc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-4); }
+.pc-list li > *, .pc-list li { min-width: 0; }
+.pc-list li, .pc-list a { display: flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-14); color: var(--text); text-decoration: none; }
+.pc-list a:hover .pc-text { text-decoration: underline; }
+.pc-list .kit-pill { padding: 0 var(--sp-8); }
+.pc-list .kit-pill::before { display: none; }
+.pc-ref { color: var(--faint); font-family: var(--mono); font-size: var(--fs-12); }
+.pc-text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-table { width: 100%; border-collapse: collapse; font-size: var(--fs-14); }
+.pc-table td { padding: var(--sp-4) 0; border-top: 1px solid var(--line); }
+.pc-table tr:first-child td { border-top: 0; }
+.pc-table .num { text-align: right; padding-left: var(--sp-12); white-space: nowrap; }
+.pc-failed { color: var(--err); font-size: var(--fs-14); }
+.pc-failed.quiet { color: var(--faint); font-size: var(--fs-12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-shimmer { display: grid; gap: var(--sp-8); }
+.pc-shimmer i { display: block; height: 10px; border-radius: var(--r-8); background: linear-gradient(90deg, var(--fill) 0%, #2e2e2e 50%, var(--fill) 100%); background-size: 200% 100%; animation: pc-shimmer 1.4s linear infinite; }
+.pc-shimmer .w1 { width: 40%; height: 28px; }
+.pc-shimmer .w2 { width: 100%; }
+.pc-shimmer .w3 { width: 70%; }
+@keyframes pc-shimmer { to { background-position: -200% 0; } }
+.pc-step { display: flex; align-items: center; gap: var(--sp-8); margin-top: auto; font-size: var(--fs-14); min-width: 0; }
+.pc-step span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-progress { height: 3px; border-radius: var(--r-pill); background: var(--fill); overflow: hidden; }
+.pc-progress i { display: block; height: 100%; background: var(--ok); transition: width var(--t3) var(--out); }
+.pc-new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-8); min-height: 150px; border-style: dashed; background: transparent; box-shadow: none; color: var(--muted); font-size: var(--fs-14); cursor: pointer; }
+.pc-new:hover { color: var(--text); border-color: var(--muted); }
+.pc-ask { display: flex; align-items: center; gap: var(--sp-12); min-height: 150px; }
+.pc-ask input, .pc-other input { flex: 1; min-width: 0; height: 44px; padding: 0 var(--sp-16); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--sunk); box-shadow: var(--sink); color: var(--text); font-size: var(--fs-16); outline: none; }
+.pc-ask input:focus, .pc-other input:focus { border-color: var(--muted); }
+.pc-go { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border: 0; border-radius: 50%; background: var(--ink); color: var(--ink-text); cursor: pointer; }
+.pc-go:disabled { opacity: .5; }
+.pc-questions { display: grid; gap: var(--sp-12); }
+.pc-qhead { display: flex; align-items: center; gap: var(--sp-8); }
+.pc-qhead b { flex: 1; min-width: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-dashes { display: flex; gap: var(--sp-4); }
+.pc-dashes i { width: 18px; height: 3px; border-radius: var(--r-pill); background: var(--fill); }
+.pc-dashes i.done { background: var(--ok); }
+.pc-dashes i.now { background: var(--text); }
+.pc-saids { display: flex; flex-wrap: wrap; gap: var(--sp-8) var(--sp-16); }
+.pc-said { display: inline-flex; align-items: center; gap: var(--sp-8); color: var(--faint); font-size: var(--fs-14); }
+.pc-said .co-chip { min-height: 28px; padding: 0 var(--sp-12); background: var(--fill); border-color: transparent; cursor: default; }
+.pc-q { font-size: var(--fs-16); font-weight: 600; }
+.pc-choices { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.pc-other { display: flex; align-items: center; gap: var(--sp-8); }
+.pc-wait { display: flex; gap: var(--sp-4); padding: var(--sp-8) 0; }
+.pc-wait i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite; }
+.pc-wait i:nth-child(2) { animation-delay: .15s; }
+.pc-wait i:nth-child(3) { animation-delay: .3s; }
+@container company (min-width: 640px) {
+  .pc-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pc-row .tall { grid-column: auto; }
+  .pc-row .wide { grid-column: span 2; }
+}
+
 /* ---------- motion (#497, motion.js) ----------
    Every movement takes its time and curve from the tokens on :root, and moves only transform and opacity. What enters
    takes clicks from its first frame; what leaves (.m-leaving) stays where it was, out of the layout, and takes none. */
@@ -3033,3 +3116,4 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 @media (max-width: 479px) and (prefers-reduced-motion: no-preference) {
   .dock-panel.dock-in { animation: dock-up var(--t3) var(--out); }
 }
+
