@@ -552,6 +552,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun chiefJobs(): List<ChiefJob> = json.decodeFromString<ChiefJobList>(get("/chief/jobs")).jobs
     suspend fun setChiefJobOn(id: String, on: Boolean): ChiefJob = json.decodeFromString(send("PUT", "/chief/jobs/${enc(id)}", buildJsonObject { put("on", on) }))
     suspend fun removeChiefJob(id: String) { send("DELETE", "/chief/jobs/${enc(id)}") }
+    /** Runs one of them now: its message goes where its runs report (docs/api.md, "The Chief's own jobs"). */
+    suspend fun runChiefJob(id: String) { send("POST", "/chief/jobs/${enc(id)}/run") }
     suspend fun chiefGrants(kind: ChiefGrant.Kind): List<ChiefGrant> = ChiefGrant.of(kind, get(kind.path))
     suspend fun revokeChiefGrant(g: ChiefGrant): List<ChiefGrant> = ChiefGrant.of(g.kind, send("DELETE", g.kind.path, buildJsonObject { put(g.kind.key, g.id) }))
     /** Switches one of the checkup's two switches ([field]: "on" or "webSearch"); a refusal throws the server's words. */

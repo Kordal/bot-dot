@@ -54,9 +54,10 @@ test('web: a chat head has no line under the name, and a bot\'s keeps its other 
   assert.match(app, /if \(e\.defaultPrevented \|\| e\.isComposing/);
 });
 
-test('web: a new Chief chat is its head and the message box: no tagline and no example requests', () => {
+test('web: a new Chief chat is its head, its name and the message box: no tagline and no example requests', () => {
   const at = app.indexOf('async function showChat(id)');
   const empty = app.slice(at, app.indexOf('let chat;', at));
-  assert.match(empty, /thread\.innerHTML = `<div class="chief-empty">\$\{chiefFigure\('lg'\)\}<\/div>`;/);
-  assert.doesNotMatch(empty, /<h3>|<p |suggestion/);
+  // Its name under its head, as a bot's empty chat has (#727); its own jobs are chips under the box (empty-chat-web).
+  assert.match(empty, /thread\.innerHTML = `<div class="chief-empty">\$\{chiefFigure\('lg'\)\}<h3>\$\{esc\(chiefTitle\(\)\)\}<\/h3><\/div>`;/);
+  assert.doesNotMatch(empty, /<p |suggestion/);
 });

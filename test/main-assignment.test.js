@@ -142,7 +142,7 @@ test('the web page says "Main assignment", and its empty chat has no button to r
   const empty = app.slice(app.indexOf('<div class="chat-empty">', app.indexOf('function botThreadHTML(')), app.indexOf('let lastDay', app.indexOf('function botThreadHTML(')));
   assert.match(empty, /botFigure\(/);
   assert.match(empty, /<h3>\$\{esc\(bot\.name\)\}<\/h3>/);
-  assert.match(empty, /bot\.description/);
+  assert.doesNotMatch(empty, /bot\.description/, 'no tagline under its name (#727)');
   assert.doesNotMatch(empty, /<button|suggestion/);
 });
 

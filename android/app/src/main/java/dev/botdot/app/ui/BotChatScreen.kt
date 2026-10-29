@@ -49,6 +49,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ChatOrder
+import dev.botdot.app.data.EmptyChatJobs
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.GROUP_MAX
 import dev.botdot.app.data.RunEvent
@@ -155,6 +156,24 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
 
     // From the message box: a message that did not go comes back into it, with the line that says why.
     fun sendText(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments, replyTo = vm.replying?.runId) }
+    // An empty chat (#727): the box in the middle, under its head and name, and its jobs under it. Gone with the first message.
+    val empty = loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null && vm.queued.isEmpty()
+    @Composable fun box() = Composer(
+        placeholder = tr("Message"),
+        files = files,
+        busy = boxStops(running != null, features),
+        outbox = vm.outbox,
+        onSend = { text, attachments -> sendText(text, attachments) },
+        onStop = { vm.stop() },
+        onError = { scope.launch { snack.showSnackbar(it) } },
+        initialText = sharedText,
+        onSignIn = onSignIn.takeIf { signedOut },
+    )
+    // A job's chip: "Run now", the jobs screen's own.
+    fun runJob(jobId: String) = scope.launch {
+        val r = runCatching { app.api.value!!.runJob(botId, jobId) }
+        snack.showSnackbar(r.fold({ runNowSays(it) }, { it.message ?: tr("Couldn't start it") }))
+    }
     // Reply on a block (#627), against a botdot that takes it: the chip above the box names the block's first request.
     val replies = "reply-to" in features.orEmpty()
     // From a quick answer or a question card: whether it went. What was tapped stays until it did.
@@ -183,25 +202,18 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     if (jobs.isNotEmpty()) RoundButton(Icons.Filled.Schedule, tr("Scheduled jobs"), dot = jobs.any { it.waits }, onClick = onJobs)
                 }
             },
-            bottomBar = { Column {
+            bottomBar = { if (!empty) Column {
                 PlanDock(planView, bot?.color, bot?.name ?: tr("It"), planFolded,
                     onFold = { planFolded = it; app.plans.setFolded(chatKey, it) },
                     onDismiss = { planView?.let { app.plans.dismiss(it.id) }; planDismissed++ })
                 vm.replying?.let { ReplyChip(it.text) { vm.replying = null } }
-                Composer(
-                    placeholder = tr("Message"),
-                    files = files,
-                    busy = boxStops(running != null, features),
-                    outbox = vm.outbox,
-                    onSend = { text, attachments -> sendText(text, attachments) },
-                    onStop = { vm.stop() },
-                    onError = { scope.launch { snack.showSnackbar(it) } },
-                    initialText = sharedText,
-                    onSignIn = onSignIn.takeIf { signedOut },
-                )
+                box()
             } },
         ) { pad ->
-            LazyColumn(
+            if (empty) EmptyChat(pad, bot?.name.orEmpty(), EmptyChatJobs.botJobs(bot?.jobs.orEmpty()), onJob = { runJob(it) },
+                figure = { BotFigure(bot?.color, bot?.state ?: "idle", size = 56, outfit = bot?.outfit) },
+                top = { ChatNeeds(app, botId, onNeeds) }) { box() }
+            else LazyColumn(
                 Modifier.fillMaxSize(),
                 state = listState,
                 reverseLayout = true, // newest at the bottom, and the list starts there
@@ -231,12 +243,6 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     }
                 }
                 if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, tr("Notes waiting:"), foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }
-                if (loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null) item {
-                    // An empty chat: the bot's large head, with its hat and the face of its state, as on the web page (#636: no words).
-                    Column(Modifier.fillMaxWidth().padding(Space.s24), horizontalAlignment = Alignment.CenterHorizontally) {
-                        BotFigure(bot?.color, bot?.state ?: "idle", size = 56, outfit = bot?.outfit)
-                    }
-                }
                 // Each run is one block (#625), where its reply ended: below what came while its run worked (a "/btw",
                 // another run, #460), and a run at work at the bottom. A run that replies to another is a further round of
                 // its block (#627), which stands where its newest round's reply does.
