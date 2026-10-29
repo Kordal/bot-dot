@@ -954,7 +954,9 @@ function render() {
   if (state.view === 'connectors') renderConnectors();
   if (state.view === 'settings') renderSettings();
   if (state.view === 'setup') renderSetup();
-  if (typeof Company !== 'undefined') { if (state.view === 'company') Company.render(); else Company.drawSide(); }
+  // A bot's chat docked on the Projects screen (dock.js, #691) leaves the screen under it.
+  if (typeof Company !== 'undefined') { if (state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked())) Company.render(); else Company.drawSide(); }
+  if (typeof Dock !== 'undefined') Dock.draw();
   placeStatusLines();
   showNeeds();
   markMore();
