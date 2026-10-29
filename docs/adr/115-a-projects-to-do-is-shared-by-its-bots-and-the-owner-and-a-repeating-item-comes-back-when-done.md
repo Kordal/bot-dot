@@ -1,4 +1,4 @@
-# ADR-114: A project's to-do is shared by its bots and the owner, and a repeating item comes back when it is done
+# ADR-115: A project's to-do is shared by its bots and the owner, and a repeating item comes back when it is done
 
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#692](https://github.com/Kordal/bot-dot/issues/692), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
@@ -11,7 +11,7 @@ ADR 110 gave the company (the Projects place, spec #687) a list of the owner's t
 
 - **One list in the project record.** The `todos` of the company record stay where they are; an item gains `due` (a day), `repeat`, `by` (who added it), `doneAt` and `next`. Old items read as before.
 - **Who may do what.** The owner adds, assigns, dates, ticks and deletes. The Chief adds, assigns, dates and ticks through its tools (`add_project_todo`, `set_project_todo`, the routes in `CHIEF_ROUTES`), never deletes. A bot of one of the project's teams does the same through its own tools (`list_project_todos`, `add_project_todo`, `set_project_todo`) and may assign only the owner, itself or a bot of the project. A bot in no team has none of them.
-- **A bot sees its own open items in its turn**: the project, its team and up to ten open items, the earliest due first, printed inert. It is told to tick an item done when it finishes it. Only the owner's item for a bot that is due (or has no day) also starts the bot, as "@Bot task" did; the Chief's and the bots' items wait for the bot's next turn, so bots adding items for each other cannot start a chain of runs.
+- **A bot sees its own open items in its turn**, under the note of its project and team (ADR 114): its to-do tools and up to ten open items, the earliest due first, printed inert. It is told to tick an item done when it finishes it. Only the owner's item for a bot that is due (or has no day) also starts the bot, as "@Bot task" did; the Chief's and the bots' items wait for the bot's next turn, so bots adding items for each other cannot start a chain of runs.
 - **A repeating item makes its next one when it is ticked.** The next is due on the first day of its rhythm after both the day it was due and today: done late, it does not come back for the days it missed; done early, it is not due twice in one period. Every N days counts from the due day; a monthly item keeps its day and falls on the last day of a shorter month. Unticking takes the next one back while it is not done. Days are calendar days of the botdot machine, counted on the UTC calendar so that no clock change moves one.
 - **Bounded.** At most 200 items; over that the oldest done items go first, so a daily item never pushes out an open one.
 

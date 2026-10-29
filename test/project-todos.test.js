@@ -1,4 +1,4 @@
-// The project's to-do (#692, ADR 114): one list shared by the owner, the Chief and the bots of the project's teams.
+// The project's to-do (#692, ADR 115): one list shared by the owner, the Chief and the bots of the project's teams.
 // Each item has a text, who it is for (the owner or a bot), a due day and how it repeats; ticking a repeating item
 // makes the next one. The owner deletes; the Chief and the bots add, assign and tick.
 const { test, before, after } = require('node:test');
@@ -130,7 +130,8 @@ test("a bot of the project lists, adds, assigns and ticks with its tools, and se
   await srv.api('/company/todos', { method: 'POST', body: { text: 'Find five parents to interview', bot: a.id, due: '2099-01-05' } });
   const { rec, token } = await heldRun(srv, a, 'What is on your list?');
   assert.equal(rec.self.env.SELF_PROJECT, '1');
-  assert.match(rec.system, /You work on the owner's project "Fernhill", in its team "Growth"/);
+  assert.match(rec.system, /You lead team "Growth" in the owner's project "Fernhill"\./);
+  assert.match(rec.system, /The project has a to-do list shared by its bots/);
   assert.match(rec.system, /Your open to-dos:\n- \[\w+\] Find five parents to interview \(for Todo Lead, due 2099-01-05\)/);
 
   let r = (await self(srv, token, 'todos', { action: 'add', text: 'Book 5 demo calls', assignee: 'Todo Helper', repeat: { every: 'week', days: [2] } })).data;
