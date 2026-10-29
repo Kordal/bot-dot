@@ -59,6 +59,12 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await ps.locator('.ps-show').nth(1).waitFor();
     await ps.locator('[data-ps-objective-id="o1"][data-ps-display="bar"]').click();
     await until(async () => (await get('p1')).objectives[0].display === 'bar', 'show as');
+    // A number read from an app (#699): weekly, then stopped.
+    await srv.api('/company/objectives/o1?project=p1', { method: 'PUT', body: { source: { app: 'stripe', what: 'active subscriptions' } } });
+    await ps.locator('[data-ps-objective-id="o1"][data-ps-every="weekly"]').click();
+    await until(async () => (await get('p1')).objectives[0].source?.every === 'weekly', 'weekly source');
+    await ps.locator('[data-ps-source-stop="o1"]').click();
+    await until(async () => !(await get('p1')).objectives[0].source, 'source stopped');
     await ps.locator('[data-ps-never-form] input').fill('Email customers');
     await ps.locator('[data-ps-never-form] input').press('Enter');
     await until(async () => (await get('p1')).never.join('|') === 'Spend money|Email customers', 'rule');

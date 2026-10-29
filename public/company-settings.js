@@ -16,6 +16,7 @@
   const RHYTHMS = [['', () => tr('Off')], ['daily', () => tr('Daily')], ['twice-weekly', () => tr('Twice a week')], ['weekly', () => tr('Weekly')]];
   // How the floor draws an objective (#690, company-floor.js displayOf): lib/company.js DISPLAYS.
   const DISPLAYS = [['pace', () => tr('Pace chart')], ['bar', () => tr('Bar')], ['status', () => tr('Status')]];
+  const EVERY = [['daily', () => tr('Daily')], ['weekly', () => tr('Weekly')]];
   const DECIDED = { keep: () => tr('Keep going'), change: () => tr('Change direction'), stop: () => tr('Stop') };
   // The team being edited: its id, 'new' for a new one, or null; and what its editor holds.
   let editing = null;
@@ -61,8 +62,12 @@
     const show = c.objectives.length && typeof CompanyFloor !== 'undefined' && CompanyFloor.displayOf
       ? row(tr('Show as'), c.objectives.map((o) => `<div class="ps-show" style="--c:${esc(o.color)}">${many ? `<span class="ps-show-name"><i class="ps-dot"></i>${esc(o.name)}</span>` : ''}${seg('data-ps-display', DISPLAYS, CompanyFloor.displayOf(o), ` data-ps-objective-id="${esc(o.id)}"`)}</div>`).join(''), many ? 'top' : '')
       : '';
+    // Where a number comes from (#699): each objective read from a connected app, how often, and Stop updating.
+    // A source is added from the goal card, where the connected apps are listed.
+    const fed = c.objectives.filter((o) => o.source);
+    const sources = fed.length ? row(tr('Update from an app'), fed.map((o) => `<div class="ps-show" style="--c:${esc(o.color)}"><span class="ps-show-name"><i class="ps-dot"></i>${esc(`${o.name} · ${o.source.app} · ${o.source.what}`)}</span>${seg('data-ps-every', EVERY, o.source.every || 'daily', ` data-ps-objective-id="${esc(o.id)}"`)}<button type="button" class="btn sm" data-ps-source-stop="${esc(o.id)}">${tr('Stop updating')}</button></div>`).join(''), 'top') : '';
     return section('goal', tr('Goal'), row(tr('Goal'), field('goal', c.goal, 300, tr('Goal')))
-      + row(tr('Objectives'), objectives, 'top') + show
+      + row(tr('Objectives'), objectives, 'top') + show + sources
       + (c.phase === 'running' ? row(tr('Start'), `<input class="ps-input ps-date" type="date" data-ps-startday value="${esc(started)}" aria-label="${tr('Start')}" />`) + row(tr('Check-ins'), checkins) : ''));
   }
 
@@ -170,6 +175,9 @@
     const objForm = $('[data-ps-objective-form]', root);
     if (objForm) objForm.onsubmit = (e) => { e.preventDefault(); const name = objForm.text.value.trim(); added(objForm.text, '[data-ps-objective-form] input'); if (name) patch({ objectives: [...c.objectives, { name, current: 0, target: 0 }] }); };
     $$('[data-ps-display]', root).forEach((b) => (b.onclick = () => call(`/company/objectives/${encodeURIComponent(b.dataset.psObjectiveId)}`, 'PUT', { display: b.dataset.psDisplay })));
+    const objective = (id, body) => call(`/company/objectives/${encodeURIComponent(id)}`, 'PUT', body);
+    $$('[data-ps-every]', root).forEach((b) => (b.onclick = () => { const o = c.objectives.find((x) => x.id === b.dataset.psObjectiveId); if (o?.source) objective(o.id, { source: { app: o.source.app, what: o.source.what, every: b.dataset.psEvery } }); }));
+    $$('[data-ps-source-stop]', root).forEach((b) => (b.onclick = () => objective(b.dataset.psSourceStop, { source: null })));
     const startDay = $('[data-ps-startday]', root);
     if (startDay) startDay.onchange = () => { if (startDay.value) patch({ startDay: startDay.value }); };
     // Teams.
