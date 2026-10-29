@@ -1,6 +1,6 @@
 // Project settings (#701): the gear beside a project's name opens them, from a server with `project-settings`. One
 // page of rows, each a label and the field that changes it, saved as it is changed: General (name, colour, the site or
-// idea it started from, its sources), Goal (the goal, the objectives, the day its 90 days start, the check-ins), Team
+// idea it started from, its sources), Goal (the goal, the objectives and how each is shown, the day its 90 days start, the check-ins), Team
 // (each team's name, bots and lead; a new team), Reports (each lead's rhythm, the morning standup), Rules (what the
 // team never does without asking, the owner's time) and Archive or delete. A wide window has the sections listed on
 // the left; a phone has them as a row of tabs. A change from elsewhere (the Chief, another window) shows at once,
@@ -14,12 +14,16 @@
   const COLORS = ['#ff6b35', '#34c759', '#3aa0ff', '#8e7cff', '#ffb020', '#ff5c8a', '#2ec4b6', '#b07cff'];
   const SECTIONS = [['general', () => tr('General')], ['goal', () => tr('Goal')], ['team', () => tr('Team')], ['reports', () => tr('Reports')], ['rules', () => tr('Rules')], ['archive', () => tr('Archive or delete')]];
   const RHYTHMS = [['', () => tr('Off')], ['daily', () => tr('Daily')], ['twice-weekly', () => tr('Twice a week')], ['weekly', () => tr('Weekly')]];
+  // How the floor draws an objective (#690, company-floor.js displayOf): lib/company.js DISPLAYS.
+  const DISPLAYS = [['pace', () => tr('Pace chart')], ['bar', () => tr('Bar')], ['status', () => tr('Status')]];
   const DECIDED = { keep: () => tr('Keep going'), change: () => tr('Change direction'), stop: () => tr('Stop') };
   // The team being edited: its id, 'new' for a new one, or null; and what its editor holds.
   let editing = null;
   let draft = null;
   // A change that came while a field had the focus: drawn once it loses it.
   let pending = false;
+  // The add field to give the focus back to once the page is drawn again (adding several in a row).
+  let refocus = null;
 
   const row = (label, value, cls = '') => `<div class="ps-row${cls ? ` ${cls}` : ''}"><span class="ps-label">${label}</span><div class="ps-value">${value}</div></div>`;
   const section = (key, title, body, cls = '') => `<section class="ps-card${cls ? ` ${cls}` : ''}" id="ps-${key}" data-ps-section="${key}"><h2>${title}</h2>${body}</section>`;
@@ -27,7 +31,7 @@
   const field = (name, value, max, extra = '') => `<input class="ps-input" data-ps-field="${name}" value="${esc(value || '')}" maxlength="${max}" autocomplete="off" aria-label="${esc(extra)}" />`;
   const seg = (attr, list, on, extra = '') => `<div class="ps-seg" role="group">${list.map(([v, label]) => `<button type="button"${extra} ${attr}="${esc(v)}" aria-pressed="${v === on}" class="${v === on ? 'on' : ''}">${label()}</button>`).join('')}</div>`;
   // A field of the page has the focus: drawing it again would take what is being typed.
-  const typing = (root) => { const el = document.activeElement; return !!el && root.contains(el) && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName); };
+  const typing = (root) => { const el = document.activeElement; return !!el && root.contains(el) && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && !['checkbox', 'radio'].includes(el.type); };
   const face = (b) => `<span class="ps-face">${botFigure(colorOf(b), b.state, 'sm', outfitOf(b))}</span>`;
 
   function generalHTML(c) {
@@ -53,8 +57,12 @@
       const k = c.checkins.find((x) => x.day === d);
       return `<span class="ps-chip${k ? ` ${k.decision}` : ''}${c.checkin?.day === d ? ' due' : ''}"${k ? ` title="${esc(DECIDED[k.decision]())}"` : ''}>${tr('Day {n}', { n: d })}</span>`;
     }).join('')}</div>`;
+    const many = c.objectives.length > 1;
+    const show = c.objectives.length && typeof CompanyFloor !== 'undefined' && CompanyFloor.displayOf
+      ? row(tr('Show as'), c.objectives.map((o) => `<div class="ps-show" style="--c:${esc(o.color)}">${many ? `<span class="ps-show-name"><i class="ps-dot"></i>${esc(o.name)}</span>` : ''}${seg('data-ps-display', DISPLAYS, CompanyFloor.displayOf(o), ` data-ps-objective-id="${esc(o.id)}"`)}</div>`).join(''), many ? 'top' : '')
+      : '';
     return section('goal', tr('Goal'), row(tr('Goal'), field('goal', c.goal, 300, tr('Goal')))
-      + row(tr('Objectives'), objectives, 'top')
+      + row(tr('Objectives'), objectives, 'top') + show
       + (c.phase === 'running' ? row(tr('Start'), `<input class="ps-input ps-date" type="date" data-ps-startday value="${esc(started)}" aria-label="${tr('Start')}" />`) + row(tr('Check-ins'), checkins) : ''));
   }
 
@@ -110,6 +118,7 @@
     const main = $('.ps-main', root);
     if (main) main.scrollTop = scroll;
     wire(root, c);
+    if (refocus) { $(refocus, root)?.focus(); refocus = null; }
   }
 
   // ---------- saving ----------
@@ -147,17 +156,20 @@
     files.onchange = () => { upload([...files.files], c); files.value = ''; };
     const linkForm = $('[data-ps-link-form]', root);
     $('[data-ps-add-link]', root).onclick = () => { linkForm.classList.remove('hidden'); linkForm.url.focus(); };
+    // An add field gives up the focus as it saves, so the page is drawn with what it added, and takes it back after.
+    const added = (input, sel) => { input.value = ''; refocus = sel; input.blur(); };
     linkForm.onsubmit = (e) => {
       e.preventDefault();
       const url = linkForm.url.value.trim();
-      linkForm.url.value = '';
+      added(linkForm.url, '[data-ps-link-form] input');
       if (url) patch({ sources: [...c.sources, { kind: 'link', url, name: url.replace(/^https?:\/\//i, '') }] });
     };
     // Objectives.
     $$('[data-ps-o]', root).forEach((el) => { enter(el); el.onchange = () => patch({ objectives: objectivesFrom(root, c) }); });
     $$('[data-ps-unobjective]', root).forEach((b) => (b.onclick = () => patch({ objectives: c.objectives.filter((o) => o.id !== b.dataset.psUnobjective) })));
     const objForm = $('[data-ps-objective-form]', root);
-    if (objForm) objForm.onsubmit = (e) => { e.preventDefault(); const name = objForm.text.value.trim(); objForm.text.value = ''; if (name) patch({ objectives: [...c.objectives, { name, current: 0, target: 0 }] }); };
+    if (objForm) objForm.onsubmit = (e) => { e.preventDefault(); const name = objForm.text.value.trim(); added(objForm.text, '[data-ps-objective-form] input'); if (name) patch({ objectives: [...c.objectives, { name, current: 0, target: 0 }] }); };
+    $$('[data-ps-display]', root).forEach((b) => (b.onclick = () => call(`/company/objectives/${encodeURIComponent(b.dataset.psObjectiveId)}`, 'PUT', { display: b.dataset.psDisplay })));
     const startDay = $('[data-ps-startday]', root);
     if (startDay) startDay.onchange = () => { if (startDay.value) patch({ startDay: startDay.value }); };
     // Teams.
@@ -201,7 +213,7 @@
     // Rules.
     $$('[data-ps-unnever]', root).forEach((b) => (b.onclick = () => patch({ never: c.never.filter((_, i) => i !== Number(b.dataset.psUnnever)) })));
     const neverForm = $('[data-ps-never-form]', root);
-    if (neverForm) neverForm.onsubmit = (e) => { e.preventDefault(); const t = neverForm.text.value.trim(); neverForm.text.value = ''; if (t) patch({ never: [...c.never, t] }); };
+    if (neverForm) neverForm.onsubmit = (e) => { e.preventDefault(); const t = neverForm.text.value.trim(); added(neverForm.text, '[data-ps-never-form] input'); if (t) patch({ never: [...c.never, t] }); };
     // Archive or delete.
     $('[data-ps-archive]', root).onclick = () => patch({ archived: !c.archived });
     $('[data-ps-delete]', root).onclick = async () => {

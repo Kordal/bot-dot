@@ -54,6 +54,11 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await ps.locator('[data-ps-objective-form] input').fill('Paying teams');
     await ps.locator('[data-ps-objective-form] input').press('Enter');
     await until(async () => (await get('p1')).objectives.length === 2, 'new objective');
+    // Show as, per objective (#690).
+    await ps.locator('[data-ps-objective]').nth(1).waitFor();
+    await ps.locator('.ps-show').nth(1).waitFor();
+    await ps.locator('[data-ps-objective-id="o1"][data-ps-display="bar"]').click();
+    await until(async () => (await get('p1')).objectives[0].display === 'bar', 'show as');
     await ps.locator('[data-ps-never-form] input').fill('Email customers');
     await ps.locator('[data-ps-never-form] input').press('Enter');
     await until(async () => (await get('p1')).never.join('|') === 'Spend money|Email customers', 'rule');
@@ -68,6 +73,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await ps.locator('[data-ps-lead]').selectOption(b.id);
     await ps.locator('[data-ps-save-team]').click();
     await until(async () => { const t = (await get('p1')).teams[0]; return t.name === 'Growth' && t.lead === b.id; }, 'team');
+    await ps.locator('.ps-team .ps-label', { hasText: 'Growth' }).waitFor(); // the page has the save's own answer
     // A change from elsewhere shows at once.
     await srv.api('/company?project=p1', { method: 'PATCH', body: { goal: 'Reach 200 active users' } });
     await until(async () => (await ps.locator('[data-ps-field="goal"]').inputValue()) === 'Reach 200 active users', 'live goal');

@@ -2929,6 +2929,8 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .ps-seg { display: inline-flex; flex-wrap: wrap; padding: var(--sp-4); gap: var(--sp-4); border: 1px solid var(--line-2); border-radius: var(--r-14); }
 .ps-seg button { font: inherit; font-size: var(--fs-14); padding: var(--sp-4) var(--sp-12); border: 0; border-radius: var(--r-8); background: transparent; color: var(--muted); cursor: pointer; }
 .ps-seg button.on { background: var(--sunk); color: var(--text); }
+.ps-show { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--sp-8); }
+.ps-show-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ps-team .ps-label { color: var(--text); }
 .ps-faces { display: flex; }
 .ps-face-wrap { position: relative; margin-left: calc(-1 * var(--sp-4)); }
