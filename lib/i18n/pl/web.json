@@ -1632,5 +1632,22 @@
   "Reports": "Raporty",
   "Daily": "Codziennie",
   "Twice a week": "Dwa razy w tygodniu",
-  "Weekly": "Co tydzień"
+  "Weekly": "Co tydzień",
+  "Monthly": "Co miesiąc",
+  "Every {n} days": "Co {n} dni",
+  "Tomorrow": "Jutro",
+  "Days": "Dni",
+  "Due": "Termin",
+  "To-do": "Do zrobienia",
+  "Chats": "Czaty",
+  "Taller or lower": "Wyżej lub niżej",
+  "{n} more chats": {
+    "one": "Jeszcze {n} czat",
+    "few": "Jeszcze {n} czaty",
+    "many": "Jeszcze {n} czatów"
+  },
+  "Minimize": "Zwiń",
+  "Decisions": "Decyzje",
+  "Add a decision": "Dodaj decyzję",
+  "Remove": "Usuń"
 }

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -78,7 +77,7 @@ fun PagesScreen(app: BotDotApp, onBack: () -> Unit) {
     ) { pad ->
         val list = pages
         val (kept, other) = Pages.split(list.orEmpty())
-        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             error?.let { e -> item { Text(e, color = p.err) } }
             if (list != null && list.isEmpty()) item { Hint(tr("No pages yet. Ask a bot for a page, a report or an overview: it shows here, and under the bot's reply.")) }
             if (kept.isNotEmpty()) {
@@ -95,17 +94,17 @@ fun PagesScreen(app: BotDotApp, onBack: () -> Unit) {
 
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text.uppercase(), color = LocalPaper.current.muted, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp, start = 4.dp))
+    Text(text.uppercase(), color = LocalPaper.current.muted, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = Space.s8, start = Space.s4))
 }
 
 @Composable
 private fun PageRow(page: PageInfo, board: ((PageInfo, Boolean) -> Unit)?) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().background(p.panel, RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp))
-        .clickable { DocViewer.open = DocViewer.page(page.botId, PageRef(page.slug, page.title), page.bot) }.padding(12.dp),
+    Row(Modifier.fillMaxWidth().background(p.panel, Radius.card).border(1.dp, p.line, Radius.card)
+        .clickable { DocViewer.open = DocViewer.page(page.botId, PageRef(page.slug, page.title), page.bot) }.padding(Space.s12),
         verticalAlignment = Alignment.CenterVertically) {
         Text("📄", style = MaterialTheme.typography.titleMedium)
-        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+        Column(Modifier.weight(1f).padding(start = Space.s12)) {
             Text(page.title, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(Pages.allLine(page), color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

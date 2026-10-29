@@ -105,10 +105,10 @@ fun BoatScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                         awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { c -> c.consume() } }
                     })
                 }
-                error != null -> Text(error.orEmpty(), color = Color.White, modifier = Modifier.padding(24.dp))
+                error != null -> Text(error.orEmpty(), color = Color.White, modifier = Modifier.padding(Space.s24))
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = Color.White)
-                    Text(tr("Starting…"), color = Color.White, modifier = Modifier.padding(top = 12.dp))
+                    Text(tr("Starting…"), color = Color.White, modifier = Modifier.padding(top = Space.s12))
                 }
             }
         }

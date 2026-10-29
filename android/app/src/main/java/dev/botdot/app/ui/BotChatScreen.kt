@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -48,7 +47,6 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ChatOrder
 import dev.botdot.app.data.Bot
@@ -208,8 +206,8 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                 state = listState,
                 reverseLayout = true, // newest at the bottom, and the list starts there
                 // The top bar and the message box float over the messages, which scroll behind them.
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = pad.calculateTopPadding() + 4.dp, bottom = pad.calculateBottomPadding() + 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom), // few messages: at the bottom, by the message box
+                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
+                verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom), // few messages: at the bottom, by the message box
             ) {
                 // Last in the chat: the one line of a working bot (the server's words for what it is doing, "Working…", or "Waiting for your OK" while its
                 // run waits for it), then your messages that wait for it, then what it waits for your OK on (as on the web page).
@@ -235,7 +233,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                 if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, tr("Notes waiting:"), foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }
                 if (loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null) item {
                     // An empty chat: the bot's large head, with its hat and the face of its state, as on the web page (#636: no words).
-                    Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.fillMaxWidth().padding(Space.s24), horizontalAlignment = Alignment.CenterHorizontally) {
                         BotFigure(bot?.color, bot?.state ?: "idle", size = 56, outfit = bot?.outfit)
                     }
                 }
@@ -276,7 +274,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                             }
                             // Its reply, once the run ended: it arrives when it is new in this open chat, and what
                             // started the run stands still above it. A run at work has no reply to arrive.
-                            if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(8.dp)) { theirs() }
+                            if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(Space.s8)) { theirs() }
                             if (!steps) BlockFoot(r) { vm.stop(r.id) }
                         }
                     }
@@ -336,7 +334,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
         TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole, plain = true) {
             Column {
                 MarkdownText((if (folded != null && !more) folded else r.result.orEmpty()).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) tr("Done.") else "" })
-                if (folded != null && !more) Text(tr("More"), color = p.muted, fontSize = 13.sp, modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { more = true }.padding(top = 8.dp, bottom = 4.dp))
+                if (folded != null && !more) Text(tr("More"), color = p.muted, fontSize = Type.s14, modifier = Modifier.clip(Radius.small).clickable { more = true }.padding(top = Space.s8, bottom = Space.s4))
                 OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect); PlanFold(plan)
             }
         }
@@ -410,19 +408,19 @@ private fun ExchangeFold(r: Run, to: List<SentTo>, footer: String, startOpen: Bo
         val peek = foldPeek(r.result)
         if (!open && peek.isNotEmpty()) withStyle(SpanStyle(color = p.faint)) { append("  $peek") }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FigureText(label, color = p.muted, fontSize = 13.5.sp, maxLines = 1,
-            modifier = Modifier.padding(end = 32.dp).clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        FigureText(label, color = p.muted, fontSize = Type.s14, maxLines = 1,
+            modifier = Modifier.padding(end = Space.s32).clip(Radius.small).clickable { open = !open }.padding(horizontal = Space.s8, vertical = Space.s4))
         Unfold(open) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 messages.forEach { t ->
-                    FigureText(buildAnnotatedString { append(tr("To") + " "); bot(named(w?.bot(t.id), t.name, t.color)) }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                    FigureText(buildAnnotatedString { append(tr("To") + " "); bot(named(w?.bot(t.id), t.name, t.color)) }, color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s8))
                     TheirBubble(null, copyText = t.text) { MarkdownText(t.text.orEmpty()) }
                 }
                 reply()
             }
         }
-        if (!open && footer.isNotBlank()) Text(footer, color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+        if (!open && footer.isNotBlank()) Text(footer, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(start = Space.s8))
     }
 }
 
@@ -439,24 +437,24 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
     // A job's call the wake gate held (ADR 083) is named by its job, without a head.
     val label: androidx.compose.ui.text.AnnotatedString.Builder.(InboxNote) -> Unit = { n -> if (n.call) append("⏰ ${n.from}") else bot(whoOf(n)) }
     val who = notes.distinctBy { it.from }
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FigureText(buildAnnotatedString { append("$heading "); who.forEachIndexed { i, n -> if (i > 0) append(", "); label(n) }; append(if (open) " ⌄" else " ›") }, color = p.muted, fontSize = 13.5.sp,
-            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
-        Unfold(open) { Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) { notes.forEach { n ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                FigureText(buildAnnotatedString { label(n); n.at?.let { append(" · ${shortTime(it)}") } }, color = p.muted, fontSize = 13.5.sp, modifier = Modifier.padding(horizontal = 6.dp))
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        FigureText(buildAnnotatedString { append("$heading "); who.forEachIndexed { i, n -> if (i > 0) append(", "); label(n) }; append(if (open) " ⌄" else " ›") }, color = p.muted, fontSize = Type.s14,
+            modifier = Modifier.clip(Radius.small).clickable { open = !open }.padding(horizontal = Space.s8, vertical = Space.s4))
+        Unfold(open) { Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) { notes.forEach { n ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                FigureText(buildAnnotatedString { label(n); n.at?.let { append(" · ${shortTime(it)}") } }, color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(horizontal = Space.s8))
                 if (n.later) LaterPill()
             }
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(n.text), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(start = 48.dp).clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).holdToCopy(n.text).background(p.sunk)
-                    .border(1.dp, p.line2, RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).padding(horizontal = 14.dp, vertical = 10.dp))
+                modifier = Modifier.padding(start = Space.s48).clip(Radius.mine).holdToCopy(n.text).background(p.sunk)
+                    .border(1.dp, p.line2, Radius.mine).padding(horizontal = Space.s16, vertical = Space.s12))
         } } }
         // Under the notes that wait (#225): how long the oldest has waited, and "Run now", which starts the bot with them.
-        if (foot.isNotEmpty() || onRunNow != null) Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (foot.isNotEmpty()) Text(foot, color = p.faint, fontSize = 12.sp)
+        if (foot.isNotEmpty() || onRunNow != null) Row(Modifier.padding(horizontal = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            if (foot.isNotEmpty()) Text(foot, color = p.faint, fontSize = Type.s12)
             if (notes.any { it.later }) LaterPill()
-            if (onRunNow != null) Text(tr("Run now"), color = p.muted, fontSize = 12.sp, fontWeight = FontWeight.Medium,
-                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable(onClick = onRunNow).padding(horizontal = 4.dp, vertical = 2.dp))
+            if (onRunNow != null) Text(tr("Run now"), color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Medium,
+                modifier = Modifier.clip(Radius.small).clickable(onClick = onRunNow).padding(horizontal = Space.s4, vertical = Space.s4))
         }
     }
 }
@@ -465,7 +463,7 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
 @Composable
 private fun LaterPill() {
     val p = LocalPaper.current
-    Text(tr("Later"), color = p.muted, fontSize = 11.5.sp, modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(p.sunk).padding(horizontal = 8.dp, vertical = 1.dp))
+    Text(tr("Later"), color = p.muted, fontSize = Type.s12, modifier = Modifier.clip(Radius.pill).background(p.sunk).padding(horizontal = Space.s8, vertical = 1.dp))
 }
 
 /** A run started by another bot's message or a Chief task: one folded line, "Message from Fleet Doctor" (with its small head), that opens to what it said. */
@@ -473,7 +471,7 @@ private fun LaterPill() {
 private fun FromBotBubble(r: Run, startOpen: Boolean = false) {
     val p = LocalPaper.current
     var open by remember(r.id, startOpen) { mutableStateOf(startOpen) }
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         val w = LocalMentions.current
         val chief = chiefNamed()
         val line = buildAnnotatedString {
@@ -487,10 +485,10 @@ private fun FromBotBubble(r: Run, startOpen: Boolean = false) {
             val peek = foldPeek(r.prompt)
             if (!open && peek.isNotEmpty()) withStyle(SpanStyle(color = p.faint)) { append("  $peek") }
         }
-        FigureText(line, color = p.muted, fontSize = 13.5.sp, maxLines = 1,
-            modifier = Modifier.padding(start = 48.dp).clip(RoundedCornerShape(8.dp)).clickable { open = !open }.padding(horizontal = 6.dp, vertical = 2.dp))
-        Unfold(open) { Column(Modifier.padding(start = 48.dp).clip(RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).holdToCopy(r.prompt).background(p.sunk)
-                .border(1.dp, p.line2, RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)).padding(horizontal = 14.dp, vertical = 10.dp)) {
+        FigureText(line, color = p.muted, fontSize = Type.s14, maxLines = 1,
+            modifier = Modifier.padding(start = Space.s48).clip(Radius.small).clickable { open = !open }.padding(horizontal = Space.s8, vertical = Space.s4))
+        Unfold(open) { Column(Modifier.padding(start = Space.s48).clip(Radius.mine).holdToCopy(r.prompt).background(p.sunk)
+                .border(1.dp, p.line2, Radius.mine).padding(horizontal = Space.s16, vertical = Space.s12)) {
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(r.prompt), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge)
             if (!r.attachments.isNullOrEmpty()) FilesRow(r.attachments, onDark = false)
         } }

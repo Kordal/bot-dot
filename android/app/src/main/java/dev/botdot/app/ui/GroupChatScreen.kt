@@ -40,7 +40,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -406,8 +405,8 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                 Modifier.fillMaxSize(),
                 state = listState,
                 reverseLayout = true, // newest at the bottom, and the list starts there
-                contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = pad.calculateTopPadding() + 4.dp, bottom = pad.calculateBottomPadding() + 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
+                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
+                verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom),
             ) {
                 // Last in the chat: the stopped line with "Go on", one line per member at work with one "Stop all", the
                 // messages that wait, and what the group waits for the owner's OK on.
@@ -427,7 +426,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                         }
                         // Who is next: the members whose turn has not come, also between two turns, when no line stands.
                         NextHeads(Groups.heads(next, bots))
-                        if (waiting.isNotEmpty()) Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        if (waiting.isNotEmpty()) Column(Modifier.fillMaxWidth().padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                             waiting.forEach { m -> androidx.compose.runtime.key(m.id) { WaitingMessage(m.text, m.attachments, waitsWords(m, bots)) { vm.takeBack(m) } } }
                         }
                         if (sent != null && vm.working.isNotEmpty()) SentBubble(sent, above = false, sentArrives)
@@ -435,7 +434,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                     }
                 }
                 if (vm.loaded && vm.rows.isEmpty() && vm.sent == null) item {
-                    Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(Space.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                         GroupPicture(members, 72)
                         Text(group?.name.orEmpty(), color = p.text, style = MaterialTheme.typography.titleMedium)
                         Text(emptyGroupWords(members.map { it.name }), color = p.muted, textAlign = TextAlign.Center)
@@ -446,9 +445,9 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                         is GroupItem.Message -> Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
                             MyBubble(x.message.text, x.message.attachments)
                             // Its first turns went, and it still waits for a busy member: for whom.
-                            waitsLine(x.message, bots).let { if (it.isNotEmpty()) Text(it, color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp, end = 6.dp)) }
+                            waitsLine(x.message, bots).let { if (it.isNotEmpty()) Text(it, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4, end = Space.s8)) }
                         }
-                        is GroupItem.Reply -> Column(Modifier.arrives(arrivals, x.id), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        is GroupItem.Reply -> Column(Modifier.arrives(arrivals, x.id), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                             val bot = bots.firstOrNull { it.id == x.run.botId }
                             if (x.id == vm.newFirst) NewLine(memberColor(bots, x.run.botId, x.run.botColor))
                             // The answer buttons of the group's open question stand under the reply that asked: an
@@ -466,11 +465,11 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
 @Composable
 private fun GroupDraft(text: String, bot: Bot?, name: String, color: String?) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.padding(top = 18.dp)) { BotFigure(color, "working", 28, bot?.outfit) }
+    Row(Modifier.fillMaxWidth().padding(bottom = Space.s12), verticalAlignment = Alignment.Top) {
+        Box(Modifier.padding(top = Space.s16)) { BotFigure(color, "working", 28, bot?.outfit) }
         Spacer(Modifier.size(6.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(name, color = parseColor(color, p.muted), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+            Text(name, color = parseColor(color, p.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
             TheirBubble { MarkdownText(draftSource(text), copy = false) }
         }
     }
@@ -480,8 +479,8 @@ private fun GroupDraft(text: String, bot: Bot?, name: String, color: String?) {
 @Composable
 private fun StoppedLine(text: String, onGoOn: () -> Unit) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(text, color = p.muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
+    Row(Modifier.fillMaxWidth().padding(vertical = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+        Text(text, color = p.muted, fontSize = Type.s14, lineHeight = Type.line20, modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
         OutlinedButton(onClick = onGoOn) { Text(tr("Go on"), color = p.text) }
     }
 }
@@ -495,8 +494,8 @@ private fun StoppedLine(text: String, onGoOn: () -> Unit) {
 private fun NextHeads(heads: List<Bot>) {
     if (heads.isEmpty()) return
     val words = nextWords(heads.map { it.name })
-    Row(Modifier.padding(start = 2.dp, top = 6.dp, bottom = 6.dp).semantics(mergeDescendants = true) { contentDescription = words },
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.padding(start = Space.s4, top = Space.s8, bottom = Space.s8).semantics(mergeDescendants = true) { contentDescription = words },
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
         heads.forEach { SmallFigure(it.color, it.outfit, 16.dp) }
     }
 }
@@ -514,10 +513,10 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
     val whole = announces(features, MEMORY_CHIPS)
     val learned: List<Pair<CharSequence, (() -> Unit)?>> = r.learned.orEmpty().map { it.line(features) to null }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Box(Modifier.padding(top = 18.dp)) { BotFigure(color, if (r.status == "error") "failed" else "idle", 28, bot?.outfit) }
+        Box(Modifier.padding(top = Space.s16)) { BotFigure(color, if (r.status == "error") "failed" else "idle", 28, bot?.outfit) }
         Spacer(Modifier.size(6.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(bot?.name ?: r.botName.ifBlank { tr("A bot") }, color = parseColor(color, p.muted), fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+            Text(bot?.name ?: r.botName.ifBlank { tr("A bot") }, color = parseColor(color, p.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
             when (r.status) {
                 "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
                     // A path in its reply opens in the viewer (#251), from its own folder or the computer.

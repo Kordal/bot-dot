@@ -3,7 +3,6 @@ package dev.botdot.app.ui
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.int
@@ -82,7 +81,7 @@ class MarkdownTest {
     }
 
     @Test fun aTitleIsLargerThanTheTextAndStandsOffFromWhatIsAboveIt() {
-        assertEquals(listOf(20.sp, 18.sp, 16.5.sp, 15.sp), (1..4).map { headingSize(it) })
+        assertEquals(listOf(Type.s20, Type.s16, Type.s16, Type.s16), (1..4).map { headingSize(it) })
         val title = Block.Heading(2, "Title"); val text = Block.Para("Text"); val item = Block.Item("a", null, 0)
         assertEquals(0.dp, gapAbove(null, title))
         assertEquals(16.dp, gapAbove(text, title))

@@ -1,4 +1,4 @@
-# ADR-115: A lead is started on its team's plan items and reports at the owner's rhythm
+# ADR-116: A lead is started on its team's plan items and reports at the owner's rhythm
 
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#696](https://github.com/Kordal/bot-dot/issues/696), spec [#687](https://github.com/Kordal/bot-dot/issues/687)

@@ -74,14 +74,14 @@ fun UsageSection(api: Api) {
     }
 
     FoldSection(tr("Usage")) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Usage.Preset.entries.forEach { option ->
                 if (option == preset) Button(onClick = { pick(option) }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(option.label) }
                 else OutlinedButton(onClick = { pick(option) }) { Text(option.label, color = p.text) }
             }
         }
         if (preset == Usage.Preset.CUSTOM) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(from, { from = it.trim(); changed = "from" }, label = { Text(tr("From")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false), modifier = Modifier.weight(1f))
                 OutlinedTextField(to, { to = it.trim(); changed = "to" }, label = { Text(tr("To")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
@@ -114,7 +114,7 @@ private fun Totals(t: Usage.Totals) {
         tr("Cache read") to Usage.tokens(t.cacheReadTokens), tr("Cache write") to Usage.tokens(t.cacheWriteTokens),
         tr("All tokens") to Usage.tokens(t.totalTokens),
     )
-    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         cells.forEach { (label, value) -> Stat(label, value) }
     }
 }
@@ -122,7 +122,7 @@ private fun Totals(t: Usage.Totals) {
 @Composable
 private fun Stat(label: String, value: String) {
     val p = LocalPaper.current
-    Column(Modifier.background(p.sunk, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 8.dp)) {
+    Column(Modifier.background(p.sunk, Radius.card).padding(horizontal = Space.s12, vertical = Space.s8)) {
         Text(label, color = p.faint, style = MaterialTheme.typography.bodySmall)
         Text(value, color = p.text, style = MaterialTheme.typography.titleMedium)
     }
@@ -134,7 +134,7 @@ private fun DayBars(days: List<Usage.Day>) {
     val p = LocalPaper.current
     val shares = Usage.bars(days)
     Column {
-        Row(Modifier.fillMaxWidth().height(96.dp).semantics { contentDescription = tr("Tokens per day") }, horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+        Row(Modifier.fillMaxWidth().height(96.dp).semantics { contentDescription = tr("Tokens per day") }, horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.Bottom) {
             shares.forEach { share ->
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
                     if (share > 0f) Box(Modifier.fillMaxWidth().fillMaxHeight(share).background(p.muted, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)))
@@ -142,7 +142,7 @@ private fun DayBars(days: List<Usage.Day>) {
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(p.line2))
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        Row(Modifier.fillMaxWidth().padding(top = Space.s4)) {
             Text(Usage.dayLabel(days.first().day), color = p.faint, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
             Text(Usage.dayLabel(days.last().day), color = p.faint, style = MaterialTheme.typography.bodySmall)
         }
@@ -157,7 +157,7 @@ private fun BotRow(b: Usage.Bot, share: Float) {
             Text(if (b.gone) tr("{name} (deleted)", "name" to b.name) else b.name, color = p.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             Text(Usage.tokens(b.totalTokens), color = p.muted, style = MaterialTheme.typography.bodySmall)
         }
-        Box(Modifier.fillMaxWidth().padding(top = 3.dp).height(4.dp).background(p.sunk, RoundedCornerShape(2.dp))) {
+        Box(Modifier.fillMaxWidth().padding(top = Space.s4).height(4.dp).background(p.sunk, RoundedCornerShape(2.dp))) {
             Box(Modifier.fillMaxWidth(share.coerceIn(0f, 1f)).fillMaxHeight().background(p.muted, RoundedCornerShape(2.dp)))
         }
     }
