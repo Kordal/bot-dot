@@ -1,6 +1,6 @@
 # ADR-119: A team's chat is a group that follows the team, and a message without a mention goes to its lead
 
-- **Status:** Accepted (2026-10-29)
+- **Status:** Accepted (2026-10-29), amended by [#759](https://github.com/Kordal/bot-dot/issues/759)
 - **Owning task:** [#697](https://github.com/Kordal/bot-dot/issues/697), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
 - **Builds on:** [ADR 018](018-a-group-is-a-chat-of-its-own-and-a-turn-is-a-run-of-its-member.md), [ADR 019](019-the-botdot-server-gives-the-turns-in-a-group.md), [ADR 081](081-a-short-model-call-picks-who-answers-a-group-message-without-a-mention.md), [ADR 110](110-a-company-is-a-place-of-its-own-with-teams-that-each-have-one-lead.md), [ADR 114](114-a-team-bot-is-told-its-project-and-a-lead-what-leading-means.md)
 
@@ -28,3 +28,9 @@ A project's team has a lead (ADR 110) that is told it answers for the team and s
 - Deleting a team erases its chat; its members' turns stay their own past runs.
 - A lead that is paused leaves the team's messages to the members.
 - A team bot's own runs list its team's chat among the groups it may post to (ADR 077); the prompt's bound test grows to 126,000 characters (DECISIONS.md, 2026-10-29).
+
+## Amendment (2026-10-29, [#759](https://github.com/Kordal/bot-dot/issues/759))
+
+A lead in its team's chat was told twice how to split work: by naming members (the group's rules) and with `message_bot` (ADR 114's team note). It used `message_bot`, asked a bot outside the team from its list of teammates, and the answers went to the asked bot's own chat and to the lead's, never to the group. Now a turn in any group has no `message_bot` and no list of teammates (`SELF_TEAM` off, no `teamNote`, no list of bots it may not message), and the team note given in a group turn says to split the work by naming the group's members, whose replies come into its chat. In its own chat a lead splits work with `message_bot` as before.
+
+The owner asked that a team's chat pick who answers as any group does. A message there that names nobody now goes to the router (ADR 081, the admin's decision model, ADR 082), which supersedes "The router is not asked in a team's chat" above. When the router cannot place it (unsure, failed, late, a restart) or is off, the message goes to the lead alone as before, never to every member: a team has up to 40 bots.

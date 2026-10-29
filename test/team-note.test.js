@@ -33,6 +33,18 @@ test('the lead is told the project, the goal, its team with their jobs and what 
   done();
 });
 
+test('in a turn in a group the lead and a member are told to work there by naming, never with message_bot (#759)', () => {
+  const { s, done } = store(company());
+  const lead = s.botNote('l1', of, { group: true });
+  assert.match(lead, /split the work among the members of this group by naming each in your reply/);
+  assert.match(lead, /a bot not on them is not in this group/);
+  assert.doesNotMatch(lead, /message_bot/);
+  const member = s.botNote('m1', of, { group: true });
+  assert.match(member, /answer the lead in this group, in your reply/);
+  assert.doesNotMatch(member, /send what the lead asks for back/);
+  done();
+});
+
 test('a member is told who leads it and to ask the owner directly; a bot in no team, or no project, is told nothing', () => {
   const { s, file, done } = store(company());
   const note = s.botNote('m1', of);
