@@ -162,7 +162,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val onWeb = api?.let { a -> chatId?.let { chatOnWeb(a.baseUrl, "chief", it) } }
     // A file you sent in this chat opens in the viewer (#268).
     val ownFiles = remember(chatId, server?.features) { chatId?.takeIf { DocumentView.opensChatFiles(server?.features) }?.let { id -> { f: Attachment -> DocumentView.chiefUpload(id, f.file) } } }
-    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features)) {
+    CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },

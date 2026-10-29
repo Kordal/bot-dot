@@ -384,7 +384,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     val api by app.api.collectAsState()
     // A file you sent in this group opens in the viewer (#268).
     val ownFiles = remember(groupId, server?.features) { { f: Attachment -> DocumentView.groupUpload(groupId, f.file) }.takeIf { DocumentView.opensChatFiles(server?.features) } }
-    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features)) {
+    CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features)) {
         Scaffold(
             containerColor = p.bg,
             snackbarHost = { SnackbarHost(snack) },
@@ -521,7 +521,7 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
             when (r.status) {
                 "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
                     // A path in its reply opens in the viewer (#251), from its own folder or the computer.
-                    CompositionLocalProvider(LocalPathActions provides rememberPathActions(r.botId, bot?.name ?: r.botName)) {
+                    CompositionLocalProvider(LocalPathActions provides rememberPathActions(r.botId, bot?.name ?: r.botName), LocalProductSaver provides r.botId) {
                         Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }); OpenAsDocument(r.result, bot?.name ?: r.botName); BotFilesRow(r.files) }
                     }
                 }

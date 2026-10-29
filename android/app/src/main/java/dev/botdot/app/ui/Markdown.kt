@@ -173,6 +173,9 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
         }
     }
     val icons = remember(styled) { siteIconsIn(styled.flatten()) }
+    // Shopping results as product cards (Products.kt, #685), from a server that has them; else their code.
+    val cards = LocalProductCards.current
+    val products = remember(blocks, cards) { blocks.map { b -> if (cards && b is Block.Code && b.lang == "products") Products.parse(b.text) else null } }
     QuotableSelection(modifier) { // selectable, with Quote in its menu inside a chat (QuoteUi.kt)
         Column {
             blocks.forEachIndexed { i, b ->
@@ -195,7 +198,7 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
                     }
                     is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
                         modifier = above.padding(start = 10.dp), inlineContent = icons)
-                    is Block.Code -> {
+                    is Block.Code -> if (products[i] != null) ProductCards(products[i]!!, above) else {
                         // Copy in its top-right corner (#285), in a column of its own that the code scrolls beside.
                         Row(above.fillMaxWidth().background(p.sunk, RoundedCornerShape(10.dp))) {
                             Text(b.text, fontFamily = GeistMono, fontSize = 12.5.sp, color = color,
@@ -337,11 +340,16 @@ private val RULES = setOf("---", "***", "___")
  * shares (the `stream` cases of test/fixtures/markdown-cases.json; draftSource in public/app.js): a code block that is
  * not closed yet is drawn as code, a `mermaid` one is plain code even once closed (its fence loses the word: no
  * "Open on web" under a draft, ADR 041), a table row that is still being written waits, and so does the line of a
- * fence that is still being opened. An unclosed ** or [ needs nothing: it is drawn as the text it is.
+ * fence that is still being opened. An unclosed ** or [ needs nothing: it is drawn as the text it is. A `products`
+ * fence that is not closed yet waits whole: its cards are drawn once it is (test/fixtures/products-cases.json).
  */
 internal fun draftSource(src: String): String {
-    val lines = src.replace("\r\n", "\n").replace('\r', '\n').split("\n").toMutableList()
+    var lines = src.replace("\r\n", "\n").replace('\r', '\n').split("\n").toMutableList()
     val fence = Regex("^\\s*```")
+    var open = -1
+    lines.forEachIndexed { i, l -> if (fence.containsMatchIn(l)) open = if (open < 0) i else -1 }
+    if (open >= 0 && Regex("^\\s*```products\\s*$").matches(lines[open])) lines = lines.subList(0, open).toMutableList()
+    if (lines.isEmpty()) return ""
     val last = lines.last()
     if (lines.count { fence.containsMatchIn(it) } % 2 == 1) {
         // In a code block: a fence that is still being opened (```mer) or closed (``) waits; the rest is code.
