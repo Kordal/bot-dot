@@ -1645,5 +1645,8 @@
     "few": "Jeszcze {n} czaty",
     "many": "Jeszcze {n} czatów"
   },
-  "Minimize": "Zwiń"
+  "Minimize": "Zwiń",
+  "Decisions": "Decyzje",
+  "Add a decision": "Dodaj decyzję",
+  "Remove": "Usuń"
 }
