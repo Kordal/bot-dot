@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Feedback as FeedbackIcon
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Business
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.imePadding
@@ -112,7 +113,7 @@ private const val CHIEF = "chief"
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: String? = null, onBot: (String) -> Unit, onGroup: (String) -> Unit, onChief: () -> Unit, onNew: () -> Unit, onDashboard: () -> Unit, onHit: (ChatHit) -> Unit, onNeedsYou: () -> Unit, onOpen: (String) -> Unit, shows: ListWidth.Shows = ListWidth.Shows.ALL, keypad: Boolean = false, keys: KeyRelay? = null, sections: Boolean = false) {
+internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: String? = null, onBot: (String) -> Unit, onGroup: (String) -> Unit, onChief: () -> Unit, onNew: () -> Unit, onDashboard: () -> Unit, onHit: (ChatHit) -> Unit, onNeedsYou: () -> Unit, onOpen: (String) -> Unit, shows: ListWidth.Shows = ListWidth.Shows.ALL, keypad: Boolean = false, keys: KeyRelay? = null, sections: Boolean = false, onPlace: ((Boolean) -> Unit)? = null) {
     val p = LocalPaper.current
     // A list too narrow for names (beside the chat, dragged there): figures only, a mark for the Board, and no search.
     val figures = shows == ListWidth.Shows.FIGURES
@@ -376,6 +377,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
             if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = tr("Can't reach botdot") })
             RoundButton(Icons.Filled.Add, tr("New chat"), onClick = onNew)
+            if (onPlace != null && dev.botdot.app.data.CompanySetup.shows(server?.features)) RoundButton(Icons.Outlined.Business, tr("Company")) { onPlace(active != "company") }
             RoundButton(Icons.Filled.Settings, tr("Settings")) { onOpen("settings") }
             if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback")) { feedbackOpen = true }
         }
@@ -404,6 +406,9 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             RoundButton(Icons.Filled.Settings, tr("Settings")) { onOpen("settings") }
             if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback")) { feedbackOpen = true }
         }
+        // "Bots | Company" (#674), from a botdot that has the Company; a list of figures has its building in the column above.
+        val places = onPlace != null && dev.botdot.app.data.CompanySetup.shows(server?.features)
+        if (places && !figures) PlaceSwitch(company = active == "company", Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), fill = true) { onPlace?.invoke(it) }
         if ((searching || query.isNotEmpty()) && !figures) SearchField(query, askSearch) { query = it }
         // The keypad, while the search finds nothing to show in its place.
         if (keypad && q.isEmpty()) Column(Modifier.fillMaxSize().navigationBarsPadding()) {

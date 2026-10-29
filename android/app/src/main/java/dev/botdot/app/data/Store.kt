@@ -146,7 +146,13 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         }
     }
 
-    private val parts = listOf(bots, chief, recent, dashboard, version, needs, skills, groups, pages)
+    /** The account's company (#674): none from a botdot without `company`, which is asked nothing about it. */
+    val company = Part { a ->
+        val features = (version.value.value ?: a.version().also { if (api.value === a) version.set(it) }).features
+        if (CompanySetup.shows(features)) a.company() else CompanyHeld(null)
+    }
+
+    private val parts = listOf(bots, chief, recent, dashboard, version, needs, skills, groups, pages, company)
 
     /** Everything that waits for you, from the parts above: one list, so every screen counts the same. */
     val waiting: Flow<List<Waiting>> = combine(bots.value, chief.value, needs.value, dashboard.value) { b, c, n, d -> waitingOf(b.orEmpty(), c, n, d) }
@@ -174,13 +180,14 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
             groups.update { Groups.on(it, ev) }
             if (ev.type == "group_run_started" || ev.type == "group_run_finished" || ev.type == "group_unread") groups.changed()
         }
+        CompanySetup.event(ev)?.let { company.set(it) } // the company as it is now, from any app or the Chief's tools
         bots.update { Asks.on(it, ev) } // a bot asks the owner something, or no longer does: its row says so at once
         when (ev.type) {
             "hello" -> {
                 // It carries botdot's version: no need to ask.
                 runCatching { Api.JSON.decodeFromJsonElement(VersionInfo.serializer(), ev.data) }.getOrNull()?.takeIf { it.version.isNotEmpty() }?.let { version.set(it) }
                 ev.data.str("chiefName").ifEmpty { null }?.let { _chiefName.value = ChiefName.named(it) } // where it stands, also with no screen open
-                listOf(bots, chief, recent, dashboard, needs, skills, groups).forEach { it.changedIfOld() } // what happened while the phone was away
+                listOf(bots, chief, recent, dashboard, needs, skills, groups, company).forEach { it.changedIfOld() } // what happened while the phone was away
             }
             "reset" -> parts.forEach { it.changed() }
             "run_started", "run_finished", "waiting", "bot_message" -> { bots.changed(); recent.changed() }

@@ -682,6 +682,24 @@ class Api(val baseUrl: String, val session: Session? = null) {
         }
     }
 
+    // ---------- the Company (#669, #674; docs/api.md "The Company") ----------
+
+    suspend fun company(): CompanyHeld = CompanySetup.held(get("/company"))
+    suspend fun startCompany(start: String, sources: List<SourceDraft>): Company = CompanySetup.of(send("POST", "/company", CompanySetup.startBody(start, sources)))
+    suspend fun patchCompany(fields: JsonObject): Company = CompanySetup.of(send("PATCH", "/company", fields))
+    /** The Chief reads the site or names the idea: the company with its About cards. */
+    suspend fun readCompany(): Company = CompanySetup.of(send("POST", "/company/read"))
+    /** Chips for one question (an About card's key, or goal, never, time). */
+    suspend fun suggestForCompany(key: String): Company = CompanySetup.of(send("POST", "/company/suggest", buildJsonObject { put("key", key) }))
+    suspend fun companySwot(): Company = CompanySetup.of(send("POST", "/company/swot"))
+    suspend fun storyIdeas(who: String): StoryIdeas = json.decodeFromString(send("POST", "/company/stories/suggest", buildJsonObject { put("who", who) }))
+    /** The Team step: the Chief's proposal, "Change the team…", "Add existing bot", Undo, and "Create N bots". */
+    suspend fun proposeTeam(): Company = CompanySetup.of(send("POST", "/company/proposal"))
+    suspend fun changeTeam(text: String): Company = CompanySetup.of(send("POST", "/company/proposal/chat", buildJsonObject { put("text", text) }))
+    suspend fun duplicateIntoTeam(bot: String): Company = CompanySetup.of(send("POST", "/company/proposal/duplicate", buildJsonObject { put("bot", bot) }))
+    suspend fun undoTeam(): Company = CompanySetup.of(send("POST", "/company/proposal/undo"))
+    suspend fun createTeam(): Company = CompanySetup.of(send("POST", "/company/start"))
+
     // ---------- skills and connectors ----------
 
     suspend fun skills(): SkillsInfo = json.decodeFromString(get("/skills"))

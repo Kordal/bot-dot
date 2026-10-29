@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import android.view.KeyEvent
+import dev.botdot.app.ui.CompanyScreen
 import dev.botdot.app.ui.HomePanes
 import dev.botdot.app.ui.KeyRelay
 import dev.botdot.app.ui.Keypad
@@ -259,6 +260,21 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                // "Bots | Company" (#674), kept on this device: the Company opens beside the list (on a phone, in its place),
+                // and the bots go back to the Chief's chat.
+                fun place(company: Boolean) {
+                    scope.launch { app.settings.setCompany(company) }
+                    if (company) { panelKept = null; if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true } }
+                    else if (route == "company") nav.popBackStack("home", inclusive = false)
+                }
+                // A device that was on the Company opens on it again, once the botdot says it has one.
+                val features = app.store.version.value.collectAsState().value?.features
+                var placeKept by rememberSaveable { mutableStateOf(false) }
+                LaunchedEffect(features, route) {
+                    if (placeKept || route != "home" || !dev.botdot.app.data.CompanySetup.shows(features)) return@LaunchedEffect
+                    placeKept = true
+                    if (app.settings.companyNow()) place(true)
+                }
                 // Beside the list, one chat takes the other's place; the Chief's is the one below them all.
                 fun open(to: String) { panelKept = SettingsPanel.chosen(panelKept, room); if (wide) nav.openBeside(to) else nav.navigate(to) { launchSingleTop = true } }
                 @Composable
@@ -269,6 +285,7 @@ class MainActivity : ComponentActivity() {
                         active = when {
                             !panes -> null
                             route == "home" || route?.startsWith("chief") == true -> "chief"
+                            route == "company" -> "company"
                             route.startsWith("group/") -> id?.let { groupKey(it) }
                             else -> id
                         },
@@ -290,6 +307,7 @@ class MainActivity : ComponentActivity() {
                         keys = keys.takeIf { keypad },
                         // A phone: the pages as sections of keys, and each chat full screen.
                         sections = home == Keypad.Home.PHONE,
+                        onPlace = { company -> place(company) },
                     )
                 }
 
@@ -363,6 +381,7 @@ class MainActivity : ComponentActivity() {
                         val id = e.arguments?.getString("id") ?: ""
                         RoomSettingsScreen(app, id, onGone = { if (!nav.popBackStack("rooms", inclusive = false)) nav.popBackStack("home", inclusive = false) }) { nav.popBackStack() }
                     }
+                    composable("company") { CompanyScreen(app, wide = wide, onBots = { place(false) }) }
                     composable("dashboard") { DashboardScreen(app, onBot = { nav.navigate("bot/$it") }, onNeeds = { nav.navigate("needs") }) { nav.popBackStack() } }
                     composable("needs") { e -> NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }, onDone = { if (nav.currentBackStackEntry == e) nav.popBackStack() }) { nav.popBackStack() } }
                     // A bot's files, or the Chief's (#603), full screen.
