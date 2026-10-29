@@ -49,8 +49,9 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     const box = await page.locator('#dock-panel').boundingBox();
     assert.equal(Math.round(box.width), 340);
     assert.equal(Math.round(box.height), 460);
-    const aside = await page.locator('.cf-panel').boundingBox();
-    assert.ok(box.x + box.width <= aside.x, 'the row ends before the panel on the right');
+    // The row spans the whole column (#714 follow-up): the newest chat stands at its right end, over the panel there.
+    const column = await page.locator('.main').boundingBox();
+    assert.ok(Math.abs(column.x + column.width - 24 - (box.x + box.width)) < 2, 'the row ends at the column\'s right edge');
     await page.locator('#dock-panel #view-bot textarea').fill('hello');
     await page.locator('#dock-panel #view-bot textarea').press('Enter');
     await page.waitForFunction((bot) => state.runs.some((r) => r.botId === bot && r.prompt === 'hello'), id('Launch Poster')); // sent from the docked chat
@@ -114,6 +115,13 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     for (const n of ['Demo Scheduler', 'Feedback Collector', 'Landing Page Builder']) { await desk(n).dispatchEvent('click'); await page.locator('#dock-panel #bot-name', { hasText: n }).waitFor(); }
     assert.ok(await page.locator('.dock-chat').count() >= 1, 'those opened before stay expanded');
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-many-open.png') });
+    // As many side by side as the window holds (each may narrow to 300 px): three and "+2" at 1440, all five at 1920.
+    assert.equal((await keys()).length, 3);
+    assert.equal(await page.locator('.dock-more').innerText(), '+2');
+    await page.setViewportSize({ width: 1920, height: 1000 });
+    await page.waitForFunction(() => document.querySelectorAll('#dock > .dock-item:not(.hidden)').length === 5);
+    assert.equal(await page.locator('.dock-more').count(), 0);
+    if (shots) await page.screenshot({ path: path.join(shots, 'wide-1920.png') });
     await page.setViewportSize({ width: 1100, height: 900 });
     await page.locator('.dock-more').waitFor();
     const shown = await keys();
