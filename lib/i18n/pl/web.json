@@ -1667,5 +1667,10 @@
     "one": "{n} pracuje",
     "few": "{n} pracują",
     "many": "{n} pracuje"
-  }
+  },
+  "Update from an app": "Aktualizuj z aplikacji",
+  "Stop updating": "Przestań aktualizować",
+  "Connect an app": "Połącz aplikację",
+  "App": "Aplikacja",
+  "What to read": "Co odczytać"
 }
