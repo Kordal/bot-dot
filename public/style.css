@@ -2603,6 +2603,14 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .cf-menu button:hover { background: var(--line); color: var(--text); }
 .cf-menu button[aria-checked="true"] { color: var(--text); }
 .cf-menu button[aria-checked="true"]::after { content: "✓"; float: right; margin-left: 12px; }
+.cf-menu hr { margin: 4px 6px; border: 0; border-top: 1px solid var(--line-2); }
+.cf-src { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--faint); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.cf-src.failed { color: var(--warn-text); }
+.cf-source { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 4px; }
+.cf-source select, .cf-source input { min-width: 0; padding: 7px 10px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--sunk); color: var(--text); font: inherit; font-size: 14px; }
+.cf-source select { width: auto; flex: none; }
+.cf-source input { flex: 1 1 160px; width: auto; }
+.cf-source .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .cf-goal-body { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
 .cf-goal-info { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .cf-goal-num { font-size: 34px; font-weight: 600; line-height: 1.1; letter-spacing: -.02em; }
