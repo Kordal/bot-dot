@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -112,11 +111,11 @@ internal fun TodoPanel(ui: CompanyUi, c: Company, bots: List<Bot>, waiting: List
     val n = if (filter == "done") 0 else waits.size + asking.size + items.count { !it.done } + standupAsks
     val chief = chiefNamed()
     @Composable fun head(color: String?, outfit: kotlinx.serialization.json.JsonElement?) = BotFigure(color ?: chief.color, "idle", 28, if (color == null) chief.outfit else outfit)
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.panel).border(1.dp, p.line, RoundedCornerShape(20.dp)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s16),
+        verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (full) tr("To-do") else tr("You"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            if (n > 0) Text(n.toString(), color = p.inkText, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(CircleShape).background(p.ink).padding(horizontal = 8.dp, vertical = 2.dp))
+            if (n > 0) Text(n.toString(), color = p.inkText, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(CircleShape).background(p.ink).padding(horizontal = Space.s8, vertical = Space.s4))
         }
         if (full) Filters(filter) { filter = it }
         if (asks) {
@@ -142,9 +141,9 @@ internal fun TodoPanel(ui: CompanyUi, c: Company, bots: List<Bot>, waiting: List
 private fun Filters(on: String, onPick: (String) -> Unit) {
     val p = LocalPaper.current
     val words = mapOf("all" to tr("All"), "you" to tr("You"), "bots" to tr("Bots"), "done" to tr("Done"))
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).border(1.dp, p.line2, RoundedCornerShape(12.dp)).padding(3.dp)) {
+    Row(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line2, Radius.card).padding(Space.s4)) {
         ProjectTodo.FILTERS.forEach { k ->
-            Box(Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(if (k == on) p.sunk else p.panel).clickable(onClickLabel = words[k]) { onPick(k) }
+            Box(Modifier.weight(1f).clip(Radius.small).background(if (k == on) p.sunk else p.panel).clickable(onClickLabel = words[k]) { onPick(k) }
                 .heightIn(min = 36.dp).semantics { contentDescription = words[k].orEmpty() }, contentAlignment = Alignment.Center) {
                 Text(words[k].orEmpty(), color = if (k == on) p.text else p.muted, fontSize = Type.s12, fontWeight = if (k == on) FontWeight.Medium else FontWeight.Normal)
             }
@@ -158,7 +157,7 @@ private fun TodoRow(ui: CompanyUi, t: Todo, bot: Bot?, full: Boolean) {
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
         if (bot != null) BotFigure(bot.color, "idle", 24, bot.outfit) else YouHead()
-        Text(t.text, color = if (t.done) p.faint else p.text, fontSize = Type.s14, lineHeight = Type.line20, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
+        Text(t.text, color = if (t.done) p.faint else p.text, fontSize = Type.s14, lineHeight = Type.line20, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = Space.s12))
         if (full) TodoChip(t, bot)
         Checkbox(t.done, { ui.call({ a -> a.tickTodo(t.id, it) }) }, colors = CheckboxDefaults.colors(checkedColor = p.ink, checkmarkColor = p.inkText, uncheckedColor = p.line2),
             modifier = Modifier.semantics { contentDescription = tr("Done") })
@@ -178,7 +177,7 @@ private fun TodoChip(t: Todo, bot: Bot?) {
         else -> return
     }
     Text(text, color = color, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.widthIn(max = 110.dp).clip(RoundedCornerShape(99.dp)).background(p.sunk).padding(horizontal = 8.dp, vertical = 3.dp))
+        modifier = Modifier.widthIn(max = 110.dp).clip(Radius.pill).background(p.sunk).padding(horizontal = Space.s8, vertical = Space.s4))
 }
 
 /** Add a task: whom it is for (a head that opens the project's bots), the text, when (a day and how it repeats), Add. "@Bot text" still gives it to that bot. */
@@ -200,7 +199,7 @@ private fun AddTodo(ui: CompanyUi, c: Company, bots: List<Bot>) {
         adding = true
         ui.call({ it.addTodo(t.text, t.bot ?: bot?.id, due, repeat) }) { ok -> adding = false; if (ok) { typed = ""; who = null; due = null; repeat = null } }
     }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
         Box {
             Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClickLabel = bot?.name ?: tr("You")) { whoOpen = true }, contentAlignment = Alignment.Center) {
                 if (bot != null) BotFigure(bot.color, "idle", 28, bot.outfit) else YouHead(28)
@@ -218,7 +217,7 @@ private fun AddTodo(ui: CompanyUi, c: Company, bots: List<Bot>) {
         val r = repeat
         val whenWords = if (r != null) ProjectTodo.rhythmLabel(r, ::weekdayName) else due?.let(::dueLabel)
         if (whenWords != null) Text(whenWords, color = p.text, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 90.dp).clip(RoundedCornerShape(99.dp)).background(p.sunk).clickable(onClickLabel = tr("Due")) { whenOpen = true }.padding(horizontal = 10.dp, vertical = 8.dp))
+            modifier = Modifier.widthIn(max = 90.dp).clip(Radius.pill).background(p.sunk).clickable(onClickLabel = tr("Due")) { whenOpen = true }.padding(horizontal = Space.s12, vertical = Space.s8))
         else RoundButton(Icons.Outlined.CalendarMonth, tr("Due"), size = 40.dp) { whenOpen = true }
         GoButton(tr("Add"), enabled = typed.isNotBlank(), busy = adding) { go() }
     }
@@ -234,19 +233,19 @@ private fun WhenSheet(due: String?, repeat: Repeat?, onChange: (String?, Repeat?
     val p = LocalPaper.current
     var picking by remember { mutableStateOf(false) }
     val words = mapOf("" to tr("None"), "day" to tr("Daily"), "week" to tr("Weekly"), "month" to tr("Monthly"), "days" to tr("Custom"))
-    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = Space.s16).padding(bottom = Space.s24).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(due?.let(::dueLabel) ?: tr("Due"), color = if (due != null) p.text else p.muted, fontSize = Type.s16,
-                modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).border(1.dp, p.line2, RoundedCornerShape(12.dp)).clickable { picking = true }.padding(horizontal = 14.dp, vertical = 12.dp))
-            if (due != null) RoundButton(Icons.Filled.Close, tr("Remove"), size = 40.dp, modifier = Modifier.padding(start = 8.dp)) { onChange(null, repeat) }
+                modifier = Modifier.weight(1f).clip(Radius.card).border(1.dp, p.line2, Radius.card).clickable { picking = true }.padding(horizontal = Space.s16, vertical = Space.s12))
+            if (due != null) RoundButton(Icons.Filled.Close, tr("Remove"), size = 40.dp, modifier = Modifier.padding(start = Space.s8)) { onChange(null, repeat) }
         }
         Chips(ProjectTodo.RHYTHMS.map { it to words[it].orEmpty() }, repeat?.every ?: "") { onChange(due, ProjectTodo.rhythm(it, due)) }
         val r = repeat
-        if (r?.every == "week") FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (r?.every == "week") FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             listOf(1, 2, 3, 4, 5, 6, 0).forEach { d ->
                 val on = d in r.days.orEmpty()
                 Text(weekdayName(d), color = if (on) p.inkText else p.text, fontSize = Type.s12,
-                    modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (on) p.ink else p.sunk).clickable { onChange(due, ProjectTodo.flipDay(r, d)) }.padding(horizontal = 12.dp, vertical = 8.dp))
+                    modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.sunk).clickable { onChange(due, ProjectTodo.flipDay(r, d)) }.padding(horizontal = Space.s12, vertical = Space.s8))
             }
         }
         if (r?.every == "days") {
@@ -283,7 +282,7 @@ private fun StandupCard(c: Company, bots: List<Bot>, ways: CompanyWays) {
     val p = LocalPaper.current
     val leads = ProjectStandup.leads(c)
     if (leads.isEmpty()) return
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.sunk).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.sunk).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(tr("Standup"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             ByChief()
@@ -291,16 +290,16 @@ private fun StandupCard(c: Company, bots: List<Bot>, ways: CompanyWays) {
         leads.forEach { l ->
             val team = c.teams.first { it.id == l.team }
             val color = parseColor(team.color, p.muted)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Dot(team.color)
-                    Text(team.name, color = p.text, fontSize = Type.s12, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 8.dp))
+                    Text(team.name, color = p.text, fontSize = Type.s12, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = Space.s8))
                 }
                 @Composable fun line(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String?, tint: androidx.compose.ui.graphics.Color, action: (@Composable () -> Unit)? = null) {
                     if (text.isNullOrBlank()) return
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(icon, null, tint = tint, modifier = Modifier.size(16.dp))
-                        Text(text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
+                        Text(text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20, modifier = Modifier.weight(1f).padding(horizontal = Space.s8))
                         action?.invoke()
                     }
                 }
@@ -321,7 +320,7 @@ private fun Decisions(ui: CompanyUi, c: Company) {
     val p = LocalPaper.current
     var typed by rememberSaveable { mutableStateOf("") }
     var adding by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Text(tr("Decisions"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
         ProjectDecisions.shown(c.decisions).forEach { d -> DecisionRow(ui, d) }
         AskField(typed, { typed = it.take(600) }, label = tr("Add a decision"), placeholder = tr("Add a decision"), button = tr("Add"), busy = adding) {
@@ -344,7 +343,7 @@ private fun DecisionRow(ui: CompanyUi, d: Decision) {
             Text(text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20)
             if (!d.why.isNullOrBlank()) Text(d.why, color = p.muted, fontSize = Type.s12, lineHeight = Type.line16)
         }
-        if (day != null) Text(dueLabel(day), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.padding(start = 8.dp, top = 2.dp))
-        RoundButton(Icons.Filled.Close, tr("Remove"), size = 32.dp, modifier = Modifier.padding(start = 6.dp)) { ui.call({ it.deleteDecision(d.id) }) }
+        if (day != null) Text(dueLabel(day), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.padding(start = Space.s8, top = Space.s4))
+        RoundButton(Icons.Filled.Close, tr("Remove"), size = 32.dp, modifier = Modifier.padding(start = Space.s8)) { ui.call({ it.deleteDecision(d.id) }) }
     }
 }
