@@ -5,6 +5,7 @@
 //   - the bots in no team, each on its own on the floor.
 //   - a team's objective: the objective of the team's colour.
 //   - "@Bot text" in Add a task: that bot's task.
+//   - how each objective is shown (#690): its display, its pace against the line to the target, its chart.
 // A plain <script>, as window.CompanyFloor; the tests load it with require.
 
 (function (root) {
@@ -63,7 +64,45 @@ function task(input, bots) {
   return rest ? { text: rest, bot: fits.id } : { text, bot: null };
 }
 
-const api = { WIDE, room, floor, objectiveOf, task, seatOf };
+// ---------- how an objective is shown (#690) ----------
+const DAYS = 90;
+// The owner's or the Chief's pick, else a pace chart for an objective with a target and its status for one without.
+const displayOf = (o) => (['pace', 'bar', 'status'].includes(o?.display) ? o.display : o?.target > 0 ? 'pace' : 'status');
+
+// Where an objective with a target stands against the straight line from 0 on day 1 to `target` on day 90: 'ahead'
+// once it is a tenth of the target past the line (or past it at all on day 1, when the line is at 0), 'on' at or past
+// the line, else 'behind'. null without a target or a day.
+function pace(o, day) {
+  if (!(o?.target > 0) || !day) return null;
+  const expected = (o.target * (Math.min(day, DAYS) - 1)) / (DAYS - 1);
+  const state = o.current >= expected + o.target / 10 || (expected === 0 && o.current > 0) ? 'ahead' : o.current >= expected ? 'on' : 'behind';
+  return { state, expected };
+}
+
+// The pace chart in a box of 0..100 both ways (y down, as SVG draws it): `line`, the pace from 0 on day 1 to the
+// target on day 90; `actual`, the points of the objective's history up to today and `current` today; `ticks`, the x of
+// days 30, 60 and 90. The top of the box is the target or the highest value, whichever is more.
+function chart(o, day) {
+  const today = Math.max(1, Math.min(day || 1, DAYS));
+  const points = [...(o.history || []).filter((h) => h.day < today), { day: today, value: o.current }];
+  const top = Math.max(o.target, ...points.map((p) => p.value)) || 1;
+  const x = (d) => ((d - 1) / (DAYS - 1)) * 100;
+  const y = (v) => 100 - (Math.max(0, v) / top) * 100;
+  return {
+    line: [x(1), y(0), x(DAYS), y(o.target)],
+    actual: points.map((p) => [x(p.day), y(p.value)]),
+    ticks: [30, 60, 90].map((d) => ({ day: d, x: x(d) })),
+  };
+}
+
+// Day 1 of a running company, when an objective's chart would be a flat line: the home shows where it starts instead.
+const firstDay = (company) => company?.phase === 'running' && (company.day || 0) <= 1;
+// The date of the first check-in (day 30), from the day the company started.
+const checkinDate = (startedAt) => (startedAt ? new Date(new Date(startedAt).getTime() + 29 * 86_400_000) : null);
+// How many of an objective's steps are done.
+const stepsDone = (o) => (o?.steps?.length ? o.steps.filter((x) => x.done).length : 0);
+
+const api = { WIDE, room, floor, objectiveOf, task, seatOf, displayOf, pace, chart, firstDay, checkinDate, stepsDone };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.CompanyFloor = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

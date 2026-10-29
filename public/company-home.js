@@ -1,11 +1,12 @@
 // The Company's home (#672, ADR 110): a running company drawn as an office floor, with its rules in company-floor.js.
-// The header: its name and "Day N of 90". The floor: the whiteboard of objectives, the Chief of Staff in a small glass
-// office beside it, one room per team, the bots in no team on their own, and a dashed "New team". The panel beside it
+// The header: its name and "Day N of 90". The floor: the Chief of Staff in a small glass office, one room per team, the bots in no team on their own, and a dashed "New team". The panel beside it
 // is You (what waits for the owner, their tasks, Add a task), or the team whose room was clicked. A narrow window has
 // the floor in one column and the panel under it. Everything shown is the bots' states, asks and working lines the
 // page already has: nothing new is asked of the server but the company's own routes. Under the header (#673): days
 // 30, 60 and 90 on a line, the check-in that waits above the floor, the week's plan at the top of You, and the bot
-// the Chief suggests as a dashed card on the floor.
+// the Chief suggests as a dashed card on the floor. Above the floor (#690): each objective as the owner picked under
+// "Show as" (a pace chart by default, a bar, or its status and steps), and on day 1 where it starts in place of a
+// chart. The floor has the teams in its main area and the Chief, the bots in no team and "New team" in a narrow column.
 (() => {
   const CROWN = '<svg class="cf-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
   const X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -14,6 +15,8 @@
   let teamOpen = null;
   // The week's plan has its Change field open (#673).
   let changing = false;
+  // The objective whose "Show as" menu is open (#690), or null.
+  let menuFor = null;
 
   // ---------- what the page knows of each bot ----------
   // What waits for the owner: the cards of Needs you (needs.js) and the bots that ask a question (unread.js).
@@ -56,10 +59,55 @@
       ${bench}
     </section>`;
   }
-  const kpiHTML = (o) => {
-    const ratio = o.target > 0 ? Math.max(0, Math.min(1, o.current / o.target)) : 0;
-    return `<div class="cf-kpi" style="--c:${esc(o.color)}"><div class="cf-kpi-name"><i class="cf-dot"></i>${esc(o.name)}</div><div class="cf-kpi-num">${esc(String(o.current))}<span> / ${esc(String(o.target))}</span></div><div class="cf-bar"><i style="width:${(ratio * 100).toFixed(1)}%"></i></div></div>`;
-  };
+  // ---------- the objectives (#690): each as its display shows it ----------
+  const DISPLAYS = [['pace', () => tr('Pace chart')], ['bar', () => tr('Bar')], ['status', () => tr('Status')]];
+  const PACE = { ahead: () => tr('Ahead'), on: () => tr('On track'), behind: () => tr('Behind') };
+  const SHOW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M6 15l4-4 3 3 5-6"/></svg>';
+  const numHTML = (o) => `<div class="cf-goal-num">${esc(String(o.current))}<span> / ${esc(String(o.target))}</span></div>`;
+  const paceHTML = (p) => (p ? `<span class="cf-pace${p.state === 'behind' ? ' behind' : ''}">${PACE[p.state]()}</span>` : '');
+  // Day 1: no chart yet, where it starts: the number to reach, the day, the first check-in.
+  function startHTML(o, c) {
+    const at = CompanyFloor.checkinDate(c.startedAt);
+    return `<div class="cf-goal-start">${numHTML(o)}<div class="cf-goal-facts"><span>${tr('Day {n} of 90', { n: c.day || 1 })}</span>${at ? `<span>${tr('Check-in {date}', { date: esc(at.toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short' })) })}</span>` : ''}</div></div>`;
+  }
+  function chartHTML(o, c) {
+    const k = CompanyFloor.chart(o, c.day);
+    const pts = k.actual.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`).join(' ');
+    const [tx, ty] = k.actual.at(-1);
+    return `<div class="cf-chart"><div class="cf-plot">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        ${k.ticks.slice(0, 2).map((t) => `<line class="cf-tick" x1="${t.x.toFixed(2)}" y1="0" x2="${t.x.toFixed(2)}" y2="100"/>`).join('')}
+        <line class="cf-base" x1="0" y1="100" x2="100" y2="100"/>
+        <line class="cf-to" x1="${k.line[0]}" y1="${k.line[1]}" x2="${k.line[2]}" y2="${k.line[3].toFixed(2)}"/>
+        ${k.actual.length > 1 ? `<polyline class="cf-actual" points="${pts}"/>` : ''}
+      </svg><i class="cf-now" style="left:${tx.toFixed(2)}%;top:${ty.toFixed(2)}%"></i></div>
+      <div class="cf-days"><b style="left:0">${tr('Day {n}', { n: 1 })}</b>${k.ticks.map((t) => `<span style="left:${t.x.toFixed(2)}%">${tr('Day {n}', { n: t.day })}</span>`).join('')}</div>
+    </div>`;
+  }
+  function stepsHTML(o) {
+    if (!o.steps?.length) return `<label class="cf-step${o.done ? ' done' : ''}"><input type="checkbox" data-cf-done="${esc(o.id)}"${o.done ? ' checked' : ''}><span>${tr('Done')}</span></label>`;
+    return `<div class="cf-steps">${o.steps.map((x, i) => `<label class="cf-step${x.done ? ' done' : ''}"><input type="checkbox" data-cf-step="${esc(o.id)}" data-i="${i}"${x.done ? ' checked' : ''}><span>${esc(x.text)}</span></label>`).join('')}</div>`;
+  }
+  function goalHTML(o, c) {
+    const show = CompanyFloor.displayOf(o);
+    const numeric = o.target > 0;
+    const p = CompanyFloor.pace(o, c.day);
+    const ratio = numeric ? Math.max(0, Math.min(1, o.current / o.target)) : 0;
+    let body;
+    if (show === 'status' && !numeric) body = stepsHTML(o);
+    else if (show === 'status') body = `<div class="cf-goal-status">${paceHTML(p) || `<span class="cf-pace">${tr('On track')}</span>`}<span class="cf-num">${esc(String(o.current))} / ${esc(String(o.target))}</span></div>`;
+    else if (!numeric) body = stepsHTML(o);
+    else if (CompanyFloor.firstDay(c)) body = startHTML(o, c);
+    else if (show === 'bar') body = `<div class="cf-goal-info">${numHTML(o)}${paceHTML(p)}</div><div class="cf-bar big"><i style="width:${(ratio * 100).toFixed(1)}%"></i></div>`;
+    else body = `<div class="cf-goal-info">${numHTML(o)}${paceHTML(p)}</div>${chartHTML(o, c)}`;
+    const count = o.steps?.length ? `<span class="cf-n">${CompanyFloor.stepsDone(o)}/${o.steps.length}</span>` : '';
+    const menu = menuFor === o.id ? `<div class="cf-menu" role="menu">${DISPLAYS.map(([k, label]) => `<button type="button" role="menuitemradio" aria-checked="${show === k}" data-cf-display="${k}">${label()}</button>`).join('')}</div>` : '';
+    return `<section class="cf-goal ${show}" style="--c:${esc(o.color)}" data-cf-goal="${esc(o.id)}">
+      <div class="cf-goal-head"><i class="cf-dot"></i><h2>${esc(o.name)}</h2>${count}<button type="button" class="icon-btn" data-cf-show="${esc(o.id)}" aria-label="${tr('Show as')}" aria-expanded="${menuFor === o.id}">${SHOW}</button>${menu}</div>
+      <div class="cf-goal-body">${body}</div>
+    </section>`;
+  }
+  const goalsHTML = (c) => (c.objectives.length ? `<div class="cf-goals${c.objectives.length === 1 ? ' one' : ''}">${c.objectives.map((o) => goalHTML(o, c)).join('')}</div>` : '');
   // ---------- the 90 days (#673): the timeline, the check-in, the week's plan, a new bot ----------
   const DECIDED = { keep: () => tr('Keep going'), change: () => tr('Change direction'), stop: () => tr('Stop') };
   const byChief = () => `<span class="cf-by">${chiefFigure('sm')}${esc(chiefTitle())}</span>`;
@@ -97,12 +145,13 @@
       <div class="cf-actions"><button type="button" class="icon-btn" data-cf-suggest-no aria-label="${tr('Dismiss')}">${X}</button><button type="button" class="btn primary sm" data-cf-suggest-add>${Company.ICON.plus}${tr('Add')}</button></div></div>`;
   }
 
+  // The teams in the main area; the Chief, the bots in no team, a suggested bot and "New team" in a narrow column.
   function floorHTML(c, f) {
     const line = chiefLine();
-    const board = c.objectives.length ? `<div class="cf-board">${c.objectives.map(kpiHTML).join('')}</div>` : `<div class="cf-board empty">${esc(c.goal || '')}</div>`;
     const chief = `<button type="button" class="cf-chief" data-cf-chief><span class="cf-over">${line ? bubble(line, 'line') : ''}</span><span class="cf-table"><i></i></span><span class="cf-head">${chiefFigure()}</span><span class="cf-name">${esc(chiefTitle())}</span></button>`;
     const loose = f.loose.map((b) => `<div class="cf-loose">${deskHTML(b, { count: f.info.asks(b.id) })}</div>`).join('');
-    return `<div class="cf-floor">${board}${chief}${f.rooms.map(roomHTML).join('')}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
+    const rooms = f.rooms.length ? `<div class="cf-rooms">${f.rooms.map(roomHTML).join('')}</div>` : '';
+    return `<div class="cf-floor${rooms ? '' : ' bare'}">${rooms}<div class="cf-side">${chief}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div></div>`;
   }
 
   // ---------- the panel: You, or a team ----------
@@ -145,6 +194,7 @@
       <header class="cf-top"><h1>${esc(c.name || c.start)}</h1>${c.day ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
       ${c.day ? lineHTML(c) : ''}
       ${c.checkin ? checkinHTML(c.checkin) : ''}
+      ${goalsHTML(c)}
       <div class="cf-main">${floorHTML(c, f)}<aside class="cf-panel">${team ? teamHTML(c, team) : youHTML(c)}</aside></div>
     </div>`;
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
@@ -180,6 +230,19 @@
         if (!(await send('/company/plan/change', 'POST', { text }))) { changing = true; Company.redraw(); const now = $('#cf-change input'); if (now) now.value = text; }
       };
     }
+    $$('[data-cf-show]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menuFor = menuFor === b.dataset.cfShow ? null : b.dataset.cfShow; Company.redraw(); }));
+    $$('[data-cf-display]', root).forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      const id = b.closest('[data-cf-goal]').dataset.cfGoal;
+      menuFor = null;
+      send(`/company/objectives/${encodeURIComponent(id)}`, 'PUT', { display: b.dataset.cfDisplay });
+    }));
+    $$('[data-cf-done]', root).forEach((box) => (box.onchange = () => send(`/company/objectives/${encodeURIComponent(box.dataset.cfDone)}`, 'PUT', { done: box.checked })));
+    $$('[data-cf-step]', root).forEach((box) => (box.onchange = () => {
+      const o = c.objectives.find((x) => x.id === box.dataset.cfStep);
+      if (!o) return;
+      send(`/company/objectives/${encodeURIComponent(o.id)}`, 'PUT', { steps: o.steps.map((x, i) => (i === Number(box.dataset.i) ? { ...x, done: box.checked } : x)) });
+    }));
     $('[data-cf-suggest-add]', root)?.addEventListener('click', (e) => { e.currentTarget.disabled = true; send('/company/suggestion/add', 'POST', {}); });
     $('[data-cf-suggest-no]', root)?.addEventListener('click', () => send('/company/suggestion', 'DELETE'));
     const add = $('#cf-add', root);
@@ -230,7 +293,12 @@
     });
   }
 
+  // A click outside the open "Show as" menu, or Escape, closes it.
+  const closeMenu = () => { if (menuFor) { menuFor = null; Company.redraw(); } };
+  document.addEventListener('click', (e) => { if (menuFor && !e.target.closest?.('.cf-menu')) closeMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+
   Company.steps.home = home;
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [teamOpen, changing, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
+  Company.steps.sig = () => [teamOpen, changing, menuFor, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
 })();

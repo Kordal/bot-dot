@@ -1590,6 +1590,12 @@
   "On track": "Zgodnie z planem",
   "Behind": "Opóźnione",
   "This week": "Ten tydzień",
+  "Pace chart": "Wykres tempa",
+  "Bar": "Pasek",
+  "Status": "Stan",
+  "Ahead": "Przed planem",
+  "Check-in {date}": "Podsumowanie {date}",
+  "Show as": "Pokaż jako",
   "Day {n} check-in: I want to change direction.": "Podsumowanie dnia {n}: chcę zmienić kierunek.",
   "Switched off {n} jobs of the company's bots.": {
     "one": "Wyłączono {n} zadanie botów firmy.",

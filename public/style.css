@@ -2512,14 +2512,55 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .cf-home svg.cf-crown { width: 12px; height: 12px; fill: #f5c542; stroke: none; }
 .cf-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 /* The whiteboard: one number per objective over a bar in its colour. */
-.cf-board { display: flex; flex-wrap: wrap; align-items: center; gap: 18px 28px; padding: 20px 22px; border: 1px solid var(--line-2); border-radius: 16px; background: var(--panel); }
-.cf-board.empty { color: var(--muted); }
-.cf-kpi { flex: 1 1 110px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
-.cf-kpi-name { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cf-kpi-num { font-size: 24px; font-weight: 600; letter-spacing: -.01em; }
-.cf-kpi-num span, .cf-team-kpi b span { font-size: 13px; font-weight: 400; color: var(--faint); }
+/* The objectives above the floor (#690): a card each, its display under its name. */
+.cf-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 14px; margin-bottom: 20px; }
+.cf-goal { position: relative; container-type: inline-size; min-width: 0; padding: 18px 20px 16px; border: 1px solid var(--line-2); border-radius: 22px; background: var(--panel); }
+.cf-goal-head { position: relative; display: flex; align-items: center; gap: 10px; min-height: 32px; }
+.cf-goal-head h2 { flex: 1; min-width: 0; margin: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-goal-head .icon-btn { color: var(--faint); }
+.cf-goal-head .icon-btn:hover, .cf-goal-head .icon-btn[aria-expanded="true"] { color: var(--text); }
+.cf-goal-head .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.cf-menu { position: absolute; top: 36px; right: 0; z-index: 5; display: flex; flex-direction: column; min-width: 160px; padding: 4px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--sunk); box-shadow: 0 12px 32px rgba(0, 0, 0, .5); }
+.cf-menu button { padding: 9px 12px; border: 0; border-radius: 8px; background: none; color: var(--muted); font-size: 14px; text-align: left; cursor: pointer; }
+.cf-menu button:hover { background: var(--line); color: var(--text); }
+.cf-menu button[aria-checked="true"] { color: var(--text); }
+.cf-menu button[aria-checked="true"]::after { content: "✓"; float: right; margin-left: 12px; }
+.cf-goal-body { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+.cf-goal-info { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cf-goal-num { font-size: 34px; font-weight: 600; line-height: 1.1; letter-spacing: -.02em; }
+.cf-goal-num span, .cf-team-kpi b span { font-size: 15px; font-weight: 400; color: var(--faint); }
+.cf-team-kpi b span { font-size: 13px; }
 .cf-bar { height: 3px; border-radius: 3px; background: var(--line-2); overflow: hidden; }
-.cf-bar i { display: block; height: 100%; background: var(--c); }
+.cf-bar.big { height: 8px; border-radius: 8px; }
+.cf-bar i { display: block; height: 100%; border-radius: inherit; background: var(--c); }
+.cf-chart { min-width: 0; }
+.cf-plot { position: relative; height: 96px; }
+.cf-plot svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.cf-plot line, .cf-plot polyline { fill: none; vector-effect: non-scaling-stroke; }
+.cf-tick { stroke: var(--line); stroke-width: 1; }
+.cf-base { stroke: var(--line-2); stroke-width: 1; }
+.cf-to { stroke: var(--faint); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.cf-actual { stroke: var(--c); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.cf-now { position: absolute; width: 12px; height: 12px; border: 3px solid var(--panel); border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent); transform: translate(-50%, -50%); }
+.cf-days { position: relative; height: 18px; margin-top: 8px; font: 12px var(--mono); color: var(--faint); }
+.cf-days > * { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); }
+.cf-days b { font-weight: 400; color: var(--text); transform: none; }
+.cf-days span:last-child { transform: translateX(-100%); }
+.cf-goal-start { display: flex; flex-direction: column; gap: 10px; }
+.cf-goal-facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.cf-goal-facts span { padding: 4px 10px; border: 1px solid var(--line-2); border-radius: 99px; font: 12px var(--mono); color: var(--muted); }
+.cf-goal-status { display: flex; align-items: center; gap: 12px; }
+.cf-goal-status .cf-pace { padding: 6px 14px; font-size: 14px; }
+.cf-steps { display: flex; flex-direction: column; }
+.cf-step { display: flex; align-items: center; gap: 12px; min-height: 40px; border-top: 1px solid var(--line); font-size: 14px; cursor: pointer; }
+.cf-steps .cf-step:first-child, .cf-goal-body > .cf-step { border-top: 0; }
+.cf-step input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--c); }
+.cf-step.done span { color: var(--faint); text-decoration: line-through; }
+/* A wide card: the number on the left, the chart beside it. */
+@container (min-width: 620px) {
+  .cf-goal.pace .cf-goal-body:has(.cf-chart) { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: end; gap: 28px; }
+  .cf-goal.pace .cf-goal-info { flex-direction: column; align-items: flex-start; gap: 10px; }
+}
 /* A desk: a bubble over it, the table with its monitor (lit in the bot's colour while it works or asks), the head, the name. */
 .cf-desk, .cf-chief { position: relative; display: flex; flex-direction: column; align-items: center; width: 100px; padding: 0; border: 0; background: none; color: var(--text); cursor: pointer; }
 .cf-desk.on { background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 20%, transparent), transparent); }
@@ -2615,10 +2656,20 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .cf-suggest-text b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-suggest-text span { font-size: 12.5px; color: var(--muted); }
 .cf-suggest .cf-actions { margin-top: 0; }
-/* A wide floor: three columns, the whiteboard over two, a big team's room over two. */
+/* The teams in the main area, the Chief, the bots in no team and "New team" beside it (#690); on a phone under it. */
+.cf-rooms { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; }
+.cf-rooms > .cf-room:only-child { grid-column: 1 / -1; }
+.cf-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-content: start; }
+.cf-side .cf-new, .cf-side .cf-suggest { grid-column: 1 / -1; }
+.cf-side .cf-new { min-height: 56px; }
 @container company (min-width: 640px) {
-  .cf-floor { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .cf-board, .cf-room.wide { grid-column: span 2; }
+  .cf-floor:not(.bare) { grid-template-columns: minmax(0, 1fr) 190px; }
+  .cf-floor:not(.bare) .cf-side { grid-template-columns: minmax(0, 1fr); }
+  .cf-rooms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cf-room.wide { grid-column: span 2; }
+}
+@container company (min-width: 640px) and (max-width: 979px) {
+  .cf-floor.bare .cf-side { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 /* Room for the panel beside the floor. */
 @container company (min-width: 980px) {
