@@ -1,7 +1,8 @@
 // The Company (#669, ADR 110; docs/api.md, "The Company"): a place of its own beside the bots, behind the switch
 // "Bots | Company" at the top of the left column, from a server with `company`. The owner says what they are working
 // on (a site, or an idea in one sentence) with its sources (files, links); the setup and the company's home follow
-// (the About, Team and Start steps, the office floor), each drawn by its own part: Company.steps.
+// (the About, Team and Start steps, the office floor), each drawn by its own part: Company.steps (the Team and Start
+// steps: company-team.js).
 const Company = (() => {
   const ICON = {
     building: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 21V4h10v17 M15 9h4v12 M3 21h18 M8 8h1 M11 8h1 M8 12h1 M11 12h1 M9 21v-4h2v4"/></svg>',
@@ -80,12 +81,14 @@ const Company = (() => {
     if (root.dataset.sig === sig && root.firstElementChild) return;
     root.dataset.sig = sig;
     if (!c) drawStart(root);
-    else if (c.phase === 'running' && steps.home) steps.home(root, c);
+    else if (c.phase === 'running' && steps.home && current !== 'start') steps.home(root, c);
     else {
       const at = stepOf(c);
       root.innerHTML = `${stepBar(at)}<div class="co-body" id="co-body"></div>`;
       const body = $('#co-body', root);
       if (steps[at]) steps[at](body, c); else drawGiven(body, c);
+      // While setting up, About and Team on the bar open their step; Start is Create's.
+      if (c.phase !== 'running') $$('.co-steps [data-step]:not([data-step="start"])', root).forEach((li) => (li.onclick = () => go(li.dataset.step)));
     }
     phoneSwitch(root);
   }
