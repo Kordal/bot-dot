@@ -287,7 +287,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'workspace-folders', 'projects', 'account-computer', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'workspace-folders', 'projects', 'account-computer', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -497,8 +497,10 @@ function chiefChatOf(req, by) {
 // one (ADR 047), and list and remove its own lasting grants, never add one. The same for the types of its changes
 // the owner let through after the web (chief/after-web, #280). Of its own files it lists them and keeps one in mind
 // (chief/files, #383), only in a turn the owner started, which the route checks; only the owner opens or deletes one.
+// Of the company (#669) it reads it and changes its teams and its objectives' numbers; making, deleting and the owner's
+// tasks stay the owner's.
 const CHIEF_ROUTES = [
-  ['GET', /^(bots|skills|connectors|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
+  ['GET', /^(company|bots|skills|connectors|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
   ['GET', /^runs\/[^/]+\/wait$/],
   ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)$/],
@@ -507,7 +509,8 @@ const CHIEF_ROUTES = [
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
   ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|chief\/jobs|chief\/jobs\/[^/]+\/run|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|connectors\/session\/(actions|run|wait))$/],
   ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
-  ['PUT', /^(chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
+  ['POST', /^company\/teams$/],
+  ['PUT', /^(company\/(teams|objectives)\/[^/]+|chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
   ['DELETE', /^(chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
 const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method && re.test(parts.join('/')));
@@ -574,6 +577,7 @@ function heldTitle(method, parts, body) {
     [/^chief\/reminders\/[^/]+$/, 'DELETE', () => tr(lang, 'Cancel a reminder')],
     [/^(bots\/[^/]+\/)?computer\/restart$/, 'POST', () => tr(lang, "Restart the account's computer")],
     [/^dashboard/, null, () => tr(lang, 'Change your Board')],
+    [/^company/, null, () => tr(lang, 'Change your company')],
     [/^memory/, null, () => tr(lang, 'Change how memory works')],
     [/^settings\/quiet-hours$/, null, () => tr(lang, 'Change your quiet hours')],
     [/^settings\/writing-first$/, null, () => tr(lang, 'Change when the Chief writes first')],
@@ -683,6 +687,7 @@ const ROUTES = [
   require('./lib/routes/room-bots').create(ctx), // the bots a shared room may ask, for the front door (#316)
   require('./lib/routes/pages').create(ctx), // every bot's pages in one list (#361)
   require('./lib/routes/projects').create(ctx), // shared projects on the account's computer (#578)
+  require('./lib/routes/company').create(ctx), // the company, its teams and objectives (#669)
   require('./lib/routes/replay').create(ctx), // a replay's computer tools, on its copy (ADR 104)
   require('./lib/routes/setup').create(ctx),
   require('./lib/routes/memory').create(ctx),

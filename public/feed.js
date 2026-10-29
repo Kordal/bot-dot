@@ -25,6 +25,12 @@ function followFeed() {
     state.mentionPagesAt = 0; // its title can be mentioned now (#473)
     loadMentionPages();
   });
+  // The company changed (#669): its place follows, from any app or the Chief's tools (company.js).
+  es.addEventListener('company', (e) => {
+    let d = {};
+    try { d = JSON.parse(e.data); } catch { /* not ours */ }
+    if (typeof Company !== 'undefined') Company.changed(d);
+  });
   // The Chief's own jobs changed (#408): their list in its settings follows.
   es.addEventListener('chief_jobs', (e) => {
     let d = {};

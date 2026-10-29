@@ -48,12 +48,13 @@ document.addEventListener('click', (e) => {
   if (sub && view === 'botsettings' && what === 'skill') { let name = ''; try { name = decodeURIComponent(skill || ''); } catch {} state.openSkill = { bot: sub, name }; }
   await refresh();
   renderStatus();
+  if (typeof Company !== 'undefined') Company.init(); // the switch "Bots | Company", once the features are known (#669)
   // First start, or Claude isn't signed in: open the setup page.
   const setupNow = await api('/setup').catch(() => null);
   if (opensSetup(setupNow)) {
     setView('setup');
   } else {
-    const known = ['chief', 'dashboard', 'bot', 'group', 'rooms', 'needs', ...Panel.NAMES, 'runs', 'vault', 'skills', 'pages', 'settings', 'setup', 'connectors'].includes(view);
+    const known = ['chief', 'dashboard', 'bot', 'group', 'rooms', 'needs', ...Panel.NAMES, 'runs', 'vault', 'skills', 'pages', 'company', 'settings', 'setup', 'connectors'].includes(view);
     setView(known ? view : 'chief', BOT_NAMES.includes(view) || GROUP_NAMES.includes(view) || view === 'rooms' ? sub : undefined);
     if (!known) showList(); // phones start on the contact list
     showWhatsNew(); // after an update: what changed, once (whats-new.js)
