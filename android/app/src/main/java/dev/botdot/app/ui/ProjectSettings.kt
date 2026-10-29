@@ -36,7 +36,6 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -324,7 +323,7 @@ private fun TeamRows(ui: CompanyUi, c: Company, bots: List<Bot>) {
 private fun TeamEditor(d: TeamDraft, bots: List<Bot>, onDelete: (() -> Unit)?, onCancel: () -> Unit, onSave: (JsonObject) -> Unit) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line2, Radius.card).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        Labeled(tr("Name")) { OutlinedTextField(d.name, { d.name = it.take(60) }, singleLine = true, modifier = Modifier.fillMaxWidth().semantics { contentDescription = tr("Name") }) }
+        Labeled(tr("Name")) { Field(d.name, { d.name = it.take(60) }, singleLine = true, modifier = Modifier.fillMaxWidth().semantics { contentDescription = tr("Name") }) }
         Labeled(tr("Bots")) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 bots.forEach { b ->
@@ -466,7 +465,7 @@ private fun SaveField(value: String, label: String, max: Int, modifier: Modifier
     var text by remember { mutableStateOf(value) }
     var focused by remember { mutableStateOf(false) }
     LaunchedEffect(value) { if (!focused) text = value }
-    OutlinedTextField(text, { text = it.take(max) }, singleLine = true, enabled = enabled,
+    Field(text, { text = it.take(max) }, singleLine = true, enabled = enabled,
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done, keyboardType = if (number) KeyboardType.Decimal else KeyboardType.Text),
         keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
         modifier = modifier.semantics { contentDescription = label }.onFocusChanged { f ->
@@ -484,7 +483,7 @@ private fun AddField(label: String, placeholder: String, max: Int, focus: Boolea
     var typed by remember { mutableStateOf("") }
     val requester = remember { FocusRequester() }
     if (focus) LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
-    OutlinedTextField(typed, { typed = it.take(max) }, singleLine = true, placeholder = { Text(placeholder) },
+    Field(typed, { typed = it.take(max) }, singleLine = true, placeholder = { Text(placeholder) },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { val t = typed.replace(Regex("\\s+"), " ").trim(); typed = ""; if (t.isNotEmpty()) onAdd(t) }),
         modifier = Modifier.fillMaxWidth().focusRequester(requester).semantics { contentDescription = label })
