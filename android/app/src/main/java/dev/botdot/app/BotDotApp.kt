@@ -71,6 +71,9 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
     /** Words to start a new Chief chat with, taken once by the chat that opens (the Company's "Change direction"). */
     var chiefWords: String? = null
 
+    /** Words to start a bot's message box with, taken once by its chat (a standup's Reply on the Projects floor). */
+    var botWords: Pair<String, String>? = null
+
     /** True while Bitwarden unlocks. It runs here, not in a screen, so you can keep using the app meanwhile. */
     val bwUnlocking = MutableStateFlow(false)
     /** Why the last unlock didn't work, shown on the Bitwarden card until the next try. */

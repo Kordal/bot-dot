@@ -351,8 +351,10 @@ class MainActivity : ComponentActivity() {
                     }
                     val attachArg = listOf(navArgument("attach") { defaultValue = "0" })
                     composable("bot/{id}?attach={attach}", arguments = attachArg) { e ->
-                        val (files, text) = remember { takeShared(e.arguments?.getString("attach") == "1") }
+                        val (files, shared) = remember { takeShared(e.arguments?.getString("attach") == "1") }
                         val id = e.arguments?.getString("id") ?: ""
+                        // Words the Projects floor started for this bot (a standup's Reply), else what was shared.
+                        val text = remember { app.botWords?.takeIf { it.first == id }?.second?.also { app.botWords = null } ?: shared }
                         BotChatScreen(app, id, files, text, onJobs = { panelKept = SettingsPanel.jobs(panelKept, id) }, onSettings = { panelKept = SettingsPanel.toggle(panelKept, id) }, onNeeds = { nav.navigate("needs") }, onLearned = { panelKept = SettingsPanel.settings(id, it) },
                             // A group made from this bot's chat is in the list and open.
                             onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onGroup = { openGroup(it) }, onScreen = { nav.navigate("screen/$id") }, onFiles = { nav.navigate("files/$id") }) { nav.popBackStack() }
@@ -387,6 +389,7 @@ class MainActivity : ComponentActivity() {
                         // From the floor: a bot's chat, the Chief's, Needs you, and a new Chief chat with the owner's words started.
                         CompanyScreen(app, wide = wide, ways = dev.botdot.app.ui.CompanyWays(
                             onBot = { open("bot/$it") },
+                            onBotSay = { bot, words -> app.botWords = bot to words; open("bot/$bot") },
                             onChief = { open("chief/latest") },
                             onNeeds = { nav.navigate("needs") },
                             onChiefSay = { app.chiefWords = it; open("chief/new") },

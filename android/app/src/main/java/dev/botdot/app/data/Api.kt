@@ -716,6 +716,21 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun addTodo(text: String, bot: String?): Company =
         CompanySetup.of(send("POST", "/company/todos", buildJsonObject { put("text", text); if (bot != null) put("bot", bot) }))
     suspend fun tickTodo(id: String, done: Boolean): Company = CompanySetup.of(send("PUT", "/company/todos/${enc(id)}", buildJsonObject { put("done", done) }))
+    /** The project's To-do (#692): an item with whom it is for, its due day and how it repeats; Delete is the owner's. */
+    suspend fun addTodo(text: String, bot: String?, due: String?, repeat: Repeat?): Company =
+        CompanySetup.of(send("POST", "/company/todos", ProjectTodo.addBody(text, bot, due, repeat)))
+    suspend fun deleteTodo(id: String): Company = CompanySetup.of(send("DELETE", "/company/todos/${enc(id)}"))
+    /** The project's calendar (#695): what falls on each day from [from] to [to], both included (at most 62 days). */
+    suspend fun projectCalendar(from: String, to: String): List<CalendarItem> =
+        json.decodeFromString(CalendarAnswer.serializer(), get("/company/calendar?from=${enc(from)}&to=${enc(to)}")).items
+    suspend fun addEvent(title: String, day: String, time: String): Company =
+        CompanySetup.of(send("POST", "/company/events", ProjectCalendar.eventBody(title, day, time.ifEmpty { null })))
+    suspend fun changeEvent(id: String, title: String, day: String, time: String): Company =
+        CompanySetup.of(send("PUT", "/company/events/${enc(id)}", ProjectCalendar.eventBody(title, day, time)))
+    suspend fun deleteEvent(id: String): Company = CompanySetup.of(send("DELETE", "/company/events/${enc(id)}"))
+    /** The owner's decisions (#694). */
+    suspend fun addDecision(typed: ProjectDecisions.Typed): Company = CompanySetup.of(send("POST", "/company/decisions", ProjectDecisions.addBody(typed)))
+    suspend fun deleteDecision(id: String): Company = CompanySetup.of(send("DELETE", "/company/decisions/${enc(id)}"))
     /** The 90 days (#673): the check-in's answer, the week's plan, the bot the Chief suggests. */
     suspend fun answerCheckin(day: Int, decision: String): CheckinAnswer =
         json.decodeFromString(CheckinAnswer.serializer(), send("POST", "/company/checkins", buildJsonObject { put("day", day); put("decision", decision) }))
