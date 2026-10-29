@@ -82,7 +82,8 @@
     const qs = c.questions || [];
     const q = qs[c.answers.length];
     const dashes = qs.length > 1 ? `<span class="pc-dashes">${qs.map((_, i) => `<i class="${i < c.answers.length ? 'done' : i === c.answers.length ? 'now' : ''}"></i>`).join('')}</span>` : '';
-    const said = [`<span class="pc-said"><span class="co-chip on">${esc(c.ask)}</span></span>`, ...c.answers.map((a) => `<span class="pc-said">${esc(a.q)}<span class="co-chip on">${esc(a.a)}</span></span>`)].join('');
+    // The ask stands in the head until the Chief names the card: not twice.
+    const said = [...(c.title && c.title !== c.ask ? [`<span class="pc-said"><span class="co-chip on">${esc(c.ask)}</span></span>`] : []), ...c.answers.map((a) => `<span class="pc-said">${esc(a.q)}<span class="co-chip on">${esc(a.a)}</span></span>`)].join('');
     const now = !q ? `<div class="pc-wait"><i></i><i></i><i></i></div>`
       : `<div class="pc-q">${esc(q.q)}</div>
         <div class="pc-choices">${q.choices.map((x) => `<button type="button" class="co-chip" data-pc-pick="${esc(x)}">${esc(x)}</button>`).join('')}</div>

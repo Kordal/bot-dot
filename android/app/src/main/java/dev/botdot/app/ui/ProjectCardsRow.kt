@@ -198,7 +198,8 @@ private fun QuestionsCard(modifier: Modifier, k: ProjectCard, onAnswer: (String)
             CardIcon(Icons.Filled.Close, tr("Close"), onClose)
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8), itemVerticalAlignment = Alignment.CenterVertically) {
-            SaidChip(k.ask)
+            // The ask is in the head until the Chief names the card: not twice.
+            if (k.title.isNotBlank() && k.title != k.ask) SaidChip(k.ask)
             k.answers.forEach { a ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(a.q, color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 180.dp).padding(end = Space.s8))
