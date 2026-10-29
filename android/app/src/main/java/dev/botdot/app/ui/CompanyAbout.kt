@@ -70,7 +70,7 @@ private fun ideaLabel(key: String): String = when (key) {
 private fun questionOf(c: Company, a: AboutCard): String = when {
     a.key == "today" && c.site -> tr("How do you work today?")
     a.key in CompanySetup.IDEA -> ideaQuestion(a.key)
-    a.key == "about" -> tr("What is your company about?")
+    a.key == "about" -> tr("What is your project about?")
     a.key == "serves" -> tr("Who do you serve?")
     else -> a.question
 }

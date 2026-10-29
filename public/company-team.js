@@ -9,7 +9,7 @@
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
     back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
   };
-  const ASKS = [['rules', () => tr('Company rules')], ['every', () => tr('Every action')], ['never', () => tr('Never')]];
+  const ASKS = [['rules', () => tr('Project rules')], ['every', () => tr('Every action')], ['never', () => tr('Never')]];
   const APP_NAMES = { gmail: 'Gmail', googlecalendar: 'Google Calendar', github: 'GitHub', slack: 'Slack', notion: 'Notion', googledocs: 'Google Docs', googlesheets: 'Google Sheets', linkedin: 'LinkedIn', hubspot: 'HubSpot', stripe: 'Stripe' };
   const appName = (slug) => APP_NAMES[slug] || slug.charAt(0).toUpperCase() + slug.slice(1);
   // What this page holds beside the company: the Chief at work, the open parts and a half-typed line.
@@ -59,7 +59,7 @@
           <form class="co-ask small" id="co-change"><input name="text" autocomplete="off" maxlength="300" placeholder="${tr('Change the team…')}" aria-label="${tr('Change the team…')}" ${ui.sending ? 'disabled' : ''} /><button type="submit" class="co-go${ui.sending ? ' spin' : ''}" aria-label="${tr('Send')}" ${ui.sending ? 'disabled' : ''}>${Company.ICON.go}</button></form>
         </section>
         ${c.never.length ? `<section class="co-panel"><h2>${tr('Never without asking')}</h2><ul class="co-never">${c.never.map((t, i) => `<li>${I.lock}<span>${esc(t)}</span><button type="button" class="icon-btn sm" data-unnever="${i}" aria-label="${tr('Remove')}">${Company.ICON.x}</button></li>`).join('')}</ul></section>` : ''}
-        <section class="co-panel"><h2>${tr('Company memory')}</h2><div class="co-facts">${I.check}${trn(c.facts || 0, '{n} fact', '{n} facts')}</div></section>
+        <section class="co-panel"><h2>${tr('Project memory')}</h2><div class="co-facts">${I.check}${trn(c.facts || 0, '{n} fact', '{n} facts')}</div></section>
       </aside>
     </div>
     <div class="co-foot"><button type="button" class="btn ghost" data-back>${I.back}${tr('Back')}</button><button type="button" class="co-go" data-create ${n ? '' : 'disabled'}>${trn(n, 'Create {n} bot', 'Create {n} bots')}</button></div>`;
