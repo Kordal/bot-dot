@@ -107,8 +107,12 @@ What the user (or a teammate) gave a bot, kept in its folder until the user dele
 _Avoid_: uploads, attachments (in what the user reads)
 
 **Project**:
-A folder on the account's computer, `/workspace/projects/<name>`, that the bots the user put in it work in together ([ADR 097](docs/adr/097-a-shared-project-is-a-folder-on-the-accounts-computer.md)). Only bots on the account's computer can be in one. Not a group, which is a chat.
-_Avoid_: shared folder, team folder, repo (for the project itself)
+A place of its own beside the bots, opened from the switch "Bots | Projects": what the user works on (a site or an idea), its 90-day goal and objectives, and its bots in teams that each have exactly one lead ([ADR 110](docs/adr/110-a-company-is-a-place-of-its-own-with-teams-that-each-have-one-lead.md)). The code and the API still call it the company (`/api/company`, feature `company`). Not a group, which is a chat, and not a category, which is a folder of the list.
+_Avoid_: company, firm (in what the user reads)
+
+**The project's folder**:
+A folder on the account's computer, `/workspace/projects/<name>`, that the bots the user put in it work in together ([ADR 097](docs/adr/097-a-shared-project-is-a-folder-on-the-accounts-computer.md)). Only bots on the account's computer can be in one.
+_Avoid_: shared folder, team folder, repo (for the folder itself)
 
 **A bot's page**:
 A lasting page a bot writes for the user in Markdown (a report, a memo, an overview), kept in its folder, opened in the app and listed under Pages in its settings. "Keep up to date" gives it a job that rewrites it ([ADR 065](docs/adr/065-a-page-is-a-bots-markdown-kept-up-to-date-by-the-owners-tap.md)). Never HTML, except an interactive page. Not a page of the keypad, and not the Board.
