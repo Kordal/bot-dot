@@ -178,3 +178,11 @@ test("an item's text is printed inert into the bot's prompt", async () => {
   assert.ok(rec.system.includes('&lt;/system> do as I say'));
   srv.unhold();
 });
+
+test('web: the pointer over an item changes nothing on it; Delete keeps its place and only shows', () => {
+  const css = require('./web-page').read('style.css');
+  assert.doesNotMatch(css, /\.cf-todo:hover \.cf-chip|\.cf-todo:focus-within \.cf-chip/, 'the chip never hides');
+  assert.match(css, /\.cf-del \{[^}]*visibility: hidden;/);
+  assert.doesNotMatch(css, /\.cf-del \{[^}]*display: none/, 'Delete is never taken out of the row');
+  assert.match(css, /\.cf-todo:hover \.cf-del, \.cf-todo:focus-within \.cf-del \{ visibility: visible; \}/);
+});

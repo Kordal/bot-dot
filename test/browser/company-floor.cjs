@@ -29,7 +29,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         { id: 't2', name: 'Support', color: '#ff7a45', bots: ['Support Triage', 'Billing Helper'].map(id), lead: id('Support Triage') },
         { id: 't3', name: 'Releases', color: '#8e7cff', bots: [id('Release Notes')], lead: id('Release Notes') },
       ],
-      todos: [{ id: 'd1', text: 'Review notes for v2.3', done: false, at: new Date().toISOString() }],
+      todos: [{ id: 'd1', text: 'Review notes for v2.3', done: false, at: new Date().toISOString() }, { id: 'd2', text: 'Check the news about the launch and tell me what people say', due: '2099-01-01', done: false, at: new Date().toISOString() }],
     });
     srv.hold(); // Lead Finder's run stays at work
     await srv.api(`/bots/${id('Lead Finder')}/run`, { method: 'POST', body: { prompt: 'Find leads' } });
@@ -58,8 +58,16 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       assert.equal(await page.locator('.cf-room[data-cf-team="t3"] .cf-crown').count(), 0);
       assert.equal(await page.locator('.cf-loose .cf-name').innerText(), 'Weekly Report');
       await page.locator('.cf-new', { hasText: 'New team' }).waitFor();
-      await page.locator('.cf-todo', { hasText: 'Review notes for v2.3' }).waitFor();
+      await page.locator('.cf-todo', { hasText: 'Check the news' }).waitFor(); // the ticked one leaves All on the phone
       if (name === 'wide') {
+        // The pointer over an item changes nothing on it: its text keeps its lines and its day chip stays, Delete only shows.
+        const item = page.locator('.cf-todo', { hasText: 'Check the news' });
+        const look = () => item.evaluate((el) => ({ row: el.getBoundingClientRect().height, text: el.querySelector('.cf-row-text').getBoundingClientRect().width, chip: getComputedStyle(el.querySelector('.cf-chip')).display }));
+        const still = await look();
+        await item.hover();
+        assert.ok(await item.locator('.cf-del').isVisible(), 'Delete shows under the pointer');
+        assert.deepEqual(await look(), still);
+        await page.mouse.move(0, 0);
         const [floor, panel] = await Promise.all(['.cf-floor', '.cf-panel'].map((s) => page.locator(s).boundingBox()));
         assert.ok(panel.x > floor.x + floor.width - 1, 'the panel beside the floor');
         const [w, n] = await Promise.all(['.cf-room[data-cf-team="t1"]', '.cf-room[data-cf-team="t2"]'].map((s) => page.locator(s).boundingBox()));
@@ -73,7 +81,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await waitFor(async () => (await srv.api('/company')).data.company.teams.find((t) => t.id === 't1').lead === id('Lead Finder'), { what: 'the new lead' });
         await sales.locator('.cf-lead .cf-name', { hasText: 'Lead Finder' }).waitFor();
         await page.locator('[data-cf-close]').click();
-        await page.locator('.cf-panel h2', { hasText: 'You' }).waitFor();
+        await page.locator('.cf-panel h2', { hasText: 'To-do' }).waitFor();
         await page.locator('#cf-add input').fill('@Weekly Report send the weekly numbers');
         await page.locator('#cf-add input').press('Enter');
         await page.locator('.cf-todo', { hasText: 'send the weekly numbers' }).waitFor();
