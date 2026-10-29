@@ -1,4 +1,4 @@
-# ADR-118: An account has several projects, kept as a list in one file
+# ADR-120: An account has several projects, kept as a list in one file
 
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#689](https://github.com/Kordal/bot-dot/issues/689), spec [#687](https://github.com/Kordal/bot-dot/issues/687)

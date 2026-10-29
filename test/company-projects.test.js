@@ -1,4 +1,4 @@
-// Several projects per account (#689, ADR 118): the company of ADR 110 becomes the first project of a list. Every
+// Several projects per account (#689, ADR 120): the company of ADR 110 becomes the first project of a list. Every
 // route takes `?project=<id>`, without it the first, as older apps had their one company; each project keeps its own
 // teams, goal and objectives, and a bot is in at most one team of each project.
 const { test, before, after } = require('node:test');

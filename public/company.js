@@ -3,7 +3,7 @@
 // on (a site, or an idea in one sentence) with its sources (files, links); the setup and the company's home follow
 // (the About, Team and Start steps, the office floor), each drawn by its own part: Company.steps (the Team and Start
 // steps: company-team.js).
-// Several projects (#689, ADR 118), from a server with `projects-many`: the left column lists PROJECTS with "+", each
+// Several projects (#689, ADR 120), from a server with `projects-many`: the left column lists PROJECTS with "+", each
 // a tree of its teams and their bots that folds; a click on a project shows it, the one last shown is remembered per
 // device; on a phone the project's name over the screen picks another. Every call names the project (Company.at).
 const Company = (() => {
