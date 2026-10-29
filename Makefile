@@ -7,8 +7,8 @@ help: ## Show available commands
 	@grep -E '^[a-zA-Z0-9_.-]+:.*## ' "$(firstword $(MAKEFILE_LIST))" | awk 'BEGIN {FS = ":.*## "}; {printf "  make %-16s %s\n", $$1, $$2}'
 
 .PHONY: lint
-lint: ## Check the documentation links, that the code parses, and the types of the files marked @ts-check
-	@if command -v node >/dev/null 2>&1; then ./tests/integration/check-docs.sh && node scripts/check-code.js && ./scripts/typecheck.sh; else echo "check-docs.sh, check-code.js and typecheck.sh skipped: they need a local Node.js"; fi
+lint: ## Check the documentation links, that the code parses, that the styles keep to the scales, and the types of the files marked @ts-check
+	@if command -v node >/dev/null 2>&1; then ./tests/integration/check-docs.sh && node scripts/check-code.js && node scripts/check-css-tokens.js && ./scripts/typecheck.sh; else echo "check-docs.sh, check-code.js, check-css-tokens.js and typecheck.sh skipped: they need a local Node.js"; fi
 
 .PHONY: test
 test: ## Run the tests that need nothing running

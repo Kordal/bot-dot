@@ -72,6 +72,8 @@ jobs:
       - run: node --test scripts/check-docs.test.mjs
       # Every JavaScript file parses, and the files marked // @ts-check type-check (make lint, #77).
       - run: node scripts/check-code.js
+      # Font sizes, weights, radii and spacings keep to the scales (make lint, #721).
+      - run: node scripts/check-css-tokens.js
       - run: bash scripts/typecheck.sh
 
   # The bots' and the Chief's own Linux users (identity.js): real processes under their users try
