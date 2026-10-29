@@ -1,6 +1,6 @@
 // Project settings (#701): the gear beside a project's name opens them, from a server with `project-settings`. One
 // page of rows, each a label and the field that changes it, saved as it is changed: General (name, colour, the site or
-// idea it started from, its sources), Goal (the goal, the objectives and how each is shown, the day its 90 days start, the check-ins), Team
+// idea it started from, its sources, its folder: #702), Goal (the goal, the objectives and how each is shown, the day its 90 days start, the check-ins), Team
 // (each team's name, bots and lead; a new team), Reports (each lead's rhythm, the morning standup), Rules (what the
 // team never does without asking, the owner's time) and Archive or delete. A wide window has the sections listed on
 // the left; a phone has them as a row of tabs. A change from elsewhere (the Chief, another window) shows at once,
@@ -43,7 +43,8 @@
     return section('general', tr('General'), row(tr('Name'), field('name', c.name, 80, tr('Name')))
       + row(tr('Color'), swatches)
       + row(tr('Site or idea'), field('start', c.start, 500, tr('Site or idea')))
-      + row(tr('Sources'), sources, 'top'));
+      + row(tr('Sources'), sources, 'top')
+      + (c.folder ? row(tr('Folder'), `<span class="ps-path" title="${esc(c.folder.path)}">${esc(c.folder.path)}</span><button type="button" class="btn sm" data-ps-folder>${tr('Open')}</button>`) : ''));
   }
 
   function goalHTML(c) {
@@ -159,6 +160,9 @@
     const files = $('[data-ps-files]', root);
     $('[data-ps-add-files]', root).onclick = () => files.click();
     files.onchange = () => { upload([...files.files], c); files.value = ''; };
+    // Its folder (#702) in Files, alone.
+    const folder = $('[data-ps-folder]', root);
+    if (folder) folder.onclick = () => Files.openFolder({ folder: c.folder.name, name: nameOf(c), color: c.color });
     const linkForm = $('[data-ps-link-form]', root);
     $('[data-ps-add-link]', root).onclick = () => { linkForm.classList.remove('hidden'); linkForm.url.focus(); };
     // An add field gives up the focus as it saves, so the page is drawn with what it added, and takes it back after.
@@ -225,10 +229,28 @@
     // Archive or delete.
     $('[data-ps-archive]', root).onclick = () => patch({ archived: !c.archived });
     $('[data-ps-delete]', root).onclick = async () => {
-      if (!confirm(tr('Delete the project {name}? Its bots stay.', { name: nameOf(c) }))) return;
-      try { await api(Company.at('/company'), { method: 'DELETE' }); } catch (e) { toast(e.message, true); return; }
+      // With a folder (#702) it asks whether the folder goes too.
+      const folder = c.folder ? await askFolder(c) : confirm(tr('Delete the project {name}? Its bots stay.', { name: nameOf(c) })) && 'keep';
+      if (!folder) return;
+      const at = Company.at('/company');
+      try { await api(folder === 'delete' ? `${at}${at.includes('?') ? '&' : '?'}folder=delete` : at, { method: 'DELETE' }); } catch (e) { toast(e.message, true); return; }
       Company.removed(c.id);
     };
+  }
+
+  // Delete a project with a folder: 'keep' or 'delete' the folder, or null.
+  function askFolder(c) {
+    return new Promise((resolve) => {
+      const m = openModal(`
+        <div class="modal-head"><h2>${tr('Delete the project {name}? Its bots stay.', { name: esc(nameOf(c)) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+        <div class="modal-foot">
+          <button type="button" class="btn" data-folder="keep">${tr('Keep its folder')}</button>
+          <button type="button" class="btn danger" data-folder="delete">${tr('Delete its folder too')}</button>
+        </div>`);
+      let answer = null;
+      $$('[data-folder]', m).forEach((b) => (b.onclick = () => { answer = b.dataset.folder; m.close(); }));
+      m.addEventListener('close', () => resolve(answer), { once: true });
+    });
   }
 
   // Files added as sources: uploaded for the Chief, as the start screen does, then saved with the others.

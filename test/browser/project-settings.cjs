@@ -1,7 +1,7 @@
 // Optional browser check of Project settings (#701): node test/browser/project-settings.cjs [shots dir]
 // The gear beside the project's name opens them; each field saves as it is changed (name, colour, an objective, a
 // rule, a lead's report rhythm, the standup, a team's name); a change from elsewhere shows at once; Archive moves the
-// project under Archived in the list and Unarchive back; Delete asks first and removes it. Wide and phone. Scratch data.
+// project under Archived in the list and Unarchive back; Delete asks first, whether its folder stays too, and removes it. Wide and phone. Scratch data.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -100,6 +100,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('.cf-top h1', { hasText: 'Mealwise' }).waitFor();
     await page.locator('.cf-top [data-project-settings]').click();
     await ps.locator('[data-ps-delete]').click();
+    await page.locator('dialog [data-folder="keep"]').click(); // its folder stays (#702)
     await page.locator('.cf-top h1', { hasText: 'Botdot HQ' }).waitFor();
     assert.deepEqual((await srv.api('/company/list')).data.projects.map((p) => p.id), ['p1']);
     assert.deepEqual(errors, []);

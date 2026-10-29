@@ -7,6 +7,7 @@
 // bottom sheets, long-press to select and a + button. Files dropped from the desktop upload into the open folder.
 // What botdot keeps (CLAUDE.md, .claude/, …) shows a lock and offers nothing that writes. Only from a server whose
 // features have `files-explorer`; it replaces the Files and Workspace sections of the settings.
+// A project's folder (#702) opens here too, alone: from its settings, with openFolder, where it is the one place.
 
 const Files = (() => {
   const MAX_FILES = 10; // of one upload, as the attachments
@@ -111,7 +112,8 @@ const Files = (() => {
 
   // ---------- places ----------
 
-  const isChief = (c) => !!c.bot.base;
+  const folderOnly = (c) => !!c.bot.folder;
+  const isChief = (c) => !!c.bot.base && !folderOnly(c);
   const hasComputer = (c) => c.bot.computer === 'linux';
   const mine = (c) => (c.projects || []).filter((p) => p.bots.includes(c.bot.id));
   const sameKey = (a, b) => a.root === b.root && (a.project || null) === (b.project || null);
@@ -125,6 +127,7 @@ const Files = (() => {
   const placeIcon = (p) => (p.root === 'server' ? I.server : p.root === 'computer' ? I.computer : p.root === 'kept' ? I.pin : I.project);
   // Every place of this bot, in the sidebar's order (Kept in mind is listed under the pins).
   function places(c) {
+    if (folderOnly(c)) return [{ root: 'project', project: c.bot.folder }];
     return [{ root: 'server' }, ...(hasComputer(c) ? [{ root: 'computer' }] : []), ...mine(c).map((p) => ({ root: 'project', project: p.name }))];
   }
 
@@ -157,14 +160,16 @@ const Files = (() => {
     return (c.kept || []).filter((f) => f.pinned).map((f) => ({ name: f.name, path: f.file, type: 'file', size: f.size, at: f.at }));
   }
 
+  const back = (c) => (folderOnly(c) ? tr('Back') : tr('Back to the chat'));
   function topHTML(c) {
     const bot = c.bot;
-    const face = typeof botFigure === 'function' && !isChief(c) ? botFigure(bot.color, bot.state, 'sm', bot.outfit) : typeof chiefFigure === 'function' && isChief(c) ? chiefFigure('sm') : '';
+    const face = folderOnly(c) ? `<span class="fx-letter" style="--c:${esc(bot.color || '#ff6b35')}">${esc(String(bot.name).charAt(0).toUpperCase())}</span>`
+      : typeof botFigure === 'function' && !isChief(c) ? botFigure(bot.color, bot.state, 'sm', bot.outfit) : typeof chiefFigure === 'function' && isChief(c) ? chiefFigure('sm') : '';
     const trail = crumbs(c.path, placeName(c.place));
     const crumb = c.results ? `<b>${tr('Search')}</b>` : trail.map((x, i) => (i === trail.length - 1 ? `<b>${esc(x.name)}</b>` : `<button type="button" class="fx-crumb" data-fx="go" data-path="${esc(x.path)}">${esc(x.name)}</button><span class="fx-sep">/</span>`)).join('');
     const search = c.searches ? `<label class="fx-search">${I.search}<input type="search" data-fx-search placeholder="${tr('Search in {name}', { name: esc(bot.name) })}" aria-label="${tr('Search in {name}', { name: esc(bot.name) })}" value="${esc(c.query)}"></label>` : '';
     return `<header class="fx-top">
-      <button type="button" class="icon-btn" data-fx="close" aria-label="${tr('Back to the chat')}" title="${tr('Back to the chat')}">${I.back}</button>
+      <button type="button" class="icon-btn" data-fx="close" aria-label="${back(c)}" title="${back(c)}">${I.back}</button>
       <div class="fx-who"><span class="fx-face">${face}</span><b>${esc(bot.name)}</b></div>
       <button type="button" class="icon-btn" data-fx="hist-back" aria-label="${tr('Back')}" title="${tr('Back')}"${c.back.length ? '' : ' disabled'}>${I.back}</button>
       <button type="button" class="icon-btn" data-fx="hist-fwd" aria-label="${tr('Forward')}" title="${tr('Forward')}"${c.fwd.length ? '' : ' disabled'}>${I.fwd}</button>
@@ -174,6 +179,7 @@ const Files = (() => {
   }
 
   function sideHTML(c) {
+    if (folderOnly(c)) return `<aside class="fx-side">${places(c).map((p) => `<button type="button" class="fx-place${!c.results && !c.path ? ' on' : ''}" data-fx="place" data-root="project" data-project="${esc(p.project)}" data-drop-place="${esc(placeKey(p))}">${I.project}<span>${esc(p.project)}</span></button>`).join('')}${c.pins.length ? `<div class="fx-head">${tr('Pinned')}</div>` : ''}${pinsHTML(c)}</aside>`;
     const row = (p, extra = '') => {
       const on = !c.results && sameKey(p, c.place) && (p.path === undefined ? true : c.path === p.path);
       return `<button type="button" class="fx-place${on && p.path === undefined ? ' on' : ''}" data-fx="place" data-root="${p.root}"${p.project ? ` data-project="${esc(p.project)}"` : ''} data-drop-place="${esc(placeKey(p))}">${placeIcon(p)}<span>${esc(placeName(p))}</span>${extra}</button>`;
@@ -182,7 +188,7 @@ const Files = (() => {
     const kept = (c.kept || []).filter((f) => f.pinned).length;
     const projects = !isChief(c) && hasComputer(c) && (state.features || []).includes('projects')
       ? `<div class="fx-head">${tr('Projects')}</div>${mine(c).map((p) => row({ root: 'project', project: p.name })).join('')}<button type="button" class="fx-place" data-fx="new-project">${I.plus}<span>${tr('New project')}</span></button>` : '';
-    const pins = c.pins.map((p, i) => `<button type="button" class="fx-place" data-fx="pinned" data-i="${i}" data-drop-pin="${i}">${I.folder.replace('<svg', '<svg class="fx-folder"')}<span>${esc(nameOf(p.path))}</span></button>`).join('');
+    const pins = pinsHTML(c);
     return `<aside class="fx-side">
       ${row({ root: 'server' })}
       ${hasComputer(c) ? row({ root: 'computer' }, dot) : ''}
@@ -192,6 +198,8 @@ const Files = (() => {
       ${pins}
     </aside>`;
   }
+
+  const pinsHTML = (c) => c.pins.map((p, i) => `<button type="button" class="fx-place" data-fx="pinned" data-i="${i}" data-drop-pin="${i}">${I.folder.replace('<svg', '<svg class="fx-folder"')}<span>${esc(nameOf(p.path))}</span></button>`).join('');
 
   function barHTML(c) {
     const writes = writesHere(c);
@@ -312,7 +320,7 @@ const Files = (() => {
     const row = (what, icon, label, extra = '', cls = '') => `<button type="button" class="fx-sheet-row${cls}" data-fx="${what}"${extra}>${icon}<span>${label}</span></button>`;
     let body = '';
     if (s.kind === 'places') {
-      body = [...places(c), { root: 'kept' }].map((p) => `<button type="button" class="fx-sheet-row" data-fx="place" data-root="${p.root}"${p.project ? ` data-project="${esc(p.project)}"` : ''}>${placeIcon(p)}<span>${esc(placeName(p))}</span>${sameKey(p, c.place) ? I.check : ''}</button>`).join('');
+      body = [...places(c), ...(folderOnly(c) ? [] : [{ root: 'kept' }])].map((p) => `<button type="button" class="fx-sheet-row" data-fx="place" data-root="${p.root}"${p.project ? ` data-project="${esc(p.project)}"` : ''}>${placeIcon(p)}<span>${esc(placeName(p))}</span>${sameKey(p, c.place) ? I.check : ''}</button>`).join('');
     } else if (s.kind === 'entry') {
       const e = visible(c).find((x) => x.path === s.path);
       if (!e) return '';
@@ -373,8 +381,8 @@ const Files = (() => {
     }
     const title = c.results ? tr('Search') : c.path ? nameOf(c.path) : placeName(c.place);
     return `<header class="fx-ptop">
-      <button type="button" class="icon-btn" data-fx="close" aria-label="${tr('Back to the chat')}">${I.back}</button>
-      <div class="fx-ptitle"><b>${esc(title)}</b><button type="button" class="fx-pplace" data-fx="places">${esc(placeName(c.place))} ▾</button></div>
+      <button type="button" class="icon-btn" data-fx="close" aria-label="${back(c)}">${I.back}</button>
+      <div class="fx-ptitle"><b>${esc(title)}</b>${folderOnly(c) ? '' : `<button type="button" class="fx-pplace" data-fx="places">${esc(placeName(c.place))} ▾</button>`}</div>
       <span class="grow"></span>
       <button type="button" class="icon-btn" data-fx="sort-sheet" aria-label="${tr('Sort')}">${I.sort}</button>
       <button type="button" class="icon-btn" data-fx="view" data-show="${c.view === 'grid' ? 'list' : 'grid'}" aria-label="${c.view === 'grid' ? tr('List') : tr('Grid')}">${c.view === 'grid' ? I.list : I.grid}</button>
@@ -421,6 +429,7 @@ const Files = (() => {
     draw(c);
   }
   async function loadKept(c) {
+    if (folderOnly(c)) return;
     try { c.kept = (await api(filesBase(c))).files || []; } catch { c.kept = c.kept || []; }
   }
   async function loadProjects(c) {
@@ -821,6 +830,8 @@ const Files = (() => {
     el.addEventListener('contextmenu', (ev) => {
       const c = cur;
       const project = ev.target.closest('.fx-place[data-root="project"]');
+      // A project's folder (#702) is its project's: its bots and its delete are in the project's settings.
+      if (c && project && (folderOnly(c) || (c.projects || []).some((p) => p.name === project.dataset.project && p.project))) { ev.preventDefault(); return undefined; }
       if (c && project) {
         ev.preventDefault();
         const r = el.getBoundingClientRect();
@@ -933,7 +944,7 @@ const Files = (() => {
     const el = box();
     let view = 'list';
     try { view = localStorage.getItem('botdot-files-view') === 'grid' ? 'grid' : 'list'; } catch { /* none kept */ }
-    const c = { bot, place: { root: 'server' }, path: '', data: null, error: null, sort: 'name', view, sel: new Set(), anchor: null, focus: null, preview: null, back: [], fwd: [], projects: [], kept: [], pins: [], menu: null, sheet: null, dialog: null, selecting: false, query: '', results: null, drop: false, busy: null, searches: (state.features || []).includes('workspace-search') };
+    const c = { bot, place: bot.folder ? { root: 'project', project: bot.folder } : { root: 'server' }, path: '', data: null, error: null, sort: 'name', view, sel: new Set(), anchor: null, focus: null, preview: null, back: [], fwd: [], projects: [], kept: [], pins: [], menu: null, sheet: null, dialog: null, selecting: false, query: '', results: null, drop: false, busy: null, searches: (state.features || []).includes('workspace-search') };
     c.pins = readPins(c);
     cur = c;
     if (el) {
@@ -944,6 +955,8 @@ const Files = (() => {
     Promise.all([loadProjects(c), loadKept(c)]).then(() => draw(c));
     return load(c);
   }
+  // Opens a project's folder (#702) alone: `folder` its name in /workspace/projects, `name` and `color` the project's.
+  const openFolder = ({ folder, name, color }) => open({ id: `project:${folder}`, name, color, folder, base: `/projects/${encodeURIComponent(folder)}` });
   function close() {
     cur = null;
     const el = box();
@@ -951,5 +964,5 @@ const Files = (() => {
     document.body?.classList.remove('files-open');
   }
 
-  return { open, close, html, sorted, kindOf, sizeOf, canDo, crumbs, rangeSelect, folderPlan, deleteWords, act, places, placeName, now: () => cur };
+  return { open, openFolder, close, html, sorted, kindOf, sizeOf, canDo, crumbs, rangeSelect, folderPlan, deleteWords, act, places, placeName, now: () => cur };
 })();

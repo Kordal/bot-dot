@@ -1694,5 +1694,7 @@
   "Project settings": "Ustawienia projektu",
   "Archived": "Zarchiwizowane",
   "Delete the team {name}? Its bots stay.": "Usunąć zespół {name}? Jego boty zostają.",
-  "Delete the project {name}? Its bots stay.": "Usunąć projekt {name}? Jego boty zostają."
+  "Delete the project {name}? Its bots stay.": "Usunąć projekt {name}? Jego boty zostają.",
+  "Keep its folder": "Zostaw jego folder",
+  "Delete its folder too": "Usuń też jego folder"
 }
