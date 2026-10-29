@@ -82,6 +82,16 @@ test('unseen notes: none at first, then every new one newest first, until seen',
   assert.throws(() => w.seen('2099-01-01-future'), /which note/, 'only a note there is');
 });
 
+test("a note whose name starts another's sorts by its id, so a new account has seen both and the newest is the longer", () => {
+  const dir = tmp();
+  write(dir, '2026-10-29-todo');
+  write(dir, '2026-10-29-todo-hover'); // its file sorts first ('-' before '.'), its id after
+  assert.deepEqual(whatsNew.read(dir).map((n) => n.id), ['2026-10-29-todo', '2026-10-29-todo-hover']);
+  assert.equal(whatsNew.newest(dir), '2026-10-29-todo-hover');
+  assert.deepEqual(whatsNew.create({ dir, dataDir: tmp() }).unseen(), [], 'a new account shows no old note');
+  assert.deepEqual(whatsNew.after('2026-10-29-todo', { dir }).map((n) => n.id), ['2026-10-29-todo-hover']);
+});
+
 test('with no notes yet, the first note that comes shows', () => {
   const dir = tmp(), dataDir = tmp();
   const w = whatsNew.create({ dir, dataDir });
