@@ -70,7 +70,7 @@ internal fun Goals(ui: CompanyUi, c: Company) {
 internal fun displayName(k: String): String = when (k) { "pace" -> tr("Pace chart"); "bar" -> tr("Bar"); else -> tr("Status") }
 
 @Composable
-private fun GoalCard(ui: CompanyUi, c: Company, o: Objective) {
+internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective) {
     val p = LocalPaper.current
     val show = CompanyFloor.displayOf(o)
     val numeric = o.target > 0

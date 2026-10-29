@@ -59,6 +59,8 @@ data class Company(
     val cards: List<ProjectCard> = emptyList(),
     /** The pieces on its board (#780, [ProjectBoard]); null on a project made before, which shows them all. */
     val board: List<String>? = null,
+    /** Where the owner put each tile of its board (#784, [BoardCanvas]); null while botdot places them. */
+    val layout: Map<String, List<Double>>? = null,
 ) {
     val running: Boolean get() = phase == "running"
     val site: Boolean get() = kind == "site"

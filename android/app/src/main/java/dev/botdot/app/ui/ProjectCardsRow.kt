@@ -44,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -87,11 +88,27 @@ import kotlinx.serialization.json.putJsonArray
  * answers as chips, ready answers and an Other field); while a run builds a card it shows its title, a shimmer, one live
  * line and a bar; a card built a moment ago has a green outline. Each card: refresh, and a menu Change, Refresh, Remove.
  */
+/** What the cards share while drawn (#776): the one open (a Change, or [ProjectCards.NEW]), refused words, fresh cards. */
+internal class CardsState(val ui: CompanyUi, val c: Company, openState: MutableState<String?>, refusedState: MutableState<String?>, val fresh: List<String>) {
+    var open by openState
+    var refused by refusedState
+    // A card removed meanwhile closes its Change.
+    val shown get() = open?.takeIf { it == ProjectCards.NEW || c.cards.any { k -> k.id == it } }
+    fun send(block: suspend (Api) -> Company, done: (Boolean) -> Unit = {}) = ui.call(block, done)
+    /** The board's tile of [s] (#784): its card's, or New card's. */
+    fun tileOf(s: ProjectCards.Slot): String = when (s) {
+        is ProjectCards.Slot.Card -> "card:${s.card.id}"
+        is ProjectCards.Slot.Questions -> "card:${s.card.id}"
+        is ProjectCards.Slot.Ask -> s.card?.let { "card:${it.id}" } ?: "new-card"
+        ProjectCards.Slot.New -> "new-card"
+    }
+}
+
 @Composable
-internal fun ProjectCardsRow(ui: CompanyUi, c: Company, pieces: List<String> = emptyList()) {
-    var open by rememberSaveable(c.id) { mutableStateOf<String?>(null) }
+internal fun rememberCards(ui: CompanyUi, c: Company): CardsState {
+    val open = rememberSaveable(c.id) { mutableStateOf<String?>(null) }
     // Words the server refused: back in the ask field when it opens again.
-    var refused by rememberSaveable(c.id) { mutableStateOf<String?>(null) }
+    val refused = rememberSaveable(c.id) { mutableStateOf<String?>(null) }
     // Cards built a moment ago: a green outline for a few seconds.
     val fresh = remember(c.id) { mutableStateListOf<String>() }
     var before by remember(c.id) { mutableStateOf(c.cards) }
@@ -102,41 +119,53 @@ internal fun ProjectCardsRow(ui: CompanyUi, c: Company, pieces: List<String> = e
         fresh.addAll(built)
         try { delay(4000) } finally { fresh.removeAll(built) }
     }
-    // A card removed meanwhile closes its Change.
-    val shown = open?.takeIf { it == ProjectCards.NEW || c.cards.any { k -> k.id == it } }
-    fun send(block: suspend (Api) -> Company, done: (Boolean) -> Unit = {}) = ui.call(block, done)
+    val st = CardsState(ui, c, open, refused, fresh)
+    // Back on Close: the ask field closes, nothing is sent.
+    BackHandler(enabled = st.shown != null) { st.open = null }
+    return st
+}
+
+/** One card, the ask field, the questions or New card, in [m]. */
+@Composable
+internal fun CardSlot(st: CardsState, s: ProjectCards.Slot, m: Modifier) {
+    when (s) {
+        is ProjectCards.Slot.New -> NewCardTile(m) { st.refused = null; st.open = ProjectCards.NEW }
+        is ProjectCards.Slot.Ask -> AskCard(m, s.card, st.refused ?: s.card?.name.orEmpty(), onClose = { st.open = null }) { text ->
+            val k = s.card
+            st.open = null
+            st.send({ if (k == null) it.addCard(text) else it.changeCard(k.id, text) }) { ok -> if (!ok) { st.refused = text; st.open = k?.id ?: ProjectCards.NEW } }
+        }
+        is ProjectCards.Slot.Questions -> QuestionsCard(m, s.card,
+            onAnswer = { text -> st.send({ it.answerCard(s.card.id, text) }) },
+            onClose = { st.send({ it.cancelCard(s.card.id) }) })
+        is ProjectCards.Slot.Card -> BoardCard(m, s.card, fresh = s.card.id in st.fresh,
+            onRefresh = { st.send({ it.refreshCard(s.card.id) }) },
+            onChange = { st.refused = null; st.open = s.card.id },
+            onRemove = { st.send({ it.removeCard(s.card.id) }) })
+    }
+}
+
+/** The board's pieces not on it yet (#780), as picks under the ask of a new card. */
+@Composable
+internal fun CardPicks(st: CardsState, pieces: List<String>) {
+    if (st.shown == ProjectCards.NEW && pieces.isNotEmpty()) PiecePicks(pieces) { k ->
+        st.open = null
+        st.send({ it.patchCompany(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(st.c, k).forEach { x -> add(x) } } }) })
+    }
+}
+
+@Composable
+internal fun ProjectCardsRow(ui: CompanyUi, c: Company, pieces: List<String> = emptyList()) {
+    val st = rememberCards(ui, c)
     Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        ProjectCards.lines(ProjectCards.slots(c.cards, shown)).forEach { line ->
+        ProjectCards.lines(ProjectCards.slots(c.cards, st.shown)).forEach { line ->
             Row(Modifier.fillMaxWidth().then(if (line.size > 1) Modifier.height(IntrinsicSize.Min) else Modifier), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
-                line.forEach { s ->
-                    val m = Modifier.weight(1f).then(if (line.size > 1) Modifier.fillMaxHeight() else Modifier)
-                    when (s) {
-                        is ProjectCards.Slot.New -> NewCardTile(m) { refused = null; open = ProjectCards.NEW }
-                        is ProjectCards.Slot.Ask -> AskCard(m, s.card, refused ?: s.card?.name.orEmpty(), onClose = { open = null }) { text ->
-                            val k = s.card
-                            open = null
-                            send({ if (k == null) it.addCard(text) else it.changeCard(k.id, text) }) { ok -> if (!ok) { refused = text; open = k?.id ?: ProjectCards.NEW } }
-                        }
-                        is ProjectCards.Slot.Questions -> QuestionsCard(m, s.card,
-                            onAnswer = { text -> send({ it.answerCard(s.card.id, text) }) },
-                            onClose = { send({ it.cancelCard(s.card.id) }) })
-                        is ProjectCards.Slot.Card -> BoardCard(m, s.card, fresh = s.card.id in fresh,
-                            onRefresh = { send({ it.refreshCard(s.card.id) }) },
-                            onChange = { refused = null; open = s.card.id },
-                            onRemove = { send({ it.removeCard(s.card.id) }) })
-                    }
-                }
+                line.forEach { s -> CardSlot(st, s, Modifier.weight(1f).then(if (line.size > 1) Modifier.fillMaxHeight() else Modifier)) }
                 if (line.size == 1 && !line[0].wide) Spacer(Modifier.weight(1f))
             }
         }
-        // The board's pieces not on it yet (#780), as picks under the ask of a new card.
-        if (shown == ProjectCards.NEW && pieces.isNotEmpty()) PiecePicks(pieces) { k ->
-            open = null
-            send({ it.patchCompany(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(c, k).forEach { x -> add(x) } } }) })
-        }
+        CardPicks(st, pieces)
     }
-    // Back on Close: the ask field closes, nothing is sent.
-    BackHandler(enabled = shown != null) { open = null }
 }
 
 private fun Modifier.cardBox(p: Paper, outline: Color? = null): Modifier =
