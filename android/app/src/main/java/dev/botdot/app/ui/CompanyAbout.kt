@@ -38,7 +38,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.botdot.app.data.AboutCard
 import dev.botdot.app.data.AboutScreen
 import dev.botdot.app.data.Company
@@ -126,7 +125,7 @@ private fun Reading(ui: CompanyUi, c: Company) {
     }
     StepPage(null) {
         CoTitle(c.name.ifEmpty { c.start })
-        if (c.name.isNotEmpty()) Text(c.start, color = p.muted, fontSize = 15.sp)
+        if (c.name.isNotEmpty()) Text(c.start, color = p.muted, fontSize = Type.s16)
         SourceList(c.sources)
         if (ui.readFailed) GoButton(tr("Try again")) { ui.readFailed = false } else ChiefAtWork()
     }
@@ -136,7 +135,7 @@ private fun Reading(ui: CompanyUi, c: Company) {
 @Composable
 private fun Progress(at: Int) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
         repeat(CompanySetup.IDEA.size + 1) { i -> Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (i <= at) p.muted else p.line2)) }
     }
 }
@@ -144,9 +143,9 @@ private fun Progress(at: Int) {
 @Composable
 private fun BackWords(enabled: Boolean = true, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Row(Modifier.clip(RoundedCornerShape(99.dp)).clickable(enabled = enabled, onClick = onClick).padding(horizontal = 8.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.clip(Radius.pill).clickable(enabled = enabled, onClick = onClick).padding(horizontal = Space.s8, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = if (enabled) p.muted else p.faint, modifier = Modifier.size(16.dp))
-        Text(tr("Back"), color = if (enabled) p.muted else p.faint, fontSize = 15.sp, modifier = Modifier.padding(start = 6.dp))
+        Text(tr("Back"), color = if (enabled) p.muted else p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s8))
     }
 }
 
@@ -176,12 +175,12 @@ private fun Question(ui: CompanyUi, c: Company, i: Int) {
         CoTitle(ideaQuestion(key))
         ChipQuestion(ui, key, a.chips.orEmpty(), picked, multi = true) { ui.picked[key] = it }
         val answered = CompanySetup.IDEA.filter { k -> k != key && c.card(k)?.answer?.isNotEmpty() == true }
-        if (answered.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (answered.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             answered.forEach { k ->
                 Row(verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.padding(top = 2.dp).size(16.dp))
-                    Text(ideaLabel(k), color = p.muted, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp).width(80.dp))
-                    Text(c.card(k)?.answer.orEmpty(), color = p.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                    Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.padding(top = Space.s4).size(16.dp))
+                    Text(ideaLabel(k), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8).width(80.dp))
+                    Text(c.card(k)?.answer.orEmpty(), color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -217,9 +216,9 @@ private fun Stories(ui: CompanyUi, c: Company) {
         }
     }) {
         Progress(CompanySetup.IDEA.size)
-        FlowRow(verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             CoTitle(tr("I want my"))
-            Row(Modifier.clip(RoundedCornerShape(10.dp)).border(1.dp, p.line2, RoundedCornerShape(10.dp)).clickable { ui.choosingWho = !ui.choosingWho }.padding(horizontal = 8.dp),
+            Row(Modifier.clip(Radius.small).border(1.dp, p.line2, Radius.small).clickable { ui.choosingWho = !ui.choosingWho }.padding(horizontal = Space.s8),
                 verticalAlignment = Alignment.CenterVertically) {
                 CoTitle(whoWord(who))
                 Icon(Icons.Filled.ArrowDropDown, null, tint = p.muted)
@@ -231,20 +230,20 @@ private fun Stories(ui: CompanyUi, c: Company) {
         }
         AskField(typed, { typed = it.take(200) }, label = tr("I want my") + " " + whoWord(who) + " " + tr("to…"), button = tr("Add")) { add(typed); typed = "" }
         val ideas = CompanySetup.ideas(ui.ideas[who].orEmpty(), c.stories, who)
-        if (ideas.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (ideas.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             ideas.forEach { t -> CoChip(t, icon = Icons.Filled.Add) { add(t) } }
         }
         c.stories.forEachIndexed { gi, g ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(whoWord(g.who), color = p.muted, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                Text(whoWord(g.who), color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Medium)
                 g.items.forEachIndexed { si, s ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${si + 1}", color = p.faint, fontSize = 13.sp, modifier = Modifier.width(22.dp))
-                        Text(s.text, color = p.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                        Text(if (s.start) tr("Start") else tr("Later"), color = if (s.start) p.inkText else p.muted, fontSize = 13.sp,
-                            modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(if (s.start) p.ink else p.sunk)
+                        Text("${si + 1}", color = p.faint, fontSize = Type.s12, modifier = Modifier.width(22.dp))
+                        Text(s.text, color = p.text, fontSize = Type.s16, modifier = Modifier.weight(1f))
+                        Text(if (s.start) tr("Start") else tr("Later"), color = if (s.start) p.inkText else p.muted, fontSize = Type.s12,
+                            modifier = Modifier.clip(Radius.pill).background(if (s.start) p.ink else p.sunk)
                                 .clickable { val next = CompanySetup.flipStart(c.stories, gi, si); ui.save(CompanySetup.patchStories(next)) { it.copy(stories = next) } }
-                                .padding(horizontal = 12.dp, vertical = 6.dp))
+                                .padding(horizontal = Space.s12, vertical = Space.s8))
                         RoundButton(Icons.Filled.Close, tr("Remove"), size = 36.dp) { val next = CompanySetup.dropStory(c.stories, gi, si); ui.save(CompanySetup.patchStories(next)) { it.copy(stories = next) } }
                     }
                 }
@@ -302,9 +301,9 @@ private fun Review(ui: CompanyUi, c: Company) {
 @Composable
 private fun ChipCard(question: String, highlighted: Boolean = false, content: @Composable () -> Unit) {
     val p = LocalPaper.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, if (highlighted) p.warnLine else p.line, RoundedCornerShape(14.dp)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(question, color = p.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, if (highlighted) p.warnLine else p.line, Radius.card).padding(Space.s16),
+        verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+        Text(question, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.Medium)
         content()
     }
 }
@@ -324,13 +323,13 @@ private fun AnsweredCard(ui: CompanyUi, c: Company, a: AboutCard, onAnswer: (Str
         }
         return
     }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).border(1.dp, p.line, RoundedCornerShape(14.dp)).clickable(onClickLabel = tr("Change")) { ui.editing = a.key }.padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line, Radius.card).clickable(onClickLabel = tr("Change")) { ui.editing = a.key }.padding(Space.s16),
+        verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(questionOf(c, a), color = p.muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            Text(questionOf(c, a), color = p.muted, fontSize = Type.s12, modifier = Modifier.weight(1f))
             Icon(Icons.Outlined.Edit, null, tint = p.faint, modifier = Modifier.size(14.dp))
         }
-        Text(a.answer, color = p.text, fontSize = 15.sp)
+        Text(a.answer, color = p.text, fontSize = Type.s16)
     }
 }
 
@@ -342,26 +341,26 @@ private fun SwotGrid(ui: CompanyUi, c: Company) {
     if (w == null && !ui.swotting) return
     @Composable
     fun Cell(letter: String, label: String, list: List<String>, tint: Color, modifier: Modifier) {
-        Column(modifier.clip(RoundedCornerShape(12.dp)).background(p.panel).border(1.dp, p.line, RoundedCornerShape(12.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(modifier.clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(letter, color = tint, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Text(label, color = p.muted, fontSize = 13.sp, modifier = Modifier.padding(start = 6.dp))
+                Text(letter, color = tint, fontWeight = FontWeight.Bold, fontSize = Type.s16)
+                Text(label, color = p.muted, fontSize = Type.s12, modifier = Modifier.padding(start = Space.s8))
             }
-            list.forEach { Text(it, color = p.text, fontSize = 14.sp) }
+            list.forEach { Text(it, color = p.text, fontSize = Type.s14) }
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             Cell("S", tr("Strengths"), w?.strengths.orEmpty(), p.ok, Modifier.weight(1f))
             Cell("W", tr("Weaknesses"), w?.weaknesses.orEmpty(), p.err, Modifier.weight(1f))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             Cell("O", tr("Opportunities"), w?.opportunities.orEmpty(), p.mention, Modifier.weight(1f))
             Cell("T", tr("Threats"), w?.threats.orEmpty(), p.warn, Modifier.weight(1f))
         }
-        if (w != null && w.firstTest.isNotEmpty()) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.sunk).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (w != null && w.firstTest.isNotEmpty()) Row(Modifier.fillMaxWidth().clip(Radius.card).background(p.sunk).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.PlayArrow, null, tint = p.text, modifier = Modifier.size(18.dp))
-            Text(w.firstTest, color = p.text, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
+            Text(w.firstTest, color = p.text, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8))
         }
     }
 }
@@ -379,13 +378,13 @@ private fun Knows(c: Company) {
         if (c.never.isNotEmpty()) add(tr("Asks before") + ": " + c.never.joinToString(", "))
         if (c.time.isNotEmpty()) add(tr("Time") + ": " + c.time)
     }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(p.panel).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Text(c.name.ifEmpty { c.start }, color = p.text, fontWeight = FontWeight.SemiBold)
         rows.forEach { t ->
             Row(verticalAlignment = Alignment.Top) {
-                Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.padding(top = 2.dp).size(16.dp))
+                Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.padding(top = Space.s4).size(16.dp))
                 Spacer(Modifier.size(8.dp))
-                Text(t, color = p.muted, fontSize = 14.sp)
+                Text(t, color = p.muted, fontSize = Type.s14)
             }
         }
     }

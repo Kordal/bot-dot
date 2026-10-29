@@ -267,7 +267,8 @@ class MainActivity : ComponentActivity() {
                 fun place(company: Boolean) {
                     scope.launch { app.settings.setCompany(company) }
                     if (company) { panelKept = null; if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true } }
-                    else if (route == "company") nav.popBackStack("home", inclusive = false)
+                    // From the Company, or a chat opened on it (#757): back to the Chief's chat.
+                    else if (route == "company" || runCatching { nav.getBackStackEntry("company") }.isSuccess) nav.popBackStack("home", inclusive = false)
                 }
                 // A device that was on the Company opens on it again, once the botdot says it has one.
                 val features = app.store.version.value.collectAsState().value?.features
