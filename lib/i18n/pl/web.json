@@ -1629,6 +1629,9 @@
     "few": "{n} opinie",
     "many": "{n} opinii"
   },
+  "Reports": "Raporty",
+  "Daily": "Codziennie",
+  "Twice a week": "Dwa razy w tygodniu",
   "Standup": "Standup",
   "Standup: {text}": "Standup: {text}",
   "Weekly": "Co tydzień",
@@ -1653,5 +1656,10 @@
   "Minimize": "Zwiń",
   "Decisions": "Decyzje",
   "Add a decision": "Dodaj decyzję",
-  "Remove": "Usuń"
+  "Remove": "Usuń",
+  "{n} working": {
+    "one": "{n} pracuje",
+    "few": "{n} pracują",
+    "many": "{n} pracuje"
+  }
 }

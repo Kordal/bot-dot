@@ -88,6 +88,8 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
       BOT_DOT_GROUP_ROUTER: 'off',
       // A new bot's first message (lib/hello.js) would be a run in every test that makes a bot; its own tests switch it on.
       BOT_DOT_HELLO_DELAY_MS: 'off',
+      // A project's new lead asking how often to report (lib/routes/company.js) would be a run after every team made; its own tests switch it on.
+      BOT_DOT_LEAD_DELAY_MS: 'off',
       // The tests don't wait for the clock: srv.tick() runs the scheduler's next minute now (server.js test-tick),
       // reminders are looked at every second, not every 15, and a working line changes every 50 ms, not every
       // second (working-line.js pacer; the tests of the pace set their own).
