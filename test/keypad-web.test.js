@@ -704,3 +704,17 @@ test('web: a narrow keypad (a page open beside the chat) wraps its keys and cate
   const narrow = css.match(/@container side \(width < 480px\) \{([\s\S]*?)\n\}/)?.[1] || '';
   assert.match(narrow, /\.keypad \.kp-needs \{ flex: 1 1 100%; \}/);
 });
+
+test('web: a key\'s status words are muted and its colour is in the dot; only Needs you keeps colour and weight (#724)', () => {
+  const rules = at1(1280);
+  const KEY = [...PAD, { tag: 'button', classes: ['key'], index: 1 }];
+  const words = (kind, prop) => winner(rules, [...KEY, { tag: 'span', classes: ['key-st', kind], index: 3 }], prop)?.value;
+  const dot = (kind) => rules.filter((r) => r.selector === `.key-st.${kind}::before` && 'background' in r.decls).at(-1)?.decls.background.value;
+  for (const kind of ['working', 'unread', 'done', 'failed']) {
+    assert.equal(words(kind, 'color'), 'var(--muted)', `${kind}: muted words`);
+    assert.notEqual(words(kind, 'font-weight'), '600', `${kind}: regular weight`);
+  }
+  assert.equal(words('needs', 'color'), 'var(--warn-text)', 'Needs you asks for the owner: its words keep their colour');
+  assert.equal(words('needs', 'font-weight'), '600');
+  assert.deepEqual(['working', 'needs', 'unread', 'done', 'failed'].map(dot), ['var(--ok)', 'var(--warn)', 'var(--mention)', 'var(--ok)', 'var(--err)'], 'the state\'s colour in its dot');
+});

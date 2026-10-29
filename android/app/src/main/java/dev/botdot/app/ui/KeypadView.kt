@@ -280,31 +280,31 @@ private fun KeyHead(look: KeyLook, size: Int) {
 }
 
 /**
- * A key's status line under its name (#664): a dot and the status's words in the state's colour: green while it works,
- * where the words are what it does now (and which member, for a group), amber while it needs the owner, blue with its
- * unread replies, red when its last run did not finish, muted when done (a green dot) or idle. TalkBack reads the
- * status's words and its time.
+ * A key's status line under its name (#664): a dot in the state's colour and the status's muted words (#724): green
+ * while it works, where the words are what it does now (and which member, for a group), blue with its unread replies,
+ * red when its last run did not finish, green when done, grey when idle. Needs you, the one state that asks for the
+ * owner, keeps its amber in the words and their weight 600. TalkBack reads the status's words and its time.
  */
 @Composable
 private fun KeyState(look: KeyLook) {
     val p = LocalPaper.current
     val kind = look.status.kind
-    val (words, dot) = when (kind) {
-        Keypad.StatusKind.WORKING -> p.okText to p.ok
-        Keypad.StatusKind.NEEDS -> p.warnText to p.warn
-        Keypad.StatusKind.UNREAD -> p.mention to p.mention
-        Keypad.StatusKind.FAILED -> p.err to p.err
-        Keypad.StatusKind.DONE -> p.muted to p.ok
-        Keypad.StatusKind.IDLE -> p.faint to p.line2
+    val dot = when (kind) {
+        Keypad.StatusKind.WORKING, Keypad.StatusKind.DONE -> p.ok
+        Keypad.StatusKind.NEEDS -> p.warn
+        Keypad.StatusKind.UNREAD -> p.mention
+        Keypad.StatusKind.FAILED -> p.err
+        Keypad.StatusKind.IDLE -> p.line2
     }
+    val loud = Keypad.loud(kind)
     val live = kind == Keypad.StatusKind.WORKING && look.line.isNotBlank()
     val text = if (!live) look.status.text else if (look.who.isNotEmpty()) "${look.who}: ${look.line}" else look.line
     val said = listOf(look.status.text, look.time).filter { it.isNotEmpty() }.joinToString(", ")
     Row(Modifier.padding(top = Space.s4).testTag(KEY_STATE).semantics(mergeDescendants = true) { contentDescription = if (live) "$said: $text" else said },
         verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(7.dp).clip(CircleShape).background(dot))
+        Box(Modifier.size(6.dp).clip(CircleShape).background(dot))
         Spacer(Modifier.width(Space.s8))
-        Text(text, color = words, fontSize = Type.s12, lineHeight = Type.line16, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, color = if (loud) p.warnText else p.muted, fontSize = Type.s12, fontWeight = if (loud) FontWeight.SemiBold else FontWeight.Normal, lineHeight = Type.line16, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
