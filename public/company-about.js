@@ -38,22 +38,22 @@
   const save = async (fields) => {
     Object.assign(state.company, fields);
     Company.redraw();
-    try { state.company = await api('/company', { method: 'PATCH', body: fields }); } catch (e) { toast(e.message, true); await Company.load(); }
+    try { Company.put(await api(Company.at('/company'), { method: 'PATCH', body: fields })); } catch (e) { toast(e.message, true); await Company.load(); }
     Company.redraw();
   };
   // The Chief's call: its answer arrives as the company (or, for stories, as suggestions); a failure leaves no chips.
   async function ask(path, body, key) {
     if (ui.asking.has(key)) return null;
     ui.asking.add(key);
-    try { return await api(path, { method: 'POST', body }); } catch (e) { console.warn(e.message); return null; } finally { ui.asking.delete(key); }
+    try { return await api(Company.at(path), { method: 'POST', body }); } catch (e) { console.warn(e.message); return null; } finally { ui.asking.delete(key); }
   }
   async function suggest(key) {
     const c = await ask('/company/suggest', { key }, `suggest:${key}`);
-    if (c && c.id) { state.company = c; Company.redraw(); }
+    if (c && c.id) { Company.put(c); Company.redraw(); }
   }
   async function read() {
     ui.reading = true;
-    try { state.company = await api('/company/read', { method: 'POST' }); ui.readFailed = false; } catch (e) { toast(e.message, true); ui.readFailed = true; }
+    try { Company.put(await api(Company.at('/company/read'), { method: 'POST' })); ui.readFailed = false; } catch (e) { toast(e.message, true); ui.readFailed = true; }
     ui.reading = false;
     Company.redraw();
   }
@@ -62,7 +62,7 @@
     Company.redraw();
     const c = await ask('/company/swot', {}, 'swot');
     ui.swotting = false;
-    if (c && c.id) state.company = c;
+    if (c && c.id) Company.put(c);
     Company.redraw();
   }
   async function storyIdeas(who) {

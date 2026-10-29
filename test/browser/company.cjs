@@ -22,7 +22,7 @@ const { startServer } = require('../helpers');
       await sw.waitFor({ timeout: 20000 });
       await sw.click();
       await page.locator('#view-company h1', { hasText: 'What are you working on?' }).waitFor();
-      assert.equal(await page.locator('#company-side .co-row').first().innerText(), 'Setting up');
+      assert.equal(await page.locator('#company-side [data-project]').count(), 0, 'no project yet');
       const go = page.locator('#co-ask .co-go');
       assert.equal(await go.isDisabled(), true);
       await page.locator('[data-add-link]').click();
