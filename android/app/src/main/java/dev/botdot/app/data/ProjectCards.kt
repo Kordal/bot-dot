@@ -120,7 +120,7 @@ object ProjectCards {
     /** The building card's live line. */
     fun stepText(s: CardStep?): String = when {
         s == null -> tr("Starting")
-        s.kind == "search" -> s.what?.takeIf { it.isNotBlank() }?.let { tr("Searching {what}", "what" to it) } ?: tr("Searching the web")
+        s.kind == "search" -> s.what?.takeIf { it.isNotBlank() }?.let { tr("Searching {what}", "what" to it) } ?: tr("Searching")
         else -> s.what?.takeIf { it.isNotBlank() }?.let { tr("Reading {what}", "what" to it) } ?: tr("Reading")
     }
 

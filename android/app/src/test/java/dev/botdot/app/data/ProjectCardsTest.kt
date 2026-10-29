@@ -120,7 +120,7 @@ class ProjectCardsTest {
     @Test fun theBuildingLineSaysWhatTheRunDoes() {
         assertEquals("Starting", ProjectCards.stepText(null))
         assertEquals("Searching calls this week", ProjectCards.stepText(CardStep("search", "calls this week")))
-        assertEquals("Searching the web", ProjectCards.stepText(CardStep("search")))
+        assertEquals("Searching", ProjectCards.stepText(CardStep("search")))
         assertEquals("Reading acme/web", ProjectCards.stepText(CardStep("read", "acme/web")))
         assertEquals("Reading", ProjectCards.stepText(CardStep("read", "")))
         assertEquals(0.12f, ProjectCards.progress(0), 0.001f)
