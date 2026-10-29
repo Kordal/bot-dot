@@ -111,6 +111,10 @@ test('a bot on teams of two projects is told the to-dos of each and names the pr
   assert.deepEqual((await srv.api('/company')).data.company.events, []);
   r = (await srv.api(`/company/calendar?from=2099-01-05&to=2099-01-07&project=${second}`)).data;
   assert.ok(r.items.some((x) => x.kind === 'event' && x.title === 'Tasting'));
+  // It leads a team in one project only: its report rhythm goes there without naming it.
+  r = (await self(srv, token, 'report-rhythm', { every: 'weekly' })).data;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal((await srv.api(at('/company', first))).data.company.teams.find((t) => t.lead === b.id).report, 'weekly');
   srv.unhold();
 });
 
