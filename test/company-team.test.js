@@ -122,7 +122,8 @@ test('Create makes the bots, their teams with the first bot the lead and plan it
   assert.match(byName('Landing Page').systemPrompt, /before every action/);
   assert.equal(byName('Inbox Helper (Mealwise)').description, 'Sorts your Gmail');
   const jobs = (await srv.api(`/bots/${byName('Market Scout').id}/jobs`)).data;
-  assert.deepEqual(jobs.map((j) => j.cron), ['0 8 * * 1']);
+  // Its routine is named for what it does, as the calendar shows it: never its time ("Mondays 8:00").
+  assert.deepEqual(jobs.map((j) => [j.name, j.cron]), [['Finds who else does this', '0 8 * * 1']]);
   r = await srv.api('/company/start', { method: 'POST' });
   assert.equal(r.status, 200);
   assert.equal(await count(), n + 4);

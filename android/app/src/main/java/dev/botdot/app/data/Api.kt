@@ -560,6 +560,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun setCheckup(field: String, value: Boolean): Checkup? = Checkup.answer(send("PUT", "/settings/checkup", buildJsonObject { put(field, value) }))
     suspend fun setup(): SetupInfo = json.decodeFromString(get("/setup?fresh"))
     /** The owner's answer to the question for the Chief's name (ChiefName): "" keeps "Chief of Staff". A refusal throws the server's words. */
+    /** This device's time zone for a botdot with none of its own (#756): it takes it once, so bots say times in the owner's time. */
+    suspend fun deviceTimezone(zone: String) { send("PUT", "/setup", buildJsonObject { put("deviceTimezone", zone) }) }
     suspend fun nameChief(name: String): SetupInfo = json.decodeFromString(send("PUT", "/setup", buildJsonObject { put("chiefName", name) }))
     /** Renames the Chief from its settings (ChiefName): "" gives back "Chief of Staff". Returns the name it now has; a refusal throws the server's words. */
     suspend fun renameChief(name: String): String = json.parseToJsonElement(send("PUT", "/settings/chief-name", buildJsonObject { put("name", name) })).jsonObject["name"]?.jsonPrimitive?.content ?: ChiefName.ROLE
@@ -715,6 +717,12 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun newCompanyTeam(name: String, bots: List<String>): Company =
         CompanySetup.of(send("POST", "/company/teams", buildJsonObject { put("name", name); put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
     suspend fun makeLead(team: String, bot: String): Company = CompanySetup.of(send("PUT", "/company/teams/${enc(team)}", buildJsonObject { put("lead", bot) }))
+    /** How often a team's lead reports (#696): daily, twice-weekly, weekly, or "" for none. */
+    suspend fun setReportRhythm(team: String, every: String): Company =
+        CompanySetup.of(send("PUT", "/company/teams/${enc(team)}", buildJsonObject { put("report", every.ifEmpty { null }) }))
+    /** An objective's display, steps or tick (#690): only what is given is sent. */
+    suspend fun setObjective(id: String, display: String? = null, steps: List<ObjectiveStep>? = null, done: Boolean? = null): Company =
+        CompanySetup.of(send("PUT", "/company/objectives/${enc(id)}", CompanyFloor.objectiveBody(display, steps, done)))
     suspend fun addTodo(text: String, bot: String?): Company =
         CompanySetup.of(send("POST", "/company/todos", buildJsonObject { put("text", text); if (bot != null) put("bot", bot) }))
     suspend fun tickTodo(id: String, done: Boolean): Company = CompanySetup.of(send("PUT", "/company/todos/${enc(id)}", buildJsonObject { put("done", done) }))

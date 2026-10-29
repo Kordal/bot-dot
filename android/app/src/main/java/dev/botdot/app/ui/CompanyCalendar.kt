@@ -34,7 +34,6 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -103,11 +102,11 @@ private fun WhoHead(x: CalendarItem, bots: List<Bot>) {
 @Composable
 private fun ItemRow(x: CalendarItem, bots: List<Bot>, whenText: String, onEdit: (() -> Unit)? = null, onDelete: (() -> Unit)? = null, picked: Boolean = false) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(10.dp)).background(if (picked) p.sunk else p.panel.copy(alpha = 0f))
+    Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(Radius.small).background(if (picked) p.sunk else p.panel.copy(alpha = 0f))
         .then(if (onEdit != null) Modifier.clickable(onClickLabel = x.title, onClick = onEdit) else Modifier), verticalAlignment = Alignment.CenterVertically) {
         Text(whenText, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.width(72.dp))
         WhoHead(x, bots)
-        Text(titleOf(x), color = if (x.done) p.faint else p.text, fontSize = Type.s14, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = 10.dp))
+        Text(titleOf(x), color = if (x.done) p.faint else p.text, fontSize = Type.s14, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = Space.s12))
         if (x.repeat != null || (x.runs ?: 0) > 1) Icon(Icons.Filled.Repeat, null, tint = p.faint, modifier = Modifier.size(16.dp))
         if (onDelete != null) RoundButton(Icons.Filled.Close, tr("Delete"), size = 32.dp, onClick = onDelete)
     }
@@ -130,23 +129,23 @@ internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
         runCatching { ui.api?.projectCalendar(from.toString(), from.plusDays(13).toString()) }.getOrNull()?.let { items = it }
     }
     val days = ProjectCalendar.byDay(items)
-    val shape = RoundedCornerShape(14.dp)
-    Column(Modifier.fillMaxWidth().clip(shape).background(p.bg).border(1.dp, p.line2, shape).clickable(onClickLabel = tr("Calendar")) { open = today.toString() }.padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    val shape = Radius.card
+    Column(Modifier.fillMaxWidth().clip(shape).background(p.bg).border(1.dp, p.line2, shape).clickable(onClickLabel = tr("Calendar")) { open = today.toString() }.padding(Space.s12),
+        verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(PROJECT_COLOR)
-            Text(tr("Calendar"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 8.dp))
+            Text(tr("Calendar"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = Space.s8))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
             ProjectCalendar.week(today).forEach { d ->
                 val on = days[d.toString()].orEmpty()
                 val isToday = d == today
-                Column(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(if (isToday) p.ink else p.sunk).clickable(onClickLabel = short(d, "EEE d")) { open = d.toString() }
-                    .padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.weight(1f).clip(Radius.small).background(if (isToday) p.ink else p.sunk).clickable(onClickLabel = short(d, "EEE d")) { open = d.toString() }
+                    .padding(vertical = Space.s8), horizontalAlignment = Alignment.CenterHorizontally) {
                     val ink = if (isToday) p.inkText else if (d.isBefore(today)) p.faint else p.text
                     Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = if (isToday) p.inkText else p.faint, fontSize = Type.s12, maxLines = 1)
                     Text(d.dayOfMonth.toString(), color = ink, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
-                    Box(Modifier.padding(top = 3.dp).size(5.dp).clip(CircleShape).background(if (on.isEmpty()) p.panel.copy(alpha = 0f) else parseColor(colorOf(on.first(), bots), p.muted)))
+                    Box(Modifier.padding(top = Space.s4).size(5.dp).clip(CircleShape).background(if (on.isEmpty()) p.panel.copy(alpha = 0f) else parseColor(colorOf(on.first(), bots), p.muted)))
                 }
             }
         }
@@ -185,16 +184,16 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
     val days = ProjectCalendar.byDay(items)
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = p.bg, dragHandle = null) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
-            Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s8, top = Space.s12, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                 Text(month.atDay(1).format(DateTimeFormatter.ofPattern("LLLL yyyy", I18n.locale)).replaceFirstChar { it.uppercase() }, color = p.text, fontSize = Type.s20, fontWeight = FontWeight.SemiBold)
-                RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("Previous month"), size = 36.dp, modifier = Modifier.padding(start = 12.dp)) { ym = month.minusMonths(1).toString(); picked = month.minusMonths(1).atDay(1).toString(); editing = null }
-                RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, tr("Next month"), size = 36.dp, modifier = Modifier.padding(start = 6.dp)) { ym = month.plusMonths(1).toString(); picked = month.plusMonths(1).atDay(1).toString(); editing = null }
+                RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("Previous month"), size = 36.dp, modifier = Modifier.padding(start = Space.s12)) { ym = month.minusMonths(1).toString(); picked = month.minusMonths(1).atDay(1).toString(); editing = null }
+                RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, tr("Next month"), size = 36.dp, modifier = Modifier.padding(start = Space.s8)) { ym = month.plusMonths(1).toString(); picked = month.plusMonths(1).atDay(1).toString(); editing = null }
                 Spacer(Modifier.weight(1f))
                 RoundButton(Icons.Filled.Close, tr("Close"), size = 36.dp, onClick = onClose)
             }
             Row(Modifier.fillMaxWidth()) {
                 ProjectCalendar.week(today).forEach { d ->
-                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(vertical = 6.dp))
+                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(vertical = Space.s8))
                 }
             }
             cells.chunked(7).forEach { week ->
@@ -212,7 +211,7 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
                             Box(Modifier.size(28.dp).clip(CircleShape).background(if (isToday) p.ink else p.bg.copy(alpha = 0f)), contentAlignment = Alignment.Center) {
                                 Text(d.dayOfMonth.toString(), color = if (isToday) p.inkText else if (out) p.faint else p.text, fontSize = Type.s14, fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal)
                             }
-                            Row(Modifier.padding(top = 3.dp).heightIn(min = 5.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(Modifier.padding(top = Space.s4).heightIn(min = 5.dp), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                                 on.take(ProjectCalendar.IN_DAY).forEach { x -> Box(Modifier.size(5.dp).clip(CircleShape).background(parseColor(colorOf(x, bots), p.muted))) }
                             }
                         }
@@ -221,7 +220,7 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
             }
             val day = LocalDate.parse(picked)
             val list = days[picked].orEmpty()
-            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Text(short(day, "EEE, d MMM").replaceFirstChar { it.uppercase() }, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
                 list.forEach { x ->
                     if (ProjectCalendar.editable(x) && x.id != null) ItemRow(x, bots, x.time.orEmpty(), picked = editing == x.id,
@@ -256,19 +255,19 @@ private fun EventForm(ui: CompanyUi, day: LocalDate, event: CalendarItem?, onSav
             if (ok) { title = ""; time = ""; onSaved() }
         }
     }
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, p.line2, RoundedCornerShape(16.dp)).padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line2, Radius.card).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             YouHead(28)
-            OutlinedTextField(title, { title = it.take(200) }, singleLine = true, enabled = !busy, placeholder = { Text(tr("Add an event")) },
+            Field(title, { title = it.take(200) }, singleLine = true, enabled = !busy, placeholder = { Text(tr("Add an event")) },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { go() }),
                 modifier = Modifier.weight(1f).semantics { contentDescription = tr("Add an event") })
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(time, { time = it.take(5) }, singleLine = true, enabled = !busy, isError = hhmm == null, placeholder = { Text("--:--") },
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+            Field(time, { time = it.take(5) }, singleLine = true, enabled = !busy, isError = hhmm == null, placeholder = { Text("--:--") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { go() }),
                 modifier = Modifier.widthIn(max = 110.dp).semantics { contentDescription = tr("Time") })
             if (event != null) Text(dueLabel(moveTo ?: day.toString()), color = p.text, fontSize = Type.s14,
-                modifier = Modifier.clip(RoundedCornerShape(99.dp)).background(p.sunk).clickable(onClickLabel = tr("Day")) { picking = true }.padding(horizontal = 12.dp, vertical = 10.dp))
+                modifier = Modifier.clip(Radius.pill).background(p.sunk).clickable(onClickLabel = tr("Day")) { picking = true }.padding(horizontal = Space.s12, vertical = Space.s12))
             Spacer(Modifier.weight(1f))
             GoButton(if (event != null) tr("Save") else tr("Add"), enabled = ready, busy = busy) { go() }
         }

@@ -26,6 +26,7 @@ data class Company(
     val start: String = "",
     val phase: String = "setup",
     val day: Int? = null,
+    val startedAt: String? = null,
     val sources: List<CompanySource> = emptyList(),
     val about: List<AboutCard> = emptyList(),
     val stories: List<StoryGroup> = emptyList(),
@@ -82,12 +83,52 @@ data class Swot(
 @Serializable
 data class Suggestions(val goal: List<String> = emptyList(), val never: List<String> = emptyList(), val time: List<String> = emptyList())
 
+/** A team (#669); [report] how often its lead reports (#696): daily, twice-weekly, weekly or none, and [lastReport] its latest. */
 @Serializable
-data class CompanyTeam(val id: String = "", val name: String = "", val color: String? = null, val bots: List<String> = emptyList(), val lead: String? = null)
+data class CompanyTeam(
+    val id: String = "",
+    val name: String = "",
+    val color: String? = null,
+    val bots: List<String> = emptyList(),
+    val lead: String? = null,
+    val report: String? = null,
+    val lastReport: TeamReport? = null,
+)
 
-/** An objective of the 90 days (#669): its number now and the one aimed at, in its colour (a team of that colour moves it). */
+/** A lead's latest report (#696): plain text in lines, when, and the bot that wrote it. */
 @Serializable
-data class Objective(val id: String = "", val name: String = "", val target: Double = 0.0, val current: Double = 0.0, val color: String? = null, val onTrack: Boolean = false)
+data class TeamReport(val text: String = "", val at: String? = null, val bot: String? = null)
+
+/**
+ * An objective of the 90 days (#669): its number now and the one aimed at, in its colour (a team of that colour moves
+ * it). How it is shown (#690): [display] pace, bar or status (null: the app picks), [steps] the checklist of one with no
+ * number, [done] the tick of one with neither, [history] its last value of each day it changed. [source] the connected app
+ * its number is read from (#699).
+ */
+@Serializable
+data class Objective(
+    val id: String = "",
+    val name: String = "",
+    val target: Double = 0.0,
+    val current: Double = 0.0,
+    val color: String? = null,
+    val onTrack: Boolean = false,
+    val display: String? = null,
+    val steps: List<ObjectiveStep> = emptyList(),
+    val done: Boolean = false,
+    val history: List<DayValue> = emptyList(),
+    val source: ObjectiveSource? = null,
+)
+
+/** Where an objective's number is read from (#699): the app, what is read there, when it last gave a number, why the last try failed. */
+@Serializable
+data class ObjectiveSource(val app: String = "", val what: String = "", val every: String = "daily", val readAt: String? = null, val triedAt: String? = null, val failed: String? = null)
+
+@Serializable
+data class ObjectiveStep(val text: String = "", val done: Boolean = false)
+
+@Serializable
+data class DayValue(val day: Int = 0, val value: Double = 0.0)
 
 /**
  * An item of the project's To-do (#672, #692): [bot] the bot it is for (none: the owner), [due] a day "YYYY-MM-DD",
@@ -133,8 +174,9 @@ data class StandupLead(val team: String = "", val bot: String = "", val done: St
 @Serializable
 data class WeekPlan(val items: List<PlanItem> = emptyList(), val approved: Boolean = false, val week: String? = null)
 
+/** An item of the week's plan: the objective it moves, and the team that does it (#696). */
 @Serializable
-data class PlanItem(val text: String = "", val objective: String? = null)
+data class PlanItem(val text: String = "", val objective: String? = null, val team: String? = null)
 
 /** A check-in the owner answered: day 30, 60 or 90, and keep, change or stop. */
 @Serializable

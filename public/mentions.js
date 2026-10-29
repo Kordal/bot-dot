@@ -5,8 +5,9 @@
 //   - skill: its name as is: @weekly-report
 //   - page (#473): a bot's page (or the Chief's), its title squashed as a bot's name: @IssueList, or @FleetDoctor/IssueList
 //   - tile (#473): a tile of the Board, its title squashed the same way: @LivingRoom
-// A page or a tile mention hands its content to the run that answers (lib/mentions.js mentionsNote).
-// Matching ignores case; for one name a bot wins, then a page (the chat's own bot's first), then a tile, then a skill; "@" inside a word (an email) isn't one;
+//   - project (#700): one of the account's projects, its name squashed the same way: @Botdot
+// A page, a tile or a project mention hands its content to the run that answers (lib/mentions.js mentionsNote).
+// Matching ignores case; for one name a bot wins, then a page (the chat's own bot's first), then a tile, then a project, then a skill; "@" inside a word (an email) isn't one;
 // anything that matches nothing stays plain text.
 //
 // Files (#604, feature `file-mentions`): "@[" its place and path "]", the form a pick from the "@" file picker puts in a
@@ -31,6 +32,7 @@
 //   library: [{ name, description }], the whole skill library
 //   pages: [{ bot, slug, title }], every page of the account, the Chief's with bot 'chief' (#473, feature `page-mentions`)
 //   tiles: [{ id, title, kind }], the Board's tiles; a page's tile and a group of tiles are no tile mention (#473)
+//   projects: [{ id, name, color? }], the account's projects (#700, feature `project-mentions`); one without a name is none
 //   account: [{ name, description }], the Claude account's skills (for "/" only); bots[].disabledSkills switches them off
 //   all: a group's chat, on a botdot that knows "@all" (#124, feature `group-all`): "@all" at the start of a message
 //     sends it to every member at once. It is offered first while it is typed there, and it is no member's mention:
@@ -79,6 +81,7 @@ function pagesInScope({ chat, pages = [] }) {
   return [...pages.filter((p) => ok(p) && p.bot === chat), ...pages.filter((p) => ok(p) && p.bot !== chat)];
 }
 const tilesInScope = ({ tiles = [] }) => tiles.filter((t) => t && t.title && shortName(t.title) && t.kind !== 'page' && t.kind !== 'group');
+const projectsInScope = ({ projects = [] }) => projects.filter((p) => p && p.id && p.name && shortName(p.name));
 
 function skillsInScope({ chat, bots = [], library = [] }) {
   if (chat === CHIEF) return library;
@@ -102,6 +105,8 @@ function resolve(a, b, ctx, skills) {
   if (page) return { kind: 'page', bot: page.bot, page: page.slug, whole: !b };
   const tile = tilesInScope(ctx).find((t) => same(shortName(t.title), a));
   if (tile) return { kind: 'tile', tile: tile.id, whole: !b };
+  const project = projectsInScope(ctx).find((p) => same(shortName(p.name), a));
+  if (project) return { kind: 'project', project: project.id, whole: !b };
   const skill = skills.find((k) => same(k.name, a));
   return skill ? { kind: 'skill', skill: skill.name, whole: !b } : null;
 }
@@ -132,8 +137,8 @@ function findFiles(text) {
   return out;
 }
 
-// The mentions in a text, in order: [{ kind: 'bot'|'job'|'page'|'tile'|'skill'|'file', text, start, end, bot?, job?, page?, tile?, skill? }].
-// page is the page's slug, tile the tile's id; a file's are as findFiles has them. A name inside a file's mention is none.
+// The mentions in a text, in order: [{ kind: 'bot'|'job'|'page'|'tile'|'project'|'skill'|'file', text, start, end, bot?, job?, page?, tile?, project?, skill? }].
+// page is the page's slug, tile the tile's id, project the project's id; a file's are as findFiles has them. A name inside a file's mention is none.
 function findMentions(text, ctx) {
   const skills = skillsInScope(ctx);
   const files = findFiles(text);
@@ -162,9 +167,9 @@ function fileTyping(typed) {
 }
 
 // The suggestion rows for text typed up to the cursor, when it ends in a word starting with "@".
-// "@all" first in a group (ctx.all), then bots, then jobs, then pages, then tiles, then skills, at most MAX_ROWS; a name
+// "@all" first in a group (ctx.all), then bots, then jobs, then pages, then tiles, then projects, then skills, at most MAX_ROWS; a name
 // an earlier row took is not offered again, except a page's, offered as "@Bot/Title". After "@Bot/" only that bot's jobs,
-// then its pages. Each row: { kind, text, label, bot?, job?, page?, tile?, skill? }; picking it puts text plus a space in place of the "@…".
+// then its pages. Each row: { kind, text, label, bot?, job?, page?, tile?, project?, skill? }; picking it puts text plus a space in place of the "@…".
 // "/" at the very start of a bot's own chat lists its skills instead: rows { kind: 'command', text: '/name', label,
 // about (the skill's description), skill }.
 function suggest(typed, ctx) {
@@ -202,12 +207,19 @@ function suggest(typed, ctx) {
       taken.add(short);
       return true;
     }).map((t) => ({ kind: 'tile', text: `@${shortName(t.title)}`, label: t.title, tile: t.id }));
+    const projectRows = projectsInScope(ctx).filter((p) => {
+      const short = shortName(p.name).toLowerCase();
+      if (!has(short, q) || taken.has(short)) return false;
+      taken.add(short);
+      return true;
+    }).map((p) => ({ kind: 'project', text: `@${shortName(p.name)}`, label: p.name, project: p.id }));
     rows = [
       ...all,
       ...bots.filter((b) => has(shortName(b.name), q)).map((b) => ({ kind: 'bot', text: `@${shortName(b.name)}`, label: b.name, bot: b.id })),
       ...bots.flatMap((b) => (b.jobs || []).filter((j) => has(shortName(j.name), q)).map((j) => jobRow(b, j))),
       ...pageRows,
       ...tileRows,
+      ...projectRows,
       ...skillsInScope(ctx).filter((k) => has(k.name, q) && !taken.has(k.name.toLowerCase())).map((k) => ({ kind: 'skill', text: `@${k.name}`, label: k.name, skill: k.name })),
     ];
   }
@@ -268,7 +280,7 @@ function commandMark(text, ctx) {
   return { kind: 'btw', text: b[1], start, end: start + b[1].length };
 }
 
-const api = { shortName, findMentions, findFiles, fileRef, fileText, fileTyping, suggest, pick, command, commandMark, skillsInScope, pagesInScope, tilesInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
+const api = { shortName, findMentions, findFiles, fileRef, fileText, fileTyping, suggest, pick, command, commandMark, skillsInScope, pagesInScope, tilesInScope, projectsInScope, MAX_ROWS, CHIEF, CHIEF_ALIAS };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Mentions = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

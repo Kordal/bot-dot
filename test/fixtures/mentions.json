@@ -14,7 +14,8 @@
     "Commands (#237): '/' at the very start of the message in a bot's own chat lists that bot's skills (its picked skills, as for mentions; none when useSkills is false), filtered by a case-insensitive 'contains' on the name, at most maxRows. A row's text is '/' and the skill's name; picking it replaces the '/…' word as a mention pick does. Never in the Chief chat or a group. Once a space follows the name, no list.",
     "commands: { name, world, chat, text, command }. command is what sending text runs: { skill, args } (args: the rest of the message after the name, trimmed), or null when it is plain text (no '/' at the very start, a name the bot has no skill of, a name joined to more text, the Chief chat, a group).",
     "marks: { name, world, chat, text, mark }. mark is the chip the apps draw at the start of the owner's message, or null: { kind: 'skill', skill, text, start, end } when sending it runs a skill (as commands), { kind: 'btw', text, start, end } when it starts with '/btw' (any case, after spaces, then a space, a line break or the end) in a bot's own chat or the Chief chat, never in a group. text is the part of the message the chip covers, as typed, from start to end.",
-    "files (#604): a file mention is '@[' place ':' path ']', place botdot (the bot's workspace on botdot, API root 'server'), computer (its folder on the account's computer) or project (a shared project: its name, then '/', then the path; the path may be empty for the project's folder). A path has no ']' and no line break; '.' and '..' and empty paths (but a project's) are none. found: { text, files } with each file mention in order as { text, root, project?, path, name } (name: the path's last part, or the project's). texts: { ref, text } the text a pick puts for ref, or null when ref can't be one. typing: { typed, want } what the picker looks for while typed is before the cursor: '@' (not inside a word) and what follows without spaces, '@', '[' or ']', as { start, folders, q } (the names before each '/', and the last part), or null; an empty name on the way is null. picks: { before, ref, after } picking a file puts its text and a space in place of the '@' and everything typed after it up to a space, '@', '[' or ']'. In findMentions (cases.matches) a file comes as { kind: file, text } among the others, in order, and a name inside a file mention is no mention."
+    "files (#604): a file mention is '@[' place ':' path ']', place botdot (the bot's workspace on botdot, API root 'server'), computer (its folder on the account's computer) or project (a shared project: its name, then '/', then the path; the path may be empty for the project's folder). A path has no ']' and no line break; '.' and '..' and empty paths (but a project's) are none. found: { text, files } with each file mention in order as { text, root, project?, path, name } (name: the path's last part, or the project's). texts: { ref, text } the text a pick puts for ref, or null when ref can't be one. typing: { typed, want } what the picker looks for while typed is before the cursor: '@' (not inside a word) and what follows without spaces, '@', '[' or ']', as { start, folders, q } (the names before each '/', and the last part), or null; an empty name on the way is null. picks: { before, ref, after } picking a file puts its text and a space in place of the '@' and everything typed after it up to a space, '@', '[' or ']'. In findMentions (cases.matches) a file comes as { kind: file, text } among the others, in order, and a name inside a file mention is no mention.",
+    "projects (#700, feature project-mentions): a section of its own, with its world, cases and picks as above (the Android app follows in #705). projects: [{ id, name }], the account's projects; one without a name is none. A project is '@' and its name as a short name. For one name a bot wins, then a page, then a tile, then a project, then a skill. matches: { kind: project, text, project (its id) }. Suggestions: after the tiles and before the skills; a name an earlier row took is left out."
   ],
   "maxRows": 6,
   "shortNames": [
@@ -297,6 +298,42 @@
     "picks": [
       { "before": "Send @rep/su| now", "ref": { "root": "server", "path": "reports/summary w43.md" }, "after": "Send @[botdot:reports/summary w43.md] |now" },
       { "before": "@su|mm", "ref": { "root": "computer", "path": "summary.md" }, "after": "@[computer:summary.md] |" }
+    ]
+  },
+  "projects": {
+    "world": {
+      "bots": [
+        { "id": "chief", "name": "Chief of Staff", "jobs": [] },
+        { "id": "fleet", "name": "Fleet Doctor", "skills": ["launch"], "jobs": [{ "id": "j1", "name": "Morning check" }] },
+        { "id": "site", "name": "Site", "jobs": [] }
+      ],
+      "library": [{ "name": "launch", "description": "How a launch goes." }, { "name": "botdot", "description": "Named like a project." }],
+      "pages": [{ "bot": "fleet", "slug": "roadmap", "title": "Roadmap" }],
+      "tiles": [{ "id": "t1", "title": "Bakery", "kind": "value" }],
+      "projects": [
+        { "id": "p1", "name": "Botdot" },
+        { "id": "p2", "name": "Bakery shop" },
+        { "id": "p3", "name": "Site" },
+        { "id": "p4", "name": "Roadmap" },
+        { "id": "p5", "name": "Launch" },
+        { "id": "p6", "name": "" },
+        { "id": "p7", "name": "Bakery" }
+      ]
+    },
+    "cases": [
+      { "name": "a project by its name", "chat": "fleet", "text": "What's open in @Botdot?", "matches": [{ "kind": "project", "text": "@Botdot", "project": "p1" }] },
+      { "name": "a project of two words, any case", "chat": "chief", "text": "plan @bakeryshop for May", "matches": [{ "kind": "project", "text": "@bakeryshop", "project": "p2" }] },
+      { "name": "a bot wins over a project of its name", "chat": "chief", "text": "@Site", "matches": [{ "kind": "bot", "text": "@Site", "bot": "site" }] },
+      { "name": "a page wins over a project of its name", "chat": "chief", "text": "@Roadmap", "matches": [{ "kind": "page", "text": "@Roadmap", "bot": "fleet", "page": "roadmap" }] },
+      { "name": "a tile wins over a project of its name", "chat": "chief", "text": "@Bakery", "matches": [{ "kind": "tile", "text": "@Bakery", "tile": "t1" }] },
+      { "name": "a project wins over a skill of its name", "chat": "fleet", "text": "@Launch", "matches": [{ "kind": "project", "text": "@Launch", "project": "p5" }] },
+      { "name": "a project and a slash is the project", "chat": "chief", "text": "@Botdot/x", "matches": [{ "kind": "project", "text": "@Botdot", "project": "p1" }] },
+      { "name": "suggested after the tiles", "chat": "chief", "typed": "@bak", "suggestions": ["@Bakery", "@BakeryShop"] },
+      { "name": "a skill named like a project is left out", "chat": "chief", "typed": "@bot", "suggestions": ["@Botdot"] },
+      { "name": "a name a bot took is left out", "chat": "chief", "typed": "@si", "suggestions": ["@Site"] }
+    ],
+    "picks": [
+      { "name": "picking a project", "chat": "fleet", "before": "ask @bot| today", "pick": "@Botdot", "after": "ask @Botdot |today", "jobsNext": false }
     ]
   }
 }

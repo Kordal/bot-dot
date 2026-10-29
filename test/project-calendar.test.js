@@ -19,6 +19,15 @@ test('the range is five weeks from this Monday unless given, and never longer th
   assert.deepEqual(calendar.rangeOf({ from: 'soon', to: '2026-10-01' }, now), { from: '2026-10-26', to: '2026-11-29' });
 });
 
+test("a routine made with its team before #754, named for its time, shows what its bot does", () => {
+  const c = { phase: 'running', startedAt: new Date(2026, 9, 1, 9).toISOString(), checkins: [], teams: [{ id: 't1', bots: ['b1', 'b2'] }],
+    proposal: [{ key: 'k1', bot: 'b1', description: 'Finds who else does this.', routines: 'Fridays 11:00', cron: '0 11 * * 5' }] };
+  const bots = { b1: { id: 'b1', jobs: [{ id: 'j1', name: 'Fridays 11:00', enabled: true, approved: true, cron: '0 11 * * 5' }, { id: 'j2', name: 'Weekly sum-up', enabled: true, approved: true, cron: '0 12 * * 5' }] },
+    b2: { id: 'b2', jobs: [{ id: 'j3', name: 'Fridays 11:00', enabled: true, approved: true, cron: '0 11 * * 5' }] } };
+  const all = calendar.items(c, { from: '2026-10-30', to: '2026-10-30', bots: (id) => bots[id] || null, now: new Date(2026, 9, 25) });
+  assert.deepEqual(all.filter((x) => x.kind === 'job').map((x) => [x.bot, x.title]), [['b1', 'Finds who else does this'], ['b2', 'Fridays 11:00'], ['b1', 'Weekly sum-up']], "only that bot's routine; a name its bot or the owner gave stays");
+});
+
 test('check-ins, dated and repeating to-dos and jobs fall on their days', () => {
   const started = new Date(2026, 9, 1, 9);
   const c = {
