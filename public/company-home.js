@@ -82,11 +82,14 @@
     const p = c.plan;
     if (!p?.items.length) return '';
     const colorOfItem = (x) => c.objectives.find((o) => o.id === x.objective)?.color;
+    // The team that does it (#696): its name in its colour.
+    const teamOfItem = (x) => c.teams.find((t) => t.id === x.team);
+    const teamChip = (t) => (t ? `<span class="cf-plan-team" style="--t:${esc(t.color)}">${esc(t.name)}</span>` : '');
     const actions = p.approved ? ''
       : changing ? `<form class="co-ask small" id="cf-change"><input name="text" autocomplete="off" maxlength="1000" aria-label="${tr('Change')}" /><button type="submit" class="co-go">${tr('Send')}</button></form>`
         : `<div class="cf-actions"><span class="grow"></span><button type="button" class="btn ghost sm" data-cf-plan-change>${tr('Change')}</button><button type="button" class="btn primary sm" data-cf-plan-approve>${tr('Approve')}</button></div>`;
     return `<section class="cf-plan${p.approved ? ' approved' : ''}"><div class="cf-card-head"><h3>${tr('This week')}</h3>${byChief()}</div>
-      <ol class="cf-plan-items">${p.items.map((x) => `<li${colorOfItem(x) ? ` style="--c:${esc(colorOfItem(x))}"` : ''}><span class="cf-row-text">${esc(x.text)}</span>${colorOfItem(x) ? '<i class="cf-dot"></i>' : ''}</li>`).join('')}</ol>
+      <ol class="cf-plan-items">${p.items.map((x) => `<li${colorOfItem(x) ? ` style="--c:${esc(colorOfItem(x))}"` : ''}><span class="cf-row-text">${esc(x.text)}</span>${teamChip(teamOfItem(x))}${colorOfItem(x) ? '<i class="cf-dot"></i>' : ''}</li>`).join('')}</ol>
       ${actions}
     </section>`;
   }
@@ -122,6 +125,14 @@
       <div class="cf-rows">${rows}</div>
       <form class="co-ask small cf-add" id="cf-add"><input name="task" autocomplete="off" maxlength="300" placeholder="${tr('Add a task')}" aria-label="${tr('Add a task')}" /><button type="submit" class="co-go">${tr('Add')}</button></form>`;
   }
+  // How often the lead reports (#696), and its latest report.
+  const RHYTHMS = [['', () => tr('Off')], ['daily', () => tr('Daily')], ['twice-weekly', () => tr('Twice a week')], ['weekly', () => tr('Weekly')]];
+  function reportHTML(team) {
+    const r = team.lastReport;
+    const by = r && botById(r.bot);
+    return `<div class="cf-report-head"><span class="co-k">${tr('Reports')}</span><select class="co-asks" data-cf-report aria-label="${tr('Reports')}">${RHYTHMS.map(([k, label]) => `<option value="${k}"${(team.report || '') === k ? ' selected' : ''}>${label()}</option>`).join('')}</select></div>
+      ${r ? `<div class="cf-report">${by ? botFigure(by.color, 'idle', 'sm', by.outfit) : ''}<div class="cf-report-text">${esc(r.text)}<span class="cf-report-at">${esc(msgTime(r.at))}</span></div></div>` : ''}`;
+  }
   function teamHTML(c, team) {
     const o = CompanyFloor.objectiveOf(team, c.objectives);
     const members = team.bots.map(botById).filter(Boolean);
@@ -130,7 +141,8 @@
       <div class="cf-rows">${members.map((b) => `<div class="cf-row">
         <button type="button" class="cf-member" data-cf-bot="${esc(b.id)}">${botFigure(b.color, b.state, 'sm', b.outfit)}${b.id === team.lead && members.length > 1 ? CROWN : ''}<span class="cf-row-text"><b>${esc(b.name)}</b><span>${esc(lineOf(b))}</span></span></button>
         ${b.id === team.lead ? `<span class="cf-lead-chip">${CROWN}${tr('Lead')}</span>` : `<button type="button" class="btn sm ghost" data-cf-lead="${esc(b.id)}">${tr('Make lead')}</button>`}
-      </div>`).join('')}</div>`;
+      </div>`).join('')}</div>
+      ${reportHTML(team)}`;
   }
 
   // ---------- drawing and wiring ----------
@@ -165,6 +177,7 @@
     $$('[data-cf-reply]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.cfReply)));
     $$('[data-cf-todo]', root).forEach((box) => (box.onchange = () => send(`/company/todos/${encodeURIComponent(box.dataset.cfTodo)}`, 'PUT', { done: box.checked })));
     $$('[data-cf-lead]', root).forEach((b) => (b.onclick = () => send(`/company/teams/${encodeURIComponent(teamOpen)}`, 'PUT', { lead: b.dataset.cfLead })));
+    $('[data-cf-report]', root)?.addEventListener('change', (e) => send(`/company/teams/${encodeURIComponent(teamOpen)}`, 'PUT', { report: e.target.value || null }));
     $$('[data-cf-checkin]', root).forEach((b) => (b.onclick = () => checkin(c.checkin, b.dataset.cfCheckin, b)));
     $('[data-cf-plan-approve]', root)?.addEventListener('click', (e) => { e.currentTarget.disabled = true; send('/company/plan/approve', 'POST', {}); });
     $('[data-cf-plan-change]', root)?.addEventListener('click', () => { changing = true; Company.redraw(); $('#cf-change input')?.focus(); });

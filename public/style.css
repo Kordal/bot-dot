@@ -2608,6 +2608,12 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .cf-plan-items { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 0; padding: 0; list-style: none; counter-reset: plan; }
 .cf-plan-items li { display: flex; align-items: center; gap: 10px; min-height: 32px; counter-increment: plan; }
 .cf-plan-items li::before { content: counter(plan); display: grid; place-items: center; flex: none; width: 22px; height: 22px; border: 1px solid var(--line-2); border-radius: 50%; font-size: 11.5px; color: var(--muted); }
+.cf-plan-team { flex: none; max-width: 40%; padding: 2px 8px; border-radius: 99px; background: color-mix(in srgb, var(--t) 16%, transparent); color: var(--t); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A team's reports (#696): how often, and the latest. */
+.cf-report-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.cf-report { display: flex; align-items: flex-start; gap: 10px; }
+.cf-report-text { flex: 1; min-width: 0; white-space: pre-line; font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.cf-report-at { display: block; margin-top: 4px; font-size: 12px; color: var(--faint); }
 .cf-plan.approved .cf-plan-items li::before { content: "✓"; border-color: transparent; background: var(--ok-soft); color: var(--ok-text); }
 .cf-plan .co-ask { margin-top: 10px; }
 .cf-suggest { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 160px; padding: 14px; border: 1px dashed color-mix(in srgb, var(--c) 60%, var(--line-2)); border-radius: 16px; text-align: center; }
