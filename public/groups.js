@@ -525,7 +525,7 @@ function renderGroupChat() {
     root.dataset.group = g.id;
     delete root.dataset.sig;
     root.innerHTML = `
-      <div class="chat-head">
+      <div class="chat-head${g.team ? ' team-head' : ''}"${g.team && /^#[0-9a-f]{6}$/i.test(g.color || '') ? ` style="--team:${g.color}"` : ''}>
         ${BACK_BTN}
         <button class="chat-title" id="group-settings" title="${g.team ? '' : esc(tr('Its name and its members'))}">
           <div id="group-pic"></div>
@@ -545,8 +545,6 @@ function renderGroupChat() {
   if (pic.dataset.sig !== look) { pic.dataset.sig = look; pic.innerHTML = groupPicture(g, 'sm'); }
   $('#group-name').textContent = g.name;
   $('#group-sub').textContent = g.team ? teamLine(g) : groupMembers(g).map((b) => b.name).join(', ');
-  root.classList.toggle('team-chat', !!g.team);
-  if (g.team && /^#[0-9a-f]{6}$/i.test(g.color || '')) root.style.setProperty('--team', g.color); else root.style.removeProperty('--team');
   const form = $('form', root);
   form.text.placeholder = tr('Message {name}…', { name: g.name });
   const thread = $('#group-thread');

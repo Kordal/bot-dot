@@ -2681,7 +2681,7 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .group-pic.team-pic.n1 > i, .contact .group-pic.team-pic > i { left: auto; top: auto; transform: none; }
 .group-pic > i svg.team-crown { position: absolute; top: -6px; left: -4px; width: 9px; height: 9px; padding: 2px; box-sizing: content-box; border-radius: 50%; fill: #f5c542; background: #1d1a10; }
 #group-pic .team-pic > i { width: 28px; height: 28px; }
-#view-group.team-chat { box-shadow: inset 0 2px 0 var(--team, var(--line-2)); }
+.chat-head.team-head { box-shadow: inset 0 2px 0 var(--team, var(--line-2)); }
 .dock-open .group-pic, .dock-menu .group-pic { height: 28px; }
 .dock-open .group-pic > i, .dock-menu .group-pic > i { width: 24px; height: 24px; }
 

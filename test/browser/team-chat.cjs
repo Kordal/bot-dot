@@ -50,7 +50,7 @@ const { shortName } = require('../../public/mentions.js');
     assert.equal(await panel.locator('#group-pic .team-pic > i').count(), 3);
     assert.equal(await panel.locator('#group-pic .team-pic > i:first-child .team-crown').count(), 1, 'the lead first, with the crown');
     assert.equal(await panel.locator('[data-dock-min]').count(), 1);
-    assert.ok((await panel.evaluate((el) => getComputedStyle(el).boxShadow)).includes('inset'), "the team's colour on top");
+    assert.ok((await panel.locator('.chat-head').evaluate((el) => getComputedStyle(el).boxShadow)).includes('inset'), "the team's colour on top");
 
     srv.unhold(); // Weekly Tracker's run stays held; the turns run
     reply('Demo Scheduler', '@LaunchPoster please draft the 3 launch posts.');
