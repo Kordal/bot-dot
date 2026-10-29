@@ -2849,7 +2849,7 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .cf-cal-list .cf-cal-when { width: 44px; }
 .cf-cal-edit { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-14); text-align: left; cursor: pointer; }
 .cf-cal-row.ev.sel .cf-cal-edit { text-decoration: underline; text-underline-offset: 3px; }
-.cf-cal-row.ev:hover .cf-del, .cf-cal-row.ev:focus-within .cf-del { display: grid; }
+.cf-cal-row.ev:hover .cf-del, .cf-cal-row.ev:focus-within .cf-del { visibility: visible; }
 .cf-cal-add { align-items: center; }
 .cf-cal-add input[type=time], .cf-cal-add input[type=date] { flex: none; width: 74px; min-width: 0; padding: 0 var(--sp-4); border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-12); color-scheme: dark; }
 .cf-cal-add input[type=date] { width: 112px; }
