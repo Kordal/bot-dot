@@ -122,32 +122,38 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     }
     fun lineOf(b: Bot): String = question(b) ?: if (b.running) OpeningLine.status(lines["bot:${b.id}"], working = true) else b.description
     var teamOpen by rememberSaveable { mutableStateOf<String?>(null) }
+    // The pieces the owner put on the board (#780); a project made before has them all.
+    fun on(k: String) = dev.botdot.app.data.ProjectBoard.shows(c, k)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s12).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         // Its name picks another project and its gear opens its settings (#703).
         ProjectTitle(ui, c, ways) {
-            c.day?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
+            c.day?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(start = Space.s12).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
-        c.day?.let { DaysLine(c, it) }
-        c.checkin?.let { CheckinCard(ui, it, ways) }
+        if (on("days")) {
+            c.day?.let { DaysLine(c, it) }
+            c.checkin?.let { CheckinCard(ui, it, ways) }
+        }
         val goals = CompanyFloor.DISPLAY in features
-        if (goals) Goals(ui, c)
+        if (goals && on("goals")) Goals(ui, c)
         // The teams first; then the Chief, the bots in no team, a suggested bot and New team (#690's side column, under them on a phone).
         Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s12),
             verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             if (!goals) Board(c)
             // The cards made by Claude, at the top of the floor (#776).
-            if (dev.botdot.app.data.ProjectCards.shows(features, c)) ProjectCardsRow(ui, c)
-            floor.rooms.forEach { r -> TeamRoom(r, here = teamOpen == r.team.id, line = { lineOf(it) }, onBot = ways.onBot, onChat = teamChat(r.team.id)) { teamOpen = r.team.id } }
-            ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief)
-            if (floor.loose.isNotEmpty()) FlowRowCentered { floor.loose.forEach { s -> Desk(s.bot, s.seat, count = info.asks(s.bot.id), line = lineOf(s.bot), onClick = { ways.onBot(s.bot.id) }) } }
-            c.suggestion?.let { SuggestedCard(ui, c, it) }
-            NewTeam(ui, c)
-            if (dev.botdot.app.data.ProjectCalendar.FEATURE in features) CalendarTile(ui, c, bots)
+            if (dev.botdot.app.data.ProjectCards.shows(features, c)) ProjectCardsRow(ui, c, dev.botdot.app.data.ProjectBoard.missing(features, c))
+            if (on("teams")) {
+                floor.rooms.forEach { r -> TeamRoom(r, here = teamOpen == r.team.id, line = { lineOf(it) }, onBot = ways.onBot, onChat = teamChat(r.team.id)) { teamOpen = r.team.id } }
+                ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief)
+                if (floor.loose.isNotEmpty()) FlowRowCentered { floor.loose.forEach { s -> Desk(s.bot, s.seat, count = info.asks(s.bot.id), line = lineOf(s.bot), onClick = { ways.onBot(s.bot.id) }) } }
+                c.suggestion?.let { SuggestedCard(ui, c, it) }
+                NewTeam(ui, c)
+            }
+            if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) CalendarTile(ui, c, bots)
         }
-        TodoPanel(ui, c, bots, waiting, ways, features)
+        if (on("todo")) TodoPanel(ui, c, bots, waiting, ways, features)
     }
-    val team = teamOpen?.let { id -> c.teams.firstOrNull { it.id == id } }
+    val team = teamOpen?.takeIf { on("teams") }?.let { id -> c.teams.firstOrNull { it.id == id } }
     if (team != null) ModalBottomSheet(onDismissRequest = { teamOpen = null }, containerColor = p.panel) {
         TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
     }

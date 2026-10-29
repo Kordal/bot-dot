@@ -62,9 +62,10 @@ const TEAM = { bots: [
         await page.locator('.co-made h1', { hasText: 'Team ready' }).waitFor({ timeout: 20000 });
         assert.equal(await page.locator('.co-made-list li', { hasText: 'Research' }).count(), 1);
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-start.png`) });
-        // Open: the company's home, the floor.
+        // Open: the project's home, an empty board with New card (#780).
         await page.locator('[data-home]').click();
-        await page.locator('.cf-day').waitFor({ timeout: 20000 });
+        await page.locator('.pc-new').waitFor({ timeout: 20000 });
+        assert.equal(await page.locator('.cf-day, .cf-room, .cf-panel').count(), 0, 'nothing on a new board');
         const c = (await srv.api('/company')).data.company;
         assert.deepEqual([c.phase, c.teams.map((t) => t.bots.length)], ['running', [2, 1]]);
       } else if (shots) await page.screenshot({ path: path.join(shots, `${name}-team.png`), fullPage: true });

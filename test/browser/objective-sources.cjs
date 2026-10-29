@@ -16,7 +16,7 @@ const { startServer, writeData, fakeConnectedApp } = require('../helpers');
     await srv.api('/setup', { method: 'PUT', body: { done: true } });
     await app.connect(srv);
     assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'mealwise.app' } })).status, 201);
-    const base = (await srv.api('/company')).data.company;
+    const base = { ...(await srv.api('/company')).data.company, board: undefined }; // every piece on the board (#780)
     const file = path.join(srv.data, 'company.json');
     const objectives = [
       { id: 'o1', name: 'Paying users', current: 12, target: 50, color: '#34c759', history: [{ day: 1, value: 0 }, { day: 6, value: 12 }] },

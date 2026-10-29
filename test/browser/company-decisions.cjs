@@ -16,7 +16,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     const a = await makeBot(srv, { name: 'Outreach', color: '#1d9e75' });
     const b = await makeBot(srv, { name: 'Landing Page', color: '#e24b4a' });
     assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'mealwise.app' } })).status, 201);
-    const base = (await srv.api('/company')).data.company;
+    const base = { ...(await srv.api('/company')).data.company, board: undefined }; // every piece on the board (#780)
     writeData(path.join(srv.data, 'company.json'), {
       ...base, phase: 'running', startedAt: new Date(Date.now() - 34 * 86_400_000).toISOString(),
       objectives: [{ id: 'o1', name: 'Sign-ups', current: 12, target: 50, color: '#34c759' }],

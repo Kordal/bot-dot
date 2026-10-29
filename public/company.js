@@ -187,6 +187,13 @@ const Company = (() => {
     return `<span class="co-pick">${esc(name)}${ICON.down}<select data-pick-project aria-label="${tr('Projects')}">${listed().map(option).join('')}${old.length ? `<optgroup label="${tr('Archived')}">${old.map(option).join('')}</optgroup>` : ''}<option value=""${adding ? ' selected' : ''}>${tr('New project')}</option></select></span>`;
   }
   // The gear beside a project's name: its settings (#701), from a server with `project-settings`.
+  // The pieces on a project's board (#780), as lib/company.js keeps them: a project without `board` (made before) has
+  // every one. `pieceLabel` is the name a pick and the settings give it.
+  const PIECES = ['days', 'goals', 'teams', 'calendar', 'todo'];
+  const onBoard = (c, k) => !Array.isArray(c?.board) || c.board.includes(k);
+  const pieceLabel = (k) => ({ days: tr('90 days'), goals: tr('Goals'), teams: tr('Teams'), calendar: tr('Calendar'), todo: tr('To-do') })[k];
+  // The pieces the owner can add: the ones not on it, from a server that has them.
+  const missing = (c) => ((state.features || []).includes('project-board') && Array.isArray(c?.board) ? PIECES.filter((k) => !c.board.includes(k)) : []);
   const gearHTML = () => ((state.features || []).includes('project-settings') && state.company ? `<button type="button" class="icon-btn co-gear" data-project-settings aria-label="${tr('Project settings')}" title="${tr('Project settings')}">${ICON.gear}</button>` : '');
   function wirePick(root) {
     $$('[data-pick-project]', root).forEach((sel) => (sel.onchange = () => (sel.value ? show(sel.value) : startNew())));
@@ -379,5 +386,5 @@ const Company = (() => {
     if (shows()) load().then(() => { drawSide(); if (place === 'company' && state.view !== 'company' && !location.hash.slice(1)) setView('company'); });
   }
 
-  return { init, render, redraw, drawSide, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, closeSettings, removed };
+  return { init, render, redraw, drawSide, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, closeSettings, removed, PIECES, onBoard, pieceLabel, missing };
 })();

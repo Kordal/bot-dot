@@ -17,7 +17,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     const a = await makeBot(srv, { name: 'Outreach', color: '#1d9e75' });
     const b = await makeBot(srv, { name: 'Landing Page', color: '#e24b4a' });
     assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'mealwise.app' } })).status, 201);
-    const base = (await srv.api('/company')).data.company;
+    const base = { ...(await srv.api('/company')).data.company, board: undefined }; // every piece on the board (#780)
     const file = path.join(srv.data, 'company.json');
     const on = (day, more = {}) => writeData(file, {
       ...base, phase: 'running', startedAt: new Date(Date.now() - (day - 1) * 86_400_000 - 3_600_000).toISOString(),

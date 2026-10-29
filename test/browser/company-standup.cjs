@@ -18,7 +18,7 @@ const { localDay } = require('../../lib/company');
     const b = await makeBot(srv, { name: 'Landing Page', color: '#e24b4a' });
     const s = await makeBot(srv, { name: 'Support Desk', color: '#378add' });
     assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'mealwise.app' } })).status, 201);
-    const base = (await srv.api('/company')).data.company;
+    const base = { ...(await srv.api('/company')).data.company, board: undefined }; // every piece on the board (#780)
     const day = localDay(new Date(), (await srv.api('/settings')).data.quietHours?.timeZone).day;
     const at = new Date().toISOString();
     writeData(path.join(srv.data, 'company.json'), {

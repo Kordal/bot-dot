@@ -2178,6 +2178,10 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pc-progress i { display: block; height: 100%; background: var(--ok); transition: width var(--t3) var(--out); }
 .pc-new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-8); min-height: 150px; border-style: dashed; background: transparent; box-shadow: none; color: var(--muted); font-size: var(--fs-14); cursor: pointer; }
 .pc-new:hover { color: var(--text); border-color: var(--muted); }
+/* The board's pieces the owner can add (#780), under the ask of a new card. */
+.pc-picks { display: flex; flex-wrap: wrap; gap: var(--sp-8); margin-top: calc(var(--sp-12) * -1); }
+.pc-picks .co-chip { display: inline-flex; align-items: center; gap: var(--sp-4); }
+.pc-picks svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .pc-ask { display: flex; align-items: center; gap: var(--sp-12); min-height: 150px; min-width: 0; }
 .pc-ask input, .pc-other input { flex: 1; min-width: 0; height: 44px; padding: 0 var(--sp-16); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--sunk); box-shadow: var(--sink); color: var(--text); font-size: var(--fs-16); outline: none; }
 .pc-ask input:focus, .pc-other input:focus { border-color: var(--muted); }
@@ -2965,6 +2969,7 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 /* Room for the panel beside the floor. */
 @container company (min-width: 980px) {
   .cf-main { grid-template-columns: minmax(0, 1fr) 320px; }
+  .cf-main.solo { grid-template-columns: minmax(0, 1fr); }
   .cf-panel { position: sticky; top: 16px; }
 }
 @media (max-width: 479px) {

@@ -72,9 +72,13 @@ import dev.botdot.app.data.CardBody
 import dev.botdot.app.data.CardItem
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.ProjectCard
+import dev.botdot.app.data.ProjectBoard
 import dev.botdot.app.data.ProjectCards
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.putJsonArray
 
 /**
  * The cards made by Claude at the top of a project's floor (#776; web: public/project-cards.js; the rules are
@@ -84,7 +88,7 @@ import kotlinx.coroutines.delay
  * line and a bar; a card built a moment ago has a green outline. Each card: refresh, and a menu Change, Refresh, Remove.
  */
 @Composable
-internal fun ProjectCardsRow(ui: CompanyUi, c: Company) {
+internal fun ProjectCardsRow(ui: CompanyUi, c: Company, pieces: List<String> = emptyList()) {
     var open by rememberSaveable(c.id) { mutableStateOf<String?>(null) }
     // Words the server refused: back in the ask field when it opens again.
     var refused by rememberSaveable(c.id) { mutableStateOf<String?>(null) }
@@ -125,6 +129,11 @@ internal fun ProjectCardsRow(ui: CompanyUi, c: Company) {
                 if (line.size == 1 && !line[0].wide) Spacer(Modifier.weight(1f))
             }
         }
+        // The board's pieces not on it yet (#780), as picks under the ask of a new card.
+        if (shown == ProjectCards.NEW && pieces.isNotEmpty()) PiecePicks(pieces) { k ->
+            open = null
+            send({ it.patchCompany(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(c, k).forEach { x -> add(x) } } }) })
+        }
     }
     // Back on Close: the ask field closes, nothing is sent.
     BackHandler(enabled = shown != null) { open = null }
@@ -140,6 +149,22 @@ private fun NewCardTile(modifier: Modifier, onClick: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         Icon(Icons.Filled.Add, null, tint = p.muted, modifier = Modifier.size(20.dp))
         Text(tr("New card"), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(top = Space.s8))
+    }
+}
+
+/** A pick for each piece the board can get (#780): a tap puts it on. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PiecePicks(pieces: List<String>, onPick: (String) -> Unit) {
+    val p = LocalPaper.current
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        pieces.forEach { k ->
+            Row(Modifier.clip(Radius.pill).border(1.dp, p.line2, Radius.pill).clickable(onClickLabel = ProjectBoard.label(k)) { onPick(k) }.heightIn(min = 40.dp).padding(horizontal = Space.s12),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+                Icon(Icons.Filled.Add, null, tint = p.muted, modifier = Modifier.size(16.dp))
+                Text(ProjectBoard.label(k), color = p.text, fontSize = Type.s14)
+            }
+        }
     }
 }
 
