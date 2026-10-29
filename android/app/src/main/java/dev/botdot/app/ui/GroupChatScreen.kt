@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -396,8 +397,9 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                 if (group?.team != null) Column {
                     Box(Modifier.fillMaxWidth().height(3.dp).background(parseColor(group.color, p.muted)))
                     val (n, at) = Groups.teamCount(group, bots)
-                    ChatBar(null, "idle", group.name, onName = {}, onBack = onBack, nameLabel = group.name, picture = { TeamPicture(Groups.teamFaces(group, bots), group.lead, 26) },
-                        beside = { Text(teamLine(n, at), color = p.muted, fontSize = Type.s12, maxLines = 1, modifier = Modifier.padding(start = Space.s8)) })
+                    ChatBar(null, "idle", group.name, onName = {}, onBack = onBack, nameLabel = group.name, picture = { TeamPicture(Groups.teamFaces(group, bots), group.lead, 26) })
+                    // Under its name: how many bots, and how many work now.
+                    Text(teamLine(n, at), color = p.muted, fontSize = Type.s12, maxLines = 1, modifier = Modifier.padding(start = 72.dp).offset(y = (-Space.s8)))
                 }
                 else ChatBar(null, "idle", group?.name.orEmpty(), onName = onSettings, onBack = onBack, nameLabel = tr("Its name and its members"), picture = { GroupPicture(members, 32) })
             },
