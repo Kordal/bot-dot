@@ -715,6 +715,12 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun newCompanyTeam(name: String, bots: List<String>): Company =
         CompanySetup.of(send("POST", "/company/teams", buildJsonObject { put("name", name); put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
     suspend fun makeLead(team: String, bot: String): Company = CompanySetup.of(send("PUT", "/company/teams/${enc(team)}", buildJsonObject { put("lead", bot) }))
+    /** How often a team's lead reports (#696): daily, twice-weekly, weekly, or "" for none. */
+    suspend fun setReportRhythm(team: String, every: String): Company =
+        CompanySetup.of(send("PUT", "/company/teams/${enc(team)}", buildJsonObject { put("report", every.ifEmpty { null }) }))
+    /** An objective's display, steps or tick (#690): only what is given is sent. */
+    suspend fun setObjective(id: String, display: String? = null, steps: List<ObjectiveStep>? = null, done: Boolean? = null): Company =
+        CompanySetup.of(send("PUT", "/company/objectives/${enc(id)}", CompanyFloor.objectiveBody(display, steps, done)))
     suspend fun addTodo(text: String, bot: String?): Company =
         CompanySetup.of(send("POST", "/company/todos", buildJsonObject { put("text", text); if (bot != null) put("bot", bot) }))
     suspend fun tickTodo(id: String, done: Boolean): Company = CompanySetup.of(send("PUT", "/company/todos/${enc(id)}", buildJsonObject { put("done", done) }))

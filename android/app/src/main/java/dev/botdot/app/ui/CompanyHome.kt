@@ -84,9 +84,10 @@ private val GOLD = Color(0xFFE8B44A)
 /**
  * The Company's home on Android (#675; web: public/company-home.js): the office floor in one column, as the phone's
  * "Big teams" mockup has it. The header (its name, "Day N of 90") and the days 30, 60 and 90 on a line; the check-in
- * that waits; the floor (the whiteboard of objectives, the Chief's glass office, a room per team with the lead's crown
- * and the team's count, desks for those that work or ask, a bench for the idle ones, the bots in no team, the bot
- * the Chief suggests, New team, the Calendar tile); then the To-do panel ([TodoPanel]: the week's plan, the standup,
+ * that waits; the objectives as the owner picked under "Show as" ([Goals], #690; on an older server the whiteboard in
+ * the floor); the floor (a room per team with the lead's crown and the team's count, desks for those that work or ask,
+ * a bench for the idle ones, then the Chief's glass office, the bots in no team, the bot the Chief suggests, New team,
+ * the Calendar tile); then the To-do panel ([TodoPanel]: the week's plan, the standup,
  * what waits, the project's items, Add a task, the decisions). A
  * room opens its team as a sheet, with Make lead. The rules of who sits where are [CompanyFloor]'s.
  */
@@ -119,11 +120,14 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         }
         c.day?.let { DaysLine(c, it) }
         c.checkin?.let { CheckinCard(ui, it, ways) }
+        val goals = CompanyFloor.DISPLAY in features
+        if (goals) Goals(ui, c)
+        // The teams first; then the Chief, the bots in no team, a suggested bot and New team (#690's side column, under them on a phone).
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(p.panel).border(1.dp, p.line, RoundedCornerShape(20.dp)).padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Board(c)
-            ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief)
+            if (!goals) Board(c)
             floor.rooms.forEach { r -> TeamRoom(r, here = teamOpen == r.team.id, line = { lineOf(it) }, onBot = ways.onBot) { teamOpen = r.team.id } }
+            ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief)
             if (floor.loose.isNotEmpty()) FlowRowCentered { floor.loose.forEach { s -> Desk(s.bot, s.seat, count = info.asks(s.bot.id), line = lineOf(s.bot), onClick = { ways.onBot(s.bot.id) }) } }
             c.suggestion?.let { SuggestedCard(ui, c, it) }
             NewTeam(ui, c)
@@ -133,7 +137,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     }
     val team = teamOpen?.let { id -> c.teams.firstOrNull { it.id == id } }
     if (team != null) ModalBottomSheet(onDismissRequest = { teamOpen = null }, containerColor = p.panel) {
-        TeamSheet(ui, c, team, bots, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
+        TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
     }
 }
 
@@ -213,7 +217,7 @@ internal fun ByChief() {
     }
 }
 
-/** The week's plan at the top of You: its items, each in its objective's colour, with Change and Approve until approved. */
+/** The week's plan at the top of You: its items, each with its team and in its objective's colour, with Change and Approve until approved. */
 @Composable
 internal fun PlanCard(ui: CompanyUi, c: Company) {
     val p = LocalPaper.current
@@ -228,9 +232,11 @@ internal fun PlanCard(ui: CompanyUi, c: Company) {
         }
         plan.items.forEachIndexed { i, x ->
             val color = c.objectives.firstOrNull { it.id == x.objective }?.color
+            val team = c.teams.firstOrNull { it.id == x.team }
             Row(verticalAlignment = Alignment.Top) {
                 Text("${i + 1}.", color = p.faint, fontSize = 14.sp, modifier = Modifier.width(22.dp))
                 Text(x.text, color = if (plan.approved) p.muted else p.text, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                if (team != null) TeamChip(team)
                 if (color != null) Box(Modifier.padding(start = 8.dp, top = 5.dp)) { Dot(color) }
             }
         }
@@ -247,6 +253,14 @@ internal fun PlanCard(ui: CompanyUi, c: Company) {
             }
         }
     }
+}
+
+/** The team that does a plan item (#696): its name in its colour. */
+@Composable
+private fun TeamChip(t: CompanyTeam) {
+    val color = parseColor(t.color, LocalPaper.current.muted)
+    Text(t.name, color = color, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        modifier = Modifier.padding(start = 8.dp).widthIn(max = 120.dp).clip(RoundedCornerShape(99.dp)).background(color.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 2.dp))
 }
 
 // ---------- the floor ----------
@@ -446,9 +460,9 @@ internal fun SmallButton(label: String, onClick: () -> Unit) {
         modifier = Modifier.clip(RoundedCornerShape(99.dp)).border(1.dp, p.line2, RoundedCornerShape(99.dp)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp))
 }
 
-/** A team, opened from its room: its objective, its bots with what each does, the lead's chip, Make lead on the others. */
+/** A team, opened from its room: its objective, its bots with what each does, the lead's chip, Make lead on the others, its reports. */
 @Composable
-private fun TeamSheet(ui: CompanyUi, c: Company, team: CompanyTeam, bots: List<Bot>, line: (Bot) -> String, onBot: (String) -> Unit) {
+private fun TeamSheet(ui: CompanyUi, c: Company, team: CompanyTeam, bots: List<Bot>, reports: Boolean, line: (Bot) -> String, onBot: (String) -> Unit) {
     val p = LocalPaper.current
     val o = CompanyFloor.objectiveOf(team, c.objectives)
     val members = team.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }
@@ -478,6 +492,26 @@ private fun TeamSheet(ui: CompanyUi, c: Company, team: CompanyTeam, bots: List<B
                 if (lead) Text(tr("Lead"), color = GOLD, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
                 else if (moving == null) SmallButton(tr("Make lead")) { moving = b.id; ui.call({ it.makeLead(team.id, b.id) }) { moving = null } }
             }
+        }
+        if (reports) Reports(ui, team, bots)
+    }
+}
+
+/** How often the team's lead reports (#696), and its latest report with its bot's head and time. */
+@Composable
+private fun Reports(ui: CompanyUi, team: CompanyTeam, bots: List<Bot>) {
+    val p = LocalPaper.current
+    val words = mapOf("" to tr("Off"), "daily" to tr("Daily"), "twice-weekly" to tr("Twice a week"), "weekly" to tr("Weekly"))
+    Choice(tr("Reports"), team.report.orEmpty(), CompanyFloor.RHYTHMS.map { it to words[it].orEmpty() }) { every ->
+        if (every != team.report.orEmpty()) ui.call({ it.setReportRhythm(team.id, every) })
+    }
+    val r = team.lastReport?.takeIf { it.text.isNotBlank() } ?: return
+    val by = bots.firstOrNull { it.id == r.bot }
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(p.sunk).padding(12.dp), verticalAlignment = Alignment.Top) {
+        if (by != null) BotFigure(by.color, "idle", 28, by.outfit)
+        Column(Modifier.weight(1f).padding(start = if (by != null) 10.dp else 0.dp)) {
+            Text(r.text, color = p.text, fontSize = 14.sp, lineHeight = 19.sp)
+            Text(shortTime(r.at), color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
