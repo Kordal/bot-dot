@@ -59,7 +59,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         assert.equal(await sales.locator('.cf-bench .cf-sit').count(), 4);
       }
       assert.equal(await page.locator('.cf-room[data-cf-team="t3"] .cf-crown').count(), 0);
-      assert.equal(await page.locator('.cf-loose .cf-name').innerText(), 'Weekly Report');
+      assert.equal(await page.locator('.cf-floor [title^="Weekly Report"]').count(), 0); // in no team: in Bots, not on the floor (#816)
       await page.locator('.cf-new', { hasText: 'New team' }).waitFor();
       // Ticked on the wide page, the task is under Done on the phone.
       if (name === 'phone') await page.locator('[data-cf-filter="done"]').click();
@@ -78,8 +78,8 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         const [w, n] = await Promise.all(['.cf-room[data-cf-team="t1"]', '.cf-room[data-cf-team="t2"]'].map((s) => page.locator(s).boundingBox()));
         assert.ok(w.width > n.width * 1.8, 'the big team spans two columns');
         const [rooms, side] = await Promise.all(['.cf-rooms', '.cf-side'].map((s) => page.locator(s).boundingBox()));
-        assert.ok(side.x > rooms.x + rooms.width - 1 && side.width < 220, 'the Chief, the bots in no team and New team in a narrow column beside the teams');
-        assert.ok(await page.locator('.cf-side .cf-chief').count() && await page.locator('.cf-side .cf-loose').count() && await page.locator('.cf-side .cf-new').count());
+        assert.ok(side.x > rooms.x + rooms.width - 1 && side.width < 220, 'the Chief and New team in a narrow column beside the teams');
+        assert.ok(await page.locator('.cf-side .cf-chief').count() && await page.locator('.cf-side .cf-new').count());
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-you.png`), fullPage: true });
         await sales.locator('.cf-room-head .cf-n').click(); // the room, not its name: the name opens the team's chat (#697)
         await page.locator('.cf-panel h2', { hasText: 'Sales' }).waitFor();

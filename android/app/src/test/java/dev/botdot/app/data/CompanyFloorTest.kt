@@ -76,7 +76,7 @@ class CompanyFloorTest {
         assertEquals(listOf("a"), r.bench.map { it.bot.id })
         assertEquals(4, r.size)
         assertFalse(r.solo)
-        assertEquals(listOf("e"), f.loose.map { it.bot.id })
+        assertFalse(f.rooms.any { r -> (listOf(r.lead) + r.desks + r.bench).any { it.bot.id == "e" } }) // in no team: on no floor (#816)
     }
 
     @Test fun aLeadThatLeftIsTheFirstBotAndATeamOfOneHasNoCrown() {

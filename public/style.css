@@ -2764,7 +2764,6 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .cf-desks { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-16) var(--sp-16); }
 .cf-bench { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-4); margin-top: auto; padding: var(--sp-4) var(--sp-8); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--sunk); }
 .cf-sit { padding: 0; border: 0; background: none; cursor: pointer; }
-.cf-loose { display: flex; align-items: center; justify-content: center; min-height: 160px; }
 .cf-new { display: flex; align-items: center; justify-content: center; gap: var(--sp-8); min-height: 160px; border: 1px dashed var(--line-2); border-radius: var(--r-14); background: transparent; color: var(--muted); font-size: var(--fs-14); cursor: pointer; }
 .cf-new:hover { color: var(--text); border-color: var(--muted); }
 .cf-new svg, .cf-you svg, .cf-panel-head .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

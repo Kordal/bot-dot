@@ -2,7 +2,7 @@
 // (company-home.js does):
 //   - a room per team: its lead at the head, the team's asks as one count on the lead, the members that work or ask
 //     at a desk (asks first), the idle ones as heads on a bench; a room of more than four bots spans two columns.
-//   - the bots in no team, each on its own on the floor.
+//   - only the project's own bots: those of its teams. A bot of the account in none of them is not on it (#816).
 //   - a team's objective: the objective of the team's colour.
 //   - "@Bot text" in Add a task: that bot's task.
 //   - how each objective is shown (#690): its display, its pace against the line to the target, its chart.
@@ -36,14 +36,10 @@ function room(team, bots, info) {
   };
 }
 
-// The floor: { rooms, loose }. rooms: one per team, in the company's order; loose: the bots in no team, each with `seat`.
+// The floor: { rooms }, one per team, in the company's order. The account's other bots belong to no project: they
+// stay in Bots and are not drawn on any project's floor (#816).
 function floor(company, bots, info) {
-  const teams = company?.teams || [];
-  const inTeam = new Set(teams.flatMap((t) => t.bots || []));
-  return {
-    rooms: teams.map((t) => room(t, bots, info)).filter(Boolean),
-    loose: bots.filter((b) => !inTeam.has(b.id)).map((b) => ({ ...b, seat: seatOf(b, info) })),
-  };
+  return { rooms: (company?.teams || []).map((t) => room(t, bots, info)).filter(Boolean) };
 }
 
 // A team's objective: the one of its colour (a new team and a new objective take the same colours in the same order),

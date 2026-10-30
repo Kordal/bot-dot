@@ -65,6 +65,23 @@ test('reminders can be listed and cancelled', async () => {
   assert.deepEqual((await srv.api('/chief/reminders')).data, []);
 });
 
+test('a long list keeps every line, and a reminder too long is refused, never cut', async () => {
+  // The witness's list from the owner's report: it was cut at 300 characters and its lines were joined.
+  const items = ['Rings', 'Speech', 'Phone numbers of the drivers', 'Plan for the way back', ...Array.from({ length: 30 }, (_, i) => `Item ${i + 1}  of   the list`)];
+  const text = `Witness:\n\n\n${items.map((t) => `- ${t}`).join('\n')}`;
+  const r = await srv.api('/chief/reminders', { method: 'POST', body: { text, at: local(later) } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.ok(r.data.text.length > 300);
+  assert.equal(r.data.text, `Witness:\n\n${items.map((t) => `- ${t.replace(/\s+/g, ' ')}`).join('\n')}`);
+  assert.equal((await srv.api('/chief/reminders')).data[0].text, r.data.text, 'kept as set');
+  await srv.api(`/chief/reminders/${r.data.id}`, { method: 'DELETE' });
+
+  const long = await srv.api('/chief/reminders', { method: 'POST', body: { text: 'x'.repeat(2001), at: local(later) } });
+  assert.equal(long.status, 400);
+  assert.match(long.data.error, /^Not set: a reminder holds at most 2000 characters, and this one has 2001\. Shorten it or split it/);
+  assert.deepEqual((await srv.api('/chief/reminders')).data, []);
+});
+
 // The scheduler's question each minute (bots.js tick), asked here with a given time: no test waits for that minute.
 test('a one-time job is due in its own minute of its own year, and in no other', () => {
   const { normalizeJob, dueAt } = require('../lib/jobs');
