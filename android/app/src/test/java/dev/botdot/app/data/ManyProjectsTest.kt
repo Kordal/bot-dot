@@ -66,6 +66,10 @@ class ManyProjectsTest {
         server.enqueue(json("""{"ok":true}"""))
         api.deleteCompany(dropFolder = true)
         assertEquals("DELETE" to "/api/company?folder=delete&project=p2", server.takeRequest().let { it.method to it.target })
+        // Another project, from a long press in the tree (#791).
+        server.enqueue(json("""{"ok":true}"""))
+        api.deleteCompany(dropFolder = false, id = "p5")
+        assertEquals("DELETE" to "/api/company?project=p5", server.takeRequest().let { it.method to it.target })
 
         // Without a project shown (an older botdot, or a new one being started): the first, as before.
         api.project = null

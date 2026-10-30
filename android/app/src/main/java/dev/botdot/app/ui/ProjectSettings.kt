@@ -431,15 +431,21 @@ private fun ArchiveRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) 
         Text(tr("Delete project"), color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f))
         SmallButton(tr("Delete"), danger = true) { asking = true }
     }
+    if (asking) DeleteProjectDialog(ui, c, onDismiss = { asking = false }) { ui.settingsOpen = false }
+}
+
+/** Delete [c] (#701; #791 from the project tree too): asked first, and with a folder (#702) whether it goes too. */
+@Composable
+internal fun DeleteProjectDialog(ui: CompanyUi, c: Company, onDismiss: () -> Unit, onDeleted: () -> Unit = {}) {
+    val p = LocalPaper.current
     fun delete(dropFolder: Boolean) {
-        asking = false
+        onDismiss()
         ui.scope.launch {
             val a = ui.api ?: return@launch ui.tell(tr("Can't reach botdot."))
-            runCatching { a.deleteCompany(dropFolder) }.onSuccess { ui.settingsOpen = false; ui.app.store.projectGone(c.id) }.onError { ui.tell(it.message) }
+            runCatching { a.deleteCompany(dropFolder, c.id) }.onSuccess { onDeleted(); ui.app.store.projectGone(c.id) }.onError { ui.tell(it.message) }
         }
     }
-    // With a folder (#702) it asks whether the folder goes too.
-    if (asking) AlertDialog(onDismissRequest = { asking = false }, containerColor = p.panel,
+    AlertDialog(onDismissRequest = onDismiss, containerColor = p.panel,
         title = { Text(tr("Delete the project {name}? Its bots stay.", "name" to ManyProjects.nameOf(c))) },
         confirmButton = {
             if (c.folder != null) TextButton({ delete(true) }) { Text(tr("Delete its folder too"), color = p.err) }
@@ -447,7 +453,7 @@ private fun ArchiveRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) 
         },
         dismissButton = {
             if (c.folder != null) TextButton({ delete(false) }) { Text(tr("Keep its folder")) }
-            else TextButton({ asking = false }) { Text(tr("Cancel")) }
+            else TextButton(onDismiss) { Text(tr("Cancel")) }
         })
 }
 

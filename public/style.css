@@ -2516,6 +2516,9 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 #co-sources { display: flex; flex-direction: column; gap: var(--sp-8); }
 /* The Team and Start steps (#671): the proposed bots' cards, the Chief's column, then the bots as they are made. */
 .co-steps li:not([data-step="start"]) { cursor: pointer; }
+.co-steps-line { display: flex; align-items: flex-end; gap: var(--sp-8); max-width: 984px; margin: 0 auto; }
+.co-steps-line .co-steps { flex: 1; min-width: 0; margin: 0; }
+.ct-menu { position: fixed; z-index: 60; }
 .co-team, .co-foot { max-width: 984px; margin: 0 auto; }
 .co-team { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--sp-24); align-items: start; padding: var(--sp-24) 0 var(--sp-96); }
 .co-team svg, .co-foot svg, .co-made svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -2590,6 +2593,7 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
   #view-company { padding: 0 var(--sp-16) var(--sp-32); }
   #view-company .co-phone-switch { display: flex; margin: var(--sp-12) 0 0; }
   .co-pick > svg, .co-pick select { display: block; }
+  .co-steps-line .co-gear { display: none; }
   .co-pick-line { display: block; margin: var(--sp-16) 0 0; font-size: var(--fs-24); font-weight: 600; letter-spacing: -.01em; }
   .co-start { padding-top: 6vh; }
   .co-start h1 { font-size: var(--fs-24); }
