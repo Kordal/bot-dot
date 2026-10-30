@@ -43,6 +43,13 @@ test("a bot's reminder goes off in its own chat, as a new reply with no run, and
     const set = (await self(srv, runA.token, 'reminders', { action: 'add', text: 'Check in for Lisbon', at: soon(2000) }));
     assert.equal(set.status, 201, JSON.stringify(set.data));
     assert.equal(set.data.reminder.text, 'Check in for Lisbon');
+    // A list keeps its lines; one too long is refused with the reason, not cut.
+    const list = (await self(srv, runA.token, 'reminders', { action: 'add', text: 'Pack:\n- passport\n- charger', at: soon(3_600_000) })).data;
+    assert.equal(list.reminder.text, 'Pack:\n- passport\n- charger');
+    await self(srv, runA.token, 'reminders', { action: 'cancel', id: list.reminder.id });
+    const long = (await self(srv, runA.token, 'reminders', { action: 'add', text: 'x'.repeat(2001), at: soon(3_600_000) })).data;
+    assert.equal(long.ok, false);
+    assert.match(long.error, /at most 2000 characters/);
 
     // Each sees its own, the Chief sees neither, and one bot can't cancel another's.
     assert.deepEqual((await self(srv, runA.token, 'reminders', { action: 'list' })).data.reminders.map((r) => r.text), ['Check in for Lisbon']);
