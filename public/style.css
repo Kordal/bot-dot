@@ -2166,6 +2166,7 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pc-table .num { text-align: right; padding-left: var(--sp-12); white-space: nowrap; }
 .pc-failed { color: var(--err); font-size: var(--fs-14); }
 .pc-failed.quiet { color: var(--faint); font-size: var(--fs-12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-login { align-self: flex-start; margin-top: var(--sp-12); } /* a card that needs a login of the project (#804) */
 .pc-shimmer { display: grid; gap: var(--sp-8); }
 .pc-shimmer i { display: block; height: 10px; border-radius: var(--r-8); background: linear-gradient(90deg, var(--fill) 0%, #2e2e2e 50%, var(--fill) 100%); background-size: 200% 100%; animation: pc-shimmer 1.4s linear infinite; }
 .pc-shimmer .w1 { width: 40%; height: 28px; }
@@ -3000,6 +3001,9 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .ps-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 .ps-add .ps-input { max-width: none; }
 .ps-adds { display: flex; flex-wrap: wrap; gap: var(--sp-8); padding: var(--sp-8) 0; }
+.ps-login-add { position: relative; }
+.ps-login-menu { top: 44px; left: 0; right: auto; max-height: 280px; overflow-y: auto; }
+.ps-login-menu .ps-login-new { color: var(--muted); border-top: 1px solid var(--line); border-radius: 0; }
 .ps-chips { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
 .ps-chip { font-family: var(--mono); font-size: var(--fs-12); padding: var(--sp-4) var(--sp-12); border: 1px solid var(--line-2); border-radius: var(--r-pill); color: var(--muted); }
 .ps-chip.keep { border-color: var(--ok); color: var(--ok-text); background: var(--ok-soft); }

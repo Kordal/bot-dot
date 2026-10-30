@@ -25,6 +25,8 @@ data class ProjectCard(
     val step: CardStep? = null,
     val steps: Int = 0,
     val error: String? = null,
+    /** A failed card's host of the owner's own that no login of the project reaches (#804, [ProjectLogins]). */
+    val needsLogin: String? = null,
     val changing: Boolean = false,
 ) {
     val name: String get() = title.ifBlank { ask }

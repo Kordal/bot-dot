@@ -45,6 +45,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +76,7 @@ import dev.botdot.app.data.Company
 import dev.botdot.app.data.ProjectCard
 import dev.botdot.app.data.ProjectBoard
 import dev.botdot.app.data.ProjectCards
+import dev.botdot.app.data.ProjectLogins
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.add
@@ -89,7 +91,7 @@ import kotlinx.serialization.json.putJsonArray
  * line and a bar; a card built a moment ago has a green outline. Each card: refresh, and a menu Change, Refresh, Remove.
  */
 /** What the cards share while drawn (#776): the one open (a Change, or [ProjectCards.NEW]), refused words, fresh cards. */
-internal class CardsState(val ui: CompanyUi, val c: Company, openState: MutableState<String?>, refusedState: MutableState<String?>, val fresh: List<String>) {
+internal class CardsState(val ui: CompanyUi, val c: Company, openState: MutableState<String?>, refusedState: MutableState<String?>, val fresh: List<String>, val logins: Boolean = false) {
     var open by openState
     var refused by refusedState
     // A card removed meanwhile closes its Change.
@@ -119,7 +121,8 @@ internal fun rememberCards(ui: CompanyUi, c: Company): CardsState {
         fresh.addAll(built)
         try { delay(4000) } finally { fresh.removeAll(built) }
     }
-    val st = CardsState(ui, c, open, refused, fresh)
+    val server by ui.app.store.version.value.collectAsState()
+    val st = CardsState(ui, c, open, refused, fresh, logins = ProjectLogins.FEATURE in server?.features.orEmpty())
     // Back on Close: the ask field closes, nothing is sent.
     BackHandler(enabled = st.shown != null) { st.open = null }
     return st
@@ -141,7 +144,8 @@ internal fun CardSlot(st: CardsState, s: ProjectCards.Slot, m: Modifier) {
         is ProjectCards.Slot.Card -> BoardCard(m, s.card, fresh = s.card.id in st.fresh,
             onRefresh = { st.send({ it.refreshCard(s.card.id) }) },
             onChange = { st.refused = null; st.open = s.card.id },
-            onRemove = { st.send({ it.removeCard(s.card.id) }) })
+            onRemove = { st.send({ it.removeCard(s.card.id) }) },
+            onLogin = if (st.logins && s.card.failed && s.card.needsLogin != null) ({ st.ui.settingsOpen = true }) else null)
     }
 }
 
@@ -308,7 +312,7 @@ private fun CardIcon(icon: ImageVector, label: String, onClick: () -> Unit) {
 
 /** A card: its title, refresh and the menu; then what it shows, or while it is built for the first time its shimmer, line and bar. */
 @Composable
-private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, onRefresh: () -> Unit, onChange: () -> Unit, onRemove: () -> Unit) {
+private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, onRefresh: () -> Unit, onChange: () -> Unit, onRemove: () -> Unit, onLogin: (() -> Unit)? = null) {
     val p = LocalPaper.current
     var menu by remember(k.id) { mutableStateOf(false) }
     Column(modifier.heightIn(min = 148.dp).cardBox(p, if (fresh) p.ok else null).padding(start = Space.s16, end = Space.s8, top = Space.s8, bottom = Space.s16),
@@ -331,7 +335,10 @@ private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, onRefr
             if (k.building && body == null) Building(k)
             else {
                 if (body != null) Body(body)
-                if (k.failed) Text(k.error ?: tr("Could not build it"), color = if (body != null) p.faint else p.err, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                // A card that needs one of the owner's servers no login of the project reaches (#804): which, and Add login.
+                val said = if (onLogin != null) tr("No login for {host}", "host" to k.needsLogin.orEmpty()) else k.error ?: tr("Could not build it")
+                if (k.failed) Text(said, color = if (body != null) p.faint else p.err, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (onLogin != null) SmallButton(tr("Add login"), onClick = onLogin)
             }
         }
     }

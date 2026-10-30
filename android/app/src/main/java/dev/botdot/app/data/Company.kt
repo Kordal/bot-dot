@@ -63,6 +63,8 @@ data class Company(
     val board: List<String>? = null,
     /** Where the owner put each tile of its board (#784, [BoardCanvas]); null while botdot places them. */
     val layout: Map<String, List<Double>>? = null,
+    /** The Vault logins its cards call the owner's own servers with (#804, [ProjectLogins]). */
+    val logins: List<ProjectLogin> = emptyList(),
 ) {
     val running: Boolean get() = phase == "running"
     val site: Boolean get() = kind == "site"
