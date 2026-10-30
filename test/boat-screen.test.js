@@ -106,6 +106,26 @@ test('the screen kit carries the versions the desktop image pins', () => {
   assert.deepEqual(browsers(kit), browsers(image), "the kit fetches and sets the image's Camoufox");
 });
 
+test('the screen kit takes off the mount that stops boat.dev saving a machine, and the admin hears of a machine it cannot save', async () => {
+  const kit = fs.readFileSync(path.join(ROOT, 'deploy', 'desktop', 'botdot-boat-kit'), 'utf8');
+  assert.match(kit, /umount -l \/home\/browser\/\.gvfs/);
+  assert.match(kit, /apt-get remove -y -q gvfs-fuse/);
+
+  const asked = [];
+  const fetch = async (url) => {
+    asked.push(String(url));
+    return new Response(JSON.stringify({ sandboxes: [
+      { id: 'bx_aaaaaaaa', name: 'botdot-a', snapshotCompletedAt: '2026-10-29T10:07:19.567Z', stop: { status: 'failing' } },
+      { id: 'bx_bbbbbbbb', name: 'botdot-b', stop: null },
+    ] }), { status: 200 });
+  };
+  assert.deepEqual(await boatLib.unsaved(KEY, { fetch }), [{ name: 'botdot-a', since: '2026-10-29T10:07:19.567Z' }]);
+  assert.match(asked[0], /\/sandboxes\?limit=200$/);
+  assert.deepEqual(await boatLib.unsaved(null, { fetch }), [], 'no key, no call');
+  assert.equal(asked.length, 1);
+  assert.deepEqual(await boatLib.unsaved(KEY, { fetch: async () => { throw new Error('down'); } }), [], 'boat.dev down leaves the page as it is');
+});
+
 test("a bot's first screen tool puts the kit on its machine, starts its screen there, and the next ones only use it", async (t) => {
   boatLib.setKey(KEY);
   t.after(() => boatLib.setKey(null));

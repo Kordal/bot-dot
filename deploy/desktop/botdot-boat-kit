@@ -41,6 +41,10 @@ chmod 0700 /home/browser
 install -d -o browser -g browser -m 0700 /home/browser/profiles
 chmod g+x /home/user
 install -d -o user -g user -m 2775 /home/user/Downloads
+# gvfs-fuse mounts ~/.gvfs for a user with no runtime folder, as browser is. Not even root can read that mount, so
+# boat.dev's snapshot fails on it and the machine can't be saved or stopped.
+! grep -q ' /home/browser/.gvfs ' /proc/mounts || umount -l /home/browser/.gvfs
+! dpkg -s gvfs-fuse >/dev/null 2>&1 || apt-get remove -y -q gvfs-fuse
 
 step="computer-server"
 # As the image's Dockerfile: cua-computer-server and the fixes pinned beside it, FastAPI at the last release it
