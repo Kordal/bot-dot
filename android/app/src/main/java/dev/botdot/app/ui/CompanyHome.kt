@@ -153,7 +153,6 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 if (on("teams")) {
                     floor.rooms.forEach { r -> add(Tile("room:${r.team.id}") { m -> Box(m) { TeamRoom(r, here = teamOpen == r.team.id, line = { lineOf(it) }, onBot = ways.onBot, onChat = teamChat(r.team.id)) { teamOpen = r.team.id } } }) }
                     add(Tile("chief") { m -> Box(m) { ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief) } })
-                    floor.loose.forEach { s -> add(Tile("bot:${s.bot.id}") { m -> Box(m, contentAlignment = Alignment.Center) { Desk(s.bot, s.seat, count = info.asks(s.bot.id), line = lineOf(s.bot), onClick = { ways.onBot(s.bot.id) }) } }) }
                     c.suggestion?.let { sg -> add(Tile("suggest") { m -> Box(m) { SuggestedCard(ui, c, sg) } }) }
                     add(Tile("new-team") { m -> Box(m) { NewTeam(ui, c) } })
                 }
@@ -168,7 +167,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         }
         val goals = CompanyFloor.DISPLAY in features
         if (goals && on("goals")) Goals(ui, c)
-        // The teams first; then the Chief, the bots in no team, a suggested bot and New team (#690's side column, under them on a phone).
+        // The teams first; then the Chief, a suggested bot and New team (#690's side column, under them on a phone).
         Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s12),
             verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             if (!goals) Board(c)
@@ -177,7 +176,6 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             if (on("teams")) {
                 floor.rooms.forEach { r -> TeamRoom(r, here = teamOpen == r.team.id, line = { lineOf(it) }, onBot = ways.onBot, onChat = teamChat(r.team.id)) { teamOpen = r.team.id } }
                 ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief)
-                if (floor.loose.isNotEmpty()) FlowRowCentered { floor.loose.forEach { s -> Desk(s.bot, s.seat, count = info.asks(s.bot.id), line = lineOf(s.bot), onClick = { ways.onBot(s.bot.id) }) } }
                 c.suggestion?.let { SuggestedCard(ui, c, it) }
                 NewTeam(ui, c)
             }

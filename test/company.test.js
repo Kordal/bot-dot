@@ -242,7 +242,26 @@ test('the Chief suggests one bot at a time; Add makes it in its team, dismiss ke
   assert.deepEqual([r.data.suggestion, r.data.dismissed], [null, ['Billing Helper']]);
   assert.equal((await srv.asChief('/company/suggestion', { method: 'PUT', body: { name: 'billing helper', prompt: 'x', why: 'y' } })).status, 409);
   assert.equal((await srv.api('/company/suggestion', { method: 'DELETE' })).status, 404);
-  assert.equal((await srv.api(`/bots/${made.id}`, { method: 'DELETE' })).status, 200);
+  // A suggestion without a team still lands in the project (#816): the first team.
+  assert.equal((await srv.asChief('/company/suggestion', { method: 'PUT', body: { name: 'Ops Helper', prompt: 'Watch the queue.', why: 'Orders pile up' } })).status, 200);
+  r = await srv.api('/company/suggestion/add', { method: 'POST', body: {} });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const ops = (await srv.api('/bots')).data.find((x) => x.name === 'Ops Helper');
+  assert.ok(r.data.teams[0].bots.includes(ops.id));
+  for (const x of [made, ops]) assert.equal((await srv.api(`/bots/${x.id}`, { method: 'DELETE' })).status, 200);
+});
+
+test('a bot added from a suggestion in a project with no team gets a team of its own (#816)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'company-'));
+  const file = path.join(dir, 'company.json');
+  fs.writeFileSync(file, JSON.stringify({ id: 'abc', name: 'My Gym', start: 'x', phase: 'running', startedAt: '2026-10-01T09:00:00Z', teams: [], suggestion: { name: 'Coach', prompt: 'Plan workouts.', why: 'y', at: '2026-10-01T09:00:00Z' } }));
+  const s = companyLib.create({ file });
+  s.added('b_coach');
+  const c = s.read();
+  assert.equal(c.suggestion, null);
+  assert.equal(c.teams.length, 1);
+  assert.deepEqual([c.teams[0].name, c.teams[0].bots, c.teams[0].lead], ['My Gym', ['b_coach'], 'b_coach']);
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test('deleting the company keeps its bots', async () => {

@@ -49,13 +49,13 @@ test('room: a bot that is gone is left out; a lead that is gone gives the head t
   assert.equal(Floor.room({ id: 't', bots: ['gone'], lead: 'gone' }, bots, info()), null);
 });
 
-test('floor: one room per team in order, and the bots in no team on their own', () => {
+test("floor: one room per team in order; a bot of the account in none of the project's teams is not on it (#816)", () => {
   const bots = ['a', 'b', 'c', 'd'].map(bot);
   const f = Floor.floor({ teams: [{ id: 't2', bots: ['c'], lead: 'c' }, { id: 't1', bots: ['a', 'b'], lead: 'a' }] }, bots, info(['d']));
   assert.deepEqual(f.rooms.map((r) => r.team.id), ['t2', 't1']);
-  assert.deepEqual(ids(f.loose), ['d']);
-  assert.equal(f.loose[0].seat, 'working');
-  assert.deepEqual(Floor.floor(null, bots, info()).rooms, []);
+  assert.deepEqual(Object.keys(f), ['rooms']);
+  assert.ok(!f.rooms.some((r) => [r.lead, ...r.desks, ...r.bench].some((b) => b.id === 'd')));
+  assert.deepEqual(Floor.floor(null, bots, info()), { rooms: [] });
 });
 
 test("objectiveOf: the team's objective is the one of its colour, in any case", () => {
