@@ -1,7 +1,8 @@
 // The About step of a company's setup (#670, docs/api.md "The Company"): Company.steps.about. botdot first asks the
 // Chief to read the company (POST /api/company/read): a site gets its About rows and the questions the Chief could
-// not answer; an idea its name and chips for five questions, one per screen, then "I want my <who> to…" stories,
-// the delivery date, then the review: the SWOT and one list of rows, each changed in place (#801). Every answer is saved with PATCH /api/company as it is given, so a reload goes on
+// not answer; an idea its name and the screens the server sends (#805): the questions the Chief picked for it, one
+// per screen, "I want my <who> to…" stories where they apply, the delivery date, then the review: the SWOT where it
+// applies and one list of rows, each changed in place (#801). Every answer is saved with PATCH /api/company as it is given, so a reload goes on
 // where it was. Everything the Chief wrote is text, drawn with esc() (AGENTS.md rule 6).
 (() => {
   if (typeof Company === 'undefined') return;
@@ -14,14 +15,22 @@
     cal: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4"/></svg>',
     inf: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c-2-2.7-3.7-4-5.5-4a4 4 0 0 0 0 8c1.8 0 3.5-1.3 5.5-4zm0 0c2 2.7 3.7 4 5.5 4a4 4 0 0 0 0-8c-1.8 0-3.5 1.3-5.5 4z"/></svg>',
   };
-  // The questions of a new idea, as lib/company-chief.js IDEA asks them, and the line each answer shows on.
-  const IDEA = [
-    ['who', () => tr('Who is it for?'), () => tr('Who')],
-    ['today', () => tr('What do they do today?'), () => tr('Today')],
-    ['why', () => tr('Why you?'), () => tr('Why you')],
-    ['signal', () => tr('What would show it works in 90 days?'), () => tr('90 days')],
-    ['test', () => tr('What can you test this week?'), () => tr('First step')],
-  ];
+  // A new idea's screens from a server before #805: the five questions it asked every idea (lib/company-chief.js
+  // IDEA), each with the line its answer shows on, then the stories, the delivery date and the review with the SWOT.
+  const IDEA = [['who', 'Who is it for?', 'Who'], ['today', 'What do they do today?', 'Today'], ['why', 'Why you?', 'Why you'],
+    ['signal', 'What would show it works in 90 days?', '90 days'], ['test', 'What can you test this week?', 'First step']];
+  const screensOf = (c) => c.screens || (c.kind === 'site' ? [{ screen: 'review', swot: false }]
+    : [...IDEA.map(([key, question, label]) => ({ screen: 'question', key, question, label })), { screen: 'stories' }, { screen: 'delivery' }, { screen: 'review', swot: true }]);
+  // The catalogue's questions and the lines their answers show on, in this page's language (lib/company-chief.js
+  // CATALOGUE); a question this page does not know shows as the server wrote it.
+  const SAID = {
+    who: () => [tr('Who is it for?'), tr('Who')], today: () => [tr('What do they do today?'), tr('Today')], why: () => [tr('Why you?'), tr('Why you')],
+    signal: () => [tr('What would show it works in 90 days?'), tr('90 days')], test: () => [tr('What can you test this week?'), tr('First step')],
+    runs: () => [tr('What do you run?'), tr('Runs')], care: () => [tr('What breaks or needs care?'), tr('Needs care')], reach: () => [tr('How do the bots reach it?'), tr('Access')],
+    watch: () => [tr('What should be watched?'), tr('Watch')], done: () => [tr('What does done look like?'), tr('Finish line')], now: () => [tr('Where are you now?'), tr('Now')],
+    blocks: () => [tr('What is in the way?'), tr('In the way')], help: () => [tr('Where do you want help?'), tr('Help')], first: () => [tr('What first?'), tr('First step')],
+  };
+  const said = (x) => (SAID[x.key] ? SAID[x.key]() : [x.question, x.label]);
   // The questions botdot itself asks; a question the Chief wrote is drawn as it wrote it.
   const ASKED = {
     who: () => tr('Who is it for?'), today: () => tr('What do they do today?'), why: () => tr('Why you?'),
@@ -44,9 +53,12 @@
     ui.saving--;
     Company.redraw();
   };
-  // What a question's chips are made from (#787), as lib/company-chief.js `basis` hashes it: the answers before it
-  // (the review's: all five). Chips of another basis are asked for again once the answers are saved.
+  // What a question's chips are made from (#787): the basis its screen carries (#805), or, from a server before it,
+  // as lib/company-chief.js `basis` hashes it: the answers before it (the review's: all five). Chips of another basis
+  // are asked for again once the answers are saved.
   function basisOf(c, key) {
+    const own = screensOf(c).find((x) => (x.screen === 'question' ? x.key === key : x.screen === 'review' && !questionKeys(c).includes(key)));
+    if (own?.basis) return own.basis;
     const i = IDEA.findIndex(([k]) => k === key);
     const text = IDEA.slice(0, i < 0 ? IDEA.length : i).map(([k]) => card(c, k)?.answer || '').join('\n');
     let h = 5381;
@@ -105,17 +117,21 @@
 
   // ---------- the screens ----------
   const card = (c, key) => c.about.find((a) => a.key === key);
-  // A new idea's screens, in order: the five questions, the stories, the delivery date, the review.
-  const SCREENS = [...IDEA.map((_, i) => i), 'stories', 'delivery', 'review'];
-  // Where a new idea stands: the first question not answered nor skipped, then the stories, then the review.
+  const questionKeys = (c) => screensOf(c).filter((x) => x.screen === 'question').map((x) => x.key);
+  const indexOf = (c, name) => screensOf(c).findIndex((x) => x.screen === name);
+  // Where a new idea stands, as an index of its screens: the first question not answered nor skipped; then the
+  // review once the SWOT is written (or the delivery is set, in a setup without one); else the screen after the
+  // questions.
   function startScreen(c) {
-    if (c.kind === 'site') return 'review';
-    const i = IDEA.findIndex(([k]) => card(c, k)?.open);
+    const list = screensOf(c);
+    const i = list.findIndex((x) => x.screen === 'question' && card(c, x.key)?.open);
     if (i >= 0) return i;
-    return c.swot ? 'review' : 'stories';
+    const review = list.at(-1);
+    if (review.swot ? c.swot : c.deliverBy) return list.length - 1;
+    return Math.min(questionKeys(c).length, list.length - 1);
   }
   // The About step's ticks under the step bar: one per screen of a new idea, the one shown lit.
-  Company.steps.ticks = { ...Company.steps.ticks, about: (c) => (c.kind === 'idea' && c.about.length ? [SCREENS.length, SCREENS.indexOf(ui.id === c.id && ui.screen !== null ? ui.screen : startScreen(c))] : null) };
+  Company.steps.ticks = { ...Company.steps.ticks, about: (c) => (c.kind === 'idea' && c.about.length ? [screensOf(c).length, ui.id === c.id && ui.screen !== null ? ui.screen : startScreen(c)] : null) };
 
   function draw(body, c) {
     if (ui.id !== c.id) { // another company: nothing of the last one's screens
@@ -123,11 +139,13 @@
       for (const k of Object.keys(local)) delete local[k];
     }
     if (!c.about.length) return drawReading(body, c);
-    if (ui.screen === null) ui.screen = startScreen(c);
-    if (c.kind === 'site') ui.screen = 'review';
-    if (typeof ui.screen === 'number') drawQuestion(body, c, ui.screen);
-    else if (ui.screen === 'stories') drawStories(body, c);
-    else if (ui.screen === 'delivery') drawDelivery(body, c);
+    const list = screensOf(c);
+    if (ui.screen === null || ui.screen < 0 || ui.screen >= list.length) ui.screen = startScreen(c);
+    if (c.kind === 'site') ui.screen = list.length - 1;
+    const at = list[ui.screen];
+    if (at.screen === 'question') drawQuestion(body, c, ui.screen);
+    else if (at.screen === 'stories') drawStories(body, c);
+    else if (at.screen === 'delivery') drawDelivery(body, c);
     else drawReview(body, c);
   }
 
@@ -182,23 +200,24 @@
   }
   const split = (answer) => (answer ? answer.split(SEP).map((x) => x.trim()).filter(Boolean) : []);
 
-  // One of the five questions of a new idea; the answer before it as a small chip over it, since its chips build on it.
+  // One of a new idea's questions; the answer before it as a small chip over it, since its chips build on it.
   const local = {}; // what is picked on a question screen before Next, by key
   function drawQuestion(body, c, i) {
-    const [key, question] = IDEA[i];
+    const list = screensOf(c);
+    const { key, question } = list[i];
     const a = card(c, key) || { key, chips: [], answer: '' };
     const basis = basisOf(c, key);
     const waiting = refresh(key, a.basis !== basis, basis);
     const picked = local[key] || split(a.answer);
-    const before = i > 0 ? card(c, IDEA[i - 1][0])?.answer : '';
-    body.innerHTML = `<div class="co-q">${before ? `<div class="co-chips"><span class="co-chip co-prev">${ICON.check}<span>${esc(before)}</span></span></div>` : ''}<h1>${question()}</h1>
+    const before = i > 0 && list[i - 1].screen === 'question' ? card(c, list[i - 1].key)?.answer : '';
+    body.innerHTML = `<div class="co-q">${before ? `<div class="co-chips"><span class="co-chip co-prev">${ICON.check}<span>${esc(before)}</span></span></div>` : ''}<h1>${esc(said(list[i])[0])}</h1>
       ${chipsHTML(key, a.chips || [], picked, { waiting })}
     </div>${foot(backBtn(i === 0), nextBtns(picked.length))}`;
     wireChips(body, key, picked, (list) => { local[key] = list; Company.redraw(); }, { multi: true });
     const answer = (text) => {
       delete local[key];
-      const next = c.about.some((x) => x.key === key) ? c.about.map((x) => (x.key === key ? { ...x, answer: text, open: false } : x)) : [...c.about, { key, question: a.question || question(), answer: text }];
-      ui.screen = i + 1 < IDEA.length ? i + 1 : 'stories';
+      const next = c.about.some((x) => x.key === key) ? c.about.map((x) => (x.key === key ? { ...x, answer: text, open: false } : x)) : [...c.about, { key, question: a.question || question, answer: text }];
+      ui.screen = i + 1;
       save({ about: next });
     };
     $('[data-done]', body).onclick = () => { const list = local[key] || picked; if (list.length) answer(list.join(SEP)); };
@@ -253,8 +272,8 @@
     const more = $('[data-more]', body);
     if (more) more.onclick = () => { ui.chooseWho = true; Company.redraw(); };
     if (ui.chooseWho) wireChips(body, 'who', [], (list) => { if (list[0]) { ui.who = list[0]; ui.chooseWho = false; Company.redraw(); } });
-    $('[data-co-back]', body).onclick = () => { ui.screen = IDEA.length - 1; Company.redraw(); };
-    $('[data-next]', body).onclick = () => { ui.screen = 'delivery'; Company.redraw(); };
+    $('[data-co-back]', body).onclick = () => { ui.screen = indexOf(c, 'stories') - 1; Company.redraw(); };
+    $('[data-next]', body).onclick = () => { ui.screen = indexOf(c, 'stories') + 1; Company.redraw(); };
   }
   const whoChooser = (words) => chipsHTML('who', words, [], { label: whoWord });
 
@@ -309,10 +328,10 @@
   function drawDelivery(body, c) {
     body.innerHTML = `<div class="co-q"><h1>${tr('When should it be delivered?')}</h1>${deliveryHTML(c)}</div>${foot(backBtn(), nextBtns(!!c.deliverBy))}`;
     wireDelivery(body, c);
-    const on = () => { ui.cal = false; ui.screen = 'review'; if (!state.company.swot) swot(); else Company.redraw(); };
+    const on = () => { ui.cal = false; ui.screen = indexOf(c, 'review'); if (screensOf(c).at(-1).swot && !state.company.swot) swot(); else Company.redraw(); };
     $('[data-done]', body).onclick = on;
     $('[data-skip]', body).onclick = () => { if (c.deliverBy) save({ deliverBy: '' }); on(); };
-    $('[data-co-back]', body).onclick = () => { ui.cal = false; ui.screen = 'stories'; Company.redraw(); };
+    $('[data-co-back]', body).onclick = () => { ui.cal = false; ui.screen = indexOf(c, 'delivery') - 1; Company.redraw(); };
   }
 
   // ---------- the review ----------
@@ -325,19 +344,20 @@
     const stale = c.kind === 'idea' ? s.basis !== basis : !c.suggestions;
     const waiting = Object.fromEntries(['goal', 'never', ...(c.kind === 'idea' ? ['time'] : [])].map((k) => [k, refresh(k, stale, basis)]));
     const idea = c.kind === 'idea';
-    const answers = idea ? IDEA.map(([k, , label]) => ({ key: k, label: label(), a: card(c, k) || { key: k, answer: '' } })) : c.about.map((a) => ({ key: a.key, label: questionOf(c, a), a }));
+    const withSwot = idea && screensOf(c).at(-1).swot;
+    const answers = idea ? screensOf(c).filter((x) => x.screen === 'question').map((x) => ({ key: x.key, label: said(x)[1], a: card(c, x.key) || { key: x.key, answer: '' } })) : c.about.map((a) => ({ key: a.key, label: questionOf(c, a), a }));
     const rows = [
       ...answers.map(({ key, label, a }) => (a.answer || idea
         ? textRow(key, label, a.answer)
         : chipRow(`about:${key}`, label, '', () => chipsHTML(`about:${key}`, a.chips || [], []), true))),
-      ...(idea && c.stories.length ? [linkRow('stories', tr('Stories'), c.stories.map((g) => `${whoWord(g.who)}: ${g.items.map((x) => x.text).join(' · ')}`))] : []),
+      ...(idea && c.stories.length && indexOf(c, 'stories') >= 0 ? [linkRow('stories', tr('Stories'), c.stories.map((g) => `${whoWord(g.who)}: ${g.items.map((x) => x.text).join(' · ')}`))] : []),
       ...(c.swot?.firstTest ? [textRow('firstTest', tr('First test'), c.swot.firstTest)] : []),
       chipRow('goal', tr('Goal'), c.goal, () => chipsHTML('goal', s.goal, c.goal ? [c.goal] : [], { plus: true, waiting: waiting.goal })),
       chipRow('never', tr('Asks before'), c.never.join(' · '), () => chipsHTML('never', s.never, c.never, { plus: true, waiting: waiting.never })),
       ...(idea ? [chipRow('time', tr('Time'), c.time, () => chipsHTML('time', s.time, c.time ? [c.time] : [], { plus: true, waiting: waiting.time }))] : []),
       chipRow('delivery', tr('Delivery'), deliveryText(c), () => deliveryHTML(c)),
     ];
-    body.innerHTML = `<div class="co-review">${idea ? swotHTML(c) : ''}<div class="co-list">${rows.join('')}</div></div>${foot(idea ? backBtn() : '', `<button type="button" class="co-go" data-build>${tr('Build my team')} ${ICON.go}</button>`)}`;
+    body.innerHTML = `<div class="co-review">${withSwot ? swotHTML(c) : ''}<div class="co-list">${rows.join('')}</div></div>${foot(idea ? backBtn() : '', `<button type="button" class="co-go" data-build>${tr('Build my team')} ${ICON.go}</button>`)}`;
     const done = () => { ui.editing = null; };
     wireChips(body, 'goal', c.goal ? [c.goal] : [], (list) => { done(); save({ goal: list[0] || '' }); });
     wireChips(body, 'never', c.never, (list) => { ui.editing = 'never'; save({ never: list }); }, { multi: true });
@@ -354,7 +374,7 @@
       Company.redraw();
     }));
     $$('[data-row-close]', body).forEach((el) => (el.onclick = () => { done(); ui.cal = false; Company.redraw(); }));
-    $$('[data-goto]', body).forEach((el) => (el.onclick = () => { ui.screen = el.dataset.goto; Company.redraw(); }));
+    $$('[data-goto]', body).forEach((el) => (el.onclick = () => { ui.screen = indexOf(c, el.dataset.goto); Company.redraw(); }));
     const edit = $('#co-edit', body);
     if (edit) {
       const key = ui.editing;
@@ -364,7 +384,7 @@
       edit.onsubmit = (e) => { e.preventDefault(); const t = edit.answer.value.replace(/\s+/g, ' ').trim(); close(); if (t) answer(key, t); else Company.redraw(); };
     }
     const back = $('[data-co-back]', body);
-    if (back) back.onclick = () => { ui.editing = null; ui.screen = 'delivery'; Company.redraw(); };
+    if (back) back.onclick = () => { ui.editing = null; ui.screen = indexOf(c, 'review') - 1; Company.redraw(); };
     $('[data-build]', body).onclick = () => Company.go('team');
   }
   // A row: its label and value, a tap opens it in place.

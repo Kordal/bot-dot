@@ -246,7 +246,7 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
                 val at = CompanySetup.stepOf(c, ui.step)
                 // The setup's header (#800): Back to the question before, the project's name, and ⋯ with Delete.
                 val delivery = CompanySetup.DELIVERY in server?.features.orEmpty()
-                val back = ui.screen?.takeIf { at == "about" && !c.site && c.about.isNotEmpty() }?.let { CompanySetup.before(it, delivery) }
+                val back = ui.screen?.takeIf { at == "about" && !c.site && c.about.isNotEmpty() }?.let { CompanySetup.before(c, it, delivery) }
                 if (back != null) BackHandler { ui.screen = back }
                 Row(Modifier.fillMaxWidth().padding(start = if (back != null) Space.s4 else Space.s16, end = Space.s4, top = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                     if (back != null) IconButton({ ui.screen = back }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = p.muted) }

@@ -54,22 +54,41 @@ import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
 /** The questions of a new idea, as the server asks them, and the word each answer shows under. */
-private fun ideaQuestion(key: String): String = when (key) {
+/** A question of the setup's catalogue (lib/company-chief.js CATALOGUE) in this app's words; another as the server wrote it (#805). */
+private fun ideaQuestion(c: Company, key: String): String = when (key) {
     "who" -> tr("Who is it for?")
     "today" -> tr("What do they do today?")
     "why" -> tr("Why you?")
     "signal" -> tr("What would show it works in 90 days?")
     "test" -> tr("What can you test this week?")
-    else -> key
+    "runs" -> tr("What do you run?")
+    "care" -> tr("What breaks or needs care?")
+    "reach" -> tr("How do the bots reach it?")
+    "watch" -> tr("What should be watched?")
+    "done" -> tr("What does done look like?")
+    "now" -> tr("Where are you now?")
+    "blocks" -> tr("What is in the way?")
+    "help" -> tr("Where do you want help?")
+    "first" -> tr("What first?")
+    else -> CompanySetup.questionScreen(c, key)?.question ?: c.card(key)?.question?.ifEmpty { null } ?: key
 }
 
-private fun ideaLabel(key: String): String = when (key) {
+/** The line a question's answer shows on in the review. */
+private fun ideaLabel(c: Company, key: String): String = when (key) {
     "who" -> tr("Who")
     "today" -> tr("Today")
     "why" -> tr("Why you")
     "signal" -> tr("90 days")
-    "test" -> tr("First step")
-    else -> key
+    "test", "first" -> tr("First step")
+    "runs" -> tr("Runs")
+    "care" -> tr("Needs care")
+    "reach" -> tr("Access")
+    "watch" -> tr("Watch")
+    "done" -> tr("Finish line")
+    "now" -> tr("Now")
+    "blocks" -> tr("In the way")
+    "help" -> tr("Help")
+    else -> CompanySetup.questionScreen(c, key)?.label ?: key
 }
 
 /** A review row's label (#800): botdot's own words for its fields. */
@@ -79,13 +98,13 @@ private fun rowLabel(c: Company, key: String): String = when (key) {
     "never" -> tr("Asks before")
     "time" -> tr("Time")
     "deliverBy" -> tr("Delivery")
-    else -> key.removePrefix("about:").let { k -> if (c.site) c.card(k)?.let { questionOf(c, it) } ?: k else ideaLabel(k) }
+    else -> key.removePrefix("about:").let { k -> if (c.site) c.card(k)?.let { questionOf(c, it) } ?: k else ideaLabel(c, k) }
 }
 
 /** A card's question: botdot's own in this app's words; one the Chief wrote, as it wrote it. */
 private fun questionOf(c: Company, a: AboutCard): String = when {
     a.key == "today" && c.site -> tr("How do you work today?")
-    a.key in CompanySetup.IDEA -> ideaQuestion(a.key)
+    !c.site && a.key in CompanySetup.questions(c) -> ideaQuestion(c, a.key)
     a.key == "about" -> tr("What is your project about?")
     a.key == "serves" -> tr("Who do you serve?")
     else -> a.question
@@ -104,8 +123,9 @@ internal fun whoWord(w: String): String = when (w) {
 
 /**
  * The About step (#670; web: public/company-about.js). botdot first asks the Chief to read the company: a site gets
- * its About cards and the review; an idea five questions with chips, one per screen, then "I want my <who> to…"
- * stories, the delivery date (#800), then the review: the SWOT and one list of what was answered. Each answer is saved as it is given, so the setup goes on where it was.
+ * its About cards and the review; an idea the questions the server sends for it (#805), with chips, one per screen,
+ * then "I want my <who> to…" stories where it has them, the delivery date (#800), then the review: the SWOT where it
+ * has one and one list of what was answered. Each answer is saved as it is given, so the setup goes on where it was.
  */
 @Composable
 internal fun AboutStep(ui: CompanyUi, c: Company) {
@@ -161,12 +181,13 @@ private fun Reading(ui: CompanyUi, c: Company) {
     }
 }
 
-/** The ticks under the step bar (#800): a new idea's eight screens, the ones done grey, the one on screen white. */
+/** The ticks under the step bar (#800): one a screen of a new idea's, the ones done grey, the one on screen white. */
 @Composable
-private fun Ticks(at: Int) {
+private fun Ticks(c: Company, s: AboutScreen) {
     val p = LocalPaper.current
+    val at = CompanySetup.tick(c, s)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-        repeat(CompanySetup.SCREENS) { i -> Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (i == at) p.text else if (i < at) p.muted else p.line2)) }
+        repeat(CompanySetup.count(c)) { i -> Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (i == at) p.text else if (i < at) p.muted else p.line2)) }
     }
 }
 
@@ -197,33 +218,38 @@ private fun SkeletonChips() {
 private fun NextFoot(enabled: Boolean, onSkip: () -> Unit, onNext: () -> Unit) =
     Foot({ WordsButton(tr("Skip"), onClick = onSkip) }) { GoButton(tr("Next"), enabled = enabled, arrow = true, onClick = onNext) }
 
-/** One of the five questions of a new idea, the answer before it over it (#800). */
+/** One of a new idea's questions, the answer before it over it (#800). */
 @Composable
 private fun Question(ui: CompanyUi, c: Company, i: Int) {
-    val key = CompanySetup.IDEA[i]
-    val a = c.card(key) ?: AboutCard(key, ideaQuestion(key))
+    val delivery = hasDelivery(ui)
+    val key = CompanySetup.questions(c).getOrNull(i) ?: return run { ui.screen = CompanySetup.startScreen(c) }
+    val a = c.card(key) ?: AboutCard(key, ideaQuestion(c, key))
     val basis = CompanySetup.basis(c, key)
     val waiting = refresh(ui, key, a.basis != basis, basis)
     val picked = ui.picked[key] ?: CompanySetup.split(a.answer)
     fun answer(text: String) {
         ui.picked.remove(key)
-        ui.screen = if (i + 1 < CompanySetup.IDEA.size) AboutScreen.Question(i + 1) else AboutScreen.Stories
-        val next = CompanySetup.answered(c.about, key, text, a.question.ifEmpty { ideaQuestion(key) })
+        val next = CompanySetup.answered(c.about, key, text, a.question.ifEmpty { ideaQuestion(c, key) })
+        val then = CompanySetup.after(c, AboutScreen.Question(i), delivery)
+        if (then == AboutScreen.Stories) ui.screen = then else leave(ui, c, then)
         ui.save(CompanySetup.patchAbout(next)) { it.copy(about = next) }
     }
     StepPage({ NextFoot(picked.isNotEmpty(), onSkip = { answer("") }) { answer(picked.joinToString(CompanySetup.SEP)) } }) {
-        Ticks(i)
+        Ticks(c, AboutScreen.Question(i))
         CompanySetup.previous(c, key)?.let { Previous(it) }
-        CoTitle(ideaQuestion(key))
+        CoTitle(ideaQuestion(c, key))
         if (waiting) SkeletonChips()
         ChipQuestion(ui, key, if (waiting) emptyList() else a.chips.orEmpty(), picked, multi = true) { ui.picked[key] = it }
     }
 }
 
-/** Leaves the stories: the Chief starts the SWOT, then the delivery date when the server has it, else the review. */
-private fun afterStories(ui: CompanyUi, c: Company, delivery: Boolean) {
-    ui.screen = if (delivery) AboutScreen.Delivery else AboutScreen.Review
-    if (c.swot == null && !ui.swotting) {
+/** Leaves the stories: on to the delivery date when the server has it, else the review. */
+private fun afterStories(ui: CompanyUi, c: Company, delivery: Boolean) = leave(ui, c, CompanySetup.after(c, AboutScreen.Stories, delivery))
+
+/** Goes on to [to] past the questions and stories: the Chief starts the SWOT meanwhile, where the setup has one. */
+private fun leave(ui: CompanyUi, c: Company, to: AboutScreen) {
+    ui.screen = to
+    if (CompanySetup.hasSwot(c) && c.swot == null && !ui.swotting) {
         ui.swotting = true
         ui.scope.launch { runCatching { ui.api?.companySwot() }.onSuccess { it?.let(ui::took) }; ui.swotting = false }
     }
@@ -254,8 +280,8 @@ private fun Stories(ui: CompanyUi, c: Company) {
         ui.save(CompanySetup.patchStories(next)) { it.copy(stories = next) }
     }
     StepPage({ NextFoot(true, onSkip = { afterStories(ui, c, delivery) }) { afterStories(ui, c, delivery) } }) {
-        Ticks(CompanySetup.tick(AboutScreen.Stories))
-        CompanySetup.split(c.card(CompanySetup.IDEA.last())?.answer.orEmpty()).firstOrNull()?.let { Previous(it) }
+        Ticks(c, AboutScreen.Stories)
+        CompanySetup.split(c.card(CompanySetup.questions(c).lastOrNull().orEmpty())?.answer.orEmpty()).firstOrNull()?.let { Previous(it) }
         FlowRow(verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             CoTitle(tr("I want my"))
             Row(Modifier.clip(Radius.small).background(p.raise2).clickable { ui.choosingWho = !ui.choosingWho }.padding(horizontal = Space.s8),
@@ -297,7 +323,7 @@ private fun Stories(ui: CompanyUi, c: Company) {
 @Composable
 private fun DeliveryQuestion(ui: CompanyUi, c: Company) {
     StepPage({ NextFoot(c.deliverBy.isNotEmpty(), onSkip = { ui.screen = AboutScreen.Review }) { ui.screen = AboutScreen.Review } }) {
-        Ticks(CompanySetup.tick(AboutScreen.Delivery))
+        Ticks(c, AboutScreen.Delivery)
         CoTitle(tr("When should it be delivered?"))
         DeliveryChips(c.deliverBy) { v -> ui.save(CompanySetup.patchText("deliverBy", v)) { it.copy(deliverBy = v) } }
     }
@@ -316,9 +342,9 @@ private fun Review(ui: CompanyUi, c: Company) {
     val stale = if (c.site) c.suggestions == null else c.suggestions?.basis != basis
     val waiting = listOfNotNull("goal", "never", if (c.site) null else "time").associateWith { refresh(ui, it, stale, basis) }
     StepPage({ Foot({}) { GoButton(tr("Build my team"), arrow = true) { ui.editing = null; ui.step = "team" } } }) {
-        if (!c.site) Ticks(CompanySetup.tick(AboutScreen.Review))
+        if (!c.site) Ticks(c, AboutScreen.Review)
         CoTitle(c.name.ifEmpty { c.start })
-        if (!c.site) SwotGrid(ui, c)
+        if (!c.site && CompanySetup.hasSwot(c)) SwotGrid(ui, c)
         Column(Modifier.fillMaxWidth().raised(Radius.card)) {
             CompanySetup.reviewKeys(c, delivery).forEachIndexed { n, key ->
                 if (n > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
@@ -375,7 +401,7 @@ private fun RowEditor(ui: CompanyUi, c: Company, key: String, card: AboutCard?, 
         "deliverBy" -> DeliveryChips(c.deliverBy) { v -> ui.save(CompanySetup.patchText("deliverBy", v)) { it.copy(deliverBy = v) } }
         else -> {
             val k = key.removePrefix("about:")
-            val question = card?.let { questionOf(c, it) } ?: ideaQuestion(k)
+            val question = card?.let { questionOf(c, it) } ?: ideaQuestion(c, k)
             fun answer(text: String) {
                 ui.editing = null
                 val next = CompanySetup.answered(c.about, k, text, card?.question?.ifEmpty { null } ?: question)

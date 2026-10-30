@@ -25,7 +25,10 @@ after(async () => { await srv.stop(); });
 test('the question carries what the owner said, and a copy is named for the company', () => {
   const c = { kind: 'idea', start: 'A meal planner for parents', name: 'Mealwise', about: [{ question: 'Who is it for?', answer: 'Parents' }], stories: [], swot: { strengths: [], weaknesses: [], opportunities: [], threats: [], firstTest: 'Ask 10 parents' }, goal: '10 parents a week', never: ['Spend money'], time: '' };
   const q = teamLib.question(c, { apps: ['gmail'] });
-  for (const s of ['A new idea: A meal planner', 'Who is it for? Parents', 'First test: Ask 10 parents', '90-day goal: 10 parents a week', 'Spend money', 'gmail', 'first week']) assert.ok(q.includes(s), s);
+  for (const s of ['A new project: A meal planner', 'Who is it for? Parents', 'First test: Ask 10 parents', '90-day goal: 10 parents a week', 'Spend money', 'gmail', 'first week']) assert.ok(q.includes(s), s);
+  assert.match(q, /one to five bots/);
+  assert.match(q, /It serves people: two to five bots/, 'a project read before #805 is a venture');
+  assert.match(teamLib.question({ ...c, setup: { shape: 'goal', questions: ['done', 'now', 'first'], stories: false, swot: false } }), /personal or one-off goal: one bot/);
   assert.ok(teamLib.question({ ...c, kind: 'site' }).includes('yesterday'));
   assert.equal(teamLib.copyOf({ id: 'x', name: 'Research Assistant' }, { name: 'Mealwise' }).name, 'Research Assistant (Mealwise)');
   assert.equal(teamLib.copyOf({ id: 'x', name: 'Research Assistant' }, { name: '' }).name, 'Research Assistant 2');

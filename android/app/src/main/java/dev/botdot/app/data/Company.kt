@@ -29,6 +29,8 @@ data class Company(
     val startedAt: String? = null,
     val sources: List<CompanySource> = emptyList(),
     val about: List<AboutCard> = emptyList(),
+    /** What its setup asks, screen by screen (#805), on a botdot with `project-screens`; null before, or once it runs. */
+    val screens: List<SetupScreen>? = null,
     val stories: List<StoryGroup> = emptyList(),
     val swot: Swot? = null,
     val goal: String = "",
@@ -242,8 +244,17 @@ data class SourceDraft(val id: String, val kind: String, val name: String, val u
     val uploading: Boolean get() = kind == "file" && upload == null && !failed
 }
 
-/** Where a new idea's setup stands on the About step: one of the five questions, the stories, or the review. */
+/**
+ * One screen of a new idea's setup as the server sends it (#805): a `question` ([key], its [question], the [label]
+ * its answer shows on in the review, the [basis] of its chips), `stories`, `delivery` or `review` (with the SWOT when
+ * [swot]).
+ */
+@Serializable
+data class SetupScreen(val screen: String, val key: String? = null, val question: String? = null, val label: String? = null, val basis: String? = null, val swot: Boolean = false)
+
+/** Where a new idea's setup stands on the About step: one of its questions, the stories, the delivery date or the review. */
 sealed interface AboutScreen {
+    /** The [index]th of the setup's questions ([CompanySetup.questions]). */
     data class Question(val index: Int) : AboutScreen
     data object Stories : AboutScreen
     /** The delivery date as its own question (#800), after the stories. */
@@ -263,7 +274,9 @@ object CompanySetup {
     const val DELIVERY = "project-delivery"
     /** The setup's steps, as the bar shows them. */
     val STEPS = listOf("about", "team", "start")
-    /** The five questions of a new idea, as the server asks them (lib/company-chief.js). */
+    /** The setup's screens from the server (#805): `screens` on the project. */
+    const val SCREENS_FEATURE = "project-screens"
+    /** The five questions a server before #805 asks every new idea (lib/company-chief.js IDEA). */
     val IDEA = listOf("who", "today", "why", "signal", "test")
     /** The words for the groups of "I want my <who> to…". */
     val WHO = listOf("users", "customers", "clients", "members", "students", "team", "partners")
@@ -309,48 +322,78 @@ object CompanySetup {
     /** The step on screen: Start once the team is made, else the one last chosen, else About. */
     fun stepOf(c: Company, chosen: String?): String = if (c.running) "start" else chosen?.takeIf { it in STEPS } ?: "about"
 
-    /** Where a new idea starts on the About step: the first question neither answered nor skipped, then the stories, then the review. */
+    /** A new idea's screens: the server's (#805), or as a server before it asks: the five questions, the stories, the delivery date, the review with the SWOT. */
+    fun screens(c: Company): List<SetupScreen> = c.screens ?: (IDEA.map { SetupScreen("question", key = it) } +
+        listOf(SetupScreen("stories"), SetupScreen("delivery"), SetupScreen("review", swot = true)))
+    /** The keys of its questions, in the order it asks them. */
+    fun questions(c: Company): List<String> = screens(c).filter { it.screen == "question" }.mapNotNull { it.key }
+    fun hasStories(c: Company): Boolean = screens(c).any { it.screen == "stories" }
+    fun hasSwot(c: Company): Boolean = screens(c).lastOrNull { it.screen == "review" }?.swot == true
+    /** The question screen of [key], with its words and its basis, or null. */
+    fun questionScreen(c: Company, key: String): SetupScreen? = screens(c).firstOrNull { it.screen == "question" && it.key == key }
+
+    /**
+     * Where a new idea starts on the About step: the first question neither answered nor skipped; then the review
+     * once the SWOT is written (or, in a setup without one, the delivery date is set); else the screen after the questions.
+     */
     fun startScreen(c: Company): AboutScreen {
         if (c.site) return AboutScreen.Review
-        val i = IDEA.indexOfFirst { c.card(it)?.open == true }
+        val i = questions(c).indexOfFirst { c.card(it)?.open == true }
         if (i >= 0) return AboutScreen.Question(i)
-        return if (c.swot != null) AboutScreen.Review else AboutScreen.Stories
+        if (if (hasSwot(c)) c.swot != null else c.deliverBy.isNotEmpty()) return AboutScreen.Review
+        return after(c, AboutScreen.Question(questions(c).size - 1), delivery = true)
     }
 
-    /** A new idea's screens, as the ticks under the step bar count them (#800): the five questions, the stories, the delivery date, the review. */
-    const val SCREENS = 8
+    /** How many ticks a new idea's screens have under the step bar (#800): one a screen. */
+    fun count(c: Company): Int = screens(c).size
 
-    /** Which tick [s] is: 0 to [SCREENS] - 1. */
-    fun tick(s: AboutScreen): Int = when (s) {
-        is AboutScreen.Question -> s.index
-        AboutScreen.Stories -> IDEA.size
-        AboutScreen.Delivery -> IDEA.size + 1
-        AboutScreen.Review -> IDEA.size + 2
+    /** Which tick [s] is: 0 to [count] - 1. */
+    fun tick(c: Company, s: AboutScreen): Int {
+        val q = questions(c).size
+        val stories = if (hasStories(c)) 1 else 0
+        return when (s) {
+            is AboutScreen.Question -> s.index
+            AboutScreen.Stories -> q
+            AboutScreen.Delivery -> q + stories
+            AboutScreen.Review -> q + stories + 1
+        }
+    }
+
+    /** The screen after [s] on a new idea's way; [delivery] false: the server has no delivery date (#792). */
+    fun after(c: Company, s: AboutScreen, delivery: Boolean): AboutScreen = when (s) {
+        is AboutScreen.Question -> if (s.index + 1 < questions(c).size) AboutScreen.Question(s.index + 1)
+            else if (hasStories(c)) AboutScreen.Stories else if (delivery) AboutScreen.Delivery else AboutScreen.Review
+        AboutScreen.Stories -> if (delivery) AboutScreen.Delivery else AboutScreen.Review
+        else -> AboutScreen.Review
     }
 
     /** The screen before [s] on a new idea's way, or null on the first; [delivery] false: the server has no delivery date (#792). */
-    fun before(s: AboutScreen, delivery: Boolean): AboutScreen? = when (s) {
-        is AboutScreen.Question -> if (s.index > 0) AboutScreen.Question(s.index - 1) else null
-        AboutScreen.Stories -> AboutScreen.Question(IDEA.size - 1)
-        AboutScreen.Delivery -> AboutScreen.Stories
-        AboutScreen.Review -> if (delivery) AboutScreen.Delivery else AboutScreen.Stories
+    fun before(c: Company, s: AboutScreen, delivery: Boolean): AboutScreen? {
+        val last = AboutScreen.Question(questions(c).size - 1)
+        return when (s) {
+            is AboutScreen.Question -> if (s.index > 0) AboutScreen.Question(s.index - 1) else null
+            AboutScreen.Stories -> last
+            AboutScreen.Delivery -> if (hasStories(c)) AboutScreen.Stories else last
+            AboutScreen.Review -> if (delivery) AboutScreen.Delivery else if (hasStories(c)) AboutScreen.Stories else last
+        }
     }
 
     /** The previous question's answer, shown as a chip over [key]'s question (#800): what its chips build on; null on the first or when skipped. */
     fun previous(c: Company, key: String): String? {
-        val i = IDEA.indexOf(key).takeIf { it > 0 } ?: return null
-        return split(c.card(IDEA[i - 1])?.answer.orEmpty()).firstOrNull()
+        val keys = questions(c)
+        val i = keys.indexOf(key).takeIf { it > 0 } ?: return null
+        return split(c.card(keys[i - 1])?.answer.orEmpty()).firstOrNull()
     }
 
     /**
-     * The review's rows (#800), one list: a new idea's five answers and its stories, a site's cards as it read them,
+     * The review's rows (#800), one list: a new idea's answers and its stories (where it has them), a site's cards as it read them,
      * then the goal, what the team never does without asking, the time (an idea's only) and the delivery date.
      */
     fun reviewKeys(c: Company, delivery: Boolean): List<String> = buildList {
         if (c.site) c.about.forEach { add("about:" + it.key) }
         else {
-            IDEA.forEach { add("about:$it") }
-            add("stories")
+            questions(c).forEach { add("about:$it") }
+            if (hasStories(c)) add("stories")
         }
         add("goal"); add("never")
         if (!c.site) add("time")
@@ -358,10 +401,13 @@ object CompanySetup {
     }
 
     /**
-     * What a question's chips are made from (#787), as lib/company-chief.js `basis` hashes it: the answers before
-     * [key] in [IDEA]'s order (any other key, the review's: all five). Chips of another basis are asked for again.
+     * What a question's chips are made from (#787): the basis its screen carries (#805), or, from a server before it,
+     * as lib/company-chief.js `basis` hashes it: the answers before [key] in [IDEA]'s order (any other key, the
+     * review's: all five). Chips of another basis are asked for again.
      */
     fun basis(c: Company, key: String): String {
+        val screen = questionScreen(c, key) ?: screens(c).lastOrNull { it.screen == "review" }.takeIf { key !in questions(c) }
+        screen?.basis?.let { return it }
         val i = IDEA.indexOf(key).let { if (it < 0) IDEA.size else it }
         val text = IDEA.take(i).joinToString("\n") { k -> c.card(k)?.answer.orEmpty() }
         var h = 5381L
