@@ -506,7 +506,7 @@ function chiefChatOf(req, by) {
 // it, in a turn the owner started (#694), and reads its calendar and adds, moves and deletes its events (#695);
 // and sets and starts the morning standup (#698); making, deleting, deleting a to-do item or a decision, the check-ins, Approve and Add stay the owner's.
 const CHIEF_ROUTES = [
-  ['GET', /^(company|company\/list|company\/calendar|bots|skills|connectors|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
+  ['GET', /^(company|company\/list|company\/card-files|company\/calendar|bots|skills|connectors|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
   ['GET', /^runs\/[^/]+\/wait$/],
   ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)$/],

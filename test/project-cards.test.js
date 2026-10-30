@@ -49,6 +49,7 @@ test("a run's live line comes from its tool calls: a search, a page's host, an a
   assert.deepEqual(cards.stepOf(ev('WebSearch', { query: 'acme open issues' })), { kind: 'search', what: 'acme open issues' });
   assert.deepEqual(cards.stepOf(ev('WebFetch', { url: 'https://www.github.com/acme/web' })), { kind: 'read', what: 'github.com' });
   assert.deepEqual(cards.stepOf(ev('mcp__connectors__connector_run', { app: 'github' }), (s) => (s === 'github' ? 'GitHub' : s)), { kind: 'read', what: 'GitHub' });
+  assert.deepEqual(cards.stepOf(ev('mcp__botdot__read_project_file', { path: 'site/plan.md' })), { kind: 'read', what: 'site/plan.md' });
   assert.equal(cards.stepOf(ev('Bash', {})), null);
   assert.equal(cards.stepOf({ type: 'result' }), null);
 });
@@ -59,6 +60,8 @@ test('the prompts hold the ask and the answers as text, and a refresh is handed 
   assert.match(p.prompt, /Which repository\? acme\/web/);
   assert.match(p.prompt, /<how>\nRead the API\.\n<\/how>/);
   assert.match(p.system, /web search and web pages/);
+  assert.doesNotMatch(p.system, /project's folder/);
+  assert.match(cards.buildPrompts({ card: { ask: 'x', answers: [] }, project: 'B', folder: true }).system, /web search and web pages\. You also read the project's folder, read-only \(list_project_files, read_project_file\)/);
   assert.match(cards.buildPrompts({ card: { ask: 'x', answers: [] }, project: 'B', apps: ['GitHub'], web: false }).system, /connected apps GitHub, read-only/);
   assert.match(cards.questionsPrompt({ ask: 'x', project: 'B', apps: [{ slug: 'github', name: 'GitHub' }] }), /github \(GitHub\)/);
 });
@@ -179,9 +182,10 @@ test("the owner asks; the Chief's questions come; the answers start a run with t
   const arg = (flag) => run.args[run.args.indexOf(flag) + 1];
   assert.ok(run.args.includes('--no-session-persistence'));
   assert.deepEqual(run.args.slice(run.args.indexOf('--tools') + 1, run.args.indexOf('--tools') + 3), ['WebSearch', 'WebFetch']);
-  assert.ok(!run.args.slice(run.args.indexOf('--allowedTools')).some((a) => a.startsWith('mcp__botdot__')), "no botdot tool");
+  assert.deepEqual(run.args.slice(run.args.indexOf('--allowedTools')).filter((a) => a.startsWith('mcp__botdot__')), ['mcp__botdot__list_project_files', 'mcp__botdot__read_project_file'], "of botdot, its project's folder alone (project-folder.test.js)");
   const mcp = JSON.parse(fs.readFileSync(arg('--mcp-config'), 'utf8'));
   assert.equal(mcp.mcpServers.connectors, undefined, 'no app');
+  assert.match(mcp.mcpServers.botdot.env.BOT_DOT_CARD, /^[0-9a-f]{48}$/, "the run's own key");
   assert.match(run.stdin, /<ask>\nTracker for GitHub issues\n<\/ask>/);
   assert.match(run.stdin, /Which repository\? acme\/web/);
   assert.equal((await card(id)).state, 'building');
