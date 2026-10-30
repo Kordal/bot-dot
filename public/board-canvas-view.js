@@ -24,7 +24,6 @@
     ['[data-cf-goal].cf-goal', (el) => `goal:${el.dataset.cfGoal}`],
     ['.cf-room[data-cf-team]', (el) => `room:${el.dataset.cfTeam}`],
     ['.cf-chief', () => 'chief'],
-    ['.cf-loose', (el) => `bot:${$('[data-cf-bot]', el)?.dataset.cfBot}`],
     ['.cf-suggest', () => 'suggest'],
     ['.cf-new', () => 'new-team'],
     ['.cf-cal', () => 'calendar'],

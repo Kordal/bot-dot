@@ -37,7 +37,7 @@ object CompanyFloor {
         val solo: Boolean get() = size == 1
     }
 
-    data class Floor(val rooms: List<Room>, val loose: List<Sat>)
+    data class Floor(val rooms: List<Room>)
 
     fun seatOf(b: Bot, info: Info): Seat = if (info.asks(b.id) > 0) Seat.ASKS else if (info.working(b.id)) Seat.WORKING else Seat.IDLE
 
@@ -55,11 +55,8 @@ object CompanyFloor {
         )
     }
 
-    /** One room per team, in the company's order, and the bots in no team. */
-    fun floor(c: Company, bots: List<Bot>, info: Info): Floor {
-        val inTeam = c.teams.flatMap { it.bots }.toSet()
-        return Floor(c.teams.mapNotNull { room(it, bots, info) }, bots.filter { it.id !in inTeam }.map { Sat(it, seatOf(it, info)) })
-    }
+    /** One room per team, in the company's order. The account's bots in no team stay in Bots, on no project's floor (#816). */
+    fun floor(c: Company, bots: List<Bot>, info: Info): Floor = Floor(c.teams.mapNotNull { room(it, bots, info) })
 
     /** A team's objective: the one of its colour, or null. */
     fun objectiveOf(team: CompanyTeam?, objectives: List<Objective>): Objective? {

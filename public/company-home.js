@@ -1,14 +1,14 @@
 // The Company's home (#672, ADR 110): a running company drawn as an office floor, with its rules in company-floor.js.
-// The header: its name and "Day N of 90". The floor: the Chief of Staff in a small glass office, one room per team, the
-// bots in no team on their own, and a dashed "New team". The panel beside it is the To-do (#692: what waits for the
-// owner and the project's to-do, filtered All, You, Bots or Done, and Add a task with who it is for, its day and how it
+// The header: its name and "Day N of 90". The floor: the Chief of Staff in a small glass office, one room per team and
+// a dashed "New team" (the account's bots in no team stay in Bots, #816). The panel beside it is the To-do (#692: what
+// waits for the owner and the project's to-do, filtered All, You, Bots or Done, and Add a task with who it is for, its day and how it
 // repeats), or the team whose room was clicked. A narrow window has the floor in one column and the panel under it.
 // Everything shown is the bots' states, asks and working lines the page already has: nothing new is asked of the
 // server but the company's own routes. Under the header (#673): days 30, 60 and 90 on a line, the check-in that waits
 // above the floor, the week's plan at the top of You, and the bot the Chief suggests as a dashed card on the floor.
 // Above the floor (#690): each objective as the owner picked under "Show as" (a pace chart by default, a bar, or its
 // status and steps), and on day 1 where it starts in place of a chart. The floor has the teams in its main area and
-// the Chief, the bots in no team and "New team" in a narrow column. At the floor's end, the Calendar tile (#695,
+// the Chief and "New team" in a narrow column. At the floor's end, the Calendar tile (#695,
 // company-calendar-view.js).
 (() => {
   const CROWN = '<svg class="cf-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
@@ -203,7 +203,7 @@
       <div class="cf-actions"><button type="button" class="icon-btn" data-cf-suggest-no aria-label="${tr('Dismiss')}">${X}</button><button type="button" class="btn primary sm" data-cf-suggest-add>${Company.ICON.plus}${tr('Add')}</button></div></div>`;
   }
 
-  // The teams in the main area; the Chief, the bots in no team, a suggested bot and "New team" in a narrow column.
+  // The teams in the main area; the Chief, a suggested bot and "New team" in a narrow column.
   function floorHTML(c, f) {
     const cards = window.ProjectCards ? ProjectCards.html(c) : '';
     const calendar = Company.onBoard(c, 'calendar') && c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : '';
@@ -211,10 +211,9 @@
     if (!Company.onBoard(c, 'teams')) return `<div class="cf-floor bare">${cards}${calendar}</div>`;
     const line = chiefLine();
     const chief = `<button type="button" class="cf-chief" data-cf-chief><span class="cf-over">${line ? bubble(line, 'line') : ''}</span><span class="cf-table"><i></i></span><span class="cf-head">${chiefFigure()}</span><span class="cf-name">${esc(chiefTitle())}</span></button>`;
-    const loose = f.loose.map((b) => `<div class="cf-loose">${deskHTML(b, { count: f.info.asks(b.id) })}</div>`).join('');
     const rooms = f.rooms.length ? `<div class="cf-rooms">${f.rooms.map(roomHTML).join('')}</div>` : '';
     // The cards made by Claude (#775, project-cards.js) in a row of their own at the top, so the rooms never move.
-    return `<div class="cf-floor${rooms ? '' : ' bare'}">${cards}${rooms}<div class="cf-side">${chief}${loose}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>${calendar}</div>`;
+    return `<div class="cf-floor${rooms ? '' : ' bare'}">${cards}${rooms}<div class="cf-side">${chief}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>${calendar}</div>`;
   }
 
   // ---------- the panel: the To-do (#692), or a team ----------
