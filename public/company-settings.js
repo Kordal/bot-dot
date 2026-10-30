@@ -241,29 +241,7 @@
     if (neverForm) neverForm.onsubmit = (e) => { e.preventDefault(); const t = neverForm.text.value.trim(); added(neverForm.text, '[data-ps-never-form] input'); if (t) patch({ never: [...c.never, t] }); };
     // Archive or delete.
     $('[data-ps-archive]', root).onclick = () => patch({ archived: !c.archived });
-    $('[data-ps-delete]', root).onclick = async () => {
-      // With a folder (#702) it asks whether the folder goes too.
-      const folder = c.folder ? await askFolder(c) : confirm(tr('Delete the project {name}? Its bots stay.', { name: nameOf(c) })) && 'keep';
-      if (!folder) return;
-      const at = Company.at('/company');
-      try { await api(folder === 'delete' ? `${at}${at.includes('?') ? '&' : '?'}folder=delete` : at, { method: 'DELETE' }); } catch (e) { toast(e.message, true); return; }
-      Company.removed(c.id);
-    };
-  }
-
-  // Delete a project with a folder: 'keep' or 'delete' the folder, or null.
-  function askFolder(c) {
-    return new Promise((resolve) => {
-      const m = openModal(`
-        <div class="modal-head"><h2>${tr('Delete the project {name}? Its bots stay.', { name: esc(nameOf(c)) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
-        <div class="modal-foot">
-          <button type="button" class="btn" data-folder="keep">${tr('Keep its folder')}</button>
-          <button type="button" class="btn danger" data-folder="delete">${tr('Delete its folder too')}</button>
-        </div>`);
-      let answer = null;
-      $$('[data-folder]', m).forEach((b) => (b.onclick = () => { answer = b.dataset.folder; m.close(); }));
-      m.addEventListener('close', () => resolve(answer), { once: true });
-    });
+    $('[data-ps-delete]', root).onclick = () => Company.deleteProject(c);
   }
 
   // Files added as sources: uploaded for the Chief, as the start screen does, then saved with the others.

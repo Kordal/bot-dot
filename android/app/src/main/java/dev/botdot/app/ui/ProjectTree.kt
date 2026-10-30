@@ -1,7 +1,9 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -91,9 +93,12 @@ private fun ProjectTree(ui: CompanyUi, shown: String?, ways: CompanyWays, close:
     LaunchedEffect(Unit) { folds = ui.app.settings.treeNow() }
     fun turn(key: String) { folds = ManyProjects.fold(folds, key, shown); val now = folds; ui.scope.launch { ui.app.settings.setTree(now) } }
     val adding by ui.app.store.addingProject.collectAsState()
+    // A long press on a project row deletes it, asked first (#791).
+    var deleting by remember { mutableStateOf<Company?>(null) }
+    deleting?.let { DeleteProjectDialog(ui, it, onDismiss = { deleting = null }) { close() } }
 
     Column(Modifier.padding(vertical = Space.s4)) {
-        ManyProjects.open(list).forEach { c -> ProjectBranch(c, here = !adding && c.id == shown, bots, asks, folds, shown, ::turn, onShow = { ui.show(c.id); close() }, onBot = { ways.onBot(it); close() }) }
+        ManyProjects.open(list).forEach { c -> ProjectBranch(c, here = !adding && c.id == shown, bots, asks, folds, shown, ::turn, onShow = { ui.show(c.id); close() }, onBot = { ways.onBot(it); close() }, onDelete = { deleting = it }) }
         val archived = ManyProjects.archived(list)
         if (archived.isNotEmpty()) {
             val open = ManyProjects.isOpen(folds, "archived:", shown)
@@ -101,7 +106,7 @@ private fun ProjectTree(ui: CompanyUi, shown: String?, ways: CompanyWays, close:
                 Text(tr("Archived"), color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f))
                 Text(archived.size.toString(), color = p.faint, fontSize = Type.s12)
             }
-            if (open) archived.forEach { c -> ProjectBranch(c, here = !adding && c.id == shown, bots, asks, folds, shown, ::turn, onShow = { ui.show(c.id); close() }, onBot = { ways.onBot(it); close() }) }
+            if (open) archived.forEach { c -> ProjectBranch(c, here = !adding && c.id == shown, bots, asks, folds, shown, ::turn, onShow = { ui.show(c.id); close() }, onBot = { ways.onBot(it); close() }, onDelete = { deleting = it }) }
         }
         Rule()
         TreeRow(level = 0, onClick = { ui.startNew(); close() }) {
@@ -112,12 +117,12 @@ private fun ProjectTree(ui: CompanyUi, shown: String?, ways: CompanyWays, close:
 }
 
 @Composable
-private fun ProjectBranch(c: Company, here: Boolean, bots: List<Bot>, asks: (String) -> Int, folds: Map<String, Boolean>, shown: String?, turn: (String) -> Unit, onShow: () -> Unit, onBot: (String) -> Unit) {
+private fun ProjectBranch(c: Company, here: Boolean, bots: List<Bot>, asks: (String) -> Int, folds: Map<String, Boolean>, shown: String?, turn: (String) -> Unit, onShow: () -> Unit, onBot: (String) -> Unit, onDelete: (Company) -> Unit) {
     val p = LocalPaper.current
     val branches = ManyProjects.branches(c, bots)
     val open = branches.isNotEmpty() && ManyProjects.isOpen(folds, c.id, shown)
     val name = ManyProjects.nameOf(c)
-    TreeRow(level = 0, caret = if (branches.isEmpty()) null else open, here = here, onCaret = { turn(c.id) }, onClick = onShow) {
+    TreeRow(level = 0, caret = if (branches.isEmpty()) null else open, here = here, onCaret = { turn(c.id) }, onClick = onShow, onLongClick = { onDelete(c) }) {
         Box(Modifier.size(24.dp).clip(Radius.small).background(parseColor(c.color ?: ManyProjects.DEFAULT_COLOR, p.muted)), contentAlignment = Alignment.Center) {
             Text(name.take(1).uppercase(), color = inkOn(parseColor(c.color ?: ManyProjects.DEFAULT_COLOR, p.muted)), fontSize = Type.s12, fontWeight = FontWeight.SemiBold)
         }
@@ -156,10 +161,12 @@ private fun Count(n: Int) {
 }
 
 /** A row of the tree at its [level]: a caret that folds it ([caret] null: nothing to fold), then what it shows. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TreeRow(level: Int, caret: Boolean? = null, here: Boolean = false, onCaret: () -> Unit = {}, onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
+private fun TreeRow(level: Int, caret: Boolean? = null, here: Boolean = false, onCaret: () -> Unit = {}, onLongClick: (() -> Unit)? = null, onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).background(if (here) p.sunk else androidx.compose.ui.graphics.Color.Transparent).clickable(onClick = onClick)
+    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).background(if (here) p.sunk else androidx.compose.ui.graphics.Color.Transparent)
+        .combinedClickable(onLongClickLabel = onLongClick?.let { tr("Delete project") }, onLongClick = onLongClick, onClick = onClick)
         .padding(start = Space.s8 + (level * 16).dp, end = Space.s12), verticalAlignment = Alignment.CenterVertically) {
         if (caret != null) {
             val word = if (caret) tr("Close") else tr("Open")

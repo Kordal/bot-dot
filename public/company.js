@@ -134,7 +134,7 @@ const Company = (() => {
       side.dataset.html = html;
       side.innerHTML = html;
       $('[data-new-project]', side).onclick = startNew;
-      $$('[data-project]', side).forEach((b) => (b.onclick = () => show(b.dataset.project)));
+      $$('[data-project]', side).forEach((b) => { b.onclick = () => show(b.dataset.project); b.oncontextmenu = (e) => rowMenu(e, b.dataset.project); });
       $$('[data-fold]', side).forEach((b) => (b.onclick = () => { fold(b.dataset.fold); drawSide(); }));
       $$('[data-tree-bot]', side).forEach((b) => (b.onclick = () => setView('bot', b.dataset.treeBot)));
       $('[data-open-chief]', side).onclick = () => setView('chief');
@@ -219,6 +219,54 @@ const Company = (() => {
     redraw();
   }
 
+  // Delete a project (#701; #791 from the left column and the setup too): asked first, and with a folder (#702)
+  // whether the folder goes too; then gone from the list, and the first one left shown if it was.
+  async function deleteProject(c) {
+    const folder = c.folder ? await askFolder(c) : confirm(tr('Delete the project {name}? Its bots stay.', { name: nameOf(c) })) && 'keep';
+    if (!folder) return false;
+    const path = many() ? `/company?project=${encodeURIComponent(c.id)}` : '/company';
+    // Shown when asked: the feed's event of its delete can arrive before the answer and show another.
+    const shown = !many() || state.company?.id === c.id;
+    try { await api(folder === 'delete' ? `${path}${path.includes('?') ? '&' : '?'}folder=delete` : path, { method: 'DELETE' }); } catch (e) { toast(e.message, true); return false; }
+    if (shown) removed(c.id);
+    else { state.projects = (state.projects || []).filter((p) => p.id !== c.id); drawSide(); }
+    return true;
+  }
+  // 'keep' or 'delete' the folder, or null.
+  function askFolder(c) {
+    return new Promise((resolve) => {
+      const m = openModal(`
+        <div class="modal-head"><h2>${tr('Delete the project {name}? Its bots stay.', { name: esc(nameOf(c)) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+        <div class="modal-foot">
+          <button type="button" class="btn" data-folder="keep">${tr('Keep its folder')}</button>
+          <button type="button" class="btn danger" data-folder="delete">${tr('Delete its folder too')}</button>
+        </div>`);
+      let answer = null;
+      $$('[data-folder]', m).forEach((b) => (b.onclick = () => { answer = b.dataset.folder; m.close(); }));
+      m.addEventListener('close', () => resolve(answer), { once: true });
+    });
+  }
+  // A project row's right-click: its settings, or delete it.
+  function rowMenu(ev, id) {
+    const p = projects().find((x) => x.id === id);
+    if (!p) return;
+    ev.preventDefault();
+    $('.ct-menu')?.remove();
+    const settings = (state.features || []).includes('project-settings');
+    document.body.insertAdjacentHTML('beforeend', `<div class="fx-menu ct-menu" role="menu">${settings ? `<button type="button" role="menuitem" class="fx-mi" data-ct-settings>${tr('Project settings')}</button><hr>` : ''}<button type="button" role="menuitem" class="fx-mi danger" data-ct-delete>${tr('Delete project')}</button></div>`);
+    const m = $('.ct-menu');
+    m.style.left = `${Math.min(ev.clientX, innerWidth - m.offsetWidth - 8)}px`;
+    m.style.top = `${Math.min(ev.clientY, innerHeight - m.offsetHeight - 8)}px`;
+    const close = () => { m.remove(); document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', esc_, true); };
+    const away = (e) => { if (!m.contains(e.target)) close(); };
+    const esc_ = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('pointerdown', away, true);
+    document.addEventListener('keydown', esc_, true);
+    $('[data-ct-settings]', m)?.addEventListener('click', () => { close(); show(id); openSettings(); });
+    $('[data-ct-delete]', m).onclick = () => { close(); deleteProject(p); };
+    m.querySelector('button').focus();
+  }
+
   // ---------- the main area ----------
   function render() {
     const root = $('#view-company');
@@ -239,7 +287,8 @@ const Company = (() => {
     else if (c.phase === 'running' && steps.home && current !== 'start') steps.home(root, c);
     else {
       const at = stepOf(c);
-      root.innerHTML = `${stepBar(at)}<div class="co-body" id="co-body"></div>`;
+      // The gear at the bar's end: its settings, and so its delete, while setting up too (#791).
+      root.innerHTML = `<div class="co-steps-line">${stepBar(at)}${gearHTML()}</div><div class="co-body" id="co-body"></div>`;
       const body = $('#co-body', root);
       if (steps[at]) steps[at](body, c); else drawGiven(body, c);
       // While setting up, About and Team on the bar open their step; Start is Create's.
@@ -392,5 +441,5 @@ const Company = (() => {
     if (shows()) load().then(() => { drawSide(); if (place === 'company' && state.view !== 'company' && !location.hash.slice(1)) setView('company'); });
   }
 
-  return { init, render, redraw, drawSide, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, closeSettings, removed, PIECES, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
 })();
