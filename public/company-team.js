@@ -1,6 +1,6 @@
 // The Company's Team and Start steps (#671; docs/api.md, "The Company"): the Chief's proposed bots as cards the
 // owner edits (rename, remove, Routines, Asks first, Connect), "Add existing bot" (Duplicate), "Change the team…" with
-// Undo, and "Create N bots"; then the Start step while the bots are made. Drawn into Company.steps.team and .start.
+// Undo, the starter board's objectives and cards to untick (#810), and "Create N bots"; then the Start step while the bots are made. Drawn into Company.steps.team and .start.
 (() => {
   const I = {
     pen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z M14 6l4 4"/></svg>',
@@ -9,6 +9,8 @@
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
     back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
     screen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H4z M9 20h6 M12 16v4"/></svg>',
+    goal: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>',
+    tile: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z M8 15v-3 M12 15V9 M16 15v-5"/></svg>',
     key: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 10a4 4 0 1 0-3.5 4H12v2h2v2h3v-3l-3.2-3.2A4 4 0 0 0 14 10z"/></svg>',
   };
   const ASKS = [['rules', () => tr('Project rules')], ['every', () => tr('Every action')], ['never', () => tr('Never')]];
@@ -61,12 +63,24 @@
           ${c.teamChat?.length ? `<div class="co-chat">${c.teamChat.map((m) => (m.who === 'you' ? `<div class="co-said">${esc(m.text)}</div>` : `<div class="co-reply">${chiefFigure('sm')}<span>${esc(m.text)}</span>${m.undo && c.canUndo ? `<button type="button" class="co-undo" data-undo>${tr('Undo')}</button>` : ''}</div>`)).join('')}</div>` : ''}
           <form class="co-ask small" id="co-change"><input name="text" autocomplete="off" maxlength="300" placeholder="${tr('Change the team…')}" aria-label="${tr('Change the team…')}" ${ui.sending ? 'disabled' : ''} /><button type="submit" class="co-go${ui.sending ? ' spin' : ''}" aria-label="${tr('Send')}" ${ui.sending ? 'disabled' : ''}>${Company.ICON.go}</button></form>
         </section>
+        ${starterHTML(c)}
         ${c.never.length ? `<section class="co-panel"><h2>${tr('Never without asking')}</h2><ul class="co-never">${c.never.map((t, i) => `<li>${I.lock}<span>${esc(t)}</span><button type="button" class="icon-btn sm" data-unnever="${i}" aria-label="${tr('Remove')}">${Company.ICON.x}</button></li>`).join('')}</ul></section>` : ''}
         <section class="co-panel"><h2>${tr('Project memory')}</h2><div class="co-facts">${I.check}${trn(c.facts || 0, '{n} fact', '{n} facts')}</div></section>
       </aside>
     </div>
     <div class="co-foot"><button type="button" class="btn ghost" data-back>${I.back}${tr('Back')}</button><button type="button" class="co-go" data-create ${n ? '' : 'disabled'}>${trn(n, 'Create {n} bot', 'Create {n} bots')}</button></div>`;
     wire(root, c);
+  }
+
+  // The starter board (#810): the objectives and cards Create puts on the board, each ticked until the owner unticks it.
+  function starterHTML(c) {
+    const s = c.starter;
+    if (!s || !(state.features || []).includes('project-starter')) return '';
+    const row = (kind, x, icon, text) => `<li>${icon}<span>${esc(text)}</span><span class="switch"><input type="checkbox" data-starter="${kind}" data-starter-key="${esc(x.key)}" ${x.on ? 'checked' : ''} aria-label="${esc(text)}"><span></span></span></li>`;
+    return `<section class="co-panel"><h2>${tr('Board')}</h2><ul class="co-starter">${[
+      ...s.goals.map((g) => row('goals', g, I.goal, g.target > 0 ? `${g.name} · ${g.target}` : g.name)),
+      ...s.cards.map((x) => row('cards', x, I.tile, x.ask)),
+    ].join('')}</ul></section>`;
   }
 
   // What it must reach (#808): the account's computer, and each Vault login and SSH key; one with no entry is a gap.
@@ -141,6 +155,10 @@
     $('[data-existing]', root).onclick = () => { ui.adding = !ui.adding; Company.redraw(); };
     $$('[data-duplicate]', root).forEach((b) => (b.onclick = () => { b.disabled = true; call('/company/proposal/duplicate', { bot: b.dataset.duplicate }); }));
     $$('[data-undo]', root).forEach((b) => (b.onclick = () => call('/company/proposal/undo')));
+    $$('[data-starter]', root).forEach((b) => (b.onchange = () => {
+      const { starter: kind, starterKey: key } = b.dataset;
+      call('/company', { starter: { ...c.starter, [kind]: c.starter[kind].map((x) => (x.key === key ? { ...x, on: b.checked } : x)) } }, 'PATCH');
+    }));
     $$('[data-unnever]', root).forEach((b) => (b.onclick = () => call('/company', { never: c.never.filter((_, i) => i !== Number(b.dataset.unnever)) }, 'PATCH')));
     $('[data-back]', root).onclick = () => Company.go('about');
     $('[data-create]', root).onclick = () => create();

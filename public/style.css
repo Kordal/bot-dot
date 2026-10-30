@@ -2574,6 +2574,10 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .co-never li { display: flex; align-items: center; gap: var(--sp-12); }
 .co-never li > svg { color: var(--warn-text); }
 .co-never li span { flex: 1; }
+.co-starter { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-8); font-size: var(--fs-14); }
+.co-starter li { display: flex; align-items: center; gap: var(--sp-12); }
+.co-starter li > svg { color: var(--muted); }
+.co-starter li > span:not(.switch) { flex: 1; min-width: 0; }
 .co-facts { display: flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-14); }
 .co-facts svg { color: var(--ok-text); }
 .co-foot { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; padding: var(--sp-16) 0; background: var(--bg); }
