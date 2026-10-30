@@ -22,6 +22,8 @@ test("a boat bot's screen tools wait for its machine's screen, and say why there
   const call = (what, body = {}) => srv.api(`/vault/session/computer${what}`, { method: 'POST', body, headers: { 'X-Vault-Token': token } });
   assert.match(rec.system, /It also has a screen, one desktop \(1920x1080\) with one Camoufox browser, that those bots share/);
   assert.ok(rec.system.includes(`start in your folder there, /home/user/workspace/${bot.id},`));
+  assert.match(rec.system, /-no-window shows nothing on the screen: when the owner should see it, start scrcpy with start_program/);
+  assert.match(rec.system, /Say something is on the screen only after a screenshot shows it/);
   const screen = await call('', { screen: true });
   assert.equal(screen.data.ok, false);
   assert.match(screen.data.error, /^Couldn't start the screen: boat\.dev has no key/);
