@@ -228,7 +228,7 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
             c == null -> {
                 // A new project beside others (#703): their names over the start screen, to go back to one.
                 if (many && list.isNotEmpty()) ProjectTitle(ui, null, ways, Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s12, top = Space.s8))
-                StartForm(ui)
+                StartForm(ui, empty = CompanySetup.EMPTY in server?.features.orEmpty())
             }
             // A running company: its home, the office floor (#675).
             c.running -> { ui.follow(c); CompanyHome(ui, c, ways) }
@@ -268,10 +268,10 @@ private fun StepBar(at: String, enabled: Boolean, onStep: (String) -> Unit) {
 
 // ---------- the start screen ----------
 
-/** "What are you working on?": one field, two examples, and the sources (files and links). */
+/** "What are you working on?": one field, two examples, the sources (files and links), and Start from scratch (#788). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StartForm(ui: CompanyUi) {
+private fun StartForm(ui: CompanyUi, empty: Boolean) {
     val p = LocalPaper.current
     val context = LocalContext.current
     var what by rememberSaveable { mutableStateOf("") }
@@ -301,6 +301,13 @@ private fun StartForm(ui: CompanyUi) {
         }
         SourceList(ui.sources.map { CompanySource(it.id, it.kind, it.name, it.url, it.size) }, failed = ui.sources.filter { it.failed }.map { it.id }.toSet(),
             busy = ui.sources.filter { it.uploading }.map { it.id }.toSet()) { id -> ui.sources.removeAll { it.id == id } }
+        if (empty) Box(Modifier.padding(top = Space.s8)) {
+            CoChip(tr("Start from scratch"), on = false, dashed = false) {
+                if (ui.going) return@CoChip
+                ui.going = true
+                ui.call({ it.startEmptyProject(tr("New project")) }) { ui.going = false; ui.step = null }
+            }
+        }
     }
 }
 

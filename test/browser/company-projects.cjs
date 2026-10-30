@@ -63,6 +63,16 @@ const { startServer, makeBot, writeData } = require('../helpers');
     const list = (await srv.api('/company/list')).data.projects;
     assert.equal(list.length, 3);
     await side.locator(`[data-project="${list[2].id}"].here`).waitFor();
+    // "+", Start from scratch (#788): an empty project at once, on its blank board with New card; no setup, no team.
+    await side.locator('[data-new-project]').click();
+    await page.locator('#view-company [data-start-empty]').click();
+    await page.locator('.cf-top h1', { hasText: 'New project' }).waitFor();
+    await page.locator('#view-company .pc-new, #view-company .pc-picks').first().waitFor();
+    assert.equal(await page.locator('.co-steps').count(), 0);
+    if (shots) await page.screenshot({ path: path.join(shots, 'wide-empty.png') });
+    const empty = (await srv.api('/company/list')).data.projects[3];
+    assert.deepEqual([empty.phase, empty.teams, empty.board, empty.start], ['running', [], [], '']);
+    await side.locator(`[data-project="${empty.id}"].here`).waitFor();
     // A bot in the tree opens its chat.
     await side.locator('[data-project="p1"]').click();
     await side.locator(`[data-tree-bot="${b.id}"]`).click();
@@ -81,6 +91,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('.cf-top h1', { hasText: 'Mealwise' }).waitFor();
     await page.locator('.cf-top [data-pick-project]').selectOption('');
     await page.locator('#view-company h1', { hasText: 'What are you working on?' }).waitFor();
+    await page.locator('#view-company [data-start-empty]').waitFor();
     if (shots) await page.screenshot({ path: path.join(shots, 'phone-new.png') });
     assert.deepEqual(errors, []);
     console.log('company-projects: ok');

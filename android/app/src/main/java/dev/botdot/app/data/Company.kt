@@ -251,6 +251,8 @@ object CompanySetup {
     const val MANY = "projects-many"
     const val ABOUT = "company-about"
     const val TEAM = "company-team"
+    /** A project started empty (#788): no setup, no team; it opens on its blank board. */
+    const val EMPTY = "project-empty"
     /** The setup's steps, as the bar shows them. */
     val STEPS = listOf("about", "team", "start")
     /** The five questions of a new idea, as the server asks them (lib/company-chief.js). */
@@ -288,6 +290,9 @@ object CompanySetup {
             }
         })
     }
+
+    /** `POST /api/company` for an empty project (#788): named [name], the app's "New project", until the owner names it. */
+    fun emptyBody(name: String): JsonObject = buildJsonObject { put("empty", true); put("name", name) }
 
     /** A link as the owner typed it, named without its scheme. */
     fun link(id: String, typed: String): SourceDraft? {

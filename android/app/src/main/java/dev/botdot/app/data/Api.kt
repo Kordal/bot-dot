@@ -728,6 +728,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
         return listOfNotNull(ref((JSON.parseToJsonElement(get("/company")) as? JsonObject)?.get("company")))
     }
     suspend fun startCompany(start: String, sources: List<SourceDraft>): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.startBody(start, sources)))
+    suspend fun startEmptyProject(name: String): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.emptyBody(name)))
     /** The board's layout, all of it (#784). */
     suspend fun setLayout(layout: Map<String, List<Int>>): Company = CompanySetup.of(send("PUT", co("/company/layout"),
         buildJsonObject { put("layout", buildJsonObject { layout.forEach { (k, v) -> put(k, JsonArray(v.map { JsonPrimitive(it) })) } }) }))
