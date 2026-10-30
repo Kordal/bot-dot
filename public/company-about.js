@@ -17,14 +17,14 @@
   };
   // A new idea's screens from a server before #805: the five questions it asked every idea (lib/company-chief.js
   // IDEA), each with the line its answer shows on, then the stories, the delivery date and the review with the SWOT.
-  const IDEA = [['who', 'Who is it for?', 'Who'], ['today', 'What do they do today?', 'Today'], ['why', 'Why you?', 'Why you'],
+  const IDEA = [['who', 'Who is it for?', 'Who'], ['today', 'How is it done today?', 'Today'], ['why', 'Why you?', 'Why you'],
     ['signal', 'What would show it works in 90 days?', '90 days'], ['test', 'What can you test this week?', 'First step']];
   const screensOf = (c) => c.screens || (c.kind === 'site' ? [{ screen: 'review', swot: false }]
     : [...IDEA.map(([key, question, label]) => ({ screen: 'question', key, question, label })), { screen: 'stories' }, { screen: 'delivery' }, { screen: 'review', swot: true }]);
   // The catalogue's questions and the lines their answers show on, in this page's language (lib/company-chief.js
   // CATALOGUE); a question this page does not know shows as the server wrote it.
   const SAID = {
-    who: () => [tr('Who is it for?'), tr('Who')], today: () => [tr('What do they do today?'), tr('Today')], why: () => [tr('Why you?'), tr('Why you')],
+    who: () => [tr('Who is it for?'), tr('Who')], today: () => [tr('How is it done today?'), tr('Today')], why: () => [tr('Why you?'), tr('Why you')],
     signal: () => [tr('What would show it works in 90 days?'), tr('90 days')], test: () => [tr('What can you test this week?'), tr('First step')],
     runs: () => [tr('What do you run?'), tr('Runs')], care: () => [tr('What breaks or needs care?'), tr('Needs care')], reach: () => [tr('How do the bots reach it?'), tr('Access')],
     watch: () => [tr('What should be watched?'), tr('Watch')], done: () => [tr('What does done look like?'), tr('Finish line')], now: () => [tr('Where are you now?'), tr('Now')],
@@ -33,7 +33,7 @@
   const said = (x) => (SAID[x.key] ? SAID[x.key]() : [x.question, x.label]);
   // The questions botdot itself asks; a question the Chief wrote is drawn as it wrote it.
   const ASKED = {
-    who: () => tr('Who is it for?'), today: () => tr('What do they do today?'), why: () => tr('Why you?'),
+    who: () => tr('Who is it for?'), today: () => tr('How is it done today?'), why: () => tr('Why you?'),
     signal: () => tr('What would show it works in 90 days?'), test: () => tr('What can you test this week?'),
     about: () => tr('What is your project about?'), serves: () => tr('Who do you serve?'),
   };
