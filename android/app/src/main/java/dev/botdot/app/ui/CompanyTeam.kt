@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -19,9 +20,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -36,12 +41,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.CompanySetup
 import dev.botdot.app.data.Proposed
+import dev.botdot.app.data.TeamReaches
+import dev.botdot.app.data.VaultItem
 import dev.botdot.app.data.tr
 import dev.botdot.app.data.trn
 import kotlinx.coroutines.launch
@@ -167,6 +175,9 @@ private fun BotCard(ui: CompanyUi, c: Company, b: Proposed, onRename: (String) -
     var renaming by remember(b.key) { mutableStateOf(false) }
     var name by remember(b.key, b.name) { mutableStateOf(b.name) }
     val missing = CompanySetup.missing(b, ui.apps)
+    val server by ui.app.store.version.value.collectAsState()
+    val reaches = TeamReaches.FEATURE in server?.features.orEmpty()
+    val gaps = if (reaches) TeamReaches.gaps(b) else emptyList()
     Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line, Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BotFigure(b.color, "idle", 40)
@@ -192,10 +203,14 @@ private fun BotCard(ui: CompanyUi, c: Company, b: Proposed, onRename: (String) -
                 Text(b.routines, color = p.text, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8))
             }
         }
+        if (reaches && (b.computer || b.logins.isNotEmpty() || b.ssh.isNotEmpty())) Row2(tr("Access")) {
+            if (b.computer) Tag(tr("Computer"), icon = Icons.Outlined.DesktopWindows)
+            (b.logins + b.ssh).forEach { n -> Tag(n.name ?: n.need, off = n.id == null, icon = Icons.Outlined.Key) }
+        }
         if (b.from == null) Choice(tr("Asks first"), b.asksFirst, listOf("rules" to tr("Project rules"), "every" to tr("Every action"), "never" to tr("Never"))) {
             onChange(mapOf("asksFirst" to JsonPrimitive(it)))
         }
-        if (b.preview.isNotEmpty() || missing.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.sunk).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        if (b.preview.isNotEmpty() || missing.isNotEmpty() || gaps.isNotEmpty()) Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.sunk).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Row {
                 Text(if (c.site) tr("Yesterday") else tr("Week one"), color = p.muted, fontSize = Type.s12, modifier = Modifier.width(84.dp))
                 Text(b.preview.ifEmpty { "—" }, color = p.text, fontSize = Type.s14)
@@ -209,6 +224,28 @@ private fun BotCard(ui: CompanyUi, c: Company, b: Proposed, onRename: (String) -
                         }.onError { ui.tell(it.message) }
                     }
                 }
+            }
+            gaps.forEach { (kind, n) -> GapButton(ui, kind, n.need) { id -> onChange(TeamReaches.picked(b, kind, n.need, id)) } }
+        }
+    }
+}
+
+/** A need with no Vault entry (#808): its menu lists the Vault's entries of its kind, and a pick fills it. */
+@Composable
+private fun GapButton(ui: CompanyUi, kind: String, need: String, onPick: (String) -> Unit) {
+    val p = LocalPaper.current
+    var vault by remember { mutableStateOf<List<VaultItem>?>(null) }
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        WordsButton(if (kind == TeamReaches.SSH) tr("SSH key for {need}", "need" to need) else tr("Login for {need}", "need" to need)) {
+            ui.scope.launch {
+                vault = try { ui.api?.vault() } catch (e: Exception) { ui.tell(e.message ?: tr("Can't reach botdot.")); null }
+                menu = vault != null
+            }
+        }
+        DropdownMenu(menu, { menu = false }, containerColor = p.panel) {
+            TeamReaches.pickable(vault.orEmpty(), kind).forEach { e ->
+                DropdownMenuItem(text = { Text(e.name, color = p.text, fontSize = Type.s14) }, onClick = { menu = false; onPick(e.id) })
             }
         }
     }
@@ -228,10 +265,10 @@ private fun Row2(label: String, content: @Composable () -> Unit) {
 private fun None() = Text(tr("None"), color = LocalPaper.current.faint, fontSize = Type.s14, modifier = Modifier.padding(top = Space.s4))
 
 @Composable
-private fun Tag(text: String, off: Boolean = false, link: Boolean = false) {
+private fun Tag(text: String, off: Boolean = false, link: Boolean = false, icon: ImageVector? = if (link) Icons.Outlined.Link else null) {
     val p = LocalPaper.current
     Row(Modifier.clip(Radius.small).background(p.sunk).padding(horizontal = Space.s8, vertical = Space.s4), verticalAlignment = Alignment.CenterVertically) {
-        if (link) { Icon(Icons.Outlined.Link, null, tint = if (off) p.faint else p.muted, modifier = Modifier.size(13.dp)); Spacer(Modifier.size(4.dp)) }
+        if (icon != null) { Icon(icon, null, tint = if (off) p.faint else p.muted, modifier = Modifier.size(13.dp)); Spacer(Modifier.size(4.dp)) }
         Text(text, color = if (off) p.faint else p.text, fontSize = Type.s12)
     }
 }

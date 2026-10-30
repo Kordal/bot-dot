@@ -402,7 +402,8 @@ function openItemBots(item) {
 // An SSH key the owner adds (#160, docs/api.md `POST /api/vault/ssh-keys`): an OpenSSH private key pasted or read from
 // its file, or a new one botdot makes. The private key goes to the server once and is never shown again; the public
 // key comes back, with a copy button, for a server's authorized_keys.
-function openSshKeyEditor() {
+// onSaved(key): told of the key once it is saved, as the login editor's is (#808).
+function openSshKeyEditor({ onSaved } = {}) {
   const m = openModal(`
     <form id="ssh-key-form" autocomplete="off">
       <div class="modal-head"><h2>🗝️ ${tr('Add an SSH key')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
@@ -456,6 +457,7 @@ function openSshKeyEditor() {
     if (!saved) return;
     form.privateKey.value = '';
     renderVault();
+    onSaved?.(key);
     // Its public key opens now, or once the dialog opened meanwhile closes.
     const modal = $('#modal');
     if (!modal.open) openSshPublicKey(key, !privateKey);

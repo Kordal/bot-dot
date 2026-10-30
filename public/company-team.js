@@ -8,12 +8,15 @@
     lock: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 11h12v9H6z M9 11V8a3 3 0 0 1 6 0v3"/></svg>',
     check: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
     back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
+    screen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H4z M9 20h6 M12 16v4"/></svg>',
+    key: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 10a4 4 0 1 0-3.5 4H12v2h2v2h3v-3l-3.2-3.2A4 4 0 0 0 14 10z"/></svg>',
   };
   const ASKS = [['rules', () => tr('Project rules')], ['every', () => tr('Every action')], ['never', () => tr('Never')]];
   const APP_NAMES = { gmail: 'Gmail', googlecalendar: 'Google Calendar', github: 'GitHub', slack: 'Slack', notion: 'Notion', googledocs: 'Google Docs', googlesheets: 'Google Sheets', linkedin: 'LinkedIn', hubspot: 'HubSpot', stripe: 'Stripe' };
   const appName = (slug) => APP_NAMES[slug] || slug.charAt(0).toUpperCase() + slug.slice(1);
   // What this page holds beside the company: the Chief at work, the open parts and a half-typed line.
-  const ui = { asking: false, failed: '', sending: false, adding: false, renaming: null, draft: '', creating: false, apps: null };
+  // reach: the gap whose menu is open ("key|kind|need"); vault: the Vault's entries for it, read when it opens.
+  const ui = { asking: false, failed: '', sending: false, adding: false, renaming: null, draft: '', creating: false, apps: null, reach: null, vault: null };
 
   async function loadApps() {
     if (ui.apps) return;
@@ -66,8 +69,31 @@
     wire(root, c);
   }
 
+  // What it must reach (#808): the account's computer, and each Vault login and SSH key; one with no entry is a gap.
+  const KINDS = { logins: { icon: () => I.key, fix: (need) => tr('Login for {need}', { need }), add: () => tr('New login…'), is: (e) => (e.kind || 'login') === 'login' },
+    ssh: { icon: () => I.key, fix: (need) => tr('SSH key for {need}', { need }), add: () => tr('New SSH key…'), is: (e) => e.kind === 'ssh-key' } };
+  const gaps = (p) => Object.keys(KINDS).flatMap((kind) => (p[kind] || []).filter((n) => !n.id).map((n) => ({ kind, need: n.need })));
+  function reachHTML(p) {
+    if (!(state.features || []).includes('team-reaches')) return '';
+    const chips = [
+      ...(p.computer ? [`<span class="co-tag-chip">${I.screen}${tr('Computer')}</span>`] : []),
+      ...Object.keys(KINDS).flatMap((kind) => (p[kind] || []).map((n) => `<span class="co-tag-chip${n.id ? '' : ' off'}" title="${esc(n.need)}">${KINDS[kind].icon()}${esc(n.name || n.need)}</span>`)),
+    ];
+    return chips.length ? `<span class="co-k">${tr('Access')}</span><div class="co-v">${chips.join('')}</div>` : '';
+  }
+  function gapHTML(p) {
+    if (!(state.features || []).includes('team-reaches')) return '';
+    return gaps(p).map(({ kind, need }) => {
+      const at = `${p.key}|${kind}|${need}`;
+      const open = ui.reach === at;
+      const menu = open ? `<div class="pc-menu ps-login-menu" role="menu">${(ui.vault || []).filter(KINDS[kind].is).map((e) => `<button type="button" role="menuitem" data-reach-pick="${esc(e.id)}">${esc(e.name)}</button>`).join('')}<button type="button" role="menuitem" class="ps-login-new" data-reach-new>${KINDS[kind].add()}</button></div>` : '';
+      return `<div class="ps-login-add"><button type="button" class="btn sm" data-reach="${esc(kind)}" data-need="${esc(need)}" aria-expanded="${open}">${KINDS[kind].fix(esc(need))}</button>${menu}</div>`;
+    }).join('');
+  }
+
   function card(c, p) {
     const missing = p.connects.filter((a) => ui.apps && !ui.apps.has(a));
+    const fix = gapHTML(p);
     const chips = (list, icon) => (list.length ? list.map((x) => `<span class="co-tag-chip">${icon}${esc(x)}</span>`).join('') : `<span class="co-none">${tr('None')}</span>`);
     const name = ui.renaming === p.key
       ? `<form class="co-rename" data-rename-form><input name="name" value="${esc(p.name)}" maxlength="60" aria-label="${tr('Name')}" /></form>`
@@ -78,9 +104,10 @@
         <span class="co-k">${tr('Owns')}</span><div class="co-v">${chips(p.owns, Company.ICON.file)}</div>
         <span class="co-k">${tr('Connects')}</span><div class="co-v">${p.connects.length ? p.connects.map((a) => `<span class="co-tag-chip${missing.includes(a) ? ' off' : ''}">${Company.ICON.link}${esc(appName(a))}</span>`).join('') : `<span class="co-none">${tr('None')}</span>`}</div>
         <span class="co-k">${tr('Routines')}</span><div class="co-v">${p.routines ? `<label class="co-routine"><span class="switch"><input type="checkbox" data-routine ${p.routinesOn ? 'checked' : ''} aria-label="${esc(p.routines)}"><span></span></span>${esc(p.routines)}</label>` : `<span class="co-none">${tr('None')}</span>`}</div>
+        ${reachHTML(p)}
         ${p.from ? '' : `<span class="co-k">${tr('Asks first')}</span><div class="co-v"><select class="co-asks" data-asks aria-label="${tr('Asks first')}">${ASKS.map(([k, label]) => `<option value="${k}" ${p.asksFirst === k ? 'selected' : ''}>${label()}</option>`).join('')}</select></div>`}
       </div>
-      ${p.preview || missing.length ? `<div class="co-preview"><span class="co-when">${c.kind === 'site' ? tr('Yesterday') : tr('Week one')}</span><span class="co-preview-text">${esc(p.preview || '—')}</span>${missing.map((a) => `<button type="button" class="btn sm" data-connect-app="${esc(a)}">${tr('Connect {app}', { app: esc(appName(a)) })}</button>`).join('')}</div>` : ''}
+      ${p.preview || missing.length || fix ? `<div class="co-preview"><span class="co-when">${c.kind === 'site' ? tr('Yesterday') : tr('Week one')}</span><span class="co-preview-text">${esc(p.preview || '—')}</span>${missing.map((a) => `<button type="button" class="btn sm" data-connect-app="${esc(a)}">${tr('Connect {app}', { app: esc(appName(a)) })}</button>`).join('')}${fix}</div>` : ''}
     </article>`;
   }
 
@@ -135,6 +162,20 @@
       const asks = $('[data-asks]', el);
       if (asks) asks.onchange = () => edit(c, key, { asksFirst: asks.value });
       $$('[data-connect-app]', el).forEach((b) => (b.onclick = () => connectApp(b.dataset.connectApp, () => { ui.apps.add(b.dataset.connectApp); Company.redraw(); })));
+      // A gap (#808): its menu lists the Vault's entries of its kind, and New adds one in the Vault's own editor.
+      $$('[data-reach]', el).forEach((b) => (b.onclick = async (e) => {
+        e.stopPropagation();
+        const { reach: kind, need } = b.dataset;
+        const at = `${key}|${kind}|${need}`;
+        ui.reach = ui.reach === at ? null : at;
+        if (ui.reach) { try { ui.vault = await api('/vault'); } catch (err) { toast(err.message, true); ui.reach = null; } }
+        Company.redraw();
+        if (ui.reach) document.addEventListener('click', () => { if (ui.reach) { ui.reach = null; Company.redraw(); } }, { once: true });
+        const pick = (id) => { ui.reach = null; const held = state.company?.id === c.id ? state.company : c; const now = held.proposal?.find((x) => x.key === key) || p; edit(held, key, { [kind]: now[kind].map((n) => (n.need === need ? { need, id } : n)) }); };
+        $$('[data-reach-pick]').forEach((x) => (x.onclick = () => pick(x.dataset.reachPick)));
+        const fresh = $('[data-reach-new]');
+        if (fresh) fresh.onclick = () => { ui.reach = null; Company.redraw(); (kind === 'ssh' ? openSshKeyEditor : openLoginEditor)(...(kind === 'ssh' ? [{ onSaved: (k) => pick(k.id) }] : [null, { onSaved: (l) => pick(l.id) }])); };
+      }));
     });
   }
 
