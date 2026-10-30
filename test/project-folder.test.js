@@ -6,8 +6,9 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 const fs = require('fs');
-const { startServer, makeBot, writeData, heldRun, self, fakeDocker } = require('./helpers');
+const { startServer, makeBot, writeData, heldRun, self, fakeDocker, waitFor } = require('./helpers');
 const tar = require('../lib/tar-lite');
+const { rpcClient } = require('./memory-helpers');
 
 let srv; let docker; let coder; let writer; let pid;
 const RUNNING = '"running"|"bot-dot/desktop:latest"|"sha256:a"';
@@ -116,6 +117,51 @@ test("the owner's Files opens the folder alone, starting nothing new for it whil
   assert.equal((await srv.api(`${at}?root=project&path=`, { method: 'DELETE' })).status, 403, 'the folder itself stays');
   assert.equal((await srv.asChief(`${at}?root=project&path=`)).status, 403, "the owner's alone");
   assert.equal((await srv.api('/projects/nope/workspace?path=')).status, 404);
+  docker.answer('exec.txt', null);
+});
+
+test("a card's build reads its own project's folder, read-only, and no other project's", async (t) => {
+  docker.answer('inspect.json', RUNNING);
+  const other = (await srv.api('/company', { method: 'POST', body: { start: 'Elm Street' } })).data.id;
+  const build = async (project) => {
+    fs.writeFileSync(path.join(srv.out, 'card-questions.txt'), JSON.stringify({ title: 'Site done', questions: [] }));
+    srv.hold();
+    const r = await srv.api(`/company/cards?project=${project}`, { method: 'POST', body: { ask: 'How far is the website?' } });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    const run = await srv.nextRun((x) => x.args.includes('🧭 Chief of Staff · card'), 'the build');
+    const allowed = run.args.slice(run.args.indexOf('--allowedTools') + 1);
+    assert.deepEqual(allowed.filter((a) => a.startsWith('mcp__botdot__')), ['mcp__botdot__list_project_files', 'mcp__botdot__read_project_file'], 'the folder, nothing else of botdot');
+    const env = JSON.parse(fs.readFileSync(run.args[run.args.indexOf('--mcp-config') + 1], 'utf8')).mcpServers.botdot.env;
+    return { run, env };
+  };
+
+  let { run, env } = await build(pid);
+  const tools = rpcClient(t, 'mcp-server.js', { ...env, BOT_DOT_URL: srv.base });
+  const listed = (await tools.request('tools/list')).tools.map((x) => x.name);
+  assert.deepEqual(listed, ['list_project_files', 'read_project_file'], 'no tool that writes, and none that names a project');
+  docker.answer('exec.txt', 'ok 1\nf/5/1760000000.0/plan.md\0');
+  assert.equal(await tools.text('list_project_files'), 'plan.md (5 bytes)');
+  assert.match(execs().at(-1).args.join(' '), /'\/workspace\/projects\/Fernhill Shop'/);
+  docker.answer('exec.txt', `ok 5 1760000000\n${Buffer.from('# Web\n').toString('base64')}`);
+  assert.equal(await tools.text('read_project_file', { path: 'plan.md' }), '# Web\n');
+  assert.match((await tools.call('read_project_file', { path: '../Elm Street/x.md' })).content[0].text, /^Error:/, 'never outside the folder');
+  assert.equal((await srv.asChief('/company/card-files?action=list')).status, 403, "the Chief's key alone reads no folder");
+  assert.equal((await srv.asChief(`/company/card-files?project=${other}`, { headers: { 'X-Card-Key': 'nope' } })).status, 403);
+  srv.unhold();
+  srv.release(run);
+  await waitFor(async () => ((await srv.api(`/company?project=${pid}`)).data.company.cards.at(-1).state !== 'building' ? true : null), { what: 'the build ended' });
+  assert.match((await tools.call('list_project_files')).content[0].text, /run has ended/, 'its key ends with its run');
+
+  // The other project's build reads the other project's folder, whatever it is asked.
+  ({ run, env } = await build(other));
+  const theirs = rpcClient(t, 'mcp-server.js', { ...env, BOT_DOT_URL: srv.base });
+  docker.answer('exec.txt', 'ok 0\n');
+  await theirs.text('list_project_files');
+  assert.match(execs().at(-1).args.join(' '), /'\/workspace\/projects\/Elm Street'/);
+  assert.doesNotMatch(execs().at(-1).args.join(' '), /Fernhill/);
+  srv.unhold();
+  srv.release(run);
+  await srv.api(`/company?project=${other}`, { method: 'DELETE' });
   docker.answer('exec.txt', null);
 });
 
