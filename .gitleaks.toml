@@ -3,7 +3,7 @@
 useDefault = true
 
 [allowlist]
-description = "Made-up test secrets, the exact public release verification key, RFC 6455's sample WebSocket key, RFC 8291's test vector, RFC 6238's test secret and a vendored Mermaid false positive"
+description = "Made-up test secrets, the exact public release verification key, RFC 6455's sample WebSocket key, RFC 8291's test vector, RFC 6238's test secret and a vendored Mermaid false positive, and the made-up passwords of test/project-logins.test.js"
 paths = ['''^test/backup\.test\.js$''', '''^test/owner-key\.test\.js$''', '''^test/fixtures/release-signing/private\.pem$''']
 # This SPKI public key is intentionally shipped to every client; it cannot sign releases.
 # Match its exact bytes rather than excluding production files or arbitrary key values.
@@ -12,6 +12,7 @@ paths = ['''^test/backup\.test\.js$''', '''^test/owner-key\.test\.js$''', '''^te
 # RFC 8291's example (Appendix A), printed in the RFC. The two-step secret in test/bitwarden-writes.test.js is RFC 6238's
 # (Appendix B, the ASCII 12345678901234567890 in base32). The vendored Mermaid 12.2.0 bundle
 # (vendor/mermaid/mermaid.min.js) has minified code, b=m.keyCount,v=m.atlasCount, that generic-api-key reads as a
-# key; its reported secret is v=m.atlasCount, plain code and not a credential.
+# key; its reported secret is v=m.atlasCount, plain code and not a credential. The made-up passwords of
+# test/project-logins.test.js (#804) are a stand-in Proxmox's and Uptime Kuma's, sent to a local test server only.
 regexTarget = "secret"
-regexes = ['''^dGhlIHNhbXBsZSBub25jZQ==$''', '''^v=m\.atlasCount$''', '''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''', '''^BTBZMqHH6r4Tts7J_aSIgg$''', '''^MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdDU16CG2HWzALPBB5pDx5BQHKTrcfdHF4t90R\+\+nTnsMvIQKGQq/o26wIF0w0o6OEt4RoPi\+Sf2rJsZmz3vvng==$''']
+regexes = ['''^kuma-secret-91$''', '''^pve-token-secret-7f3a$''', '''^dGhlIHNhbXBsZSBub25jZQ==$''', '''^v=m\.atlasCount$''', '''^GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ$''', '''^BTBZMqHH6r4Tts7J_aSIgg$''', '''^MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEdDU16CG2HWzALPBB5pDx5BQHKTrcfdHF4t90R\+\+nTnsMvIQKGQq/o26wIF0w0o6OEt4RoPi\+Sf2rJsZmz3vvng==$''']
