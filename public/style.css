@@ -2505,6 +2505,7 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .co-chip:hover { background: var(--sunk); }
 .co-add { margin-top: var(--sp-12); }
 .co-add .btn { display: inline-flex; align-items: center; gap: var(--sp-8); border-radius: var(--r-pill); }
+.co-empty { align-self: flex-start; margin-top: var(--sp-24); border-radius: var(--r-pill); }
 .co-sources { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line-2); border-radius: var(--r-14); overflow: hidden; }
 .co-sources li { display: flex; align-items: center; gap: var(--sp-12); min-height: 44px; padding: 0 var(--sp-8) 0 var(--sp-16); border-top: 1px solid var(--line); }
 .co-sources li:first-child { border-top: 0; }

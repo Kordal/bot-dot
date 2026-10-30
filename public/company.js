@@ -275,6 +275,7 @@ const Company = (() => {
       <div class="co-chips">${EXAMPLES.map(([icon, text]) => `<button type="button" class="co-chip dashed" data-example="${esc(text)}">${ICON[icon]}${esc(text)}</button>`).join('')}</div>
       <div class="co-add"><button type="button" class="btn" data-add-files>${ICON.file}${tr('Add files')}</button><button type="button" class="btn" data-add-link>${ICON.link}${tr('Add a link')}</button><input type="file" multiple hidden id="co-files" /></div>
       <div id="co-sources">${sourcesHTML(draft.sources, true)}</div>
+      ${(state.features || []).includes('project-empty') ? `<button type="button" class="btn co-empty" data-start-empty>${tr('Start from scratch')}</button>` : ''}
     </div>`;
     const form = $('#co-ask', root);
     const input = form.what;
@@ -288,6 +289,8 @@ const Company = (() => {
     $('[data-add-files]', root).onclick = () => files.click();
     files.onchange = () => { addFiles([...files.files]); files.value = ''; };
     $('[data-add-link]', root).onclick = () => addLink();
+    const empty = $('[data-start-empty]', root);
+    if (empty) empty.onclick = () => made({ empty: true, name: tr('New project') }, empty);
     wireSources(root);
     if (state.view === 'company' && !typed) input.focus();
   }
@@ -343,13 +346,16 @@ const Company = (() => {
     if (!start) return;
     if (draft.sources.some((s) => s.status === 'uploading')) return toast(tr('Wait for the files to finish uploading.'), true);
     const sources = draft.sources.filter((s) => s.status === 'ready').map((s) => (s.kind === 'link' ? { kind: 'link', url: s.url, name: s.name } : { kind: 'file', name: s.name, upload: s.upload }));
+    made({ start, sources }, button, () => { draft.sources = []; current = 'about'; });
+  }
+  // A new project made and shown: from what the owner works on (its setup follows), or empty (#788: its blank board).
+  async function made(body, button, then = () => { current = null; }) {
     if (button.disabled) return;
     button.disabled = true;
     try {
-      state.company = await api('/company', { method: 'POST', body: { start, sources } });
+      state.company = await api('/company', { method: 'POST', body });
       if (many()) { state.projects = [...(state.projects || []).filter((p) => p.id !== state.company.id), state.company]; adding = false; shownId = state.company.id; keepShown(); drawSide(); }
-      draft.sources = [];
-      current = 'about';
+      then();
       render();
     } catch (e) { toast(e.message, true); button.disabled = false; }
   }

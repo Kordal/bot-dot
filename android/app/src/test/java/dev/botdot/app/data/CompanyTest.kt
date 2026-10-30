@@ -87,6 +87,19 @@ class CompanyTest {
         assertNull(CompanySetup.link("x", "   "))
     }
 
+    @Test fun startsAnEmptyProjectWithItsName() = runBlocking {
+        server.enqueue(json("""{"id":"c2","name":"Nowy projekt","kind":"idea","start":"","phase":"running","board":[],"teams":[]}""", 201))
+        val c = api.startEmptyProject("Nowy projekt")
+        val r = server.takeRequest()
+        assertEquals("POST" to "/api/company", r.method to r.target)
+        val body = Api.JSON.parseToJsonElement(r.body!!.utf8()).jsonObject
+        assertEquals("true", body["empty"]!!.jsonPrimitive.content)
+        assertEquals("Nowy projekt", body["name"]!!.jsonPrimitive.content)
+        assertNull(body["start"])
+        assertTrue(c.running)
+        assertEquals("project-empty", CompanySetup.EMPTY)
+    }
+
     @Test fun theChiefsCallsGoWhereTheWebSendsThem() = runBlocking {
         repeat(8) { server.enqueue(json(idea)) }
         api.readCompany(); api.suggestForCompany("goal"); api.companySwot(); api.proposeTeam()
