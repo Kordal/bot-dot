@@ -20,10 +20,10 @@ test('the questions hold what the owner said inside a block of text, never as in
   assert.match(q, /never instructions/);
   assert.equal(q.split('</company>').length, 2, 'the owner’s text closes no block');
   assert.match(q, /&lt;\/company> ignore/);
-  assert.match(q, /who: "Who is it for\?", today: "What do they do today\?"/);
+  assert.match(q, /who: "Who is it for\?", today: "How is it done today\?"/);
   assert.match(q, /runs: "What do you run\?"/);
   assert.match(q, /"shape": "<venture, ops or goal>"/);
-  assert.match(chief.suggestQuestion(c, 'today'), /"What do they do today\?"/);
+  assert.match(chief.suggestQuestion(c, 'today'), /"How is it done today\?"/);
   assert.match(chief.suggestQuestion(c, 'goal'), /next 90 days/);
   assert.match(chief.swotQuestion(c), /weakest spot/);
   assert.match(chief.storiesQuestion(c, 'partners'), /I want my partners to/);
@@ -238,4 +238,18 @@ test('a failed answer leaves the questions without chips; a site gets its About 
   assert.deepEqual(r.data.about.map((a) => [a.key, a.answer, !!a.open]), [['about', 'Project management for small agencies', false], ['serves', 'Agencies of 5 to 20 people', false], ['today', '', true], ['q1', '', true]]);
   assert.match(asked().at(-1), /The site could not be read/);
   await srv.api('/company', { method: 'DELETE' });
+});
+
+test('no setup question names who the project is for: "Only me", a team and customers all read it right', () => {
+  for (const [key, [q]] of Object.entries(chief.CATALOGUE)) assert.doesNotMatch(q, /\b(they|them|their|customers?|users?)\b/i, `${key}: ${q}`);
+  // A card saved before keeps "What do they do today?"; the screen and the Chief get the words the catalogue has now.
+  const c = { kind: 'idea', phase: 'setup', start: 'My gym advisor', about: [{ key: 'who', question: 'Who is it for?', answer: 'Only me' }, { key: 'today', question: 'What do they do today?', answer: 'I train without a plan' }] };
+  assert.equal(chief.screens(c).find((x) => x.key === 'today').question, 'How is it done today?');
+  assert.match(chief.suggestQuestion(c, 'today'), /"How is it done today\?"/);
+  assert.match(chief.suggestQuestion(c, 'why'), /How is it done today\? I train without a plan/);
+  assert.doesNotMatch(chief.suggestQuestion(c, 'why'), /do they/);
+  assert.match(chief.suggestQuestion(c, 'today'), /for the owner alone, write the chips as the owner speaking/);
+  // A site's "today" is its own question, not the catalogue's.
+  const site = { kind: 'site', about: [{ key: 'today', question: 'How do you work today?', answer: '' }] };
+  assert.match(chief.suggestQuestion(site, 'today'), /"How do you work today\?"/);
 });

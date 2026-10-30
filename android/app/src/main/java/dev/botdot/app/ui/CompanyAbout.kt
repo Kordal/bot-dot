@@ -57,7 +57,7 @@ import kotlinx.coroutines.launch
 /** A question of the setup's catalogue (lib/company-chief.js CATALOGUE) in this app's words; another as the server wrote it (#805). */
 private fun ideaQuestion(c: Company, key: String): String = when (key) {
     "who" -> tr("Who is it for?")
-    "today" -> tr("What do they do today?")
+    "today" -> tr("How is it done today?")
     "why" -> tr("Why you?")
     "signal" -> tr("What would show it works in 90 days?")
     "test" -> tr("What can you test this week?")

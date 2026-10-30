@@ -46,7 +46,7 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     // The next question's chips build on the answer (#787); a failed ask leaves the drafted ones.
     fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify({ chips: ['Cook from a paper list'] }));
     await page.locator('[data-done]').click();
-    await page.locator('.co-q h1', { hasText: 'What do they do today?' }).waitFor();
+    await page.locator('.co-q h1', { hasText: 'How is it done today?' }).waitFor();
     await page.locator('[data-chip="Cook from a paper list"]').waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-chip="Google recipes at 5 pm"]').count(), 0, 'the drafted chips are replaced');
     const asked = fs.readdirSync(srv.out).filter((f) => /^company-\d.*\.txt$/.test(f)).sort().map((f) => fs.readFileSync(path.join(srv.out, f), 'utf8'));
