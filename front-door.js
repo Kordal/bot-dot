@@ -990,7 +990,7 @@ async function adminRoutes(req, res, p, account) {
     return send(res, 200, shown);
   }
   // The boat.dev key (#529), checked with one call before it is kept; null removes it. It is never answered.
-  if (p === '/admin/boat' && req.method === 'GET') return send(res, 200, boat.shown());
+  if (p === '/admin/boat' && req.method === 'GET') return send(res, 200, { ...boat.shown(), unsaved: await boatLib.unsaved(boat.forAccounts().key) });
   if (p === '/admin/boat' && req.method === 'POST') {
     const body = (await readJson(req)) || {};
     const key = typeof body.key === 'string' ? body.key.trim() : null;
