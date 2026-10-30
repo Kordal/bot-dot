@@ -1,4 +1,4 @@
-# ADR-126: The Chief picks a new project's setup questions, and the server sends its screens
+# ADR-127: The Chief picks a new project's setup questions, and the server sends its screens
 
 - **Status:** Accepted (2026-10-30)
 - **Builds on:** [ADR 112](112-the-chief-helps-set-up-a-company-in-short-calls-and-botdot-reads-its-site.md) (the Chief helps set up a project in short calls), [ADR 003](003-one-figure-definition-for-all-apps.md) (what must look the same everywhere is data the server hands out)
