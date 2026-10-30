@@ -1262,5 +1262,9 @@
   "End of year": "Koniec roku",
   "Indefinite": "Bezterminowo",
   "No login for {host}": "Brak loginu do {host}",
-  "Add login": "Dodaj login"
+  "Add login": "Dodaj login",
+  "Access": "Dostęp",
+  "Computer": "Komputer",
+  "Login for {need}": "Login do {need}",
+  "SSH key for {need}": "Klucz SSH do {need}"
 }

@@ -230,7 +230,14 @@ data class Proposed(
     val color: String? = null,
     val from: String? = null,
     val bot: String? = null,
+    val computer: Boolean = false,
+    val logins: List<Need> = emptyList(),
+    val ssh: List<Need> = emptyList(),
 )
+
+/** A Vault login or SSH key a proposed bot must reach (#808): what the Chief named, and the entry once one is matched or picked. */
+@Serializable
+data class Need(val need: String = "", val id: String? = null, val name: String? = null)
 
 /** What the Chief suggests for one group's stories: `POST /api/company/stories/suggest`. */
 @Serializable

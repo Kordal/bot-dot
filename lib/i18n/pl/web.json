@@ -1726,5 +1726,8 @@
   "What first?": "Od czego zacząć?",
   "New login…": "Nowy login…",
   "No login for {host}": "Brak loginu do {host}",
-  "Add login": "Dodaj login"
+  "Add login": "Dodaj login",
+  "Login for {need}": "Login do {need}",
+  "SSH key for {need}": "Klucz SSH do {need}",
+  "New SSH key…": "Nowy klucz SSH…"
 }

@@ -12,7 +12,7 @@ const cut = (from, to) => {
   return app.slice(a, b);
 };
 const list = cut('async function renderVault()', 'function openLoginEditor(login, ');
-const editor = cut('function openSshKeyEditor()', 'function openSshPublicKey(');
+const editor = cut('function openSshKeyEditor({ onSaved } = {}) {', 'function openSshPublicKey(');
 const shown = cut('function openSshPublicKey(', '\n}\n');
 
 test('web: the Vault offers "＋ SSH key" only while Bitwarden is unlocked', () => {
