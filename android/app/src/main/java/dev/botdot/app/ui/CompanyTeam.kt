@@ -19,12 +19,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DesktopWindows
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.TrackChanges
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -47,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.CompanySetup
+import dev.botdot.app.data.ProjectStarter
 import dev.botdot.app.data.Proposed
 import dev.botdot.app.data.TeamReaches
 import dev.botdot.app.data.VaultItem
@@ -58,8 +61,8 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * The Team step (#671; web: public/company-team.js): the Chief's proposed bots as cards the owner edits (rename,
- * remove, Routines, Asks first, Connect), "Add existing bot" (Duplicate), "Change the team…" with Undo, and
- * "Create N bots", which goes on to Start.
+ * remove, Routines, Asks first, Connect), "Add existing bot" (Duplicate), "Change the team…" with Undo, the starter
+ * board's objectives and cards to untick (#810), and "Create N bots", which goes on to Start.
  */
 @Composable
 internal fun TeamStep(ui: CompanyUi, c: Company) {
@@ -122,6 +125,13 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
                 ui.call({ it.changeTeam(text) }) { ok -> ui.sending = false; if (ok) ui.draft = "" }
             }
         }
+        val server by ui.app.store.version.value.collectAsState()
+        val starter = c.starter
+        if (starter != null && ProjectStarter.FEATURE in server?.features.orEmpty()) CoPanel(tr("Board")) {
+            fun tick(key: String, on: Boolean) { val next = ProjectStarter.ticked(starter, key, on); ui.save(ProjectStarter.patch(next)) { it.copy(starter = next) } }
+            starter.goals.forEach { g -> StarterRow(Icons.Outlined.TrackChanges, ProjectStarter.label(g), g.on) { tick(g.key, it) } }
+            starter.cards.forEach { x -> StarterRow(Icons.Outlined.BarChart, x.ask, x.on) { tick(x.key, it) } }
+        }
         if (c.never.isNotEmpty()) CoPanel(tr("Never without asking")) {
             c.never.forEachIndexed { i, t ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -135,6 +145,17 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
             }
         }
         CoPanel(tr("Project memory")) { Text(trn(c.facts, "{n} fact", "{n} facts"), color = p.text, fontSize = Type.s14) }
+    }
+}
+
+/** One objective or card of the starter board, ticked or not. */
+@Composable
+private fun StarterRow(icon: ImageVector, text: String, on: Boolean, onChange: (Boolean) -> Unit) {
+    val p = LocalPaper.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = p.muted, modifier = Modifier.size(16.dp))
+        Text(text, color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f).padding(horizontal = Space.s12))
+        Switch(on, onChange, colors = switchColors())
     }
 }
 

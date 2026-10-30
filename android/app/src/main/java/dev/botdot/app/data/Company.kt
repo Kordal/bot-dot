@@ -41,6 +41,8 @@ data class Company(
     val suggestions: Suggestions? = null,
     /** The Chief's proposed bots, kept whole: a PATCH of the proposal sends each as it came, with what the app does not draw. */
     val proposal: List<JsonObject>? = null,
+    /** The objectives and cards Create puts on its board (#810, [ProjectStarter]), while it is set up. */
+    val starter: Starter? = null,
     val teams: List<CompanyTeam> = emptyList(),
     val teamChat: List<TeamLine> = emptyList(),
     val canUndo: Boolean = false,
