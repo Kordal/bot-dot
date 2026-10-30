@@ -8,7 +8,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { words, pacer, follow, MAX, OPENER_MAX, simpleStep, stepDone } = require('../lib/working-line');
+const { words, pacer, follow, MAX, OPENER_MAX, simpleStep, stepDone, TOOL_NAMES } = require('../lib/working-line');
 const { startServer, makeBot, heldRun, feed, waitFor, sleep } = require('./helpers');
 
 const say = (text) => ({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
@@ -16,6 +16,31 @@ const use = (name, input = {}, id = `t${Math.random()}`) => ({ type: 'assistant'
 const tool = (name, input) => words({ tool: name, input });
 
 // ---------- the words ----------
+
+test("in a Polish account every step is said in Polish, names and the bot's own descriptions as they are (ADR 108)", () => {
+  const pl = (name, input = {}) => words({ tool: name, input }, { lang: 'pl', who: () => 'Web Surfer', whose: () => 'Web Surfer' });
+  assert.equal(pl('mcp__self__recall'), 'Przeglądam swoją pamięć');
+  assert.equal(pl('WebFetch', { url: 'https://www.nytimes.com/x' }), 'Czytam nytimes.com');
+  assert.equal(pl('Read', { file_path: '/w/plan.md' }), 'Czytam plan.md');
+  assert.equal(pl('mcp__self__message_bot', { to: 'b1' }), 'Piszę do: Web Surfer');
+  assert.equal(pl('Bash', { command: 'ls', description: 'Sprawdzam stan Tailscale' }), 'Sprawdzam stan Tailscale');
+  assert.equal(pl('Bash', { command: 'ls' }), 'Uruchamiam polecenie');
+  assert.equal(words({ phase: 'computer' }, { lang: 'pl' }), 'Uruchamiam swój komputer');
+  assert.equal(words({ job: 'Disk check' }, { lang: 'pl' }), 'Wykonuję: Disk check');
+  assert.equal(words({ tool: 'mcp__self__recall' }), 'Looking through its memory', 'English when no language is given');
+  // Every tool with words has its Polish, with and without the names it may carry.
+  const untranslated = TOOL_NAMES.filter((t) => [{}, { url: 'https://a.example/', file_path: '/a/b.txt', app: 'gmail', skill: 'x', runId: 'r', to: 'b' }]
+    .some((input) => { const en = words({ tool: t, input }, { who: () => 'B', whose: () => 'B' }); return en && en === words({ tool: t, input }, { lang: 'pl', who: () => 'B', whose: () => 'B' }); }));
+  assert.deepEqual(untranslated, []);
+});
+
+test("a bot's and the Chief's prompt ask for commands described in the account's language", () => {
+  const { stepsLanguageNote } = require('../lib/prompt-text');
+  assert.match(stepsLanguageNote('pl'), /description of every command you run in Polish/);
+  assert.equal(stepsLanguageNote('en'), '');
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'lib', 'bots.js'), 'utf8'), /REPLY_STYLE, stepsLanguageNote\(settings\.get\(\)\.language\)\]/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'lib', 'chief.js'), 'utf8'), /promptText\.stepsLanguageNote\(B\.settings\.get\(\)\.language\)/);
+});
 
 test('a step in, one short plain line out', () => {
   assert.equal(tool('WebFetch', { url: 'https://www.nytimes.com/section/world' }), 'Reading nytimes.com');

@@ -52,3 +52,10 @@ test('of a run\'s steps on the feed only the newest is replayed to an app that c
   const replay = events.since(first.id);
   assert.deepEqual(replay.map((e) => [e.type, e.data.steps.count]), [['run_steps', 300]]);
 });
+
+test("a run's rows are said in the account's language (ADR 108)", () => {
+  const k = runSteps.keeper({ now: clock(), lang: 'pl' });
+  k.see('mcp__self__recall', { query: 'x' });
+  k.see('Bash', { command: 'tailscale status', description: 'Sprawdzam stan Tailscale' });
+  assert.deepEqual(k.view().rows.map((r) => r.text), ['Przeglądam swoją pamięć', 'Sprawdzam stan Tailscale']);
+});
