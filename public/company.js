@@ -204,7 +204,12 @@ const Company = (() => {
   }
   // ---------- the settings (company-settings.js) ----------
   let settingsOpen = false;
-  function openSettings() { if (!state.company || !steps.settings) return; settingsOpen = true; redraw(); $('#view-company')?.scrollTo?.(0, 0); }
+  // at: a row or section of the page to show, e.g. 'logins' (a card that needs a login, #804).
+  function openSettings(at) {
+    if (!state.company || !steps.settings) return;
+    settingsOpen = true; redraw(); $('#view-company')?.scrollTo?.(0, 0);
+    if (typeof at === 'string') $(`#ps-${at}`)?.scrollIntoView({ block: 'center' });
+  }
   function closeSettings(draw = true) {
     if (!settingsOpen) return;
     settingsOpen = false;
@@ -459,5 +464,5 @@ const Company = (() => {
     if (shows()) load().then(() => { drawSide(); if (place === 'company' && state.view !== 'company' && !location.hash.slice(1)) setView('company'); });
   }
 
-  return { init, render, redraw, drawSide, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
 })();

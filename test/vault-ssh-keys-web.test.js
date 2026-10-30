@@ -17,7 +17,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 const { words } = require('./web-page');
 const page = vm.createContext({ ...words, esc });
 vm.runInContext(`${cut('const vaultSshKeyLine =', 'async function renderVault()')}\n${cut('const KIND_ICON =', '\n\n')}\nthis.vaultSshKeyLine = vaultSshKeyLine; this.KIND_ICON = KIND_ICON; this.ITEM_BOTS_HINT = ITEM_BOTS_HINT;`, page);
-const list = cut('async function renderVault()', 'function openLoginEditor(login)');
+const list = cut('async function renderVault()', 'function openLoginEditor(login, ');
 const bots = cut('function openItemBots(item)', '// ---------- Needs you');
 
 test('web: an SSH key reads as one, with its fingerprint, escaped', () => {

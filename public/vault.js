@@ -166,7 +166,8 @@ async function renderVault() {
   const sy = $('#bw-sync'); if (sy) sy.onclick = async () => { await inBackground(tr('Syncing…'), () => api('/vault/bitwarden/sync', { method: 'POST' }), { ok: tr('Synced'), retry: () => sy.click() }); renderVault(); };
 }
 
-function openLoginEditor(login) {
+// onSaved(entry): a new login saved, as the Vault answers it (a project's Logins adds it there, #804).
+function openLoginEditor(login, { onSaved } = {}) {
   const isNew = !login;
   const l = login || { name: '', site: '', username: '', allowedBots: [] };
   const m = openModal(`
@@ -226,8 +227,9 @@ function openLoginEditor(login) {
     form.password.value = '';
     // The editor goes away at once (#478). Refused: it comes back with the server's sentence and what was typed,
     // except the secret.
-    if (await setAside(m, tr('Saving…'), () => api(isNew ? '/vault' : `/vault/${l.id}`, { method: isNew ? 'POST' : 'PUT', body }),
-      { ok: state.bw?.configured ? (isNew ? tr('Saved to Bitwarden (bot-dot folder)') : tr('Saved in Bitwarden')) : tr('Saved') })) renderVault();
+    let saved = null;
+    if (await setAside(m, tr('Saving…'), () => api(isNew ? '/vault' : `/vault/${l.id}`, { method: isNew ? 'POST' : 'PUT', body }).then((r) => (saved = r)),
+      { ok: state.bw?.configured ? (isNew ? tr('Saved to Bitwarden (bot-dot folder)') : tr('Saved in Bitwarden')) : tr('Saved') })) { renderVault(); if (onSaved && saved?.id) onSaved(saved); }
   };
 }
 

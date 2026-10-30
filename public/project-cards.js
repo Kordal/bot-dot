@@ -67,7 +67,10 @@
         <div class="pc-step">${chiefFigure('sm')}<span>${esc(stepText(c.step))}</span></div>
         <div class="pc-progress"><i style="width:${width}%"></i></div></div>`;
     }
-    const failed = c.state === 'failed' ? `<div class="pc-failed${c.body ? ' quiet' : ''}" title="${esc(c.error || '')}">${esc(c.error || tr('Could not build it'))}</div>` : '';
+    // A card that needs one of the owner's servers no login of the project reaches (#804): which, and Add login.
+    const login = c.state === 'failed' && c.needsLogin && (state.features || []).includes('project-logins');
+    const said = login ? tr('No login for {host}', { host: c.needsLogin }) : c.error || tr('Could not build it');
+    const failed = c.state === 'failed' ? `<div class="pc-failed${c.body ? ' quiet' : ''}" title="${esc(said)}">${esc(said)}</div>${login ? `<button type="button" class="btn sm pc-login" data-pc-login>${tr('Add login')}</button>` : ''}` : '';
     return `<div class="pc-card${wide(c)}${fresh.has(c.id) ? ' fresh' : ''}${c.state === 'failed' ? ' failed' : ''}" data-pc-card="${esc(c.id)}">${head}${c.body ? bodyHTML(c.body) : ''}${failed}</div>`;
   }
 
@@ -163,6 +166,7 @@
     $$('[data-pc-menu]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = menu === b.dataset.pcMenu ? null : b.dataset.pcMenu; Company.redraw(); }));
     $$('[data-pc-refresh]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; b.disabled = true; send(at(b.dataset.pcRefresh, '/refresh'), 'POST', {}); }));
     $$('[data-pc-change]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; open = b.dataset.pcChange; Company.redraw(); const input = $('#pc-ask input'); if (input) { input.focus(); input.select(); } }));
+    $$('[data-pc-login]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); Company.openSettings('logins'); }));
     $$('[data-pc-remove]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; send(at(b.dataset.pcRemove), 'DELETE'); }));
     if (menu) document.addEventListener('click', () => { if (menu) { menu = null; Company.redraw(); } }, { once: true });
   }

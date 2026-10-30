@@ -1723,5 +1723,8 @@
   "What is in the way?": "Co stoi na przeszkodzie?",
   "In the way": "Przeszkody",
   "Where do you want help?": "W czym chcesz pomocy?",
-  "What first?": "Od czego zacząć?"
+  "What first?": "Od czego zacząć?",
+  "New login…": "Nowy login…",
+  "No login for {host}": "Brak loginu do {host}",
+  "Add login": "Dodaj login"
 }

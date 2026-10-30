@@ -22,8 +22,8 @@ const { words } = require('./web-page');
 const page = vm.createContext({ ...words, esc });
 const NAMES = ['VAULT_TYPES', 'vaultType', 'vaultItemAddr', 'vaultItemLine', 'vaultTypeControl', 'vaultTypeFields', 'wireSecretFile', 'wireVaultType', 'vaultTypeBody'];
 vm.runInContext(`${cut('const VAULT_TYPES = {', 'async function renderVault()')}\n${NAMES.map((n) => `this.${n} = ${n};`).join(' ')}`, page);
-const list = cut('async function renderVault()', 'function openLoginEditor(login)');
-const editor = cut('function openLoginEditor(login)', '// ---------- Bitwarden ----------');
+const list = cut('async function renderVault()', 'function openLoginEditor(login, ');
+const editor = cut('function openLoginEditor(login, ', '// ---------- Bitwarden ----------');
 const dialog = cut('function openLoginRequest(r)', 'async function saveLoginInBackground');
 
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();

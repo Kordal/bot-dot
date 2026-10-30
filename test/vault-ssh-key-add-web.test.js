@@ -11,7 +11,7 @@ const cut = (from, to) => {
   assert.ok(a >= 0 && b > a, `app.js has "${from}" … "${to}"`);
   return app.slice(a, b);
 };
-const list = cut('async function renderVault()', 'function openLoginEditor(login)');
+const list = cut('async function renderVault()', 'function openLoginEditor(login, ');
 const editor = cut('function openSshKeyEditor()', 'function openSshPublicKey(');
 const shown = cut('function openSshPublicKey(', '\n}\n');
 
