@@ -1,15 +1,20 @@
 package dev.botdot.app.ui
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -17,13 +22,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,16 +38,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.AboutCard
 import dev.botdot.app.data.AboutScreen
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.CompanySetup
 import dev.botdot.app.data.tr
-import dev.botdot.app.data.trn
 import kotlinx.coroutines.launch
 
 /** The questions of a new idea, as the server asks them, and the word each answer shows under. */
@@ -64,6 +70,16 @@ private fun ideaLabel(key: String): String = when (key) {
     "signal" -> tr("90 days")
     "test" -> tr("First step")
     else -> key
+}
+
+/** A review row's label (#800): botdot's own words for its fields. */
+private fun rowLabel(c: Company, key: String): String = when (key) {
+    "stories" -> tr("Stories")
+    "goal" -> tr("Goal")
+    "never" -> tr("Asks before")
+    "time" -> tr("Time")
+    "deliverBy" -> tr("Delivery")
+    else -> key.removePrefix("about:").let { k -> if (c.site) c.card(k)?.let { questionOf(c, it) } ?: k else ideaLabel(k) }
 }
 
 /** A card's question: botdot's own in this app's words; one the Chief wrote, as it wrote it. */
@@ -89,7 +105,7 @@ internal fun whoWord(w: String): String = when (w) {
 /**
  * The About step (#670; web: public/company-about.js). botdot first asks the Chief to read the company: a site gets
  * its About cards and the review; an idea five questions with chips, one per screen, then "I want my <who> to…"
- * stories, then the review with the SWOT. Each answer is saved as it is given, so the setup goes on where it was.
+ * stories, the delivery date (#800), then the review: the SWOT and one list of what was answered. Each answer is saved as it is given, so the setup goes on where it was.
  */
 @Composable
 internal fun AboutStep(ui: CompanyUi, c: Company) {
@@ -98,6 +114,7 @@ internal fun AboutStep(ui: CompanyUi, c: Company) {
     when (val s = ui.screen) {
         is AboutScreen.Question -> Question(ui, c, s.index)
         AboutScreen.Stories -> Stories(ui, c)
+        AboutScreen.Delivery -> DeliveryQuestion(ui, c)
         else -> Review(ui, c)
     }
 }
@@ -144,28 +161,45 @@ private fun Reading(ui: CompanyUi, c: Company) {
     }
 }
 
-/** The dots over a new idea's screens: the five questions and the stories. */
+/** The ticks under the step bar (#800): a new idea's eight screens, the ones done grey, the one on screen white. */
 @Composable
-private fun Progress(at: Int) {
+private fun Ticks(at: Int) {
     val p = LocalPaper.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-        repeat(CompanySetup.IDEA.size + 1) { i -> Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (i <= at) p.muted else p.line2)) }
+        repeat(CompanySetup.SCREENS) { i -> Box(Modifier.weight(1f).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (i == at) p.text else if (i < at) p.muted else p.line2)) }
     }
 }
 
+/** The answer the question builds on, as a small chip over it. */
 @Composable
-private fun BackWords(enabled: Boolean = true, onClick: () -> Unit) {
+private fun Previous(text: String) {
     val p = LocalPaper.current
-    Row(Modifier.clip(Radius.pill).clickable(enabled = enabled, onClick = onClick).padding(horizontal = Space.s8, vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = if (enabled) p.muted else p.faint, modifier = Modifier.size(16.dp))
-        Text(tr("Back"), color = if (enabled) p.muted else p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s8))
+    Row(Modifier.raised(Radius.pill).padding(horizontal = Space.s12, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Filled.Check, null, tint = p.muted, modifier = Modifier.size(15.dp))
+        Text(text, color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8))
     }
 }
 
-/** One of the five questions of a new idea. */
+/** Grey chips in the place of the Chief's while it writes them (#787, #800). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SkeletonChips() {
+    val p = LocalPaper.current
+    val pulse = rememberInfiniteTransition(label = "skeleton")
+    val alpha by pulse.animateFloat(0.5f, 1f, infiniteRepeatable(tween(Motion.SLOW * 3), RepeatMode.Reverse), label = "alpha")
+    FlowRow(Modifier.alpha(alpha).semantics { contentDescription = tr("Working") }, horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        listOf(180, 132, 156).forEach { w -> Box(Modifier.width(w.dp).height(36.dp).clip(Radius.pill).background(p.raise2)) }
+    }
+}
+
+/** A question's foot: Skip quiet on the left, Next on the right. */
+@Composable
+private fun NextFoot(enabled: Boolean, onSkip: () -> Unit, onNext: () -> Unit) =
+    Foot({ WordsButton(tr("Skip"), onClick = onSkip) }) { GoButton(tr("Next"), enabled = enabled, arrow = true, onClick = onNext) }
+
+/** One of the five questions of a new idea, the answer before it over it (#800). */
 @Composable
 private fun Question(ui: CompanyUi, c: Company, i: Int) {
-    val p = LocalPaper.current
     val key = CompanySetup.IDEA[i]
     val a = c.card(key) ?: AboutCard(key, ideaQuestion(key))
     val basis = CompanySetup.basis(c, key)
@@ -177,29 +211,28 @@ private fun Question(ui: CompanyUi, c: Company, i: Int) {
         val next = CompanySetup.answered(c.about, key, text, a.question.ifEmpty { ideaQuestion(key) })
         ui.save(CompanySetup.patchAbout(next)) { it.copy(about = next) }
     }
-    StepPage({
-        Foot({ BackWords(enabled = i > 0) { ui.screen = AboutScreen.Question(i - 1) } }) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                WordsButton(tr("Skip")) { answer("") }
-                GoButton(tr("Done"), enabled = picked.isNotEmpty(), arrow = true) { answer(picked.joinToString(CompanySetup.SEP)) }
-            }
-        }
-    }) {
-        Progress(i)
+    StepPage({ NextFoot(picked.isNotEmpty(), onSkip = { answer("") }) { answer(picked.joinToString(CompanySetup.SEP)) } }) {
+        Ticks(i)
+        CompanySetup.previous(c, key)?.let { Previous(it) }
         CoTitle(ideaQuestion(key))
-        if (waiting) ChiefAtWork()
+        if (waiting) SkeletonChips()
         ChipQuestion(ui, key, if (waiting) emptyList() else a.chips.orEmpty(), picked, multi = true) { ui.picked[key] = it }
-        val answered = CompanySetup.IDEA.filter { k -> k != key && c.card(k)?.answer?.isNotEmpty() == true }
-        if (answered.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            answered.forEach { k ->
-                Row(verticalAlignment = Alignment.Top) {
-                    Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.padding(top = Space.s4).size(16.dp))
-                    Text(ideaLabel(k), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8).width(80.dp))
-                    Text(c.card(k)?.answer.orEmpty(), color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f))
-                }
-            }
-        }
     }
+}
+
+/** Leaves the stories: the Chief starts the SWOT, then the delivery date when the server has it, else the review. */
+private fun afterStories(ui: CompanyUi, c: Company, delivery: Boolean) {
+    ui.screen = if (delivery) AboutScreen.Delivery else AboutScreen.Review
+    if (c.swot == null && !ui.swotting) {
+        ui.swotting = true
+        ui.scope.launch { runCatching { ui.api?.companySwot() }.onSuccess { it?.let(ui::took) }; ui.swotting = false }
+    }
+}
+
+@Composable
+private fun hasDelivery(ui: CompanyUi): Boolean {
+    val server by ui.app.store.version.value.collectAsState()
+    return CompanySetup.DELIVERY in server?.features.orEmpty()
 }
 
 /** "I want my <who> to…": the stories, by group; the Chief suggests some for each group, and a group that is missing. */
@@ -207,6 +240,7 @@ private fun Question(ui: CompanyUi, c: Company, i: Int) {
 @Composable
 private fun Stories(ui: CompanyUi, c: Company) {
     val p = LocalPaper.current
+    val delivery = hasDelivery(ui)
     val who = ui.who ?: c.stories.firstOrNull()?.who ?: "users"
     LaunchedEffect(who) {
         ui.who = who
@@ -219,21 +253,12 @@ private fun Stories(ui: CompanyUi, c: Company) {
         val next = CompanySetup.addStory(c.stories, who, text) ?: return
         ui.save(CompanySetup.patchStories(next)) { it.copy(stories = next) }
     }
-    StepPage({
-        Foot({ BackWords { ui.screen = AboutScreen.Question(CompanySetup.IDEA.size - 1) } }) {
-            GoButton(tr("Done"), arrow = true) {
-                ui.screen = AboutScreen.Review
-                if (c.swot == null && !ui.swotting) {
-                    ui.swotting = true
-                    ui.scope.launch { runCatching { ui.api?.companySwot() }.onSuccess { it?.let(ui::took) }; ui.swotting = false }
-                }
-            }
-        }
-    }) {
-        Progress(CompanySetup.IDEA.size)
+    StepPage({ NextFoot(true, onSkip = { afterStories(ui, c, delivery) }) { afterStories(ui, c, delivery) } }) {
+        Ticks(CompanySetup.tick(AboutScreen.Stories))
+        CompanySetup.split(c.card(CompanySetup.IDEA.last())?.answer.orEmpty()).firstOrNull()?.let { Previous(it) }
         FlowRow(verticalArrangement = Arrangement.Center, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             CoTitle(tr("I want my"))
-            Row(Modifier.clip(Radius.small).border(1.dp, p.line2, Radius.small).clickable { ui.choosingWho = !ui.choosingWho }.padding(horizontal = Space.s8),
+            Row(Modifier.clip(Radius.small).background(p.raise2).clickable { ui.choosingWho = !ui.choosingWho }.padding(horizontal = Space.s8),
                 verticalAlignment = Alignment.CenterVertically) {
                 CoTitle(whoWord(who))
                 Icon(Icons.Filled.ArrowDropDown, null, tint = p.muted)
@@ -268,147 +293,131 @@ private fun Stories(ui: CompanyUi, c: Company) {
     }
 }
 
+/** The delivery date as its own question (#800): the presets, a day, or Indefinite. */
+@Composable
+private fun DeliveryQuestion(ui: CompanyUi, c: Company) {
+    StepPage({ NextFoot(c.deliverBy.isNotEmpty(), onSkip = { ui.screen = AboutScreen.Review }) { ui.screen = AboutScreen.Review } }) {
+        Ticks(CompanySetup.tick(AboutScreen.Delivery))
+        CoTitle(tr("When should it be delivered?"))
+        DeliveryChips(c.deliverBy) { v -> ui.save(CompanySetup.patchText("deliverBy", v)) { it.copy(deliverBy = v) } }
+    }
+}
+
 /**
- * The review: the SWOT, the 90-day goal, what the team never does without asking, time, the Chief's open questions
- * and the answered cards; then what the Chief knows. "Build my team" goes on to Team.
+ * The review (#800): the project's name, a new idea's SWOT, and one list of what was answered, a row a field; a tap
+ * on a row opens it to change it. "Build my team" goes on to Team.
  */
 @Composable
 private fun Review(ui: CompanyUi, c: Company) {
     val p = LocalPaper.current
+    val delivery = hasDelivery(ui)
     // A new idea's review chips build on all five answers (#787); a site's come with its read.
     val basis = CompanySetup.basis(c, "goal")
     val stale = if (c.site) c.suggestions == null else c.suggestions?.basis != basis
     val waiting = listOfNotNull("goal", "never", if (c.site) null else "time").associateWith { refresh(ui, it, stale, basis) }
-    val s = c.suggestions
-    val open = c.about.filter { it.answer.isEmpty() }
-    val done = c.about.filter { it.answer.isNotEmpty() }
-    fun answer(key: String, text: String) {
-        val next = c.about.map { if (it.key == key) it.copy(answer = text, open = false) else it }
-        ui.save(CompanySetup.patchAbout(next)) { it.copy(about = next) }
-    }
-    StepPage({
-        Foot({ if (!c.site) BackWords { ui.screen = AboutScreen.Stories } }) { GoButton(tr("Build my team"), arrow = true) { ui.step = "team" } }
-    }) {
+    StepPage({ Foot({}) { GoButton(tr("Build my team"), arrow = true) { ui.editing = null; ui.step = "team" } } }) {
+        if (!c.site) Ticks(CompanySetup.tick(AboutScreen.Review))
+        CoTitle(c.name.ifEmpty { c.start })
         if (!c.site) SwotGrid(ui, c)
-        ChipCard(tr("What is the main goal for the next 90 days?"), highlighted = c.site && c.goal.isEmpty()) {
-            if (waiting["goal"] == true) ChiefAtWork()
-            ChipQuestion(ui, "goal", if (waiting["goal"] == true) emptyList() else s?.goal.orEmpty(), listOfNotNull(c.goal.ifEmpty { null }), plus = true) { list ->
-                val v = list.firstOrNull().orEmpty(); ui.save(CompanySetup.patchText("goal", v)) { it.copy(goal = v) }
+        Column(Modifier.fillMaxWidth().raised(Radius.card)) {
+            CompanySetup.reviewKeys(c, delivery).forEachIndexed { n, key ->
+                if (n > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
+                ReviewRow(ui, c, key, waiting[key] == true)
             }
         }
-        ChipCard(tr("What should the team never do without asking?"), highlighted = c.site && c.never.isEmpty()) {
-            if (waiting["never"] == true) ChiefAtWork()
-            ChipQuestion(ui, "never", if (waiting["never"] == true) emptyList() else s?.never.orEmpty(), c.never, multi = true, plus = true) { list -> ui.save(CompanySetup.patchLines("never", list)) { it.copy(never = list) } }
-        }
-        if (!c.site) ChipCard(tr("How much time can you give it?")) {
-            if (waiting["time"] == true) ChiefAtWork()
-            ChipQuestion(ui, "time", if (waiting["time"] == true) emptyList() else s?.time.orEmpty(), listOfNotNull(c.time.ifEmpty { null }), plus = true) { list ->
-                val v = list.firstOrNull().orEmpty(); ui.save(CompanySetup.patchText("time", v)) { it.copy(time = v) }
-            }
-        }
-        val server by ui.app.store.version.value.collectAsState()
-        if (CompanySetup.DELIVERY in server?.features.orEmpty()) ChipCard(tr("When should it be delivered?")) {
-            DeliveryChips(c.deliverBy) { v -> ui.save(CompanySetup.patchText("deliverBy", v)) { it.copy(deliverBy = v) } }
-        }
-        open.forEach { a ->
-            ChipCard(questionOf(c, a), highlighted = a.open) {
-                ChipQuestion(ui, "about:${a.key}", a.chips.orEmpty(), emptyList(), plus = true) { list -> list.firstOrNull()?.let { answer(a.key, it) } }
-            }
-        }
-        done.forEach { a -> AnsweredCard(ui, c, a) { answer(a.key, it) } }
-        Knows(c)
     }
 }
 
+/** What a review row shows: the answer as one line, or null while not answered. */
+private fun rowValue(c: Company, key: String): String? = when (key) {
+    "stories" -> c.stories.filter { it.items.isNotEmpty() }.joinToString("\n") { g -> whoWord(g.who).replaceFirstChar { it.uppercase() } + ": " + g.items.joinToString(" · ") { it.text } }
+    "goal" -> c.goal
+    "never" -> c.never.joinToString(", ")
+    "time" -> c.time
+    "deliverBy" -> Delivery.value(c.deliverBy)
+    else -> c.card(key.removePrefix("about:"))?.answer
+}?.takeIf { it.isNotEmpty() }
+
+/** One row of the review: its label over its answer; a tap opens what changes it, a tap on its label closes it. */
 @Composable
-private fun ChipCard(question: String, highlighted: Boolean = false, content: @Composable () -> Unit) {
+private fun ReviewRow(ui: CompanyUi, c: Company, key: String, waiting: Boolean) {
     val p = LocalPaper.current
-    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, if (highlighted) p.warnLine else p.line, Radius.card).padding(Space.s16),
-        verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        Text(question, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.Medium)
-        content()
+    val value = rowValue(c, key)
+    val card = if (key.startsWith("about:")) c.card(key.removePrefix("about:")) else null
+    // What the owner has yet to answer on a site's review, as the setup asked before (#670).
+    val wanted = c.site && value == null && (card?.open == true || key == "goal" || key == "never")
+    val open = ui.editing == key
+    Column(Modifier.fillMaxWidth().clickable(onClickLabel = tr("Change")) {
+        if (key == "stories") ui.screen = AboutScreen.Stories else ui.editing = if (open) null else key
+    }.padding(horizontal = Space.s16, vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+        Text(rowLabel(c, key), color = if (wanted) p.warnText else p.muted, fontSize = Type.s12)
+        if (!open) Text(value ?: "—", color = if (value == null) p.faint else p.text, fontSize = Type.s16)
+    }
+    if (open) Column(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s16, bottom = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+        RowEditor(ui, c, key, card, waiting)
     }
 }
 
-/** An answered card: a tap opens its answer to change it. */
+/** What changes a row: the Chief's chips for the goal, the rules and the time, the presets for the date, a field for an answer. */
 @Composable
-private fun AnsweredCard(ui: CompanyUi, c: Company, a: AboutCard, onAnswer: (String) -> Unit) {
-    val p = LocalPaper.current
-    if (ui.editing == a.key) {
-        var typed by remember(a.key) { mutableStateOf(a.answer) }
-        ChipCard(questionOf(c, a)) {
-            AskField(typed, { typed = it.take(300) }, label = questionOf(c, a), button = tr("Save"), focus = true) {
-                val t = typed.replace(Regex("\\s+"), " ").trim()
+private fun RowEditor(ui: CompanyUi, c: Company, key: String, card: AboutCard?, waiting: Boolean) {
+    val s = c.suggestions
+    fun chips(list: List<String>?) = if (waiting) emptyList() else list.orEmpty()
+    if (waiting) SkeletonChips()
+    when (key) {
+        "goal" -> ChipQuestion(ui, "goal", chips(s?.goal), listOfNotNull(c.goal.ifEmpty { null }), plus = true) { list ->
+            val v = list.firstOrNull().orEmpty(); ui.save(CompanySetup.patchText("goal", v)) { it.copy(goal = v) }
+        }
+        "never" -> ChipQuestion(ui, "never", chips(s?.never), c.never, multi = true, plus = true) { list -> ui.save(CompanySetup.patchLines("never", list)) { it.copy(never = list) } }
+        "time" -> ChipQuestion(ui, "time", chips(s?.time), listOfNotNull(c.time.ifEmpty { null }), plus = true) { list ->
+            val v = list.firstOrNull().orEmpty(); ui.save(CompanySetup.patchText("time", v)) { it.copy(time = v) }
+        }
+        "deliverBy" -> DeliveryChips(c.deliverBy) { v -> ui.save(CompanySetup.patchText("deliverBy", v)) { it.copy(deliverBy = v) } }
+        else -> {
+            val k = key.removePrefix("about:")
+            val question = card?.let { questionOf(c, it) } ?: ideaQuestion(k)
+            fun answer(text: String) {
                 ui.editing = null
-                if (t.isNotEmpty()) onAnswer(t)
+                val next = CompanySetup.answered(c.about, k, text, card?.question?.ifEmpty { null } ?: question)
+                ui.save(CompanySetup.patchAbout(next)) { it.copy(about = next) }
+            }
+            if (card?.answer.isNullOrEmpty() && !card?.chips.isNullOrEmpty()) ChipQuestion(ui, key, card!!.chips.orEmpty(), emptyList(), plus = true) { list -> list.firstOrNull()?.let(::answer) }
+            else {
+                var typed by remember(key) { mutableStateOf(card?.answer.orEmpty()) }
+                AskField(typed, { typed = it.take(300) }, label = question, button = tr("Save"), focus = true) {
+                    val t = typed.replace(Regex("\\s+"), " ").trim()
+                    if (t.isNotEmpty()) answer(t) else ui.editing = null
+                }
             }
         }
-        return
-    }
-    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line, Radius.card).clickable(onClickLabel = tr("Change")) { ui.editing = a.key }.padding(Space.s16),
-        verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(questionOf(c, a), color = p.muted, fontSize = Type.s12, modifier = Modifier.weight(1f))
-            Icon(Icons.Outlined.Edit, null, tint = p.faint, modifier = Modifier.size(14.dp))
-        }
-        Text(a.answer, color = p.text, fontSize = Type.s16)
     }
 }
 
-/** The SWOT of a new idea: four cells, then the one first test; while the Chief writes it, four empty cells. */
+/** The SWOT of a new idea: four cells, each its word in its colour over what it holds, then the one first test; while the Chief writes it, four empty cells. */
 @Composable
 private fun SwotGrid(ui: CompanyUi, c: Company) {
     val p = LocalPaper.current
     val w = c.swot
     if (w == null && !ui.swotting) return
     @Composable
-    fun Cell(letter: String, label: String, list: List<String>, tint: Color, modifier: Modifier) {
-        Column(modifier.clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(letter, color = tint, fontWeight = FontWeight.Bold, fontSize = Type.s16)
-                Text(label, color = p.muted, fontSize = Type.s12, modifier = Modifier.padding(start = Space.s8))
-            }
+    fun Cell(label: String, list: List<String>, tint: Color, modifier: Modifier) {
+        Column(modifier.raised(Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            Text(label, color = tint, fontWeight = FontWeight.SemiBold, fontSize = Type.s14)
             list.forEach { Text(it, color = p.text, fontSize = Type.s14) }
         }
     }
-    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-            Cell("S", tr("Strengths"), w?.strengths.orEmpty(), p.ok, Modifier.weight(1f))
-            Cell("W", tr("Weaknesses"), w?.weaknesses.orEmpty(), p.err, Modifier.weight(1f))
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+            Cell(tr("Strengths"), w?.strengths.orEmpty(), p.okText, Modifier.weight(1f).fillMaxHeight())
+            Cell(tr("Weaknesses"), w?.weaknesses.orEmpty(), p.warnText, Modifier.weight(1f).fillMaxHeight())
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-            Cell("O", tr("Opportunities"), w?.opportunities.orEmpty(), p.mention, Modifier.weight(1f))
-            Cell("T", tr("Threats"), w?.threats.orEmpty(), p.warn, Modifier.weight(1f))
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+            Cell(tr("Opportunities"), w?.opportunities.orEmpty(), p.mention, Modifier.weight(1f).fillMaxHeight())
+            Cell(tr("Threats"), w?.threats.orEmpty(), p.err, Modifier.weight(1f).fillMaxHeight())
         }
-        if (w != null && w.firstTest.isNotEmpty()) Row(Modifier.fillMaxWidth().clip(Radius.card).background(p.sunk).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
+        if (w != null && w.firstTest.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = Space.s4).raised(Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.PlayArrow, null, tint = p.text, modifier = Modifier.size(18.dp))
             Text(w.firstTest, color = p.text, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8))
-        }
-    }
-}
-
-/** What the Chief knows so far. */
-@Composable
-private fun Knows(c: Company) {
-    val p = LocalPaper.current
-    val rows = buildList {
-        c.about.filter { it.answer.isNotEmpty() }.forEach { add(it.answer) }
-        if (c.sources.isNotEmpty()) add(trn(c.sources.size, "Read {n} source", "Read {n} sources"))
-        c.stories.filter { g -> g.items.any { it.start } }.forEach { g -> add(tr("I want my") + " " + whoWord(g.who) + " " + tr("to…") + " " + g.items.filter { it.start }.joinToString(CompanySetup.SEP) { it.text }) }
-        c.swot?.firstTest?.takeIf { it.isNotEmpty() }?.let { add(tr("First test") + ": " + it) }
-        if (c.goal.isNotEmpty()) add(c.goal)
-        if (c.never.isNotEmpty()) add(tr("Asks before") + ": " + c.never.joinToString(", "))
-        if (c.time.isNotEmpty()) add(tr("Time") + ": " + c.time)
-        Delivery.line(c.deliverBy)?.let { add(it) }
-    }
-    Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Text(c.name.ifEmpty { c.start }, color = p.text, fontWeight = FontWeight.SemiBold)
-        rows.forEach { t ->
-            Row(verticalAlignment = Alignment.Top) {
-                Icon(Icons.Filled.Check, null, tint = p.ok, modifier = Modifier.padding(top = Space.s4).size(16.dp))
-                Spacer(Modifier.size(8.dp))
-                Text(t, color = p.muted, fontSize = Type.s14)
-            }
         }
     }
 }

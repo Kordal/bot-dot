@@ -125,6 +125,29 @@ class CompanyTest {
         assertEquals(AboutScreen.Review, CompanySetup.startScreen(c.copy(kind = "site")))
     }
 
+    @Test fun anIdeasScreensGoQuestionsStoriesDeliveryReviewOneTickEach() {
+        // #800: eight ticks, Back walks them in order; without the delivery date (#792) the review follows the stories.
+        val way = (0 until CompanySetup.IDEA.size).map { AboutScreen.Question(it) } + listOf(AboutScreen.Stories, AboutScreen.Delivery, AboutScreen.Review)
+        assertEquals((0 until CompanySetup.SCREENS).toList(), way.map(CompanySetup::tick))
+        assertNull(CompanySetup.before(AboutScreen.Question(0), delivery = true))
+        way.zipWithNext().forEach { (a, b) -> assertEquals(a, CompanySetup.before(b, delivery = true)) }
+        assertEquals(AboutScreen.Stories, CompanySetup.before(AboutScreen.Review, delivery = false))
+    }
+
+    @Test fun aQuestionShowsThePreviousAnswerOverIt() {
+        val c = CompanySetup.of(idea)
+        assertNull(CompanySetup.previous(c, "who"))
+        assertEquals("Parents", CompanySetup.previous(c, "today"))
+        assertNull(CompanySetup.previous(c, "why")) // "today" not answered yet
+    }
+
+    @Test fun theReviewIsOneListOfRows() {
+        val c = CompanySetup.of(idea)
+        assertEquals(listOf("about:who", "about:today", "about:why", "about:signal", "about:test", "stories", "goal", "never", "time", "deliverBy"), CompanySetup.reviewKeys(c, delivery = true))
+        val site = c.copy(kind = "site", about = listOf(AboutCard("about", "What is it?", "Shoes"), AboutCard("serves", "Who?", "")))
+        assertEquals(listOf("about:about", "about:serves", "goal", "never"), CompanySetup.reviewKeys(site, delivery = false))
+    }
+
     @Test fun aQuestionsBasisHashesTheAnswersBeforeItAsTheServerDoes() {
         // The same values as test/company-chief.test.js checks lib/company-chief.js `basis` against (#787).
         val none = CompanySetup.of(idea).copy(about = emptyList())

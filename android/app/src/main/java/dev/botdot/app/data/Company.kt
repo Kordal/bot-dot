@@ -244,6 +244,8 @@ data class SourceDraft(val id: String, val kind: String, val name: String, val u
 sealed interface AboutScreen {
     data class Question(val index: Int) : AboutScreen
     data object Stories : AboutScreen
+    /** The delivery date as its own question (#800), after the stories. */
+    data object Delivery : AboutScreen
     data object Review : AboutScreen
 }
 
@@ -269,8 +271,6 @@ object CompanySetup {
     const val SEP = "; "
     const val MAX_SOURCES = 20
     const val MAX_FILE = 25L * 1024 * 1024
-    /** The start screen's two examples: a site and an idea. */
-    val EXAMPLES = listOf("fernhill.app", "A meal-planning app for busy parents")
 
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
 
@@ -313,6 +313,46 @@ object CompanySetup {
         val i = IDEA.indexOfFirst { c.card(it)?.open == true }
         if (i >= 0) return AboutScreen.Question(i)
         return if (c.swot != null) AboutScreen.Review else AboutScreen.Stories
+    }
+
+    /** A new idea's screens, as the ticks under the step bar count them (#800): the five questions, the stories, the delivery date, the review. */
+    const val SCREENS = 8
+
+    /** Which tick [s] is: 0 to [SCREENS] - 1. */
+    fun tick(s: AboutScreen): Int = when (s) {
+        is AboutScreen.Question -> s.index
+        AboutScreen.Stories -> IDEA.size
+        AboutScreen.Delivery -> IDEA.size + 1
+        AboutScreen.Review -> IDEA.size + 2
+    }
+
+    /** The screen before [s] on a new idea's way, or null on the first; [delivery] false: the server has no delivery date (#792). */
+    fun before(s: AboutScreen, delivery: Boolean): AboutScreen? = when (s) {
+        is AboutScreen.Question -> if (s.index > 0) AboutScreen.Question(s.index - 1) else null
+        AboutScreen.Stories -> AboutScreen.Question(IDEA.size - 1)
+        AboutScreen.Delivery -> AboutScreen.Stories
+        AboutScreen.Review -> if (delivery) AboutScreen.Delivery else AboutScreen.Stories
+    }
+
+    /** The previous question's answer, shown as a chip over [key]'s question (#800): what its chips build on; null on the first or when skipped. */
+    fun previous(c: Company, key: String): String? {
+        val i = IDEA.indexOf(key).takeIf { it > 0 } ?: return null
+        return split(c.card(IDEA[i - 1])?.answer.orEmpty()).firstOrNull()
+    }
+
+    /**
+     * The review's rows (#800), one list: a new idea's five answers and its stories, a site's cards as it read them,
+     * then the goal, what the team never does without asking, the time (an idea's only) and the delivery date.
+     */
+    fun reviewKeys(c: Company, delivery: Boolean): List<String> = buildList {
+        if (c.site) c.about.forEach { add("about:" + it.key) }
+        else {
+            IDEA.forEach { add("about:$it") }
+            add("stories")
+        }
+        add("goal"); add("never")
+        if (!c.site) add("time")
+        if (delivery) add("deliverBy")
     }
 
     /**
