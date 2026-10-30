@@ -268,12 +268,16 @@
       ${chipCard('goal', tr('What is the main goal for the next 90 days?'), s.goal, c.goal ? [c.goal] : [], c.kind === 'site' && !c.goal)}
       ${chipCard('never', tr('What should the team never do without asking?'), s.never, c.never, c.kind === 'site' && !c.never.length)}
       ${c.kind === 'idea' ? chipCard('time', tr('How much time can you give it?'), s.time, c.time ? [c.time] : []) : ''}
+      ${deliveryHTML(c)}
       ${open.map((a) => chipCard(`about:${a.key}`, questionOf(c, a), a.chips || [], [], !!a.open)).join('')}
       ${done.map((a) => answeredHTML(c, a)).join('')}
     </div>${knowsHTML(c)}</div>${foot(c.kind === 'idea' ? backBtn() : '', `<button type="button" class="co-go" data-build>${tr('Build my team')} ${ICON.go}</button>`)}`;
     wireChips(body, 'goal', c.goal ? [c.goal] : [], (list) => save({ goal: list[0] || '' }));
     wireChips(body, 'never', c.never, (list) => save({ never: list }), { multi: true });
     wireChips(body, 'time', c.time ? [c.time] : [], (list) => save({ time: list[0] || '' }));
+    $('[data-delivery-none]', body).onclick = () => save({ deliverBy: c.deliverBy === 'none' ? '' : 'none' });
+    const day = $('[data-delivery]', body);
+    day.onchange = () => { if (day.value) save({ deliverBy: day.value }); };
     const answer = (key, text) => save({ about: state.company.about.map((x) => (x.key === key ? { ...x, answer: text, open: false } : x)) });
     for (const a of open) wireChips(body, `about:${a.key}`, [], (list) => { if (list[0]) answer(a.key, list[0]); });
     $$('[data-edit]', body).forEach((el) => (el.onclick = () => { ui.editing = el.dataset.edit; ui.typed[`edit:${ui.editing}`] = card(c, ui.editing)?.answer || ''; ui.focus = `edit:${ui.editing}`; Company.redraw(); }));
@@ -289,6 +293,18 @@
     if (back) back.onclick = () => { ui.screen = 'stories'; Company.redraw(); };
     $('[data-build]', body).onclick = () => Company.go('team');
   }
+  // The target delivery date (#792): a day picked on the calendar, or "No date" for an open-ended project.
+  const isDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+  const dayText = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  function deliveryHTML(c) {
+    const none = c.deliverBy === 'none';
+    const dated = isDay(c.deliverBy);
+    return `<section class="co-card"><div class="co-card-q">${tr('When should it be delivered?')}</div><div class="co-chips">
+      <label class="co-chip co-date${dated ? ' on' : ' dashed'}">${dated ? ICON.check : ''}<input type="date" data-delivery value="${dated ? esc(c.deliverBy) : ''}" aria-label="${tr('When should it be delivered?')}" /></label>
+      <button type="button" class="co-chip${none ? ' on' : ' dashed'}" data-delivery-none>${none ? ICON.check : ''}${tr('No date')}</button></div></section>`;
+  }
+  const deliveryText = (c) => (c.deliverBy === 'none' ? tr('No delivery date') : isDay(c.deliverBy) ? `${tr('Delivery')}: ${dayText(c.deliverBy)}` : '');
+
   function answeredHTML(c, a) {
     if (ui.editing === a.key) return `<section class="co-card"><div class="co-card-q">${esc(questionOf(c, a))}</div><form class="co-ask small" id="co-edit"><input name="answer" autocomplete="off" maxlength="300" aria-label="${esc(questionOf(c, a))}" /><button type="submit" class="co-go">${tr('Save')}</button></form></section>`;
     return `<button type="button" class="co-card co-answer" data-edit="${esc(a.key)}"><span class="co-card-q">${esc(questionOf(c, a))}${ICON.pen}</span><span class="co-card-a">${esc(a.answer)}</span></button>`;
@@ -308,6 +324,7 @@
       ...(c.goal ? [c.goal] : []),
       ...(c.never.length ? [`${tr('Asks before')}: ${c.never.join(', ')}`] : []),
       ...(c.time ? [`${tr('Time')}: ${c.time}`] : []),
+      ...(deliveryText(c) ? [deliveryText(c)] : []),
     ];
     return `<aside class="co-knows"><div class="co-knows-h">${esc(c.name || c.start)}</div><ul>${rows.map((t) => `<li>${ICON.check}<span>${esc(t)}</span></li>`).join('')}</ul></aside>`;
   }

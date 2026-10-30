@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -305,6 +306,10 @@ private fun Review(ui: CompanyUi, c: Company) {
                 val v = list.firstOrNull().orEmpty(); ui.save(CompanySetup.patchText("time", v)) { it.copy(time = v) }
             }
         }
+        val server by ui.app.store.version.value.collectAsState()
+        if (CompanySetup.DELIVERY in server?.features.orEmpty()) ChipCard(tr("When should it be delivered?")) {
+            DeliveryChips(c.deliverBy) { v -> ui.save(CompanySetup.patchText("deliverBy", v)) { it.copy(deliverBy = v) } }
+        }
         open.forEach { a ->
             ChipCard(questionOf(c, a), highlighted = a.open) {
                 ChipQuestion(ui, "about:${a.key}", a.chips.orEmpty(), emptyList(), plus = true) { list -> list.firstOrNull()?.let { answer(a.key, it) } }
@@ -394,6 +399,7 @@ private fun Knows(c: Company) {
         if (c.goal.isNotEmpty()) add(c.goal)
         if (c.never.isNotEmpty()) add(tr("Asks before") + ": " + c.never.joinToString(", "))
         if (c.time.isNotEmpty()) add(tr("Time") + ": " + c.time)
+        Delivery.line(c.deliverBy)?.let { add(it) }
     }
     Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Text(c.name.ifEmpty { c.start }, color = p.text, fontWeight = FontWeight.SemiBold)

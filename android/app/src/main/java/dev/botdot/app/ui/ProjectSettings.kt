@@ -276,6 +276,10 @@ private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (
             }
         }
     }
+    if (CompanySetup.DELIVERY in features) Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(tr("Delivery"), color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f))
+        DeliveryChips(c.deliverBy) { v -> patch(buildJsonObject { put("deliverBy", v) }) }
+    }
     if (c.running) {
         var picking by remember { mutableStateOf(false) }
         Row(verticalAlignment = Alignment.CenterVertically) {

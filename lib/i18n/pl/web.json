@@ -1707,5 +1707,9 @@
   "New card": "Nowa karta",
   "Goals": "Cele",
   "Teams": "Zespoły",
-  "Arrange": "Ułóż"
+  "Arrange": "Ułóż",
+  "When should it be delivered?": "Na kiedy ma być gotowe?",
+  "No date": "Bez terminu",
+  "No delivery date": "Bez terminu oddania",
+  "Delivery": "Termin oddania"
 }

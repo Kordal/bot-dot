@@ -34,6 +34,8 @@ data class Company(
     val goal: String = "",
     val never: List<String> = emptyList(),
     val time: String = "",
+    /** The target delivery date (#792): a day as YYYY-MM-DD, "none" for no date, "" while not answered. */
+    val deliverBy: String = "",
     val suggestions: Suggestions? = null,
     /** The Chief's proposed bots, kept whole: a PATCH of the proposal sends each as it came, with what the app does not draw. */
     val proposal: List<JsonObject>? = null,
@@ -253,6 +255,8 @@ object CompanySetup {
     const val TEAM = "company-team"
     /** A project started empty (#788): no setup, no team; it opens on its blank board. */
     const val EMPTY = "project-empty"
+    /** The target delivery date (#792): `deliverBy` on the project. */
+    const val DELIVERY = "project-delivery"
     /** The setup's steps, as the bar shows them. */
     val STEPS = listOf("about", "team", "start")
     /** The five questions of a new idea, as the server asks them (lib/company-chief.js). */
