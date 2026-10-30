@@ -1,7 +1,7 @@
 // Optional browser check of the Company's About step (#670): node test/browser/company-about.cjs [shots dir]
 // A new idea: the Chief names it and drafts chips; five questions, one per screen (a chip, "Write your own", Skip),
 // each next one's chips asked again from the answers before it (#787),
-// then "I want my <who> to…" stories in two groups, then the review with the SWOT, a goal and "never" picked, and a
+// then "I want my <who> to…" stories in two groups, then the review with the SWOT, a goal, "never" and a delivery date picked, and a
 // reload that goes on where it was. Then a site: the review with the Chief's cards and its open question. The
 // stand-in Claude answers every call with one JSON (test/fixtures/fake-claude.js, $FAKE_OUT/company.txt).
 const assert = require('node:assert/strict');
@@ -95,6 +95,12 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     await page.locator('[data-chips="never"] [data-chip="E-mail someone new"]').click();
     await page.locator('[data-chips="never"] [data-chip="E-mail someone new"].on').waitFor();
     await page.locator('.co-knows li', { hasText: 'Asks before' }).waitFor();
+    // The target delivery date (#792): No date, then a day.
+    await page.locator('[data-delivery-none]').click();
+    await page.locator('.co-knows li', { hasText: 'No delivery date' }).waitFor();
+    await page.locator('[data-delivery]').fill('2027-03-31');
+    await page.locator('.co-date.on').waitFor();
+    await page.locator('.co-knows li', { hasText: 'Delivery:' }).waitFor();
     await shot(page, 'wide-review');
     let c = (await srv.api('/company')).data.company;
     assert.equal(c.name, 'Mealwise');
@@ -102,6 +108,7 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     assert.deepEqual(c.stories.map((g) => [g.who, g.items.length]), [['users', 4], ['partners', 1]]);
     assert.equal(c.goal, '10 parents use it every week');
     assert.deepEqual(c.never, ['Spend money', 'E-mail someone new']);
+    assert.equal(c.deliverBy, '2027-03-31');
     // An answer is changed in place.
     await page.locator('[data-edit="who"]').click();
     await page.locator('#co-edit input').fill('Parents of kids under 12');

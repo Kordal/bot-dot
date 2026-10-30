@@ -2502,6 +2502,7 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .co-chips, .co-add { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
 .co-chip { display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 36px; padding: 0 var(--sp-16); border: 1px solid var(--line-2); border-radius: var(--r-pill); background: transparent; color: var(--text); font-size: var(--fs-14); cursor: pointer; }
 .co-chip.dashed { border-style: dashed; }
+.co-date input { border: 0; background: transparent; color: inherit; font: inherit; color-scheme: dark; padding: 0; }
 .co-chip:hover { background: var(--sunk); }
 .co-add { margin-top: var(--sp-12); }
 .co-add .btn { display: inline-flex; align-items: center; gap: var(--sp-8); border-radius: var(--r-pill); }

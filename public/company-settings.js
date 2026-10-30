@@ -77,6 +77,7 @@
     const sources = fed.length ? row(tr('Update from an app'), fed.map((o) => `<div class="ps-show" style="--c:${esc(o.color)}"><span class="ps-show-name"><i class="ps-dot"></i>${esc(`${o.name} · ${o.source.app} · ${o.source.what}`)}</span>${seg('data-ps-every', EVERY, o.source.every || 'daily', ` data-ps-objective-id="${esc(o.id)}"`)}<button type="button" class="btn sm" data-ps-source-stop="${esc(o.id)}">${tr('Stop updating')}</button></div>`).join(''), 'top') : '';
     return section('goal', tr('Goal'), row(tr('Goal'), field('goal', c.goal, 300, tr('Goal')))
       + row(tr('Objectives'), objectives, 'top') + show + sources
+      + row(tr('Delivery'), `<input class="ps-input ps-date" type="date" data-ps-deliver value="${/^\d{4}-\d{2}-\d{2}$/.test(c.deliverBy || '') ? esc(c.deliverBy) : ''}" aria-label="${tr('Delivery')}" /><button type="button" class="btn sm${c.deliverBy === 'none' ? '' : ' ghost'}" data-ps-deliver-none aria-pressed="${c.deliverBy === 'none'}">${tr('No date')}</button>`)
       + (c.phase === 'running' ? row(tr('Start'), `<input class="ps-input ps-date" type="date" data-ps-startday value="${esc(started)}" aria-label="${tr('Start')}" />`) + row(tr('Check-ins'), checkins) : ''));
   }
 
@@ -197,6 +198,10 @@
     $$('[data-ps-source-stop]', root).forEach((b) => (b.onclick = () => objective(b.dataset.psSourceStop, { source: null })));
     const startDay = $('[data-ps-startday]', root);
     if (startDay) startDay.onchange = () => { if (startDay.value) patch({ startDay: startDay.value }); };
+    // The target delivery date (#792): a day, or No date; clearing the day leaves it unanswered.
+    const deliver = $('[data-ps-deliver]', root);
+    deliver.onchange = () => patch({ deliverBy: deliver.value || '' });
+    $('[data-ps-deliver-none]', root).onclick = () => patch({ deliverBy: c.deliverBy === 'none' ? '' : 'none' });
     // Teams.
     $$('[data-ps-edit-team]', root).forEach((b) => (b.onclick = () => { editing = b.dataset.psEditTeam; draft = null; Company.redraw(); }));
     const newTeam = $('[data-ps-new-team]', root);
