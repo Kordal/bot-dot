@@ -1707,5 +1707,8 @@
   "Indefinite": "Bezterminowo",
   "Stories": "Historie",
   "Attach": "Załącz",
-  "Link": "Link"
+  "Link": "Link",
+  "New login…": "Nowy login…",
+  "No login for {host}": "Brak loginu do {host}",
+  "Add login": "Dodaj login"
 }

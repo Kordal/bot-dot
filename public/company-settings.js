@@ -25,6 +25,9 @@
   let pending = false;
   // The add field to give the focus back to once the page is drawn again (adding several in a row).
   let refocus = null;
+  // The Vault's logins, for the Logins row's Add (#804): null until read, and its menu open or not.
+  let vaultLogins = null;
+  let loginMenu = false;
 
   const row = (label, value, cls = '') => `<div class="ps-row${cls ? ` ${cls}` : ''}"><span class="ps-label">${label}</span><div class="ps-value">${value}</div></div>`;
   const section = (key, title, body, cls = '') => `<section class="ps-card${cls ? ` ${cls}` : ''}" id="ps-${key}" data-ps-section="${key}"><h2>${title}</h2>${body}</section>`;
@@ -45,7 +48,21 @@
       + row(tr('Site or idea'), field('start', c.start, 500, tr('Site or idea')))
       + row(tr('Sources'), sources, 'top')
       + boardHTML(c)
-      + (c.folder ? row(tr('Folder'), `<span class="ps-path" title="${esc(c.folder.path)}">${esc(c.folder.path)}</span><button type="button" class="btn sm" data-ps-folder>${tr('Open')}</button>`) : ''));
+      + (c.folder ? row(tr('Folder'), `<span class="ps-path" title="${esc(c.folder.path)}">${esc(c.folder.path)}</span><button type="button" class="btn sm" data-ps-folder>${tr('Open')}</button>`) : '')
+      + loginsHTML(c));
+  }
+
+  // The Vault logins the project's cards call its own servers with (#804): each with Remove; Add picks another of the
+  // Vault's logins, or makes a new one.
+  function loginsHTML(c) {
+    if (!(state.features || []).includes('project-logins')) return '';
+    const mine = c.logins || [];
+    const ids = mine.map((l) => l.id);
+    const more = (vaultLogins || []).filter((l) => (l.kind || 'login') === 'login' && !ids.includes(l.id));
+    const menu = loginMenu ? `<div class="pc-menu ps-login-menu" role="menu">${more.map((l) => `<button type="button" role="menuitem" data-ps-login="${esc(l.id)}">${esc(l.name)}</button>`).join('')}<button type="button" role="menuitem" class="ps-login-new" data-ps-login-new>${tr('New login…')}</button></div>` : '';
+    const list = `<ul class="ps-list">${mine.map((l) => `<li><span class="ps-item" title="${esc(l.site || '')}">${esc(l.name || l.id)}</span><button type="button" class="icon-btn" data-ps-unlogin="${esc(l.id)}" aria-label="${tr('Remove')}">${X}</button></li>`).join('')}</ul>
+      <div class="ps-adds ps-login-add"><button type="button" class="btn sm" data-ps-add-login aria-expanded="${loginMenu}">${PLUS}${tr('Add')}</button>${menu}</div>`;
+    return `<div id="ps-logins">${row(tr('Logins'), list, 'top')}</div>`;
   }
 
   // The pieces on its board (#780), each on or off; a project made before has them all on.
@@ -174,6 +191,20 @@
     const files = $('[data-ps-files]', root);
     $('[data-ps-add-files]', root).onclick = () => files.click();
     files.onchange = () => { upload([...files.files], c); files.value = ''; };
+    // Its logins (#804).
+    const ids = (c.logins || []).map((l) => l.id);
+    $$('[data-ps-unlogin]', root).forEach((b) => (b.onclick = () => patch({ logins: ids.filter((x) => x !== b.dataset.psUnlogin) })));
+    const addLogin = $('[data-ps-add-login]', root);
+    if (addLogin) addLogin.onclick = async (e) => {
+      e.stopPropagation();
+      loginMenu = !loginMenu;
+      if (loginMenu) { try { vaultLogins = await api('/vault'); } catch (err) { toast(err.message, true); loginMenu = false; } }
+      Company.redraw();
+      if (loginMenu) document.addEventListener('click', () => { if (loginMenu) { loginMenu = false; Company.redraw(); } }, { once: true });
+    };
+    $$('[data-ps-login]', root).forEach((b) => (b.onclick = () => { loginMenu = false; patch({ logins: [...ids, b.dataset.psLogin] }); }));
+    const newLogin = $('[data-ps-login-new]', root);
+    if (newLogin) newLogin.onclick = () => { loginMenu = false; Company.redraw(); openLoginEditor(null, { onSaved: (l) => patch({ logins: [...((state.company?.id === c.id ? state.company.logins : c.logins) || []).map((x) => x.id), l.id] }) }); };
     // Its folder (#702) in Files, alone.
     const folder = $('[data-ps-folder]', root);
     if (folder) folder.onclick = () => Files.openFolder({ folder: c.folder.name, name: nameOf(c), color: c.color });
@@ -265,5 +296,5 @@
   }
 
   Company.steps.settings = (root, c) => draw(root, c);
-  Company.steps.settingsClosed = () => { editing = null; draft = null; pending = false; };
+  Company.steps.settingsClosed = () => { editing = null; draft = null; pending = false; loginMenu = false; };
 })();

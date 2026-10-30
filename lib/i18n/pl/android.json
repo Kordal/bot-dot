@@ -1260,5 +1260,7 @@
   "In 1 month": "Za miesiąc",
   "In 3 months": "Za 3 miesiące",
   "End of year": "Koniec roku",
-  "Indefinite": "Bezterminowo"
+  "Indefinite": "Bezterminowo",
+  "No login for {host}": "Brak loginu do {host}",
+  "Add login": "Dodaj login"
 }

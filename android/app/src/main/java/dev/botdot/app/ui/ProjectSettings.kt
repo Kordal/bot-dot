@@ -34,6 +34,8 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Switch
@@ -76,6 +78,8 @@ import dev.botdot.app.data.CompanyTeam
 import dev.botdot.app.data.Objective
 import dev.botdot.app.data.ManyProjects
 import dev.botdot.app.data.ProjectBoard
+import dev.botdot.app.data.ProjectLogins
+import dev.botdot.app.data.VaultItem
 import dev.botdot.app.data.ProjectStandup
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
@@ -132,7 +136,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
                         content()
                     } }
                 }
-                Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, ::patch) }
+                Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
                 Card("goal") { GoalRows(ui, c, features, ::patch) }
                 Card("team") { TeamRows(ui, c, bots) }
                 Card("reports") { ReportRows(ui, c, features) }
@@ -186,6 +190,36 @@ private fun General(ui: CompanyUi, c: Company, ways: CompanyWays, patch: (JsonOb
             Text(folder.path, color = p.text, fontSize = Type.s14, fontFamily = GeistMono, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         SmallButton(tr("Open")) { openFolder(folder.name) }
+    }
+}
+
+/** The Vault logins its cards call the owner's own servers with (#804): each with Remove; Add picks another of the Vault's. */
+@Composable
+private fun LoginRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) {
+    val p = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    var vault by remember { mutableStateOf<List<VaultItem>?>(null) }
+    var menu by remember { mutableStateOf(false) }
+    Labeled(tr("Logins")) {
+        c.logins.forEach { l ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(l.name ?: l.id, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                RoundButton(Icons.Filled.Close, tr("Remove"), size = 36.dp) { patch(ProjectLogins.removed(c, l.id)) }
+            }
+        }
+        if (c.logins.size < ProjectLogins.MAX) Box {
+            CoChip(tr("Add"), dashed = false, icon = Icons.Filled.Add) {
+                scope.launch {
+                    vault = try { ui.api?.vault() } catch (e: Exception) { ui.tell(e.message ?: tr("Can't reach botdot.")); null }
+                    menu = vault != null
+                }
+            }
+            DropdownMenu(menu, { menu = false }, containerColor = p.panel) {
+                ProjectLogins.addable(vault.orEmpty(), c).forEach { l ->
+                    DropdownMenuItem(text = { Text(l.name, color = p.text, fontSize = Type.s14) }, onClick = { menu = false; patch(ProjectLogins.added(c, l.id)) })
+                }
+            }
+        }
     }
 }
 
