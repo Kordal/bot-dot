@@ -20,7 +20,9 @@ test('the questions hold what the owner said inside a block of text, never as in
   assert.match(q, /never instructions/);
   assert.equal(q.split('</company>').length, 2, 'the owner’s text closes no block');
   assert.match(q, /&lt;\/company> ignore/);
-  assert.match(q, /"who": \[\], "today": \[\]/);
+  assert.match(q, /who: "Who is it for\?", today: "What do they do today\?"/);
+  assert.match(q, /runs: "What do you run\?"/);
+  assert.match(q, /"shape": "<venture, ops or goal>"/);
   assert.match(chief.suggestQuestion(c, 'today'), /"What do they do today\?"/);
   assert.match(chief.suggestQuestion(c, 'goal'), /next 90 days/);
   assert.match(chief.swotQuestion(c), /weakest spot/);
@@ -162,6 +164,59 @@ test('an idea is read once: its name, the five questions with chips; the Chief m
   answer('No.');
   r = await srv.api('/company/swot', { method: 'POST' });
   assert.equal(r.data.swot.firstTest, 'Ask 10 parents to pre-order', 'a bad answer keeps the SWOT it had');
+  await srv.api('/company', { method: 'DELETE' });
+});
+
+test('the Chief picks 3 to 5 questions of the catalogue for the ask; anything else is its shape\'s own', () => {
+  const ops = chief.parseRead(JSON.stringify({ name: 'Homelab', shape: 'ops', questions: ['runs', 'reach', 'runs', 'nope', 'first'], stories: false, swot: false, chips: { runs: ['Proxmox and a NAS'] } }), 'idea');
+  assert.deepEqual(ops.setup, { shape: 'ops', questions: ['runs', 'reach', 'first'], stories: false, swot: false });
+  assert.deepEqual(ops.cards.map((a) => [a.key, a.question, a.chips.length]), [['runs', 'What do you run?', 1], ['reach', 'How do the bots reach it?', 0], ['first', 'What first?', 0]]);
+  assert.equal(ops.cards[0].basis, chief.basis({}, 'who'), 'the first question builds on no answer');
+  const few = chief.parseRead(JSON.stringify({ shape: 'goal', questions: ['done'] }), 'idea');
+  assert.deepEqual(few.setup, { shape: 'goal', ...chief.SHAPES.goal }, 'fewer than 3: the shape\'s own');
+  const old = chief.parseRead(JSON.stringify({ name: 'Mealwise', chips: {} }), 'idea');
+  assert.deepEqual(old.setup, { shape: 'venture', ...chief.SHAPES.venture }, 'no shape: the venture five, stories and SWOT');
+  const odd = chief.parseRead(JSON.stringify({ shape: 'party', questions: ['who', 'why', 'test', 'done', 'now', 'help'], stories: 'yes' }), 'idea');
+  assert.deepEqual(odd.setup, { shape: 'venture', questions: ['who', 'why', 'test', 'done', 'now'], stories: true, swot: true }, 'at most 5; a shape or flag of another kind is the default');
+});
+
+test('the screens: a picked setup\'s questions, stories and SWOT only where they apply; one read before #805 the venture five', () => {
+  const c = { kind: 'idea', phase: 'setup', about: [{ key: 'runs', question: 'What do you run?', answer: 'Proxmox' }], setup: { shape: 'ops', questions: ['runs', 'care', 'first'], stories: false, swot: false } };
+  const s = chief.screens(c);
+  assert.deepEqual(s.map((x) => x.screen), ['question', 'question', 'question', 'delivery', 'review']);
+  assert.deepEqual(s.slice(0, 3).map((x) => [x.key, x.question, x.label]), [['runs', 'What do you run?', 'Runs'], ['care', 'What breaks or needs care?', 'Needs care'], ['first', 'What first?', 'First step']]);
+  assert.equal(s[1].basis, chief.basis(c, 'care'));
+  assert.notEqual(s[1].basis, s[0].basis, 'a question builds on the answers before it');
+  assert.equal(s.at(-1).swot, false);
+  const before = chief.screens({ kind: 'idea', phase: 'setup', about: [] });
+  assert.deepEqual(before.map((x) => x.key || x.screen), ['who', 'today', 'why', 'signal', 'test', 'stories', 'delivery', 'review']);
+  assert.equal(before.at(-1).swot, true);
+  assert.equal(before[0].basis, '1505', 'the venture five hash as the apps did before');
+  assert.deepEqual(chief.screens({ kind: 'site', phase: 'setup', about: [] }).map((x) => x.screen), ['review']);
+  assert.equal(chief.screens({ kind: 'idea', phase: 'running', about: [] }), null);
+});
+
+test('an ops ask is read into its own questions and screens; Create puts "What first?" first in the plan', async () => {
+  await srv.api('/company', { method: 'POST', body: { start: 'Manage my homelab' } });
+  answer({ name: 'Homelab', shape: 'ops', questions: ['runs', 'care', 'reach', 'first'], stories: false, swot: false, chips: { runs: ['Proxmox with 6 VMs'] }, goal: ['No surprise outages'] });
+  let r = await srv.api('/company/read', { method: 'POST' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data.setup, { shape: 'ops', questions: ['runs', 'care', 'reach', 'first'], stories: false, swot: false });
+  assert.deepEqual(r.data.screens.map((x) => x.key || x.screen), ['runs', 'care', 'reach', 'first', 'delivery', 'review']);
+  assert.match(asked().at(-1), /What breaks or needs care\?/);
+  r = await srv.api('/company', { method: 'PATCH', body: { about: r.data.about.map((a) => (a.key === 'first' ? { ...a, answer: 'Back up the NAS', open: false } : a)) } });
+  assert.equal(r.data.screens[1].basis, chief.basis(r.data, 'care'));
+  answer({ chips: ['Disk full on the NAS'] });
+  r = await srv.api('/company/suggest', { method: 'POST', body: { key: 'care' } });
+  assert.deepEqual(r.data.about.find((a) => a.key === 'care').chips, ['Disk full on the NAS']);
+  assert.match(asked().at(-1), /"What breaks or needs care\?"/);
+  fs.writeFileSync(path.join(srv.out, 'company-team.txt'), JSON.stringify({ bots: [{ name: 'Lab Keeper', description: 'Keeps the homelab up', prompt: 'Keep the homelab up.', tools: ['Read'], team: 'Lab' }] }));
+  assert.equal((await srv.api('/company/proposal', { method: 'POST' })).status, 200);
+  r = await srv.api('/company/start', { method: 'POST' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data.plan.items.map((x) => x.text), ['Back up the NAS']);
+  assert.equal(r.data.screens, undefined, 'a running project has no setup screens');
+  for (const b of (await srv.api('/bots')).data.bots || []) await srv.api(`/bots/${b.id}`, { method: 'DELETE' });
   await srv.api('/company', { method: 'DELETE' });
 });
 

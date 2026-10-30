@@ -1,0 +1,15 @@
+{
+  "about": "The asks of scripts/onboarding-bench.js (#805): what the owner types to start a project, the shapes that fit it, whether its setup should have a SWOT and stories (null: either), and how many bots its team may have. A site's ask has the text of its page.",
+  "cases": [
+    { "ask": "Manage my homelab: Proxmox, a NAS and Home Assistant", "shape": ["ops"], "swot": false, "stories": false, "bots": [1, 3] },
+    { "ask": "fernhill.app", "page": "Fernhill: project management for small agencies. Plans from 12 a month. Used by 400 agencies. Support by e-mail, code on GitHub.", "bots": [2, 5] },
+    { "ask": "Launch my habit-tracker app and get it to 1,000 users", "shape": ["venture"], "swot": true, "stories": true, "bots": [2, 5] },
+    { "ask": "Plan our wedding in June next year", "shape": ["goal"], "swot": false, "stories": false, "bots": [1, 2] },
+    { "ask": "Get fit: lose 8 kg and run a half marathon", "shape": ["goal"], "swot": false, "stories": false, "bots": [1, 2] },
+    { "ask": "Find a new job as a senior backend engineer", "shape": ["goal"], "swot": false, "stories": false, "bots": [1, 3] },
+    { "ask": "Run the flat I rent out on Airbnb", "shape": ["ops", "venture"], "swot": null, "stories": null, "bots": [1, 3] },
+    { "ask": "Maintain my open-source Python library for parsing dates", "shape": ["ops", "venture"], "swot": null, "stories": null, "bots": [1, 3] },
+    { "ask": "Start a weekly newsletter about indie game design", "shape": ["venture"], "swot": null, "stories": null, "bots": [1, 4] },
+    { "ask": "Handle our family admin: bills, school forms, doctor visits", "shape": ["ops", "goal"], "swot": false, "stories": false, "bots": [1, 3] }
+  ]
+}

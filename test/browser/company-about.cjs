@@ -3,7 +3,8 @@
 // each next one's chips asked again from the answers before it (#787),
 // each under the answer before it (#801), then "I want my <who> to…" stories in two groups, the delivery date (a preset,
 // Indefinite, a day on the calendar), then the review: the SWOT and one list of rows, a goal and "never" picked, a row
-// changed in place, and a reload that goes on where it was. Then a site: the review with the Chief's cards and its open question. The
+// changed in place, and a reload that goes on where it was. Then an ops ask (#805): the Chief's three questions, no
+// stories and no SWOT. Then a site: the review with the Chief's cards and its open question. The
 // stand-in Claude answers every call with one JSON (test/fixtures/fake-claude.js, $FAKE_OUT/company.txt).
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -132,6 +133,37 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     await page.locator('.co-swot').waitFor({ timeout: 20000 });
     await page.locator('[data-build]').click();
     await page.locator('.co-steps li.on', { hasText: 'Team' }).waitFor();
+
+    // An ops ask (#805): the questions the Chief picked, no stories, the delivery date, a review without the SWOT.
+    await srv.api('/company', { method: 'DELETE' });
+    fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify({ name: 'Homelab', shape: 'ops', questions: ['runs', 'care', 'first'], stories: false, swot: false, chips: { runs: ['Proxmox with 6 VMs'], care: ['Disk full on the NAS'], first: ['Check the backups'] }, goal: ['No surprise outages'], never: ['Reboot a host'] }));
+    await srv.api('/company', { method: 'POST', body: { start: 'Manage my homelab' } });
+    await page.reload();
+    await page.locator('.co-q h1', { hasText: 'What do you run?' }).waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('.co-ticks i').count(), 5, 'three questions, the delivery date and the review');
+    await page.locator('[data-chip="Proxmox with 6 VMs"]').click();
+    await page.locator('[data-done]').click();
+    await page.locator('.co-q h1', { hasText: 'What breaks or needs care?' }).waitFor();
+    await page.locator('.co-chip.co-prev', { hasText: 'Proxmox with 6 VMs' }).waitFor();
+    await page.locator('[data-skip]').click();
+    await page.locator('.co-q h1', { hasText: 'What first?' }).waitFor();
+    await page.locator('[data-chip="Check the backups"]').click();
+    await page.locator('[data-done]').click();
+    await page.locator('.co-q h1', { hasText: 'When should it be delivered?' }).waitFor();
+    await page.locator('[data-delivery-none]').click();
+    await page.locator('[data-done]').click();
+    await page.locator('.co-review').waitFor();
+    assert.equal(await page.locator('.co-swot').count(), 0, 'no SWOT for an ops ask');
+    await page.locator('[data-edit="runs"]', { hasText: 'Proxmox with 6 VMs' }).waitFor();
+    assert.deepEqual(await page.locator('.co-li .co-li-k').allInnerTexts().then((l) => l.slice(0, 3)), ['Runs', 'Needs care', 'First step']);
+    await shot(page, 'wide-ops-review');
+    await page.locator('[data-co-back]').click();
+    await page.locator('.co-q h1', { hasText: 'When should it be delivered?' }).waitFor();
+    await page.locator('[data-co-back]').click();
+    await page.locator('.co-q h1', { hasText: 'What first?' }).waitFor();
+    await page.reload();
+    await page.locator('.co-review').waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('.co-swot').count(), 0);
 
     // A site: the Chief's cards, its open question highlighted until answered.
     await srv.api('/company', { method: 'DELETE' });

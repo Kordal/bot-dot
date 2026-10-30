@@ -147,7 +147,7 @@ if (String(val('--system-prompt') || '').startsWith('You help a person put a sma
 // The Chief's help with a company's setup (lib/company-chief.js, #670), told by its own system prompt: no run. It
 // writes what it was asked to $FAKE_OUT/company-<n>.txt and answers $FAKE_OUT/company.txt (or "No."), or fails when
 // $FAKE_OUT/company-fails exists.
-if (String(val('--system-prompt') || '').startsWith('You help a person set up their company')) {
+if (String(val('--system-prompt') || '').startsWith('You help a person set up')) {
   let asked = '';
   process.stdin.on('data', (c) => { asked += c; });
   process.stdin.on('end', () => {

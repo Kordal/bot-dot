@@ -127,11 +127,40 @@ class CompanyTest {
 
     @Test fun anIdeasScreensGoQuestionsStoriesDeliveryReviewOneTickEach() {
         // #800: eight ticks, Back walks them in order; without the delivery date (#792) the review follows the stories.
+        val c = CompanySetup.of(idea)
         val way = (0 until CompanySetup.IDEA.size).map { AboutScreen.Question(it) } + listOf(AboutScreen.Stories, AboutScreen.Delivery, AboutScreen.Review)
-        assertEquals((0 until CompanySetup.SCREENS).toList(), way.map(CompanySetup::tick))
-        assertNull(CompanySetup.before(AboutScreen.Question(0), delivery = true))
-        way.zipWithNext().forEach { (a, b) -> assertEquals(a, CompanySetup.before(b, delivery = true)) }
-        assertEquals(AboutScreen.Stories, CompanySetup.before(AboutScreen.Review, delivery = false))
+        assertEquals(8, CompanySetup.count(c))
+        assertEquals((0 until 8).toList(), way.map { CompanySetup.tick(c, it) })
+        assertNull(CompanySetup.before(c, AboutScreen.Question(0), delivery = true))
+        way.zipWithNext().forEach { (a, b) -> assertEquals(a, CompanySetup.before(c, b, delivery = true)); assertEquals(b, CompanySetup.after(c, a, delivery = true)) }
+        assertEquals(AboutScreen.Stories, CompanySetup.before(c, AboutScreen.Review, delivery = false))
+    }
+
+    @Test fun theServersScreensDecideTheQuestionsTheStoriesAndTheSwot() {
+        // #805: an ops ask, three questions picked by the Chief, no stories, no SWOT.
+        val c = CompanySetup.of(idea).copy(
+            about = listOf(AboutCard("runs", "What do you run?", "Proxmox"), AboutCard("care", "What breaks or needs care?", open = true), AboutCard("first", "What first?", open = true)),
+            screens = listOf(SetupScreen("question", "runs", "What do you run?", "Runs", "1505"), SetupScreen("question", "care", "What breaks or needs care?", "Needs care", "abc1"),
+                SetupScreen("question", "first", "What first?", "First step", "abc2"), SetupScreen("delivery"), SetupScreen("review", swot = false, basis = "abc3")),
+        )
+        assertEquals(listOf("runs", "care", "first"), CompanySetup.questions(c))
+        assertFalse(CompanySetup.hasStories(c))
+        assertFalse(CompanySetup.hasSwot(c))
+        assertEquals(AboutScreen.Question(1), CompanySetup.startScreen(c))
+        val way = listOf(AboutScreen.Question(0), AboutScreen.Question(1), AboutScreen.Question(2), AboutScreen.Delivery, AboutScreen.Review)
+        assertEquals(5, CompanySetup.count(c))
+        assertEquals((0 until 5).toList(), way.map { CompanySetup.tick(c, it) })
+        way.zipWithNext().forEach { (a, b) -> assertEquals(a, CompanySetup.before(c, b, delivery = true)); assertEquals(b, CompanySetup.after(c, a, delivery = true)) }
+        assertEquals("Proxmox", CompanySetup.previous(c, "care"))
+        assertEquals("abc1", CompanySetup.basis(c, "care"))
+        assertEquals("abc3", CompanySetup.basis(c, "goal"))
+        assertEquals(listOf("about:runs", "about:care", "about:first", "goal", "never", "time", "deliverBy"), CompanySetup.reviewKeys(c, delivery = true))
+        val answered = c.copy(about = c.about.map { it.copy(open = false) })
+        assertEquals(AboutScreen.Delivery, CompanySetup.startScreen(answered))
+        assertEquals(AboutScreen.Review, CompanySetup.startScreen(answered.copy(deliverBy = "none")))
+        // As the server sends them.
+        val sent = CompanySetup.of("""{"id":"p1","kind":"idea","phase":"setup","screens":[{"screen":"question","key":"runs","question":"What do you run?","label":"Runs","basis":"1505"},{"screen":"delivery"},{"screen":"review","swot":false,"basis":"9"}],"extra":1}""")
+        assertEquals(listOf("runs"), CompanySetup.questions(sent))
     }
 
     @Test fun aQuestionShowsThePreviousAnswerOverIt() {
