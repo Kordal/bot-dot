@@ -100,7 +100,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('.cf-top h1', { hasText: 'Mealwise' }).waitFor();
     await page.locator('.cf-top [data-project-settings]').click();
     await ps.locator('[data-ps-delete]').click();
-    await page.locator('dialog [data-folder="keep"]').click(); // its folder stays (#702)
+    await page.locator('dialog [data-confirm-delete]').click(); // its folder stays (#702)
     await page.locator('.cf-top h1', { hasText: 'Botdot HQ' }).waitFor();
     assert.deepEqual((await srv.api('/company/list')).data.projects.map((p) => p.id), ['p1']);
     assert.deepEqual(errors, []);

@@ -1,6 +1,6 @@
 // Optional browser check of deleting a project while its setup is open (#791): node test/browser/project-delete-setup.cjs [shots dir]
-// A wide window: the gear at the end of the setup's steps opens the project's settings, whose Delete asks first and
-// removes it; a right-click on a project row in the left column offers its settings and Delete project, for a
+// A wide window: the ⋯ at the end of the setup's steps (#801) offers Delete project, which asks "Delete <name>?" with
+// Cancel and Delete and removes it; and Project settings; a right-click on a project row in the left column offers its settings and Delete project, for a
 // project not shown too. A phone keeps one gear, on the name line. Scratch data.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -33,15 +33,25 @@ const { startServer, writeData } = require('../helpers');
     const side = page.locator('#company-side');
     await side.locator('[data-project="p2"]').click({ timeout: 20000 });
 
-    // The setup's gear: settings, then Delete.
-    const gear = page.locator('.co-steps-line [data-project-settings]');
-    await gear.waitFor();
-    assert.ok(await gear.isVisible());
-    if (shots) await page.screenshot({ path: path.join(shots, 'wide-setup-gear.png') });
-    await gear.click();
+    // The setup's ⋯: settings, and Delete.
+    const more = page.locator('.co-steps-line [data-project-more]');
+    await more.waitFor();
+    assert.ok(await more.isVisible());
+    await more.click();
+    assert.deepEqual(await page.locator('.ct-menu button').allInnerTexts(), ['Project settings', 'Delete project']);
+    if (shots) await page.screenshot({ path: path.join(shots, 'wide-setup-menu.png') });
+    await page.locator('.ct-menu [data-ct-settings]').click();
     await page.locator('.ps-page .ps-top h1', { hasText: 'HomeKeep' }).waitFor();
-    await page.locator('[data-ps-delete]').click();
-    await page.locator('dialog [data-folder="keep"]').click(); // with a folder (#702) it asks about it too
+    await side.locator('[data-project="p2"]').click();
+    await more.click();
+    await page.locator('.ct-menu [data-ct-delete]').click();
+    await page.locator('dialog h2', { hasText: 'Delete HomeKeep?' }).waitFor();
+    if (shots) await page.screenshot({ path: path.join(shots, 'wide-setup-delete.png') });
+    await page.locator('dialog [data-dismiss]').click();
+    assert.deepEqual(await ids(), ['p1', 'p2', 'p3'], 'Cancel keeps it');
+    await more.click();
+    await page.locator('.ct-menu [data-ct-delete]').click();
+    await page.locator('dialog [data-confirm-delete]').click();
     await side.locator('[data-project="p2"]').waitFor({ state: 'detached' });
     assert.deepEqual(await ids(), ['p1', 'p3']);
 
@@ -56,20 +66,20 @@ const { startServer, writeData } = require('../helpers');
     await menu.waitFor({ state: 'detached' });
     await side.locator('[data-project="p3"]').click({ button: 'right' });
     await menu.locator('[data-ct-delete]').click();
-    await page.locator('dialog [data-folder="keep"]').click();
+    await page.locator('dialog [data-confirm-delete]').click();
     await side.locator('[data-project="p3"]').waitFor({ state: 'detached' });
     await page.locator('.cf-top h1', { hasText: 'Botdot' }).waitFor();
     assert.deepEqual(await ids(), ['p1']);
     assert.deepEqual(errors, []);
 
-    // A phone: one gear in the setup, on the name line.
+    // A phone: one ⋯ in the setup, on the name line.
     await srv.api('/company', { method: 'POST', body: { start: 'A meal planner' } });
     page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark' })).newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/#company`);
     await page.locator('.co-pick select').selectOption({ label: 'A meal planner' }, { timeout: 20000 }).catch(() => {});
     await page.locator('.co-steps').waitFor({ timeout: 20000 });
-    assert.equal(await page.locator('[data-project-settings]:visible').count(), 1);
+    assert.equal(await page.locator('[data-project-more]:visible').count(), 1);
     if (shots) await page.screenshot({ path: path.join(shots, 'phone-setup.png') });
     assert.deepEqual(errors, []);
     console.log('project-delete-setup: ok');

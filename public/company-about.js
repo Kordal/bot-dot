@@ -1,7 +1,7 @@
 // The About step of a company's setup (#670, docs/api.md "The Company"): Company.steps.about. botdot first asks the
-// Chief to read the company (POST /api/company/read): a site gets its About cards and the questions the Chief could
+// Chief to read the company (POST /api/company/read): a site gets its About rows and the questions the Chief could
 // not answer; an idea its name and chips for five questions, one per screen, then "I want my <who> to…" stories,
-// then the review with the SWOT. Every answer is saved with PATCH /api/company as it is given, so a reload goes on
+// the delivery date, then the review: the SWOT and one list of rows, each changed in place (#801). Every answer is saved with PATCH /api/company as it is given, so a reload goes on
 // where it was. Everything the Chief wrote is text, drawn with esc() (AGENTS.md rule 6).
 (() => {
   if (typeof Company === 'undefined') return;
@@ -11,7 +11,8 @@
     pen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
     back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
-    play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l11 7-11 7z"/></svg>',
+    cal: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16v14H4z M4 10h16 M8 3v4 M16 3v4"/></svg>',
+    inf: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c-2-2.7-3.7-4-5.5-4a4 4 0 0 0 0 8c1.8 0 3.5-1.3 5.5-4zm0 0c2 2.7 3.7 4 5.5 4a4 4 0 0 0 0-8c-1.8 0-3.5 1.3-5.5 4z"/></svg>',
   };
   // The questions of a new idea, as lib/company-chief.js IDEA asks them, and the line each answer shows on.
   const IDEA = [
@@ -58,7 +59,6 @@
     if (stale && !ui.saving && !ui.asking.has(`suggest:${key}`) && !ui.tried?.[at]) { ui.tried = { ...ui.tried, [at]: true }; suggest(key); }
     return ui.asking.has(`suggest:${key}`) || (stale && ui.saving > 0 && !ui.tried?.[at]);
   }
-  const waitingHTML = '<div class="co-reading" aria-busy="true"><span></span><span></span><span></span></div>';
   // The Chief's call: its answer arrives as the company (or, for stories, as suggestions); a failure leaves no chips.
   async function ask(path, body, key) {
     if (ui.asking.has(key)) return null;
@@ -105,6 +105,8 @@
 
   // ---------- the screens ----------
   const card = (c, key) => c.about.find((a) => a.key === key);
+  // A new idea's screens, in order: the five questions, the stories, the delivery date, the review.
+  const SCREENS = [...IDEA.map((_, i) => i), 'stories', 'delivery', 'review'];
   // Where a new idea stands: the first question not answered nor skipped, then the stories, then the review.
   function startScreen(c) {
     if (c.kind === 'site') return 'review';
@@ -112,10 +114,12 @@
     if (i >= 0) return i;
     return c.swot ? 'review' : 'stories';
   }
+  // The About step's ticks under the step bar: one per screen of a new idea, the one shown lit.
+  Company.steps.ticks = { ...Company.steps.ticks, about: (c) => (c.kind === 'idea' && c.about.length ? [SCREENS.length, SCREENS.indexOf(ui.id === c.id && ui.screen !== null ? ui.screen : startScreen(c))] : null) };
 
   function draw(body, c) {
     if (ui.id !== c.id) { // another company: nothing of the last one's screens
-      Object.assign(ui, { id: c.id, screen: null, readFailed: false, swotting: false, who: null, chooseWho: false, ideas: {}, missing: '', own: {}, writing: null, editing: null, typed: {}, focus: null, tried: {} });
+      Object.assign(ui, { id: c.id, screen: null, readFailed: false, swotting: false, who: null, chooseWho: false, ideas: {}, missing: '', own: {}, writing: null, editing: null, typed: {}, focus: null, tried: {}, cal: false, month: null });
       for (const k of Object.keys(local)) delete local[k];
     }
     if (!c.about.length) return drawReading(body, c);
@@ -123,6 +127,7 @@
     if (c.kind === 'site') ui.screen = 'review';
     if (typeof ui.screen === 'number') drawQuestion(body, c, ui.screen);
     else if (ui.screen === 'stories') drawStories(body, c);
+    else if (ui.screen === 'delivery') drawDelivery(body, c);
     else drawReview(body, c);
   }
 
@@ -135,18 +140,20 @@
     if (again) again.onclick = () => { ui.readFailed = false; read(); Company.redraw(); };
   }
 
-  const progress = (at) => `<div class="co-progress">${[...IDEA.map(([k]) => k), 'stories'].map((k, i) => `<span class="${i < at ? 'done' : i === at ? 'on' : ''}"></span>`).join('')}</div>`;
   const foot = (left, right) => `<div class="co-foot">${left}<span class="co-foot-gap"></span>${right}</div>`;
   const backBtn = (disabled = false) => `<button type="button" class="co-text-btn" data-co-back${disabled ? ' disabled' : ''}>${ICON.back}${tr('Back')}</button>`;
+  const nextBtns = (ready, label = tr('Next'), attr = 'data-done') => `<button type="button" class="co-text-btn" data-skip>${tr('Skip')}</button><button type="button" class="co-go" ${attr}${ready ? '' : ' disabled'}>${label} ${ICON.go}</button>`;
+  // While the chips are asked again (#787): grey chips where they will be.
+  const skeletonHTML = '<span class="co-chip sk" aria-hidden="true" style="--w:200px"></span><span class="co-chip sk" aria-hidden="true" style="--w:150px"></span><span class="co-chip sk" aria-hidden="true" style="--w:180px"></span>';
 
   // A chip question: the Chief's chips and the owner's own, picked by a tap; "Write your own" turns into a field
   // where Enter adds a chip. multi: several may be picked. The answer is the picked chips, joined.
-  function chipsHTML(id, chips, picked, { plus = false, label = (t) => t } = {}) {
-    const all = [...new Set([...chips, ...picked, ...(ui.own[id] || [])])];
+  function chipsHTML(id, chips, picked, { plus = false, label = (t) => t, waiting = false } = {}) {
+    const all = [...new Set([...(waiting ? [] : chips), ...picked, ...(ui.own[id] || [])])];
     const writing = ui.writing === id;
-    return `<div class="co-chips" data-chips="${esc(id)}">${all.map((t) => `<button type="button" class="co-chip${picked.includes(t) ? ' on' : ' dashed'}" data-chip="${esc(t)}">${picked.includes(t) ? ICON.check : plus ? ICON.plus : ''}${esc(label(t))}</button>`).join('')}${writing
+    return `<div class="co-chips" data-chips="${esc(id)}"${waiting ? ' aria-busy="true"' : ''}>${all.map((t) => `<button type="button" class="co-chip${picked.includes(t) ? ' on' : ''}" data-chip="${esc(t)}">${picked.includes(t) ? ICON.check : plus ? ICON.plus : ''}${esc(label(t))}</button>`).join('')}${waiting ? skeletonHTML : ''}${writing
       ? `<form class="co-ask small co-own" data-own="${esc(id)}"><input name="own" autocomplete="off" maxlength="120" aria-label="${tr('Write your own')}" /><button type="submit" class="co-go">${tr('Add')}</button></form>`
-      : `<button type="button" class="co-chip dashed" data-write="${esc(id)}">${ICON.pen}${tr('Write your own')}</button>`}</div>`;
+      : `<button type="button" class="co-chip ghost" data-write="${esc(id)}">${ICON.pen}${tr('Write your own')}</button>`}</div>`;
   }
   // Wires one chip question: pick(list) is called with the chips picked after each tap or Enter.
   function wireChips(root, id, picked, pick, { multi = false } = {}) {
@@ -175,19 +182,18 @@
   }
   const split = (answer) => (answer ? answer.split(SEP).map((x) => x.trim()).filter(Boolean) : []);
 
-  // One of the five questions of a new idea.
-  const local = {}; // what is picked on a question screen before Done, by key
+  // One of the five questions of a new idea; the answer before it as a small chip over it, since its chips build on it.
+  const local = {}; // what is picked on a question screen before Next, by key
   function drawQuestion(body, c, i) {
     const [key, question] = IDEA[i];
     const a = card(c, key) || { key, chips: [], answer: '' };
     const basis = basisOf(c, key);
     const waiting = refresh(key, a.basis !== basis, basis);
     const picked = local[key] || split(a.answer);
-    const answered = IDEA.filter(([k]) => card(c, k)?.answer && k !== key);
-    body.innerHTML = `<div class="co-q">${progress(i)}<h1>${question()}</h1>
-      ${waiting ? waitingHTML : ''}${chipsHTML(key, waiting ? [] : a.chips || [], picked)}
-      ${answered.length ? `<ul class="co-answered">${answered.map(([k, , label]) => `<li>${ICON.check}<span class="co-answered-k">${label()}</span><span>${esc(card(c, k).answer)}</span></li>`).join('')}</ul>` : ''}
-    </div>${foot(backBtn(i === 0), `<button type="button" class="co-text-btn" data-skip>${tr('Skip')}</button><button type="button" class="co-go" data-done${picked.length ? '' : ' disabled'}>${tr('Done')} ${ICON.go}</button>`)}`;
+    const before = i > 0 ? card(c, IDEA[i - 1][0])?.answer : '';
+    body.innerHTML = `<div class="co-q">${before ? `<div class="co-chips"><span class="co-chip co-prev">${ICON.check}<span>${esc(before)}</span></span></div>` : ''}<h1>${question()}</h1>
+      ${chipsHTML(key, a.chips || [], picked, { waiting })}
+    </div>${foot(backBtn(i === 0), nextBtns(picked.length))}`;
     wireChips(body, key, picked, (list) => { local[key] = list; Company.redraw(); }, { multi: true });
     const answer = (text) => {
       delete local[key];
@@ -209,14 +215,14 @@
     const ideas = (ui.ideas[who] || []).filter((t) => !have.has(`${who}\n${t.toLowerCase()}`));
     const used = new Set(c.stories.map((g) => g.who));
     const words = [...new Set([...(ui.missing && ui.missing !== who ? [ui.missing] : []), ...WHO])].filter((w) => w !== who && !(used.has(w) && w !== ui.missing));
-    body.innerHTML = `<div class="co-q">${progress(IDEA.length)}
+    body.innerHTML = `<div class="co-q">
       <h1>${tr('I want my')} <button type="button" class="co-who" data-who aria-expanded="${ui.chooseWho}">${esc(whoWord(who))}${ICON.down}</button> ${tr('to…')}</h1>
       ${ui.chooseWho ? whoChooser(words) : ''}
       <form class="co-ask" id="co-story"><input name="story" autocomplete="off" maxlength="200" aria-label="${esc(`${tr('I want my')} ${whoWord(who)} ${tr('to…')}`)}" /><button type="submit" class="co-go" disabled>${tr('Add')}</button></form>
-      ${ideas.length ? `<div class="co-chips">${ideas.map((t) => `<button type="button" class="co-chip dashed" data-idea="${esc(t)}">${ICON.plus}${esc(t)}</button>`).join('')}</div>` : ''}
+      ${ideas.length ? `<div class="co-chips">${ideas.map((t) => `<button type="button" class="co-chip" data-idea="${esc(t)}">${ICON.plus}${esc(t)}</button>`).join('')}</div>` : ''}
       ${c.stories.map((g, gi) => `<section class="co-group"><header>${esc(whoWord(g.who))}</header><ol>${g.items.map((s, si) => `<li><span class="co-n">${si + 1}</span><span class="co-story-text">${esc(s.text)}</span><button type="button" class="co-pill${s.start ? ' on' : ''}" data-start="${gi}:${si}">${s.start ? tr('Start') : tr('Later')}</button><button type="button" class="icon-btn" data-unstory="${gi}:${si}" aria-label="${tr('Remove')}">${ICON.x}</button></li>`).join('')}</ol></section>`).join('')}
-      ${ui.chooseWho ? '' : `<div><button type="button" class="co-chip" data-more>${ICON.plus}${tr('I want my…')}</button></div>`}
-    </div>${foot(backBtn(), `<button type="button" class="co-go" data-next>${tr('Done')} ${ICON.go}</button>`)}`;
+      ${ui.chooseWho ? '' : `<div><button type="button" class="co-chip ghost" data-more>${ICON.plus}${tr('I want my…')}</button></div>`}
+    </div>${foot(backBtn(), `<button type="button" class="co-go" data-next>${tr('Next')} ${ICON.go}</button>`)}`;
     const form = $('#co-story', body);
     const ready = () => { form.querySelector('.co-go').disabled = !form.story.value.trim(); };
     keep(form.story, `story:${who}`);
@@ -248,39 +254,107 @@
     if (more) more.onclick = () => { ui.chooseWho = true; Company.redraw(); };
     if (ui.chooseWho) wireChips(body, 'who', [], (list) => { if (list[0]) { ui.who = list[0]; ui.chooseWho = false; Company.redraw(); } });
     $('[data-co-back]', body).onclick = () => { ui.screen = IDEA.length - 1; Company.redraw(); };
-    $('[data-next]', body).onclick = () => { ui.screen = 'review'; if (!state.company.swot) swot(); else Company.redraw(); };
+    $('[data-next]', body).onclick = () => { ui.screen = 'delivery'; Company.redraw(); };
   }
   const whoChooser = (words) => chipsHTML('who', words, [], { label: whoWord });
 
-  // The review: the SWOT, the 90-day goal, what the team never does without asking, time, the Chief's open questions
-  // and the answered cards; beside them, what the Chief knows. "Build my team" goes on to Team.
+  // ---------- the delivery date (#792, #801) ----------
+  // A day as the server keeps it (YYYY-MM-DD), in this device's calendar; the presets are days counted from today.
+  const isDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
+  const pad = (n) => String(n).padStart(2, '0');
+  const dayOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const monthsOn = (n) => { const t = new Date(); const d = new Date(t.getFullYear(), t.getMonth() + n, 1); d.setDate(Math.min(t.getDate(), new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return dayOf(d); };
+  const presets = () => [['m1', tr('In 1 month'), monthsOn(1)], ['m3', tr('In 3 months'), monthsOn(3)], ['eoy', tr('End of year'), `${new Date().getFullYear()}-12-31`]];
+  const dayText = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  const deliveryText = (c) => (c.deliverBy === 'none' ? tr('Indefinite') : isDay(c.deliverBy) ? dayText(c.deliverBy) : '');
+  // The presets, a day picked on a calendar of its own, or Indefinite ("none", an open-ended project).
+  function deliveryHTML(c) {
+    const v = c.deliverBy || '';
+    const preset = presets().find(([, , d]) => d === v);
+    const dated = isDay(v) && !preset;
+    return `<div class="co-chips" data-delivery-chips>${presets().map(([k, label, d]) => `<button type="button" class="co-chip${d === v ? ' on' : ''}" data-deliver="${d}" data-preset="${k}">${d === v ? ICON.check : ''}${label}</button>`).join('')}
+      <button type="button" class="co-chip${dated || ui.cal ? ' on' : ''}" data-pick-day aria-expanded="${ui.cal}">${ICON.cal}${dated ? esc(dayText(v)) : tr('Pick a date')}</button>
+      <button type="button" class="co-chip${v === 'none' ? ' on' : ''}" data-delivery-none>${ICON.inf}${tr('Indefinite')}</button></div>
+      ${ui.cal ? calendarHTML(v) : ''}`;
+  }
+  function calendarHTML(v) {
+    const today = dayOf(new Date());
+    const [y, m] = (ui.month || (isDay(v) ? v : today)).split('-').map(Number);
+    ui.month = `${y}-${pad(m)}`;
+    const first = new Date(y, m - 1, 1);
+    const lead = (first.getDay() + 6) % 7; // Monday first
+    const days = new Date(y, m, 0).getDate();
+    const names = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(I18n.locale, { weekday: 'narrow' }));
+    const cells = [...Array(lead).fill(''), ...Array.from({ length: days }, (_, i) => `${y}-${pad(m)}-${pad(i + 1)}`)];
+    return `<div class="co-cal" role="group" aria-label="${esc(first.toLocaleDateString(I18n.locale, { month: 'long', year: 'numeric' }))}">
+      <div class="co-cal-head"><b>${esc(first.toLocaleDateString(I18n.locale, { month: 'long', year: 'numeric' }))}</b><button type="button" class="icon-btn" data-cal-move="-1" aria-label="${tr('Previous')}">${ICON.back}</button><button type="button" class="icon-btn" data-cal-move="1" aria-label="${tr('Next')}">${ICON.fold}</button></div>
+      <div class="co-cal-grid">${names.map((n) => `<span class="co-cal-n">${esc(n)}</span>`).join('')}${cells.map((d) => (d ? `<button type="button" class="co-cal-d${d === v ? ' on' : ''}${d === today ? ' today' : ''}" data-cal-day="${d}"${d < today ? ' disabled' : ''}>${Number(d.slice(8))}</button>` : '<span></span>')).join('')}</div></div>`;
+  }
+  // Wires the delivery chips and calendar; then() after a day or Indefinite is picked.
+  function wireDelivery(root, c, then = () => {}) {
+    const set = (v) => { save({ deliverBy: v }); then(v); };
+    $$('[data-deliver]', root).forEach((b) => (b.onclick = () => { ui.cal = false; set(c.deliverBy === b.dataset.deliver ? '' : b.dataset.deliver); }));
+    const none = $('[data-delivery-none]', root);
+    if (none) none.onclick = () => { ui.cal = false; set(c.deliverBy === 'none' ? '' : 'none'); };
+    const pick = $('[data-pick-day]', root);
+    if (pick) pick.onclick = () => { ui.cal = !ui.cal; ui.month = null; Company.redraw(); };
+    $$('[data-cal-move]', root).forEach((b) => (b.onclick = () => {
+      const [y, m] = ui.month.split('-').map(Number);
+      const d = new Date(y, m - 1 + Number(b.dataset.calMove), 1);
+      ui.month = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+      Company.redraw();
+    }));
+    $$('[data-cal-day]', root).forEach((b) => (b.onclick = () => set(b.dataset.calDay)));
+  }
+  function drawDelivery(body, c) {
+    body.innerHTML = `<div class="co-q"><h1>${tr('When should it be delivered?')}</h1>${deliveryHTML(c)}</div>${foot(backBtn(), nextBtns(!!c.deliverBy))}`;
+    wireDelivery(body, c);
+    const on = () => { ui.cal = false; ui.screen = 'review'; if (!state.company.swot) swot(); else Company.redraw(); };
+    $('[data-done]', body).onclick = on;
+    $('[data-skip]', body).onclick = () => { if (c.deliverBy) save({ deliverBy: '' }); on(); };
+    $('[data-co-back]', body).onclick = () => { ui.cal = false; ui.screen = 'stories'; Company.redraw(); };
+  }
+
+  // ---------- the review ----------
+  // The SWOT and one list: a label and a value a row, each changed in place. A row the Chief has chips for and that
+  // has no answer yet shows them open; "Build my team" goes on to Team.
   function drawReview(body, c) {
     const s = c.suggestions || { goal: [], never: [], time: [] };
     // A new idea's review chips build on all five answers (#787); a site's come with its read.
     const basis = basisOf(c, 'goal');
     const stale = c.kind === 'idea' ? s.basis !== basis : !c.suggestions;
     const waiting = Object.fromEntries(['goal', 'never', ...(c.kind === 'idea' ? ['time'] : [])].map((k) => [k, refresh(k, stale, basis)]));
-    const open = c.about.filter((a) => !a.answer);
-    const done = c.about.filter((a) => a.answer);
-    const chipCard = (id, question, chips, picked, highlighted = false) => `<section class="co-card${highlighted ? ' open' : ''}"><div class="co-card-q">${esc(question)}</div>${waiting[id] ? waitingHTML : ''}${chipsHTML(id, waiting[id] ? [] : chips, picked, { plus: true })}</section>`;
-    body.innerHTML = `<div class="co-review"><div class="co-review-main">
-      ${c.kind === 'idea' ? swotHTML(c) : ''}
-      ${chipCard('goal', tr('What is the main goal for the next 90 days?'), s.goal, c.goal ? [c.goal] : [], c.kind === 'site' && !c.goal)}
-      ${chipCard('never', tr('What should the team never do without asking?'), s.never, c.never, c.kind === 'site' && !c.never.length)}
-      ${c.kind === 'idea' ? chipCard('time', tr('How much time can you give it?'), s.time, c.time ? [c.time] : []) : ''}
-      ${deliveryHTML(c)}
-      ${open.map((a) => chipCard(`about:${a.key}`, questionOf(c, a), a.chips || [], [], !!a.open)).join('')}
-      ${done.map((a) => answeredHTML(c, a)).join('')}
-    </div>${knowsHTML(c)}</div>${foot(c.kind === 'idea' ? backBtn() : '', `<button type="button" class="co-go" data-build>${tr('Build my team')} ${ICON.go}</button>`)}`;
-    wireChips(body, 'goal', c.goal ? [c.goal] : [], (list) => save({ goal: list[0] || '' }));
-    wireChips(body, 'never', c.never, (list) => save({ never: list }), { multi: true });
-    wireChips(body, 'time', c.time ? [c.time] : [], (list) => save({ time: list[0] || '' }));
-    $('[data-delivery-none]', body).onclick = () => save({ deliverBy: c.deliverBy === 'none' ? '' : 'none' });
-    const day = $('[data-delivery]', body);
-    day.onchange = () => { if (day.value) save({ deliverBy: day.value }); };
-    const answer = (key, text) => save({ about: state.company.about.map((x) => (x.key === key ? { ...x, answer: text, open: false } : x)) });
-    for (const a of open) wireChips(body, `about:${a.key}`, [], (list) => { if (list[0]) answer(a.key, list[0]); });
-    $$('[data-edit]', body).forEach((el) => (el.onclick = () => { ui.editing = el.dataset.edit; ui.typed[`edit:${ui.editing}`] = card(c, ui.editing)?.answer || ''; ui.focus = `edit:${ui.editing}`; Company.redraw(); }));
+    const idea = c.kind === 'idea';
+    const answers = idea ? IDEA.map(([k, , label]) => ({ key: k, label: label(), a: card(c, k) || { key: k, answer: '' } })) : c.about.map((a) => ({ key: a.key, label: questionOf(c, a), a }));
+    const rows = [
+      ...answers.map(({ key, label, a }) => (a.answer || idea
+        ? textRow(key, label, a.answer)
+        : chipRow(`about:${key}`, label, '', () => chipsHTML(`about:${key}`, a.chips || [], []), true))),
+      ...(idea && c.stories.length ? [linkRow('stories', tr('Stories'), c.stories.map((g) => `${whoWord(g.who)}: ${g.items.map((x) => x.text).join(' · ')}`))] : []),
+      ...(c.swot?.firstTest ? [textRow('firstTest', tr('First test'), c.swot.firstTest)] : []),
+      chipRow('goal', tr('Goal'), c.goal, () => chipsHTML('goal', s.goal, c.goal ? [c.goal] : [], { plus: true, waiting: waiting.goal })),
+      chipRow('never', tr('Asks before'), c.never.join(' · '), () => chipsHTML('never', s.never, c.never, { plus: true, waiting: waiting.never })),
+      ...(idea ? [chipRow('time', tr('Time'), c.time, () => chipsHTML('time', s.time, c.time ? [c.time] : [], { plus: true, waiting: waiting.time }))] : []),
+      chipRow('delivery', tr('Delivery'), deliveryText(c), () => deliveryHTML(c)),
+    ];
+    body.innerHTML = `<div class="co-review">${idea ? swotHTML(c) : ''}<div class="co-list">${rows.join('')}</div></div>${foot(idea ? backBtn() : '', `<button type="button" class="co-go" data-build>${tr('Build my team')} ${ICON.go}</button>`)}`;
+    const done = () => { ui.editing = null; };
+    wireChips(body, 'goal', c.goal ? [c.goal] : [], (list) => { done(); save({ goal: list[0] || '' }); });
+    wireChips(body, 'never', c.never, (list) => { ui.editing = 'never'; save({ never: list }); }, { multi: true });
+    wireChips(body, 'time', c.time ? [c.time] : [], (list) => { done(); save({ time: list[0] || '' }); });
+    const delivery = $('[data-row="delivery"]', body);
+    if (delivery) wireDelivery(delivery, c, (v) => { if (v && !ui.cal) done(); });
+    const answer = (key, text) => save(key === 'firstTest' ? { swot: { ...state.company.swot, firstTest: text } } : { about: state.company.about.map((x) => (x.key === key ? { ...x, answer: text, open: false } : x)) });
+    for (const a of c.about.filter((x) => !x.answer)) wireChips(body, `about:${a.key}`, [], (list) => { if (list[0]) answer(a.key, list[0]); });
+    $$('[data-edit]', body).forEach((el) => (el.onclick = () => {
+      const key = el.dataset.edit;
+      ui.editing = key;
+      ui.cal = false;
+      if (el.dataset.text !== undefined) { ui.typed[`edit:${key}`] = key === 'firstTest' ? c.swot?.firstTest || '' : card(c, key)?.answer || ''; ui.focus = `edit:${key}`; }
+      Company.redraw();
+    }));
+    $$('[data-row-close]', body).forEach((el) => (el.onclick = () => { done(); ui.cal = false; Company.redraw(); }));
+    $$('[data-goto]', body).forEach((el) => (el.onclick = () => { ui.screen = el.dataset.goto; Company.redraw(); }));
     const edit = $('#co-edit', body);
     if (edit) {
       const key = ui.editing;
@@ -290,43 +364,27 @@
       edit.onsubmit = (e) => { e.preventDefault(); const t = edit.answer.value.replace(/\s+/g, ' ').trim(); close(); if (t) answer(key, t); else Company.redraw(); };
     }
     const back = $('[data-co-back]', body);
-    if (back) back.onclick = () => { ui.screen = 'stories'; Company.redraw(); };
+    if (back) back.onclick = () => { ui.editing = null; ui.screen = 'delivery'; Company.redraw(); };
     $('[data-build]', body).onclick = () => Company.go('team');
   }
-  // The target delivery date (#792): a day picked on the calendar, or "No date" for an open-ended project.
-  const isDay = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v || '');
-  const dayText = (d) => new Date(`${d}T12:00:00Z`).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
-  function deliveryHTML(c) {
-    const none = c.deliverBy === 'none';
-    const dated = isDay(c.deliverBy);
-    return `<section class="co-card"><div class="co-card-q">${tr('When should it be delivered?')}</div><div class="co-chips">
-      <label class="co-chip co-date${dated ? ' on' : ' dashed'}">${dated ? ICON.check : ''}<input type="date" data-delivery value="${dated ? esc(c.deliverBy) : ''}" aria-label="${tr('When should it be delivered?')}" /></label>
-      <button type="button" class="co-chip${none ? ' on' : ' dashed'}" data-delivery-none>${none ? ICON.check : ''}${tr('No date')}</button></div></section>`;
+  // A row: its label and value, a tap opens it in place.
+  const rowHTML = (key, label, value, attrs) => `<button type="button" class="co-li" ${attrs}><span class="co-li-k">${esc(label)}</span><span class="co-li-v">${value}</span>${ICON.pen}</button>`;
+  const openRowHTML = (key, label, inner, open = false) => `<div class="co-li edit${open ? ' open' : ''}" data-row="${esc(key)}"><button type="button" class="co-li-k" data-row-close>${esc(label)}</button><div class="co-li-v">${inner}</div></div>`;
+  function textRow(key, label, value) {
+    if (ui.editing === key) return openRowHTML(key, label, `<form class="co-ask small" id="co-edit"><input name="answer" autocomplete="off" maxlength="300" aria-label="${esc(label)}" /><button type="submit" class="co-go">${tr('Save')}</button></form>`);
+    return rowHTML(key, label, esc(value || ''), `data-edit="${esc(key)}" data-text`);
   }
-  const deliveryText = (c) => (c.deliverBy === 'none' ? tr('No delivery date') : isDay(c.deliverBy) ? `${tr('Delivery')}: ${dayText(c.deliverBy)}` : '');
+  // A row answered by chips (or the delivery's picker): open while it has no value, or once tapped.
+  function chipRow(key, label, value, editor, highlighted = false) {
+    if (ui.editing === key || !value) return openRowHTML(key, label, editor(), highlighted);
+    return rowHTML(key, label, esc(value), `data-edit="${esc(key)}"`);
+  }
+  const linkRow = (screen, label, lines) => rowHTML(screen, label, lines.map((l) => `<span>${esc(l)}</span>`).join(''), `data-goto="${screen}"`);
 
-  function answeredHTML(c, a) {
-    if (ui.editing === a.key) return `<section class="co-card"><div class="co-card-q">${esc(questionOf(c, a))}</div><form class="co-ask small" id="co-edit"><input name="answer" autocomplete="off" maxlength="300" aria-label="${esc(questionOf(c, a))}" /><button type="submit" class="co-go">${tr('Save')}</button></form></section>`;
-    return `<button type="button" class="co-card co-answer" data-edit="${esc(a.key)}"><span class="co-card-q">${esc(questionOf(c, a))}${ICON.pen}</span><span class="co-card-a">${esc(a.answer)}</span></button>`;
-  }
   function swotHTML(c) {
     if (!c.swot) return ui.swotting ? '<section class="co-swot loading" aria-busy="true"><div></div><div></div><div></div><div></div></section>' : '';
-    const cell = (letter, label, list, cls) => `<div class="co-swot-cell ${cls}"><div class="co-swot-h"><b>${letter}</b>${label}</div>${list.map((t) => `<p>${esc(t)}</p>`).join('')}</div>`;
-    return `<section class="co-swot">${cell('S', tr('Strengths'), c.swot.strengths, 's')}${cell('W', tr('Weaknesses'), c.swot.weaknesses, 'w')}${cell('O', tr('Opportunities'), c.swot.opportunities, 'o')}${cell('T', tr('Threats'), c.swot.threats, 't')}${c.swot.firstTest ? `<div class="co-swot-test">${ICON.play}<span>${esc(c.swot.firstTest)}</span></div>` : ''}</section>`;
-  }
-  // What the Chief knows so far, beside the review.
-  function knowsHTML(c) {
-    const rows = [
-      ...c.about.filter((a) => a.answer).map((a) => a.answer),
-      ...(c.sources.length ? [trn(c.sources.length, 'Read {n} source', 'Read {n} sources')] : []),
-      ...c.stories.filter((g) => g.items.some((x) => x.start)).map((g) => `${tr('I want my')} ${whoWord(g.who)} ${tr('to…')} ${g.items.filter((x) => x.start).map((x) => x.text).join(SEP)}`),
-      ...(c.swot?.firstTest ? [`${tr('First test')}: ${c.swot.firstTest}`] : []),
-      ...(c.goal ? [c.goal] : []),
-      ...(c.never.length ? [`${tr('Asks before')}: ${c.never.join(', ')}`] : []),
-      ...(c.time ? [`${tr('Time')}: ${c.time}`] : []),
-      ...(deliveryText(c) ? [deliveryText(c)] : []),
-    ];
-    return `<aside class="co-knows"><div class="co-knows-h">${esc(c.name || c.start)}</div><ul>${rows.map((t) => `<li>${ICON.check}<span>${esc(t)}</span></li>`).join('')}</ul></aside>`;
+    const cell = (label, list, cls) => `<div class="co-swot-cell ${cls}"><div class="co-swot-h">${label}</div>${list.map((t) => `<p>${esc(t)}</p>`).join('')}</div>`;
+    return `<section class="co-swot">${cell(tr('Strengths'), c.swot.strengths, 's')}${cell(tr('Weaknesses'), c.swot.weaknesses, 'w')}${cell(tr('Opportunities'), c.swot.opportunities, 'o')}${cell(tr('Threats'), c.swot.threats, 't')}</section>`;
   }
 
   Company.steps.about = draw;
