@@ -125,6 +125,18 @@ class CompanyTest {
         assertEquals(AboutScreen.Review, CompanySetup.startScreen(c.copy(kind = "site")))
     }
 
+    @Test fun aQuestionsBasisHashesTheAnswersBeforeItAsTheServerDoes() {
+        // The same values as test/company-chief.test.js checks lib/company-chief.js `basis` against (#787).
+        val none = CompanySetup.of(idea).copy(about = emptyList())
+        assertEquals("1505", CompanySetup.basis(none, "who"))
+        val onlyMe = none.copy(about = listOf(AboutCard("who", "Who is it for?", "Only me")))
+        assertEquals("fdf35879", CompanySetup.basis(onlyMe, "today"))
+        assertEquals(CompanySetup.basis(onlyMe, "who"), "1505")
+        val polish = none.copy(about = listOf(AboutCard("who", "Who is it for?", "Tylko ja, zażółć")))
+        assertEquals("88ccf6d6", CompanySetup.basis(polish, "today"))
+        assertTrue(CompanySetup.basis(onlyMe, "goal") != CompanySetup.basis(onlyMe, "signal"))
+    }
+
     @Test fun theStepIsStartOnceItRuns() {
         val c = CompanySetup.of(idea)
         assertEquals("about", CompanySetup.stepOf(c, null))

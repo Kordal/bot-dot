@@ -51,6 +51,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -122,6 +123,7 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     var readFailed by mutableStateOf(false)
     val asking = mutableStateListOf<String>()
     val tried = mutableSetOf<String>()
+    var saving by mutableIntStateOf(0) // saves on their way: fresh chips are asked for once they land (#787)
     var swotting by mutableStateOf(false)
     var who by mutableStateOf<String?>(null)
     var choosingWho by mutableStateOf(false)
@@ -173,9 +175,11 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     /** Saves [fields] as given, drawn at once as [now] has them; a refused save takes the server's company back. */
     fun save(fields: JsonObject, now: (Company) -> Company) {
         app.store.company.update { h -> CompanyHeld(h.company?.let(now)) }
+        saving++
         scope.launch {
-            val a = api ?: return@launch tell(tr("Can't reach botdot."))
+            val a = api ?: run { saving--; return@launch tell(tr("Can't reach botdot.")) }
             runCatching { a.patchCompany(fields) }.onSuccess(::took).onError { tell(it.message); scope.launch { app.store.company.refresh() } }
+            saving--
         }
     }
 

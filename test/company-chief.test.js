@@ -32,6 +32,34 @@ test('the questions hold what the owner said inside a block of text, never as in
   assert.match(chief.readQuestion({ ...c, kind: 'site' }), /The site could not be read/);
 });
 
+test('a question\'s basis is the answers before it; the review\'s is all five', () => {
+  const c = (answers) => ({ about: Object.entries(answers).map(([key, answer]) => ({ key, answer })) });
+  const none = c({});
+  const three = c({ who: 'Only me', today: 'Home Assistant by hand', why: 'A busy homeowner' });
+  assert.equal(chief.basis(three, 'who'), chief.basis(none, 'who'), 'the first question builds on no answer');
+  assert.equal(chief.basis(three, 'today'), chief.basis(c({ who: 'Only me' }), 'today'));
+  assert.notEqual(chief.basis(three, 'signal'), chief.basis(c({ who: 'Only me', today: 'Home Assistant by hand', why: 'Someone else' }), 'signal'), 'a changed answer changes the later bases');
+  assert.equal(chief.basis(three, 'signal'), chief.basis(c({ ...Object.fromEntries(three.about.map((a) => [a.key, a.answer])), test: 'later' }), 'signal'), 'a later answer does not');
+  assert.notEqual(chief.basis(three, 'goal'), chief.basis(three, 'signal'), 'the review builds on all five');
+  assert.match(chief.basis(three, 'goal'), /^[0-9a-f]{1,8}$/);
+  // The table the apps check their own hash against (public/company-about.js, CompanyScreen.kt).
+  assert.equal(chief.basis(none, 'who'), '1505');
+  assert.equal(chief.basis(c({ who: 'Only me' }), 'today'), 'fdf35879');
+  assert.equal(chief.basis(c({ who: 'Tylko ja, zażółć' }), 'today'), '88ccf6d6');
+});
+
+test('one question\'s chips are asked of the fast model and fit the owner\'s answers', async () => {
+  const seen = [];
+  const help = chief.create({ ask: async (prompt, o) => { seen.push({ prompt, llm: o.llm }); return '{"chips": ["All lights off at night"]}'; }, workdir: '/nowhere' });
+  const c = { kind: 'idea', start: 'Automate my home', about: [{ key: 'who', question: 'Who is it for?', answer: 'Only me' }], stories: [] };
+  assert.deepEqual(await help.suggest(c, 'signal'), ['All lights off at night']);
+  assert.deepEqual(seen[0].llm, chief.FAST);
+  assert.match(seen[0].prompt, /personal project/);
+  assert.match(seen[0].prompt, /Who is it for\? Only me/);
+  await help.swot(c);
+  assert.equal(seen[1].llm, undefined, 'the SWOT keeps the Chief\'s model');
+});
+
 test('a bad answer is no answer; a good one is cut to plain text', () => {
   for (const bad of ['', 'No.', '{oops', '[1,2]', null]) {
     assert.equal(chief.parseRead(bad, 'idea'), null);
@@ -44,7 +72,7 @@ test('a bad answer is no answer; a good one is cut to plain text', () => {
   const idea = chief.parseRead(`Here: ${JSON.stringify({ name: 'Mealwise', chips: { who: ['Parents of kids under 10', 'Parents of kids under 10', 7, '  '], why: 'nope' }, goal: ['10 parents use it every week'] })}`, 'idea');
   assert.equal(idea.name, 'Mealwise');
   assert.deepEqual(idea.cards.map((x) => x.key), ['who', 'today', 'why', 'signal', 'test']);
-  assert.deepEqual(idea.cards[0], { key: 'who', question: 'Who is it for?', answer: '', chips: ['Parents of kids under 10'], open: true }, 'a chip that is not text is no chip');
+  assert.deepEqual(idea.cards[0], { key: 'who', question: 'Who is it for?', answer: '', chips: ['Parents of kids under 10'], open: true, basis: '1505' }, 'a chip that is not text is no chip');
   assert.deepEqual(idea.cards[2].chips, []);
   assert.deepEqual(idea.suggestions, { goal: ['10 parents use it every week'], never: [], time: [] });
   const site = chief.parseRead(JSON.stringify({ name: 'Fernhill', about: 'Project management\nfor agencies', serves: '', today: 'Gmail and GitHub', questions: [{ question: 'Who answers billing questions?', chips: ['You', 'Someone else'] }, { question: '' }, 'x'] }), 'site');
@@ -97,6 +125,7 @@ test('an idea is read once: its name, the five questions with chips; the Chief m
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.name, 'Mealwise');
   assert.deepEqual(r.data.about.map((a) => [a.key, a.open, a.chips?.length || 0]), [['who', true, 2], ['today', true, 0], ['why', true, 0], ['signal', true, 0], ['test', true, 1]]);
+  assert.deepEqual(r.data.about.map((a) => a.basis), [chief.basis({}, 'who'), undefined, undefined, undefined, undefined], 'only the first question\'s chips are made from what the owner gave');
   assert.deepEqual(r.data.suggestions, { goal: ['10 parents use it every week'], never: ['Spend money'], time: ['A few hours a week'] });
   assert.match(asked().at(-1), /A meal-planning app for busy parents/);
   const n = asked().length;
@@ -109,9 +138,13 @@ test('an idea is read once: its name, the five questions with chips; the Chief m
   r = await srv.api('/company/suggest', { method: 'POST', body: { key: 'today' } });
   assert.deepEqual(r.data.about.find((a) => a.key === 'today').chips, ['Google recipes at 5 pm', 'Order pizza']);
   assert.match(asked().at(-1), /Who is it for\? Parents of kids under 10/);
+  const today = r.data.about.find((a) => a.key === 'today');
+  assert.equal(today.basis, chief.basis(r.data, 'today'), 'the chips keep the basis of the answers they were made from');
+  assert.notEqual(today.basis, chief.basis({}, 'today'));
   answer({ chips: ['50 sign-ups'] });
   r = await srv.api('/company/suggest', { method: 'POST', body: { key: 'goal' } });
   assert.deepEqual(r.data.suggestions.goal, ['50 sign-ups']);
+  assert.equal(r.data.suggestions.basis, chief.basis(r.data, 'goal'));
   assert.equal((await srv.api('/company/suggest', { method: 'POST', body: { key: 'nope' } })).status, 400);
 
   // Stories: suggestions not yet written, and a missing group.

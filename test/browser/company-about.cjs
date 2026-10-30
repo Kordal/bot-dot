@@ -1,5 +1,6 @@
 // Optional browser check of the Company's About step (#670): node test/browser/company-about.cjs [shots dir]
 // A new idea: the Chief names it and drafts chips; five questions, one per screen (a chip, "Write your own", Skip),
+// each next one's chips asked again from the answers before it (#787),
 // then "I want my <who> to…" stories in two groups, then the review with the SWOT, a goal and "never" picked, and a
 // reload that goes on where it was. Then a site: the review with the Chief's cards and its open question. The
 // stand-in Claude answers every call with one JSON (test/fixtures/fake-claude.js, $FAKE_OUT/company.txt).
@@ -40,8 +41,15 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     assert.equal(await page.locator('[data-done]').isDisabled(), true);
     await page.locator('[data-chip="Parents of kids under 10"]').click();
     await shot(page, 'wide-question');
+    // The next question's chips build on the answer (#787); a failed ask leaves the drafted ones.
+    fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify({ chips: ['Cook from a paper list'] }));
     await page.locator('[data-done]').click();
     await page.locator('.co-q h1', { hasText: 'What do they do today?' }).waitFor();
+    await page.locator('[data-chip="Cook from a paper list"]').waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('[data-chip="Google recipes at 5 pm"]').count(), 0, 'the drafted chips are replaced');
+    const asked = fs.readdirSync(srv.out).filter((f) => /^company-\d.*\.txt$/.test(f)).sort().map((f) => fs.readFileSync(path.join(srv.out, f), 'utf8'));
+    assert.match(asked.at(-1), /Who is it for\? Parents of kids under 10/);
+    fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify(IDEA));
     await page.locator('[data-write="today"]').click();
     await page.locator('[data-own="today"] input').fill('Order pizza');
     await page.locator('[data-own="today"] input').press('Enter');
