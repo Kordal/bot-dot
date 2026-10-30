@@ -434,17 +434,19 @@ private fun ArchiveRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) 
     if (asking) DeleteProjectDialog(ui, c, onDismiss = { asking = false }) { ui.settingsOpen = false }
 }
 
+/** Deletes [c], with its folder when [dropFolder]; [onDeleted] once it is gone. */
+internal fun deleteProject(ui: CompanyUi, c: Company, dropFolder: Boolean, onDeleted: () -> Unit = {}) {
+    ui.scope.launch {
+        val a = ui.api ?: return@launch ui.tell(tr("Can't reach botdot."))
+        runCatching { a.deleteCompany(dropFolder, c.id) }.onSuccess { onDeleted(); ui.app.store.projectGone(c.id) }.onError { ui.tell(it.message) }
+    }
+}
+
 /** Delete [c] (#701; #791 from the project tree too): asked first, and with a folder (#702) whether it goes too. */
 @Composable
 internal fun DeleteProjectDialog(ui: CompanyUi, c: Company, onDismiss: () -> Unit, onDeleted: () -> Unit = {}) {
     val p = LocalPaper.current
-    fun delete(dropFolder: Boolean) {
-        onDismiss()
-        ui.scope.launch {
-            val a = ui.api ?: return@launch ui.tell(tr("Can't reach botdot."))
-            runCatching { a.deleteCompany(dropFolder, c.id) }.onSuccess { onDeleted(); ui.app.store.projectGone(c.id) }.onError { ui.tell(it.message) }
-        }
-    }
+    fun delete(dropFolder: Boolean) { onDismiss(); deleteProject(ui, c, dropFolder, onDeleted) }
     AlertDialog(onDismissRequest = onDismiss, containerColor = p.panel,
         title = { Text(tr("Delete the project {name}? Its bots stay.", "name" to ManyProjects.nameOf(c))) },
         confirmButton = {

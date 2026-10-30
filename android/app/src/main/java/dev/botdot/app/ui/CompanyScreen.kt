@@ -32,16 +32,21 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Business
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -49,9 +54,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -232,14 +237,22 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
             c == null -> {
                 // A new project beside others (#703): their names over the start screen, to go back to one.
                 if (many && list.isNotEmpty()) ProjectTitle(ui, null, ways, Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s12, top = Space.s8))
-                StartForm(ui, empty = CompanySetup.EMPTY in server?.features.orEmpty())
+                StartForm(ui, empty = CompanySetup.EMPTY in server?.features.orEmpty(), titled = !(many && list.isNotEmpty()))
             }
             // A running company: its home, the office floor (#675).
             c.running -> { ui.follow(c); CompanyHome(ui, c, ways) }
             else -> {
                 ui.follow(c)
-                if (many) ProjectTitle(ui, c, ways, Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s12, top = Space.s8))
                 val at = CompanySetup.stepOf(c, ui.step)
+                // The setup's header (#800): Back to the question before, the project's name, and ⋯ with Delete.
+                val delivery = CompanySetup.DELIVERY in server?.features.orEmpty()
+                val back = ui.screen?.takeIf { at == "about" && !c.site && c.about.isNotEmpty() }?.let { CompanySetup.before(it, delivery) }
+                if (back != null) BackHandler { ui.screen = back }
+                Row(Modifier.fillMaxWidth().padding(start = if (back != null) Space.s4 else Space.s16, end = Space.s4, top = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+                    if (back != null) IconButton({ ui.screen = back }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("Back"), tint = p.muted) }
+                    ProjectTitle(ui, c, ways, Modifier.weight(1f))
+                    SetupMenu(ui, c)
+                }
                 StepBar(at, enabled = !c.running) { ui.step = it }
                 Box(Modifier.weight(1f)) {
                     when (at) {
@@ -272,13 +285,18 @@ private fun StepBar(at: String, enabled: Boolean, onStep: (String) -> Unit) {
 
 // ---------- the start screen ----------
 
-/** "What are you working on?": one field, two examples, the sources (files and links), and Start from scratch (#788). */
+/**
+ * The start screen (#800): "New project" over one field for the site or the idea, a clip inside it that adds files
+ * and links, shown as chips under it, and Start from scratch (#788) quiet at the bottom. [titled] false: the
+ * project names over it say "New project" already.
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StartForm(ui: CompanyUi, empty: Boolean) {
+private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
     val p = LocalPaper.current
     val context = LocalContext.current
     var what by rememberSaveable { mutableStateOf("") }
+    var attaching by remember { mutableStateOf(false) }
     var linking by remember { mutableStateOf(false) }
     var link by remember { mutableStateOf("") }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> addFiles(ui, context, uris) }
@@ -289,29 +307,54 @@ private fun StartForm(ui: CompanyUi, empty: Boolean) {
         ui.going = true
         ui.call({ it.startCompany(start, ui.sources.toList()) }) { ok -> ui.going = false; if (ok) { ui.sources.clear(); ui.step = "about" } }
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s24), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
-        CoTitle(tr("What are you working on?"))
-        AskField(what, { what = it.take(500) }, label = tr("What are you working on?"), placeholder = tr("Your site, or your idea in one sentence"), button = tr("Go"), busy = ui.going, onGo = ::go)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            CompanySetup.EXAMPLES.forEachIndexed { i, text -> CoChip(text, icon = if (i == 0) Icons.Outlined.Link else Icons.Filled.Add) { what = text } }
+    Column(Modifier.fillMaxSize().padding(horizontal = Space.s16, vertical = Space.s16)) {
+        Spacer(Modifier.weight(1f))
+        Column(Modifier.widthIn(max = Space.answer), verticalArrangement = Arrangement.spacedBy(Space.s24)) {
+            if (titled) Text(tr("New project"), color = p.text, fontSize = Type.s32, lineHeight = Type.line40, fontWeight = FontWeight.SemiBold)
+            Field(what, { what = it.take(500) }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
+                placeholder = { Text(tr("Site or idea"), color = p.faint) },
+                leadingIcon = {
+                    Box {
+                        IconButton({ attaching = true }) { Icon(Icons.Outlined.AttachFile, tr("Attach"), tint = p.muted) }
+                        DropdownMenu(expanded = attaching, onDismissRequest = { attaching = false }, modifier = Modifier.background(p.raise2)) {
+                            DropdownMenuItem(text = { Text(tr("Add files")) }, leadingIcon = { Icon(Icons.AutoMirrored.Outlined.InsertDriveFile, null) }, onClick = { attaching = false; pick.launch("*/*") })
+                            DropdownMenuItem(text = { Text(tr("Add a link")) }, leadingIcon = { Icon(Icons.Outlined.Link, null) }, onClick = { attaching = false; linking = true })
+                        }
+                    }
+                },
+                trailingIcon = {
+                    if (ui.going) CircularProgressIndicator(color = p.muted, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                    else IconButton(::go, enabled = what.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.ArrowForward, tr("Go"), tint = if (what.isNotBlank()) p.text else p.faint) }
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { go() }),
+                modifier = Modifier.fillMaxWidth().semanticsLabel(tr("Site or idea")))
+            if (linking) AskField(link, { link = it.take(1000) }, label = tr("Add a link"), placeholder = "https://", button = tr("Add"), focus = true) {
+                CompanySetup.link(newId(), link)?.let { if (ui.sources.size < CompanySetup.MAX_SOURCES) ui.sources.add(it) else ui.tell(tr("Add at most 20 sources.")) }
+                link = ""; linking = false
+            }
+            if (ui.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                ui.sources.forEach { s -> SourceChip(s) { ui.sources.removeAll { it.id == s.id } } }
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-            CoChip(tr("Add files"), on = false, dashed = false, icon = Icons.AutoMirrored.Outlined.InsertDriveFile) { pick.launch("*/*") }
-            CoChip(tr("Add a link"), on = false, dashed = false, icon = Icons.Outlined.Link) { linking = true }
-        }
-        if (linking) AskField(link, { link = it.take(1000) }, label = tr("Add a link"), placeholder = "https://", button = tr("Add")) {
-            CompanySetup.link(newId(), link)?.let { if (ui.sources.size < CompanySetup.MAX_SOURCES) ui.sources.add(it) else ui.tell(tr("Add at most 20 sources.")) }
-            link = ""; linking = false
-        }
-        SourceList(ui.sources.map { CompanySource(it.id, it.kind, it.name, it.url, it.size) }, failed = ui.sources.filter { it.failed }.map { it.id }.toSet(),
-            busy = ui.sources.filter { it.uploading }.map { it.id }.toSet()) { id -> ui.sources.removeAll { it.id == id } }
-        if (empty) Box(Modifier.padding(top = Space.s8)) {
-            CoChip(tr("Start from scratch"), on = false, dashed = false) {
-                if (ui.going) return@CoChip
+        Spacer(Modifier.weight(1.4f))
+        if (empty) Box(Modifier.fillMaxWidth().navigationBarsPadding(), contentAlignment = Alignment.Center) {
+            WordsButton(tr("Start from scratch"), enabled = !ui.going) {
                 ui.going = true
                 ui.call({ it.startEmptyProject(tr("New project")) }) { ui.going = false; ui.step = null }
             }
         }
+    }
+}
+
+/** A source added on the start screen, as a chip: its kind's icon and its name, × removes it; red when its upload failed. */
+@Composable
+private fun SourceChip(s: SourceDraft, onRemove: () -> Unit) {
+    val p = LocalPaper.current
+    Row(Modifier.raised(Radius.pill).padding(start = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+        Icon(if (s.kind == "link") Icons.Outlined.Link else Icons.AutoMirrored.Outlined.InsertDriveFile, null, tint = if (s.failed) p.err else p.muted, modifier = Modifier.size(16.dp))
+        Text(if (s.uploading) s.name + " …" else s.name, color = if (s.failed) p.err else p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 220.dp).padding(start = Space.s8))
+        IconButton(onRemove, Modifier.size(36.dp)) { Icon(Icons.Filled.Close, tr("Remove"), tint = p.muted, modifier = Modifier.size(16.dp)) }
     }
 }
 

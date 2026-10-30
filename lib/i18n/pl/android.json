@@ -1256,5 +1256,11 @@
   "No date": "Bez terminu",
   "No delivery date": "Bez terminu oddania",
   "Delivery": "Termin oddania",
-  "Pick a date": "Wybierz datę"
+  "Pick a date": "Wybierz datę",
+  "Stories": "Historie",
+  "Attach": "Załącz",
+  "In 1 month": "Za miesiąc",
+  "In 3 months": "Za 3 miesiące",
+  "End of year": "Koniec roku",
+  "Indefinite": "Bezterminowo"
 }
