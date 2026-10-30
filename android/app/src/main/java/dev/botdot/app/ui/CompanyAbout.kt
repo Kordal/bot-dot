@@ -101,6 +101,18 @@ internal fun AboutStep(ui: CompanyUi, c: Company) {
     }
 }
 
+/**
+ * Fresh chips for [key] once the answers they build on are saved (#787): asked once per [basis]. True while they are
+ * on their way, when the chips there are are not shown; a failure leaves the ones drafted at the start.
+ */
+@Composable
+private fun refresh(ui: CompanyUi, key: String, stale: Boolean, basis: String): Boolean {
+    val at = "$key:$basis"
+    val idle = ui.saving == 0
+    LaunchedEffect(key, basis, stale, idle) { if (stale && idle && "suggest:$key" !in ui.asking && ui.tried.add(at)) suggest(ui, key) }
+    return "suggest:$key" in ui.asking || (stale && at !in ui.tried)
+}
+
 /** The Chief's call for chips; its answer arrives as the company, a failure leaves no chips. */
 private fun suggest(ui: CompanyUi, key: String) {
     val id = "suggest:$key"
@@ -155,7 +167,8 @@ private fun Question(ui: CompanyUi, c: Company, i: Int) {
     val p = LocalPaper.current
     val key = CompanySetup.IDEA[i]
     val a = c.card(key) ?: AboutCard(key, ideaQuestion(key))
-    LaunchedEffect(key, a.chips.isNullOrEmpty()) { if (a.chips.isNullOrEmpty() && ui.tried.add(key)) suggest(ui, key) }
+    val basis = CompanySetup.basis(c, key)
+    val waiting = refresh(ui, key, a.basis != basis, basis)
     val picked = ui.picked[key] ?: CompanySetup.split(a.answer)
     fun answer(text: String) {
         ui.picked.remove(key)
@@ -173,7 +186,8 @@ private fun Question(ui: CompanyUi, c: Company, i: Int) {
     }) {
         Progress(i)
         CoTitle(ideaQuestion(key))
-        ChipQuestion(ui, key, a.chips.orEmpty(), picked, multi = true) { ui.picked[key] = it }
+        if (waiting) ChiefAtWork()
+        ChipQuestion(ui, key, if (waiting) emptyList() else a.chips.orEmpty(), picked, multi = true) { ui.picked[key] = it }
         val answered = CompanySetup.IDEA.filter { k -> k != key && c.card(k)?.answer?.isNotEmpty() == true }
         if (answered.isNotEmpty()) Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             answered.forEach { k ->
@@ -260,10 +274,10 @@ private fun Stories(ui: CompanyUi, c: Company) {
 @Composable
 private fun Review(ui: CompanyUi, c: Company) {
     val p = LocalPaper.current
-    LaunchedEffect(c.id, c.suggestions == null) {
-        if (c.suggestions != null || !ui.tried.add("review")) return@LaunchedEffect
-        suggest(ui, "goal"); suggest(ui, "never"); if (!c.site) suggest(ui, "time")
-    }
+    // A new idea's review chips build on all five answers (#787); a site's come with its read.
+    val basis = CompanySetup.basis(c, "goal")
+    val stale = if (c.site) c.suggestions == null else c.suggestions?.basis != basis
+    val waiting = listOfNotNull("goal", "never", if (c.site) null else "time").associateWith { refresh(ui, it, stale, basis) }
     val s = c.suggestions
     val open = c.about.filter { it.answer.isEmpty() }
     val done = c.about.filter { it.answer.isNotEmpty() }
@@ -276,15 +290,18 @@ private fun Review(ui: CompanyUi, c: Company) {
     }) {
         if (!c.site) SwotGrid(ui, c)
         ChipCard(tr("What is the main goal for the next 90 days?"), highlighted = c.site && c.goal.isEmpty()) {
-            ChipQuestion(ui, "goal", s?.goal.orEmpty(), listOfNotNull(c.goal.ifEmpty { null }), plus = true) { list ->
+            if (waiting["goal"] == true) ChiefAtWork()
+            ChipQuestion(ui, "goal", if (waiting["goal"] == true) emptyList() else s?.goal.orEmpty(), listOfNotNull(c.goal.ifEmpty { null }), plus = true) { list ->
                 val v = list.firstOrNull().orEmpty(); ui.save(CompanySetup.patchText("goal", v)) { it.copy(goal = v) }
             }
         }
         ChipCard(tr("What should the team never do without asking?"), highlighted = c.site && c.never.isEmpty()) {
-            ChipQuestion(ui, "never", s?.never.orEmpty(), c.never, multi = true, plus = true) { list -> ui.save(CompanySetup.patchLines("never", list)) { it.copy(never = list) } }
+            if (waiting["never"] == true) ChiefAtWork()
+            ChipQuestion(ui, "never", if (waiting["never"] == true) emptyList() else s?.never.orEmpty(), c.never, multi = true, plus = true) { list -> ui.save(CompanySetup.patchLines("never", list)) { it.copy(never = list) } }
         }
         if (!c.site) ChipCard(tr("How much time can you give it?")) {
-            ChipQuestion(ui, "time", s?.time.orEmpty(), listOfNotNull(c.time.ifEmpty { null }), plus = true) { list ->
+            if (waiting["time"] == true) ChiefAtWork()
+            ChipQuestion(ui, "time", if (waiting["time"] == true) emptyList() else s?.time.orEmpty(), listOfNotNull(c.time.ifEmpty { null }), plus = true) { list ->
                 val v = list.firstOrNull().orEmpty(); ui.save(CompanySetup.patchText("time", v)) { it.copy(time = v) }
             }
         }

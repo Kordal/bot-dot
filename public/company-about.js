@@ -32,15 +32,33 @@
   const whoWord = (w) => ({ users: tr('users'), customers: tr('customers'), clients: tr('clients'), members: tr('members'), students: tr('students'), team: tr('team'), partners: tr('partners') }[w] || w);
 
   // What this window holds besides the company: where it is, what it waits for, and what was typed.
-  const ui = { screen: null, reading: false, readFailed: false, asking: new Set(), swotting: false, who: null, chooseWho: false, ideas: {}, missing: '', own: {}, writing: null, editing: null, typed: {}, focus: null };
+  const ui = { screen: null, reading: false, readFailed: false, saving: 0, asking: new Set(), swotting: false, who: null, chooseWho: false, ideas: {}, missing: '', own: {}, writing: null, editing: null, typed: {}, focus: null };
   const SEP = '; ';
 
   const save = async (fields) => {
     Object.assign(state.company, fields);
+    ui.saving++;
     Company.redraw();
     try { Company.put(await api(Company.at('/company'), { method: 'PATCH', body: fields })); } catch (e) { toast(e.message, true); await Company.load(); }
+    ui.saving--;
     Company.redraw();
   };
+  // What a question's chips are made from (#787), as lib/company-chief.js `basis` hashes it: the answers before it
+  // (the review's: all five). Chips of another basis are asked for again once the answers are saved.
+  function basisOf(c, key) {
+    const i = IDEA.findIndex(([k]) => k === key);
+    const text = IDEA.slice(0, i < 0 ? IDEA.length : i).map(([k]) => card(c, k)?.answer || '').join('\n');
+    let h = 5381;
+    for (let n = 0; n < text.length; n++) h = ((h * 33) ^ text.charCodeAt(n)) >>> 0;
+    return h.toString(16);
+  }
+  // Asks once per basis; true while fresh chips are on their way (the old ones are not shown meanwhile).
+  function refresh(key, stale, basis) {
+    const at = `${key}:${basis}`;
+    if (stale && !ui.saving && !ui.asking.has(`suggest:${key}`) && !ui.tried?.[at]) { ui.tried = { ...ui.tried, [at]: true }; suggest(key); }
+    return ui.asking.has(`suggest:${key}`) || (stale && ui.saving > 0 && !ui.tried?.[at]);
+  }
+  const waitingHTML = '<div class="co-reading" aria-busy="true"><span></span><span></span><span></span></div>';
   // The Chief's call: its answer arrives as the company (or, for stories, as suggestions); a failure leaves no chips.
   async function ask(path, body, key) {
     if (ui.asking.has(key)) return null;
@@ -49,7 +67,8 @@
   }
   async function suggest(key) {
     const c = await ask('/company/suggest', { key }, `suggest:${key}`);
-    if (c && c.id) { Company.put(c); Company.redraw(); }
+    if (c && c.id) Company.put(c);
+    Company.redraw(); // a failure shows the chips drafted at the start
   }
   async function read() {
     ui.reading = true;
@@ -161,11 +180,12 @@
   function drawQuestion(body, c, i) {
     const [key, question] = IDEA[i];
     const a = card(c, key) || { key, chips: [], answer: '' };
-    if (!a.chips?.length && !ui.asking.has(`suggest:${key}`) && !ui.tried?.[key]) { ui.tried = { ...ui.tried, [key]: true }; suggest(key); }
+    const basis = basisOf(c, key);
+    const waiting = refresh(key, a.basis !== basis, basis);
     const picked = local[key] || split(a.answer);
     const answered = IDEA.filter(([k]) => card(c, k)?.answer && k !== key);
     body.innerHTML = `<div class="co-q">${progress(i)}<h1>${question()}</h1>
-      ${chipsHTML(key, a.chips || [], picked)}
+      ${waiting ? waitingHTML : ''}${chipsHTML(key, waiting ? [] : a.chips || [], picked)}
       ${answered.length ? `<ul class="co-answered">${answered.map(([k, , label]) => `<li>${ICON.check}<span class="co-answered-k">${label()}</span><span>${esc(card(c, k).answer)}</span></li>`).join('')}</ul>` : ''}
     </div>${foot(backBtn(i === 0), `<button type="button" class="co-text-btn" data-skip>${tr('Skip')}</button><button type="button" class="co-go" data-done${picked.length ? '' : ' disabled'}>${tr('Done')} ${ICON.go}</button>`)}`;
     wireChips(body, key, picked, (list) => { local[key] = list; Company.redraw(); }, { multi: true });
@@ -236,9 +256,13 @@
   // and the answered cards; beside them, what the Chief knows. "Build my team" goes on to Team.
   function drawReview(body, c) {
     const s = c.suggestions || { goal: [], never: [], time: [] };
+    // A new idea's review chips build on all five answers (#787); a site's come with its read.
+    const basis = basisOf(c, 'goal');
+    const stale = c.kind === 'idea' ? s.basis !== basis : !c.suggestions;
+    const waiting = Object.fromEntries(['goal', 'never', ...(c.kind === 'idea' ? ['time'] : [])].map((k) => [k, refresh(k, stale, basis)]));
     const open = c.about.filter((a) => !a.answer);
     const done = c.about.filter((a) => a.answer);
-    const chipCard = (id, question, chips, picked, highlighted = false) => `<section class="co-card${highlighted ? ' open' : ''}"><div class="co-card-q">${esc(question)}</div>${chipsHTML(id, chips, picked, { plus: true })}</section>`;
+    const chipCard = (id, question, chips, picked, highlighted = false) => `<section class="co-card${highlighted ? ' open' : ''}"><div class="co-card-q">${esc(question)}</div>${waiting[id] ? waitingHTML : ''}${chipsHTML(id, waiting[id] ? [] : chips, picked, { plus: true })}</section>`;
     body.innerHTML = `<div class="co-review"><div class="co-review-main">
       ${c.kind === 'idea' ? swotHTML(c) : ''}
       ${chipCard('goal', tr('What is the main goal for the next 90 days?'), s.goal, c.goal ? [c.goal] : [], c.kind === 'site' && !c.goal)}
@@ -264,7 +288,6 @@
     const back = $('[data-co-back]', body);
     if (back) back.onclick = () => { ui.screen = 'stories'; Company.redraw(); };
     $('[data-build]', body).onclick = () => Company.go('team');
-    if (!c.suggestions && !ui.tried?.review) { ui.tried = { ...ui.tried, review: true }; suggest('goal'); suggest('never'); if (c.kind === 'idea') suggest('time'); }
   }
   function answeredHTML(c, a) {
     if (ui.editing === a.key) return `<section class="co-card"><div class="co-card-q">${esc(questionOf(c, a))}</div><form class="co-ask small" id="co-edit"><input name="answer" autocomplete="off" maxlength="300" aria-label="${esc(questionOf(c, a))}" /><button type="submit" class="co-go">${tr('Save')}</button></form></section>`;

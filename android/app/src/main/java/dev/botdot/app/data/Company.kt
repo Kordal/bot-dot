@@ -74,7 +74,7 @@ data class Company(
 data class CompanySource(val id: String = "", val kind: String = "file", val name: String = "", val url: String? = null, val size: Long = 0, val upload: JsonObject? = null)
 
 @Serializable
-data class AboutCard(val key: String, val question: String = "", val answer: String = "", val chips: List<String>? = null, val open: Boolean = false)
+data class AboutCard(val key: String, val question: String = "", val answer: String = "", val chips: List<String>? = null, val open: Boolean = false, val basis: String? = null)
 
 @Serializable
 data class StoryGroup(val who: String, val items: List<Story> = emptyList())
@@ -92,7 +92,7 @@ data class Swot(
 )
 
 @Serializable
-data class Suggestions(val goal: List<String> = emptyList(), val never: List<String> = emptyList(), val time: List<String> = emptyList())
+data class Suggestions(val goal: List<String> = emptyList(), val never: List<String> = emptyList(), val time: List<String> = emptyList(), val basis: String? = null)
 
 /** A team (#669); [report] how often its lead reports (#696): daily, twice-weekly, weekly or none, and [lastReport] its latest. */
 @Serializable
@@ -309,6 +309,18 @@ object CompanySetup {
         val i = IDEA.indexOfFirst { c.card(it)?.open == true }
         if (i >= 0) return AboutScreen.Question(i)
         return if (c.swot != null) AboutScreen.Review else AboutScreen.Stories
+    }
+
+    /**
+     * What a question's chips are made from (#787), as lib/company-chief.js `basis` hashes it: the answers before
+     * [key] in [IDEA]'s order (any other key, the review's: all five). Chips of another basis are asked for again.
+     */
+    fun basis(c: Company, key: String): String {
+        val i = IDEA.indexOf(key).let { if (it < 0) IDEA.size else it }
+        val text = IDEA.take(i).joinToString("\n") { k -> c.card(k)?.answer.orEmpty() }
+        var h = 5381L
+        for (ch in text) h = ((h * 33) xor ch.code.toLong()) and 0xFFFFFFFFL
+        return h.toString(16)
     }
 
     fun split(answer: String): List<String> = answer.split(SEP).map { it.trim() }.filter { it.isNotEmpty() }
