@@ -63,6 +63,15 @@ test('the prompts hold the ask and the answers as text, and a refresh is handed 
   assert.match(cards.questionsPrompt({ ask: 'x', project: 'B', apps: [{ slug: 'github', name: 'GitHub' }] }), /github \(GitHub\)/);
 });
 
+test('the card is named and asked in the language of the ask, which the answer names first', () => {
+  const q = cards.questionsPrompt({ ask: 'Show my Hevy stats', project: 'B' });
+  assert.match(q, /\{"lang": "\.\.\.", "title"/);
+  assert.match(q, /language the words inside <ask> are written in .*judged by those words alone\. Write title, questions and choices in it/);
+  assert.match(cards.QUESTIONS_SYSTEM, /language the person's ask is written in/);
+  assert.match(cards.buildPrompts({ card: { ask: 'x', answers: [] }, project: 'B' }).system, /language the words inside <ask> are written in, judged by those words alone/);
+  assert.deepEqual(cards.questionsOf('{"lang": "English", "title": "Hevy stats", "questions": [], "apps": []}'), { title: 'Hevy stats', questions: [], apps: [] });
+});
+
 // ---------- the store ----------
 
 test('a card is asked, answered, built, refreshed when a day passed, and goes with its project', () => {
