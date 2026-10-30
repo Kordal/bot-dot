@@ -1711,5 +1711,13 @@
   "When should it be delivered?": "Na kiedy ma być gotowe?",
   "No date": "Bez terminu",
   "No delivery date": "Bez terminu oddania",
-  "Delivery": "Termin oddania"
+  "Delivery": "Termin oddania",
+  "In 1 month": "Za miesiąc",
+  "In 3 months": "Za 3 miesiące",
+  "End of year": "Koniec roku",
+  "Pick a date": "Wybierz datę",
+  "Indefinite": "Bezterminowo",
+  "Stories": "Historie",
+  "Attach": "Załącz",
+  "Link": "Link"
 }

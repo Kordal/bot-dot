@@ -1,8 +1,9 @@
 // Optional browser check of the Company's About step (#670): node test/browser/company-about.cjs [shots dir]
 // A new idea: the Chief names it and drafts chips; five questions, one per screen (a chip, "Write your own", Skip),
 // each next one's chips asked again from the answers before it (#787),
-// then "I want my <who> to…" stories in two groups, then the review with the SWOT, a goal, "never" and a delivery date picked, and a
-// reload that goes on where it was. Then a site: the review with the Chief's cards and its open question. The
+// each under the answer before it (#801), then "I want my <who> to…" stories in two groups, the delivery date (a preset,
+// Indefinite, a day on the calendar), then the review: the SWOT and one list of rows, a goal and "never" picked, a row
+// changed in place, and a reload that goes on where it was. Then a site: the review with the Chief's cards and its open question. The
 // stand-in Claude answers every call with one JSON (test/fixtures/fake-claude.js, $FAKE_OUT/company.txt).
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -65,7 +66,9 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     await page.locator('[data-chip="10 parents use it every week"]').click();
     await page.locator('[data-done]').click();
     await page.locator('[data-chip="Talk to 5 parents"]').click();
-    await page.locator('.co-answered li', { hasText: 'Order pizza' }).waitFor();
+    await page.locator('.co-prev', { hasText: '10 parents use it every week' }).waitFor();
+    assert.equal(await page.locator('.co-steps li.on .co-ticks i').count(), 8);
+    assert.equal(await page.locator('.co-steps li.on .co-ticks i.on').count(), 1);
     await shot(page, 'wide-last-question');
     await page.locator('[data-done]').click();
 
@@ -88,19 +91,29 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     await shot(page, 'wide-stories');
     await page.locator('[data-next]').click();
 
+    // The delivery date (#792, #801): a preset, Indefinite, then a day on the calendar.
+    await page.locator('.co-q h1', { hasText: 'When should it be delivered?' }).waitFor();
+    assert.equal(await page.locator('[data-done]').isDisabled(), true);
+    await page.locator('[data-preset="eoy"]').click();
+    await page.locator('[data-preset="eoy"].on').waitFor();
+    await page.locator('[data-delivery-none]').click();
+    await page.locator('[data-delivery-none].on').waitFor();
+    assert.equal((await srv.api('/company')).data.company.deliverBy, 'none');
+    await page.locator('[data-pick-day]').click();
+    await page.locator('.co-cal [data-cal-move="1"]').click();
+    const day = await page.locator('.co-cal [data-cal-day$="-15"]').getAttribute('data-cal-day');
+    await page.locator('.co-cal [data-cal-day$="-15"]').click();
+    await page.locator('.co-cal [data-cal-day$="-15"].on').waitFor();
+    await shot(page, 'wide-delivery');
+    await page.locator('[data-done]').click();
+
     // The review.
-    await page.locator('.co-swot-test', { hasText: 'Ask 10 parents to pre-order' }).waitFor({ timeout: 20000 });
+    await page.locator('.co-li', { hasText: 'Ask 10 parents to pre-order' }).waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('.co-knows').count(), 0, 'no summary beside it');
     await page.locator('[data-chips="goal"] [data-chip="10 parents use it every week"]').click();
     await page.locator('[data-chips="never"] [data-chip="Spend money"]').click();
     await page.locator('[data-chips="never"] [data-chip="E-mail someone new"]').click();
     await page.locator('[data-chips="never"] [data-chip="E-mail someone new"].on').waitFor();
-    await page.locator('.co-knows li', { hasText: 'Asks before' }).waitFor();
-    // The target delivery date (#792): No date, then a day.
-    await page.locator('[data-delivery-none]').click();
-    await page.locator('.co-knows li', { hasText: 'No delivery date' }).waitFor();
-    await page.locator('[data-delivery]').fill('2027-03-31');
-    await page.locator('.co-date.on').waitFor();
-    await page.locator('.co-knows li', { hasText: 'Delivery:' }).waitFor();
     await shot(page, 'wide-review');
     let c = (await srv.api('/company')).data.company;
     assert.equal(c.name, 'Mealwise');
@@ -108,7 +121,7 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     assert.deepEqual(c.stories.map((g) => [g.who, g.items.length]), [['users', 4], ['partners', 1]]);
     assert.equal(c.goal, '10 parents use it every week');
     assert.deepEqual(c.never, ['Spend money', 'E-mail someone new']);
-    assert.equal(c.deliverBy, '2027-03-31');
+    assert.equal(c.deliverBy, day);
     // An answer is changed in place.
     await page.locator('[data-edit="who"]').click();
     await page.locator('#co-edit input').fill('Parents of kids under 12');
@@ -125,7 +138,7 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify(SITE));
     await srv.api('/company', { method: 'POST', body: { start: 'fernhill.invalid' } });
     await page.reload();
-    await page.locator('.co-card.open', { hasText: 'Who answers billing questions?' }).waitFor({ timeout: 20000 });
+    await page.locator('.co-li.open', { hasText: 'Who answers billing questions?' }).waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-co-back]').count(), 0);
     await shot(page, 'wide-site');
     await page.locator('[data-chips="about:q1"] [data-chip="You"]').click();
@@ -133,7 +146,7 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     c = (await srv.api('/company')).data.company;
     assert.deepEqual(c.about.find((a) => a.key === 'q1'), { key: 'q1', question: 'Who answers billing questions?', answer: 'You', chips: ['You', 'Someone else'] });
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.locator('.co-knows').waitFor();
+    await page.locator('.co-list').waitFor();
     await shot(page, 'phone-site');
     assert.deepEqual(errors, []);
     console.log('company-about: ok');

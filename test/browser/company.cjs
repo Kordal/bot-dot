@@ -1,6 +1,6 @@
 // Optional browser check of the Company place (#669): node test/browser/company.cjs [shots dir]
-// The switch "Bots | Company" opens the Company place; with no company the start screen asks "What are you working
-// on?"; a link is added as a source; Go makes the company and the About step shows. Scratch data only.
+// The switch "Bots | Company" opens the Company place; with no company the start screen is "New project" with one
+// field (#801): its clip adds a link as a source chip; Go makes the company and the About step shows. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -21,17 +21,19 @@ const { startServer } = require('../helpers');
       const sw = page.locator('#place-switch [data-place="company"]');
       await sw.waitFor({ timeout: 20000 });
       await sw.click();
-      await page.locator('#view-company h1', { hasText: 'What are you working on?' }).waitFor();
+      await page.locator('#view-company h1', { hasText: 'New project' }).waitFor();
+      assert.equal(await page.locator('[data-example]').count(), 0, 'no examples (#801)');
       assert.equal(await page.locator('#company-side [data-project]').count(), 0, 'no project yet');
       const go = page.locator('#co-ask .co-go');
       assert.equal(await go.isDisabled(), true);
-      await page.locator('[data-add-link]').click();
+      await page.locator('#co-ask [data-attach]').click();
+      await page.locator('.ct-menu [data-add-link]').click();
       await page.locator('#co-link input').fill('linkedin.com/company/fernhill');
       await page.locator('#co-link input').press('Enter');
-      await page.locator('.co-sources li', { hasText: 'linkedin.com/company/fernhill' }).waitFor();
+      await page.locator('.co-sources li', { hasText: 'linkedin.com/company/fernhill' }).locator('[data-unsource]').waitFor();
       if (shots) await page.screenshot({ path: path.join(shots, `${name}-start.png`), fullPage: true });
       if (name === 'wide') {
-        await page.locator('[data-example="fernhill.app"]').click();
+        await page.locator('#co-what').fill('fernhill.app');
         await go.click();
         await page.locator('.co-steps li.on', { hasText: 'About' }).waitFor();
         const c = (await srv.api('/company')).data.company;

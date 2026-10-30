@@ -17,6 +17,8 @@ const Company = (() => {
     fold: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
     crown: '<svg class="ct-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>',
+    clip: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg>',
+    more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
     gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   };
   const KEY = 'botdot.place';
@@ -198,6 +200,7 @@ const Company = (() => {
   function wirePick(root) {
     $$('[data-pick-project]', root).forEach((sel) => (sel.onchange = () => (sel.value ? show(sel.value) : startNew())));
     $$('[data-project-settings]', root).forEach((b) => (b.onclick = openSettings));
+    $$('[data-project-more]', root).forEach((b) => (b.onclick = () => state.company && menuAt(b, projectItems(state.company))));
   }
   // ---------- the settings (company-settings.js) ----------
   let settingsOpen = false;
@@ -222,7 +225,7 @@ const Company = (() => {
   // Delete a project (#701; #791 from the left column and the setup too): asked first, and with a folder (#702)
   // whether the folder goes too; then gone from the list, and the first one left shown if it was.
   async function deleteProject(c) {
-    const folder = c.folder ? await askFolder(c) : confirm(tr('Delete the project {name}? Its bots stay.', { name: nameOf(c) })) && 'keep';
+    const folder = await askDelete(c);
     if (!folder) return false;
     const path = many() ? `/company?project=${encodeURIComponent(c.id)}` : '/company';
     // Shown when asked: the feed's event of its delete can arrive before the answer and show another.
@@ -232,40 +235,52 @@ const Company = (() => {
     else { state.projects = (state.projects || []).filter((p) => p.id !== c.id); drawSide(); }
     return true;
   }
-  // 'keep' or 'delete' the folder, or null.
-  function askFolder(c) {
+  // "Delete <name>?" (#801): Cancel or a red Delete; with a folder, a box says whether it goes too. 'keep', 'delete' or null.
+  function askDelete(c) {
     return new Promise((resolve) => {
       const m = openModal(`
-        <div class="modal-head"><h2>${tr('Delete the project {name}? Its bots stay.', { name: esc(nameOf(c)) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
-        <div class="modal-foot">
-          <button type="button" class="btn" data-folder="keep">${tr('Keep its folder')}</button>
-          <button type="button" class="btn danger" data-folder="delete">${tr('Delete its folder too')}</button>
+        <div class="modal-head"><h2>${tr('Delete {name}?', { name: esc(nameOf(c)) })}</h2></div>
+        ${c.folder ? `<div class="modal-body"><label class="co-check"><input type="checkbox" data-folder-too /> ${tr('Delete its folder too')}</label></div>` : ''}
+        <div class="modal-foot co-confirm">
+          <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>
+          <button type="button" class="btn red" data-confirm-delete>${tr('Delete')}</button>
         </div>`);
+      m.classList.add('co-delete');
       let answer = null;
-      $$('[data-folder]', m).forEach((b) => (b.onclick = () => { answer = b.dataset.folder; m.close(); }));
-      m.addEventListener('close', () => resolve(answer), { once: true });
+      $('[data-confirm-delete]', m).onclick = () => { answer = $('[data-folder-too]', m)?.checked ? 'delete' : 'keep'; m.close(); };
+      m.addEventListener('close', () => { m.classList.remove('co-delete'); resolve(answer); }, { once: true });
     });
   }
+  // A small menu under a button or at a point: items of { label, attr, run, danger }.
+  function menuAt(at, items) {
+    $('.ct-menu')?.remove();
+    document.body.insertAdjacentHTML('beforeend', `<div class="fx-menu ct-menu" role="menu">${items.map((it, i) => `<button type="button" role="menuitem" class="fx-mi${it.danger ? ' danger' : ''}" data-mi="${i}" ${it.attr || ''}>${esc(it.label)}</button>`).join('')}</div>`);
+    const m = $('.ct-menu');
+    const r = at.getBoundingClientRect ? at.getBoundingClientRect() : { left: at.x, right: at.x, bottom: at.y };
+    const x = at.getBoundingClientRect ? r.right - m.offsetWidth : r.left;
+    m.style.left = `${Math.max(8, Math.min(x, innerWidth - m.offsetWidth - 8))}px`;
+    m.style.top = `${Math.min(r.bottom + (at.getBoundingClientRect ? 4 : 0), innerHeight - m.offsetHeight - 8)}px`;
+    const close = () => { m.remove(); document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', esc_, true); };
+    const away = (e) => { if (!m.contains(e.target) && e.target !== at && !at.contains?.(e.target)) close(); };
+    const esc_ = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('pointerdown', away, true);
+    document.addEventListener('keydown', esc_, true);
+    $$('[data-mi]', m).forEach((b) => (b.onclick = () => { close(); items[Number(b.dataset.mi)].run(); }));
+    m.querySelector('button').focus();
+  }
+  const projectItems = (p) => [
+    ...((state.features || []).includes('project-settings') ? [{ label: tr('Project settings'), attr: 'data-ct-settings', run: () => { show(p.id); openSettings(); } }] : []),
+    { label: tr('Delete project'), attr: 'data-ct-delete', run: () => deleteProject(p) },
+  ];
   // A project row's right-click: its settings, or delete it.
   function rowMenu(ev, id) {
     const p = projects().find((x) => x.id === id);
     if (!p) return;
     ev.preventDefault();
-    $('.ct-menu')?.remove();
-    const settings = (state.features || []).includes('project-settings');
-    document.body.insertAdjacentHTML('beforeend', `<div class="fx-menu ct-menu" role="menu">${settings ? `<button type="button" role="menuitem" class="fx-mi" data-ct-settings>${tr('Project settings')}</button><hr>` : ''}<button type="button" role="menuitem" class="fx-mi danger" data-ct-delete>${tr('Delete project')}</button></div>`);
-    const m = $('.ct-menu');
-    m.style.left = `${Math.min(ev.clientX, innerWidth - m.offsetWidth - 8)}px`;
-    m.style.top = `${Math.min(ev.clientY, innerHeight - m.offsetHeight - 8)}px`;
-    const close = () => { m.remove(); document.removeEventListener('pointerdown', away, true); document.removeEventListener('keydown', esc_, true); };
-    const away = (e) => { if (!m.contains(e.target)) close(); };
-    const esc_ = (e) => { if (e.key === 'Escape') close(); };
-    document.addEventListener('pointerdown', away, true);
-    document.addEventListener('keydown', esc_, true);
-    $('[data-ct-settings]', m)?.addEventListener('click', () => { close(); show(id); openSettings(); });
-    $('[data-ct-delete]', m).onclick = () => { close(); deleteProject(p); };
-    m.querySelector('button').focus();
+    menuAt({ x: ev.clientX, y: ev.clientY }, projectItems(p));
   }
+  // The ⋯ in the setup's header (#801): the same, for the project being set up.
+  const moreHTML = () => (state.company ? `<button type="button" class="icon-btn co-more" data-project-more aria-label="${tr('More')}" title="${tr('More')}" aria-haspopup="menu">${ICON.more}</button>` : '');
 
   // ---------- the main area ----------
   function render() {
@@ -287,15 +302,15 @@ const Company = (() => {
     else if (c.phase === 'running' && steps.home && current !== 'start') steps.home(root, c);
     else {
       const at = stepOf(c);
-      // The gear at the bar's end: its settings, and so its delete, while setting up too (#791).
-      root.innerHTML = `<div class="co-steps-line">${stepBar(at)}${gearHTML()}</div><div class="co-body" id="co-body"></div>`;
+      // The ⋯ at the bar's end: its settings and its delete, while setting up too (#791, #801).
+      root.innerHTML = `<div class="co-steps-line">${stepBar(at, c)}${moreHTML()}</div><div class="co-body" id="co-body"></div>`;
       const body = $('#co-body', root);
       if (steps[at]) steps[at](body, c); else drawGiven(body, c);
       // While setting up, About and Team on the bar open their step; Start is Create's.
       if (c.phase !== 'running') $$('.co-steps [data-step]:not([data-step="start"])', root).forEach((li) => (li.onclick = () => go(li.dataset.step)));
     }
     // A phone has no left column: the project's name over the setup picks another (the floor has it in its header).
-    if (many() && !(c?.phase === 'running' && steps.home && current !== 'start') && projects().length) root.insertAdjacentHTML('afterbegin', `<div class="co-pick-line">${pickHTML(c ? nameOf(c) : tr('New project'))}${c ? gearHTML() : ''}</div>`);
+    if (many() && !(c?.phase === 'running' && steps.home && current !== 'start') && projects().length) root.insertAdjacentHTML('afterbegin', `<div class="co-pick-line">${pickHTML(c ? nameOf(c) : tr('New project'))}${c ? moreHTML() : ''}</div>`);
     wirePick(root);
     phoneSwitch(root);
   }
@@ -305,26 +320,27 @@ const Company = (() => {
   function go(step) { current = step; render(); }
   // Draw again now, also when nothing it shows changed (a part's own state did).
   function redraw() { const root = $('#view-company'); if (root) delete root.dataset.sig; render(); }
-  const stepBar = (at) => {
+  // The step bar; under the step shown, its own ticks when its part counts them (steps.ticks: [how many, at]).
+  const stepBar = (at, c) => {
     const i = STEPS.findIndex(([k]) => k === at);
-    return `<ol class="co-steps">${STEPS.map(([k, label], n) => `<li class="${n < i ? 'done' : n === i ? 'on' : ''}" data-step="${k}">${label()}</li>`).join('')}</ol>`;
+    const ticks = c && steps.ticks?.[at]?.(c);
+    const tickHTML = ticks ? `<span class="co-ticks">${Array.from({ length: ticks[0] }, (_, n) => `<i class="${n < ticks[1] ? 'done' : n === ticks[1] ? 'on' : ''}"></i>`).join('')}</span>` : '';
+    return `<ol class="co-steps">${STEPS.map(([k, label], n) => `<li class="${n < i ? 'done' : n === i ? 'on' : ''}" data-step="${k}">${label()}${n === i ? tickHTML : ''}</li>`).join('')}</ol>`;
   };
   // What the owner gave, as the About step shows it until the Chief's part draws it.
   function drawGiven(body, c) {
     body.innerHTML = `<div class="co-start"><h1>${esc(c.name || c.start)}</h1>${c.name ? `<p class="co-given">${esc(c.start)}</p>` : ''}${sourcesHTML(c.sources, false)}</div>`;
   }
 
-  // "What are you working on?": one field, two examples, and the sources.
-  const EXAMPLES = [['link', 'fernhill.app'], ['plus', 'A meal-planning app for busy parents']];
+  // A new project (#801): one field with a clip for its sources (files, links) inside, the sources as chips under it,
+  // and "Start from scratch" at the foot.
   function drawStart(root) {
     const typed = $('#co-what', root)?.value || '';
-    root.innerHTML = `<div class="co-start">
-      <h1>${tr('What are you working on?')}</h1>
-      <form class="co-ask" id="co-ask"><input id="co-what" name="what" autocomplete="off" maxlength="500" placeholder="${tr('Your site, or your idea in one sentence')}" aria-label="${tr('What are you working on?')}" /><button type="submit" class="co-go" disabled>${tr('Go')} ${ICON.go}</button></form>
-      <div class="co-chips">${EXAMPLES.map(([icon, text]) => `<button type="button" class="co-chip dashed" data-example="${esc(text)}">${ICON[icon]}${esc(text)}</button>`).join('')}</div>
-      <div class="co-add"><button type="button" class="btn" data-add-files>${ICON.file}${tr('Add files')}</button><button type="button" class="btn" data-add-link>${ICON.link}${tr('Add a link')}</button><input type="file" multiple hidden id="co-files" /></div>
+    root.innerHTML = `<div class="co-start co-new">
+      <h1>${tr('New project')}</h1>
+      <form class="co-ask" id="co-ask"><button type="button" class="icon-btn co-clip" data-attach aria-label="${tr('Attach')}" title="${tr('Attach')}" aria-haspopup="menu">${ICON.clip}</button><input id="co-what" name="what" autocomplete="off" maxlength="500" placeholder="${tr('Site or idea')}" aria-label="${tr('Site or idea')}" /><button type="submit" class="co-go co-go-icon" aria-label="${tr('Go')}" disabled>${ICON.go}</button><input type="file" multiple hidden id="co-files" /></form>
       <div id="co-sources">${sourcesHTML(draft.sources, true)}</div>
-      ${(state.features || []).includes('project-empty') ? `<button type="button" class="btn co-empty" data-start-empty>${tr('Start from scratch')}</button>` : ''}
+      ${(state.features || []).includes('project-empty') ? `<button type="button" class="co-text-btn co-empty" data-start-empty>${tr('Start from scratch')}</button>` : ''}
     </div>`;
     const form = $('#co-ask', root);
     const input = form.what;
@@ -332,20 +348,22 @@ const Company = (() => {
     const ready = () => { form.querySelector('.co-go').disabled = !input.value.trim(); };
     input.oninput = ready;
     ready();
-    $$('[data-example]', root).forEach((b) => (b.onclick = () => { input.value = b.dataset.example; ready(); input.focus(); }));
     form.onsubmit = (e) => { e.preventDefault(); begin(input.value, form.querySelector('.co-go')); };
     const files = $('#co-files', root);
-    $('[data-add-files]', root).onclick = () => files.click();
+    const clip = $('[data-attach]', root);
+    clip.onclick = () => menuAt(clip, [
+      { label: tr('Files'), attr: 'data-add-files', run: () => files.click() },
+      { label: tr('Link'), attr: 'data-add-link', run: () => addLink() },
+    ]);
     files.onchange = () => { addFiles([...files.files]); files.value = ''; };
-    $('[data-add-link]', root).onclick = () => addLink();
     const empty = $('[data-start-empty]', root);
     if (empty) empty.onclick = () => made({ empty: true, name: tr('New project') }, empty);
     wireSources(root);
     if (state.view === 'company' && !typed) input.focus();
   }
 
-  const sizeOf = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} MB` : n >= 1e3 ? `${Math.round(n / 1e3)} KB` : `${n} B`);
-  const sourcesHTML = (list, removable) => (list.length ? `<ul class="co-sources">${list.map((s) => `<li class="${s.status === 'failed' ? 'failed' : ''}">${s.kind === 'link' ? ICON.link : ICON.file}<span class="co-src-name">${esc(s.name)}</span><span class="co-src-size">${s.status === 'uploading' ? '…' : s.kind === 'link' ? tr('page') : s.size ? sizeOf(s.size) : ''}</span>${removable ? `<button type="button" class="icon-btn" data-unsource="${esc(s.id)}" aria-label="${tr('Remove')}">${ICON.x}</button>` : ''}</li>`).join('')}</ul>` : '');
+  // The sources as chips: a file or a link, removable on the new-project screen.
+  const sourcesHTML = (list, removable) => (list.length ? `<ul class="co-sources">${list.map((s) => `<li class="co-src${s.status === 'failed' ? ' failed' : s.status === 'uploading' ? ' busy' : ''}">${s.kind === 'link' ? ICON.link : ICON.file}<span class="co-src-name">${esc(s.name)}</span>${removable ? `<button type="button" class="co-src-x" data-unsource="${esc(s.id)}" aria-label="${tr('Remove')}">${ICON.x}</button>` : ''}</li>`).join('')}</ul>` : '');
   function drawSources() {
     const box = $('#co-sources');
     if (!box) return;
@@ -377,7 +395,7 @@ const Company = (() => {
   function addLink() {
     const box = $('#co-sources');
     if (!box || $('#co-link', box)) return $('#co-link input')?.focus();
-    box.insertAdjacentHTML('afterbegin', `<form class="co-ask small" id="co-link"><input name="url" autocomplete="off" maxlength="1000" placeholder="https://" aria-label="${tr('Add a link')}" /><button type="submit" class="co-go">${tr('Add')}</button></form>`);
+    box.insertAdjacentHTML('beforeend', `<form class="co-ask small" id="co-link"><input name="url" autocomplete="off" maxlength="1000" placeholder="https://" aria-label="${tr('Add a link')}" /><button type="submit" class="co-go">${tr('Add')}</button></form>`);
     const form = $('#co-link', box);
     form.url.focus();
     form.onsubmit = (e) => {
