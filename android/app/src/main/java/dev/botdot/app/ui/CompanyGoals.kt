@@ -13,18 +13,26 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,9 +45,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -49,8 +59,10 @@ import dev.botdot.app.data.Company
 import dev.botdot.app.data.CompanyFloor
 import dev.botdot.app.data.I18n
 import dev.botdot.app.data.Objective
+import dev.botdot.app.data.TileAsk
 import dev.botdot.app.data.tr
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.launch
 
 /**
  * The objectives above the floor (#690, #704; web: goalsHTML in public/company-home.js): a card each, drawn as the owner
@@ -60,22 +72,25 @@ import java.time.format.DateTimeFormatter
  * [CompanyFloor]'s.
  */
 @Composable
-internal fun Goals(ui: CompanyUi, c: Company) {
+internal fun Goals(ui: CompanyUi, c: Company, onChat: ((String) -> Unit)? = null) {
     if (c.objectives.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        c.objectives.forEach { GoalCard(ui, c, it) }
+        c.objectives.forEach { GoalCard(ui, c, it, onChat) }
     }
 }
 
 internal fun displayName(k: String): String = when (k) { "pace" -> tr("Pace chart"); "bar" -> tr("Bar"); else -> tr("Status") }
 
+/** [onChat]: "Change" in its menu asks the Chief to change it (#820) and opens the chat it started; null: no Change. */
 @Composable
-internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective) {
+internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective, onChat: ((String) -> Unit)? = null) {
     val p = LocalPaper.current
     val show = CompanyFloor.displayOf(o)
     val numeric = o.target > 0
     val pace = CompanyFloor.pace(o, c.day)
     var menu by remember { mutableStateOf(false) }
+    var asking by remember { mutableStateOf(false) }
+    if (asking && onChat != null) GoalAskSheet(ui, o, { asking = false }) { asking = false; onChat(it) }
     Column(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(o.color)
@@ -93,6 +108,10 @@ internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective) {
                             menu = false
                             if (k != show) ui.call({ it.setObjective(o.id, display = k) })
                         }, trailingIcon = { if (k == show) Icon(Icons.Filled.Check, null, tint = p.text) })
+                    }
+                    if (onChat != null) {
+                        HorizontalDivider(color = p.line)
+                        DropdownMenuItem({ Text(tr("Change"), color = p.text) }, { menu = false; asking = true })
                     }
                 }
             }
@@ -114,6 +133,42 @@ internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective) {
                 if (show == "bar") Box(Modifier.fillMaxWidth().height(Space.s8).clip(Radius.pill).background(p.line2)) {
                     Box(Modifier.fillMaxWidth(CompanyFloor.ratio(o)).height(Space.s8).clip(Radius.pill).background(parseColor(o.color, p.muted)))
                 } else PaceChart(c, o)
+            }
+        }
+    }
+}
+
+/** What should change in a goal, sent to the Chief (#820): its name over a field, and Send. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GoalAskSheet(ui: CompanyUi, o: Objective, onClose: () -> Unit, onSent: (String) -> Unit) {
+    val p = LocalPaper.current
+    var text by remember(o.id) { mutableStateOf("") }
+    var sending by remember(o.id) { mutableStateOf(false) }
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = p.panel) {
+        Column(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s16, bottom = Space.s24).imePadding()) {
+            Text(o.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            BasicTextField(
+                text, { text = it },
+                textStyle = TextStyle(color = p.text, fontSize = Type.s16, lineHeight = Type.line24),
+                cursorBrush = SolidColor(p.text),
+                modifier = Modifier.fillMaxWidth().padding(top = Space.s12).heightIn(min = 88.dp),
+                decorationBox = { inner -> Box { if (text.isEmpty()) Text(TileAsk.PLACEHOLDER, color = p.faint, fontSize = Type.s16); inner() } },
+            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                val can = text.isNotBlank() && !sending
+                Box(
+                    Modifier.size(36.dp).clip(CircleShape).background(if (can) p.ink else p.line).clickable(enabled = can) {
+                        sending = true
+                        ui.scope.launch {
+                            val a = ui.api ?: run { sending = false; return@launch ui.tell(tr("Can't reach botdot.")) }
+                            runCatching { a.askObjectiveChange(o.id, text.trim()) }
+                                .onSuccess(onSent)
+                                .onError { sending = false; ui.tell(it.message) }
+                        }
+                    },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Filled.ArrowUpward, contentDescription = tr("Send"), tint = if (can) p.inkText else p.faint, modifier = Modifier.size(20.dp)) }
             }
         }
     }
