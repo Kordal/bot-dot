@@ -65,6 +65,7 @@ import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Groups
 import dev.botdot.app.data.CheckinDue
 import dev.botdot.app.data.Company
+import dev.botdot.app.data.GoalAsk
 import dev.botdot.app.data.CompanyFloor
 import dev.botdot.app.data.CompanyTeam
 import dev.botdot.app.data.Objective
@@ -86,6 +87,8 @@ internal class CompanyWays(
     val onTeam: ((String) -> Unit)? = null,
     /** A project's folder in Files, alone (#702, #703): its name. */
     val onFolder: ((String) -> Unit)? = null,
+    /** A Chief chat a goal's "Change" started (#820): its id; null where the botdot can't. */
+    val onGoalChat: ((String) -> Unit)? = null,
 )
 
 private val GOLD = Color(0xFFE8B44A)
@@ -144,7 +147,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             val cards = rememberCards(ui, c)
             val tiles = buildList {
                 if (on("days")) c.day?.let { day -> add(Tile("days") { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
-                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o) } }) }
+                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }) } }) }
                 if (dev.botdot.app.data.ProjectCards.shows(features, c)) dev.botdot.app.data.ProjectCards.slots(c.cards, cards.shown).forEach { s ->
                     add(Tile(cards.tileOf(s)) { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                         CardSlot(cards, s, Modifier.fillMaxWidth().weight(1f, fill = false))
@@ -171,7 +174,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             c.checkin?.let { CheckinCard(ui, it, ways) }
         }
         val goals = CompanyFloor.DISPLAY in features
-        if (goals && on("goals")) Goals(ui, c)
+        if (goals && on("goals")) Goals(ui, c, ways.onGoalChat.takeIf { GoalAsk.shows(features) })
         // The teams first; then the Chief, a suggested bot and New team (#690's side column, under them on a phone).
         Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s12),
             verticalArrangement = Arrangement.spacedBy(Space.s12)) {

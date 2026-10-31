@@ -755,6 +755,9 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** An objective's display, steps or tick (#690): only what is given is sent. */
     suspend fun setObjective(id: String, display: String? = null, steps: List<ObjectiveStep>? = null, done: Boolean? = null): Company =
         CompanySetup.of(send("PUT", co("/company/objectives/${enc(id)}"), CompanyFloor.objectiveBody(display, steps, done)))
+    /** Asks the Chief to change a goal (#820): the id of the Chief chat it started. */
+    suspend fun askObjectiveChange(id: String, text: String): String =
+        json.parseToJsonElement(send("POST", co("/company/objectives/${enc(id)}/change"), buildJsonObject { put("text", text) })).jsonObject.str("chatId")
     suspend fun addTodo(text: String, bot: String?): Company =
         CompanySetup.of(send("POST", co("/company/todos"), buildJsonObject { put("text", text); if (bot != null) put("bot", bot) }))
     suspend fun tickTodo(id: String, done: Boolean): Company = CompanySetup.of(send("PUT", co("/company/todos/${enc(id)}"), buildJsonObject { put("done", done) }))
