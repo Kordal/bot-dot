@@ -1,7 +1,7 @@
 // The row of chats docked to the bottom of the Projects screen (#691): its rules. This file draws nothing (dock.js
 // does):
 //   - what this device keeps: the panels in their order, oldest left, newest right, and how high a phone's sheet is.
-//   - a panel is { kind, id }: a bot's chat, or a team's; `open: true` when it stays expanded, not a bar (#714).
+//   - a panel is { kind, id }: a bot's chat, a team's or the Chief's (#819); `open: true` when it stays expanded, not a bar (#714).
 //   - how many panels the width holds; the older ones go under "+N" at the left end; the open one is always shown.
 //   - a panel dragged sideways lands where its middle is.
 // A plain <script>, as window.DockRow; the tests load it with require.

@@ -9,7 +9,7 @@
 // Above the floor (#690): each objective as the owner picked under "Show as" (a pace chart by default, a bar, or its
 // status and steps), and on day 1 where it starts in place of a chart. The floor has the teams in its main area and
 // the Chief and "New team" in a narrow column. At the floor's end, the Calendar tile (#695,
-// company-calendar-view.js).
+// company-calendar-view.js). A goal's pencil asks the Chief to change it (#819), in its chat docked on this screen.
 (() => {
   const CROWN = '<svg class="cf-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
   const X = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
@@ -110,10 +110,81 @@
     const fromApp = numeric ? `<hr><button type="button" role="menuitem" data-cf-source="${esc(o.id)}">${tr('Update from an app')}</button>` : '';
     const menu = menuFor === o.id ? `<div class="cf-menu" role="menu">${DISPLAYS.map(([k, label]) => `<button type="button" role="menuitemradio" aria-checked="${show === k}" data-cf-display="${k}">${label()}</button>`).join('')}${fromApp}</div>` : '';
     return `<section class="cf-goal ${show}" style="--c:${esc(o.color)}" data-cf-goal="${esc(o.id)}">
-      <div class="cf-goal-head"><i class="cf-dot"></i><h2>${esc(o.name)}</h2>${count}${sourceHTML(o)}<button type="button" class="icon-btn" data-cf-show="${esc(o.id)}" aria-label="${tr('Show as')}" aria-expanded="${menuFor === o.id}">${SHOW}</button>${menu}</div>
+      <div class="cf-goal-head"><i class="cf-dot"></i><h2>${esc(o.name)}</h2>${count}${sourceHTML(o)}${canAsk() ? `<button type="button" class="icon-btn cf-goal-edit" data-cf-ask="${esc(o.id)}" aria-label="${tr('Change')}" aria-expanded="${asking?.id === o.id}">${PEN}</button>` : ''}<button type="button" class="icon-btn" data-cf-show="${esc(o.id)}" aria-label="${tr('Show as')}" aria-expanded="${menuFor === o.id}">${SHOW}</button>${menu}</div>
       ${sourceFormHTML(o)}<div class="cf-goal-body">${body}</div>
     </section>`;
   }
+  // ---------- asking the Chief to change a goal (#819) ----------
+  // The pencil opens a field under the goal (a sheet from the bottom on a phone), as a Board tile's does (board.js
+  // #430); Send makes a Chief chat that names the goal and opens it docked on this screen, where the talk goes on.
+  const PEN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg>';
+  const UP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+  const canAsk = () => (state.features || []).includes('objective-change');
+  let asking = null; // { id, pop, dim, sending }
+  function openAsk(o) {
+    closeAsk();
+    const sheet = matchMedia('(max-width: 760px)').matches;
+    const pop = document.createElement('div');
+    pop.className = `ask-pop${sheet ? ' ask-sheet' : ''}`;
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', o.name);
+    pop.innerHTML = `${sheet ? `<h2>${esc(o.name)}</h2>` : ''}<textarea rows="3" placeholder="${tr('What should change?')}"></textarea>
+      <div class="row"><span></span><button type="button" class="send off" data-ask-send aria-label="${tr('Send')}">${UP}</button></div>`;
+    const dim = sheet ? Object.assign(document.createElement('div'), { className: 'ask-dim' }) : null;
+    if (dim) { dim.onclick = closeAsk; document.body.append(dim); }
+    document.body.append(pop);
+    asking = { id: o.id, pop, dim, sending: false };
+    const ta = $('textarea', pop);
+    const btn = $('[data-ask-send]', pop);
+    ta.oninput = () => btn.classList.toggle('off', !ta.value.trim());
+    ta.onkeydown = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); closeAsk(); }
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); sendAsk(); }
+    };
+    btn.onclick = sendAsk;
+    placeAsk();
+    ta.focus();
+  }
+  function placeAsk() {
+    if (!asking) return;
+    const el = document.querySelector(`[data-cf-goal="${CSS.escape(asking.id)}"]`);
+    if (!el) return closeAsk();
+    if (asking.pop.classList.contains('ask-sheet')) return;
+    const r = el.getBoundingClientRect();
+    const w = Math.min(Math.max(300, r.width), innerWidth - 32);
+    const h = asking.pop.offsetHeight;
+    const below = r.bottom + 8 + h <= innerHeight - 8;
+    asking.pop.style.width = `${w}px`;
+    asking.pop.style.left = `${Math.max(16, Math.min(r.left, innerWidth - w - 16))}px`;
+    asking.pop.style.top = `${below ? r.bottom + 8 : Math.max(8, r.top - 8 - h)}px`;
+  }
+  function closeAsk() {
+    if (!asking) return;
+    asking.pop.remove();
+    asking.dim?.remove();
+    asking = null;
+    $$('[data-cf-ask][aria-expanded="true"]').forEach((b) => b.setAttribute('aria-expanded', 'false'));
+  }
+  async function sendAsk() {
+    if (!asking || asking.sending) return;
+    const { id, pop } = asking;
+    const text = $('textarea', pop).value.trim();
+    if (!text) return;
+    asking.sending = true;
+    let r;
+    try { r = await api(Company.at(`/company/objectives/${encodeURIComponent(id)}/change`), { method: 'POST', body: { text } }); } catch (e) {
+      if (asking?.pop === pop) asking.sending = false;
+      return toast(e.message, true);
+    }
+    if (asking?.pop === pop) closeAsk(); // not another goal's ask, opened while this one went
+    Dock.openChief(r.chatId); // docked on the Projects screen (dock.js)
+  }
+  document.addEventListener('pointerdown', (e) => {
+    if (asking && !asking.dim && !asking.pop.contains(e.target) && !e.target.closest('[data-cf-ask]')) closeAsk();
+  }, true);
+  addEventListener('resize', () => placeAsk());
+  document.addEventListener('scroll', () => placeAsk(), true);
+
   // ---------- where an objective's number comes from (#699) ----------
   const appName = (slug) => apps?.find((a) => a.slug === slug)?.name || slug.charAt(0).toUpperCase() + slug.slice(1).replace(/_/g, ' ');
   async function loadApps() {
@@ -349,7 +420,7 @@
       r.onkeydown = (e) => { if (e.target === r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTeam(r.dataset.cfTeam); } };
     });
     // Not there while the team floor is off the board (#780).
-    $('[data-cf-chief]', root)?.addEventListener('click', () => setView('chief'));
+    $('[data-cf-chief]', root)?.addEventListener('click', () => Dock.openChief()); // docked on this screen (#819)
     $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));
     window.ProjectCards?.wire(root); // the cards made by Claude (#775)
     Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
@@ -402,6 +473,12 @@
         if (!(await send('/company/plan/change', 'POST', { text }))) { changing = true; Company.redraw(); const now = $('#cf-change input'); if (now) now.value = text; }
       };
     }
+    $$('[data-cf-ask]', root).forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      if (asking?.id === b.dataset.cfAsk) return closeAsk();
+      const o = c.objectives.find((x) => x.id === b.dataset.cfAsk);
+      if (o) { openAsk(o); b.setAttribute('aria-expanded', 'true'); }
+    }));
     $$('[data-cf-show]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menuFor = menuFor === b.dataset.cfShow ? null : b.dataset.cfShow; Company.redraw(); }));
     $$('[data-cf-display]', root).forEach((b) => (b.onclick = (e) => {
       e.stopPropagation();
