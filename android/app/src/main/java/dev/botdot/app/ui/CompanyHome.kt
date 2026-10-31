@@ -28,8 +28,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -51,6 +49,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -129,17 +130,17 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     fun on(k: String) = dev.botdot.app.data.ProjectBoard.shows(c, k)
     val canvas = BoardCanvas.FEATURE in features
     val saved = remember(c.layout) { BoardCanvas.of(c.layout) }
-    var arranging by rememberSaveable(c.id) { mutableStateOf(false) }
+    // A long press on the flow puts the tiles on the canvas (#821): from then on a long press and a drag moves one.
+    var started by rememberSaveable(c.id) { mutableStateOf(false) }
+    val haptic = LocalHapticFeedback.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s12).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         // Its name picks another project and its gear opens its settings (#703).
         ProjectTitle(ui, c, ways) {
-            // Arrange (#784): the tiles move and resize while it is on.
-            if (canvas) RoundButton(if (arranging) Icons.Filled.Check else Icons.Filled.OpenWith, if (arranging) tr("Done") else tr("Arrange"), Modifier.padding(start = Space.s4)) { arranging = !arranging }
             c.day?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(start = Space.s12).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
         // The owner's arrangement (#784): every tile where it was put, on a canvas scaled to the screen.
-        if (canvas && (saved != null || arranging)) {
+        if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
             val tiles = buildList {
                 if (on("days")) c.day?.let { day -> add(Tile("days") { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
@@ -159,8 +160,12 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m -> Box(m) { CalendarTile(ui, c, bots) } })
                 if (on("todo")) add(Tile("todo") { m -> Column(m) { TodoPanel(ui, c, bots, waiting, ways, features) } })
             }
-            BoardCanvasView(tiles, saved, arranging) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
+            BoardCanvasView(tiles, saved) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
         } else {
+        // The flow of a project never arranged; with the canvas, a long press here starts it.
+        Column(Modifier.fillMaxWidth().then(if (canvas) Modifier.pointerInput(Unit) {
+            holdAndDrag(onHold = { started = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); true })
+        } else Modifier), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         if (on("days")) {
             c.day?.let { DaysLine(c, it) }
             c.checkin?.let { CheckinCard(ui, it, ways) }
@@ -182,6 +187,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) CalendarTile(ui, c, bots)
         }
         if (on("todo")) TodoPanel(ui, c, bots, waiting, ways, features)
+        }
         }
     }
     val team = teamOpen?.takeIf { on("teams") }?.let { id -> c.teams.firstOrNull { it.id == id } }
