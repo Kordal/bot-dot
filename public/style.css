@@ -2679,6 +2679,9 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .cf-goal-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-16); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-goal-head .icon-btn { color: var(--faint); }
 .cf-goal-head .icon-btn:hover, .cf-goal-head .icon-btn[aria-expanded="true"] { color: var(--text); }
+.cf-goal-edit { opacity: 0; }
+.cf-goal:hover .cf-goal-edit, .cf-goal:focus-within .cf-goal-edit, .cf-goal-edit[aria-expanded="true"] { opacity: 1; }
+@media (hover: none) { .cf-goal-edit { opacity: 1; } }
 .cf-goal-head .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .cf-menu { position: absolute; top: 36px; right: 0; z-index: 5; display: flex; flex-direction: column; min-width: 160px; padding: var(--sp-4); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--sunk); box-shadow: 0 12px 32px rgba(0, 0, 0, .5); }
 .cf-menu button { padding: var(--sp-8) var(--sp-12); border: 0; border-radius: var(--r-8); background: none; color: var(--muted); font-size: var(--fs-14); text-align: left; cursor: pointer; }

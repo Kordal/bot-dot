@@ -9,7 +9,7 @@
 // A bot's chat expanded beside it is the same chat drawn once more (renderBotChat in a root of its own), and is read
 // as the open one is: this page reports it under an app id of its own (docs/api.md, "New replies").
 // A panel is { kind, id }: `kinds` says how each kind is drawn and opened: a bot's chat, or a team's (#697), which is
-// the group chat of that team (groups.js) and opens the same way, its row moved into the dock.
+// the group chat of that team (groups.js) and opens the same way, its row moved into the dock, or the Chief's (#819).
 const Dock = (() => {
   const KEY = 'botdot.dock';
   const ICON = {
@@ -38,13 +38,30 @@ const Dock = (() => {
       open: (id) => setView('group', id),
       known: () => !!state.groupsKnown,
     },
+    // The Chief's chat (#819): one panel, on the chat it shows (a goal's change ask opens a new one there). Docked only
+    // when opened from here (openChief), not whenever the Chief's view is up, as it is while the page starts.
+    chief: {
+      exists: () => true,
+      name: () => chiefTitle(),
+      figure: () => chiefFigure('sm'),
+      unread: () => state.chiefUnread || 0,
+      look: () => [chiefTitle(), state.chiefBusy, state.chiefUnread || 0],
+      open: () => openChief(),
+      known: () => true,
+    },
   };
 
   const shows = () => typeof Company !== 'undefined' && (state.features || []).includes('company') && Company.place() === 'company';
   // The Projects screen shows a bot, or a team's chat: that chat is the open panel.
-  const openKind = () => (state.view === 'bot' && botById(state.botId) ? 'bot' : state.view === 'group' && groupById(state.groupId)?.team ? 'team' : null);
+  let chiefHere = false; // the Chief's view up was opened on the Projects screen
+  function openChief(chatId) {
+    chiefHere = true;
+    if (chatId === undefined) setView('chief'); else openChiefChat(chatId);
+  }
+  const openKind = () => (state.view === 'bot' && botById(state.botId) ? 'bot' : state.view === 'group' && groupById(state.groupId)?.team ? 'team' : state.view === 'chief' && chiefHere ? 'chief' : null);
   const docked = () => shows() && !!openKind();
-  const openOne = () => (docked() ? { kind: openKind(), id: openKind() === 'bot' ? state.botId : state.groupId } : null);
+  const ID_OF = { bot: () => state.botId, team: () => state.groupId, chief: () => 'chief' };
+  const openOne = () => (docked() ? { kind: openKind(), id: ID_OF[openKind()]() } : null);
   const phone = () => matchMedia(PHONE).matches;
   // A panel drawn expanded beside the open one: a bot's chat that stays open, on a screen wider than a phone.
   const expanded = (p, open) => p.kind === 'bot' && p.open === true && !phone() && !(open && DockRow.same(p, open));
@@ -73,6 +90,7 @@ const Dock = (() => {
   const chatEls = new Map(); // "bot:<id>" -> its expanded chat's .dock-item, kept while it stays, with what is typed and its scroll
   function draw() {
     if (!$('#chat-row')) return;
+    if (state.view !== 'chief' || !shows()) chiefHere = false;
     build();
     const on = shows() && (state.view === 'company' || docked());
     const open = on ? openOne() : null;
@@ -233,9 +251,9 @@ const Dock = (() => {
   const ctlHTML = (min, x) => `<span class="dock-ctl"><button type="button" class="icon-btn" ${min} aria-label="${tr('Minimize')}" title="${tr('Minimize')}">${ICON.min}</button><button type="button" class="icon-btn" ${x} aria-label="${tr('Close')}" title="${tr('Close')}">${ICON.x}</button></span>`;
   // The open chat's head carries Minimize and Close while it is docked.
   function syncHead(open) {
-    if (open?.kind !== 'team') $('#view-group .chat-head .dock-ctl')?.remove();
-    if (open?.kind !== 'bot') $('#view-bot .chat-head .dock-ctl')?.remove();
-    const right = open && $(`#view-${open.kind === 'team' ? 'group' : 'bot'} .chat-head .actions-right`);
+    const VIEW = { team: 'group', bot: 'bot', chief: 'chief' };
+    for (const [kind, v] of Object.entries(VIEW)) if (open?.kind !== kind) $(`#view-${v} .chat-head .dock-ctl`)?.remove();
+    const right = open && $(`#view-${VIEW[open.kind]} .chat-head .actions-right`);
     const ctl = right && $('.dock-ctl', right);
     if (!open) return;
     if (!right || ctl) return;
@@ -352,7 +370,7 @@ const Dock = (() => {
   let frame = 0;
   addEventListener('resize', () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { drawn = ''; if (dock) draw(); }); });
 
-  return { draw, docked, kinds, open, close, minimize, chats, chatOf, drawChat };
+  return { draw, docked, kinds, open, openChief, close, minimize, chats, chatOf, drawChat };
 })();
 // On globalThis too: the chats' code (bot-chat.js, replies.js, needs.js, feed.js) asks for it where it may be missing.
 globalThis.Dock = Dock;
