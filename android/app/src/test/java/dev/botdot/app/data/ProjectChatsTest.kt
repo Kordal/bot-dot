@@ -7,10 +7,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** A bot's or a team's chat over the Projects screen (#705): what is kept across a turn of the phone, and where a drag takes the sheet. */
+/** A bot's, a team's or the Chief's chat over the Projects screen (#705, #820): what is kept across a turn of the phone, and where a drag takes the sheet. */
 class ProjectChatsTest {
     @Test fun anOpenChatIsKeptAsItsKindAndId() {
-        for (o in listOf(ProjectChats.Open(ProjectChats.BOT, "coder"), ProjectChats.Open(ProjectChats.TEAM, "g7"))) assertEquals(o, ProjectChats.of(o.key))
+        for (o in listOf(ProjectChats.Open(ProjectChats.BOT, "coder"), ProjectChats.Open(ProjectChats.TEAM, "g7"), ProjectChats.Open(ProjectChats.CHIEF, "c42"))) assertEquals(o, ProjectChats.of(o.key))
         assertEquals("bot:coder", ProjectChats.Open(ProjectChats.BOT, "coder").key)
         for (bad in listOf(null, "", "coder", "bot:", "room:r1", ":x")) assertNull("$bad", ProjectChats.of(bad))
     }

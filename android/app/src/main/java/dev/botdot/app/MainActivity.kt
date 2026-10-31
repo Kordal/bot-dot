@@ -389,7 +389,7 @@ class MainActivity : ComponentActivity() {
                         RoomSettingsScreen(app, id, onGone = { if (!nav.popBackStack("rooms", inclusive = false)) nav.popBackStack("home", inclusive = false) }) { nav.popBackStack() }
                     }
                     composable("company") {
-                        // From the floor: a bot's or a team's chat as a sheet over it (#705), the Chief's, Needs you, and a
+                        // From the floor: a bot's, a team's or the Chief's chat as a sheet over it (#705, #820), Needs you, and a
                         // new Chief chat with the owner's words started.
                         var docked by rememberSaveable { mutableStateOf<String?>(null) }
                         var dockHeight by rememberSaveable { mutableStateOf(ProjectChats.Height.CLOSED) }
@@ -399,15 +399,20 @@ class MainActivity : ComponentActivity() {
                             CompanyScreen(app, wide = wide, ways = dev.botdot.app.ui.CompanyWays(
                                 onBot = { dock(ProjectChats.Open(ProjectChats.BOT, it)) },
                                 onBotSay = { bot, words -> app.botWords = bot to words; dock(ProjectChats.Open(ProjectChats.BOT, bot)) },
-                                onChief = { open("chief/latest") },
+                                onChief = { dock(ProjectChats.Open(ProjectChats.CHIEF, "latest")) },
                                 onNeeds = { nav.navigate("needs") },
                                 onChiefSay = { app.chiefWords = it; open("chief/new") },
                                 onTeam = { dock(ProjectChats.Open(ProjectChats.TEAM, it)) },
                                 onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
+                                onGoalChat = { dock(ProjectChats.Open(ProjectChats.CHIEF, it)) },
                             ), onBots = { place(false) })
                             ProjectChatSheet(ProjectChats.of(docked), dockHeight, onHeight = { dockHeight = it }) { o ->
                                 androidx.compose.runtime.key(o.key) {
-                                    if (o.kind == ProjectChats.TEAM) GroupChatScreen(app, o.id, onSettings = {}, onNeeds = { undock { nav.navigate("needs") } },
+                                    if (o.kind == ProjectChats.CHIEF) ChiefScreen(app, o.id, emptyList(), "", onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) },
+                                        onNeeds = { undock { nav.navigate("needs") } }, onBot = { dock(ProjectChats.Open(ProjectChats.BOT, it)) }, onScreen = { undock { nav.navigate("screen/$it") } },
+                                        onSkills = { undock { nav.navigate("skills") } }, onSignIn = { undock { nav.navigate("settings") { launchSingleTop = true } } },
+                                        onFiles = { undock { nav.navigate("files/${UploadedFiles.CHIEF}") } }) { undock() }
+                                    else if (o.kind == ProjectChats.TEAM) GroupChatScreen(app, o.id, onSettings = {}, onNeeds = { undock { nav.navigate("needs") } },
                                         onSignIn = { undock { nav.navigate("settings") { launchSingleTop = true } } }) { undock() }
                                     else {
                                         // Words the floor started for this bot (a standup's Reply).
