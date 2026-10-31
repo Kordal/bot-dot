@@ -1,6 +1,6 @@
 # ADR-124: A project's board is a free canvas the owner arranges
 
-- **Status:** Accepted (2026-10-29)
+- **Status:** Accepted (2026-10-29); the Arrange mode superseded by [ADR 130](130-a-projects-tiles-move-without-an-arrange-mode.md)
 - **Owning task:** [#783](https://github.com/Kordal/bot-dot/issues/783), spec [#782](https://github.com/Kordal/bot-dot/issues/782)
 - **Builds on:** [ADR 003](003-one-figure-definition-for-all-apps.md) (what looks the same everywhere is data from the server), [#780](https://github.com/Kordal/bot-dot/issues/780) (a new project starts with an empty board)
 

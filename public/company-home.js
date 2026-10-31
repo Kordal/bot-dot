@@ -388,7 +388,6 @@
   // ---------- drawing and wiring ----------
   function home(root, c) {
     if (window.BoardView?.busy()) return; // a tile is dragged: drawn again once it is dropped
-    window.BoardView?.leave(c);
     const known = info();
     const f = { ...CompanyFloor.floor(c, state.bots, known), info: known };
     const team = teamOpen && Company.onBoard(c, 'teams') && c.teams.find((t) => t.id === teamOpen);
@@ -399,7 +398,7 @@
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
     const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what', ...(window.ProjectCards?.FIELDS || [])].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
-      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${window.BoardView ? BoardView.buttonHTML() : ''}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
+      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
       ${days ? lineHTML(c) : ''}
       ${days && c.checkin ? checkinHTML(c.checkin) : ''}
       ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
