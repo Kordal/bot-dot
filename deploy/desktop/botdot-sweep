@@ -1,0 +1,121 @@
+#!/usr/bin/python3 -I
+"""What no command of botdot's owns any more on the account's computer ends here (ADR 131).
+
+botdot-run ends what botdot starts. Should one of them die outright, what it started goes on with nothing to end it, so
+every few minutes botdot sends this file's own copy and runs it as root (lib/computers.js sweep). A process of box or
+browser with no botdot-run above it and older than argv[2] minutes gets SIGTERM, and SIGKILL argv[3] seconds later. A
+botdot command that isn't under botdot-run is short or bounded by `timeout`, at most 30 minutes (pack, unpack), and an
+ssh-agent lives by its own lifetime. What runs as root is left alone: a bot may have set it up on purpose (ADR 089).
+Prints JSON: {"ended": [{pid, user, name, minutes, memoryBytes}]}. argv[1] is the /proc to read, /proc by default."""
+import json
+import os
+import pwd
+import signal
+import sys
+import time
+
+PROC = sys.argv[1] if len(sys.argv) > 1 else "/proc"
+MINUTES = float(sys.argv[2]) if len(sys.argv) > 2 else 35
+GRACE = float(sys.argv[3]) if len(sys.argv) > 3 else 2
+PAGE = os.sysconf("SC_PAGE_SIZE")
+HZ = os.sysconf("SC_CLK_TCK")
+USERS = ("box", "browser")
+SPARED = ("ssh-agent",)
+
+
+def read(pid, name):
+    try:
+        with open(os.path.join(PROC, str(pid), name), "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def processes():
+    """Every live process: pid -> {parent, name, uid, started (seconds after boot), rss, argv}."""
+    out = {}
+    for pid in os.listdir(PROC):
+        if not pid.isdigit():
+            continue
+        stat = read(pid, "stat")
+        if not stat:
+            continue
+        try:
+            rest = stat[stat.rindex(b")") + 2:].split()
+            if rest[0] == b"Z":
+                continue
+            out[int(pid)] = {
+                "parent": int(rest[1]),
+                "name": stat[stat.index(b"(") + 1:stat.rindex(b")")].decode("utf-8", "replace"),
+                "uid": os.stat(os.path.join(PROC, pid)).st_uid,
+                "started": int(rest[19]) / HZ,
+                "rss": int(rest[21]) * PAGE,
+                "argv": (read(pid, "cmdline") or b"").split(b"\0"),
+            }
+        except (OSError, ValueError, IndexError):
+            continue
+    return out
+
+
+def owned(procs, pid):
+    """Whether a botdot-run stands at or above this process."""
+    seen = set()
+    while pid in procs and pid not in seen:
+        seen.add(pid)
+        if b"botdot-run" in procs[pid]["argv"]:
+            return True
+        pid = procs[pid]["parent"]
+    return False
+
+
+def uids():
+    found = {}
+    for name in USERS:
+        try:
+            found[pwd.getpwnam(name).pw_uid] = name
+        except KeyError:
+            pass
+    return found
+
+
+def main_process(procs):
+    """The computer's own first process, which only waits: PID 1, or `sleep` right under Docker's init."""
+    kids = [pid for pid, p in procs.items() if p["parent"] == 1]
+    return {1, min(kids)} if kids and procs.get(1, {}).get("name") != "sleep" else {1}
+
+
+def strays(procs, users, now):
+    keep = main_process(procs)
+    found = []
+    for pid, p in procs.items():
+        if pid in keep or p["parent"] == 0 and pid == 1 or p["uid"] not in users or p["name"] in SPARED:
+            continue
+        if now - p["started"] >= MINUTES * 60 and not owned(procs, pid):
+            found.append(pid)
+    return found
+
+
+def signal_all(pids, sig):
+    for pid in pids:
+        try:
+            os.kill(pid, sig)
+        except OSError:
+            pass
+
+
+def main():
+    with open(os.path.join(PROC, "uptime")) as f:
+        now = float(f.read().split()[0])
+    procs = processes()
+    users = uids()
+    found = strays(procs, users, now)
+    ended = [{"pid": pid, "user": users[procs[pid]["uid"]], "name": procs[pid]["name"][:64],
+              "minutes": round((now - procs[pid]["started"]) / 60), "memoryBytes": procs[pid]["rss"]} for pid in found]
+    if found:
+        signal_all(found, signal.SIGTERM)
+        time.sleep(GRACE)
+        signal_all([pid for pid in found if os.path.exists(os.path.join(PROC, str(pid)))], signal.SIGKILL)
+    print(json.dumps({"ended": ended}))
+
+
+main()

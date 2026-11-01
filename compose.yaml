@@ -37,6 +37,10 @@ services:
       # one; without a registry, or when unset, it is a local image, built the first time if missing.
       BOT_DOT_COMPUTER_IMAGE: ${BOT_DOT_COMPUTER_IMAGE:-}
       BOT_DOT_HELPER_SOCKET: /run/botdot/helper.sock
+      # A command's limits (ADR 131): empty is the default, 0 no limit.
+      BOT_DOT_BASH_MAX_SECONDS: ${BOT_DOT_BASH_MAX_SECONDS:-}
+      BOT_DOT_COMMAND_MEMORY_PERCENT: ${BOT_DOT_COMMAND_MEMORY_PERCENT:-}
+      BOT_DOT_SHARE_FILE: /run/botdot-share/share.json
     volumes:
       - ./data:/data                                # bots, runs, memory, skills, vault (encrypted)
       - bot-dot-config:/config                      # the vault's encryption key, kept apart from the data
@@ -44,6 +48,7 @@ services:
       - bot-dot-helper:/run/botdot:ro                # connect only; helper owns directory and socket
       # The front door's way in: a folder only this server's user and the front door may enter (install.sh).
       - ${BOT_DOT_FRONT_DOOR_FOLDER:-./front-door}:/run/front-door
+      - ./share:/run/botdot-share:ro                 # the account's share: a command's memory is part of it (ADR 131)
     depends_on:
       - docker-helper
 
@@ -70,6 +75,8 @@ services:
       BOT_DOT_REGISTRY_TOKEN: ${BOT_DOT_REGISTRY_TOKEN:-}
       # The account's share of RAM and CPUs, the limits of its one computer, which only root writes (install.sh).
       BOT_DOT_SHARE_FILE: /run/botdot-share/share.json
+      BOT_DOT_COMMAND_MEMORY_PERCENT: ${BOT_DOT_COMMAND_MEMORY_PERCENT:-}
+      BOT_DOT_ORPHAN_MINUTES: ${BOT_DOT_ORPHAN_MINUTES:-}
     volumes:
       - bot-dot-helper:/run/botdot
       - ./share:/run/botdot-share:ro
