@@ -86,7 +86,7 @@ jobs:
       image: node:24-bookworm-slim
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - run: apt-get update -qq && apt-get install -y --no-install-recommends git curl
+      - run: apt-get update -qq && apt-get install -y --no-install-recommends git curl python3
       - run: BOT_DOT_TEST_UIDS=1 node --test test/users.test.js test/nonroot.test.js test/principal-fs.test.js test/privilege-broker.test.js test/update-install.test.js
 
   # No passwords, tokens or keys in the code or its history: on every run, whatever changed.
