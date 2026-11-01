@@ -1,3 +1,4 @@
+process.env.BOT_DOT_SWEEP_MS = '0'; // its sweep would end the other test files' bot processes
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
