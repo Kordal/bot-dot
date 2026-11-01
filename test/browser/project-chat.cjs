@@ -1,5 +1,6 @@
 // Optional browser check of a project's chat column (#825): node test/browser/project-chat.cjs [shots dir]
-// A wide window shows a project's board and, on its right, one chat as a fixed column (440 px; 400 below 1280 px).
+// A wide window shows a project's board and, on its right, one chat as a fixed column, as wide as the bot view's chat
+// (#828: 38vw from 400 to 560 px).
 // Entering the project opens its team's chat; a bot's row in the tree, a desk on the floor, the team's name and the
 // Chief's row each put their chat in the column, and the tree highlights the row on screen. Hide gives the board the
 // whole width, kept over a reload; Show brings the chat back. No row of docked chats. Scratch data only.
@@ -38,7 +39,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     // Entering the project: its team's chat, in the column on the right, the board beside it.
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
     assert.ok(await page.locator('#view-company').isVisible(), 'the board stays');
-    assert.equal(await width(), 440);
+    assert.equal(await width(), 547);
     const main = await page.locator('.main').boundingBox();
     const box = await row.boundingBox();
     assert.ok(Math.abs(main.x + main.width - (box.x + box.width)) < 2, 'the column stands at the right edge');
@@ -50,7 +51,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     // A bot's row in the tree: its chat in the column, its row highlighted.
     await page.locator(`#company-side [data-tree-bot="${a.id}"]`).click();
     await page.locator('#view-bot #bot-name', { hasText: 'Ops Watchkeeper' }).waitFor();
-    assert.equal(await width(), 440);
+    assert.equal(await width(), 547);
     assert.deepEqual(await here(), [a.id]);
     await page.locator('#view-bot textarea').fill('hello');
     await page.locator('#view-bot textarea').press('Enter');
@@ -68,7 +69,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('#company-side [data-open-chief]').click();
     await page.waitForFunction(() => state.view === 'chief');
     assert.ok(await page.locator('#view-company').isVisible(), 'the board stays beside the Chief');
-    assert.equal(await width(), 440);
+    assert.equal(await width(), 547);
     assert.deepEqual(await here(), ['chief']);
 
     // Hide: the board takes the whole width, and stays so over a reload; Show brings the team's chat back.
@@ -87,9 +88,9 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
     assert.ok(!(await page.locator('#project-chat-show').isVisible()));
 
-    // A narrower window: 400 px.
+    // A narrower window: 38vw.
     await page.setViewportSize({ width: 1180, height: 820 });
-    await page.waitForFunction(() => Math.round(document.querySelector('#chat-row').getBoundingClientRect().width) === 400);
+    await page.waitForFunction(() => Math.round(document.querySelector('#chat-row').getBoundingClientRect().width) === 448);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-narrow.png') });
     // A bot's settings cover the chat in the column, not squeeze it.
     await page.locator(`[data-cf-bot="${a.id}"]`).first().click();
@@ -97,7 +98,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('#view-bot .chat-title, #view-bot #bot-name').first().click();
     await page.locator('#panel:not(.hidden)').waitFor();
     assert.ok(!(await page.locator('#view-bot').isVisible()), 'the settings take the chat\'s place');
-    assert.equal(await width(), 400);
+    assert.equal(await width(), 448);
 
     assert.deepEqual(errors, []);
     console.log('project chat column: ok');
