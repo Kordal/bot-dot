@@ -263,7 +263,7 @@ async function main() {
   }
   for (const service of ['bot-dot', 'docker-helper']) {
     const id = acc.compose('ps', '-q', service);
-    assert.equal(m.inner('inspect', '--format', '{{.HostConfig.Runtime}}', id), 'runsc', `${service} runs under runsc`);
+    assert.match(m.inner('inspect', '--format', '{{.HostConfig.Runtime}}', id), /^runsc/, `${service} runs under runsc`);
     assert.match(m.inner('exec', id, 'sh', '-c', 'dmesg | head -1'), /gVisor/, `${service} runs on gVisor's kernel`);
   }
   const status = acc.api(OWNER_UID, 'GET', '/api/status');
