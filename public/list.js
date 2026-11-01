@@ -64,7 +64,9 @@ function initGrip(grip, box, o) {
   });
 }
 const initSideGrip = () => initGrip($('#side-grip'), $('.sidebar'), SIDE);
-const initChatGrip = () => initGrip($('#chat-grip'), $('.main'), CHAT);
+// A project's chat column has its own handle on its left edge (#833), sizing the same width, so the chat keeps it on a
+// switch between Bots and Projects (#828).
+const initChatGrip = () => { initGrip($('#chat-grip'), $('.main'), CHAT); if ($('#proj-chat-grip')) initGrip($('#proj-chat-grip'), $('#chat-row'), CHAT); };
 
 // ---------- contacts (sidebar) ----------
 
