@@ -484,10 +484,11 @@ test('a spawn runs under botdot-run, and Claude Code is held to the limits comma
   assert.deepEqual(job.args.slice(0, 2), ['-I', '-c']);
   assert.deepEqual(job.args.slice(3), ['botdot-run', '--', '/bin/bash', '-c', 'id']);
   const run = reaped('/usr/local/bin/claude', ['-p'], { claude: true, memory: 5e9 });
-  assert.deepEqual(run.args.slice(3), ['botdot-run', '--memory', '5000000000', '--seconds', '900', '--commands', '^\\S*sh( -[a-z]+)* ', '--', '/usr/local/bin/claude', '-p']);
+  assert.deepEqual(run.args.slice(3), ['botdot-run', '--memory', '5000000000', '--seconds', '900', '--commands', '^\\S*sh -[a-z]*c', '--', '/usr/local/bin/claude', '-p']);
   assert.match('/bin/bash -c -l source x', new RegExp(run.args[9]));
   assert.match('/bin/sh -c eslint .', new RegExp(run.args[9]));
   assert.doesNotMatch('node /opt/bot-dot/lib/computer-mcp.js', new RegExp(run.args[9]));
+  assert.doesNotMatch('/bin/sh /opt/some-mcp-wrapper', new RegExp(run.args[9]));
 });
 
 test("a command's memory is a share of the account's RAM, and unknown without a share", (t) => {
