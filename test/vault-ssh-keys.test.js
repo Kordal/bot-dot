@@ -150,7 +150,7 @@ test('runWithSshKey: the agent as the bot, the key as root on stdin only, the co
   const run = step('run');
   assert.deepEqual(run.args.slice(0, 3), ['exec', '-u', 'box']);
   assert.equal(run.args[run.args.indexOf(`SSH_AUTH_SOCK=${AGENT_DIR}/agent`) - 1], '-e');
-  assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '5', '30', ...REAPED, 'sh', '-c', IN_OWN_FOLDER,
+  assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '15', '30', ...REAPED, 'sh', '-c', IN_OWN_FOLDER,
     'sh', '/workspace/ops', 'ssh admin@server.example.ts.net uptime'], 'in its own folder (#105)');
   const stop = step('stop');
   assert.deepEqual(stop.args.slice(0, 4), ['exec', '-u', 'box', name]);

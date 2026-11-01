@@ -60,7 +60,7 @@ test('the login goes to docker exec in its own environment, never on its command
   // The command runs as given, in sh, inside `timeout`, in this bot's computer, in its own folder and on its own
   // screen (#105).
   const at = args.indexOf(computers.containerName('mail'));
-  assert.deepEqual(args.slice(at + 1), ['timeout', '-k', '5', '120', ...REAPED, 'sh', '-c', IN_OWN_FOLDER,
+  assert.deepEqual(args.slice(at + 1), ['timeout', '-k', '15', '120', ...REAPED, 'sh', '-c', IN_OWN_FOLDER,
     'sh', '/workspace/mail', 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/INBOX']);
   assert.ok(args.includes('DISPLAY=:11'));
 });

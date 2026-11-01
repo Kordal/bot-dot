@@ -1,6 +1,6 @@
 # ADR-089: What botdot starts on the account's computer ends with it
 
-- **Status:** Accepted
+- **Status:** Accepted, its "said, not ended" replaced for box and browser by [ADR 131](131-a-bots-commands-end-with-its-run-and-have-limits-on-both-its-shells.md)
 - **Owning task:** [#535](https://github.com/Kordal/bot-dot/issues/535)
 
 ## Context

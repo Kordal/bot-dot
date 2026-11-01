@@ -44,7 +44,7 @@ test('run_shell runs as box in its own folder, inside its time limit, with no sc
   assert.equal(calls.length, 1, 'one docker exec: no computer-server, no supervisord');
   const { args } = calls[0];
   assert.deepEqual(args.slice(0, 3), ['exec', '-u', 'box']);
-  assert.deepEqual(after(args), ['timeout', '-k', '5', '120', ...REAPED, 'sh', '-c', IN_OWN_FOLDER, 'sh', '/workspace/ops', 'uptime']);
+  assert.deepEqual(after(args), ['timeout', '-k', '15', '120', ...REAPED, 'sh', '-c', IN_OWN_FOLDER, 'sh', '/workspace/ops', 'uptime']);
   assert.ok(args.includes('DISPLAY=:12'), 'its screen, for a program that wants it while it is on');
   await computers.runShell(SEAT, { command: 'sleep 1', timeoutSeconds: 5000 });
   assert.equal(after(calls[1].args)[3], '600', 'at most 600 s, as before');

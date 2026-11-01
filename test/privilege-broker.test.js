@@ -1,3 +1,4 @@
+process.env.BOT_DOT_SWEEP_MS = '0'; // its sweep would end the other test files' bot processes
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -474,4 +475,34 @@ test("the tools user fetches and unpacks a tool from a link; what would leave th
     }
   }
   assert.deepEqual(fs.readdirSync(path.join(cache, 'links')), []);
+});
+
+// A bot's commands end with it (ADR 131): Claude Code's Bash runs in a process group of its own, which the broker's
+// signals don't reach, so each spawn runs under botdot-run and what is left of a principal with nothing running is ended.
+test('a spawn runs under botdot-run, and Claude Code is held to the limits command by command', () => {
+  const { reaped } = require('../lib/privilege-broker');
+  const job = reaped('/bin/bash', ['-c', 'id'], { claude: false, memory: 5e9 });
+  assert.deepEqual(job.args.slice(0, 2), ['-I', '-c']);
+  assert.deepEqual(job.args.slice(3), ['botdot-run', '--', '/bin/bash', '-c', 'id']);
+  const run = reaped('/usr/local/bin/claude', ['-p'], { claude: true, memory: 5e9 });
+  assert.deepEqual(run.args.slice(3), ['botdot-run', '--memory', '5000000000', '--seconds', '900', '--commands', '^\\S*sh -[a-z]*c', '--', '/usr/local/bin/claude', '-p']);
+  assert.match('/bin/bash -c -l source x', new RegExp(run.args[9]));
+  assert.match('/bin/sh -c eslint .', new RegExp(run.args[9]));
+  assert.doesNotMatch('node /opt/bot-dot/lib/computer-mcp.js', new RegExp(run.args[9]));
+  assert.doesNotMatch('/bin/sh /opt/some-mcp-wrapper', new RegExp(run.args[9]));
+});
+
+test('only what a bot or the Chief left with nothing of theirs running is a stray', (t) => {
+  const fs = require('node:fs'); const os = require('node:os');
+  if (process.getuid?.() !== 0) return t.skip('needs root to give the fake /proc its owners');
+  const { strays, CHIEF_UID } = require('../lib/privilege-broker');
+  const proc = fs.mkdtempSync(path.join(os.tmpdir(), 'broker-proc-'));
+  t.after(() => fs.rmSync(proc, { recursive: true, force: true }));
+  const add = (pid, uid, name, state = 'S') => { fs.mkdirSync(path.join(proc, String(pid))); fs.writeFileSync(path.join(proc, String(pid), 'stat'), `${pid} (${name}) ${state} 1 1`); fs.chownSync(path.join(proc, String(pid)), uid, uid); };
+  add(10, 61001, 'tsc');
+  add(11, 61002, 'claude');
+  add(12, 60000, 'node'); // the server's own
+  add(13, 61001, 'dead one', 'Z');
+  add(14, CHIEF_UID, 'eslint (x)');
+  assert.deepEqual(strays(new Set([61002]), proc).sort((a, b) => a.pid - b.pid), [{ pid: 10, uid: 61001, name: 'tsc' }, { pid: 14, uid: CHIEF_UID, name: 'eslint (x)' }]);
 });

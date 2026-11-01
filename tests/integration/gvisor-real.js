@@ -263,7 +263,7 @@ async function main() {
   }
   for (const service of ['bot-dot', 'docker-helper']) {
     const id = acc.compose('ps', '-q', service);
-    assert.equal(m.inner('inspect', '--format', '{{.HostConfig.Runtime}}', id), 'runsc', `${service} runs under runsc`);
+    assert.match(m.inner('inspect', '--format', '{{.HostConfig.Runtime}}', id), /^runsc/, `${service} runs under runsc`);
     assert.match(m.inner('exec', id, 'sh', '-c', 'dmesg | head -1'), /gVisor/, `${service} runs on gVisor's kernel`);
   }
   const status = acc.api(OWNER_UID, 'GET', '/api/status');
@@ -332,6 +332,16 @@ async function main() {
   assert.equal(m.inner('inspect', '--format', '{{.HostConfig.Runtime}}', computer), 'runsc', 'the computer runs under runsc');
   assert.equal(m.inner('inspect', '--format', '{{.Config.User}}', computer), 'bot');
   assert.match(inComputer(m, computer, 'bot', ['sh', '-c', 'dmesg | head -1']), /gVisor/);
+
+  step('botdot-run under gVisor: a command that leaves its process group, a limit, and the program that goes on (ADR 131)');
+  const reaper = fs.readFileSync(path.join(__dirname, '..', '..', 'deploy', 'desktop', 'botdot-run'), 'utf8');
+  const underReaper = (flags, shell) => inComputer(m, computer, 'bot', ['sh', '-c', 'python3 -I -c "$0" botdot-run "$@"; echo "code=$?"', reaper, ...flags, '--', 'sh', '-c', shell]);
+  const hog = 'python3 -c "b=bytearray(300*1024*1024); import time; time.sleep(60)"';
+  assert.match(underReaper(['--memory', String(100e6)], `setsid sleep 600 & ${hog} 2>&1`), /code=137/, "a memory hog is stopped: gVisor's /proc counts its memory");
+  assert.equal(inComputer(m, computer, 'bot', ['sh', '-c', 'pgrep -c -f "^sleep 600" || true']), '0', 'and what left its process group with setsid went too: the subreaper works');
+  const told = inComputer(m, computer, 'bot', ['sh', '-c', 'python3 -I -c "$0" botdot-run "$@" 2>&1; echo "code=$?"', reaper, '--seconds', '1', '--grace', '0.5', '--commands', '^sh -c', '--', 'sh', '-c', 'sh -c "sleep 600" 2>&1 | cat; echo goes on']);
+  assert.match(told, /stopped: this command ran for more than 1 seconds/, 'a command is told why, on its own stderr');
+  assert.match(told, /goes on\s+code=0/, 'and the program goes on');
 
   step('the desktop: TigerVNC with XFCE, noVNC, the computer-server');
   await until('the desktop', () => {
