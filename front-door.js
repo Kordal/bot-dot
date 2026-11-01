@@ -1047,6 +1047,29 @@ async function adminRoutes(req, res, p, account) {
   return send(res, 404, { error: 'Not found' });
 }
 
+// What each account's server says runs long (#831), asked every two minutes, and each account said once in the log
+// when a command has run past its limit or it held over 85% of its memory for ten minutes.
+const LONG_ASK_MS = Number(process.env.BOT_DOT_LONG_ASK_MS) || 2 * 60_000;
+const COMMAND_OVER_SECONDS = 900;
+const RAM_HIGH_SECONDS = 600;
+const longOf = new Map(); // account -> { count, oldestSeconds }
+const warned = new Set(); // `${account} ${what}` while it lasts
+function warnOnce(name, what, on, line) {
+  const key = `${name} ${what}`;
+  if (on && !warned.has(key)) { warned.add(key); console.warn(`[front door] ${name}: ${line}`); }
+  if (!on) warned.delete(key);
+}
+async function askLong() {
+  await Promise.all(doors.listAccounts().map(async (a) => {
+    const { status, data } = await askAccount(a.name, 'GET', '/api/long-commands', null, 10_000);
+    const long = status === 200 && Number.isFinite(data?.count) && Number.isFinite(data?.oldestSeconds) ? { count: data.count, oldestSeconds: data.oldestSeconds } : null;
+    if (long) longOf.set(a.name, long); else longOf.delete(a.name);
+    warnOnce(a.name, 'command', (long?.oldestSeconds || 0) > COMMAND_OVER_SECONDS, `a command has run for ${long?.oldestSeconds} seconds`);
+    warnOnce(a.name, 'memory', (load.account(a.name)?.ramHighSeconds || 0) >= RAM_HIGH_SECONDS, 'over 85% of its memory for ten minutes');
+  }));
+}
+if (!ONE_ACCOUNT) setInterval(() => askLong().catch((e) => console.error(`[front door] ${e.message}`)), LONG_ASK_MS).unref();
+
 // The accounts as the admin page lists them: { name, created, lastSeen, state, share, ownShare, use, admin?, update? }, from
 // the front door's own data, whether each botdot server answers on its socket, and what root's step measured of the
 // account from outside it (use, or null), never from inside an account. state: 'running', 'suspended', 'making' (the
@@ -1055,7 +1078,7 @@ async function adminRoutes(req, res, p, account) {
 async function listAccounts() {
   return Promise.all(doors.listAccounts().map(async (a) => {
     const state = a.suspended ? 'suspended' : (await answers(a.name)) ? 'running' : making(a.name) ? 'making' : starting(a.name) ? 'starting' : 'stopped';
-    return { name: a.name, created: a.created, lastSeen: a.lastSeen, state, share: a.share, ownShare: a.ownShare, use: load.account(a.name),
+    return { name: a.name, created: a.created, lastSeen: a.lastSeen, state, share: a.share, ownShare: a.ownShare, use: load.account(a.name), ...(longOf.has(a.name) ? { long: longOf.get(a.name) } : {}),
       ...(a.name === ADMIN ? { admin: true } : {}), ...(choosesUpdates(a.name) ? { update: ownUpdate(a.name) } : {}) };
   }));
 }

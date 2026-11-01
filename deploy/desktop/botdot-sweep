@@ -6,7 +6,8 @@ every few minutes botdot sends this file's own copy and runs it as root (lib/com
 browser with no botdot-run above it and older than argv[2] minutes gets SIGTERM, and SIGKILL argv[3] seconds later. A
 botdot command that isn't under botdot-run is short or bounded by `timeout`, at most 30 minutes (pack, unpack), and an
 ssh-agent lives by its own lifetime. What runs as root is left alone: a bot may have set it up on purpose (ADR 089).
-Prints JSON: {"ended": [{pid, user, name, minutes, memoryBytes}]}. argv[1] is the /proc to read, /proc by default."""
+It also counts the commands of botdot's running longer than five minutes (#831), a program's and a screen's aside.
+Prints JSON: {"ended": [{pid, user, name, minutes, memoryBytes}], "long": {count, oldestSeconds}}. argv[1] is the /proc to read, /proc by default."""
 import json
 import os
 import pwd
@@ -21,6 +22,7 @@ PAGE = os.sysconf("SC_PAGE_SIZE")
 HZ = os.sysconf("SC_CLK_TCK")
 USERS = ("box", "browser")
 SPARED = ("ssh-agent",)
+LONG_SECONDS = 300
 
 
 def read(pid, name):
@@ -95,6 +97,12 @@ def strays(procs, users, now):
     return found
 
 
+def long_commands(procs, now):
+    ages = [now - p["started"] for p in procs.values() if b"botdot-run" in p["argv"] and b"--screen" not in p["argv"]]
+    long = [age for age in ages if age >= LONG_SECONDS]
+    return {"count": len(long), "oldestSeconds": round(max(long, default=0))}
+
+
 def signal_all(pids, sig):
     for pid in pids:
         try:
@@ -115,7 +123,7 @@ def main():
         signal_all(found, signal.SIGTERM)
         time.sleep(GRACE)
         signal_all([pid for pid in found if os.path.exists(os.path.join(PROC, str(pid)))], signal.SIGKILL)
-    print(json.dumps({"ended": ended}))
+    print(json.dumps({"ended": ended, "long": long_commands(procs, now)}))
 
 
 main()
