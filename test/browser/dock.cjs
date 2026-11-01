@@ -32,7 +32,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     });
 
     browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'dark' });
+    const ctx = await browser.newContext({ viewport: { width: 1000, height: 1000 }, colorScheme: 'dark' });
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
@@ -115,14 +115,8 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     for (const n of ['Demo Scheduler', 'Feedback Collector', 'Landing Page Builder']) { await desk(n).dispatchEvent('click'); await page.locator('#dock-panel #bot-name', { hasText: n }).waitFor(); }
     assert.ok(await page.locator('.dock-chat').count() >= 1, 'those opened before stay expanded');
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-many-open.png') });
-    // As many side by side as the window holds (each may narrow to 300 px): three and "+2" at 1440, all five at 1920.
-    assert.equal((await keys()).length, 3);
-    assert.equal(await page.locator('.dock-more').innerText(), '+2');
-    await page.setViewportSize({ width: 1920, height: 1000 });
-    await page.waitForFunction(() => document.querySelectorAll('#dock > .dock-item:not(.hidden)').length === 5);
-    assert.equal(await page.locator('.dock-more').count(), 0);
-    if (shots) await page.screenshot({ path: path.join(shots, 'wide-1920.png') });
-    await page.setViewportSize({ width: 1100, height: 900 });
+    // As many side by side as the window holds; a wider window (from 1001 px) has one chat column instead (#825,
+    // project-chat.cjs).
     await page.locator('.dock-more').waitFor();
     const shown = await keys();
     assert.ok(shown.length < 5 && shown.at(-1) === `bot:${id('Landing Page Builder')}`);

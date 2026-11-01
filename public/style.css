@@ -2460,6 +2460,8 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .ct-count { flex: none; min-width: 20px; height: 20px; padding: 0 var(--sp-8); border-radius: var(--r-pill); background: var(--text); color: var(--bg); font-size: var(--fs-12); font-weight: 600; line-height: 20px; text-align: center; }
 .ct-team { display: flex; align-items: center; gap: var(--sp-12); min-height: 32px; padding: var(--sp-4) var(--sp-12); font-size: var(--fs-12); color: var(--muted); }
 .ct-team span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+button.ct-team { border: 0; border-radius: var(--r-8); background: transparent; font: inherit; font-size: var(--fs-12); text-align: left; cursor: pointer; }
+button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(--text); }
 .ct-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
 .ct-n { flex: none; font: var(--fs-12) var(--mono); color: var(--faint); }
 .co-row.ct-bot { min-height: 34px; padding: var(--sp-4) var(--sp-12); font-size: var(--fs-14); }
@@ -3116,6 +3118,22 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
   .dock-panel.dock-in { animation: dock-up var(--t3) var(--out); }
 }
 
+
+/* A wide window's Projects screen (#825, dock.js): the board, and one chat as a fixed column on its right, like the
+   bot view (ADR 029). The chat's own row is the column: its settings and a file cover the chat there. */
+.project-chat-show { display: none; }
+@media (min-width: 1001px) {
+  .app.place-company.proj-chat .main { display: grid; grid-template-columns: minmax(0, 1fr) var(--proj-chat-w, 440px); grid-template-rows: auto minmax(0, 1fr); }
+  .app.place-company.proj-chat #needs-banner { grid-column: 1 / -1; }
+  .app.place-company.proj-chat #view-company { grid-column: 1; grid-row: 2; }
+  .app.place-company.proj-chat #chat-row { grid-column: 2; grid-row: 2; min-width: 0; border-left: 1px solid var(--line); container: column / inline-size; }
+  .app.place-company.proj-chat #chat-row .back-btn { display: none !important; }
+  .app.place-company.proj-hidden .project-chat-show:not(.hidden) { display: grid; position: absolute; top: var(--sp-24); right: var(--sp-24); z-index: 5; }
+  .project-chat-show svg, .dock-ctl.col svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
+}
+@media (min-width: 1001px) and (max-width: 1279px) {
+  .app.place-company .main { --proj-chat-w: 400px; }
+}
 
 /* A project's board as a free canvas (#783, board-canvas-view.js): each tile where the owner put it, the canvas scaled
    to the width. A tile drags by its body and resizes by its edges and corners (#821); a finger holds it first. */

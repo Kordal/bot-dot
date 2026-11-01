@@ -116,16 +116,23 @@ const Company = (() => {
     if (place === 'company') { drawSide(); setView('company'); } else if (onProjects) { setView('chief'); showList(); renderContacts(); }
   }
 
+  // The Chief's row opens its chat beside the project (#825; docked on a narrower screen, #819).
+  const openChief = () => (typeof Dock !== 'undefined' ? Dock.openChief() : setView('chief'));
+  // The chat on screen beside the project (#825): its row in the tree is highlighted.
+  const onScreen = (kind, id) => typeof Dock !== 'undefined' && Dock.docked() && (kind === 'bot' ? state.view === 'bot' && state.botId === id : state.view === 'group' && groupById(state.groupId)?.team === id);
+  const hereAttr = (on) => (on ? ' here" aria-current="true' : '');
   function drawSide() {
     const side = $('#company-side');
     if (!side || !shows()) return;
     const here = state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked());
-    const chief = `<button type="button" class="co-row co-chief${state.view === 'chief' ? ' here' : ''}" data-open-chief>${chiefFigure('sm')}<span>${esc(chiefTitle())}</span></button>`;
+    const chief = `<button type="button" class="co-row co-chief${state.view === 'chief' ? ' here' : ''}"${state.view === 'chief' ? ' aria-current="true"' : ''} data-open-chief>${chiefFigure('sm')}<span>${esc(chiefTitle())}</span></button>`;
     if (!many()) {
       const c = company();
       side.innerHTML = `<div class="co-label">${tr('Projects')}</div>
         <button type="button" class="co-row${here ? ' here' : ''}" data-open-company>${ICON.building}<span>${esc(c?.phase === 'running' && c.name ? c.name : tr('Setting up'))}</span></button>${chief}`;
       $('[data-open-company]', side).onclick = () => setView('company');
+      $('[data-open-chief]', side).onclick = openChief;
+      return;
     } else {
       // Drawn again only when it changed: the left column is drawn at every tick of the page, and a click on a row
       // drawn again under the pointer is lost.
@@ -139,11 +146,12 @@ const Company = (() => {
       $$('[data-project]', side).forEach((b) => { b.onclick = () => show(b.dataset.project); b.oncontextmenu = (e) => rowMenu(e, b.dataset.project); });
       $$('[data-fold]', side).forEach((b) => (b.onclick = () => { fold(b.dataset.fold); drawSide(); }));
       $$('[data-tree-bot]', side).forEach((b) => (b.onclick = () => setView('bot', b.dataset.treeBot)));
-      $('[data-open-chief]', side).onclick = () => setView('chief');
+      $$('[data-tree-team]', side).forEach((b) => (b.onclick = () => openTeamChat(b.dataset.treeTeam)));
+      $('[data-open-chief]', side).onclick = openChief;
       return;
     }
     delete side.dataset.html;
-    $('[data-open-chief]', side).onclick = () => setView('chief');
+    $('[data-open-chief]', side).onclick = openChief;
   }
 
   // ---------- the tree: project > teams > bots ----------
@@ -170,8 +178,8 @@ const Company = (() => {
     return `<div class="ct-branch">${head}<div class="ct-kids" role="group">${teams.map((t) => {
       const key = `${p.id}:${t.id}`;
       const tOpen = isOpen(key, true);
-      const bots = tOpen ? `<div class="ct-kids" role="group">${t.members.map((b) => `<button type="button" class="co-row ct-bot" role="treeitem" data-tree-bot="${esc(b.id)}"><span class="ct-head">${botFigure(colorOf(b), b.state, 'sm', outfitOf(b))}${b.id === t.lead && t.members.length > 1 ? ICON.crown : ''}</span><span class="ct-name">${esc(b.name)}</span>${waits(b.id) ? badge(waits(b.id)) : `<i class="ct-state${b.running ? ' on' : ''}"></i>`}</button>`).join('')}</div>` : '';
-      return `<div class="ct-node">${caret(key, tOpen, t.name)}<span class="ct-team" style="--c:${esc(t.color)}"><i class="ct-dot"></i><span class="ct-name">${esc(t.name)}</span><span class="ct-n">${t.members.length}</span></span></div>${bots}`;
+      const bots = tOpen ? `<div class="ct-kids" role="group">${t.members.map((b) => `<button type="button" class="co-row ct-bot${hereAttr(onScreen('bot', b.id))}" role="treeitem" data-tree-bot="${esc(b.id)}"><span class="ct-head">${botFigure(colorOf(b), b.state, 'sm', outfitOf(b))}${b.id === t.lead && t.members.length > 1 ? ICON.crown : ''}</span><span class="ct-name">${esc(b.name)}</span>${waits(b.id) ? badge(waits(b.id)) : `<i class="ct-state${b.running ? ' on' : ''}"></i>`}</button>`).join('')}</div>` : '';
+      return `<div class="ct-node">${caret(key, tOpen, t.name)}<button type="button" class="ct-team${hereAttr(onScreen('team', t.id))}" data-tree-team="${esc(t.id)}" style="--c:${esc(t.color)}"><i class="ct-dot"></i><span class="ct-name">${esc(t.name)}</span><span class="ct-n">${t.members.length}</span></button></div>${bots}`;
     }).join('')}</div></div>`;
   }
   // The archived projects, folded under Archived at the tree's end; open, each a row that shows it.
