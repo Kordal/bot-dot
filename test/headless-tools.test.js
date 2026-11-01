@@ -160,3 +160,19 @@ test('run_shell, read_file and write_file go to their own routes, not the screen
   assert.deepEqual(asked.find((a) => a.path === '/session/computer/shell').body, { command: 'echo hi', timeoutSeconds: 120 });
   assert.deepEqual(asked.find((a) => a.path === '/session/computer/write').body, { path: 'a.txt', content: 'x' });
 });
+
+test('start_program answers in words: a program without a window leaves no picture with the run', async (t) => {
+  const asked = [];
+  const stub = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => { asked.push(req.url); res.setHeader('Content-Type', 'application/json'); res.end('{"ok":true}'); });
+  });
+  await new Promise((r) => stub.listen(0, '127.0.0.1', r));
+  t.after(() => stub.close());
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: `http://127.0.0.1:${stub.address().port}`, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer' });
+  await mcp.request('initialize', {});
+  const out = await mcp.request('tools/call', { name: 'start_program', arguments: { command: 'tailscaled' } });
+  assert.deepEqual(out.content, [{ type: 'text', text: 'Started: tailscaled' }]);
+  assert.ok(asked.includes('/session/computer/launch'), 'it was started');
+  assert.ok(!asked.includes('/session/computer/cmd'), 'no screenshot');
+});
