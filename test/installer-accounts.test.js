@@ -222,7 +222,7 @@ test('each account gets its share: CPU and RAM on its unit and, for its computer
   const done = rerun(t);
   const home = `${done.dir}/accounts/ann`;
   // The default share (DEFAULT_SHARE, as the front door's): 2 CPUs, 5 GB of RAM (no RAM measured here), 30 GB of disk.
-  assert.match(done.system, /^systemctl set-property botdot-account@ann\.service CPUQuota=200% MemoryHigh=4608M MemoryMax=5G$/m, 'hard limits, applied at once and kept');
+  assert.match(done.system, /^systemctl set-property botdot-account@ann\.service CPUQuota=200% MemoryHigh=infinity MemoryMax=5G$/m, 'hard limits, applied at once and kept');
   assert.equal(fs.readFileSync(path.join(home, 'share', 'share.json'), 'utf8'), '{"cpu":2,"ram":5}\n');
   assert.match(done.system, new RegExp(`^chown 0:0 ${home}/share$`, 'm'), 'root writes it, not the account');
   assert.equal(fs.statSync(path.join(home, 'share', 'share.json')).mode & 0o777, 0o644);
@@ -262,7 +262,7 @@ test("root's step gives an account the share the front door names, its own or th
   // A share the front door kept before #108 still has its computers at once: it is read without them.
   door({ accounts: { ann: {}, bob: { share: { cpu: 1, ram: 3, computers: 1, disk: 40 } } } });
   const own = step('bob');
-  assert.match(own.system, /^systemctl set-property botdot-account@bob\.service CPUQuota=100% MemoryHigh=2764M MemoryMax=3G$/m);
+  assert.match(own.system, /^systemctl set-property botdot-account@bob\.service CPUQuota=100% MemoryHigh=infinity MemoryMax=3G$/m);
   assert.equal(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', 'share', 'share.json'), 'utf8'), '{"cpu":1,"ram":3}\n');
   assert.match(own.system, new RegExp(`^truncate -s 40G ${first.dir}/disks/bob\\.img$`, 'm'), 'a bigger disk grows at once');
   assert.match(own.system, /^losetup -c \/dev\/loop7$/m);
@@ -272,7 +272,7 @@ test("root's step gives an account the share the front door names, its own or th
 
   door({ share: { cpu: 3, ram: 6, disk: 20 }, accounts: { ann: {}, bob: {} } });
   const byDefault = step('bob');
-  assert.match(byDefault.system, /^systemctl set-property botdot-account@bob\.service CPUQuota=300% MemoryHigh=5529M MemoryMax=6G$/m, 'the default the admin set');
+  assert.match(byDefault.system, /^systemctl set-property botdot-account@bob\.service CPUQuota=300% MemoryHigh=infinity MemoryMax=6G$/m, 'the default the admin set');
   assert.equal(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', 'share', 'share.json'), 'utf8'), '{"cpu":3,"ram":6}\n');
   assert.doesNotMatch(byDefault.system, /^(truncate|resize2fs)/m, 'a smaller disk is never shrunk');
 });

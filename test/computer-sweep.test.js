@@ -46,6 +46,7 @@ test('a process with no botdot-run above it, old enough, of box or browser, is w
   assert.deepEqual(said.ended.map((p) => p.pid), [20]);
   assert.equal(said.ended[0].name, 'node');
   assert.ok(said.ended[0].minutes >= 150);
+  assert.deepEqual(said.long, { count: 1, oldestSeconds: 9000 }, 'the botdot-run above counts as a long command');
 });
 
 test('every call that carries a command names its run for the helper, and a run id is all a helper takes for its end', () => {

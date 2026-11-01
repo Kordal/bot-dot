@@ -506,3 +506,24 @@ test('only what a bot or the Chief left with nothing of theirs running is a stra
   add(14, CHIEF_UID, 'eslint (x)');
   assert.deepEqual(strays(new Set([61002]), proc).sort((a, b) => a.pid - b.pid), [{ pid: 10, uid: 61001, name: 'tsc' }, { pid: 14, uid: CHIEF_UID, name: 'eslint (x)' }]);
 });
+
+test('the shells of Bash that run long are counted, and nothing else', (t) => {
+  const fs = require('node:fs'); const os = require('node:os');
+  if (process.getuid?.() !== 0) return t.skip('needs root to give the fake /proc its owners');
+  const { longCommands } = require('../lib/privilege-broker');
+  const proc = fs.mkdtempSync(path.join(os.tmpdir(), 'broker-long-'));
+  t.after(() => fs.rmSync(proc, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(proc, 'uptime'), '1000.0 0');
+  const add = (pid, uid, cmd, started) => {
+    fs.mkdirSync(path.join(proc, String(pid)));
+    const rest = Array(30).fill('0'); rest[19] = String(started * 100);
+    fs.writeFileSync(path.join(proc, String(pid), 'stat'), `${pid} (x) ${rest.join(' ')}`);
+    fs.writeFileSync(path.join(proc, String(pid), 'cmdline'), cmd.replaceAll(' ', '\0'));
+    fs.chownSync(path.join(proc, String(pid)), uid, uid);
+  };
+  add(1, 61001, '/bin/bash -c tsc', 100);
+  add(2, 61001, '/bin/sh -c young', 990);
+  add(3, 61001, 'node mcp.js', 100);
+  add(4, 60000, '/bin/sh -c server', 100);
+  assert.deepEqual(longCommands(proc), { count: 1, oldestSeconds: 900 });
+});

@@ -87,7 +87,8 @@ VOLUME ["/data", "/config", "/root"]
 EXPOSE 4747
 
 # The llama.cpp image checks llama-server on port 8080; check botdot instead.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+# A starved account answers slowly but answers: only minutes of silence are a real failure (#831).
+HEALTHCHECK --interval=30s --timeout=15s --start-period=30s --retries=5 \
   CMD curl -fsS -o /dev/null "http://127.0.0.1:${PORT}/api/version" || exit 1
 
 # The llama.cpp image starts llama-server by default; this image starts botdot, which starts

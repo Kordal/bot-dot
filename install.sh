@@ -301,6 +301,15 @@ write_load() {
       fi
       [ -z "$ns" ] || printf '%s %s\n' "$now" "$ns" > "$RUN/load/$n"
     fi
+    # How long it has held more than 85% of its share, which the admin page marks after ten minutes (#831).
+    high=0
+    share_gb="$(sed -n 's/.*"ram":\([0-9]*\).*/\1/p' "$ACCOUNTS/$n/share/share.json" 2>/dev/null || true)"
+    if [ -n "$ram" ] && [ -n "$share_gb" ] && [ "$ram" -gt $((share_gb * 912680550)) ]; then
+      [ -f "$RUN/load/$n.high" ] || printf '%s\n' "$now" > "$RUN/load/$n.high"
+      high=$((now - $(cat "$RUN/load/$n.high")))
+    else
+      rm -f "$RUN/load/$n.high"
+    fi
     computers=''
     [ ! -S "$RUN/$n/docker.sock" ] || computers="$(env DOCKER_HOST="unix://$RUN/$n/docker.sock" docker ps -q --filter label=botdot.computer=account --filter status=running </dev/null 2>/dev/null | wc -l | tr -d ' ' || true)"
     size='' used='' full=false
@@ -310,14 +319,14 @@ write_load() {
       size="${1:-}" used="${2:-}"
       [ -z "${3:-}" ] || [ "$3" -ge "$FULL_BELOW" ] || full=true
     fi
-    put "$LOAD/account-$n.json" "{\"at\":\"$at\",\"cpu\":$(num "$cpu"),\"ram\":$(num "$ram"),\"computers\":$(num "$computers"),\"diskSize\":$(num "$size"),\"diskUsed\":$(num "$used"),\"full\":$full}"
+    put "$LOAD/account-$n.json" "{\"at\":\"$at\",\"cpu\":$(num "$cpu"),\"ram\":$(num "$ram"),\"computers\":$(num "$computers"),\"diskSize\":$(num "$size"),\"diskUsed\":$(num "$used"),\"ramHighSeconds\":$high,\"full\":$full}"
   done
   # The files of accounts that are gone.
   for f in "$LOAD"/account-*.json; do
     [ -e "$f" ] || continue
     n="$(basename "$f" .json)"
     n="${n#account-}"
-    [ -f "$ACCOUNTS/$n/compose.yaml" ] || rm -f "$f" "$RUN/load/$n"
+    [ -f "$ACCOUNTS/$n/compose.yaml" ] || rm -f "$f" "$RUN/load/$n" "$RUN/load/$n.high"
   done
 }
 # An image from a registry is installed only once its signature is botdot's, checked before anything is
@@ -1289,13 +1298,14 @@ disk() {
   fi
 }
 
-# share NAME CPU RAM: the account NAME's share of CPU and RAM, hard limits on its unit, applied at once and kept (its
-# work slows down near its RAM before anything is ended at it), and the limits of its one computer (#108), in a file
+# share NAME CPU RAM: the account NAME's share of CPU and RAM, hard limits on its unit, applied at once and kept (with
+# no MemoryHigh: gVisor's memory cannot be reclaimed, so under one the account stalls for good, at MemoryMax a process
+# is ended and the rest goes on, #831), and the limits of its one computer (#108), in a file
 # only root writes, which its docker-helper reads as the computer starts (lib/computers.js). It never shows in the
 # account.
 share() {
   if [ -n "$SYSTEMD" ]; then
-    systemctl set-property "botdot-account@$1.service" "CPUQuota=$(($2 * 100))%" "MemoryHigh=$(($3 * 1024 * 9 / 10))M" "MemoryMax=$3G" </dev/null \
+    systemctl set-property "botdot-account@$1.service" "CPUQuota=$(($2 * 100))%" "MemoryHigh=infinity" "MemoryMax=$3G" </dev/null \
       || warn "systemd didn't take the CPU and RAM share of the account $1."
   else
     warn "This machine has no systemd, so the CPU and RAM share of the account $1 aren't applied."
