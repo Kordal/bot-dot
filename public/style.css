@@ -2483,7 +2483,7 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .co-phone-switch { display: none; }
 /* A wide window in Company: the left column as in the mockups, the company beside it. */
 @media (min-width: 1001px) {
-  .app.place-company .sidebar { flex: none; width: 300px; background: var(--bg); border-right: 1px solid var(--line); }
+  .app.place-company .sidebar { flex: none; width: var(--rail-w); background: var(--bg); border-right: 1px solid var(--line); }
   .app.place-company .chat-grip { display: none; }
   .app.place-company .main { flex: 1; width: auto; max-width: none; }
 }
@@ -3126,13 +3126,18 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
   .app.place-company.proj-chat .main { display: grid; grid-template-columns: minmax(0, 1fr) var(--proj-chat-w, 440px); grid-template-rows: auto minmax(0, 1fr); }
   .app.place-company.proj-chat #needs-banner { grid-column: 1 / -1; }
   .app.place-company.proj-chat #view-company { grid-column: 1; grid-row: 2; }
-  .app.place-company.proj-chat #chat-row { grid-column: 2; grid-row: 2; min-width: 0; border-left: 1px solid var(--line); container: column / inline-size; }
+  .app.place-company.proj-chat #chat-row { grid-column: 2; grid-row: 2; min-width: 0; background: var(--raise); container: column / inline-size; }
   .app.place-company.proj-chat #chat-row .back-btn { display: none !important; }
   .app.place-company.proj-hidden .project-chat-show:not(.hidden) { display: grid; position: absolute; top: var(--sp-24); right: var(--sp-24); z-index: 5; }
   .project-chat-show svg, .dock-ctl.col svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
 }
-@media (min-width: 1001px) and (max-width: 1279px) {
-  .app.place-company .main { --proj-chat-w: 400px; }
+/* Bots ↔ Projects without a jump (#828): the top bar and the switch keep the left column's width in both places, and
+   the project's chat column is the bot view's chat width, so neither edge moves on a switch. */
+@media (min-width: 1001px) {
+  .app { --rail-w: 300px; }
+  .app:not(.place-company) .side-head { width: calc(var(--rail-w) - 1px); }
+  .app:not(.place-company) .place-switch { align-self: flex-start; width: calc(var(--rail-w) - 1px - var(--sp-16) - var(--sp-24)); }
+  .app.place-company .main { --proj-chat-w: max(400px, min(var(--chat-w, clamp(400px, 38vw, 560px)), 100vw - var(--rail-w) - 360px)); }
 }
 
 /* A project's board as a free canvas (#783, board-canvas-view.js): each tile where the owner put it, the canvas scaled
