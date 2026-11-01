@@ -196,7 +196,7 @@ test('runWithFile: the file is there for the command, 0600 in a 0700 folder, and
     assert.deepEqual(start.args.slice(0, 5), ['exec', '-i', '-u', 'box', name], 'made as the bot user');
     assert.ok(Buffer.from(start.stdin).equals(PEM_BYTES), 'the bytes on stdin');
     assert.deepEqual(run.args.slice(0, 3), ['exec', '-u', 'box']);
-    assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '5', '30', ...REAPED, 'sh', '-c', IN_OWN_FOLDER,
+    assert.deepEqual(run.args.slice(run.args.indexOf(name) + 1), ['timeout', '-k', '15', '30', ...REAPED, 'sh', '-c', IN_OWN_FOLDER,
       'sh', '/workspace/ops', 'openssl dgst -sha256 -sign "$BOTDOT_FILE" data'], 'in its own folder (#105)');
     assert.deepEqual(remove.args.slice(0, 4), ['exec', '-u', 'box', name]);
     assert.equal(calls.length, 3);

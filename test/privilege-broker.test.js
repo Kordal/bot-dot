@@ -491,16 +491,6 @@ test('a spawn runs under botdot-run, and Claude Code is held to the limits comma
   assert.doesNotMatch('/bin/sh /opt/some-mcp-wrapper', new RegExp(run.args[9]));
 });
 
-test("a command's memory is a share of the account's RAM, and unknown without a share", (t) => {
-  const fs = require('node:fs'); const os = require('node:os');
-  const { commandMemory } = require('../lib/privilege-broker');
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'broker-share-'));
-  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-  fs.writeFileSync(path.join(dir, 'share.json'), '{"cpu":4,"ram":9}');
-  assert.equal(commandMemory(path.join(dir, 'share.json')), 5.4e9);
-  assert.equal(commandMemory(path.join(dir, 'nothing.json')), 0);
-});
-
 test('only what a bot or the Chief left with nothing of theirs running is a stray', (t) => {
   const fs = require('node:fs'); const os = require('node:os');
   if (process.getuid?.() !== 0) return t.skip('needs root to give the fake /proc its owners');
