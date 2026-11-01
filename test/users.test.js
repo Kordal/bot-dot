@@ -15,7 +15,7 @@ let srv;
 
 before(async () => {
   if (!CAN) return;
-  srv = await startServer({ env: { HOST: '0.0.0.0', BOT_DOT_SEPARATE_USERS: '1' } });
+  srv = await startServer({ env: { HOST: '0.0.0.0', BOT_DOT_SEPARATE_USERS: '1', BOT_DOT_SWEEP_MS: '0' } });
 });
 after(() => srv?.stop());
 
