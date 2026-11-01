@@ -15,6 +15,7 @@ const Dock = (() => {
   const ICON = {
     min: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12"/></svg>',
     x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    side: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M14.5 4.5v15"/></svg>',
   };
   let row = (() => { try { return DockRow.parse(localStorage.getItem(KEY)); } catch { return DockRow.parse(null); } })();
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(row)); } catch { /* private mode */ } };
@@ -63,6 +64,10 @@ const Dock = (() => {
   const ID_OF = { bot: () => state.botId, team: () => state.groupId, chief: () => 'chief' };
   const openOne = () => (docked() ? { kind: openKind(), id: ID_OF[openKind()]() } : null);
   const phone = () => matchMedia(PHONE).matches;
+  // A wide window (#825): the Projects screen holds one chat as a fixed column on its right, like the bot view
+  // (ADR 029), in place of the row at the bottom. Narrower windows and phones keep the row and the sheet.
+  const WIDE = '(min-width: 1001px)';
+  const column = () => shows() && matchMedia(WIDE).matches;
   // A panel drawn expanded beside the open one: a bot's chat that stays open, on a screen wider than a phone.
   const expanded = (p, open) => p.kind === 'bot' && p.open === true && !phone() && !(open && DockRow.same(p, open));
 
@@ -92,6 +97,9 @@ const Dock = (() => {
     if (!$('#chat-row')) return;
     if (state.view !== 'chief' || !shows()) chiefHere = false;
     build();
+    if (drawColumn()) return;
+    $('#app').classList.remove('proj-chat', 'proj-hidden');
+    showBtn?.classList.add('hidden');
     const on = shows() && (state.view === 'company' || docked());
     const open = on ? openOne() : null;
     if (open && !row.items.some((p) => DockRow.same(p, open))) { row.items = DockRow.add(row.items, open); save(); }
@@ -141,6 +149,72 @@ const Dock = (() => {
     }
     for (const p of wide) drawChat(p.id);
     readChats();
+  }
+
+
+  // ---------- the chat column of a wide window (#825) ----------
+  // Hidden by its head's button: the board takes the whole width until a chat is opened or Show is pressed. Kept per
+  // device.
+  const HKEY = 'botdot.projectChat';
+  let hidden = (() => { try { return localStorage.getItem(HKEY) === 'hidden'; } catch { return false; } })();
+  const setHidden = (on) => { hidden = on; try { if (on) localStorage.setItem(HKEY, 'hidden'); else localStorage.removeItem(HKEY); } catch { /* private mode */ } };
+  let showBtn = null; // #project-chat-show: the column back, at the top right of the board
+  let opening = false; // the default chat is being opened
+  // The chat a project opens on (#825): its team's chat, where a message without @ goes to the lead (ADR 119); the
+  // Chief's for a project with no team chat yet. A project in its setup opens none: the setup keeps the width.
+  function defaultChat() {
+    const c = state.company;
+    if (!c || c.phase !== 'running') return null;
+    const g = (c.teams || []).map((t) => (state.groups || []).find((x) => x.team === t.id)).find(Boolean);
+    if (g) return { kind: 'team', id: g.id };
+    if (!state.groupsKnown) return null; // its team chat may not be loaded yet
+    return { kind: 'chief', id: 'chief' };
+  }
+  // Draws the Projects screen of a wide window; false where the row at the bottom is drawn instead.
+  function drawColumn() {
+    if (!column()) return false;
+    const app = $('#app');
+    const open = openOne();
+    if (open && hidden) setHidden(false); // a chat opened from the tree or the floor shows the column again
+    // The chat's row stays where it stands: the stylesheet puts it on the right of the board.
+    const chatRow = $('#chat-row');
+    if (chatRow.parentNode === panel) home.after(chatRow);
+    dock.classList.add('hidden');
+    panel.classList.add('hidden');
+    keepChats([]);
+    readChats();
+    drawn = '';
+    app.classList.remove('dock-on', 'dock-tall');
+    app.classList.toggle('docked', !!open);
+    app.classList.toggle('proj-chat', !!open);
+    if (open) $('#view-company')?.classList.remove('hidden');
+    syncHead(open);
+    const bare = state.view === 'company';
+    if (bare && !hidden && !opening) {
+      const d = defaultChat();
+      // Opened after this drawing: opening it draws the screen again.
+      if (d) { opening = true; queueMicrotask(() => { opening = false; if (state.view === 'company' && column() && !hidden) kinds[d.kind].open(d.id); }); }
+    }
+    if (!showBtn) {
+      showBtn = document.createElement('button');
+      showBtn.type = 'button';
+      showBtn.id = 'project-chat-show';
+      showBtn.className = 'icon-btn project-chat-show hidden';
+      showBtn.innerHTML = ICON.side;
+      showBtn.onclick = () => { setHidden(false); draw(); };
+      $('.main').appendChild(showBtn);
+    }
+    const canShow = bare && hidden && !!defaultChat();
+    app.classList.toggle('proj-hidden', canShow);
+    showBtn.classList.toggle('hidden', !canShow);
+    showBtn.setAttribute('aria-label', tr('Show chat'));
+    showBtn.title = tr('Show chat');
+    return true;
+  }
+  // The column's head button: the board takes the whole width.
+  function hide() {
+    setHidden(true);
+    setView('company');
   }
 
   // The expanded chats: those of `list` are made when new, the others go, with what was typed kept for the bot's chat.
@@ -250,13 +324,23 @@ const Dock = (() => {
 
   const ctlHTML = (min, x) => `<span class="dock-ctl"><button type="button" class="icon-btn" ${min} aria-label="${tr('Minimize')}" title="${tr('Minimize')}">${ICON.min}</button><button type="button" class="icon-btn" ${x} aria-label="${tr('Close')}" title="${tr('Close')}">${ICON.x}</button></span>`;
   // The open chat's head carries Minimize and Close while it is docked.
+  // In a wide window's column (#825) it carries Hide instead.
   function syncHead(open) {
     const VIEW = { team: 'group', bot: 'bot', chief: 'chief' };
-    for (const [kind, v] of Object.entries(VIEW)) if (open?.kind !== kind) $(`#view-${v} .chat-head .dock-ctl`)?.remove();
+    const col = column();
+    for (const [kind, v] of Object.entries(VIEW)) {
+      const ctl = $(`#view-${v} .chat-head .dock-ctl`);
+      if (ctl && (open?.kind !== kind || ctl.classList.contains('col') !== col)) ctl.remove();
+    }
     const right = open && $(`#view-${VIEW[open.kind]} .chat-head .actions-right`);
     const ctl = right && $('.dock-ctl', right);
     if (!open) return;
     if (!right || ctl) return;
+    if (col) {
+      right.insertAdjacentHTML('beforeend', `<span class="dock-ctl col"><button type="button" class="icon-btn" data-dock-hide aria-label="${tr('Hide chat')}" title="${tr('Hide chat')}">${ICON.side}</button></span>`);
+      $('[data-dock-hide]', right).onclick = hide;
+      return;
+    }
     right.insertAdjacentHTML('beforeend', ctlHTML('data-dock-min', 'data-dock-close-open'));
     $('[data-dock-min]', right).onclick = minimize;
     $('[data-dock-close-open]', right).onclick = () => close(openOne());
@@ -370,7 +454,7 @@ const Dock = (() => {
   let frame = 0;
   addEventListener('resize', () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(() => { drawn = ''; if (dock) draw(); }); });
 
-  return { draw, docked, kinds, open, openChief, close, minimize, chats, chatOf, drawChat };
+  return { draw, docked, kinds, open, openChief, close, minimize, hide, column, chats, chatOf, drawChat };
 })();
 // On globalThis too: the chats' code (bot-chat.js, replies.js, needs.js, feed.js) asks for it where it may be missing.
 globalThis.Dock = Dock;

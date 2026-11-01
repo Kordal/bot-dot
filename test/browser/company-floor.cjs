@@ -40,6 +40,8 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
     for (const [name, viewport] of [['wide', { width: 1440, height: 1000 }], ['phone', { width: 390, height: 844 }]]) {
       const page = await (await browser.newContext({ viewport, colorScheme: 'dark' })).newPage();
+      // The board at the window's width: the chat column beside it (#825) hidden.
+      await page.addInitScript(() => localStorage.setItem('botdot.projectChat', 'hidden'));
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(`${srv.base}/#company`);
@@ -106,6 +108,8 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         assert.equal(await page.evaluate(() => document.querySelector('#app').classList.contains('docked')), false, 'no chat docked');
         assert.equal(await page.locator('#view-company').isVisible(), false, 'the Projects screen is gone');
         await page.locator('.place-switch [data-place="company"]').first().click();
+        // Back on Projects the team's chat opens beside the board (#825): hidden again, the board has the width.
+        await page.locator('[data-dock-hide]:visible').click();
         await page.waitForFunction(() => state.view === 'company');
         // The filters: a bot's task under Bots, not under You.
         await page.locator('[data-cf-filter="bots"]').click();

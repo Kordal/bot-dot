@@ -24,7 +24,7 @@ const { startServer, writeData } = require('../helpers');
     });
 
     browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
-    const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'dark' });
+    const ctx = await browser.newContext({ viewport: { width: 1000, height: 1000 }, colorScheme: 'dark' });
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));

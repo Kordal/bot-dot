@@ -36,7 +36,7 @@ const { shortName } = require('../../public/mentions.js');
     await waitFor(async () => (await srv.api('/bots')).data.find((b) => b.id === id('Weekly Tracker'))?.running, { what: 'Weekly Tracker at work' });
 
     browser = await chromium.launch({ headless: true, ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : {}) });
-    const page = await (await browser.newContext({ viewport: { width: 1440, height: 1000 }, colorScheme: 'dark' })).newPage();
+    const page = await (await browser.newContext({ viewport: { width: 1000, height: 1000 }, colorScheme: 'dark' })).newPage();
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/#company`);

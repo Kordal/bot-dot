@@ -1651,6 +1651,8 @@
     "many": "Jeszcze {n} czatów"
   },
   "Minimize": "Zwiń",
+  "Hide chat": "Ukryj czat",
+  "Show chat": "Pokaż czat",
   "Decisions": "Decyzje",
   "Add a decision": "Dodaj decyzję",
   "Remove": "Usuń",
