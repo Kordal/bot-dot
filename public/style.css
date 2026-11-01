@@ -95,6 +95,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .side-grip::after, .chat-grip::after { content: ""; position: absolute; top: 0; bottom: 0; left: -2px; width: 2px; background: var(--faint); opacity: 0; transition: opacity .12s; pointer-events: none; }
 .side-grip:hover::after, .side-grip.dragging::after, .side-grip:focus-visible::after,
 .chat-grip:hover::after, .chat-grip.dragging::after, .chat-grip:focus-visible::after { opacity: 1; }
+#proj-chat-grip { display: none; } /* shown only beside a project's chat column (#833) */
 /* The top bar (#635): the logo, the notices, the search field while it is open, and the tools at the right. */
 .side-head { display: flex; align-items: center; gap: var(--sp-8); min-height: 64px; padding: var(--sp-16) var(--sp-16) var(--sp-12) var(--sp-24); }
 /* The logo: "bot" and a big coral dot, which pulses softly while the Chief or a bot is working. */
@@ -3128,6 +3129,7 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
   .app.place-company.proj-chat #view-company { grid-column: 1; grid-row: 2; }
   .app.place-company.proj-chat #chat-row { grid-column: 2; grid-row: 2; min-width: 0; background: var(--raise); container: column / inline-size; }
   .app.place-company.proj-chat #chat-row .back-btn { display: none !important; }
+  .app.place-company.proj-chat #proj-chat-grip { display: block; grid-column: 2; grid-row: 2; justify-self: start; }
   .app.place-company.proj-hidden .project-chat-show:not(.hidden) { display: grid; position: absolute; top: var(--sp-24); right: var(--sp-24); z-index: 5; }
   .project-chat-show svg, .dock-ctl.col svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
 }
