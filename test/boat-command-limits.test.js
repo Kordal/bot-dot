@@ -1,4 +1,4 @@
-// A bot's commands on the External Virtual PC end with its run and have the limits of the account's computer (ADR 133):
+// A bot's commands on the External Virtual PC end with its run and have the limits of the account's computer (ADR 134):
 // a fake boat.dev runs each command botdot sends for real, here, in bash, so botdot-run holds what it starts as it does
 // on the machine.
 const { test } = require('node:test');
