@@ -73,6 +73,10 @@ test('desktop.yml builds Windows x64 and arm64 and the Mac for Apple silicon and
   assert.match(runs, /cargo clippy --locked --all-targets -- -D warnings/);
   assert.match(runs, /cargo test --locked/);
   assert.doesNotMatch(runs, /docker/i);
+  // The cached target/ holds an earlier version's bundles: they are cleared, and only this version's collected.
+  assert.match(runs, /rm -rf target\/\$\{\{ matrix\.target \}\}\/release\/bundle\n/);
+  assert.match(runs, /nsis\/botdot_"\$VERSION"_\*-setup\.exe/);
+  assert.match(runs, /dmg\/botdot_"\$VERSION"_\*\.dmg/);
 });
 
 test('a pull request that changes the app builds it; a release is nightly, by hand or by tag, and only its publish job holds the key', () => {
