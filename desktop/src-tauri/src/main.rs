@@ -9,6 +9,7 @@ mod handoff;
 mod keep;
 mod menu;
 mod route;
+mod update;
 
 use handoff::Secret;
 use keep::Kept;
@@ -292,6 +293,8 @@ fn main() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::Builder::new().args([HIDDEN]).build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED).with_filter(|label| label == "main").build())
         .invoke_handler(tauri::generate_handler![start, connect])
         .setup(move |app| {
@@ -318,6 +321,7 @@ fn main() {
             #[cfg(target_os = "macos")]
             dialogs::add(&window);
             *app.state::<App>().screen.lock().unwrap() = Some(window.url()?);
+            update::start(handle.clone());
             let links = handle.clone();
             app.deep_link().on_open_url(move |event| {
                 for link in event.urls() {

@@ -3,7 +3,9 @@
   "productName": "botdot",
   "version": "0.1.0",
   "identifier": "dev.botdot.desktop",
-  "build": { "frontendDist": "../ui" },
+  "build": {
+    "frontendDist": "../ui"
+  },
   "app": {
     "withGlobalTauri": true,
     "windows": [],
@@ -13,10 +15,38 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis"],
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
+    "targets": [
+      "app",
+      "dmg",
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    }
   },
   "plugins": {
-    "deep-link": { "desktop": { "schemes": ["botdot"] } }
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "botdot"
+        ]
+      }
+    },
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI3MkNCRjIxNEE2MDgwRjUKUldUMWdHQktJYjhzdDVwN3VYU21QOEM0Wk1FRmtyWjVsaU5oSjdlY2JRb25LbnZhK1BKUWJlWDYK",
+      "endpoints": [
+        "https://github.com/Kordal/bot-dot/releases/download/desktop-latest/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

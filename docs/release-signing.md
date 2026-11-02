@@ -42,6 +42,17 @@ The key pair was made fresh for the public repository. The signing secret was
 uploaded directly from a temporary mode-0600 file, which was then securely deleted.
 No private-key backup is kept in this repository or on the workstation.
 
+## The desktop app's update key
+
+The desktop app (ADR 137) updates itself with Tauri's updater, which checks its own minisign signature, not the
+botdot release signature above (#883). Its public key is `plugins.updater.pubkey` in
+`desktop/src-tauri/tauri.conf.json`; the private key and its password are the repository secrets
+`TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, with a copy in the owner's Mac login keychain
+("botdot desktop update key"). Only the publish job of `.github/workflows/desktop-release.yml` reads them, to sign
+each Mac `.app.tar.gz` and Windows installer that the manifest `latest.json` names. A lost key leaves installed apps
+without updates until they are installed again with a new public key; changing it is the same: ship the new public
+key in a release signed with the old one first.
+
 ## Where a release is published
 
 An image's signed release is an index tagged `accounts-release` in its repository, whose annotation

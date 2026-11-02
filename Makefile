@@ -56,6 +56,10 @@ desktop-build: desktop-tools ## Build the desktop app for this computer
 desktop-test: desktop-tools ## Run the desktop app's tests
 	cd desktop/src-tauri && cargo test
 
+.PHONY: desktop-lint
+desktop-lint: desktop-tools ## Lint the desktop app as CI does
+	cd desktop/src-tauri && cargo clippy --locked --all-targets -- -D warnings
+
 ifeq ($(origin DEVELOPER_DIR),undefined)
 ifneq ($(wildcard /Applications/Xcode.app/Contents/Developer),)
 ifneq ($(shell xcodebuild -version >/dev/null 2>&1 && echo ok),ok)

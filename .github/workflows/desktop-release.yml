@@ -1,0 +1,130 @@
+# Releases the desktop app (ADR 137, #883): builds it for Windows and Mac (desktop.yml), signs what the updater
+# installs with the update key (secrets TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD), and
+# publishes a GitHub Release "botdot for desktop <version>" with the installers and the updater's manifest. The
+# release `desktop-latest` keeps the newest installers under fixed names, for the README's download links, and the
+# manifest the installed apps read (tauri.conf.json, plugins.updater).
+#
+# When: once a night when desktop/ or a desktop workflow changed since the last desktop-v* release, when the owner
+# runs it by hand (Actions → Desktop release → Run workflow, on main), and on a tag desktop-v<version> on a commit of
+# main. A merge to main releases nothing. A nightly or a run by hand releases <major>.<minor> of tauri.conf.json's
+# version and this workflow's run number; a tag releases its own version, which must be newer than the last.
+name: Desktop release
+
+on:
+  schedule:
+    - cron: '0 1 * * *' # 01:00 UTC, beside the Android app (00:30) and the images (02:30)
+  workflow_dispatch:
+  push:
+    tags: ['desktop-v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.which.outputs.release }}
+      version: ${{ steps.which.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # the commits since the last release, and main
+      - id: which
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          release() { echo "$1"; echo "release=$2" >> "$GITHUB_OUTPUT"; echo "version=$VERSION" >> "$GITHUB_OUTPUT"; exit 0; }
+          # An installed app takes only a newer version, so a release that is not newer than the last stops here.
+          newer() {
+            [ -n "$TAG" ] || return 0
+            LAST="${TAG#desktop-v}"
+            [ "$LAST" != "$VERSION" ] && [ "$(printf '%s\n%s\n' "$LAST" "$VERSION" | sort -V | tail -1)" = "$VERSION" ] ||
+              { echo "$VERSION is not newer than $LAST: raise the version in tauri.conf.json" >&2; exit 1; }
+          }
+          VERSION=""
+          TAG="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName,createdAt --jq '[.[] | select(.tagName | startswith("desktop-v"))] | sort_by(.createdAt) | last | .tagName // empty')"
+          case "$GITHUB_REF" in
+            refs/tags/desktop-v*)
+              VERSION="${GITHUB_REF#refs/tags/desktop-v}"
+              echo "$VERSION" | grep -qE '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' || { echo "Not a version: $VERSION" >&2; exit 1; }
+              git merge-base --is-ancestor HEAD origin/main || { echo "The tag is not on main" >&2; exit 1; }
+              newer
+              release "Tag $GITHUB_REF_NAME: releasing $VERSION." true
+              ;;
+            refs/heads/main) ;;
+            *) release "Not main ($GITHUB_REF_NAME): no release." false ;;
+          esac
+          VERSION="$(node -p "require('./desktop/src-tauri/tauri.conf.json').version.split('.').slice(0, 2).join('.')").$GITHUB_RUN_NUMBER"
+          if [ "$EVENT" != schedule ]; then newer; release "Run by hand: releasing $VERSION." true; fi
+          [ -n "$TAG" ] || release "No desktop release yet: releasing $VERSION." true
+          SHA="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json targetCommitish --jq .targetCommitish)"
+          CHANGED="$(git diff --name-only "$SHA" HEAD -- desktop .github/workflows/desktop.yml .github/workflows/desktop-release.yml 2>/dev/null || echo "$TAG's commit is not on main")"
+          if [ -n "$CHANGED" ]; then newer; release "Changed since $TAG: $(printf '%s ' $CHANGED)" true; fi
+          release "Nothing in desktop/ changed since $TAG: no release tonight." false
+
+  # The checks and the four builds; nothing is published when one fails.
+  build:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    uses: ./.github/workflows/desktop.yml
+    with:
+      version: ${{ needs.plan.outputs.version }}
+
+  publish:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: desktop-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist
+          merge-multiple: true
+
+      # What the updater installs is signed; the installers a person downloads first are not (yet).
+      - name: Sign the updates
+        working-directory: dist
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then echo "The TAURI_SIGNING_PRIVATE_KEY secret is missing" >&2; exit 1; fi
+          for FILE in *.app.tar.gz *-setup.exe; do
+            npx --yes @tauri-apps/cli@2.12.4 signer sign "$FILE"
+          done
+          node ../desktop/manifest.js "${{ needs.plan.outputs.version }}" "$GITHUB_REPOSITORY" > latest.json
+          cat latest.json
+          ls -l
+
+      - name: Publish
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.version }}
+        run: |
+          NOTES="Built from ${GITHUB_SHA::7}. The builds are not signed yet. Windows: in the SmartScreen warning, choose More info, then Run anyway. Mac: open the app once, then System Settings → Privacy & Security → Open Anyway."
+          TAG="desktop-v$VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" --clobber *.dmg *.app.tar.gz *.sig *-setup.exe latest.json
+          else
+            gh release create "$TAG" *.dmg *.app.tar.gz *.sig *-setup.exe latest.json \
+              --title "botdot for desktop $VERSION" --notes "$NOTES" --target "$GITHUB_SHA" --latest=false
+          fi
+          # The fixed names, and last the manifest, so it never names a build that is not there yet.
+          mkdir latest
+          for FILE in *.dmg *-setup.exe; do cp "$FILE" "latest/${FILE/botdot-$VERSION-/botdot-}"; done
+          gh release view desktop-latest >/dev/null 2>&1 ||
+            gh release create desktop-latest --title "botdot for desktop" --notes "$NOTES" --prerelease --latest=false --target "$GITHUB_SHA"
+          gh release upload desktop-latest --clobber latest/*
+          gh release upload desktop-latest --clobber latest.json
+          gh release edit desktop-latest --notes "botdot for desktop $VERSION. $NOTES"
