@@ -114,7 +114,9 @@ function status({ running = false, runs = 0, needs = false, unread = 0, last = n
 // Each bot in one space (#838, ADR 132): Home's keys leave out every bot in a project's team and every team's chat
 // (a group with `team`), which are that project's. A bot that leaves its team is Home's again, in its own category.
 // projects: the projects as the apps load them, each with `teams` of { id, bots }.
-function home(bots, groups, projects) {
+// all: Home's filter is on All, the owner's choice on this device: every bot and chat stays.
+function home(bots, groups, projects, all = false) {
+  if (all) return { bots, groups };
   const teams = (projects || []).flatMap((p) => p.teams || []);
   const inTeam = new Set(teams.flatMap((t) => t.bots || []));
   const teamIds = new Set(teams.map((t) => t.id));

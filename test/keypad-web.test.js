@@ -721,10 +721,14 @@ test('web: a key\'s status words are muted and its colour is in the dot; only Ne
 
 // ---------- spaces (#838) ----------
 
-test('web: Home\'s keys leave out a project\'s team bots and its team chat; Needs you marks a project\'s ask with its square', () => {
+test('web: Home\'s filter on No project leaves out a project\'s team bots and its team chat; Needs you marks a project\'s ask with its square', () => {
   const team = { ...EVENING, id: 'g2', name: 'Lights team', members: ['lights', 'news'], team: 't1', category: '' };
   const p = page({ groups: [EVENING, team], features: ['groups', 'company'] });
   p.state.projects = [{ id: 'p1', name: 'Quotz IT', color: '#1d9e75', teams: [{ id: 't1', bots: ['lights'], lead: 'lights' }] }];
+  p.ctx.drawKeypad();
+  assert.match(p.keys(), /aria-checked="true" data-home-bots="all"/, 'the filter, on All at the start');
+  assert.ok(pageKeysOf(p.keys(), 1).some((k) => k.endsWith('Home Lights')), 'on All the team bot is on Home too');
+  p.ctx.localStorage.setItem('botdot.homeBots', 'own');
   p.ctx.drawKeypad();
   assert.deepEqual(pageKeysOf(p.keys(), 1), ['2 News Watcher', '3 Evening'], 'Home Lights and its team chat are the project\'s');
   p.ctx.drawKeypadNeeds([ASK('a1'), { key: 'job:j1', kind: 'job', bot: NEWS, color: NEWS.color, line: 'Feeds' }], () => {});
