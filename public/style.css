@@ -2486,7 +2486,7 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .co-steps li.done { border-color: var(--muted); color: var(--muted); }
 .co-start { max-width: 620px; margin: 0 auto; padding-top: 14vh; display: flex; flex-direction: column; gap: var(--sp-16); }
 .co-body .co-start { padding-top: 10vh; }
-.co-start h1 { margin: 0 0 var(--sp-8); font-size: var(--fs-32); line-height: 1.15; letter-spacing: -.02em; }
+.co-start h1 { margin: 0 0 var(--sp-8); font-size: var(--fs-32); line-height: 1.15; letter-spacing: -.02em; text-wrap: balance; }
 .co-given { margin: 0; color: var(--muted); }
 .co-ask { display: flex; align-items: center; gap: var(--sp-8); padding: var(--sp-8) var(--sp-8) var(--sp-8) var(--sp-16); border-radius: var(--r-pill); background: var(--raise-2); box-shadow: var(--sink), 0 0 0 1px var(--line-2); }
 .co-ask input { flex: 1; min-width: 0; height: 44px; border: 0; background: transparent; outline: none; font-size: var(--fs-16); }

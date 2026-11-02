@@ -75,8 +75,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
@@ -277,9 +279,9 @@ private fun StepBar(at: String, enabled: Boolean, onStep: (String) -> Unit) {
 // ---------- the start screen ----------
 
 /**
- * The start screen (#800): "New project" over one field for the site or the idea, a clip inside it that adds files
+ * The start screen (#800, #856): "You know where. We'll work out how." over one field for the site or the idea, a clip inside it that adds files
  * and links, shown as chips under it, and Start from scratch (#788) right under them (#849). [titled] false: the
- * project names over it say "New project" already.
+ * project names over it stand in its place.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -301,9 +303,9 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
     Column(Modifier.fillMaxSize().padding(horizontal = Space.s16, vertical = Space.s16)) {
         Spacer(Modifier.weight(1f))
         Column(Modifier.widthIn(max = Space.answer), verticalArrangement = Arrangement.spacedBy(Space.s24)) {
-            if (titled) Text(tr("New project"), color = p.text, fontSize = Type.s32, lineHeight = Type.line40, fontWeight = FontWeight.SemiBold)
+            if (titled) Text(tr("You know where. We'll work out how."), color = p.text, fontSize = Type.s32, lineHeight = Type.line40, fontWeight = FontWeight.SemiBold, style = TextStyle(lineBreak = LineBreak.Heading))
             Field(what, { what = it.take(500) }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
-                placeholder = { Text(tr("Site or idea"), color = p.faint) },
+                placeholder = { Text(tr("Goal, site or idea"), color = p.faint) },
                 leadingIcon = {
                     Box {
                         IconButton({ attaching = true }) { Icon(Icons.Outlined.AttachFile, tr("Attach"), tint = p.muted) }
@@ -318,7 +320,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
                     else IconButton(::go, enabled = what.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.ArrowForward, tr("Go"), tint = if (what.isNotBlank()) p.text else p.faint) }
                 },
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { go() }),
-                modifier = Modifier.fillMaxWidth().semanticsLabel(tr("Site or idea")))
+                modifier = Modifier.fillMaxWidth().semanticsLabel(tr("Goal, site or idea")))
             if (linking) AskField(link, { link = it.take(1000) }, label = tr("Add a link"), placeholder = "https://", button = tr("Add"), focus = true) {
                 CompanySetup.link(newId(), link)?.let { if (ui.sources.size < CompanySetup.MAX_SOURCES) ui.sources.add(it) else ui.tell(tr("Add at most 20 sources.")) }
                 link = ""; linking = false
