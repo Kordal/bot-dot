@@ -158,7 +158,7 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
     val cards = LocalProductCards.current
     val terms = SearchMarks.terms
     // Each block styled once (and again only when the searched words or the colours change), not on every redraw of
-    // the chat: a reply draft that grows each frame (rememberPacedDraft) restyles only its last block, and the blocks
+    // the chat: a reply draft that grows with each draft the server sends restyles only its last block, and the blocks
     // before it, the same objects as before, are skipped when the chat draws again.
     val made = remember(terms, color, p, paths, sites, cards) { HashMap<Block, StyledBlock>() }
     val blocks = remember(text, made) {

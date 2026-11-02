@@ -355,7 +355,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
     when (r.status) {
         // No bubble while it works: the status line says it; only what it attached so far. From a server with drafts,
         // the reply as it is written so far stands in the reply's place and grows there (ReplyDraft).
-        "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble(plain = true) { Column { MarkdownText(draftSource(rememberPacedDraft(draft)), copy = false); BotFilesRow(r.files) } }
+        "running" -> if (draft.isNullOrEmpty()) BotFilesRow(r.files) else TheirBubble(plain = true) { Column { MarkdownText(draftSource(draft), copy = false); BotFilesRow(r.files) } }
         "success" -> reply()
         else -> when (val ended = endedWords(r, features)) {
             // A stopped run the server says nothing of, and every stopped run of a botdot from before `ended-by`.
