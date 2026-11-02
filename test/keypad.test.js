@@ -272,6 +272,13 @@ test('home: with no projects nothing leaves', () => {
   assert.deepEqual(Keypad.home(bots, groups, []), { bots, groups });
 });
 
+test('home: the filter on All keeps every bot and chat, team ones too', () => {
+  const bots = [bot('Ops', { group: 'Tech' }), bot('Recipes')];
+  const groups = [grp('Quotz IT team', { team: 't1' })];
+  assert.deepEqual(Keypad.home(bots, groups, projects, true), { bots, groups });
+  assert.deepEqual(Keypad.home(bots, groups, projects, false).bots.map((b) => b.name), ['Recipes']);
+});
+
 test('projectOf: each team bot\'s project', () => {
   const of = Keypad.projectOf(projects);
   assert.equal(of.get('ops').id, 'p1');

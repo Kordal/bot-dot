@@ -4,6 +4,10 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -133,8 +137,12 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val companyNow by store.company.value.collectAsState()
     val featuresNow = store.version.value.collectAsState().value?.features
     val projects = remember(featuresNow, projectList, companyNow) { dev.botdot.app.data.Spaces.projects(featuresNow, projectList, companyNow?.company) }
-    val homeBots = remember(bots, projects) { bots?.let { dev.botdot.app.data.Spaces.homeBots(it, projects) } }
-    val homeGroups = remember(groupsNow, projects) { dev.botdot.app.data.Spaces.homeGroups(groups, projects) }
+    // Home's filter: All, or only the bots and chats in no project's team (remembered on this device).
+    val homeAll by app.settings.homeAll.collectAsState(initial = true)
+    val homeBots = remember(bots, projects, homeAll) { bots?.let { dev.botdot.app.data.Spaces.homeBots(it, projects, homeAll) } }
+    val homeGroups = remember(groupsNow, projects, homeAll) { dev.botdot.app.data.Spaces.homeGroups(groups, projects, homeAll) }
+    // The filter shows while a bot or a chat is in a project's team: else both would show the same.
+    val filtered = remember(bots, groupsNow, projects) { dev.botdot.app.data.Spaces.homeBots(bots.orEmpty(), projects).size != bots.orEmpty().size || dev.botdot.app.data.Spaces.homeGroups(groups, projects).size != groups.size }
     val spaceOfBot = remember(projects) { dev.botdot.app.data.Spaces.spaceOfBot(projects) }
     val turnLines by store.turnLines.value.collectAsState() // what each member at work in a group said it is doing
     var refreshing by remember { mutableStateOf(false) }
@@ -340,6 +348,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             }
         })
         RoomsRow(app) { onOpen("rooms") }
+        if (filtered) HomeFilter(homeAll) { all -> scope.launch { app.settings.setHomeAll(all) } }
     }
     // The keypad, and a phone's sections: the list's own order cut into pages, each bot and group a key that says what its row says.
     val pages = remember(homeBots, homeGroups, keypad, sections, shared) { if (keypad || sections) Keypad.pages(homeBots.orEmpty(), homeGroups, shared) else emptyList() }
@@ -611,6 +620,21 @@ private fun Hit(h: ChatHit, bots: List<Bot>, onClick: () -> Unit) {
             Text(shortTime(h.at), color = p.faint, fontSize = Type.s12)
         }
         Text(text, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+/** Home's filter over the keys: All, or only the bots and chats in no project's team. Two words in one small pill. */
+@Composable
+private fun HomeFilter(all: Boolean, onChange: (Boolean) -> Unit) {
+    val p = LocalPaper.current
+    Row(Modifier.padding(start = Space.s16, top = Space.s4, bottom = Space.s8).clip(CircleShape).background(p.sunk).padding(Space.s4).selectableGroup()) {
+        for ((value, label) in listOf(true to tr("All"), false to tr("No project"))) {
+            val on = all == value
+            Text(label, color = if (on) p.text else p.muted, fontSize = Type.s12,
+                modifier = Modifier.clip(CircleShape).background(if (on) p.bg else Color.Transparent)
+                    .selectable(selected = on, role = Role.RadioButton) { onChange(value) }
+                    .padding(horizontal = Space.s12, vertical = Space.s4))
+        }
     }
 }
 

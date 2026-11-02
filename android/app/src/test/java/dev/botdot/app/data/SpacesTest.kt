@@ -79,6 +79,12 @@ class SpacesTest {
         assertEquals(listOf("g7", "g1"), Spaces.homeGroups(listOf(chat, mine), emptyList()).map { it.id })
     }
 
+    @Test fun homesFilterOnAllKeepsTeamBotsAndChats() {
+        val chat = Group(id = "g7", name = "Growth", team = "t1")
+        assertEquals(bots, Spaces.homeBots(bots, listOf(shop, gym), all = true))
+        assertEquals(listOf("g7"), Spaces.homeGroups(listOf(chat), listOf(shop, gym), all = true).map { it.id })
+    }
+
     @Test fun aBotThatLeavesItsTeamIsBackOnHome() {
         val left = shop.copy(teams = listOf(growth.copy(bots = listOf("b2"))))
         assertEquals(listOf("b1", "home"), Spaces.homeBots(bots, listOf(left)).map { it.id })

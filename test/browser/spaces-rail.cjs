@@ -2,7 +2,7 @@
 // In a wide window with a project the "Bots | Projects" switch gives way to the rail: Home, the project's square, "+",
 // and the top bar's tools at its foot. Home opens the Chief, the project its team chat, and the chat column stands at
 // the same place in both, at the default width and at one the owner set. The space is remembered, a gone project falls
-// back to Home, and with no project the rail holds Home and "+" (#853). Each bot is in one space (#838). Below 1001 px (#839) the title
+// back to Home, and with no project the rail holds Home and "+" (#853). Home's filter shows every bot (All) or leaves the team bots to their project (No project, #838). Below 1001 px (#839) the title
 // opens the spaces sheet and the bottom field the space's chat, full screen, Back the project again. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -87,11 +87,18 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.reload();
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor({ timeout: 20000 });
 
-    // Each bot in one space (#838): the team's bot and its chat are the project's keys, not Home's.
+    // Home's filter: All (the start) shows the team's bot and chat too; No project leaves them to the project (#838).
     await page.locator('#rail #brand').click();
     await page.waitForFunction(() => !document.querySelector('.app.place-company'));
-    const homeKeys = await page.locator('#kp-keys .key .name').allInnerTexts();
-    assert.deepEqual(homeKeys, ['Chief of Staff', 'Recipe Finder'], 'Home: the Chief and the bot in no team');
+    const homeNames = () => page.locator('#kp-keys .key .name').allInnerTexts();
+    assert.equal(await page.locator('#kp-keys [data-home-bots="all"]').getAttribute('aria-checked'), 'true', 'All at the start');
+    for (const name of ['Ops Watchkeeper', 'Recipe Finder', 'Quotz IT team']) assert.ok((await homeNames()).includes(name), `Home on All: ${name}`);
+    await page.locator('#kp-keys [data-home-bots="own"]').click();
+    await page.waitForFunction(() => document.querySelector('#kp-keys [data-home-bots="own"]')?.getAttribute('aria-checked') === 'true');
+    assert.deepEqual(await homeNames(), ['Chief of Staff', 'Recipe Finder'], 'Home on No project: the Chief and the bot in no team');
+    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-home-filter.png') });
+    await page.reload();
+    await page.locator('#kp-keys [data-home-bots="own"][aria-checked="true"]').waitFor({ timeout: 20000 });
     await page.locator('#rail .rail-sq').click();
     await page.locator('.sp-keys .key .name', { hasText: 'Ops Watchkeeper' }).waitFor();
     assert.equal(await page.locator('.sp-chip', { hasText: 'Quotz IT team' }).count(), 1, 'the team\'s name');

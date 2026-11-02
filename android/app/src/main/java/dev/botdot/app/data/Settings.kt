@@ -1,6 +1,7 @@
 package dev.botdot.app.data
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -25,6 +26,11 @@ class Settings(private val context: Context) {
     private val FOLDED = stringSetPreferencesKey("folded_groups") // "" is Other
     val foldedGroups: Flow<Set<String>> = context.store.data.map { it[FOLDED].orEmpty() }.distinctUntilChanged()
     suspend fun toggleFolded(group: String) = context.store.edit { val now = it[FOLDED].orEmpty(); it[FOLDED] = if (group in now) now - group else now + group }
+
+    // Home's filter: All (every bot and chat, the start) or No project (only those in no project's team).
+    private val HOME_ALL = booleanPreferencesKey("home_all")
+    val homeAll: Flow<Boolean> = context.store.data.map { it[HOME_ALL] ?: true }.distinctUntilChanged()
+    suspend fun setHomeAll(all: Boolean) = context.store.edit { it[HOME_ALL] = all }
 
     private val LIST_WIDTH = intPreferencesKey("list_width") // dp, beside the chat on a wide screen; none: the standard one
     suspend fun listWidthNow(): Int? = context.store.data.first()[LIST_WIDTH]
