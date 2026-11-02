@@ -271,6 +271,20 @@ test("the browser's bridge takes secrets only on its socket, and its port only o
   assert.equal(out.prefs['browser.sessionhistory.max_total_viewers'], 0, 'no pages kept for Back (#152)');
 });
 
+// A first page that does not load leaves Camoufox open, and a Camoufox that ends, however it ends, is no longer
+// open (#875): open_browser starts it again instead of answering "already open" for a window that is gone.
+test("the bridge says Camoufox is open only while it runs (#875)", { skip: !hasPython() }, async (t) => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'bridge-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const { stdout } = await util.promisify(realExecFile)('python3', [path.join(__dirname, 'fixtures', 'camoufox-bridge-fail.py'),
+    path.join(__dirname, '..', 'deploy', 'desktop', 'camoufox-browser'), dir], { timeout: 30_000 });
+  assert.deepEqual(JSON.parse(stdout), {
+    is_open_after_slow_page: true, goto_after_slow_page: true,
+    is_open_after_close: false, goto_after_close: false,
+    is_open_after_reopen: true, launches: 2,
+  });
+});
+
 // Each bot's screen has a bridge of its own (#105): its socket, log and port follow the screen's display, and its
 // Camoufox the bot's own profile. A program on a screen reaches that screen's bridge, through its DISPLAY.
 test("each screen's bridge has its own socket, log, port and the bot's own profile (#105)", { skip: !hasPython() }, async () => {

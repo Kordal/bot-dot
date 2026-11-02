@@ -518,35 +518,42 @@ def run_browser(url):
             "browser.sessionhistory.max_total_viewers": 0,  # Back loads the page again instead of keeping it
         },
     ) as context:
+        # Open only while Camoufox runs (#875): whatever ends it, the next is-open says no, so open_browser starts
+        # it again instead of answering "already open" for a window that is gone.
         browser_open.set()
-        closed = threading.Event()
-        context.on("close", lambda *_: closed.set())
-        page = context.pages[0] if context.pages else context.new_page()
-        if url != "about:blank":  # the first page is already blank; going there again races and crashes
-            page.goto(url)
-        # Serve secret-typing requests on this thread (Playwright's sync API isn't thread-safe)
-        # until the window is closed.
-        while not closed.is_set():
-            try:
-                body, reply = requests.get_nowait()
-            except queue.Empty:
+        try:
+            closed = threading.Event()
+            context.on("close", lambda *_: closed.set())
+            page = context.pages[0] if context.pages else context.new_page()
+            if url != "about:blank":  # the first page is already blank; going there again races and crashes
                 try:
-                    pages = context.pages
-                    if not pages:
+                    page.goto(url)
+                except Exception as exc:  # a slow or failing site leaves the browser open on what it reached (#875)
+                    print(f"camoufox-browser: the first page did not load: {type(exc).__name__}", file=sys.stderr, flush=True)
+            # Serve secret-typing requests on this thread (Playwright's sync API isn't thread-safe)
+            # until the window is closed.
+            while not closed.is_set():
+                try:
+                    body, reply = requests.get_nowait()
+                except queue.Empty:
+                    try:
+                        pages = context.pages
+                        if not pages:
+                            break
+                        pages[0].wait_for_timeout(200)  # also lets Playwright process events
+                    except Exception:
                         break
-                    pages[0].wait_for_timeout(200)  # also lets Playwright process events
-                except Exception:
-                    break
-                continue
-            try:
-                result = browser_tool(context, body) if body.get("op") in BROWSER_OPS else type_secret(context, body)
-            except Exception as exc:  # report the problem, never the value
-                result = {"ok": False, "error": f"The browser failed: {type(exc).__name__}"}
-            finally:
-                body.clear()
-            if reply is not None:
-                reply.put(result)
-    browser_open.clear()
+                    continue
+                try:
+                    result = browser_tool(context, body) if body.get("op") in BROWSER_OPS else type_secret(context, body)
+                except Exception as exc:  # report the problem, never the value
+                    result = {"ok": False, "error": f"The browser failed: {type(exc).__name__}"}
+                finally:
+                    body.clear()
+                if reply is not None:
+                    reply.put(result)
+        finally:
+            browser_open.clear()
 
 
 def main():
