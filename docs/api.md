@@ -441,6 +441,12 @@ The owner writes once and the botdot server gives the turns ([ADR 019](adr/019-t
 - `limit`: the stopped line, or `null` (see The limit).
 - `unread`, `firstUnread`, `readAt`: its new replies (below).
 
+**Notes** (ADR 139, feature `group-notes`). What was settled in the group's chat, which every member's turn reads above the chat: `GET /api/group-chats/:id/notes` → `{ items }`, each `{ id, kind, text, by, bot?, from?, at }`. `kind` is `decision`, `open` (what someone still owes) or `fact`. `text` is one line of at most 240 characters. `by` is `owner`, `bot` (a member's `group_note`, `bot` its id) or `botdot` (folded from the chat when a line ended, `from` the message or run it came from). Draw decisions, then `open` (as "To do"), then facts, each oldest first.
+
+- `POST /api/group-chats/:id/notes` `{ kind, text }` → `201 { item, items }`. `PUT /api/group-chats/:id/notes/:noteId` with any of `{ kind, text }` → `{ item, items }`: the note is the owner's from then on, and botdot never changes or drops it. `DELETE /api/group-chats/:id/notes/:noteId` → `{ items }`.
+- Refusals in the owner's words: `400` for a kind that is no kind, an empty text, one over 240 characters, and "The notes are full: remove one first." past 2,000 characters in all. `404` "That note is gone." The Chief's key gets `403`.
+- The feed says a change as `group_notes` `{ chat, groupId }`: an app that shows them reads them again.
+
 **New replies.** A group has one read position (`POST /api/read` with `"group:<id>"`, see New replies), so reading it in one app reads it in all. `unread` is the number of replies after it, whichever member wrote them, a failed or stopped one too, never a pass; `firstUnread` is the `id` of the first of them, the reply to draw the "New" line above. Both are on the group in `GET /api/group-chats` and on its chat. The feed says each change as `group_unread`, and a reply that lands while an app reports the group is read at once.
 
 **No reply in a group notifies.** `group_run_finished` has `notify: false`: draw the reply, count it when it has `new: true`, and never ring for it. A reply that asks the owner something is one exception (below), a member's post the other.

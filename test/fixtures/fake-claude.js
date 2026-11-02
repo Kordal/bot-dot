@@ -75,6 +75,21 @@ if (String(val('--system-prompt') || '').startsWith('You route messages')) {
   });
   return;
 }
+// The group's notes (lib/group-notes.js, ADR 139), told by their own system prompt: no run. It writes what it was
+// asked to $FAKE_OUT/notes-<n>.txt and answers $FAKE_OUT/notes.txt (or '{"keep":[],"add":[]}').
+if (String(val('--system-prompt') || '').startsWith('You keep the notes')) {
+  let asked = '';
+  process.stdin.on('data', (c) => { asked += c; });
+  process.stdin.on('end', () => {
+    const at = `${Date.now()}-${process.pid}`;
+    fs.writeFileSync(path.join(OUT, `notes-${at}.txt`), asked);
+    let answer = '{"keep":[],"add":[]}';
+    try { answer = fs.readFileSync(path.join(OUT, 'notes.txt'), 'utf8'); } catch { /* the default */ }
+    console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: answer, session_id: `notes-${at}`, usage: { input_tokens: 300, output_tokens: 10 } }));
+    process.exit(0);
+  });
+  return;
+}
 // The Company's Team step (lib/company-team.js, #671), told by its own system prompt: no run. It writes what it was
 // asked to $FAKE_OUT/company-<n>.txt and answers $FAKE_OUT/company-team.txt (the proposal) or
 // $FAKE_OUT/company-chat.txt ("Change the team…"), or fails when $FAKE_OUT/company-fails exists.

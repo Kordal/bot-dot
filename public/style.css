@@ -1645,6 +1645,14 @@ details.bs-row { display: block; }
 /* The group's panel, and the picker of bots that makes a group or adds to one. */
 .group-panel { padding-top: var(--sp-8); }
 .member-row { align-items: center; gap: var(--sp-12); }
+/* A group's notes (ADR 139): a row is its kind, its line and ✕; the last row adds one. */
+.note-row { align-items: flex-start; }
+.note-row > select.note-kind { flex: none; width: 84px; max-width: none; text-align: left; text-align-last: left; }
+.note-row > input, .note-row > textarea { flex: 1; min-width: 0; height: 32px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--text); font: inherit; font-size: var(--fs-14); }
+.note-row > textarea { min-height: 32px; padding: var(--sp-4) 0; line-height: 24px; resize: none; overflow: hidden; }
+.note-row > input:focus, .note-row > textarea:focus { outline: none; }
+.note-row > input::placeholder { color: var(--faint); }
+.note-row > .icon-btn { margin-top: var(--sp-4); }
 .member-row .grow { display: block; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-bots { display: grid; gap: var(--sp-4); max-height: min(46vh, 380px); overflow-y: auto; }
 .pick-bot { display: flex; align-items: center; gap: var(--sp-12); width: 100%; border: 0; background: transparent; padding: var(--sp-8); border-radius: var(--r-14); font: inherit; color: inherit; text-align: left; cursor: pointer; }

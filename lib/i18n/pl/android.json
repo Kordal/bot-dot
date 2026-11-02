@@ -1271,5 +1271,9 @@
   "Computer": "Komputer",
   "Login for {need}": "Login do {need}",
   "SSH key for {need}": "Klucz SSH do {need}",
-  "Home": "Start"
+  "Home": "Start",
+  "Notes": "Notatki",
+  "Add a note": "Dodaj notatkę",
+  "Decision": "Ustalenie",
+  "Fact": "Fakt"
 }

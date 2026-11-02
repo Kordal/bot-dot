@@ -238,7 +238,10 @@ test("web: the group's title opens its panel, and the panel is the group's own",
 
 // The panel's page as renderGroupSettings fills it.
 function panelPage(p) {
-  const parts = { '#gs-name': element(), '#gs-pic': element(), '#gs-members': element(), '#gs-add': element(), '#gs-delete': element() };
+  const parts = { '#gs-name': element(), '#gs-pic': element(), '#gs-members': element(), '#gs-add': element(), '#gs-delete': element(), '#gs-note-text': element(), '#gs-note-kind': element({}, { value: 'decision' }) };
+  // The notes' rows (ADR 139): each with its select, its box and its ✕, by the note's id.
+  const noteRow = (id) => (parts[`note:${id}`] ||= element({ select: element(), textarea: element(), '[data-note-off]': element() }, { dataset: { note: id } }));
+  parts['#gs-notes'] = element({}, { querySelectorAll: (sel) => (sel === '[data-note]' ? [...parts['#gs-notes'].innerHTML.matchAll(/data-note="([^"]*)"/g)].map(([, id]) => noteRow(id)) : []) });
   const root = element({}, { querySelector: (sel) => (root.innerHTML ? parts[sel] || null : null),
     querySelectorAll: (sel) => (sel === '[data-take-out]' ? [...parts['#gs-members'].innerHTML.matchAll(/data-take-out="([^"]*)"/g)].map(([, id]) => (parts[`out:${id}`] ||= element({}, { dataset: { takeOut: id } }))) : []) });
   p.doc['#view-groupsettings'] = root;
@@ -266,12 +269,48 @@ test('web: the panel has the name, the members each with a way to take it out, "
   // Taking a member out sends the whole list as it is to be.
   await parts['out:writer'].onclick();
   await new Promise((r) => setImmediate(r));
-  assert.deepEqual(p.said.calls, [['PUT', '/group-chats/g1', { name: 'Dev team' }], ['PUT', '/group-chats/g1', { members: ['coder', 'reviewer'] }]]);
+  assert.deepEqual(p.said.calls, [['GET', '/group-chats/g1/notes'], ['PUT', '/group-chats/g1', { name: 'Dev team' }], ['PUT', '/group-chats/g1', { members: ['coder', 'reviewer'] }]]);
   assert.equal(p.said.saved, 2, 'each change says "Saved"');
   // What the server refuses is said in its words.
   p.state.groups[0].members = ['coder'];
   await p.ctx.changeGroup(p.state.groups[0], { members: [] });
   assert.deepEqual(p.said.toasts, [['A group has at least two bots. Add another, or delete the group.', true]]);
+});
+
+test('web: the panel shows the group\'s notes, decisions first, each changed where it stands, removed by ✕, and added by Enter (ADR 139)', async () => {
+  const NOTES = [
+    { id: 'f1', kind: 'fact', text: 'Staging is <b>staging</b>', by: 'botdot', at: at(3) },
+    { id: 'd1', kind: 'decision', text: 'Polish first', by: 'owner', at: at(1) },
+    { id: 'o1', kind: 'open', text: 'Coder: fix login', by: 'bot', bot: 'coder', at: at(2) },
+  ];
+  const p = page({ reply: async (path, opts) => (path === '/group-chats/g1/notes' || path.startsWith('/group-chats/g1/notes/') ? { items: NOTES } : {}) });
+  const { root, parts } = panelPage(p);
+  p.ctx.renderGroupSettings();
+  await new Promise((r) => setImmediate(r));
+  assert.match(root.innerHTML, /<input type="text" id="gs-note-text" maxlength="240" autocomplete="off" placeholder="Add a note" aria-label="Add a note">/);
+  const rows = parts['#gs-notes'].innerHTML;
+  assert.deepEqual([...rows.matchAll(/data-note="(\w+)"/g)].map((m) => m[1]), ['d1', 'o1', 'f1'], 'decisions, to do, facts');
+  assert.match(rows, /<option value="open" selected>To do<\/option>/);
+  assert.ok(rows.includes('>Staging is &lt;b&gt;staging&lt;/b&gt;</textarea>'), 'a note is text, never markup');
+  p.said.calls.length = 0;
+  const row = (id) => parts[`note:${id}`];
+  row('d1').querySelector('textarea').value = '  English   first ';
+  await row('d1').querySelector('textarea').onchange();
+  row('o1').querySelector('textarea').value = ' ';
+  await row('o1').querySelector('textarea').onchange();
+  await row('f1').querySelector('select').onchange({ target: { value: 'decision' } });
+  await row('f1').querySelector('[data-note-off]').onclick();
+  parts['#gs-note-kind'].value = 'open';
+  parts['#gs-note-text'].value = ' Writer:  draft ';
+  await parts['#gs-note-text'].onkeydown({ key: 'Enter', preventDefault() {} });
+  assert.deepEqual(p.said.calls, [
+    ['PUT', '/group-chats/g1/notes/d1', { text: 'English first' }],
+    ['DELETE', '/group-chats/g1/notes/o1'],
+    ['PUT', '/group-chats/g1/notes/f1', { kind: 'decision' }],
+    ['DELETE', '/group-chats/g1/notes/f1'],
+    ['POST', '/group-chats/g1/notes', { kind: 'open', text: 'Writer: draft' }],
+  ]);
+  assert.equal(parts['#gs-note-text'].value, '', 'the box is empty again');
 });
 
 test('web: "Add a bot" picks among the bots that are not members, as many as there is room for, and "Delete this group" deletes the group alone', async () => {
@@ -288,7 +327,7 @@ test('web: "Add a bot" picks among the bots that are not members, as many as the
   pick.tick('weather');
   assert.equal(m.hint.textContent, '4 bots in Dev.');
   await pick.submit();
-  assert.deepEqual(p.said.calls, [['PUT', '/group-chats/g1', { members: ['coder', 'reviewer', 'writer', 'weather'] }]]);
+  assert.deepEqual(p.said.calls, [['GET', '/group-chats/g1/notes'], ['PUT', '/group-chats/g1', { members: ['coder', 'reviewer', 'writer', 'weather'] }]]);
   // A full group, and a group with every bot in it, have nothing to add.
   p.state.groups[0].members = BOTS.map((b) => b.id);
   p.ctx.renderGroupSettings();
