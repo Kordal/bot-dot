@@ -295,6 +295,14 @@ class Api(val baseUrl: String, val session: Session? = null) {
     fun membersOf(ids: List<String>): JsonObject = buildJsonObject { put("members", strings(ids)) }
     /** Deletes the group and its chat. No bot and no run is deleted. */
     suspend fun deleteGroup(id: String) { send("DELETE", "/group-chats/${enc(id)}") }
+    /** A group's notes (ADR 139), and the notes as they stand after a change to them. */
+    suspend fun groupNotes(id: String): List<GroupNote> = GroupNotes.of(json.parseToJsonElement(get("/group-chats/${enc(id)}/notes")))
+    suspend fun addGroupNote(id: String, kind: String, text: String): List<GroupNote> =
+        GroupNotes.of(json.parseToJsonElement(send("POST", "/group-chats/${enc(id)}/notes", buildJsonObject { put("kind", kind); put("text", text) })))
+    suspend fun changeGroupNote(id: String, noteId: String, kind: String? = null, text: String? = null): List<GroupNote> =
+        GroupNotes.of(json.parseToJsonElement(send("PUT", "/group-chats/${enc(id)}/notes/${enc(noteId)}", buildJsonObject { kind?.let { put("kind", it) }; text?.let { put("text", it) } })))
+    suspend fun removeGroupNote(id: String, noteId: String): List<GroupNote> =
+        GroupNotes.of(json.parseToJsonElement(send("DELETE", "/group-chats/${enc(id)}/notes/${enc(noteId)}")))
     /** The newest [limit] items of a group's chat, or the page [before] the item with that id. */
     suspend fun groupChat(id: String, limit: Int, before: String? = null): GroupChatPage =
         GroupChatPage.of(get("/group-chats/${enc(id)}/chat?limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
