@@ -70,12 +70,12 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.reload();
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor({ timeout: 20000 });
     assert.equal((await widths()).chat, 440, 'over a reload');
-    await page.locator('#place-switch [data-place="bots"]').click();
+    await page.locator('#rail .brand:visible, #place-switch [data-place="bots"]:visible').click();
     await page.waitForFunction(() => !document.querySelector('.app.place-company'));
     assert.equal(Math.round((await box('.main')).width), 440, 'the Bots chat has the same width');
     assert.ok(!(await shown('#proj-chat-grip')), 'no project handle in Bots');
     assert.ok(await shown('#chat-grip'), 'the Bots handle is still there');
-    await page.locator('#place-switch [data-place="company"]').click();
+    await page.locator('#rail .rail-sq:visible, #place-switch [data-place="company"]:visible').click();
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
 
     // A double-click puts the default back.

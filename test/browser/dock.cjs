@@ -143,9 +143,9 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     await page.locator('#dock .dock-x, #dock [data-dock-close-chat]').last().click();
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('botdot.dock')).items.length === 3);
     // The Bots place: no row.
-    await page.locator('#place-switch [data-place="bots"]').click();
+    await page.locator('#rail .brand:visible, #place-switch [data-place="bots"]:visible').click();
     assert.ok(await page.locator('#dock').isHidden());
-    await page.locator('#place-switch [data-place="company"]').click();
+    await page.locator('#rail .rail-sq:visible, #place-switch [data-place="company"]:visible').click();
     await page.locator('#dock > .dock-item').first().waitFor();
     assert.deepEqual(errors, []);
 

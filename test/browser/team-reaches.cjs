@@ -30,7 +30,7 @@ const TEAM = { bots: [
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(`${srv.base}/`);
-      await page.locator('#place-switch [data-place="company"]').click();
+      await page.locator('#rail .rail-sq:visible, #place-switch [data-place="company"]:visible').click();
       await page.waitForFunction(() => typeof Company !== 'undefined' && !!state.company);
       await page.evaluate(() => Company.go('team'));
       await page.locator('.co-card').first().waitFor({ timeout: 20000 });

@@ -21,11 +21,16 @@ const Company = (() => {
     more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
     gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   };
+  // The space on screen, as this device last had it (#837, ADR 132): 'home', or the id of a project. Before the rail
+  // it was the place, 'bots' or 'company' (the project then in botdot.project), and those are still read.
   const KEY = 'botdot.place';
   const shows = () => (state.features || []).includes('company');
-  // Bots or Company, as this device last had it.
-  let place = (() => { try { return localStorage.getItem(KEY) === 'company' ? 'company' : 'bots'; } catch { return 'bots'; } })();
-  const keep = () => { try { localStorage.setItem(KEY, place); } catch { /* private mode */ } };
+  const stored = (() => { try { return localStorage.getItem(KEY) || 'home'; } catch { return 'home'; } })();
+  // Home is the place 'bots'; a project is the place 'company', with that project shown.
+  let place = stored === 'home' || stored === 'bots' ? 'bots' : 'company';
+  // A project remembered by its id: shown, or Home again once it is known to be gone (init).
+  const storedId = place === 'company' && stored !== 'company' ? stored : null;
+  const keep = () => { try { localStorage.setItem(KEY, place === 'company' ? shownId || 'company' : 'home'); } catch { /* private mode */ } };
   let loaded = false;
   // What the start screen holds before Go: the sources picked so far.
   const draft = { sources: [] };
@@ -37,9 +42,9 @@ const Company = (() => {
   const many = () => (state.features || []).includes('projects-many');
   // The project shown, as this device last had it; null while a new one is being started ("+").
   const PKEY = 'botdot.project';
-  let shownId = (() => { try { return localStorage.getItem(PKEY) || null; } catch { return null; } })();
+  let shownId = storedId || (() => { try { return localStorage.getItem(PKEY) || null; } catch { return null; } })();
   let adding = false;
-  const keepShown = () => { try { if (shownId) localStorage.setItem(PKEY, shownId); } catch { /* private mode */ } };
+  const keepShown = () => { try { if (shownId) localStorage.setItem(PKEY, shownId); if (place === 'company' && shownId) localStorage.setItem(KEY, shownId); } catch { /* private mode */ } };
   // Every project, the one shown as the page has it now (its parts change state.company as they save).
   const projects = () => (state.projects || (state.company ? [state.company] : [])).map((p) => (p.id === state.company?.id ? state.company : p));
   // A route of the project shown: `?project=<id>` from a server with several.
@@ -77,6 +82,7 @@ const Company = (() => {
     shownId = id;
     keepShown();
     state.company = p;
+    drawRail();
     current = null;
     closeSettings(false);
     if (state.view === 'company') redraw(); else setView('company');
@@ -101,6 +107,7 @@ const Company = (() => {
     $('#app').classList.toggle('place-company', on);
     sw.innerHTML = switchHTML(on);
     wireSwitch(sw);
+    drawRail();
   }
   // A phone shows the company without the left column: the switch is on top of it.
   function phoneSwitch(root) {
@@ -116,12 +123,103 @@ const Company = (() => {
     if (place === 'company') { drawSide(); setView('company'); } else if (onProjects) { setView('chief'); showList(); renderContacts(); }
   }
 
+  // ---------- the rail of spaces (#837, ADR 132) ----------
+  // A wide window (from 1001 px) with at least one project: a narrow rail on the left in place of the switch, with
+  // Home (the logo), a square per project with its asks, "+" for a new one, and the top bar's tools at its foot.
+  // With no project there is no rail, and Home is the Bots home as before.
+  const WIDE = '(min-width: 1001px)';
+  const railOn = () => shows() && projects().length > 0;
+  // What waits for the owner in a project: its team bots' asks, as its tree row counts them.
+  const asksIn = (p) => (p.teams || []).reduce((sum, t) => sum + (t.bots || []).reduce((k, id) => k + (botById(id) ? waits(id) : 0), 0), 0);
+  const square = (p, on) => {
+    const n = asksIn(p);
+    return `<button type="button" class="rail-sq${p.archived ? ' old' : ''}${hereAttr(on)}" data-space="${esc(p.id)}" style="--c:${esc(p.color || '#8e7cff')}" title="${esc(nameOf(p))}" aria-label="${esc(nameOf(p))}${n ? ` (${n})` : ''}">${esc(nameOf(p).charAt(0).toUpperCase())}${n ? `<span class="rail-n">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
+  };
+  function drawRail() {
+    const rail = $('#rail');
+    if (!rail) return;
+    const on = railOn();
+    $('#app').classList.toggle('has-rail', on);
+    placeTools(on && matchMedia(WIDE).matches);
+    if (!on) { rail.dataset.html = ''; return; }
+    const home = place !== 'company';
+    const inProject = (p) => !home && !adding && p.id === state.company?.id;
+    const old = archivedOnes();
+    // Drawn again only when it changed: a click on a square drawn again under the pointer is lost.
+    const html = `<div class="rail-home${home ? ' here' : ''}" data-space="home"></div>
+      <div class="rail-sep"></div>
+      ${listed().map((p) => square(p, inProject(p))).join('')}
+      ${old.length ? `<div class="rail-sep"></div>${old.map((p) => square(p, inProject(p))).join('')}` : ''}
+      <button type="button" class="rail-add${!home && adding ? ' here' : ''}" data-new-project aria-label="${tr('New project')}" title="${tr('New project')}">${ICON.plus}</button>
+      <div class="rail-foot"></div>`;
+    if (rail.dataset.html !== html) {
+      // The logo and the tools are moved out first: they are the page's own, with their handlers.
+      placeTools(false);
+      rail.dataset.html = html;
+      rail.innerHTML = html;
+      $('[data-new-project]', rail).onclick = () => enter(null);
+      $$('.rail-sq', rail).forEach((b) => { b.onclick = () => enter(b.dataset.space); b.oncontextmenu = (e) => rowMenu(e, b.dataset.space); });
+      placeTools(matchMedia(WIDE).matches);
+    }
+    $('.rail-home', rail).classList.toggle('here', home);
+    $('.rail-home', rail).setAttribute('aria-current', String(home));
+  }
+  // The logo is the rail's Home, and the search, admin, feedback and Settings buttons stand at its foot; back in the
+  // top bar where there is no rail.
+  function placeTools(inRail) {
+    const rail = $('#rail'), brand = $('#brand'), tools = $('.side-tools');
+    if (!rail || !brand || !tools) return;
+    const homeBox = $('.rail-home', rail), foot = $('.rail-foot', rail);
+    if (inRail && homeBox && foot) {
+      if (brand.parentNode !== homeBox) homeBox.appendChild(brand);
+      if (tools.parentNode !== foot) foot.appendChild(tools);
+      brand.setAttribute('role', 'button');
+      brand.tabIndex = 0;
+      brand.setAttribute('aria-label', tr('Home'));
+      brand.title = tr('Home');
+      return;
+    }
+    const head = $('.side-head');
+    if (brand.parentNode !== head) head.prepend(brand);
+    if (tools.parentNode !== head) head.appendChild(tools);
+    brand.removeAttribute('role');
+    brand.removeAttribute('tabindex');
+    brand.removeAttribute('title');
+    brand.setAttribute('aria-label', 'botdot');
+  }
+  // A space from the rail: Home (id 'home'), a project, or a new one (null).
+  function enter(id) {
+    if (id === 'home') {
+      choose('bots');
+      if (state.view !== 'chief') { setView('chief'); showList(); } // Home opens on the Chief's chat
+      return;
+    }
+    place = 'company';
+    if (id === null) { keep(); drawSwitch(); return startNew(); }
+    shownId = id; // kept before show, which draws the rail with it
+    keep();
+    drawSwitch();
+    show(id);
+  }
+  function wireRail() {
+    const brand = $('#brand');
+    if (!brand || brand.dataset.wired) return;
+    brand.dataset.wired = '1';
+    const home = () => { if (brand.closest('#rail')) enter('home'); };
+    brand.addEventListener('click', home);
+    brand.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); home(); } });
+    // Search finds bots and chats on Home: from a project it goes there first.
+    $('#search-btn')?.addEventListener('click', () => { if ($('#app').classList.contains('has-rail') && place === 'company' && matchMedia(WIDE).matches) choose('bots'); }, true);
+    matchMedia(WIDE).addEventListener?.('change', drawRail);
+  }
+
   // The Chief's row opens its chat beside the project (#825; docked on a narrower screen, #819).
   const openChief = () => (typeof Dock !== 'undefined' ? Dock.openChief() : setView('chief'));
   // The chat on screen beside the project (#825): its row in the tree is highlighted.
   const onScreen = (kind, id) => typeof Dock !== 'undefined' && Dock.docked() && (kind === 'bot' ? state.view === 'bot' && state.botId === id : state.view === 'group' && groupById(state.groupId)?.team === id);
   const hereAttr = (on) => (on ? ' here" aria-current="true' : '');
   function drawSide() {
+    drawRail();
     const side = $('#company-side');
     if (!side || !shows()) return;
     const here = state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked());
@@ -231,6 +329,8 @@ const Company = (() => {
     state.company = many() ? firstShown(state.projects) : null;
     shownId = state.company?.id || null;
     keepShown();
+    // Home is shown in its place (#837).
+    if (place === 'company') return choose('bots');
     drawSide();
     redraw();
   }
@@ -468,9 +568,23 @@ const Company = (() => {
   }
 
   function init() {
+    wireRail();
     drawSwitch();
-    if (shows()) load().then(() => { drawSide(); if (place === 'company' && state.view !== 'company' && !location.hash.slice(1)) setView('company'); });
+    // Opened without an address: the page shows the Chief meanwhile (boot.js), and the space remembered once loaded.
+    const bare = !location.hash.slice(1);
+    if (shows()) load().then(() => {
+      // A remembered project that is gone: Home (#837).
+      if (loaded && place === 'company' && (!projects().length || (storedId && !projects().some((p) => p.id === storedId)))) {
+        place = 'bots';
+        shownId = state.company?.id || null;
+        keep();
+        if (state.view === 'company') setView('chief'); // opened on the space before it was known to be gone
+      }
+      drawSwitch();
+      drawSide();
+      if (place === 'company' && state.view !== 'company' && bare) setView('company');
+    });
   }
 
-  return { init, render, redraw, drawSide, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, drawRail, enter, railOn, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
 })();

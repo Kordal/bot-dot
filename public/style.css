@@ -3206,3 +3206,46 @@ dialog.co-delete .modal-foot { border-top: 0; }
   .co-q h1 { font-size: var(--fs-24); }
   .co-swot { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- the rail of spaces (#837, company.js drawRail; ADR 132) ----------
+   A wide window with projects: a narrow rail on the left in place of the "Bots | Projects" switch. Home is the logo,
+   each project a square in its colour with its asks, "+" a new one; the search, admin, feedback and Settings buttons
+   stand at its foot. The space on screen has a short bar at the rail's left edge. Narrower windows keep the switch. */
+.rail { display: none; }
+@media (min-width: 1001px) {
+  .app.has-rail .rail { position: relative; z-index: 2; flex: none; width: 76px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-12); padding: var(--sp-16) 0; background: var(--bg); border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: none; }
+  .app.has-rail .place-switch { display: none; }
+  /* A project keeps its tree beside the rail until each space draws its own keys (#838). */
+  .app.has-rail.place-company .company-side { padding-top: var(--sp-16); }
+  .app.has-rail:not(.place-company) .side-head { width: auto; }
+  /* The top bar keeps only what stands in it for a while: a notice, or the open search field. */
+  .app.has-rail .sidebar:not(.search-open):not(.searching) .side-head:not(.noted) { display: none; }
+  .app.has-rail .side-head { min-height: 0; padding: var(--sp-16) var(--sp-32) 0; }
+  .app.has-rail .side-head .search { margin-left: 0; }
+  .app.has-rail .keypad { padding-top: var(--sp-24); }
+  /* The chat column is as wide on Home as in a project: the same edge, nothing moves on a change of space. */
+  .app.has-rail:not(.place-company) .main { max-width: calc(100vw - 560px); }
+  .app.has-rail.place-company .main { --proj-chat-w: max(400px, min(var(--chat-w, clamp(400px, 38vw, 560px)), 100vw - 560px, 100vw - 76px - var(--rail-w) - 360px)); }
+}
+.rail > * { position: relative; flex: none; }
+.rail-home, .rail-sq, .rail-add { width: 44px; height: 44px; border-radius: var(--r-14); display: grid; place-items: center; }
+.rail-home { background: var(--raise-2); }
+.rail-home .brand { font-size: var(--fs-14); cursor: pointer; border-radius: var(--r-14); width: 44px; height: 44px; justify-content: center; }
+.rail-home .brand:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+.rail-sep { width: 28px; height: 1px; background: var(--line-2); }
+.rail-sq { padding: 0; border: 0; background: var(--c); color: #fff; font-size: var(--fs-16); font-weight: 600; cursor: pointer; }
+.rail-sq.old { opacity: .45; }
+.rail-sq:hover { filter: brightness(1.12); }
+.rail-n { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 var(--sp-4); border-radius: var(--r-pill); background: var(--text); color: var(--bg); font-size: var(--fs-12); font-weight: 600; line-height: 18px; text-align: center; }
+.rail-add { padding: 0; border: 1px solid var(--line-2); background: transparent; color: var(--muted); cursor: pointer; }
+.rail-add:hover, .rail-add.here { color: var(--text); background: var(--sunk); }
+.rail-add svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+/* The space on screen: a short white bar at the rail's left edge. */
+:is(.rail-home, .rail-sq, .rail-add).here::before { content: ""; position: absolute; left: -16px; top: 10px; bottom: 10px; width: 4px; border-radius: 0 var(--r-8) var(--r-8) 0; background: var(--text); }
+.rail-foot { margin-top: auto; }
+.rail-foot .side-tools { display: flex; flex-direction: column; align-items: center; gap: var(--sp-8); margin: 0; }
+/* A project has no top bar: "Can't reach botdot" and "Claude is signed out" stand above the chat's message box, as
+   on a phone. */
+@media (min-width: 1001px) {
+  .app.has-rail.place-company #chat-row .away-line:not(.hidden), .app.has-rail.place-company #chat-row .claude-line:not(.hidden) { display: block; }
+}

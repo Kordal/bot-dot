@@ -55,7 +55,9 @@ document.addEventListener('click', (e) => {
     setView('setup');
   } else {
     const known = ['chief', 'dashboard', 'bot', 'group', 'rooms', 'needs', ...Panel.NAMES, 'runs', 'vault', 'skills', 'pages', 'company', 'settings', 'setup', 'connectors'].includes(view);
-    setView(known ? view : 'chief', BOT_NAMES.includes(view) || GROUP_NAMES.includes(view) || view === 'rooms' ? sub : undefined);
+    // Without an address: the space this device last had (#837), a project or Home's Chief.
+    const space = typeof Company !== 'undefined' && (state.features || []).includes('company') && Company.place() === 'company' ? 'company' : 'chief';
+    setView(known ? view : space, BOT_NAMES.includes(view) || GROUP_NAMES.includes(view) || view === 'rooms' ? sub : undefined);
     if (!known) showList(); // phones start on the contact list
     showWhatsNew(); // after an update: what changed, once (whats-new.js)
   }

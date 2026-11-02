@@ -107,8 +107,12 @@ What the user (or a teammate) gave a bot, kept in its folder until the user dele
 _Avoid_: uploads, attachments (in what the user reads)
 
 **Project**:
-A place of its own beside the bots, opened from the switch "Bots | Projects": what the user works on (a site or an idea), its 90-day goal and objectives, and its bots in teams that each have exactly one lead ([ADR 110](docs/adr/110-a-company-is-a-place-of-its-own-with-teams-that-each-have-one-lead.md)). The code and the API still call it the company (`/api/company`, feature `company`). Not a group, which is a chat, and not a category, which is a folder of the list.
+A space of its own beside Home, opened from its square in the rail (the switch "Bots | Projects" in a narrow window): what the user works on (a site or an idea), its 90-day goal and objectives, and its bots in teams that each have exactly one lead ([ADR 110](docs/adr/110-a-company-is-a-place-of-its-own-with-teams-that-each-have-one-lead.md)). The code and the API still call it the company (`/api/company`, feature `company`). Not a group, which is a chat, and not a category, which is a folder of the list.
 _Avoid_: company, firm (in what the user reads)
+
+**Space**:
+Home or one project: what the page shows at a time, each with its board, its Needs you, its keys and one chat on the right ([ADR 132](docs/adr/132-home-and-projects-are-spaces-of-one-view.md)). A wide window moves between them with the rail on the left. Not a page of the keypad, and not a place (the old word for Bots and Projects).
+_Avoid_: workspace, tab, place (for a space)
 
 **Standup**:
 A project's three lines per team each workday morning (done, next, blocked), written by each team's lead and merged by the Chief of Staff into one message and one card in Projects ([ADR 117](docs/adr/117-a-morning-standup-is-a-short-call-per-lead-and-one-chief-message.md)). Not a lead's report on its own rhythm, and not a checkup.

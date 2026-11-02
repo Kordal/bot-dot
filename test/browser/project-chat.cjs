@@ -88,9 +88,9 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
     assert.ok(!(await page.locator('#project-chat-show').isVisible()));
 
-    // A narrower window: 38vw.
+    // A narrower window: 38vw, less what the board's 360 and the rail's 76 need (#837).
     await page.setViewportSize({ width: 1180, height: 820 });
-    await page.waitForFunction(() => Math.round(document.querySelector('#chat-row').getBoundingClientRect().width) === 448);
+    await page.waitForFunction(() => Math.round(document.querySelector('#chat-row').getBoundingClientRect().width) === 444);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-narrow.png') });
     // A bot's settings cover the chat in the column, not squeeze it.
     await page.locator(`[data-cf-bot="${a.id}"]`).first().click();
@@ -98,7 +98,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('#view-bot .chat-title, #view-bot #bot-name').first().click();
     await page.locator('#panel:not(.hidden)').waitFor();
     assert.ok(!(await page.locator('#view-bot').isVisible()), 'the settings take the chat\'s place');
-    assert.equal(await width(), 448);
+    assert.equal(await width(), 444);
 
     assert.deepEqual(errors, []);
     console.log('project chat column: ok');

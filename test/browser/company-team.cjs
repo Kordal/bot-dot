@@ -29,7 +29,7 @@ const TEAM = { bots: [
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(`${srv.base}/`);
-      await page.locator('#place-switch [data-place="company"]').click({ timeout: 20000 });
+      await page.locator('#rail .rail-sq:visible, #place-switch [data-place="company"]:visible').click({ timeout: 20000 });
       await page.locator('.co-steps [data-step="team"]').waitFor({ timeout: 20000 });
       await page.locator('.co-steps [data-step="team"]').click();
       await page.locator('.co-card', { hasText: 'Market Scout' }).waitFor({ timeout: 20000 });
