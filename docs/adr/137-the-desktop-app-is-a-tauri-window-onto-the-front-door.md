@@ -31,7 +31,7 @@ ADR 0001 chose native apps per platform, and accepted that every web feature is 
 ## Consequences
 
 - `app: "desktop"` joins `web`, `android` and `mac` in the front door, and the feedback a person sends from the window says it came from the desktop app.
-- A new browser engine is in scope: what the web page does is now also checked in WKWebView and WebView2. Web Push doesn't work there, so the app follows the live feed itself in a later ticket (#885).
+- A new browser engine is in scope: what the web page does is now also checked in WKWebView and WebView2. Web Push doesn't work there, so the app follows the live feed itself ([ADR 138](138-the-desktop-app-rings-what-the-server-says-on-the-live-feed.md)).
 - WKWebView has no dialogs of its own: `confirm()` answers false without asking unless the app shows it. The app's window answers `alert()` and `confirm()` with native dialogs on the Mac. WebView2 draws its own.
 - `botdot://` reaches the app only from a built, installed bundle, so the sign-in cannot be tried with `cargo run`. On Windows a second start hands the link to the first.
 - Bringing Windows and Mac builds to people is a later ticket (#883), as are several addresses and the tray (#884), and botdot on the computer itself (#886, #887).

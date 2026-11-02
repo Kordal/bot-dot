@@ -5,9 +5,11 @@
 mod address;
 #[cfg(target_os = "macos")]
 mod dialogs;
+mod feed;
 mod handoff;
 mod keep;
 mod menu;
+mod notify;
 mod route;
 mod update;
 
@@ -15,8 +17,9 @@ use handoff::Secret;
 use keep::Kept;
 use menu::Asked;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use tauri::webview::{cookie::Cookie, NewWindowResponse, PageLoadEvent};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -43,6 +46,10 @@ struct App {
     windows: AtomicUsize,
     /// A sign-in waiting in the browser.
     waiting: Mutex<Option<(Url, Secret)>>,
+    /// The feeds followed, one for each address with a session: its session's cookie and its number. A feed whose
+    /// number is no longer here stops.
+    feeds: Mutex<HashMap<String, (String, u64)>>,
+    feed_numbers: AtomicU64,
 }
 
 impl App {
@@ -71,24 +78,86 @@ fn bring_forward(app: &AppHandle) {
     }
 }
 
+// The feed of every address with a session, for its notifications (ADR 138), and of no other: asked again whenever
+// a session starts or ends, or an address goes.
+fn follow_feeds(app: &AppHandle) {
+    let state = app.state::<App>();
+    let sessions: HashMap<String, String> = state.kept.lock().unwrap().botdots.iter().filter_map(|b| Some((b.address.clone(), b.cookie.clone()?))).collect();
+    let mut feeds = state.feeds.lock().unwrap();
+    for address in feeds.keys().filter(|a| !sessions.contains_key(*a)).cloned().collect::<Vec<_>>() {
+        feeds.remove(&address);
+        notify::remove_all_of(&address);
+    }
+    for (address, cookie) in sessions {
+        if feeds.get(&address).is_some_and(|(followed, _)| *followed == cookie) {
+            continue;
+        }
+        let Some(url) = address::parse(&address) else { continue };
+        let number = state.feed_numbers.fetch_add(1, Ordering::SeqCst);
+        feeds.insert(address.clone(), (cookie.clone(), number));
+        let (alive, on, of) = (app.clone(), app.clone(), address.clone());
+        feed::follow(
+            url,
+            feed::cookie_of(&cookie).to_string(),
+            move || alive.state::<App>().feeds.lock().unwrap().get(&of).is_some_and(|(_, n)| *n == number),
+            move |said| match said {
+                feed::Said::Notification(notice) if !shown_in_front(&on, &address) => notify::show(&address, &notice),
+                feed::Said::Notification(_) => {}
+                feed::Said::Closed(tag) => notify::remove(&address, &tag),
+            },
+        );
+    }
+}
+
+// A window of the app in front, on this botdot: what would ring shows there already.
+fn shown_in_front(app: &AppHandle, address: &str) -> bool {
+    let on_it = app.state::<App>().door().is_some_and(|door| door.as_str() == address);
+    on_it && app.webview_windows().values().any(|w| w.is_focused().unwrap_or(false) && w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false))
+}
+
+// A click on a notification: the window comes forward on its botdot, and the page opens the target as on a push's
+// tap. Another botdot than the one shown is entered on the target's own page.
+fn open_target(app: &AppHandle, address: &str, target: &str) {
+    bring_forward(app);
+    let state = app.state::<App>();
+    let Some(window) = main_window(app) else { return };
+    if state.door().is_some_and(|door| door.as_str() == address) {
+        let target = serde_json::to_string(target).unwrap_or_default();
+        let _ = window.eval(format!("postMessage({{ type: 'open', target: {target} }}, location.origin)"));
+        return;
+    }
+    let cookie = state.kept.lock().unwrap().get(address).and_then(|b| b.cookie.clone());
+    let (Some(url), Some(cookie)) = (address::parse(address), cookie) else { return };
+    let _ = state.keep(|kept| kept.choose(address));
+    refresh_menus(app);
+    let mut page = url.clone();
+    page.set_fragment(Some(&route::fragment_of(target)));
+    let _ = enter_at(app, &url, &cookie, page);
+}
+
 fn open_in_browser(app: &AppHandle, url: &Url) {
     let _ = app.opener().open_url(url.as_str(), None::<&str>);
 }
 
 // The cookie, for this address and no other, then the page.
 fn enter(app: &AppHandle, address: &Url, set_cookie: &str) -> Option<()> {
+    enter_at(app, address, set_cookie, address.clone())
+}
+
+fn enter_at(app: &AppHandle, address: &Url, set_cookie: &str, page: Url) -> Option<()> {
     let window = main_window(app)?;
     let mut cookie = Cookie::parse(set_cookie.to_string()).ok()?;
     cookie.set_domain(address.host_str()?.to_string());
     window.set_cookie(cookie).ok()?;
     *app.state::<App>().door.lock().unwrap() = Some(address.clone());
-    window.navigate(address.clone()).ok()
+    window.navigate(page).ok()
 }
 
 // The session is over: its cookie goes, here and in the window, the windows of its links close, and the app's screen
 // comes back with the address.
 fn session_over(app: &AppHandle, door: &Url) {
     let _ = app.state::<App>().keep(|kept| kept.session_over(door.as_str()));
+    follow_feeds(app);
     forget_cookies(app, door);
     to_screen(app, false);
 }
@@ -154,6 +223,7 @@ fn on_menu(app: &AppHandle, id: &str) {
             let current = state.kept.lock().unwrap().current().map(|b| b.address.clone());
             if let Some(address) = current {
                 let _ = state.keep(|kept| kept.remove(&address));
+                follow_feeds(app);
                 if let Some(url) = address::parse(&address) {
                     forget_cookies(app, &url);
                 }
@@ -278,6 +348,7 @@ fn signed_in(app: &AppHandle, link: &Url) {
         let state = app.state::<App>();
         let saved = session.as_ref().is_some_and(|cookie| state.keep(|kept| kept.signed_in(address.as_str(), cookie)).is_ok());
         refresh_menus(&app);
+        follow_feeds(&app);
         if !saved || enter(&app, &address, session.as_deref().unwrap_or_default()).is_none() {
             let _ = app.emit("sign-in-failed", ());
             return;
@@ -307,7 +378,15 @@ fn main() {
                 door: Mutex::new(None),
                 windows: AtomicUsize::new(0),
                 waiting: Mutex::new(None),
+                feeds: Mutex::new(HashMap::new()),
+                feed_numbers: AtomicU64::new(0),
             });
+            let clicks = handle.clone();
+            notify::start(&app.config().identifier, move |address, target| {
+                let app = clicks.clone();
+                let _ = clicks.run_on_main_thread(move || open_target(&app, &address, &target));
+            });
+            follow_feeds(&handle);
             let builder = WebviewWindowBuilder::new(&handle, "main", WebviewUrl::App("index.html".into())).title("botdot").inner_size(1200.0, 800.0).min_inner_size(420.0, 500.0).visible(!hidden);
             let window = guarded(&handle, builder).build()?;
             // Closing the window keeps the app in the tray: Quit ends it.
