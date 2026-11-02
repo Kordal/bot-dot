@@ -353,8 +353,8 @@ private val RULES = setOf("---", "***", "___")
  * shares (the `stream` cases of test/fixtures/markdown-cases.json; draftSource in public/app.js): a code block that is
  * not closed yet is drawn as code, a `mermaid` one is plain code even once closed (its fence loses the word: no
  * "Open on web" under a draft, ADR 041), a table row that is still being written waits, and so does the line of a
- * fence that is still being opened. A mark opened on the last line and not closed yet waits with what follows it
- * ([openMarkAt]), so a reply never flashes its ** as text. A `products` fence that is not closed yet waits whole: its
+ * fence that is still being opened. The marks the last line opens and has not closed yet are left out
+ * ([hideOpenMarks]), so a reply never flashes its ** as text. A `products` fence that is not closed yet waits whole: its
  * cards are drawn once it is (test/fixtures/products-cases.json).
  */
 internal fun draftSource(src: String): String {
@@ -370,52 +370,61 @@ internal fun draftSource(src: String): String {
         if (Regex("^\\s*`+\\w*$").matches(last)) lines.removeAt(lines.lastIndex)
         if (lines.count { fence.containsMatchIn(it) } % 2 == 1) lines += "```"
     } else if (Regex("^\\s*(\\||`{1,2}$)").containsMatchIn(last)) lines.removeAt(lines.lastIndex) // a row of a table is drawn once its line has ended
-    else if (!fence.containsMatchIn(last)) openMarkAt(last)?.let { lines[lines.lastIndex] = last.substring(0, it) } // a fence that closed its block is no mark
+    else if (!fence.containsMatchIn(last)) lines[lines.lastIndex] = hideOpenMarks(last) // a fence is no mark
     return lines.joinToString("\n") { it.replace(Regex("^(\\s*```)mermaid$"), "$1") }
 }
 
 /**
- * Where the last line of a draft has a mark that is opened and not closed yet, by the rules the web page shares
- * (openMarkAt in public/app.js): a ` run with no run as long after it, a [ with no ] after it, or a [text] with no
- * (address) after it yet, or a **, __, * or _ that opens (not after a letter or digit, and before something that is not
- * a space) and is not closed. Inside `code` and a web address nothing is a mark. Null when every mark is closed.
+ * The line of a draft still being written, without the marks that open what is not closed yet, by the rules the web
+ * page shares (hideOpenMarks in public/app.js): a `code` (its backticks; what follows is code being written), a **, __,
+ * * or _ (an _ only at the start of a word: snake_case is text), and the [ of a link with its ](address so far. Only the
+ * marks go: the text after them goes on being revealed and takes its style once they close. Nothing in a `code` or a
+ * web address is a mark. A closed mark, a mark between spaces (2 * 3) and an item's task box being written ("- [x")
+ * stay. A line that has ended keeps its marks: it is drawn as the reply will be.
  */
-internal fun openMarkAt(line: String): Int? {
-    val urls = WEB_URL.findAll(line).associate { it.range.first to it.range.last + 1 }
-    val open = mutableListOf<Pair<String, Int>>() // the opened **, __, * and _, with where each starts
-    var i = 0
-    while (i < line.length) {
-        val c = line[i]
-        urls[i]?.let { i = it; continue }
-        when {
-            c == '`' -> {
-                var n = 1
-                while (i + n < line.length && line[i + n] == '`') n++
-                val close = Regex("(?<!`)`{$n}(?!`)").find(line, i + n) ?: return open.firstOrNull()?.second?.coerceAtMost(i) ?: i
-                i = close.range.last + 1
-            }
-            c == '[' -> {
-                val end = line.indexOf(']', i + 1)
-                if (end < 0 || end == line.length - 1) return open.firstOrNull()?.second ?: i
-                if (line[end + 1] == '(') {
-                    val shut = line.indexOf(')', end + 2)
-                    if (shut < 0) return open.firstOrNull()?.second ?: i
-                    i = shut + 1
-                } else i++
-            }
-            c == '*' || c == '_' -> {
-                val mark = if (line.startsWith("$c$c", i)) "$c$c" else "$c"
-                val after = line.getOrNull(i + mark.length)
-                val before = line.getOrNull(i - 1)
-                if (open.lastOrNull()?.first == mark) open.removeAt(open.lastIndex)
-                else if ((before == null || !before.isLetterOrDigit() && before != c) && after != null && !after.isWhitespace() && after != c) open += mark to i
-                i += mark.length
-            }
-            else -> i++
-        }
+internal fun hideOpenMarks(line: String): String {
+    if (TASK_BOX.matches(line)) return line
+    val cut = HashSet<Int>()
+    fun drop(from: Int, to: Int) { for (i in from until to) cut += i }
+    val code = mutableListOf<IntRange>()
+    var open = -1
+    var size = 0
+    for (m in TICKS.findAll(line)) {
+        if (open < 0) { open = m.range.first; size = m.value.length }
+        else if (m.value.length == size) { code += open until m.range.first + size; open = -1 }
     }
-    return open.firstOrNull()?.second
+    val end = if (open < 0) line.length else open
+    if (open >= 0) drop(open, open + size)
+    // A web address is no mark either (https://x.dev/_a, x.com/a*b).
+    for (m in MARK_FREE_URL.findAll(line)) code += m.range
+    fun inCode(i: Int) = code.any { i in it }
+    fun word(c: Char?) = c != null && WORD_CHAR.matches(c.toString())
+    val opened = LinkedHashMap<String, Int>()
+    for (m in EMPHASIS.findAll(line.substring(0, end))) {
+        val at = m.range.first
+        val mark = m.value
+        if (inCode(at)) continue
+        val before = line.getOrNull(at - 1)
+        val after = if (at + mark.length < end) line[at + mark.length] else null
+        val under = mark[0] == '_'
+        val closes = before != null && !before.isWhitespace() && !(under && word(after))
+        val opens = (after == null || !after.isWhitespace()) && !(under && word(before))
+        if (mark in opened && closes) opened.remove(mark)
+        else if (mark !in opened && opens) opened[mark] = at
+    }
+    for ((mark, at) in opened) drop(at, at + mark.length)
+    val at = if (end > 0) line.lastIndexOf('[', end - 1) else -1
+    val link = if (at >= 0 && !inCode(at)) LINK_BEING_WRITTEN.matchEntire(line.substring(at, end)) else null
+    if (link != null) { drop(at, at + 1); val tail = link.groupValues[1]; if (tail.isNotEmpty()) drop(end - tail.length, end) }
+    return if (cut.isEmpty()) line else line.filterIndexed { i, _ -> i !in cut }
 }
+
+private val TASK_BOX = Regex("""^\s*(?:[-*•+]|\d{1,9}[.)])\s+\[[ xX]?]?$""")
+private val TICKS = Regex("`+")
+private val MARK_FREE_URL = Regex("""(?U)(?:https?://|(?<![\p{L}\p{N}_@./-])[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/)\S*""")
+private val WORD_CHAR = Regex("""[\p{L}\p{N}]""")
+private val EMPHASIS = Regex("""\*\*|__|\*|_""")
+private val LINK_BEING_WRITTEN = Regex("""^\[[^\]]*(](?:\([^)]*)?)?$""")
 
 /**
  * A reply as a flat list of blocks, by the rules the web page shares (test/fixtures/markdown-cases.json; mdBlocks in
