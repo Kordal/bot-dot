@@ -88,6 +88,8 @@ cd bot-dot-source && sudo make images && sudo BOT_DOT_IMAGE=bot-dot/server:lates
 
 To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`; for the Android app, `FRONT_DOOR_ANDROID_KEYS` (below).
 
+`BOT_DOT_REACH=local` is for the desktop app alone, which installs botdot in a VM on your own computer: one account on `http://localhost:4700` ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)).
+
 ## The Android app's sign-in
 
 The Android app signs in on your front door's own sign-in page, in the phone's browser: **Sign in with your passkey** opens the page, your password manager there (Proton Pass, Bitwarden, Google Password Manager) offers the passkey, and the browser comes back to the app signed in. It works with any domain and any build of the app, the releases' or your own, with nothing to set on the server.

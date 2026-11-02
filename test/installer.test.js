@@ -97,6 +97,68 @@ test('a tailnet install gives the front door its Tailscale name with Serve, and 
   assert.match(without.stderr, /botdot on a tailnet needs Tailscale \(https:\/\/tailscale\.com\/download\)/);
 });
 
+test('a local install is one account on localhost, made with a setup key, for the desktop app alone (#882)', (t) => {
+  const done = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local' } });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.doesNotMatch(done.said, /How will people reach|The domain botdot|account's name/, 'it asks nothing');
+  assert.equal(done.env.BOT_DOT_REACH, 'local');
+  assert.equal(done.env.FRONT_DOOR_ORIGIN, 'http://localhost:4700', 'a passkey can belong to localhost');
+  assert.equal(done.env.FRONT_DOOR_PORT, '4700');
+  assert.equal(done.env.FRONT_DOOR_SITES_ORIGIN, 'http://localhost:4701', "bots' interactive pages on an origin of their own");
+  assert.equal(done.env.FRONT_DOOR_SITES_PORT, '4701');
+  assert.equal(done.env.FRONT_DOOR_ADMIN, 'owner');
+  assert.equal(done.env.FRONT_DOOR_ONE_ACCOUNT, 'owner', 'the front door holds this one account');
+  const key = done.env.FRONT_DOOR_SETUP_KEY;
+  assert.match(key, /^[0-9a-f]{64}$/, 'a setup key the front door takes (32 to 100 base64url characters)');
+  assert.equal(fs.statSync(path.join(done.dir, 'front-door', '.env')).mode & 0o777, 0o600, 'kept where only root reads it');
+  assert.equal(done.env.COMPOSE_PROFILES, '', 'no Caddy');
+  assert.equal(done.read('front-door/Caddyfile'), '');
+  assert.doesNotMatch(done.system, /^tailscale/m, 'no Tailscale');
+  assert.ok(!done.calls.some((c) => /sign-up-link/.test(c)), 'no sign-up link is made');
+  assert.doesNotMatch(done.said, /admin page|Whoever is root/);
+  assert.ok(fs.existsSync(path.join(done.dir, 'accounts', 'owner', 'compose.yaml')), "the account's botdot server is made");
+  assert.match(done.system, /^curl -fsS -o \/dev\/null -H Host: localhost:4700 http:\/\/127\.0\.0\.1:4700\/api\/version$/m);
+  const lines = done.said.trim().split('\n');
+  assert.equal(lines.at(-1), `BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/${key}"}`, "the last line is the app's");
+  assert.equal(done.said.split(key).length, 2, 'the key is on the screen in that line alone');
+  assert.deepEqual(JSON.parse(lines.at(-1).slice('BOTDOT_LOCAL '.length)), { origin: 'http://localhost:4700', signUp: `http://localhost:4700/sign-up/${key}` });
+
+  // A rerun keeps the address, the key and the account; once the account exists its line has no sign-up address.
+  const dotenv = fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8');
+  fs.writeFileSync(path.join(done.dir, 'front-door', 'data', 'front-door.json'), JSON.stringify({ accounts: { owner: { created: '2026-11-02T12:00:00.000Z', userId: 'u' } }, passkeys: {}, sessions: {}, signUpLinks: {}, deleted: {} }));
+  const again = installer(t, { dotenv, again: done, given: { BOT_DOT_REACH: 'tailnet', BOT_DOT_PORT: '5000' } });
+  assert.equal(again.status, 0, `${again.said}\n${again.stderr}`);
+  assert.equal(again.env.BOT_DOT_REACH, 'local', 'how it is reached is chosen once');
+  assert.equal(again.env.FRONT_DOOR_ORIGIN, 'http://localhost:4700', 'and its address, which its passkey belongs to');
+  assert.equal(again.env.FRONT_DOOR_SETUP_KEY, key);
+  assert.equal(again.said.trim().split('\n').at(-1), 'BOTDOT_LOCAL {"origin":"http://localhost:4700"}');
+
+  const port = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_PORT: '5100', BOT_DOT_ADMIN: 'bart' } });
+  assert.equal(port.status, 0, port.stderr);
+  assert.equal(port.env.FRONT_DOOR_ORIGIN, 'http://localhost:5100');
+  assert.equal(port.env.FRONT_DOOR_SITES_ORIGIN, 'http://localhost:5101');
+  assert.equal(port.env.FRONT_DOOR_ONE_ACCOUNT, 'bart');
+  assert.match(port.said, /BOTDOT_LOCAL \{"origin":"http:\/\/localhost:5100","signUp":"http:\/\/localhost:5100\/sign-up\/[0-9a-f]{64}"\}\n$/);
+
+  const bad = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_PORT: '80' } });
+  assert.equal(bad.status, 1);
+  assert.match(bad.stderr, /BOT_DOT_PORT: a port is a number from 1024 to 65534\./);
+});
+
+test('the question offers a public domain and a tailnet only: local is never an answer to it (#882)', (t) => {
+  const done = installer(t, { dotenv: '', input: 'local\n3\n' });
+  assert.equal(done.status, 1);
+  assert.equal(done.said.match(/How will people reach botdot\?/g).length, 3, '"local" and "3" are asked again');
+  assert.doesNotMatch(done.said, /3\)|local/);
+  assert.equal(done.env.BOT_DOT_REACH, undefined);
+});
+
+test('the front door takes the one account and its setup key from .env', () => {
+  const door = fs.readFileSync(path.join(ROOT, 'compose.front-door.yaml'), 'utf8');
+  assert.match(door, /FRONT_DOOR_ONE_ACCOUNT: \$\{FRONT_DOOR_ONE_ACCOUNT:-\}/);
+  assert.match(door, /FRONT_DOOR_SETUP_KEY: \$\{FRONT_DOOR_SETUP_KEY:-\}/);
+});
+
 test('the front door runs as its own user, with the accounts\' socket folders and its data', (t) => {
   const done = rerun(t);
   assert.match(done.system, /^useradd --system --user-group --no-create-home --home-dir \/nonexistent --shell \/usr\/sbin\/nologin botdot-door$/m);

@@ -45,6 +45,7 @@ A stranger is someone who may try to break out on purpose. Every bot holds its o
 - **A public domain**, with Caddy in front of the front door for HTTPS. Caddy is the one new technology this ADR adds.
 - **A tailnet only**, with Tailscale Serve giving the front door its HTTPS name and nothing on the internet; strangers reach it through node sharing.
 - One name per install, because a passkey belongs to one address.
+- Amended by [ADR 136](136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md): a third way, `local`, for the desktop app's botdot in a VM on the owner's computer, chosen only by the answer `BOT_DOT_REACH=local` and never offered in the question.
 
 **Calls.** Calls ([ADR 026](026-a-call-is-let-in-on-the-jobs-key-alone.md)) are accepted from wherever the front door is reachable, on the job's key alone. The call address carries the account: `/call/<account>/<bot>/<job>`.
 

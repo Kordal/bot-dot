@@ -3,10 +3,12 @@
 # folder under BOT_DOT_SOCKETS. It runs in the machine's own Docker; every account's botdot server runs in that
 # account's rootless Docker (compose.yaml).
 #
-# People reach it in one of two ways, chosen at install (install.sh writes .env and, for a domain, the Caddyfile):
+# People reach it in one of three ways, chosen at install (install.sh writes .env and, for a domain, the Caddyfile):
 #   a public domain: Caddy (the `public` profile) answers on ports 80, 443 and 8443 (bots' interactive pages, #399) and
 #                    fetches its own certificates
 #   a tailnet only:  Tailscale Serve gives the front door its HTTPS name, and nothing is on the internet
+# or, for the desktop app, on this computer only (local, ADR 136): http://localhost:<port>, one account
+#                    (FRONT_DOOR_ONE_ACCOUNT) whose passkey is made with FRONT_DOOR_SETUP_KEY, and no admin page
 services:
   front-door:
     image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
@@ -28,6 +30,9 @@ services:
       FRONT_DOOR_ORIGIN: ${FRONT_DOOR_ORIGIN:?install.sh sets FRONT_DOOR_ORIGIN}
       FRONT_DOOR_ADMIN: ${FRONT_DOOR_ADMIN:-}
       FRONT_DOOR_ANDROID_KEYS: ${FRONT_DOOR_ANDROID_KEYS:-}
+      # On this computer only (local): its one account, and the setup key that makes its passkey.
+      FRONT_DOOR_ONE_ACCOUNT: ${FRONT_DOOR_ONE_ACCOUNT:-}
+      FRONT_DOOR_SETUP_KEY: ${FRONT_DOOR_SETUP_KEY:-}
       FRONT_DOOR_HOST: 127.0.0.1
       FRONT_DOOR_PORT: ${FRONT_DOOR_PORT:-4700}
       # Bots' interactive pages (#399, ADR 072): the sandbox's own address, on the front door's second port.

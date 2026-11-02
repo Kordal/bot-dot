@@ -15,6 +15,7 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
+const passkey = require('../../test/fixtures/soft-passkey');
 const { createStage, until, REGISTRY, SERVER, DESKTOP, DOMAIN, ADMIN, DIR, REGISTRY_IMAGE } = require('./test-install');
 // The names `make images` gives a self-built botdot server's images.
 const SELF_SERVER = 'bot-dot/server:latest', SELF_DESKTOP = 'bot-dot/desktop:latest';
@@ -210,6 +211,72 @@ const cases = [
       assert.doesNotMatch(again, /\/sign-up\//, `once the account is made there is no link:\n${again}`);
       assert.ok(again.includes(ROOT_REACHES));
       answers(machine);
+    },
+  },
+  {
+    // #882: the desktop app's botdot, on this computer only: one account at http://localhost:4700, no Caddy, no
+    // Tailscale, no admin page, its passkey made with the setup key the installer printed in its one line for the app.
+    name: 'a local install: one account on localhost, made with the setup key, and a rerun that keeps it',
+    async run(machine) {
+      await machine.load(stage.server());
+      await machine.load(stage.computer());
+      machine.publish(stage.server(), `${SERVER}:latest`);
+      machine.publish(stage.computer(), `${DESKTOP}:latest`);
+      machine.sign(`${SERVER}:latest`, { app: 'server' });
+      machine.sign(`${DESKTOP}:latest`, { app: 'desktop' });
+      const ORIGIN = 'http://localhost:4700';
+      // botdot as the app's window reaches it: http://localhost:4700 on the machine itself, with one browser's cookies.
+      const local = (method, route, body) => {
+        const args = ['exec', '-i', machine.name, 'curl', '-sS', '-b', '/root/local', '-c', '/root/local', '-X', method, '-H', 'X-Bot-Dot: 1', '-w', '\n%{http_code}', `${ORIGIN}${route}`];
+        if (body !== undefined) args.push('-H', 'Content-Type: application/json', '--data-binary', '@-');
+        const out = spawnSync('docker', args, { encoding: 'utf8', timeout: 10 * 60_000, input: body === undefined ? '' : JSON.stringify(body) }).stdout;
+        const at = out.lastIndexOf('\n');
+        let parsed = out.slice(0, at);
+        try { parsed = JSON.parse(parsed); } catch { /* not JSON */ }
+        return { status: Number(out.slice(at + 1)), body: parsed };
+      };
+      const lineOf = (said) => {
+        const last = said.trim().split('\n').at(-1);
+        assert.match(last, /^BOTDOT_LOCAL \{/, `the install's last line is the app's:\n${said}`);
+        return JSON.parse(last.slice('BOTDOT_LOCAL '.length));
+      };
+
+      stage.step('install.sh, local');
+      const said = machine.install({ BOT_DOT_REACH: 'local', BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` });
+      assert.match(said, /The front door is running/);
+      assert.match(said, new RegExp(`The account ${ADMIN} is running`));
+      assert.match(said, /Reachable on this computer only, at http:\/\/localhost:4700/);
+      assert.doesNotMatch(said, /Caddy|Tailscale|admin page|Whoever is root/, `nothing of a server's install:\n${said}`);
+      const line = lineOf(said);
+      assert.equal(line.origin, ORIGIN);
+      const key = new URL(line.signUp).pathname.slice('/sign-up/'.length);
+      assert.equal(said.split(key).length, 2, 'the setup key is on the screen in that line alone');
+      assert.match(machine.exec('stat', '-c', '%a %U', `${DIR}/front-door/.env`), /^600 root$/, 'and kept where only root reads it');
+      assert.ok(!machine.inner('ps', '--format', '{{.Names}}').includes('caddy'), 'no Caddy runs');
+
+      stage.step('the passkey, made with the setup key on localhost');
+      const at = new URL(line.signUp).pathname;
+      const options = local('POST', `${at}/options`, { name: ADMIN });
+      assert.equal(options.status, 200, `the sign-up page asks for a passkey: ${JSON.stringify(options.body)}`);
+      const pass = passkey.create({ rpId: 'localhost', origin: ORIGIN });
+      const made = local('POST', at, { name: ADMIN, credential: pass.register(options.body.publicKey) });
+      assert.equal(made.status, 201, `the account is made: ${JSON.stringify(made.body)}`);
+      const version = local('GET', '/api/version');
+      assert.equal(version.status, 200);
+      assert.notEqual(version.body.frontDoor, true, "the account's own botdot server answers");
+      const status = local('GET', '/api/status');
+      assert.equal(status.body.docker.ok, true, `botdot reaches Docker through its helper: ${JSON.stringify(status.body.docker)}`);
+      assert.equal(status.body.docker.image, true, "and sees the bots' computer image");
+      assert.notEqual(local('GET', at).status, 200, 'the setup key opens nothing once the account exists');
+      const session = local('GET', '/front-door/session');
+      assert.equal(session.status, 200);
+      assert.equal(session.body.account, ADMIN);
+      assert.equal(session.body.admin, false, 'no admin page');
+
+      stage.step('install.sh again');
+      const again = machine.install({ BOT_DOT_REACH: 'local', BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` });
+      assert.deepEqual(lineOf(again), { origin: ORIGIN }, 'once the account is made, no sign-up address');
+      assert.equal(local('GET', '/api/version').status, 200, 'the same browser is still signed in: account and passkey kept');
     },
   },
   {
