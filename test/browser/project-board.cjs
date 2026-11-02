@@ -63,7 +63,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       write({ board: undefined });
       await page.goto(`${srv.base}/#company`);
       await page.reload();
-      await page.locator('.cf-day').waitFor({ timeout: 20000 });
+      await page.locator('.cf-day').waitFor({ state: 'attached', timeout: 20000 }); // hidden on a phone, where the 90-day line shows the day (#839)
       assert.ok(await page.locator('.cf-panel').count());
       await page.locator('.pc-new').click();
       assert.equal(await page.locator('[data-pc-piece]').count(), 0, 'nothing to add');

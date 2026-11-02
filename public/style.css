@@ -85,7 +85,8 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .grow { flex: 1; min-width: 0; }
 
 /* ---------- shell ---------- */
-.app { display: flex; height: 100dvh; }
+/* Clipped: a pane sliding in from the right (motion.js) never widens the page, which a phone would zoom out to. */
+.app { display: flex; height: 100dvh; overflow: clip; }
 .sidebar { width: var(--side-w, 300px); container-type: inline-size; container-name: side; flex: none; display: flex; flex-direction: column; background: var(--panel); padding-top: env(safe-area-inset-top); }
 /* The list's right edge, dragged to resize it (list.js, initSideGrip): no width of its own, a strip of 9px to catch
    the pointer, and a line while it is touched. Only where the list has its full layout (see responsive). The
@@ -2474,10 +2475,6 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .ct-state { flex: none; width: 6px; height: 6px; margin-right: var(--sp-8); border-radius: 50%; background: var(--line-2); }
 .ct-state.on { background: #34c759; }
 .ct-sep { height: 1px; margin: var(--sp-8) var(--sp-8); background: var(--line); }
-/* On a phone the project's name picks another: a select laid over it, shown where the left column is not. */
-.co-pick { position: relative; display: inline-flex; align-items: center; gap: var(--sp-8); max-width: 100%; }
-.co-pick > svg { display: none; flex: none; width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.co-pick select { display: none; position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; font-size: var(--fs-16); }
 .co-pick-line { display: none; }
 
 #view-company { padding: 0 var(--sp-24) var(--sp-48); overflow-y: auto; }
@@ -2606,7 +2603,6 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
   .company-side { padding: var(--sp-4) var(--sp-12) var(--sp-12); }
   #view-company { padding: 0 var(--sp-16) var(--sp-32); }
   #view-company .co-phone-switch { display: flex; margin: var(--sp-12) 0 0; }
-  .co-pick > svg, .co-pick select { display: block; }
   .co-steps-line .co-more { display: none; }
   .co-pick-line { display: block; margin: var(--sp-16) 0 0; font-size: var(--fs-24); font-weight: 600; letter-spacing: -.01em; }
   .co-start { padding-top: 6vh; }
@@ -3063,62 +3059,9 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .group-pic > i svg.team-crown { position: absolute; top: -6px; left: -4px; width: 9px; height: 9px; border: 2px solid #1d1a10; box-sizing: content-box; border-radius: 50%; fill: #f5c542; background: #1d1a10; }
 #group-pic .team-pic > i { width: 28px; height: 28px; }
 .chat-head.team-head { box-shadow: inset 0 2px 0 var(--team, var(--line-2)); }
-.dock-open .group-pic, .dock-menu .group-pic { height: 28px; }
-.dock-open .group-pic > i, .dock-menu .group-pic > i { width: 24px; height: 24px; }
 
-/* ---------- chats docked to the bottom of the Projects screen (#691, dock.js) ---------- */
-/* One row along the bottom of the main column: "+N", the bars, and the open chat as a 340x460 panel. */
-.dock { position: absolute; bottom: 0; left: var(--dock-l, 24px); right: var(--dock-r, 24px); z-index: 6; display: flex; align-items: flex-end; justify-content: flex-end; gap: var(--sp-12); pointer-events: none; }
-.dock.hidden { display: none; }
-.dock > * { pointer-events: auto; }
-.app.dock-on #view-company { padding-bottom: var(--sp-96); }
-.app.dock-tall #view-company { padding-bottom: calc(var(--sp-96) * 5); }
-.dock-item { flex: 0 1 340px; min-width: 0; background: var(--panel); border: 1px solid var(--line-2); border-bottom: 0; border-radius: var(--r-14) var(--r-14) 0 0; box-shadow: var(--shadow-lg); }
-.dock-item.dragging { z-index: 1; opacity: .92; cursor: grabbing; transition: none; }
-.dock-bar { height: 52px; display: flex; align-items: center; gap: var(--sp-4); padding: 0 var(--sp-8) 0 var(--sp-4); cursor: grab; }
-.dock-open, .dock-menu button { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-12); height: 44px; padding: 0 var(--sp-8); border: 0; border-radius: var(--r-8); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
-.dock-open:hover, .dock-menu button:hover { background: var(--sunk); }
-.dock-open .avatar, .dock-menu .avatar { width: 28px; height: 28px; flex: none; }
-.dock-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.dock-menu .dock-name { font-weight: 400; flex: 1; }
-.dock-n { flex: none; min-width: 20px; height: 20px; padding: 0 var(--sp-8); border-radius: var(--r-pill); background: var(--ink); color: var(--ink-text); font: 600 var(--fs-12)/20px var(--font); text-align: center; }
-.dock-x svg, .dock-ctl svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.dock-more-wrap { position: relative; z-index: 2; flex: none; align-self: flex-end; margin-bottom: var(--sp-4); }
-.dock-more { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--sunk); color: var(--text); font-weight: 600; cursor: pointer; }
-.dock-more.unread { border-color: var(--text); }
-.dock-menu { position: absolute; left: 0; bottom: 54px; min-width: 240px; max-height: 60vh; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-8); background: var(--panel); border: 1px solid var(--line-2); border-radius: var(--r-14); box-shadow: var(--shadow-lg); }
-.dock-menu[hidden] { display: none; }
-/* The open chat: the chat's own row inside, in a narrow column of its own (the settings and a file cover the chat). */
-.dock-panel { height: 460px; max-height: calc(100dvh - 96px); display: flex; flex-direction: column; overflow: hidden; background: var(--bg); container: column / inline-size; }
-.dock-panel.hidden { display: none; }
-.dock-panel > .chat-row { flex: 1; min-height: 0; }
-/* A bot's chat expanded beside the open one (#714): the same chat, in a root of its own. */
-.dock-panel > .dock-view { flex: 1; min-height: 0; display: flex; flex-direction: column; container: main / inline-size; }
-.dock-panel .chat-head { cursor: grab; }
-.dock-panel .back-btn { display: none !important; }
+/* ---------- the chat on the Projects screen (dock.js) ---------- */
 .dock-ctl { display: flex; }
-.dock-grip { display: none; }
-@media (prefers-reduced-motion: no-preference) {
-  .dock-panel.dock-in { animation: dock-pop var(--t2) var(--out); }
-}
-@keyframes dock-pop { from { transform: translateY(16px); opacity: 0; } }
-@keyframes dock-up { from { transform: translateY(100%); } }
-/* A phone: the open chat is a sheet from the bottom, half or full height; the bars wait under it. */
-@media (max-width: 479px) {
-  .app:is(.dock-on, .dock-tall) #view-company { padding-bottom: calc(var(--sp-64) + env(safe-area-inset-bottom)); }
-  .dock { padding-bottom: env(safe-area-inset-bottom); }
-  .dock-item { flex-basis: 100%; }
-  .app.docked .dock-bar, .app.docked .dock-more-wrap { visibility: hidden; }
-  .app.docked .dock-panel { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; height: 62dvh; max-height: none; border-radius: var(--r-14) var(--r-14) 0 0; padding-bottom: env(safe-area-inset-bottom); }
-  .app.docked .dock-panel[data-sheet="full"] { height: calc(100dvh - env(safe-area-inset-top) - 8px); }
-  .dock-panel .chat-head { padding-top: var(--sp-4); cursor: auto; }
-  .dock-grip { display: grid; place-items: center; flex: none; height: 22px; border: 0; background: transparent; cursor: grab; touch-action: none; }
-  .dock-grip i { width: 36px; height: 4px; border-radius: var(--r-8); background: var(--line-2); }
-}
-@media (max-width: 479px) and (prefers-reduced-motion: no-preference) {
-  .dock-panel.dock-in { animation: dock-up var(--t3) var(--out); }
-}
-
 
 /* A wide window's Projects screen (#825, dock.js): the board, and one chat as a fixed column on its right, like the
    bot view (ADR 029). The chat's own row is the column: its settings and a file cover the chat there. */
@@ -3214,9 +3157,6 @@ dialog.co-delete .modal-foot { border-top: 0; }
 .rail { display: none; }
 @media (min-width: 1001px) {
   .app.has-rail .rail { position: relative; z-index: 2; flex: none; width: 76px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-12); padding: var(--sp-16) 0; background: var(--bg); border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: none; }
-  .app.has-rail .place-switch { display: none; }
-  /* A project draws its own keys (#838): no tree beside the rail. */
-  .app.has-rail.place-company .sidebar { display: none; }
   .app.has-rail:not(.place-company) .side-head { width: auto; }
   /* The top bar keeps only what stands in it for a while: a notice, or the open search field. */
   .app.has-rail .sidebar:not(.search-open):not(.searching) .side-head:not(.noted) { display: none; }
@@ -3273,3 +3213,70 @@ dialog.co-delete .modal-foot { border-top: 0; }
 .sp-new { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 36px; padding: 0 var(--sp-12); border: 1px dashed var(--line-2); border-radius: var(--r-14); background: transparent; color: var(--muted); font: inherit; font-size: var(--fs-14); cursor: pointer; }
 .sp-new:hover { color: var(--text); background: var(--sunk); }
 .sp-new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+
+/* ---------- spaces below a wide window (#839, company.js openSpaces; ADR 132) ----------
+   No switch and no tree: Home's title is the logo with a chevron, a project's is its square, its name and a chevron,
+   each opening the spaces sheet. A project's page has Search and Settings at its top right and its default chat as
+   the field at the bottom; a chat opened there is full screen, and its Back is the project. */
+.app.has-rail .place-switch, .app.has-rail .company-side { display: none; }
+/* A project draws its own keys (#838): no left column, at any width. */
+.app.has-rail.place-company .sidebar, .app.has-rail.place-company .side-grip { display: none; }
+.brand-chev { display: none; }
+.co-pick { display: inline-flex; align-items: center; gap: var(--sp-12); max-width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; pointer-events: none; }
+.co-pick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.co-pick > .ct-av, .co-pick > svg { display: none; }
+.sp-tools, .sp-field { display: none; }
+@media (max-width: 1000px) {
+  .app.has-rail .side-head .brand { gap: var(--sp-4); cursor: pointer; border-radius: var(--r-8); }
+  .app.has-rail .side-head .brand:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+  .app.has-rail .side-head .brand-chev { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-left: var(--sp-4); color: var(--muted); }
+  .brand-chev svg, .co-pick > svg { width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .app.has-rail .co-pick { pointer-events: auto; cursor: pointer; border-radius: var(--r-8); }
+  .app.has-rail .co-pick:focus-visible { outline: 2px solid var(--text); outline-offset: 4px; }
+  .app.has-rail .co-pick > .ct-av { display: inline-grid; width: 28px; height: 28px; font-size: var(--fs-14); }
+  .app.has-rail .co-pick > svg { display: block; flex: none; }
+  .app.has-rail .cf-top { gap: var(--sp-8); padding-top: var(--sp-8); }
+  .app.has-rail .cf-top h1 { min-width: 0; font-size: var(--fs-24); }
+  .app.has-rail .co-pick-line { display: flex; align-items: center; gap: var(--sp-8); margin: var(--sp-16) 0 0; font-size: var(--fs-24); font-weight: 600; letter-spacing: -.01em; }
+  .app.has-rail .sp-tools { flex: none; display: flex; gap: var(--sp-4); margin-left: auto; }
+  .sp-tools svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  .app.has-rail #view-company { display: flex; flex-direction: column; }
+  .app.has-rail #view-company.hidden { display: none; }
+  .app.has-rail #view-company > .cf-home { flex: 1 0 auto; }
+  .app.has-rail .sp-field { display: flex; position: sticky; bottom: calc(var(--sp-12) + env(safe-area-inset-bottom)); z-index: 3; margin: var(--sp-24) 0 0; }
+  .sp-field .sp-faces { flex: none; }
+  /* The page scrolls under it: a band of the page's colour behind the field, the field's own pill over it. */
+  .app.has-rail .sp-field { background: none; box-shadow: none; }
+  .app.has-rail #view-company.sp-has-field { padding-bottom: 0; }
+  .sp-field::before, .sp-field::after { content: ""; position: absolute; z-index: -1; }
+  /* Down to the screen's edge, past the page's own bottom padding, which the stuck field stands above. */
+  .sp-field::before { inset: calc(var(--sp-12) * -1) calc(var(--sp-24) * -1) calc((var(--sp-64) + env(safe-area-inset-bottom)) * -1); background: linear-gradient(transparent, var(--bg) var(--sp-12)); }
+  .sp-field::after { inset: 0; border-radius: var(--r-pill); background: var(--raise-2); box-shadow: var(--lift); }
+  .app.has-rail.place-company .main { display: flex; flex: 1; width: auto; max-width: none; }
+  .app.proj-full #chat-row .back-btn { display: grid; }
+  .app.has-rail.place-company #chat-row .away-line:not(.hidden), .app.has-rail.place-company #chat-row .claude-line:not(.hidden) { display: block; }
+}
+@media (max-width: 479px) {
+  .app.has-rail .cf-top { padding-top: calc(var(--sp-12) + env(safe-area-inset-top)); }
+  .app.has-rail .cf-day { display: none; }
+}
+/* The spaces: a menu under the title, a sheet from the bottom on a phone. */
+.sp-sheet { position: fixed; inset: auto; margin: 0; width: 280px; max-height: 70dvh; overflow-y: auto; display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-8); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--panel); color: var(--text); box-shadow: var(--shadow-lg); }
+.sp-sheet:not([open]) { display: none; }
+.sp-sheet::backdrop { background: rgba(0, 0, 0, .5); }
+.sp-grip { display: none; }
+.sp-row { display: flex; align-items: center; gap: var(--sp-12); min-height: 48px; padding: var(--sp-8) var(--sp-12); border: 0; border-radius: var(--r-8); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.sp-row:hover, .sp-row.here { background: var(--sunk); }
+.sp-row.old { opacity: .55; }
+.sp-row .ct-av { width: 32px; height: 32px; font-size: var(--fs-14); }
+.sp-home-mark, .sp-add { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: var(--r-8); }
+.sp-home-mark { background: var(--raise-2); font-size: var(--fs-12); font-weight: 600; letter-spacing: -.04em; }
+.sp-add { border: 1px solid var(--line-2); color: var(--muted); }
+.sp-add svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+@media (max-width: 479px) {
+  .sp-sheet { left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; padding: var(--sp-8) var(--sp-12) calc(var(--sp-16) + env(safe-area-inset-bottom)); border-radius: var(--r-14) var(--r-14) 0 0; border-bottom: 0; }
+  .sp-grip { display: block; flex: none; align-self: center; width: 36px; height: 4px; margin: var(--sp-4) 0 var(--sp-8); border-radius: var(--r-8); background: var(--line-2); }
+}
+@media (max-width: 479px) and (prefers-reduced-motion: no-preference) {
+  .sp-sheet[open] { animation: fx-up var(--t2) var(--out); }
+}

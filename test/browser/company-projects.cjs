@@ -1,7 +1,7 @@
 // Optional browser check of several projects (#689): node test/browser/company-projects.cjs [shots dir]
-// The company there was is the first of PROJECTS; each project is a tree of its teams and bots that folds, a lead
-// with its crown; a click on a project shows its floor and is remembered after a reload; "+" starts a new one; a bot
-// in the tree opens its chat. On a phone the project's name over the floor picks another. Scratch data only.
+// The company there was is the first square in the rail (#837); a project's page has its teams and bots as keys, the
+// lead first with its crown (#838); a click on a square shows its page and is remembered after a reload; "+" starts a
+// new one; a bot's key opens its chat. On a phone the title's sheet picks another (#839). Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -30,29 +30,24 @@ const { startServer, makeBot, writeData } = require('../helpers');
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/#company`);
-    const side = page.locator('#company-side');
-    await side.locator('[data-project="p1"]').waitFor({ timeout: 20000 });
-    assert.deepEqual(await side.locator('[data-project] .ct-name').allInnerTexts(), ['Botdot', 'Mealwise']);
+    const side = page.locator('#rail'); // a square per project (#837)
+    await side.locator('[data-space="p1"]').waitFor({ timeout: 20000 });
+    assert.deepEqual(await side.locator('.rail-sq').evaluateAll((els) => els.map((el) => el.title)), ['Botdot', 'Mealwise']);
     await page.locator('.cf-top h1', { hasText: 'Botdot' }).waitFor();
-    // Botdot, shown, is open: its team and three bots, the lead with its crown. Mealwise is folded.
-    assert.deepEqual(await side.locator('.ct-team .ct-name').allInnerTexts(), ['Botdot Growth']);
-    assert.deepEqual(await side.locator('[data-tree-bot] .ct-name').allInnerTexts(), ['Demo Scheduler', 'Launch Poster', 'Weekly Tracker']);
-    assert.equal(await side.locator(`[data-tree-bot="${a.id}"] .ct-crown`).count(), 1);
-    if (shots) await page.screenshot({ path: path.join(shots, 'wide-tree.png') });
-    // The team folds and unfolds.
-    await side.locator('[data-fold="p1:t1"]').click();
-    await side.locator('[data-tree-bot]').first().waitFor({ state: 'detached' });
-    await side.locator('[data-fold="p1:t1"]').click();
-    await side.locator('[data-tree-bot]').nth(2).waitFor();
-    // Mealwise: its floor; remembered after a reload.
-    await side.locator('[data-project="p2"]').click();
+    // Botdot's page: its team and three bots, the lead first with its crown (#838).
+    assert.deepEqual(await page.locator('.sp-chip').allInnerTexts(), ['Botdot Growth']);
+    assert.deepEqual(await page.locator('.sp-keys .key .name').allInnerTexts(), ['Demo Scheduler', 'Launch Poster', 'Weekly Tracker']);
+    assert.equal(await page.locator(`.sp-keys [data-cf-bot="${a.id}"] .cf-crown`).count(), 1);
+    if (shots) await page.screenshot({ path: path.join(shots, 'wide-rail.png') });
+    // Mealwise: its page; remembered after a reload.
+    await side.locator('[data-space="p2"]').click();
     await page.locator('.cf-top h1', { hasText: 'Mealwise' }).waitFor();
     await page.reload();
     await page.locator('.cf-top h1', { hasText: 'Mealwise' }).waitFor({ timeout: 20000 });
     // A team made here is Mealwise's only.
     const r = await srv.api('/company/teams?project=p2', { method: 'POST', body: { name: 'Ops', bots: [c.id] } });
     assert.equal(r.status, 200);
-    await side.locator('.ct-team .ct-name', { hasText: 'Ops' }).waitFor();
+    await page.locator('.sp-chip', { hasText: 'Ops' }).waitFor();
     assert.equal((await srv.api('/company')).data.company.teams.length, 1, 'Botdot keeps its one team');
     // "+": a new project, after the others.
     await side.locator('[data-new-project]').click();
@@ -62,7 +57,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('.co-steps li.on', { hasText: 'About' }).waitFor();
     const list = (await srv.api('/company/list')).data.projects;
     assert.equal(list.length, 3);
-    await side.locator(`[data-project="${list[2].id}"].here`).waitFor();
+    await side.locator(`[data-space="${list[2].id}"].here`).waitFor();
     // "+", Start from scratch (#788): an empty project at once, on its blank board with New card; no setup, no team.
     await side.locator('[data-new-project]').click();
     await page.locator('#view-company [data-start-empty]').click();
@@ -72,24 +67,26 @@ const { startServer, makeBot, writeData } = require('../helpers');
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-empty.png') });
     const empty = (await srv.api('/company/list')).data.projects[3];
     assert.deepEqual([empty.phase, empty.teams, empty.board, empty.start], ['running', [], [], '']);
-    await side.locator(`[data-project="${empty.id}"].here`).waitFor();
-    // A bot in the tree opens its chat.
-    await side.locator('[data-project="p1"]').click();
-    await side.locator(`[data-tree-bot="${b.id}"]`).click();
+    await side.locator(`[data-space="${empty.id}"].here`).waitFor();
+    // A bot's key opens its chat.
+    await side.locator('[data-space="p1"]').click();
+    await page.locator(`.sp-keys [data-cf-bot="${b.id}"]`).click();
     await page.locator('#view-bot').waitFor({ state: 'visible' });
     assert.deepEqual(errors, []);
 
-    // A phone: the name over the floor picks another project.
+    // A phone: the name over the floor opens the spaces sheet, which picks another project (#839).
     page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark' })).newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/#company`);
     await page.locator('.cf-top h1', { hasText: 'Botdot' }).waitFor({ timeout: 20000 });
-    const pick = page.locator('.cf-top [data-pick-project]');
+    const pick = page.locator('.cf-top [data-space-pick]');
     assert.equal(await pick.isVisible(), true);
     if (shots) await page.screenshot({ path: path.join(shots, 'phone-title.png') });
-    await pick.selectOption('p2');
+    await pick.click();
+    await page.locator('#spaces-sheet [data-space="p2"]').click();
     await page.locator('.cf-top h1', { hasText: 'Mealwise' }).waitFor();
-    await page.locator('.cf-top [data-pick-project]').selectOption('');
+    await page.locator('.cf-top [data-space-pick]').click();
+    await page.locator('#spaces-sheet [data-space=""]').click();
     await page.locator('#view-company .co-new h1', { hasText: 'New project' }).waitFor();
     await page.locator('#view-company [data-start-empty]').waitFor();
     if (shots) await page.screenshot({ path: path.join(shots, 'phone-new.png') });

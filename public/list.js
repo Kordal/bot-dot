@@ -430,7 +430,7 @@ function wireNeedRows(el, shown, open) {
 // On a project's page the digits open its keys in reading order, Esc the Chief in its chat column, and Ctrl+K the
 // search on Home.
 function onKeypadKey(e) {
-  if (e.defaultPrevented || e.isComposing || $('#modal')?.open) return;
+  if (e.defaultPrevented || e.isComposing || $('#modal')?.open || $('#spaces-sheet')?.open) return; // under the modal or the spaces sheet (#839)
   const project = typeof Company !== 'undefined' && Company.spaceKeys ? Company.spaceKeys() : null;
   if (!project && !keypadShown()) return;
   const t = e.target;

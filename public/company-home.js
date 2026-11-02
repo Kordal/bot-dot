@@ -288,6 +288,14 @@
     }).join('');
     return `<div class="sp-teams">${rows}<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
   }
+  // The bottom field below a wide window (#839, ADR 132): the project's default chat, its first team's with the
+  // team's faces, else the Chief's. A tap opens that chat full screen, ready to write in, as Home's Chief field does.
+  function fieldHTML(c) {
+    const t = (c.teams || []).find((x) => leadFirst(x).length && (state.groups || []).some((g) => g.team === x.id));
+    const head = t ? `<span class="sp-faces">${leadFirst(t).slice(0, 3).map((id) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit)}</i>`; }).join('')}</span>` : chiefFigure();
+    const text = t ? tr('Message the team…') : chiefTitle();
+    return `<button type="button" class="kp-chief sp-field" data-sp-field title="${esc(text)}">${head}<span>${esc(text)}</span><i class="kp-send">${SEND_ARROW}</i></button>`;
+  }
   // A project's own Needs you (#838): only the asks of its bots, as rows like Home's.
   function needsHTML(c, items) {
     if (!items.length) return '';
@@ -412,14 +420,14 @@
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
     const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what', ...(window.ProjectCards?.FIELDS || [])].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
-      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
+      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}${Company.railOn() ? Company.toolsHTML() : ''}</header>
       ${needsHTML(c, projectNeeds(c))}
       ${days ? lineHTML(c) : ''}
       ${days && c.checkin ? checkinHTML(c.checkin) : ''}
       ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
       <div class="cf-main${panel ? '' : ' solo'}">${floorHTML(c, f)}${panel ? `<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside>` : ''}</div>
       ${teamsHTML(c)}
-    </div>`;
+    </div>${Company.railOn() ? fieldHTML(c) : ''}`;
     window.BoardView?.apply(root, c); // the tiles where the owner put them (#783, board-canvas-view.js)
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
     wire(root, c);
@@ -432,6 +440,7 @@
     $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openTeamChat(b.dataset.cfTeamChat); }));
     $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => openTeam(b.dataset.cfTeam)));
     $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));
+    $('[data-sp-field]', root)?.addEventListener('click', () => { Dock.openDefault(); requestAnimationFrame(() => $('#chat-row .view:not(.hidden) textarea')?.focus()); });
     const asks = projectNeeds(c).slice(0, 3);
     const box = $('.sp-needs', root);
     if (box) wireNeedRows(box, asks, openNeed);

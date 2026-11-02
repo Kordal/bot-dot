@@ -1,8 +1,9 @@
-// Optional browser check of the rail of spaces (#837): node test/browser/spaces-rail.cjs [shots dir]
+// Optional browser check of the spaces (#837, #839): node test/browser/spaces-rail.cjs [shots dir]
 // In a wide window with a project the "Bots | Projects" switch gives way to the rail: Home, the project's square, "+",
 // and the top bar's tools at its foot. Home opens the Chief, the project its team chat, and the chat column stands at
 // the same place in both, at the default width and at one the owner set. The space is remembered, a gone project falls
-// back to Home, and with no project there is no rail. Each bot is in one space (#838). Scratch data only.
+// back to Home, and with no project there is no rail. Each bot is in one space (#838). Below 1001 px (#839) the title
+// opens the spaces sheet and the bottom field the space's chat, full screen, Back the project again. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -100,13 +101,48 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await phone.goto(`${srv.base}/#company`);
     await phone.locator('.sp-keys .key .name', { hasText: 'Ops Watchkeeper' }).waitFor({ timeout: 20000 });
     if (shots) await phone.screenshot({ path: path.join(shots, 'spaces-keys-phone-project.png'), fullPage: true });
+    assert.equal((await phone.locator('[data-sp-field]').innerText()).trim(), 'Message the team…', "the team's chat at the foot");
+    await phone.locator('.cf-top [data-space-pick]').click();
+    await phone.locator('#spaces-sheet [data-space="home"]').waitFor();
+    if (shots) await phone.screenshot({ path: path.join(shots, 'spaces-phone-sheet.png') });
+    await phone.locator('#spaces-sheet [data-space="home"]').click();
+    await phone.locator('.side-head .brand-chev').waitFor();
+    assert.equal(await phone.locator('#place-switch').isVisible(), false, 'no switch on a phone');
+    assert.ok(await phone.locator('#kp-chief').isVisible(), "Home's field is the Chief's");
+    await phone.waitForTimeout(500); // the list back in
+    if (shots) await phone.screenshot({ path: path.join(shots, 'spaces-phone-home.png') });
     await phone.close();
 
-    // Narrower windows keep the switch.
-    await page.setViewportSize({ width: 900, height: 800 });
+    // Below 1001 px (#839): no rail, switch or tree. The title opens the spaces; the field the team's chat, full
+    // screen, and Back the project again.
+    await page.setViewportSize({ width: 800, height: 900 });
     assert.equal(await page.locator('#rail').isVisible(), false, 'no rail below 1001 px');
-    assert.ok(await page.locator('#place-switch').isVisible(), 'the switch below 1001 px');
-    assert.ok(await page.locator('.side-head #more-btn').isVisible(), 'Settings back in the top bar');
+    assert.equal(await page.locator('#place-switch').isVisible(), false, 'no switch below 1001 px');
+    assert.equal(await page.locator('#company-side').isVisible(), false, 'no tree');
+    await page.locator('.cf-top .sp-tools [data-sp-tool="more-btn"]').waitFor();
+    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-800-project.png') });
+    await page.locator('[data-sp-field]').click();
+    await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
+    assert.equal(await page.locator('#view-company').isVisible(), false, 'one chat, full screen');
+    await page.keyboard.press('Escape'); // the Chief, in its place
+    await page.locator('#view-chief [data-back]').click();
+    await page.waitForFunction(() => state.view === 'company');
+    await page.locator('.cf-top [data-space-pick]').click();
+    const sheet = page.locator('#spaces-sheet');
+    assert.deepEqual(await sheet.locator('.sp-row .ct-name').allInnerTexts(), ['Home', 'Quotz IT', 'New project']);
+    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-800-sheet.png') });
+    await page.keyboard.press('Escape');
+    await sheet.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => state.view), 'company', 'Esc closes the sheet, nothing else');
+    await page.locator('.cf-top [data-space-pick]').click();
+    await sheet.locator('[data-space="home"]').click();
+    await page.waitForFunction(() => !document.querySelector('.app.place-company'));
+    assert.equal(await page.evaluate(() => localStorage.getItem('botdot.place')), 'home', 'Home kept');
+    assert.ok(await page.locator('.side-head #more-btn').isVisible(), 'Settings in the top bar');
+    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-800-home.png') });
+    await page.locator('.side-head #brand').click();
+    await sheet.locator('.sp-row', { hasText: 'Quotz IT' }).click();
+    await page.locator('.cf-top h1', { hasText: 'Quotz IT' }).waitFor();
     await page.setViewportSize({ width: 1440, height: 900 });
 
     // No project: no rail, and Home as before, with the switch.

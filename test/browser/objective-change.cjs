@@ -1,7 +1,7 @@
 // Optional browser check of changing a goal by chat (#819): node test/browser/objective-change.cjs [shots dir]
-// A goal's pencil opens a field under it; Send makes a Chief chat that names the goal and opens it docked on the
-// Projects screen, the floor still under it; the Chief's change shows on the tile; Minimize leaves a Chief bar.
-// A phone has the field as a sheet. Scratch data only.
+// A goal's pencil opens a field under it; Send makes a Chief chat that names the goal and opens it full screen below
+// a wide window (#839); the Chief's change shows on the tile, and Back is the project again. A phone has the field as
+// a sheet. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -43,25 +43,20 @@ const { startServer, writeData } = require('../helpers');
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-ask.png') });
     srv.reply('Done: 150 now.');
     await pop.locator('textarea').press('Enter');
-    await page.locator('#dock-panel #view-chief .chat-thread', { hasText: 'Make it 150' }).waitFor();
-    assert.ok(await page.locator('#view-company').isVisible(), 'the floor stays under the chat');
+    await page.locator('#view-chief .chat-thread', { hasText: 'Make it 150' }).waitFor();
+    assert.ok(!(await page.locator('#view-company').isVisible()), 'the chat full screen');
     assert.equal(await pop.count(), 0, 'the field closed');
-    await page.locator('#dock-panel #view-chief .chat-thread', { hasText: 'Done: 150 now.' }).waitFor();
+    await page.locator('#view-chief .chat-thread', { hasText: 'Done: 150 now.' }).waitFor();
+    if (shots) await page.screenshot({ path: path.join(shots, 'narrow-chat.png') });
 
-    // What the Chief's tool does shows on the tile.
+    // Back is the project; what the Chief's tool does shows on the tile.
+    await page.locator('#view-chief [data-back]').click();
+    await page.waitForFunction(() => state.view === 'company');
     await srv.asChief('/company/objectives/o2', { method: 'PUT', body: { target: 150 } });
     await goal.locator('.cf-goal-num', { hasText: '150' }).waitFor();
-    if (shots) await page.screenshot({ path: path.join(shots, 'wide-chat.png') });
-
-    // Minimize: a bar of the Chief; the Chief on nothing else.
-    await page.locator('#dock-panel #view-chief [data-dock-min]').click();
-    await page.locator('#dock .dock-bar[data-key="chief:chief"]').waitFor();
-    await page.locator('#dock [data-dock-open="chief:chief"]').click();
-    await page.locator('#dock-panel #view-chief .chat-thread', { hasText: 'Done: 150 now.' }).waitFor();
 
     // A phone: the field is a sheet with the goal's name.
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.locator('#dock-panel #view-chief [data-dock-min]').click();
     await page.locator('[data-cf-goal="o1"] [data-cf-ask]').click();
     await page.locator('.ask-pop.ask-sheet h2', { hasText: 'Weeks with logged sessions' }).waitFor();
     if (shots) await page.screenshot({ path: path.join(shots, 'phone-ask.png') });

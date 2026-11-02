@@ -1,8 +1,8 @@
 // Optional browser check of a team's chat (#697): node test/browser/team-chat.cjs [shots dir]
-// A team's name on the Projects floor opens its chat docked in the bottom row: three faces, the lead first with the
-// crown, "5 bots · 1 working", the team's colour on top. A message without a mention is answered by the lead, whose
-// reply names a member, who answers next; each reply under its bot's face and name. A bot's chat opens beside it, and
-// the team's chat becomes a bar. A phone opens it as a sheet. Scratch data only.
+// A team's name on a project's page opens its chat, full screen below a wide window (#839): three faces, the lead
+// first with the crown, "5 bots · 1 working", the team's colour on top. A message without a mention is answered by the
+// lead, whose reply names a member, who answers next; each reply under its bot's face and name. Back is the project
+// again, and a bot's key opens that one chat in its place. A phone opens it the same way. Scratch data only.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -43,13 +43,12 @@ const { shortName } = require('../../public/mentions.js');
     const name = page.locator(`[data-cf-team-chat="${team.id}"]`);
     await name.waitFor({ timeout: 20000 });
     await name.click();
-    const panel = page.locator('#dock-panel #view-group');
+    const panel = page.locator('#view-group');
     await panel.locator('#group-name', { hasText: 'Botdot Growth' }).waitFor();
-    assert.ok(await page.locator('#view-company').isVisible(), 'the floor stays under the chat');
+    assert.ok(!(await page.locator('#view-company').isVisible()), 'one chat, full screen');
     assert.equal(await panel.locator('#group-sub').innerText(), '5 bots · 1 working');
     assert.equal(await panel.locator('#group-pic .team-pic > i').count(), 3);
     assert.equal(await panel.locator('#group-pic .team-pic > i:first-child .team-crown').count(), 1, 'the lead first, with the crown');
-    assert.equal(await panel.locator('[data-dock-min]').count(), 1);
     assert.ok((await panel.locator('.chat-head').evaluate((el) => getComputedStyle(el).boxShadow)).includes('inset'), "the team's colour on top");
 
     srv.unhold(); // Weekly Tracker's run stays held; the turns run
@@ -62,23 +61,22 @@ const { shortName } = require('../../public/mentions.js');
     assert.ok(who[0].includes('Demo Scheduler') && who[1].includes('Launch Poster'), JSON.stringify(who));
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-team-chat.png') });
 
-    // A bot's chat opens beside it; the team's chat is a bar.
-    await page.locator('[data-dock-min]').click();
+    // Back is the project; a bot's key opens its one chat.
+    await panel.locator('[data-back]').click();
     await page.waitForFunction(() => state.view === 'company');
     await page.locator(`[data-cf-bot="${id('Feedback Collector')}"]`).first().click();
-    await page.locator('#dock-panel #bot-name', { hasText: 'Feedback Collector' }).waitFor();
-    const keys = await page.$$eval('#dock > .dock-item:not(.hidden)', (els) => els.map((el) => el.dataset.key));
-    assert.equal(keys[0].startsWith('team:'), true, JSON.stringify(keys));
-    if (shots) await page.screenshot({ path: path.join(shots, 'wide-bar.png') });
-    await page.locator('.dock-bar [data-dock-open^="team:"]').click();
-    await panel.locator('#group-name', { hasText: 'Botdot Growth' }).waitFor();
+    await page.locator('#view-bot #bot-name', { hasText: 'Feedback Collector' }).waitFor();
+    assert.ok(!(await panel.isVisible()), "the team's chat made way");
+    assert.equal(await page.locator('#dock').count(), 0, 'no row of docked chats');
+    await page.locator('#view-bot [data-back]').click();
+    await page.waitForFunction(() => state.view === 'company');
     assert.deepEqual(errors, []);
 
     const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', hasTouch: true })).newPage();
     phone.on('pageerror', (e) => errors.push(e.message));
     await phone.goto(`${srv.base}/#company`);
     await phone.locator(`[data-cf-team-chat="${team.id}"]`).click({ timeout: 20000 });
-    await phone.locator('#dock-panel #view-group #group-name', { hasText: 'Botdot Growth' }).waitFor();
+    await phone.locator('#view-group #group-name', { hasText: 'Botdot Growth' }).waitFor();
     await phone.waitForTimeout(400);
     if (shots) await phone.screenshot({ path: path.join(shots, 'phone-team-chat.png') });
     assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth) <= 390, 'no sideways scroll');
