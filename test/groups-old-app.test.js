@@ -130,8 +130,9 @@ test('an app from before groups is sent no group and no turn of one: the bots, t
   assert.deepEqual(heard().filter((e) => !LISTS.includes(e.type)).map((e) => [e.type, e.data]), [], 'no run, no new reply, no question, no line and no waiting message of a bot');
   assert.equal(holdsGroup(heard()), false, 'what it knows of the feed names no group and no turn');
   assert.ok(live.events.some((e) => e.type === 'bots'), 'it is told to read the bots again');
-  // The group's own events are of names that app does not know: it ignores them, and rings for none.
-  const groups = live.events.filter((e) => !KNOWN.includes(e.type));
+  // The group's own events are of names that app does not know: it ignores them, and rings for none, as it does the
+  // desktop app's notifications (ADR 138).
+  const groups = live.events.filter((e) => !KNOWN.includes(e.type) && !e.type.startsWith('notification'));
   assert.ok(groups.length > 0 && groups.every((e) => e.type === 'groups' || e.type.startsWith('group_')), JSON.stringify([...new Set(groups.map((e) => e.type))]));
   assert.deepEqual(groups.filter((e) => e.type === 'group_run_finished').map((e) => [e.data.botId, e.data.notify]), [[writer.id, false], [coder.id, true], [reviewer.id, false]], 'the question that this milestone\'s app rings for was asked');
 
