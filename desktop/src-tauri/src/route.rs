@@ -1,4 +1,4 @@
-//! Where a page in the window may go. `home` is the signed-in botdot's address.
+//! Where a page in the window may go. `door` is the address of the front door it is signed in to.
 
 use tauri::Url;
 
@@ -14,27 +14,27 @@ fn web(url: &Url) -> bool {
     matches!(url.scheme(), "https" | "http")
 }
 
-fn same_site(home: &Url, url: &Url) -> bool {
-    home.origin() == url.origin()
+fn same_origin(door: &Url, url: &Url) -> bool {
+    door.origin() == url.origin()
 }
 
-/// The page goes to `/sign-in` when its session is over (a `401` with `signIn`, a sign-out), and only then: the
-/// front door sends a signed-in browser there no other way.
-pub fn session_over(home: &Url, to: &Url) -> bool {
-    same_site(home, to) && to.path() == "/sign-in"
+/// The page goes to `/sign-in` when its session is over (a `401` with `signIn`, a sign-out). Asked of what a whole
+/// window shows, never before a page starts: wry's navigation handler can't tell a frame from the window, and a bot's
+/// page in a frame must not end the session.
+pub fn session_over(door: &Url, shown: &Url) -> bool {
+    same_origin(door, shown) && shown.path() == "/sign-in"
 }
 
-/// A link that left the front door in the window itself. Frames of other sites are no reason: this looks at what
-/// the whole window shows, which is why it is asked when a page has started and not before it (wry's navigation
-/// handler can't tell a frame from the window).
-pub fn left_home(home: &Url, shown: &Url) -> bool {
-    web(shown) && !same_site(home, shown)
+/// A link that left the front door in the window itself. Asked as `session_over` is, so frames of other sites stay.
+/// The app's own screen is on `http://tauri.localhost` on Windows.
+pub fn left_door(door: &Url, shown: &Url) -> bool {
+    web(shown) && !same_origin(door, shown) && shown.host_str() != Some("tauri.localhost")
 }
 
-/// What a link that opens a new window does. Nothing for `about:blank`: the page falls back to its own window,
-/// where `left_home` sends the link to the browser.
-pub fn new_window(home: &Url, to: &Url) -> Window {
-    if web(to) && same_site(home, to) {
+/// What a link that opens a new window does. `about:blank` is a window too: the page opens one and then gives it an
+/// address, and `left_door` closes it if that is another site.
+pub fn new_window(door: &Url, to: &Url) -> Window {
+    if to.as_str() == "about:blank" || (web(to) && same_origin(door, to)) {
         Window::OfTheApp
     } else if web(to) || to.scheme() == "mailto" {
         Window::Browser
@@ -53,31 +53,31 @@ mod tests {
 
     #[test]
     fn the_sign_in_page_of_this_botdot_ends_the_session() {
-        let home = url("https://botdot.example.com/");
-        assert!(session_over(&home, &url("https://botdot.example.com/sign-in")));
-        assert!(session_over(&home, &url("https://botdot.example.com/sign-in#rooms/join=x")));
-        assert!(!session_over(&home, &url("https://botdot.example.com/sign-in/options")));
-        assert!(!session_over(&home, &url("https://botdot.example.com/")));
-        assert!(!session_over(&home, &url("https://other.example.com/sign-in")));
+        let door = url("https://botdot.example.com/");
+        assert!(session_over(&door, &url("https://botdot.example.com/sign-in")));
+        assert!(session_over(&door, &url("https://botdot.example.com/sign-in#rooms/join=x")));
+        assert!(!session_over(&door, &url("https://botdot.example.com/sign-in/options")));
+        assert!(!session_over(&door, &url("https://botdot.example.com/")));
+        assert!(!session_over(&door, &url("https://other.example.com/sign-in")));
     }
 
     #[test]
-    fn only_the_web_outside_this_botdot_has_left_it() {
-        let home = url("http://localhost:3000/");
-        assert!(left_home(&home, &url("https://example.com/")));
-        assert!(left_home(&home, &url("http://localhost:4000/")));
-        assert!(!left_home(&home, &url("http://localhost:3000/chat")));
-        assert!(!left_home(&home, &url("tauri://localhost/index.html")));
-        assert!(!left_home(&home, &url("about:blank")));
+    fn only_the_web_outside_this_front_door_has_left_it() {
+        let door = url("http://localhost:3000/");
+        assert!(left_door(&door, &url("https://example.com/")));
+        assert!(left_door(&door, &url("http://localhost:4000/")));
+        assert!(!left_door(&door, &url("http://localhost:3000/chat")));
+        assert!(!left_door(&door, &url("tauri://localhost/index.html")));
+        assert!(!left_door(&door, &url("about:blank")));
     }
 
     #[test]
     fn a_new_window_of_this_botdot_stays_and_others_go_to_the_browser() {
-        let home = url("https://botdot.example.com/");
-        assert_eq!(new_window(&home, &url("https://botdot.example.com/api/files/a.pdf")), Window::OfTheApp);
-        assert_eq!(new_window(&home, &url("https://example.com/")), Window::Browser);
-        assert_eq!(new_window(&home, &url("mailto:a@example.com")), Window::Browser);
-        assert_eq!(new_window(&home, &url("about:blank")), Window::Nothing);
-        assert_eq!(new_window(&home, &url("file:///etc/passwd")), Window::Nothing);
+        let door = url("https://botdot.example.com/");
+        assert_eq!(new_window(&door, &url("https://botdot.example.com/api/files/a.pdf")), Window::OfTheApp);
+        assert_eq!(new_window(&door, &url("https://example.com/")), Window::Browser);
+        assert_eq!(new_window(&door, &url("mailto:a@example.com")), Window::Browser);
+        assert_eq!(new_window(&door, &url("about:blank")), Window::OfTheApp);
+        assert_eq!(new_window(&door, &url("file:///etc/passwd")), Window::Nothing);
     }
 }

@@ -13,6 +13,7 @@ use handoff::Secret;
 use keep::Kept;
 use serde::Serialize;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use tauri::webview::{cookie::Cookie, NewWindowResponse, PageLoadEvent};
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
@@ -24,20 +25,29 @@ struct App {
     file: PathBuf,
     /// The address of the app's own screen.
     screen: Mutex<Option<Url>>,
-    /// The botdot the window is on, once signed in.
-    home: Mutex<Option<Url>>,
+    /// The front door the window is on, once signed in.
+    door: Mutex<Option<Url>>,
+    /// Numbers the windows of the front door's own links.
+    windows: AtomicUsize,
     /// A sign-in waiting in the browser.
     waiting: Mutex<Option<(Url, Secret)>>,
 }
 
 impl App {
-    fn home(&self) -> Option<Url> {
-        self.home.lock().unwrap().clone()
+    fn door(&self) -> Option<Url> {
+        self.door.lock().unwrap().clone()
     }
 }
 
 fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
     app.get_webview_window("main")
+}
+
+fn bring_forward(app: &AppHandle) {
+    if let Some(window) = main_window(app) {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
 }
 
 fn open_in_browser(app: &AppHandle, url: &Url) {
@@ -50,20 +60,29 @@ fn enter(app: &AppHandle, address: &Url, set_cookie: &str) -> Option<()> {
     let mut cookie = Cookie::parse(set_cookie.to_string()).ok()?;
     cookie.set_domain(address.host_str()?.to_string());
     window.set_cookie(cookie).ok()?;
-    *app.state::<App>().home.lock().unwrap() = Some(address.clone());
+    *app.state::<App>().door.lock().unwrap() = Some(address.clone());
     window.navigate(address.clone()).ok()
 }
 
-// The session is over: its cookie goes, here and in the window, and the app's screen comes back with the address.
-fn session_over(app: &AppHandle, home: &Url) {
+// The session is over: its cookie goes, here and in the window, the windows of its links close, and the app's screen
+// comes back with the address.
+fn session_over(app: &AppHandle, door: &Url) {
     let state = app.state::<App>();
     let kept = keep::load(&state.file);
     let _ = keep::save(&state.file, &Kept { cookie: None, ..kept });
-    *state.home.lock().unwrap() = None;
+    *state.door.lock().unwrap() = None;
+    for (label, window) in app.webview_windows() {
+        if label != "main" {
+            let _ = window.close();
+        }
+    }
     let screen = state.screen.lock().unwrap().clone();
     if let (Some(window), Some(screen)) = (main_window(app), screen) {
-        for cookie in window.cookies_for_url(home.clone()).unwrap_or_default() {
-            let _ = window.delete_cookie(cookie);
+        // All cookies and not cookies_for_url: that one finds nothing for an address that is a number, as 127.0.0.1.
+        for cookie in window.cookies().unwrap_or_default() {
+            if cookie.domain() == door.host_str() {
+                let _ = window.delete_cookie(cookie);
+            }
         }
         let _ = window.navigate(screen);
     }
@@ -71,30 +90,27 @@ fn session_over(app: &AppHandle, home: &Url) {
 
 // Every window of the app: where its page may go.
 fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle>) -> WebviewWindowBuilder<'a, Wry, AppHandle> {
-    let (on_navigate, on_load, on_new_window) = (app.clone(), app.clone(), app.clone());
+    let (on_load, on_new_window) = (app.clone(), app.clone());
     builder
-        .on_navigation(move |to| {
-            let Some(home) = on_navigate.state::<App>().home() else { return true };
-            if !route::session_over(&home, to) {
-                return true;
-            }
-            let app = on_navigate.clone();
-            tauri::async_runtime::spawn(async move { session_over(&app, &home) });
-            false
-        })
         .on_page_load(move |window, load| {
-            let Some(home) = on_load.state::<App>().home() else { return };
-            if load.event() == PageLoadEvent::Started && route::left_home(&home, load.url()) {
+            let Some(door) = on_load.state::<App>().door() else { return };
+            if load.event() != PageLoadEvent::Started {
+                return;
+            }
+            if route::session_over(&door, load.url()) {
+                let app = on_load.clone();
+                tauri::async_runtime::spawn(async move { session_over(&app, &door) });
+            } else if route::left_door(&door, load.url()) {
                 open_in_browser(&on_load, load.url());
-                let _ = window.eval("history.back()");
+                let _ = if window.label() == "main" { window.eval("history.back()") } else { window.close() };
             }
         })
         .on_new_window(move |to, features| {
-            let Some(home) = on_new_window.state::<App>().home() else { return NewWindowResponse::Deny };
-            match route::new_window(&home, &to) {
+            let Some(door) = on_new_window.state::<App>().door() else { return NewWindowResponse::Deny };
+            match route::new_window(&door, &to) {
                 route::Window::OfTheApp => {
-                    let label = format!("page-{}", on_new_window.webview_windows().len());
-                    let builder = WebviewWindowBuilder::new(&on_new_window, label, WebviewUrl::External(to)).title("botdot").window_features(features);
+                    let number = on_new_window.state::<App>().windows.fetch_add(1, Ordering::Relaxed);
+                    let builder = WebviewWindowBuilder::new(&on_new_window, format!("page-{number}"), WebviewUrl::External(to)).title("botdot").window_features(features);
                     match guarded(&on_new_window, builder).build() {
                         Ok(window) => {
                             #[cfg(target_os = "macos")]
@@ -114,6 +130,11 @@ fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle
         .on_download(|_, _| true)
 }
 
+async fn reachable(address: &Url) -> bool {
+    let address = address.clone();
+    tauri::async_runtime::spawn_blocking(move || handoff::reachable(&address)).await.unwrap_or(false)
+}
+
 #[derive(Serialize, Default)]
 struct Start {
     address: Option<String>,
@@ -130,13 +151,7 @@ async fn start(app: AppHandle) -> Start {
     let (Some(address), Some(cookie)) = (address, kept.cookie) else {
         return Start { address: shown, ..Start::default() };
     };
-    if !tauri::async_runtime::spawn_blocking({
-        let address = address.clone();
-        move || handoff::reachable(&address)
-    })
-    .await
-    .unwrap_or(false)
-    {
+    if !reachable(&address).await {
         return Start { address: shown, error: Some("unreachable"), ..Start::default() };
     }
     Start { address: shown, entering: enter(&app, &address, &cookie).is_some(), ..Start::default() }
@@ -146,13 +161,7 @@ async fn start(app: AppHandle) -> Start {
 #[tauri::command]
 async fn connect(app: AppHandle, address: String) -> Result<(), &'static str> {
     let address = address::parse(&address).ok_or("invalid")?;
-    let reachable = tauri::async_runtime::spawn_blocking({
-        let address = address.clone();
-        move || handoff::reachable(&address)
-    })
-    .await
-    .unwrap_or(false);
-    if !reachable {
+    if !reachable(&address).await {
         return Err("unreachable");
     }
     let state = app.state::<App>();
@@ -168,42 +177,37 @@ async fn connect(app: AppHandle, address: String) -> Result<(), &'static str> {
     Ok(())
 }
 
-// The browser came back with `botdot://signed-in?code=…`. A link nobody waits for is nothing.
+// The browser came back with `botdot://signed-in?code=…`. A link nobody waits for is nothing. The sign-in waits on
+// until a code works: a link from an older try fails without ending the newest.
 fn signed_in(app: &AppHandle, link: &Url) {
     let Some(code) = handoff::code_of(link) else { return };
-    let state = app.state::<App>();
-    let Some((address, secret)) = state.waiting.lock().unwrap().take() else { return };
-    if let Some(window) = main_window(app) {
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
+    let Some((address, secret)) = app.state::<App>().waiting.lock().unwrap().clone() else { return };
+    bring_forward(app);
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         let session = tauri::async_runtime::spawn_blocking({
             let address = address.clone();
-            move || handoff::take_session(&address, &code, secret)
+            move || handoff::take_session(&address, &code, &secret)
         })
         .await
         .ok()
         .flatten();
+        let state = app.state::<App>();
         let saved = session.as_ref().is_some_and(|cookie| {
             let kept = Kept { address: Some(address.to_string()), cookie: Some(cookie.clone()) };
-            keep::save(&app.state::<App>().file, &kept).is_ok()
+            keep::save(&state.file, &kept).is_ok()
         });
         if !saved || enter(&app, &address, session.as_deref().unwrap_or_default()).is_none() {
             let _ = app.emit("sign-in-failed", ());
+            return;
         }
+        *state.waiting.lock().unwrap() = None;
     });
 }
 
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(window) = main_window(app) {
-                let _ = window.unminimize();
-                let _ = window.set_focus();
-            }
-        }))
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| bring_forward(app)))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_window_state::Builder::new().with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED).with_filter(|label| label == "main").build())
@@ -213,7 +217,8 @@ fn main() {
             app.manage(App {
                 file: app.path().app_data_dir()?.join("session.json"),
                 screen: Mutex::new(None),
-                home: Mutex::new(None),
+                door: Mutex::new(None),
+                windows: AtomicUsize::new(0),
                 waiting: Mutex::new(None),
             });
             let builder = WebviewWindowBuilder::new(&handle, "main", WebviewUrl::App("index.html".into())).title("botdot").inner_size(1200.0, 800.0).min_inner_size(420.0, 500.0);

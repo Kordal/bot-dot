@@ -3,8 +3,10 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD as BASE64, Engine};
 use sha2::{Digest, Sha256};
 use tauri::Url;
+use ureq::tls::{RootCerts, TlsConfig};
 
-/// Forgotten once its code has been sent.
+/// Forgotten once its code has brought a session.
+#[derive(Clone)]
 pub struct Secret {
     pub verifier: String,
 }
@@ -35,20 +37,27 @@ pub fn code_of(link: &Url) -> Option<String> {
     link.query_pairs().find(|(k, _)| k == "code").map(|(_, v)| v.into_owned()).filter(|c| !c.is_empty())
 }
 
-fn agent() -> ureq::Agent {
-    ureq::Agent::config_builder().http_status_as_error(false).timeout_global(Some(std::time::Duration::from_secs(15))).build().into()
+// The system's certificates: a front door with its own certificate authority (BOT_DOT_TLS=internal) is trusted as the
+// window trusts it.
+fn client() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .timeout_global(Some(std::time::Duration::from_secs(15)))
+        .tls_config(TlsConfig::builder().root_certs(RootCerts::PlatformVerifier).build())
+        .build()
+        .into()
 }
 
 /// Whether a front door answers at this address.
 pub fn reachable(address: &Url) -> bool {
     let page = address.join("/sign-in").expect("a path");
-    agent().get(page.as_str()).call().is_ok_and(|answer| answer.status() == 200)
+    client().get(page.as_str()).call().is_ok_and(|answer| answer.status() == 200)
 }
 
 /// The session's `Set-Cookie`, for the code and the secret that belongs to it.
-pub fn take_session(address: &Url, code: &str, secret: Secret) -> Option<String> {
+pub fn take_session(address: &Url, code: &str, secret: &Secret) -> Option<String> {
     let url = address.join("/sign-in/handoff").expect("a path");
-    let answer = agent()
+    let answer = client()
         .post(url.as_str())
         .header("X-Bot-Dot", "1")
         .content_type("application/json")
@@ -123,7 +132,7 @@ mod tests {
     #[test]
     fn a_code_and_its_secret_bring_the_sessions_cookie() {
         let (address, asked) = door("HTTP/1.1 200 OK\r\nSet-Cookie: botdot_session=s3; Path=/; HttpOnly\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}");
-        let cookie = take_session(&address, "the-code", Secret { verifier: "the-secret".into() });
+        let cookie = take_session(&address, "the-code", &Secret { verifier: "the-secret".into() });
         assert_eq!(cookie.as_deref(), Some("botdot_session=s3; Path=/; HttpOnly"));
         let asked = asked.join().unwrap().to_lowercase();
         assert!(asked.starts_with("post /sign-in/handoff "));
@@ -134,7 +143,7 @@ mod tests {
     #[test]
     fn a_refused_hand_off_brings_nothing() {
         let (address, asked) = door("HTTP/1.1 401 Unauthorized\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}");
-        assert_eq!(take_session(&address, "c", Secret::new()), None);
+        assert_eq!(take_session(&address, "c", &Secret::new()), None);
         asked.join().unwrap();
     }
 

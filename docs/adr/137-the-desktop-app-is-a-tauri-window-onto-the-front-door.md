@@ -16,7 +16,7 @@ ADR 0001 chose native apps per platform, and accepted that every web feature is 
 - **Sign-in is the front door's browser hand-off, with `app: "desktop"`.** The app opens `/sign-in?app=desktop&handoff=…` in the system browser, so the browser and its password manager answer the passkey, and takes `botdot://signed-in?code=…` back. A passkey never runs inside the window, which has no site identity of its own to offer on these unsigned builds.
 - **The session cookie stays with the app, for one address,** in a file only its user can read, and goes into the window before the page loads. Arriving at `/sign-in` is how the app learns the session is over: the page goes there on a `401` with `signIn` and after a sign-out. The app then forgets the cookie and shows its own screen, with the address kept.
 - **The window's page has no way into the app.** Only the app's own screen may call its commands. The window is full of text and frames from bots and other sites, so a page there can't start a sign-in or read the session.
-- **Links to other sites open in the system browser.** A new window for the front door's own address (a PDF, "Open as document", a full-size screen) stays in the app and shares the session. Frames from other sites stay in their frames.
+- **Links to other sites open in the system browser.** A new window for the front door's own address (a PDF, "Open as document", a full-size screen) stays in the app and shares the session, and closes with it. Frames from other sites stay in their frames.
 - **Only `https`, or `http` on the computer itself.** A passkey needs a secure page anyway, and the session's cookie must not cross a network in the clear.
 - **Builds are unsigned at first.** Windows code signing and macOS notarization are follow-ups.
 
