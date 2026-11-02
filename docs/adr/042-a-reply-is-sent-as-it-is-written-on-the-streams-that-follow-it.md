@@ -37,6 +37,8 @@ The owner decided on 2026-10-20 (#178): real streaming, not a word-by-word revea
 
 ## The paced reveal (amendment, 2026-11-02, [#860](https://github.com/Kordal/bot-dot/issues/860))
 
+*(Amended 2026-11-02, [#869](https://github.com/Kordal/bot-dot/issues/869): the Android app no longer paces the reveal. The owner found that the text trailing behind got in the way; each draft is drawn whole as it comes. Its open marks are still left out and it still redraws only its last block.)*
+
 Measured with Claude Code 2.1.316: the `text_delta`s arrive every 33 to 50 ms, about 9 characters each. Sent at most every 200 ms, each `reply_draft` adds 20 to 95 characters, and the first one 54 to 136 (the held opening line); drawn at once, the reply grew in jumps of 5 to 10 words five times a second. The server stays as it is; each app paces what it shows:
 
 - **Target and shown.** The app keeps the draft it was sent (the target) and the part of it shown. Each frame shows more of the target, in whole graphemes, at a rate set when a draft arrives so that its backlog is caught up with in about 250 ms, at least one grapheme a frame. A slow stream reads letter by letter; a fast one is never more than about a quarter of a second behind.
