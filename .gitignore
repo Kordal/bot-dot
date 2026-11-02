@@ -42,3 +42,4 @@ marketing/
 # The desktop app's build output
 /desktop/src-tauri/target/
 /desktop/src-tauri/gen/
+/desktop/src-tauri/lima/

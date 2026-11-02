@@ -25,7 +25,7 @@ const SUB = 165536;
 // The machine's own tools, without those a test stands in for or leaves out: a Linux machine may have the real
 // tailscale, runsc or setfacl, and a test that leaves one out must find it missing. Made once, as links.
 const OWN = new Set(['docker', 'tailscale', 'dockerd-rootless.sh', 'rootlesskit', 'runsc', 'setfacl', 'newuidmap', 'slirp4netns', 'pasta', 'vpnkit',
-  'apt-get', 'dpkg', 'dpkg-query', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
+  'apt-get', 'dpkg', 'dpkg-query', 'iptables', 'ip6tables', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
   'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'truncate', 'df', 'getconf']);
 let systemTools = null;
 function machineTools() {
@@ -119,7 +119,7 @@ case " $* " in *" --create-home "*) h="$(echo " $* " | sed 's/.* --home-dir \\([
 case " $* " in *" --system "*) echo "$name:$((990 - n)):$((990 - n))" >> "${users}" ;; *) echo "$name:$((1001 + n)):$((1001 + n))" >> "${users}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subuid')}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subgid')}" ;; esac
 h=''; prev=''; for a in "$@"; do [ "$prev" = --home-dir ] && h="$a"; prev="$a"; done
 echo "$name:x:$(grep "^$name:" "${users}" | cut -d: -f2-3):botdot:$h:/usr/sbin/nologin" >> "${path.join(etc, 'passwd')}"`);
-  for (const name of ['chown', 'setfacl', 'apparmor_parser', 'gpg', 'nohup', 'umount', 'mkfs.ext4', 'resize2fs']) stand(name, said(name));
+  for (const name of ['chown', 'setfacl', 'apparmor_parser', 'gpg', 'nohup', 'umount', 'mkfs.ext4', 'resize2fs', 'iptables', 'ip6tables']) stand(name, said(name));
   // An account's disk: an image file the stand-in truncate writes its size in, mounted (as a mark) by mount.
   const mounts = path.join(top, 'mounts');
   stand('truncate', `${said('truncate')}\ndd if=/dev/zero of="$3" bs=1 count=0 seek="$(( \${2%G} * 1073741824 ))" 2>/dev/null`);

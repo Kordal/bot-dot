@@ -16,7 +16,16 @@ The desktop app for Windows and Mac (#878) is a window onto a front door. Beside
 - **The passkey is made with a setup key.** The installer makes the key once (64 hex characters, which the front door's 32 to 100 base64url characters include) and keeps it in the front door's `.env`, which only root reads. It opens the one account's sign-up page until that account exists, and nothing after.
 - **On localhost.** The front door listens on the VM's 127.0.0.1 with the origin `http://localhost:<port>` (`BOT_DOT_PORT`, 4700 by default): a passkey can belong to `localhost`, never to 127.0.0.1. Bots' interactive pages are on the next port, `http://localhost:<port + 1>`, an origin of its own as the server's port 8443 is (ADR 072). There is no Caddy and no Tailscale. The VM passes those ports to the computer's own localhost (WSL2's localhost forwarding, Lima's port forwarding).
 - **One line for the app.** The install's last line is `BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/<setup key>"}`, JSON after the word, and without `signUp` once the account exists. The key is printed nowhere else.
-- **The rest of the lifecycle is a server's.** A rerun keeps how botdot is reached, the port, the key, the account and its passkey. `install.sh --update` updates it in its phases (ADR 045), and `--uninstall` removes it. With no admin page, the desktop app runs them.
+- **The rest of the lifecycle is a server's.** A rerun keeps how botdot is reached, the port, the key, the account and its passkey. `install.sh --update` updates it in its phases (ADR 045), and `--uninstall` removes it. With no admin page, the desktop app runs them: its menu asks root's step for the update with the `UPDATE` file, as the admin page does.
+- **The VM can't reach the computer or its network.** In mode `local` the installer writes a chain, `BOTDOT-LOCAL`, on the VM's OUTPUT, from a unit that runs before Docker and its network (`botdot-local-firewall`). New connections to private ranges are refused, the VM's gateway among them; only DNS to the VM's own resolvers stays open, as Lima's resolver is on the gateway. What the VM answers stays open, so the port forward and `limactl shell` work.
+
+## On macOS: the spike's result (#880)
+
+- **gVisor works, and there is no plan B.** On macOS 27 with an Apple M5, Lima 2.2.1 (`vz`), Ubuntu 24.04 and kernel 6.8: the real `install.sh` ran unchanged, with systemd's units, rootless Docker, `runsc` and `runsc-uds` under systrap, the account's share, a computer with its firewall and its screen. A passkey was made in Safari at `http://localhost:4700`, and a restarted VM answered in 11 s.
+- **The gateway is the Mac's localhost.** Lima's `192.168.5.2` maps to the Mac's `127.0.0.1`: from a bot's computer a server bound there and the home router both answered, which the computer's own firewall doesn't stop. The rule above is why.
+- **Lima comes with the app.** `desktop/lima.sh` puts the release's `limactl`, with its virtualization entitlement, its guest agent and its templates in the Mac's bundle at build time, checked by SHA-256, so the owner needs no Homebrew. Its Lima home is `~/.botdot`: short, as Lima keeps sockets there, and away from other Lima instances.
+- **The VM's share of the Mac.** Half the CPUs (2 to 8), a third of the memory (8 to 16 GiB) and half the free disk (60 to 200 GiB, sparse). A Mac with under 12 GB of memory or 40 GB free is refused: the account alone takes 5 GiB. Plan on the whole VM's memory as the Mac's cost, since its page cache isn't given back. Only the front door's two ports are forwarded.
+- **A launch agent starts the VM at login,** `dev.botdot.vm`, with `RunAtLoad` and `limactl start`, which returns once the VM is ready and leaves it running. The app writes it again when it moved.
 
 ## Alternatives
 
@@ -27,6 +36,7 @@ The desktop app for Windows and Mac (#878) is a window onto a front door. Beside
 
 ## Consequences
 
+- The compose file of the old Mac app's local server (`compose.mac.yaml`) is not used and not changed.
 - Root in the VM reaches the account, as root on a server does; the VM is the owner's own.
 - The bots stop while the computer sleeps or the VM is stopped.
 - A phone can't reach a local botdot: it answers on localhost only.

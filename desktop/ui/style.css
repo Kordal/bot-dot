@@ -1,7 +1,10 @@
 :root { color-scheme: dark; --bg: #141413; --fg: #ecebe8; --line: #34332f; --dot: #d85a30; --err: #ef6b6b; }
-body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+body { margin: 0; min-height: 100vh; display: grid; place-content: center; justify-items: center; gap: 12px; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
 form { width: min(320px, calc(100vw - 32px)); }
 input { box-sizing: border-box; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: inherit; font: inherit; margin: 0 0 16px; }
 button { width: 100%; padding: 10px 12px; border: 0; border-radius: 8px; background: var(--dot); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+#here { margin-top: 8px; border: 1px solid var(--line); background: transparent; color: inherit; font-weight: 400; }
 button:disabled { opacity: .6; cursor: default; }
 p { min-height: 24px; margin: 12px 0 0; color: var(--err); }
+#line { min-height: 0; max-width: min(480px, calc(100vw - 32px)); margin: 0; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#last { width: min(640px, calc(100vw - 32px)); max-height: 40vh; margin: 0; overflow: auto; color: var(--err); font-size: 12px; white-space: pre-wrap; }

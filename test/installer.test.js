@@ -145,6 +145,27 @@ test('a local install is one account on localhost, made with a setup key, for th
   assert.match(bad.stderr, /BOT_DOT_PORT: a port is a number from 1024 to 65534\./);
 });
 
+test('a local install keeps the VM from the computer it runs on and its network, and a server has no such rules (#887)', (t) => {
+  const done = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local' }, systemd: true });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  const rules = fs.readFileSync(path.join(done.dir, 'bin', 'local-firewall.sh'), 'utf8');
+  assert.match(rules, /-m conntrack ! --ctstate NEW -j RETURN/, 'what the VM answers stays open: the port forward and limactl shell');
+  for (const net of ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '169.254.0.0/16', '100.64.0.0/10', '198.18.0.0/15']) assert.ok(rules.includes(net), net);
+  assert.ok(rules.indexOf('--dport 53') < rules.indexOf('-j REJECT'), 'the DNS on the gateway stays open');
+  assert.ok(rules.indexOf('docker+') < rules.indexOf('-j REJECT'), "and this machine's own Docker");
+  assert.match(done.system, /^systemctl enable botdot-local-firewall$/m, 'it comes back with a restart');
+  assert.match(done.system, /^systemctl restart botdot-local-firewall$/m);
+  assert.match(done.said, /This VM can't reach the computer it runs on/);
+
+  const noSystemd = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local' }, systemd: false });
+  assert.match(noSystemd.system, /^iptables -A BOTDOT-LOCAL -d 192\.168\.0\.0\/16 -j REJECT$/m, 'without systemd the rules go in at once');
+
+  const server = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'public', BOT_DOT_DOMAIN: 'botdot.example.com', BOT_DOT_ADMIN: 'ann' } });
+  assert.equal(server.status, 0, server.stderr);
+  assert.ok(!fs.existsSync(path.join(server.dir, 'bin', 'local-firewall.sh')));
+  assert.doesNotMatch(server.system, /local-firewall|^iptables/m);
+});
+
 test('the question offers a public domain and a tailnet only: local is never an answer to it (#882)', (t) => {
   const done = installer(t, { dotenv: '', input: 'local\n3\n' });
   assert.equal(done.status, 1);

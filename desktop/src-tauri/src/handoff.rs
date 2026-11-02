@@ -23,7 +23,11 @@ impl Secret {
     }
 
     pub fn page(&self, address: &Url) -> Url {
-        let mut page = address.join("/sign-in").expect("a path");
+        self.on(address.join("/sign-in").expect("a path"))
+    }
+
+    /// A page of the hand-off: the sign-in, or the sign-up that makes a local botdot's one account (ADR 136).
+    pub fn on(&self, mut page: Url) -> Url {
         page.query_pairs_mut().append_pair("app", "desktop").append_pair("handoff", &self.challenge());
         page
     }

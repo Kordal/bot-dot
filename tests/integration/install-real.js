@@ -253,6 +253,7 @@ const cases = [
       assert.equal(said.split(key).length, 2, 'the setup key is on the screen in that line alone');
       assert.match(machine.exec('stat', '-c', '%a %U', `${DIR}/front-door/.env`), /^600 root$/, 'and kept where only root reads it');
       assert.ok(!machine.inner('ps', '--format', '{{.Names}}').includes('caddy'), 'no Caddy runs');
+      assert.match(machine.exec('iptables', '-S', 'BOTDOT-LOCAL'), /-d 192\.168\.0\.0\/16 -j REJECT/, 'the VM keeps away from the computer and its network');
 
       stage.step('the passkey, made with the setup key on localhost');
       const at = new URL(line.signUp).pathname;
