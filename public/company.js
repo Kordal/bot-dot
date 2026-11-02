@@ -139,14 +139,15 @@ const Company = (() => {
       <div class="rail-sep"></div>
       ${listed().map((p) => square(p, inProject(p))).join('')}
       ${old.length ? `<div class="rail-sep"></div>${old.map((p) => square(p, inProject(p))).join('')}` : ''}
-      <button type="button" class="rail-add${!home && adding ? ' here' : ''}" data-new-project aria-label="${tr('New project')}" title="${tr('New project')}">${ICON.plus}</button>
+      <button type="button" class="rail-add${!home && adding ? ' here' : ''}" data-rail-new aria-haspopup="menu" aria-label="${tr('New')}" title="${tr('New')}">${ICON.plus}</button>
       <div class="rail-foot"></div>`;
     if (rail.dataset.html !== html) {
       // The logo and the tools are moved out first: they are the page's own, with their handlers.
       placeTools(false);
       rail.dataset.html = html;
       rail.innerHTML = html;
-      $('[data-new-project]', rail).onclick = () => enter(null);
+      const add = $('[data-rail-new]', rail);
+      add.onclick = () => { const r = add.getBoundingClientRect(); menuAt({ x: r.right + 8, y: r.top }, newItems()); };
       $$('.rail-sq', rail).forEach((b) => { b.onclick = () => enter(b.dataset.space); b.oncontextmenu = (e) => rowMenu(e, b.dataset.space); });
       placeTools(matchMedia(WIDE).matches);
     }
@@ -202,6 +203,7 @@ const Company = (() => {
       <i class="sp-grip"></i>
       <button type="button" class="sp-row${hereAttr(home)}" data-space="home"><span class="sp-home-mark">bot<i class="brand-dot"></i></span><span class="ct-name">${tr('Home')}</span></button>
       ${listed().map(row).join('')}${archivedOnes().map(row).join('')}
+      <button type="button" class="sp-row" data-new-bot><span class="sp-add">${ICON.plus}</span><span class="ct-name">${tr('New bot')}</span></button>
       <button type="button" class="sp-row" data-space=""><span class="sp-add">${ICON.plus}</span><span class="ct-name">${tr('New project')}</span></button>
     </dialog>`);
     const d = $('#spaces-sheet');
@@ -212,13 +214,28 @@ const Company = (() => {
     }
     d.addEventListener('close', () => { d.remove(); at?.focus?.(); });
     d.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-space]');
+      const b = e.target.closest('[data-space], [data-new-bot]');
       if (!b && e.target !== d) return;
       d.close();
-      if (b) enter(b.dataset.space || null);
+      if (b?.hasAttribute('data-new-bot')) newBot();
+      else if (b) enter(b.dataset.space || null);
     });
     d.showModal();
     ($('.sp-row.here', d) || $('.sp-row', d)).focus();
+  }
+  // "+" (#853): a new bot or a new project. A bot is made by the Chief (CONTEXT.md): Home, a new chat with the Chief,
+  // its message box started for the owner to finish.
+  const newItems = () => [{ label: tr('New bot'), attr: 'data-new-bot', run: newBot }, { label: tr('New project'), attr: 'data-new-project', run: () => enter(null) }];
+  function newBot() {
+    enter('home');
+    state.chatNew = true;
+    showChat(null);
+    const box = $('#view-chief form')?.text;
+    if (!box) return;
+    box.value = tr('A new bot that ');
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
   }
   // A space from the rail: Home (id 'home'), a project, or a new one (null).
   function enter(id) {

@@ -50,7 +50,9 @@ class SpaceSwitchUiTest {
         rule.onNodeWithContentDescription("Quotz IT").performClick()
         rule.onNodeWithContentDescription("Quotz IT").assertIsSelected()
         rule.onNodeWithContentDescription("Home").assertIsNotSelected()
-        rule.onNodeWithContentDescription("New project").performClick()
+        rule.onNodeWithContentDescription("New").performClick() // "+": New bot or New project (#853)
+        rule.onNodeWithText("New bot").assertIsDisplayed()
+        rule.onNodeWithText("New project").performClick()
         rule.onNodeWithContentDescription("Search").performClick()
         assertEquals(listOf("p1"), picked)
         assertEquals(1, news)
@@ -70,6 +72,7 @@ class SpaceSwitchUiTest {
         rule.onNodeWithTag(SPACE_SHEET).assertIsDisplayed()
         rule.onNodeWithText("Home").assertIsDisplayed()
         rule.onNodeWithText("My Gym").assertIsDisplayed()
+        rule.onNodeWithText("New bot").assertIsDisplayed()
         rule.onNodeWithText("New project").assertIsDisplayed()
         rule.onNodeWithText("Home").performClick()
         rule.waitForIdle()
@@ -78,21 +81,24 @@ class SpaceSwitchUiTest {
 
     @Test fun beforeTheFirstProjectTheSpacesStartOne() {
         var news = 0
+        var bots = 0
         rule.setContent {
             var open by remember { mutableStateOf(false) }
-            val ways = SpaceWays(emptyList(), Spaces.HOME, pick = {}, new = { news++ }, on = true)
+            val ways = SpaceWays(emptyList(), Spaces.HOME, pick = {}, new = { news++ }, on = true, newBot = { bots++ })
             Row { SpaceRail(ways, busy = false, onSearch = {}, onSettings = {}) }
             SpaceTitle(ways, busy = false, onOpen = { open = true })
             if (open) SpaceSheet(ways) { open = false }
         }
         rule.onNodeWithTag(SPACE_RAIL).assertIsDisplayed()
-        rule.onNodeWithContentDescription("New project").performClick()
+        rule.onNodeWithContentDescription("New").performClick()
+        rule.onNodeWithText("New bot").performClick()
         rule.onNodeWithTag(SPACE_TITLE).performClick()
         rule.onNodeWithTag(SPACE_SHEET).assertIsDisplayed()
         rule.onNodeWithText("Home").assertIsDisplayed()
         rule.onNodeWithText("New project").performClick()
         rule.waitForIdle()
-        assertEquals(2, news)
+        assertEquals(1, news)
+        assertEquals(1, bots)
     }
 
     @Test fun withoutProjectsTheTitleIsTheLogoAlone() {

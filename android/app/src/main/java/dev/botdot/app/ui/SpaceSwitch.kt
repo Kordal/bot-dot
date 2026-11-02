@@ -24,11 +24,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,9 +55,10 @@ import dev.botdot.app.data.tr
  * The spaces (#836, #840) as the screens draw them: [list] the projects with their counts, [current] the space on
  * screen ([Spaces.HOME] or a project's id). [pick] opens a space, [new] starts a project with today's setup. [on]: the
  * botdot has projects (`company`); then the rail and the sheet are there with an empty [list] too, with Home and New
- * project, the way to the first one (#853). Off: no rail, no sheet, and the title is the logo alone.
+ * project, the way to the first one (#853). Off: no rail, no sheet, and the title is the logo alone. [newBot]: "+" is
+ * generic (#853), a new bot (the Chief's new chat, its box started) or a new project.
  */
-internal class SpaceWays(val list: List<Spaces.Space>, val current: String, val pick: (String) -> Unit, val new: () -> Unit, val on: Boolean = list.isNotEmpty()) {
+internal class SpaceWays(val list: List<Spaces.Space>, val current: String, val pick: (String) -> Unit, val new: () -> Unit, val on: Boolean = list.isNotEmpty(), val newBot: () -> Unit = {}) {
     val shown: Boolean get() = on
     val project: Spaces.Space? get() = list.firstOrNull { it.id == current }
 }
@@ -113,9 +120,11 @@ internal fun SpaceSheet(ways: SpaceWays, onDismiss: () -> Unit) {
             ways.list.forEach { s ->
                 SheetRow(here = ways.current == s.id, label = s.name, count = s.asks, onClick = { onDismiss(); ways.pick(s.id) }) { SpaceSquare(s.name, s.color, 36.dp) }
             }
-            SheetRow(here = false, label = tr("New project"), onClick = { onDismiss(); ways.new() }) {
-                Box(Modifier.size(36.dp).clip(Radius.small).border(1.dp, p.line2, Radius.small), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Add, null, tint = p.muted, modifier = Modifier.size(20.dp))
+            listOf(tr("New bot") to ways.newBot, tr("New project") to ways.new).forEach { (label, run) ->
+                SheetRow(here = false, label = label, onClick = { onDismiss(); run() }) {
+                    Box(Modifier.size(36.dp).clip(Radius.small).border(1.dp, p.line2, Radius.small), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.Add, null, tint = p.muted, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
         }
@@ -158,9 +167,17 @@ internal fun SpaceRail(ways: SpaceWays, busy: Boolean, onSearch: () -> Unit, onS
                         }
                     }
                 }
-                RailItem(here = false, label = tr("New project"), onClick = ways.new) {
-                    Box(Modifier.size(44.dp).clip(Radius.card).border(1.dp, p.line2, Radius.card), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.Add, null, tint = p.muted, modifier = Modifier.size(20.dp))
+                // "+": New bot or New project (#853).
+                var menu by remember { mutableStateOf(false) }
+                Box {
+                    RailItem(here = false, label = tr("New"), onClick = { menu = true }) {
+                        Box(Modifier.size(44.dp).clip(Radius.card).border(1.dp, p.line2, Radius.card), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Add, null, tint = p.muted, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        DropdownMenuItem(text = { Text(tr("New bot"), color = p.text) }, onClick = { menu = false; ways.newBot() })
+                        DropdownMenuItem(text = { Text(tr("New project"), color = p.text) }, onClick = { menu = false; ways.new() })
                     }
                 }
             }

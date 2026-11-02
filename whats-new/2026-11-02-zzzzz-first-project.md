@@ -1,4 +1,4 @@
-The first project starts from the rail
+One + for a new bot or a new project
 - The Bots and Projects switch is gone also before your first project.
-- On a wide screen the rail shows Home and +; on a phone the logo's arrow opens Home and New project.
-- The Android app can start the first project the same way.
+- The + in the rail asks: New bot or New project. New bot opens a new chat with the Chief of Staff, ready to describe it.
+- On a phone the logo's arrow opens Home, New bot and New project, on the web page and in the Android app.

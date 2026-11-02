@@ -1,4 +1,4 @@
-Pierwszy projekt zaczyna się z paska
+Jeden + na nowego bota albo nowy projekt
 - Przełącznik Boty i Projekty zniknął też przed pierwszym projektem.
-- Na szerokim ekranie pasek pokazuje Start i +; na telefonie strzałka przy logo otwiera Start i Nowy projekt.
-- Aplikacja na Androida też może zacząć pierwszy projekt w ten sam sposób.
+- + na pasku pyta: Nowy bot czy Nowy projekt. Nowy bot otwiera nowy czat z Szefem sztabu, gotowy do opisania bota.
+- Na telefonie strzałka przy logo otwiera Start, Nowy bot i Nowy projekt, na stronie i w aplikacji na Androida.
