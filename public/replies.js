@@ -6,6 +6,7 @@
 let lastTouch = Date.now();
 let lastPresence = 0;
 let presenceChat = null;
+const presencePage = Unread.appId().slice(4); // this page among the account's pages in use
 const chatInView = () => (state.view === 'chief' && state.chatId ? `chief:${state.chatId}` : state.view === 'bot' && state.botId ? `bot:${state.botId}`
   : state.view === 'group' && state.groupId ? `group:${state.groupId}` : null);
 // The panel beside the chat leaves it on screen. In a column too narrow for both, the style takes the
@@ -20,11 +21,20 @@ function sayPresent() {
   lastPresence = Date.now();
   presenceChat = chat;
   // Presence takes no group: it is for apps from before new replies, which know none (docs/api.md, Groups).
-  api('/presence', { method: 'POST', body: { chat: chat?.startsWith('group:') ? null : chat } }).catch(() => {});
+  api('/presence', { method: 'POST', body: { chat: chat?.startsWith('group:') ? null : chat, page: presencePage } }).catch(() => {});
+}
+// Left: hidden, or another window in front (#899). Not a frame of the page that took the focus: the page keeps it
+// then. botdot hears it at once, so what waits for the owner rings elsewhere from now, not a minute later.
+function sayAway() {
+  if (!lastPresence || (document.visibilityState === 'visible' && document.hasFocus())) return;
+  lastPresence = 0;
+  presenceChat = null;
+  api('/presence', { method: 'POST', body: { away: true, page: presencePage }, keepalive: true }).catch(() => {});
 }
 ['pointerdown', 'keydown', 'wheel', 'touchstart', 'mousemove'].forEach((t) => addEventListener(t, () => { lastTouch = Date.now(); sayPresent(); }, { passive: true }));
 addEventListener('focus', sayPresent);
-document.addEventListener('visibilitychange', sayPresent);
+addEventListener('blur', () => setTimeout(sayAway, 0));
+document.addEventListener('visibilitychange', () => { sayPresent(); sayAway(); });
 setInterval(sayPresent, 30_000);
 
 // ---------- new replies ----------

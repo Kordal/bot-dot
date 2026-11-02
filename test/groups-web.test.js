@@ -718,7 +718,7 @@ test('web: new replies have a "New" line above the first, and opening the group 
   assert.match(app, /const bot = kind === 'bot' \? botById\(id\) : kind === 'group' \? groupById\(id\) : null;/);
   assert.match(src, /const newFirst = newLine\.first\(key\);/);
   // Presence, for apps from before new replies, is told of no group.
-  assert.match(app, /body: \{ chat: chat\?\.startsWith\('group:'\) \? null : chat \}/);
+  assert.match(app, /body: \{ chat: chat\?\.startsWith\('group:'\) \? null : chat, page: presencePage \}/);
   // The line's reply further back than the page holds: read further, once.
   assert.match(src, /if \(newFirst !== null && !chat\.items\.has\(newFirst\) && chat\.more && chat\.want < GROUP_REACH\) loadGroupChat\(g\.id, GROUP_REACH\);/);
 });
