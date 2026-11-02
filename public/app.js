@@ -575,7 +575,8 @@ function md(src, botId) {
 // share (the `stream` cases of test/fixtures/markdown-cases.json; draftSource in Android's Markdown.kt): a code
 // block that is not closed yet is drawn as code, a `mermaid` one is plain code even once closed (its fence loses the
 // word: a diagram is drawn only once the reply is whole, ADR 041), a table row that is still being written waits, and
-// so does the line of a fence that is still being opened. An unclosed ** or [ needs nothing: md draws it as the text it is.
+// so does the line of a fence that is still being opened. On the line still being written, a mark that opens what is
+// not closed yet is left out (hideOpenMarks), so no ** or [ flashes as text before it turns bold or into a link.
 // A `products` fence that is not closed yet waits whole: its cards are drawn once it is (test/fixtures/products-cases.json).
 function draftSource(src) {
   let lines = String(src ?? '').replace(/\r\n?/g, '\n').split('\n');
@@ -588,7 +589,47 @@ function draftSource(src) {
     if (/^\s*`+\w*$/.test(last)) lines.pop();
     if (lines.filter((l) => /^\s*```/.test(l)).length % 2) lines.push('```');
   } else if (/^\s*(\||`{1,2}$)/.test(last)) lines.pop(); // a row of a table is drawn once its line has ended
+  else if (last !== undefined && !/^\s*```/.test(last)) lines.push(hideOpenMarks(lines.pop())); // a fence is no mark
   return lines.map((l) => l.replace(/^(\s*```)mermaid$/, '$1')).join('\n');
+}
+
+// The line of a draft still being written, without the marks that open what is not closed yet: a `code` (its
+// backticks; what follows is code being written), a **, __, * or _ (an _ only at the start of a word: snake_case is
+// text), and the [ of a link with its ](address so far. Only the marks go: the text after them goes on being revealed
+// and takes its style once they close. Nothing in a `code` or a web address is a mark. A closed mark, a mark between
+// spaces (2 * 3) and an item's task box being written ("- [x") stay. A line that has ended keeps its marks: it is drawn as the reply will be.
+function hideOpenMarks(line) {
+  if (/^\s*(?:[-*•+]|\d{1,9}[.)])\s+\[[ xX]?\]?$/.test(line)) return line;
+  const cut = new Set();
+  const drop = (from, to) => { for (let i = from; i < to; i++) cut.add(i); };
+  const code = [];
+  let open = -1, size = 0;
+  for (const m of line.matchAll(/`+/g)) {
+    if (open < 0) [open, size] = [m.index, m[0].length];
+    else if (m[0].length === size) { code.push([open, m.index + size]); open = -1; }
+  }
+  const end = open < 0 ? line.length : open;
+  if (open >= 0) drop(open, open + size);
+  // A web address is no mark either (https://x.dev/_a, x.com/a*b).
+  for (const m of line.matchAll(/(?:https?:\/\/|(?<![\p{L}\p{N}_@./-])[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+\/)\S*/gu)) code.push([m.index, m.index + m[0].length]);
+  const inCode = (i) => code.some(([a, b]) => i >= a && i < b);
+  const word = (c) => c !== undefined && /[\p{L}\p{N}]/u.test(c);
+  const opened = new Map();
+  for (const m of line.slice(0, end).matchAll(/\*\*|__|\*|_/g)) {
+    const at = m.index, mark = m[0];
+    if (inCode(at)) continue;
+    const before = line[at - 1], after = at + mark.length < end ? line[at + mark.length] : undefined;
+    const under = mark[0] === '_';
+    const closes = before !== undefined && !/\s/.test(before) && !(under && word(after));
+    const opens = (after === undefined || !/\s/.test(after)) && !(under && word(before));
+    if (opened.has(mark) && closes) opened.delete(mark);
+    else if (!opened.has(mark) && opens) opened.set(mark, at);
+  }
+  for (const [mark, at] of opened) drop(at, at + mark.length);
+  const at = line.lastIndexOf('[', end - 1);
+  const link = at >= 0 && !inCode(at) && line.slice(at, end).match(/^\[[^\]]*(\](?:\([^)]*)?)?$/);
+  if (link) { drop(at, at + 1); if (link[1]) drop(end - link[1].length, end); }
+  return cut.size ? line.split('').filter((_, i) => !cut.has(i)).join('') : line;
 }
 
 // A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth, and task: "done" or
@@ -670,7 +711,9 @@ const COPY_ICON = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height=
 const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="${tr('Copy code')}" aria-label="${tr('Copy code')}">${COPY_ICON}</button>`;
 
 // [botId]: a bot's reply, whose product cards can be saved (products.js).
-function mdHTML(blocks, botId) {
+function mdHTML(blocks, botId) { return mdParts(blocks, botId).join('\n'); }
+// The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists.
+function mdParts(blocks, botId) {
   const inline = (t) =>
     t
       .replace(/`([^`]+)`/g, '<code>$1</code>')
@@ -712,7 +755,7 @@ function mdHTML(blocks, botId) {
     else if (b.type === 'table') out.push('<table>' + b.rows.map((r, ri) => `<tr>${r.map((c) => (ri === 0 ? `<th>${inline(c)}</th>` : `<td>${inline(c)}</td>`)).join('')}</tr>`).join('') + '</table>');
     else out.push(`<p>${text(b.text)}</p>`);
   }
-  return out.join('\n');
+  return out;
 }
 
 // Link bare web addresses after rendering, so existing Markdown links and code stay intact.
@@ -874,7 +917,8 @@ Diagrams.watch(document.getElementById('modal'));
 // A reply as it is written (docs/api.md, "The reply draft"; ADR 042): from a server whose `features` name
 // `reply-draft`, a run's stream and a Chief chat's stream send the whole draft so far, and the page draws it in the
 // row of the reply that is being written, the bubble its reply will have, in place. Its end takes it away: the
-// reply is drawn as it always was. There is no animation: the text is drawn again, at most once a frame.
+// reply is drawn as it always was. The draft is revealed at a steady pace (replyDrafts), and a frame redraws only
+// its last block (drawDraftMd).
 const showsDrafts = () => state.features.includes('reply-draft');
 // The draft's bubble, or '' for none. alone: in a stack of its own, as a reply's bubble stands, for a row that has none.
 const draftMd = (text) => `<div class="md">${md(draftSource(text))}</div>`;
@@ -882,37 +926,106 @@ const draftHTML = (text, alone = false) => {
   const bubble = text ? `<div class="bubble from-bot draft">${draftMd(text)}</div>` : '';
   return bubble && alone ? `<div class="stack draft-stack">${bubble}</div>` : bubble;
 };
-// The drafts the page holds, by their reply (a run's id, or chief:<chat>): kept so that a chat drawn again keeps
-// its draft, and drawn at the next frame into the row where() finds, [row, thread]: in the row's .stack when it
-// has one. The thread stays at its end when the owner is near it, and is not moved otherwise.
+// Draw `text` into a draft's .md box. The blocks it drew last time that are still the same stay in the DOM (a
+// selection in them is kept); those from the first one that changed on are drawn again. A box drawn from HTML
+// (draftHTML, a chat drawn again) is drawn whole once.
+function drawDraftMd(box, text) {
+  const parts = mdParts(mdBlocks(draftSource(text)));
+  if (!box._parts) { box.innerHTML = ''; box._parts = []; box._sizes = []; }
+  let same = 0;
+  while (same < box._parts.length && same < parts.length && box._parts[same] === parts[same]) same++;
+  for (let n = box._sizes.splice(same).reduce((a, b) => a + b, 0); n > 0; n--) box.lastChild.remove();
+  for (const html of parts.slice(same)) {
+    const had = box.childNodes.length;
+    box.insertAdjacentHTML('beforeend', html);
+    box._sizes.push(box.childNodes.length - had);
+  }
+  box._parts = parts;
+}
+// The pace of the reveal: each new draft is caught up with in about DRAFT_CATCH_UP ms, at least one grapheme a frame.
+// draftRate: the graphemes a millisecond for a backlog; draftStep: the graphemes this frame shows, and what is left over.
+const DRAFT_CATCH_UP = 250;
+const draftRate = (backlog) => Math.max(0, backlog) / DRAFT_CATCH_UP;
+const draftStep = (rate, ms, carry = 0) => {
+  const due = carry + rate * Math.max(0, ms);
+  const n = Math.max(1, Math.floor(due));
+  return [n, Math.max(0, due - n)];
+};
+// The first n graphemes of a text (an emoji or a letter with its accent is one), and how many it has.
+const draftGraphemes = typeof Intl === 'object' && typeof Intl.Segmenter === 'function' ? new Intl.Segmenter() : null;
+function graphemesOf(text, n = Infinity) {
+  let out = '', count = 0;
+  for (const g of draftGraphemes ? draftGraphemes.segment(text) : Array.from(text, (segment) => ({ segment }))) {
+    if (count >= n) break;
+    out += g.segment; count++;
+  }
+  return { text: out, count };
+}
+// The drafts the page holds, by their reply (a run's id, or chief:<chat>): the draft as sent (target) and the part of
+// it shown, kept so that a chat drawn again keeps what it showed (of). Each frame shows more of the target, at the
+// pace above, and draws it where at() says: [row, thread], in the row's .stack when it has one, or nothing when its
+// chat draws it itself (a group's, drawGroupDrafts). A draft that does not go on from what is shown (a tool call
+// cleared it, a held line changed it) is shown at once, and so is every draft with reduced motion. The thread stays
+// at its end when the owner is near it, and is not moved otherwise.
 const replyDrafts = (() => {
-  const texts = new Map();
-  const where = new Map(); // what waits for the next frame
-  const draw = (key) => {
-    const [row, thread] = where.get(key)?.() || [];
-    where.delete(key);
+  const drafts = new Map(); // key -> { target, shown, rate, carry, at, dirty }
+  const gone = new Map(); // a draft taken away -> where it stood, to clear at the next frame
+  let frame = 0, last = 0;
+  const calm = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const draw = (at, text) => {
+    const [row, thread] = at?.() || [];
     if (!row?.isConnected) return;
     const near = !thread || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 200;
-    const text = texts.get(key);
     const own = $('.draft-stack', row); // the stack put in for it, in a row that had none
     const box = own || $('.stack', row);
     const old = box && $('.draft', box);
-    if (old && text) old.innerHTML = draftMd(text);
+    const mdBox = old && $('.md', old);
+    if (mdBox && text) drawDraftMd(mdBox, text);
+    else if (old && text) old.innerHTML = draftMd(text);
     else if (old) (own || old).remove();
     else if (text) (box || row).insertAdjacentHTML('afterbegin', draftHTML(text, !box));
     if (near && thread) thread.scrollTop = thread.scrollHeight;
   };
+  const tick = (now) => {
+    frame = 0;
+    const ms = last ? Math.min(now - last, 100) : 1000 / 60;
+    last = now;
+    for (const [, at] of gone) draw(at, '');
+    gone.clear();
+    let more = false;
+    for (const d of drafts.values()) {
+      if (d.shown !== d.target) {
+        const [n, carry] = draftStep(d.rate, ms, d.carry);
+        d.shown += graphemesOf(d.target.slice(d.shown.length), n).text;
+        d.carry = d.shown === d.target ? 0 : carry;
+        d.dirty = true;
+      }
+      if (d.dirty) { d.dirty = false; draw(d.at, d.shown); }
+      if (d.shown !== d.target) more = true;
+    }
+    if (more) schedule(); else last = 0;
+  };
+  const schedule = () => { if (!frame) frame = requestAnimationFrame(tick); };
   return {
-    of: (key) => texts.get(key) || '',
-    // Keep `text` as the draft of `key` ('' for none), and draw it where at() says at the next frame. Without `at`
-    // it is only kept: whose chat draws it itself (a group's, drawGroupDrafts).
+    of: (key) => drafts.get(key)?.shown || '',
+    // Keep `text` as the draft of `key` ('' for none), and reveal it where at() says from the next frame on.
     say(key, text, at) {
-      if (typeof text === 'string' && text) texts.set(key, text); else texts.delete(key);
-      if (!at) return;
-      if (!where.has(key)) requestAnimationFrame(() => draw(key));
-      where.set(key, at);
+      if (typeof text !== 'string' || !text) {
+        drafts.delete(key);
+        if (at) { gone.set(key, at); schedule(); }
+        return;
+      }
+      gone.delete(key);
+      const d = drafts.get(key) || { target: '', shown: '', rate: 0, carry: 0 };
+      drafts.set(key, d);
+      d.target = text;
+      d.at = at;
+      if (!text.startsWith(d.shown) || calm()) d.shown = text;
+      d.rate = draftRate(graphemesOf(text.slice(d.shown.length)).count);
+      d.dirty = true;
+      schedule();
     },
-    end(key) { texts.delete(key); where.delete(key); },
+    end(key) { drafts.delete(key); gone.delete(key); },
   };
 })();
 

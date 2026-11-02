@@ -15,7 +15,7 @@ const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'mar
 const app = webSource();
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const mdPage = vm.createContext({ ...words, esc });
-vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')} this.md = md; this.mdBlocks = mdBlocks; this.draftSource = draftSource;`, mdPage);
+vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')} this.md = md; this.mdBlocks = mdBlocks; this.mdParts = mdParts; this.draftSource = draftSource;`, mdPage);
 const { md, mdBlocks, draftSource } = mdPage;
 
 // ---------- Markdown that is still being written ----------
@@ -37,8 +37,13 @@ test('web: a draft cut mid-table, inside a fence or at an unclosed ** or [ never
   assert.equal(code, '<pre><code># rm -rf\n- x</code></pre>', 'code stays code');
   assert.equal(noCopy(md(draftSource('```mermaid\ngraph TD\nA-->B'))), '<pre><code>graph TD\nA--&gt;B</code></pre>', 'a diagram is code until the reply is whole');
   assert.equal(noCopy(md(draftSource('```mermaid\ngraph TD\nA-->B\n```\nMore'))), '<pre><code>graph TD\nA--&gt;B</code></pre>\n<p>More</p>', 'closed too: no diagram is drawn in a draft');
-  assert.equal(md(draftSource('It is **very')), '<p>It is **very</p>');
-  assert.equal(md(draftSource('See [the page')), '<p>See [the page</p>');
+  // A mark that opens on the line being written is left out until it closes: never a flash of ** or [.
+  assert.equal(md(draftSource('It is **very')), '<p>It is very</p>');
+  assert.equal(md(draftSource('It is **very** good')), '<p>It is <strong>very</strong> good</p>');
+  assert.equal(md(draftSource('See [the page](https://exa')), '<p>See the page</p>');
+  assert.equal(md(draftSource('Run `npm ins')), '<p>Run npm ins</p>');
+  assert.equal(md(draftSource('It is **very\nAnd')), '<p>It is **very<br>And</p>', 'a line that has ended is drawn as the reply will be');
+  assert.equal(draftSource('Four fit.\n```js\nx\n```'), 'Four fit.\n```js\nx\n```', 'a fence is no mark');
   // A whole reply is drawn as it is without drafts.
   const whole = '## Done\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n```js\nx\n```\nEnd. **Bold** and [a link](https://example.com).';
   assert.equal(md(draftSource(whole)), md(whole));
@@ -46,12 +51,14 @@ test('web: a draft cut mid-table, inside a fence or at an unclosed ** or [ never
 
 // ---------- the keeper: in place, once a frame ----------
 
-// The drafts' part of the page, with a frame the test lets go.
-function drafts(features = ['reply-draft']) {
+// The drafts' part of the page, with a frame the test lets go (every 1000/60 ms). calm: reduced motion.
+function drafts(features = ['reply-draft'], { calm = true } = {}) {
   const frames = [];
-  const ctx = vm.createContext({ ...words, state: { features }, md, draftSource, requestAnimationFrame: (fn) => frames.push(fn), $: (sel, root) => root.querySelector(sel) });
-  vm.runInContext(`${cut('// ---------- the reply draft ----------', '// ---------- data ----------')} this.replyDrafts = replyDrafts; this.showsDrafts = showsDrafts; this.draftHTML = draftHTML;`, ctx);
-  return { ctx, frame: () => frames.splice(0).forEach((fn) => fn()), frames };
+  let clock = 1000;
+  const ctx = vm.createContext({ ...words, Intl, state: { features }, md, mdBlocks, mdParts: mdPage.mdParts, draftSource, requestAnimationFrame: (fn) => frames.push(fn), $: (sel, root) => root.querySelector(sel),
+    matchMedia: (q) => ({ matches: calm && q === '(prefers-reduced-motion: reduce)' }) });
+  vm.runInContext(`${cut('// ---------- the reply draft ----------', '// ---------- data ----------')} Object.assign(this, { replyDrafts, showsDrafts, draftHTML, drawDraftMd, draftRate, draftStep, graphemesOf, DRAFT_CATCH_UP });`, ctx);
+  return { ctx, frame: () => frames.splice(0).forEach((fn) => fn(clock += 1000 / 60)), frames };
 }
 // A bot's reply row, which has no stack: what is drawn into it (a stack of the draft's own, its bubble), and how often.
 function row() {
@@ -61,14 +68,14 @@ function row() {
       assert.equal(where, 'afterbegin');
       const m = html.match(/^<div class="stack draft-stack"><div class="bubble from-bot draft">([\s\S]*)<\/div><\/div>$/);
       assert.ok(m, html);
-      r.draft = { innerHTML: m[1], remove: () => { r.draft = null; } };
+      r.draft = { innerHTML: m[1], querySelector: () => null, remove: () => { r.draft = null; } };
       r.stack = { querySelector: (sel) => (sel === '.draft' ? r.draft : null), remove: () => { r.stack = null; r.draft = null; } };
       r.inserted++;
     } };
   return r;
 }
 
-test('web: a draft is drawn in its row at the next frame, grows in place, and goes when it is cleared', () => {
+test('web: with reduced motion a draft is drawn in its row at the next frame as it comes, grows in place, and goes when it is cleared', () => {
   const { ctx, frame, frames } = drafts();
   const r = row();
   const thread = { scrollHeight: 1000, scrollTop: 940, clientHeight: 50 };
@@ -102,6 +109,117 @@ test('web: a draft is drawn in its row at the next frame, grows in place, and go
   assert.equal(ctx.draftHTML(''), '');
   assert.equal(ctx.draftHTML('It is **fine**\nthere'), '<div class="bubble from-bot draft"><div class="md"><p>It is <strong>fine</strong><br>there</p></div></div>');
   assert.equal(ctx.draftHTML('<img src=x onerror=alert(1)>\nx'), '<div class="bubble from-bot draft"><div class="md"><p>&lt;img src=x onerror=alert(1)&gt;<br>x</p></div></div>', 'nothing a bot writes is markup');
+});
+
+// ---------- the paced reveal ----------
+
+test('web: the pace catches up with each draft in about 250 ms, at least one grapheme a frame', () => {
+  const { ctx } = drafts();
+  assert.equal(ctx.DRAFT_CATCH_UP, 250);
+  assert.equal(ctx.draftRate(100), 0.4, '100 graphemes behind: 0.4 a millisecond');
+  assert.equal(ctx.draftRate(0), 0);
+  const frame = 1000 / 60;
+  assert.deepEqual(plain(ctx.draftStep(ctx.draftRate(100), frame)).map((x) => +x.toFixed(3)), [6, 0.667], 'about 6.7 a frame: 6 now, the rest carried');
+  assert.equal(ctx.draftStep(ctx.draftRate(100), frame, 0.667)[0], 7, 'and one more the next');
+  assert.deepEqual(plain(ctx.draftStep(ctx.draftRate(3), frame)), [1, 0], 'a short backlog still moves one a frame');
+  // A whole backlog in about 250 ms: 15 frames of 1/60 s.
+  let shown = 0, carry = 0, frames = 0;
+  const rate = ctx.draftRate(120);
+  while (shown < 120) { const [n, c] = ctx.draftStep(rate, frame, carry); shown += n; carry = c; frames++; }
+  assert.ok(frames >= 14 && frames <= 16, `${frames} frames`);
+  // Graphemes, not code units: an emoji or a letter with its accent is never cut.
+  assert.deepEqual(plain(ctx.graphemesOf('👍🏽 ok', 1)), { text: '👍🏽', count: 1 });
+  assert.equal(ctx.graphemesOf('Zażółć').count, 6);
+});
+
+// A draft's row with a real .md box: its child nodes, as drawDraftMd keeps them.
+function mdRow() {
+  const node = (html) => ({ html, remove() { md.nodes.splice(md.nodes.indexOf(this), 1); } });
+  const md = {
+    nodes: [],
+    get childNodes() { return md.nodes; },
+    get lastChild() { return md.nodes.at(-1); },
+    set innerHTML(v) { md.nodes = v ? [node(v)] : []; },
+    get innerHTML() { return md.nodes.map((n) => n.html).join(''); },
+    insertAdjacentHTML(where, html) { assert.equal(where, 'beforeend'); md.nodes.push(node(html)); },
+  };
+  const bubble = { querySelector: (sel) => (sel === '.md' ? md : null) };
+  const stack = { querySelector: (sel) => (sel === '.draft' ? bubble : null), remove() { r.cleared = true; } };
+  const r = { isConnected: true, inserted: 0, querySelector: (sel) => (sel === '.draft-stack' ? stack : null),
+    insertAdjacentHTML() { r.inserted++; } };
+  return { row: r, md };
+}
+
+test('web: a draft is revealed in many small steps between two drafts, and the run\'s end or a cleared draft stops it at once', () => {
+  const { ctx, frame, frames } = drafts(['reply-draft'], { calm: false });
+  const { row: r, md } = mdRow();
+  const thread = { scrollHeight: 1000, scrollTop: 950, clientHeight: 50 };
+  const at = () => [r, thread];
+  const first = 'The disk on staging has 41% free, the backups take 212 GB.';
+  ctx.replyDrafts.say('run1', first, at);
+  const seen = [];
+  for (let i = 0; i < 30 && frames.length; i++) { frame(); seen.push(ctx.replyDrafts.of('run1')); }
+  assert.ok(seen.length >= 12, `${seen.length} frames, not one jump`);
+  assert.ok(new Set(seen).size >= 12, 'each frame shows more');
+  assert.ok(seen.every((t, i) => first.startsWith(t) && (i === 0 || t.length > seen[i - 1].length)), 'it only grows');
+  assert.equal(seen.at(-1), first, 'and catches up');
+  assert.ok(seen.length <= 17, `within about 250 ms (${seen.length} frames)`);
+  assert.equal(frames.length, 0, 'no frame asked for once it has caught up');
+  assert.match(md.innerHTML, /41% free, the backups take 212 GB\./);
+  // The next draft goes on from what is shown: it grows from there.
+  ctx.replyDrafts.say('run1', `${first}\n\nNothing else to do.`, at);
+  frame();
+  const next = ctx.replyDrafts.of('run1');
+  assert.ok(next.length > first.length && next.length < first.length + 20, 'a few graphemes, not the whole new text');
+  // A draft that does not go on from it (a tool call cleared it, then a new text) is shown at once.
+  ctx.replyDrafts.say('run1', 'Another text.', at);
+  assert.equal(ctx.replyDrafts.of('run1'), 'Another text.');
+  frame();
+  assert.equal(md.innerHTML, '<p>Another text.</p>');
+  // A cleared draft goes at the next frame, whatever was still to show.
+  ctx.replyDrafts.say('run1', 'Another text. And it goes on and on.', at);
+  ctx.replyDrafts.say('run1', '', at);
+  assert.equal(ctx.replyDrafts.of('run1'), '');
+  frame();
+  assert.equal(r.cleared, true, 'its bubble goes at the next frame');
+  // The end: nothing is left to reveal, and no frame draws it again.
+  ctx.replyDrafts.say('run2', 'A reply that is still being revealed.', at);
+  frame();
+  ctx.replyDrafts.end('run2');
+  frames.splice(0);
+  assert.equal(ctx.replyDrafts.of('run2'), '');
+});
+
+test('web: with reduced motion each draft is shown whole as it comes', () => {
+  const { ctx, frame } = drafts(['reply-draft'], { calm: true });
+  const { row: r, md } = mdRow();
+  ctx.replyDrafts.say('run1', 'The disk on staging has 41% free.', () => [r, null]);
+  assert.equal(ctx.replyDrafts.of('run1'), 'The disk on staging has 41% free.');
+  frame();
+  assert.equal(md.innerHTML, '<p>The disk on staging has 41% free.</p>');
+});
+
+test('web: a frame draws only the draft\'s last block again: the blocks before it stay in the page', () => {
+  const { ctx } = drafts();
+  const { md } = mdRow();
+  md.innerHTML = '<p>drawn from HTML</p>';
+  ctx.drawDraftMd(md, '## Disks\n\nThe disk is');
+  assert.deepEqual(md.nodes.map((n) => n.html), ['<h2>Disks</h2>', '<p>The disk is</p>'], 'a box drawn from HTML is drawn whole once');
+  const [head, para] = md.nodes;
+  ctx.drawDraftMd(md, '## Disks\n\nThe disk is full');
+  assert.equal(md.nodes[0], head, 'the heading is the same node: a selection in it stays');
+  assert.notEqual(md.nodes[1], para);
+  assert.deepEqual(md.nodes.map((n) => n.html), ['<h2>Disks</h2>', '<p>The disk is full</p>']);
+  ctx.drawDraftMd(md, '## Disks\n\nThe disk is full.\n\n- clean');
+  assert.equal(md.nodes[0], head);
+  assert.deepEqual(md.nodes.map((n) => n.html), ['<h2>Disks</h2>', '<p>The disk is full.</p>', '<ul><li>clean</li></ul>']);
+  const kept = md.nodes[1];
+  ctx.drawDraftMd(md, '## Disks\n\nThe disk is full.\n\n- clean\n- logs');
+  assert.deepEqual([md.nodes[0], md.nodes[1]], [head, kept]);
+  assert.equal(md.nodes.length, 3);
+  // The bot chat, the Chief chat and the group chat all draw a frame this way.
+  assert.match(cut('const replyDrafts = (() => {', '// ---------- data ----------'), /if \(mdBox && text\) drawDraftMd\(mdBox, text\);/);
+  assert.match(require('./web-page').read('groups.js'), /if \(mdBox\) drawDraftMd\(mdBox, text\);/);
 });
 
 test('web: drafts are shown only when the server lists reply-draft', () => {

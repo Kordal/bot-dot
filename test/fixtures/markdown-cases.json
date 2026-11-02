@@ -1078,7 +1078,7 @@
       ]
     }
   ],
-  "streamAbout": "A reply draft as it is drawn while it still grows (docs/api.md, \"The reply draft\"): each case is a draft and the blocks of what is drawn of it, the same on the web page (draftSource, then mdBlocks, in public/app.js) and in the Android app (draftSource, then parseBlocks, in Markdown.kt). A whole draft is drawn as the reply is, but a `mermaid` block, which stays plain code (lang \"\") until the reply ends.",
+  "streamAbout": "A reply draft as it is drawn while it still grows (docs/api.md, \"The reply draft\"): each case is a draft and the blocks of what is drawn of it, the same on the web page (draftSource, then mdBlocks, in public/app.js) and in the Android app (draftSource, then parseBlocks, in Markdown.kt). On the line still being written, a mark that opens what is not closed yet (** __ * _ `, the [ and ](address of a link) is left out. A whole draft is drawn as the reply is, but a `mermaid` block, which stays plain code (lang \"\") until the reply ends.",
   "stream": [
     {
       "name": "a row being written waits: only the whole rows are drawn",
@@ -1204,32 +1204,32 @@
       ]
     },
     {
-      "name": "an unbalanced ** stays text",
+      "name": "a ** that opens on the line being written is left out until it closes",
       "source": "It is **very",
       "blocks": [
         {
           "type": "para",
-          "text": "It is **very"
+          "text": "It is very"
         }
       ]
     },
     {
-      "name": "an unbalanced [ stays text",
+      "name": "the [ of a link being written is left out",
       "source": "See [the page",
       "blocks": [
         {
           "type": "para",
-          "text": "See [the page"
+          "text": "See the page"
         }
       ]
     },
     {
-      "name": "a link being written stays text",
+      "name": "a link being written shows its text only, until it closes",
       "source": "See [the page](https://exa",
       "blocks": [
         {
           "type": "para",
-          "text": "See [the page](https://exa"
+          "text": "See the page"
         }
       ]
     },
@@ -1275,6 +1275,148 @@
           "text": "[x",
           "number": null,
           "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "a closed ** stays as written: it is drawn bold",
+      "source": "It is **very** good",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "It is **very** good"
+        }
+      ]
+    },
+    {
+      "name": "a * that opens is left out",
+      "source": "It is *very",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "It is very"
+        }
+      ]
+    },
+    {
+      "name": "a lone * at the end waits: it may open bold",
+      "source": "It is *",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "It is"
+        }
+      ]
+    },
+    {
+      "name": "a * between spaces is text",
+      "source": "2 * 3 = 6",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "2 * 3 = 6"
+        }
+      ]
+    },
+    {
+      "name": "an _ or __ at the start of a word that opens is left out",
+      "source": "It is _very and __so",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "It is very and so"
+        }
+      ]
+    },
+    {
+      "name": "an _ inside a word is text",
+      "source": "Set my_var",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Set my_var"
+        }
+      ]
+    },
+    {
+      "name": "the backtick of a code being written is left out",
+      "source": "Run `npm ins",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Run npm ins"
+        }
+      ]
+    },
+    {
+      "name": "marks inside a closed code stay; the open ** after it is left out",
+      "source": "Use `**` and **this",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Use `**` and this"
+        }
+      ]
+    },
+    {
+      "name": "a [ closed without an address is text",
+      "source": "See [1] for",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "See [1] for"
+        }
+      ]
+    },
+    {
+      "name": "an item's own marks stay, its open ** is left out",
+      "source": "- **Disk",
+      "blocks": [
+        {
+          "type": "item",
+          "text": "Disk",
+          "number": null,
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "a line that has ended keeps its marks, as the reply will",
+      "source": "It is **very\nAnd",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "It is **very\nAnd"
+        }
+      ]
+    },
+    {
+      "name": "only the open mark goes: a closed one after it stays",
+      "source": "A **b *c* d",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "A b *c* d"
+        }
+      ]
+    },
+    {
+      "name": "a link text whose address has not started shows its text",
+      "source": "See [the page]",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "See the page"
+        }
+      ]
+    },
+    {
+      "name": "a mark inside code or a web address is no mark",
+      "source": "Run `a*b` at https://x.dev/_a and _so",
+      "blocks": [
+        {
+          "type": "para",
+          "text": "Run `a*b` at https://x.dev/_a and so"
         }
       ]
     }
