@@ -469,7 +469,7 @@ test('a message that all six members pass on is finished in under 10 seconds', a
   } finally { await own.stop(); }
 });
 
-test('after a restart a waiting turn starts, a run that was cut says so, the line goes on with the next member, and no member has two turns', async () => {
+test('after a restart a waiting turn starts, a run that was cut says so and carries on in its turn, the line goes on with the next member, and no member has two turns', async () => {
   let own = await startServer();
   try {
     const { group, bots: [a, b, c, d] } = await team(own, 'Restart', ['Ada', 'Bob', 'Cyd', 'Dee']);
@@ -492,9 +492,17 @@ test('after a restart a waiting turn starts, a run that was cut says so, the lin
     letAllGo(own);
     own = await startServer({ dir: own.dir });
     const done = await settled(own, group, sent.data.id);
-    assert.deepEqual(repliesIn(done).map((x) => [x.run.botName, x.run.status]).sort(), [['Ada', 'success'], ['Bob', 'success'], ['Cyd', 'interrupted'], ['Dee', 'success']]);
+    assert.deepEqual(repliesIn(done).map((x) => [x.run.botName, x.run.status]).sort(), [['Ada', 'success'], ['Bob', 'success'], ['Cyd', 'interrupted'], ['Cyd', 'success'], ['Dee', 'success']]);
     assert.equal(repliesIn(done).find((x) => x.id === cut).run.problem, 'This run was cut off because botdot was restarted.');
+    // Cyd carries on with the turn the restart cut off (ADR 140), in the group, and Dee's turn comes after it.
+    const carried = repliesIn(done).find((x) => x.run.continues === cut).run;
+    assert.equal(carried.botName, 'Cyd');
+    assert.ok(repliesIn(done).find((x) => x.run.botName === 'Dee').run.startedAt >= carried.endedAt, 'the line waited for it');
+    assert.match(ranOf(own, c).at(-1).stdin, /was cut off because botdot was restarted/);
+    assert.ok(ranOf(own, c).at(-1).stdin.includes(`<request>\n${text}\n</request>`));
     assert.equal((await runOf(own, ownRun.id)).status, 'interrupted');
+    // And Bob's run in his own chat, which the owner asked for, carries on too.
+    await waitFor(() => ranOf(own, b).some((x) => x.stdin.includes('<request>\nSomething long\n</request>')), { what: "Bob's own run to carry on" });
     assert.deepEqual(turns().map((x) => x.botId), [a.id, b.id, c.id, d.id], 'one turn each');
     for (const bot of [a, b, c, d]) assert.equal(ranOf(own, bot).filter((x) => x.stdin === text).length, 1, `${bot.name} was started once on it`);
     assert.deepEqual(waitingIn(own, b), []);

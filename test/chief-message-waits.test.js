@@ -263,7 +263,7 @@ test('a check of the sign-in asked before the sign-out and answered after it sta
   assert.deepEqual((await quiet(id, own)).messages.filter((m) => m.role === 'user').map((m) => m.text), ['First', 'Second'], 'it starts with the sign-in');
 });
 
-test('botdot stopped and started while a message waits: it still waits, and starts once, after the reply that was cut off', async (t) => {
+test('botdot stopped and started while a message waits: the reply that was cut off carries on first, and the message still waits and starts once after it', async (t) => {
   let own = await startServer();
   t.after(async () => { own.unhold(); await own.stop(); });
   const id = await newChat(own);
@@ -274,10 +274,14 @@ test('botdot stopped and started while a message waits: it still waits, and star
   assert.equal(sent.data.queued.length, 1);
 
   own = await restartServer(own, (data) => fs.rmSync(path.join(data, '..', 'fake', 'hold'), { force: true }));
+  // The reply to "First" carries on (ADR 140): a turn of botdot's, told the owner's message word for word.
+  const carried = await own.nextRun((x) => isChief(x) && /was cut off because botdot was restarted/.test(x.stdin), 'the cut-off reply to carry on');
+  assert.ok(carried.stdin.includes('<message>\nFirst\n</message>'));
+  assert.equal(carried.botdot.env.BOT_DOT_TURN, 'botdot');
   const turn = await own.nextRun((x) => isChief(x) && /Second$/.test(x.stdin), "the waiting message's turn");
   assert.equal(turn.botdot.env.BOT_DOT_URL, `http://127.0.0.1:${own.botdotPort}`);
   const done = await quiet(id, own);
-  assert.deepEqual(done.messages.map((m) => [m.role, m.text, m.error || null]), [['user', 'First', null], ['chief', '', 'This reply was cut off because botdot was restarted.'], ['user', 'Second', null], ['chief', 'Done.', null]]);
+  assert.deepEqual(done.messages.map((m) => [m.role, m.text, m.error || null]), [['user', 'First', null], ['chief', '', 'This reply was cut off because botdot was restarted.'], ['chief', 'Done.', null], ['user', 'Second', null], ['chief', 'Done.', null]]);
   assert.deepEqual(onDisk(own), {});
   const again = await say(id, { text: 'Second', key: 'restart-wait-key1' }, own);
   assert.deepEqual([again.status, again.data.again], [200, true], 'its key outlived the restart');

@@ -277,7 +277,7 @@ Every event's data also has `at`, when it happened.
 - **Take back.** `DELETE /api/bots/:id/queued/:queuedId` answers `200 { text, attachments }`, for the message box, and the message is gone: it starts nothing, its id is no run, and its key may be sent again. Once its run exists the answer is `409 { error: "It has already started.", runId }`: show that run. `404` for an id the bot does not know. Only the owner may call it; the Chief's tools get `403`.
 - **A file that is gone.** Files are checked when the message is sent, as for a run: `400` with the reason. A file that is gone from the workspace when the message's turn comes is left out, and the message starts without it.
 - **A message that cannot start** when its turn comes is a run with `status: "error"` and the reason in `error`, under the id it was answered with.
-- **After a restart** of botdot the run that was going is `interrupted`, and what waited starts, once, in the same order.
+- **After a restart** of botdot the run that was going is `interrupted`, and what waited starts, once, in the same order. When botdot was back within an hour, the run that was cut carries on first, once, as a new run whose `continues` is the cut run's id, by the rules of What follows a yes ([ADR 140](adr/140-what-a-restart-cut-off-carries-on-by-itself.md)). A Chief reply to the owner that was cut off carries on the same, as a turn of botdot's in that chat.
 - **A Board tile** that asks a busy bot answers `runId` and `queued: true` (see The Board): its request waits among the owner's messages.
 - **The Chief's `run_bot`** on a busy bot gets the waiting run, with `note: "<Bot> is busy: this starts when it is free."`, and its chip in the chat reads `Asked <Bot> · starts when it is free`. Such a run waits with the other work, behind the owner's messages, and is refused with `429` only when ten of that other work wait. `wait_for_run` waits for it through its start to its end, and says that it has not started yet when its time is up.
 - **For the rules of What follows a yes** a waiting message counts as a message the owner sent the bot from when it was sent, also while it waits.
@@ -457,7 +457,7 @@ The owner writes once and the botdot server gives the turns ([ADR 019](adr/019-t
 
 **In the list** a group has `last`, its newest reply for the preview, `{ runId, botId, botName, status, at, text }` with `text` the reply's first 300 characters or, for one that failed, its `problem` (`null` while it has none), and `working`, the ids of the members at work in it. `group_run_started` and `group_run_finished` carry the same for the row: who works, and the newest reply with its `botName`.
 
-**After a restart** a turn that waited starts, a run that was cut is a reply with `status: "interrupted"`, the line goes on with the next member, and no member has two turns on one message.
+**After a restart** a turn that waited starts, a run that was cut is a reply with `status: "interrupted"`, the line goes on with the next member, and no member has two turns on one message. When botdot was back within an hour, the member that was cut carries on with that message first (a new run whose `continues` is the cut run's id, ADR 140), and the line waits for it.
 
 ### A card and a question in a group
 
