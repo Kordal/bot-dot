@@ -438,6 +438,23 @@ function saysHeld() {
 const helloClaude = (known) => (known !== null ? { loggedIn: known } : B.isClaudeOut() ? { loggedIn: false } : null);
 // Checked once a minute: it costs a process.
 setInterval(() => { claudeStatus().catch(() => null); }, 60_000).unref();
+// The account's External Virtual PC that boat.dev can't save (#901): the feed's `boat_unsaved` with the whole list
+// whenever it changed, and on the first answer after a start, so a notice that rang before a restart can end. Each
+// machine on it rings once (lib/push.js). No answer from boat.dev changes nothing. Asked every 15 minutes: boat.dev
+// tries for three days before it gives up on a machine.
+let boatUnsavedSeen = null;
+async function watchBoatSaving() {
+  if (!B.boatReady()) return;
+  const list = await B.boatUnsaved().catch(() => null);
+  if (!list) return;
+  const machines = list.map(({ id, since }) => ({ id, since }));
+  const said = JSON.stringify(machines.map((m) => m.id).sort());
+  if (said === boatUnsavedSeen) return;
+  boatUnsavedSeen = said;
+  feed.emit('boat_unsaved', { machines });
+}
+setTimeout(() => { watchBoatSaving().catch(() => null); }, 60_000).unref();
+setInterval(() => { watchBoatSaving().catch(() => null); }, 15 * 60_000).unref();
 
 // What waits for the owner, as an app that did not ask for guarded memory changes is sent it: without them, in the
 // list and in its count. An app from before them takes every memory change it is given into "Approve all".

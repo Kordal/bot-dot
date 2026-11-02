@@ -107,24 +107,86 @@ test('the screen kit carries the versions the desktop image pins', () => {
   assert.deepEqual(browsers(kit), browsers(image), "the kit fetches and sets the image's Camoufox");
 });
 
-test('the screen kit takes off the mount that stops boat.dev saving a machine, and the admin hears of a machine it cannot save', async () => {
+test('the screen kit keeps gvfs away from the browser user, for good (#812, #901)', () => {
   const kit = fs.readFileSync(path.join(ROOT, 'deploy', 'desktop', 'botdot-boat-kit'), 'utf8');
-  assert.match(kit, /umount -l \/home\/browser\/\.gvfs/);
   assert.match(kit, /apt-get remove -y -q gvfs-fuse/);
+  assert.match(kit, /Package: gvfs-fuse\\nPin: release a=\*\\nPin-Priority: -1/, 'no later install brings it back');
+  assert.match(kit, /\/home\/browser\/\.local\/share\/dbus-1\/services\/org\.gtk\.vfs\.Daemon\.service/, "browser's session bus never starts gvfsd");
+  assert.match(kit, /Exec=\/bin\/false/);
+  assert.match(kit, /pkill -u browser -f gvfsd \|\| true/);
+  assert.match(kit, /"\$KIT\/sandbox-id"/, "the machine's id is on its disk");
+  const bridge = fs.readFileSync(path.join(ROOT, 'deploy', 'desktop', 'camoufox-browser'), 'utf8');
+  assert.match(bridge, /os\.environ\["GIO_USE_VFS"\] = "local"/, 'Camoufox asks gvfs nothing, however it is started');
+  assert.match(bridge, /os\.environ\["GVFS_DISABLE_FUSE"\] = "1"/);
+});
 
+test('CLEAR_MOUNTS takes off every FUSE mount under /home/browser and nothing else', { skip: process.platform !== 'linux' && 'needs awk as on the machine' }, () => {
+  const { execFileSync } = require('node:child_process');
+  const awk = boatLib.CLEAR_MOUNTS.match(/awk ('[^']*'(?:[^']|'[^']*')*?) \/proc\/mounts/);
+  assert.ok(awk, 'it reads /proc/mounts with awk');
+  const mounts = path.join(dir(), 'mounts');
+  fs.writeFileSync(mounts, [
+    'gvfsd-fuse /home/browser/.gvfs fuse.gvfsd-fuse rw,nosuid,nodev 0 0',
+    'portal /home/browser/sub\\040dir fuse.portal rw 0 0',
+    'gvfsd-fuse /home/user/.gvfs fuse.gvfsd-fuse rw 0 0',
+    '/dev/vda1 /home/browser ext4 rw 0 0',
+    'gvfsd-fuse /home/browserx/.gvfs fuse.gvfsd-fuse rw 0 0',
+    'gvfsd-fuse /run/user/1000/gvfs fuse.gvfsd-fuse rw 0 0',
+  ].join('\n'));
+  const out = execFileSync('sh', ['-c', `awk ${awk[1]} "$1" | while read -r m; do printf '%b\\n' "$m"; done`, 'sh', mounts], { encoding: 'utf8' });
+  assert.deepEqual(out.trim().split('\n'), ['/home/browser/.gvfs', '/home/browser/sub dir']);
+});
+
+test('each start of the screen and each stop of the machine takes a gvfs mount off first, also after a restart', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  let now = 1e6;
+  const { b, boat } = machine({ kit: boatLib.KIT_VERSION }, { now: () => (now += 1) });
+  const order = () => b.calls.filter((c) => c.path.endsWith('/stop') || c.body?.command?.includes('xhost') || c.body?.command === boatLib.CLEAR_MOUNTS || (c.body?.detached && c.body.command.includes('--serve')))
+    .map((c) => (c.path.endsWith('/stop') ? 'stop' : c.body.command === boatLib.CLEAR_MOUNTS ? 'clear' : c.body.detached ? 'bridge' : c.body.command.includes(boatLib.CLEAR_MOUNTS) ? 'prep+clear' : 'prep'));
+  await boat.ensureScreen('coder');
+  for (let i = 0; i < 2; i++) {
+    now += 31 * 60_000;
+    assert.deepEqual(await boat.restIdle(), ['coder']);
+    assert.equal((await boat.browserTool('coder', { op: 'snapshot' })).ok, true);
+  }
+  assert.deepEqual(order(), ['prep+clear', 'bridge', 'clear', 'stop', 'prep+clear', 'bridge', 'clear', 'stop', 'prep+clear', 'bridge']);
+  await boat.forget('coder');
+  assert.deepEqual(order().slice(-2), ['clear', 'stop'], 'a forgotten machine too');
+});
+
+test('the admin and the owner hear of a machine boat.dev cannot save; no answer is logged, never hidden', async (t) => {
   const asked = [];
+  const list = [
+    { id: 'bx_aaaaaaaa', name: 'botdot-a', snapshotCompletedAt: '2026-10-29T10:07:19.567Z', stop: { status: 'failing' } },
+    { id: 'bx_bbbbbbbb', name: 'botdot-b', stop: null },
+    { id: 'bx_cccccccc', name: 'botdot-c', stop: { status: 'failing' } },
+  ];
   const fetch = async (url) => {
     asked.push(String(url));
-    return new Response(JSON.stringify({ sandboxes: [
-      { id: 'bx_aaaaaaaa', name: 'botdot-a', snapshotCompletedAt: '2026-10-29T10:07:19.567Z', stop: { status: 'failing' } },
-      { id: 'bx_bbbbbbbb', name: 'botdot-b', stop: null },
-    ] }), { status: 200 });
+    return new Response(JSON.stringify({ sandboxes: list }), { status: 200 });
   };
-  assert.deepEqual(await boatLib.unsaved(KEY, { fetch }), [{ name: 'botdot-a', since: '2026-10-29T10:07:19.567Z' }]);
+  assert.deepEqual(await boatLib.unsaved(KEY, { fetch }), [{ id: 'bx_aaaaaaaa', name: 'botdot-a', since: '2026-10-29T10:07:19.567Z' }, { id: 'bx_cccccccc', name: 'botdot-c', since: null }]);
   assert.match(asked[0], /\/sandboxes\?limit=200$/);
   assert.deepEqual(await boatLib.unsaved(null, { fetch }), [], 'no key, no call');
   assert.equal(asked.length, 1);
-  assert.deepEqual(await boatLib.unsaved(KEY, { fetch: async () => { throw new Error('down'); } }), [], 'boat.dev down leaves the page as it is');
+  const logged = [];
+  const log = (line) => logged.push(line);
+  assert.deepEqual(await boatLib.unsaved(KEY, { fetch: async () => { throw new Error('down'); }, log }), [], 'boat.dev down leaves the page as it is');
+  assert.deepEqual(await boatLib.unsaved(KEY, { fetch: async () => new Response('{"ok":true}', { status: 200 }), log }), [], 'nor an answer of another shape');
+  assert.deepEqual(logged, ["[boat] couldn't ask boat.dev which machines it can't save: boat.dev can't be reached", "[boat] couldn't ask boat.dev which machines it can't save: boat.dev listed no machines"]);
+
+  // The owner's notice: this account's machines only, and none taken back when boat.dev gives no answer.
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const data = dir();
+  fs.writeFileSync(path.join(data, 'boat-machines.json'), JSON.stringify({ '@account': { id: 'bx_aaaaaaaa', type: 'default' } }));
+  let down = false;
+  const boat = boatLib.create(data, { fetch: async (url, opts) => (down ? Promise.reject(new Error('down')) : String(url).includes('/sandboxes?') ? fetch(url, opts) : new Response('{}', { status: 404 })), kitOnStart: false });
+  assert.deepEqual(await boat.unsavedHere({ log }), [{ id: 'bx_aaaaaaaa', name: 'botdot-a', since: '2026-10-29T10:07:19.567Z' }]);
+  down = true;
+  assert.equal(await boat.unsavedHere({ log }), null);
+  assert.deepEqual(await boatLib.create(dir(), { fetch, kitOnStart: false }).unsavedHere(), [], 'an account with no machine asks nothing');
 });
 
 test("a bot's first screen tool puts the kit on its machine, starts its screen there, and the next ones only use it", async (t) => {

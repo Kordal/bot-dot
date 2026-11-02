@@ -7,7 +7,7 @@
 #
 # botdot (lib/boat.js) puts this file, camoufox-browser and camoufox.desktop in a folder of /tmp through boat.dev's
 # file API as soon as the machine starts (#582) and runs
-#   sudo sh botdot-boat-kit <version> <that folder>
+#   sudo sh botdot-boat-kit <version> <that folder> <the machine's id at boat.dev>
 # detached. It writes what it does to /opt/botdot/kit.log, and at its end <version> to /opt/botdot/kit-version, or
 # the step that failed to /opt/botdot/kit-failed. It stays on the machine's disk: botdot runs it again only for a
 # newer kit. Each step is safe to run again.
@@ -41,10 +41,21 @@ chmod 0700 /home/browser
 install -d -o browser -g browser -m 0700 /home/browser/profiles
 chmod g+x /home/user
 install -d -o user -g user -m 2775 /home/user/Downloads
-# gvfs-fuse mounts ~/.gvfs for a user with no runtime folder, as browser is. Not even root can read that mount, so
-# boat.dev's snapshot fails on it and the machine can't be saved or stopped.
-! grep -q ' /home/browser/.gvfs ' /proc/mounts || umount -l /home/browser/.gvfs
+# gvfs mounts ~/.gvfs for a user with no runtime folder, as browser is. Not even root can read that mount, so
+# boat.dev's snapshot fails on it and the machine can't be saved or stopped (#812). Taking it off once was not enough
+# (#901): gvfsd kept running for browser and mounted it again. So gvfs-fuse goes and no later install brings it back,
+# browser's session bus never starts gvfsd (the bridge also starts Camoufox with GIO_USE_VFS=local), what of gvfs runs
+# as browser ends, and every FUSE mount under /home/browser is taken off. botdot takes such a mount off again before
+# each start of the screen and each stop of the machine (lib/boat.js CLEAR_MOUNTS).
+printf 'Package: gvfs-fuse\nPin: release a=*\nPin-Priority: -1\n' > /etc/apt/preferences.d/botdot-no-gvfs-fuse
 ! dpkg -s gvfs-fuse >/dev/null 2>&1 || apt-get remove -y -q gvfs-fuse
+for d in .local .local/share .local/share/dbus-1 .local/share/dbus-1/services; do install -d -o browser -g browser -m 0700 "/home/browser/$d"; done
+printf '[D-BUS Service]\nName=org.gtk.vfs.Daemon\nExec=/bin/false\n' > /home/browser/.local/share/dbus-1/services/org.gtk.vfs.Daemon.service
+chown browser:browser /home/browser/.local/share/dbus-1/services/org.gtk.vfs.Daemon.service
+pkill -u browser -f gvfsd || true
+awk '$2 ~ "^/home/browser(/|$)" && $3 ~ /^fuse/ {print $2}' /proc/mounts | while read -r m; do umount -l "$(printf '%b' "$m")" || true; done
+# The machine's id at boat.dev, for whoever is on it: it has no boat.dev command line.
+[ -z "${3:-}" ] || printf '%s\n' "$3" > "$KIT/sandbox-id"
 
 step="computer-server"
 # As the image's Dockerfile: cua-computer-server and the fixes pinned beside it, FastAPI at the last release it
