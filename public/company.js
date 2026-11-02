@@ -504,7 +504,7 @@ const Company = (() => {
   }
 
   // A new project (#801): one field with a clip for its sources (files, links) inside, the sources as chips under it,
-  // and "Start from scratch" at the foot.
+  // and "Start from scratch" right under them (#849).
   function drawStart(root) {
     const typed = $('#co-what', root)?.value || '';
     root.innerHTML = `<div class="co-start co-new">
