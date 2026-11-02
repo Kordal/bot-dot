@@ -102,8 +102,10 @@
       t.onkeydown = (e) => key(e, t, c);
       canvas.append(t);
     }
-    for (const ch of [...home.children]) if (!ch.matches('.cf-top')) ch.remove();
-    home.append(wrap);
+    // The header, the project's Needs you and its team rows (#838) stay around the canvas.
+    for (const ch of [...home.children]) if (!ch.matches('.cf-top, .sp-needs, .sp-teams')) ch.remove();
+    const teams = $('.sp-teams', home);
+    if (teams) teams.before(wrap); else home.append(wrap);
     place(wrap);
     observer?.disconnect();
     observer = new ResizeObserver(() => place(wrap));
@@ -127,7 +129,7 @@
 
   // The tile a press at `target` picks up, and its element on the canvas or in the flow; none in a field or the title.
   function tileAt(target, home) {
-    if (!(target instanceof Element) || target.closest(FIELD) || target.closest('.cf-top')) return null;
+    if (!(target instanceof Element) || target.closest(FIELD) || target.closest('.cf-top, .sp-needs, .sp-teams')) return null;
     const t = target.closest('.bc-tile');
     if (t && home.contains(t)) return { id: t.dataset.tile, el: t };
     if (shown) return null;

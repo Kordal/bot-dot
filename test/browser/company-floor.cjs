@@ -1,10 +1,10 @@
 // Optional browser check of the Company's home (#672): node test/browser/company-floor.cjs [shots dir]
-// A running company with three teams and a bot in no team: the header says its day, the objectives are charts, a
-// room of five spans two columns, the lead of a team sits at the head with a crown (none for a one-bot team), a bot
-// at work has a desk while the idle ones sit on the bench. A click on a room shows the team with "Make lead"; "@Bot
-// text" in Add a task gives that bot the task. The To-do (#692): its filters, and a repeating task added with the
-// picker comes back once ticked. The Chief, the bot in no team and New team sit in a narrow column beside
-// the teams (#690). A phone has the floor in one column and the To-do under it. Scratch data only.
+// A running company with three teams and a bot in no team: the header says its day, the objectives are charts. Under
+// the board each team is a row (#838): its name, then its bots' keys with the lead first and crowned (none for a
+// one-bot team), a bot at work says so on its key; the bot in no team is not there, and New team ends the rows. ⋯ on
+// a row shows the team with "Make lead"; "@Bot text" in Add a task gives that bot the task. The To-do (#692): its
+// filters, and a repeating task added with the picker comes back once ticked. A phone has the board in one column and
+// the To-do under it. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -49,20 +49,17 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       assert.equal(await page.locator('.cf-day').innerText(), 'Day 23 of 90');
       assert.equal(await page.locator('.cf-goal').count(), 3);
       assert.equal(await page.locator('.cf-goal.pace .cf-chart').count(), 3); // day 23: each a pace chart
-      const sales = page.locator('.cf-room[data-cf-team="t1"]');
-      assert.equal(await sales.evaluate((el) => el.classList.contains('wide')), true);
-      assert.equal(await sales.locator('.cf-lead .cf-crown').count(), 1);
-      if (name === 'wide') {
-        assert.equal(await sales.locator('.cf-lead .cf-name').innerText(), 'Sales Follow-up');
-        await sales.locator('.cf-desks [title^="Lead Finder"]').waitFor(); // at work: a desk
-        assert.equal(await sales.locator('.cf-bench .cf-sit').count(), 3);
-      } else {
-        assert.equal(await sales.locator('.cf-lead .cf-name').innerText(), 'Lead Finder'); // made lead on the wide page
-        assert.equal(await sales.locator('.cf-bench .cf-sit').count(), 4);
-      }
-      assert.equal(await page.locator('.cf-room[data-cf-team="t3"] .cf-crown').count(), 0);
-      assert.equal(await page.locator('.cf-floor [title^="Weekly Report"]').count(), 0); // in no team: in Bots, not on the floor (#816)
-      await page.locator('.cf-new', { hasText: 'New team' }).waitFor();
+      const row = (t) => page.locator('.sp-team', { has: page.locator(`[data-cf-team-chat="${t}"]`) });
+      const sales = row('t1');
+      assert.equal(await sales.locator('.cf-crown').count(), 1);
+      const keys = await sales.locator('.sp-keys .key .name').allInnerTexts();
+      if (name === 'wide') assert.deepEqual(keys, ['Sales Follow-up', 'Lead Finder', 'Outreach', 'Lead Scorer', 'Demo Booker']);
+      else assert.equal(keys[0], 'Lead Finder'); // made lead on the wide page
+      await sales.locator('.key[data-cf-bot] .key-st.working').first().waitFor(); // Lead Finder at work
+      assert.equal(await row('t3').locator('.cf-crown').count(), 0);
+      assert.equal(await page.locator('.sp-teams [title^="Weekly Report"]').count(), 0); // in no team: on Home (#816)
+      assert.equal(await page.locator('.cf-room, .cf-desk, .cf-chief').count(), 0, 'no floor desks');
+      await page.locator('.sp-new', { hasText: 'New team' }).waitFor();
       // Ticked on the wide page, the task is under Done on the phone.
       if (name === 'phone') await page.locator('[data-cf-filter="done"]').click();
       await page.locator('.cf-todo', { hasText: 'Review notes for v2.3' }).waitFor();
@@ -77,19 +74,14 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await page.mouse.move(0, 0);
         const [floor, panel] = await Promise.all(['.cf-floor', '.cf-panel'].map((s) => page.locator(s).boundingBox()));
         assert.ok(panel.x > floor.x + floor.width - 1, 'the panel beside the floor');
-        const [w, n] = await Promise.all(['.cf-room[data-cf-team="t1"]', '.cf-room[data-cf-team="t2"]'].map((s) => page.locator(s).boundingBox()));
-        assert.ok(w.width > n.width * 1.8, 'the big team spans two columns');
-        const [rooms, side] = await Promise.all(['.cf-rooms', '.cf-side'].map((s) => page.locator(s).boundingBox()));
-        assert.ok(side.x > rooms.x + rooms.width - 1 && side.width < 220, 'the Chief and New team in a narrow column beside the teams');
-        assert.ok(await page.locator('.cf-side .cf-chief').count() && await page.locator('.cf-side .cf-new').count());
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-you.png`), fullPage: true });
-        await sales.locator('.cf-room-head .cf-n').click(); // the room, not its name: the name opens the team's chat (#697)
+        await sales.locator('.sp-more').click(); // ⋯, not the name: the name opens the team's chat (#697)
         await page.locator('.cf-panel h2', { hasText: 'Sales' }).waitFor();
         assert.match(await page.locator('.cf-team-kpi').innerText(), /Paying teams/);
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-team.png`), fullPage: true });
         await page.locator(`[data-cf-lead="${id('Lead Finder')}"]`).click();
         await waitFor(async () => (await srv.api('/company')).data.company.teams.find((t) => t.id === 't1').lead === id('Lead Finder'), { what: 'the new lead' });
-        await sales.locator('.cf-lead .cf-name', { hasText: 'Lead Finder' }).waitFor();
+        await sales.locator('.sp-keys .key').first().locator('.name', { hasText: 'Lead Finder' }).waitFor();
         await page.locator('[data-cf-close]').click();
         await page.locator('.cf-panel h2', { hasText: 'To-do' }).waitFor();
         await page.locator('#cf-add input').fill('@Weekly Report send the weekly numbers');
@@ -101,7 +93,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await page.locator('.cf-todo input[data-cf-todo="d1"]').check();
         await waitFor(async () => (await srv.api('/company')).data.company.todos.find((t) => t.id === 'd1').done, { what: 'the task ticked' });
         // A bot's chat docked on the Projects screen, then Bots: the Chief's chat, not the Projects screen (#757).
-        await page.locator(`.cf-room[data-cf-team="t2"] [data-cf-bot="${id('Billing Helper')}"]`).click();
+        await page.locator(`.sp-keys [data-cf-bot="${id('Billing Helper')}"]`).click();
         await page.waitForFunction(() => document.querySelector('#app')?.classList.contains('docked'));
         await page.locator('#rail .brand:visible, .place-switch [data-place="bots"]:visible').first().click();
         await page.waitForFunction(() => state.view === 'chief');
@@ -131,8 +123,6 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       } else {
         const [floor, panel] = await Promise.all(['.cf-floor', '.cf-panel'].map((s) => page.locator(s).boundingBox()));
         assert.ok(panel.y >= floor.y + floor.height - 1, 'the panel under the floor');
-        const [rooms, side] = await Promise.all(['.cf-rooms', '.cf-side'].map((s) => page.locator(s).boundingBox()));
-        assert.ok(side.y >= rooms.y + rooms.height - 1, 'the narrow column under the teams');
         assert.ok(floor.width <= viewport.width, 'no sideways scroll');
         if (shots) await page.screenshot({ path: path.join(shots, `${name}.png`), fullPage: true });
       }

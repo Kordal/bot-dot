@@ -111,7 +111,31 @@ function status({ running = false, runs = 0, needs = false, unread = 0, last = n
   return { kind: 'idle', text: tr('Idle') };
 }
 
-const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status };
+// Each bot in one space (#838, ADR 132): Home's keys leave out every bot in a project's team and every team's chat
+// (a group with `team`), which are that project's. A bot that leaves its team is Home's again, in its own category.
+// projects: the projects as the apps load them, each with `teams` of { id, bots }.
+function home(bots, groups, projects) {
+  const teams = (projects || []).flatMap((p) => p.teams || []);
+  const inTeam = new Set(teams.flatMap((t) => t.bots || []));
+  const teamIds = new Set(teams.map((t) => t.id));
+  return { bots: bots.filter((b) => !inTeam.has(b.id)), groups: groups.filter((g) => !(g.team && teamIds.has(g.team))) };
+}
+// Map(bot id → its project): the project whose team a bot is in (a bot is in at most one team, ADR 110).
+function projectOf(projects) {
+  const map = new Map();
+  for (const p of projects || []) for (const t of p.teams || []) for (const id of t.bots || []) if (!map.has(id)) map.set(id, p);
+  return map;
+}
+// What a space's Needs you lists: on Home (project null) every ask; in a project only those of its own bots. An ask
+// names its bot (`bot.id`); a batch holds several, and is the project's when one of them is.
+function asksOf(items, project, projects) {
+  if (!project) return items;
+  const of = projectOf(projects);
+  const mine = (x) => of.get(x.bot?.id)?.id === project.id;
+  return items.filter((x) => (x.kind === 'batch' ? (x.items || []).some(mine) : mine(x)));
+}
+
+const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, home, projectOf, asksOf };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Keypad = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

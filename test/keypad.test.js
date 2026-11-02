@@ -242,3 +242,47 @@ test('status: Working, then Needs you, then unread, then the last run: Done, Cou
   assert.deepEqual(S({}), { kind: 'idle', text: 'Idle' });
   assert.deepEqual(S(), { kind: 'idle', text: 'Idle' });
 });
+
+// ---------- spaces (#838, ADR 132) ----------
+
+const projects = [
+  { id: 'p1', name: 'Quotz IT', teams: [{ id: 't1', bots: ['ops', 'planner'], lead: 'ops' }] },
+  { id: 'p2', name: 'Mila', teams: [{ id: 't2', bots: ['coach'], lead: 'coach' }] },
+];
+
+test('home: a bot in a project\'s team and the team\'s chat leave Home; the rest stay, in their categories', () => {
+  const bots = [bot('Ops', { group: 'Tech' }), bot('Planner'), bot('Coach'), bot('Recipes', { group: 'Home' })];
+  const groups = [grp('Quotz IT team', { team: 't1' }), grp('Dev'), grp('Old team', { team: 'gone' })];
+  const h = Keypad.home(bots, groups, projects);
+  assert.deepEqual(h.bots.map((b) => b.name), ['Recipes']);
+  assert.deepEqual(h.groups.map((g) => g.name), ['Dev', 'Old team'], 'a chat whose team is in no project stays');
+  assert.deepEqual(shape(Keypad.pages(h.bots, h.groups)), ['category:Home: Recipes', 'other:Other: #Dev, #Old team']);
+});
+
+test('home: a bot that leaves its team is Home\'s again, in its own category', () => {
+  const bots = [bot('Ops', { group: 'Tech' })];
+  assert.deepEqual(Keypad.home(bots, [], projects).bots, []);
+  const left = [{ ...projects[0], teams: [{ id: 't1', bots: ['planner'], lead: 'planner' }] }];
+  assert.deepEqual(shape(Keypad.pages(Keypad.home(bots, [], left).bots, [])), ['category:Tech: Ops']);
+});
+
+test('home: with no projects nothing leaves', () => {
+  const bots = [bot('Ops')];
+  const groups = [grp('Dev', { team: 't1' })];
+  assert.deepEqual(Keypad.home(bots, groups, []), { bots, groups });
+});
+
+test('projectOf: each team bot\'s project', () => {
+  const of = Keypad.projectOf(projects);
+  assert.equal(of.get('ops').id, 'p1');
+  assert.equal(of.get('coach').id, 'p2');
+  assert.equal(of.get('recipes'), undefined);
+});
+
+test('asksOf: Home lists every ask; a project only its own bots\' asks, a batch when one of its asks is', () => {
+  const ask = (id) => ({ kind: 'ask', bot: { id } });
+  const items = [ask('ops'), ask('coach'), ask('recipes'), { kind: 'batch', items: [ask('recipes'), ask('planner')] }, { kind: 'suggestion' }];
+  assert.equal(Keypad.asksOf(items, null, projects), items);
+  assert.deepEqual(Keypad.asksOf(items, projects[0], projects), [items[0], items[3]]);
+  assert.deepEqual(Keypad.asksOf(items, projects[1], projects), [items[1]]);
+});

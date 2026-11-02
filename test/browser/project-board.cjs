@@ -1,6 +1,6 @@
 // Optional browser check of the board's pieces (#780): node test/browser/project-board.cjs [shots dir]
 // A new project's home is its title, its gear and New card; a pick under the ask of a new card puts a piece on the
-// board (Teams: the floor; To-do: the panel); Project settings take one off again. A project made before shows every
+// board (To-do: the panel; the teams are rows under it, no piece, #838); Project settings take one off again. A project made before shows every
 // piece. Wide and phone. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -37,37 +37,33 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       if (shots) await page.screenshot({ path: path.join(shots, `${name}-empty.png`), fullPage: true });
 
       await page.locator('.pc-new').click();
-      assert.deepEqual(await picked(page), ['days', 'goals', 'teams', 'calendar', 'todo']);
+      // The teams are rows of keys under the board, never a piece (#838).
+      assert.deepEqual(await picked(page), ['days', 'goals', 'calendar', 'todo']);
       if (shots) await page.screenshot({ path: path.join(shots, `${name}-picks.png`), fullPage: true });
-      await page.locator('[data-pc-piece="teams"]').click();
-      await page.locator('.cf-room').waitFor({ timeout: 10000 });
-      assert.deepEqual(await board(), ['teams']);
-      assert.equal(await page.locator('.cf-panel').count(), 0);
-      await page.locator('.pc-new').click();
       await page.locator('[data-pc-piece="todo"]').click();
       await page.locator('.cf-panel', { hasText: 'Post the launch' }).waitFor({ timeout: 10000 });
-      assert.deepEqual(await board(), ['teams', 'todo']);
+      assert.deepEqual(await board(), ['todo']);
       await page.locator('.pc-new').click();
       assert.deepEqual(await picked(page), ['days', 'goals', 'calendar']);
-      if (shots) await page.screenshot({ path: path.join(shots, `${name}-teams-todo.png`), fullPage: true });
+      if (shots) await page.screenshot({ path: path.join(shots, `${name}-todo.png`), fullPage: true });
 
       if (name === 'wide') {
-        // Settings: Teams off again.
+        // Settings: To-do off again.
         await page.locator('[data-project-settings]').first().click();
-        const teams = page.locator('[data-ps-piece="teams"]');
-        await teams.waitFor({ timeout: 10000 });
-        assert.equal(await teams.getAttribute('aria-pressed'), 'true');
+        const todo = page.locator('[data-ps-piece="todo"]');
+        await todo.waitFor({ timeout: 10000 });
+        assert.equal(await todo.getAttribute('aria-pressed'), 'true');
+        assert.equal(await page.locator('[data-ps-piece="teams"]').count(), 0, 'no Teams piece');
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-settings.png`) });
-        await teams.click();
-        await waitFor(async () => JSON.stringify(await board()) === '["todo"]', { what: 'teams off' });
+        await todo.click();
+        await waitFor(async () => JSON.stringify(await board()) === '[]', { what: 'to-do off' });
       }
 
       // A project made before #780 has no board: every piece, as it always had.
       write({ board: undefined });
       await page.goto(`${srv.base}/#company`);
       await page.reload();
-      await page.locator('.cf-room').waitFor({ timeout: 20000 });
-      assert.ok(await page.locator('.cf-day').count());
+      await page.locator('.cf-day').waitFor({ timeout: 20000 });
       assert.ok(await page.locator('.cf-panel').count());
       await page.locator('.pc-new').click();
       assert.equal(await page.locator('[data-pc-piece]').count(), 0, 'nothing to add');
