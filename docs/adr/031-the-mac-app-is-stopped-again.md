@@ -1,6 +1,6 @@
 # ADR-031: The Mac app is stopped again
 
-- **Status:** Accepted (2026-10-18, the owner's decision)
+- **Status:** Superseded by [ADR 136](136-the-mac-apps-code-is-removed.md) (2026-11-02); accepted 2026-10-18, the owner's decision
 - **Owning task:** [#7](https://github.com/Kordal/bot-dot/issues/7)
 
 ## Context

@@ -7,7 +7,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import dev.botdot.app.R
 
-// Geist and Geist Mono, the web page's and the Mac app's fonts, ship in res/font (licence: assets/fonts/OFL.txt).
+// Geist and Geist Mono, the web page's fonts, ship in res/font (licence: assets/fonts/OFL.txt).
 // Each file is a variable font: a Font of a weight sets the file's weight axis to it, so no weight is faked.
 private val weights = listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold)
 

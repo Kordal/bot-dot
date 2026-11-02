@@ -1,6 +1,6 @@
 # botdot
 
-A messenger-style app for a team of AI bots, run by a Chief of Staff. Each person has an account on a machine that holds one or more; their account's botdot server holds their bots and data, and the web page and the Android and Mac apps are windows onto it. On Linux, the owner uses the web page; the botdot server and the account's computer still run on Linux.
+A messenger-style app for a team of AI bots, run by a Chief of Staff. Each person has an account on a machine that holds one or more; their account's botdot server holds their bots and data, and the web page and the Android app are windows onto it. On Linux, the owner uses the web page; the botdot server and the account's computer still run on Linux.
 
 ## Language
 
@@ -294,10 +294,6 @@ _Avoid_: recovery link, reset link, magic link
 An account the admin paused: its botdot server and the account's computer are stopped, its data is kept, and its owner sees only "Your account is paused by the admin" until the admin resumes it.
 _Avoid_: disabled, frozen, locked, banned
 
-**Local botdot server**:
-A botdot server that the Mac app set up and looks after on the same Mac, in Docker. A botdot server on a VM is just a botdot server, even if the user runs it themselves.
-_Avoid_: self-hosted botdot (every botdot is self-hosted), embedded server
-
 **Self-built botdot server**:
 A botdot server whose images were built from the source on its own machine instead of downloaded as botdot's signed images. It is updated by pulling the source and building again; on a machine of several accounts the admin page's Update then moves every account to what was built.
-_Avoid_: local build (a local botdot server is the Mac app's), dev build, unofficial build
+_Avoid_: local build, dev build, unofficial build

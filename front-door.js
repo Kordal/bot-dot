@@ -36,9 +36,9 @@
 //                     separated) besides botdot's release key, which is always named: the app's passkey sign-in is
 //                     taken from those, and /.well-known/assetlinks.json names them. Only apps from before the
 //                     sign-in in the browser use it: today the app signs in on the sign-in page, with a hand-off
-// FRONT_DOOR_ONE_ACCOUNT  a machine of exactly this one account (the Mac app's local botdot server, ADR 028): no
+// FRONT_DOOR_ONE_ACCOUNT  a machine of exactly this one account (npm start, ADR 028): no
 //                     sign-up link is printed or opens, and the account's passkey is made with FRONT_DOOR_SETUP_KEY
-// FRONT_DOOR_SETUP_KEY  with FRONT_DOOR_ONE_ACCOUNT: the secret (32 to 100 base64url characters) that only the Mac app
+// FRONT_DOOR_SETUP_KEY  with FRONT_DOOR_ONE_ACCOUNT: the secret (32 to 100 base64url characters) that only its starter
 //                     holds, which opens the one account's sign-up page until that account exists
 const fs = require('fs');
 const http = require('http');
@@ -80,7 +80,7 @@ const SITES_ORIGIN = (() => {
   return u;
 })();
 const DATA = path.resolve(process.env.FRONT_DOOR_DATA || path.join(__dirname, 'front-door-data'));
-// One account (the Mac app's local botdot server): its name, and the setup key that makes its passkey.
+// One account (npm start): its name, and the setup key that makes its passkey.
 const ONE_ACCOUNT = process.env.FRONT_DOOR_ONE_ACCOUNT || null;
 if (ONE_ACCOUNT !== null && !store.ACCOUNT_NAME.test(ONE_ACCOUNT)) {
   console.error("FRONT_DOOR_ONE_ACCOUNT is an account's name: 2 to 31 lowercase letters, digits and dashes, starting with a letter.");
@@ -173,8 +173,7 @@ const callTries = limits.create(); // calls with a wrong key, or none, or to an 
 const challenges = new Map();
 const CHALLENGES_PER_CLIENT = 20;
 const CHALLENGES_MAX = 10_000;
-// The native apps sign in on this front door's own page in a browser: the Mac app in a sheet
-// (ASWebAuthenticationSession), the Android app in a Custom Tab, so the browser's password manager answers the passkey.
+// The Android app signs in on this front door's own page in a browser, a Custom Tab, so the browser's password manager answers the passkey.
 // The page hands the sign-in back to the app as a code at botdot://signed-in?code=…. The app sends the code with the
 // secret whose SHA-256 the page carried (`handoff`) and gets its session: a code alone, seen by anything else (on
 // Android, another app may claim botdot:// too), signs nobody in.
@@ -184,7 +183,7 @@ const HANDOFF_MS = 2 * 60_000;
 const HANDOFFS_MAX = 1000;
 const HANDOFF_CHALLENGE = /^[A-Za-z0-9_-]{43}$/; // a SHA-256 in base64url
 const APP_CALLBACK = 'botdot://signed-in';
-const HANDOFF_APPS = ['mac', 'android']; // the apps that sign in through the browser
+const HANDOFF_APPS = ['android']; // the apps that sign in through the browser
 setInterval(() => {
   for (const map of [challenges, handoffs]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
 }, 60_000).unref();
@@ -461,7 +460,7 @@ function slowedDown(req, res, limit = tries, what = 'failed sign-ins') {
 
 // ---------- the front door's own routes ----------
 
-// What a page that signs in asks for: { challenge } when it is a native app's browser (the Mac app's sheet, the
+// What a page that signs in asks for: { challenge } when it is a native app's browser (the
 // Android app's Custom Tab), which hands the sign-in back, {} for any other, which gets its session's cookie. Null,
 // answered here, for a hand-off that is wrong.
 function handoffOf(body, res) {

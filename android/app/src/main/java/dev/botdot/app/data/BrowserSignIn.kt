@@ -63,7 +63,7 @@ class Handoff(val server: String, val verifier: String, val startedAt: Long) {
 }
 
 /**
- * The Android app's sign-in, in the browser (ADR 028, #469's way for the Mac app): [start] makes a [Handoff], keeps it
+ * The Android app's sign-in, in the browser (ADR 028, #469): [start] makes a [Handoff], keeps it
  * and gives the page to open; [back] takes the address the browser came back with and turns its code into this app's
  * session at `POST /sign-in/handoff`. The browser and its password manager (Proton Pass, Bitwarden, Google's) answer
  * the passkey for the site itself, so no Digital Asset Links and no `FRONT_DOOR_ANDROID_KEYS` take part.

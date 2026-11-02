@@ -1,6 +1,6 @@
 // Every job runs on GitHub's own throwaway machines (#528): the repository is public, and a fork's pull request
 // can change a workflow, so a runner of the owner's would run anyone's code (audit S1). The image carries the
-// Android app and no Mac app (ADR 031).
+// Android app and no Mac app (ADR 136).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -224,7 +224,7 @@ test('every layer of both images is scanned for secrets before evidence, signing
   assert.equal(jobs.evidence.needs, 'build');
 });
 
-test("the Android release builds on GitHub's machines, and no workflow builds or tests the Mac app (ADR 031)", () => {
+test("the Android release builds on GitHub's machines, and no workflow builds or tests a Mac app (ADR 136)", () => {
   assert.equal(workflow('android.yml').jobs.build['runs-on'], 'ubuntu-latest');
   const tests = workflow('tests.yml').jobs;
   assert.equal(tests.mac, undefined);

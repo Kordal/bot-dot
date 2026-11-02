@@ -39,14 +39,14 @@ test('the page links no Google Fonts and its rules allow fonts only from botdot'
   for (const name of FONTS) assert.match(css, new RegExp(`url\\("/fonts/${name}"\\)`), name);
 });
 
-test('every copy of the fonts is the Mac app\'s, with OFL.txt beside it', () => {
-  const mac = path.join(ROOT, 'macos', 'BotDot', 'Resources', 'Fonts');
+test('Android carries the web page\'s fonts, with OFL.txt beside them', () => {
+  const web = path.join(ROOT, 'public', 'fonts');
   const same = (a, b) => assert.ok(fs.readFileSync(a).equals(fs.readFileSync(b)), `${b} differs from ${a}`);
-  for (const name of [...FONTS, 'OFL.txt']) same(path.join(mac, name), path.join(ROOT, 'public', 'fonts', name));
+  for (const name of [...FONTS, 'OFL.txt']) assert.ok(fs.existsSync(path.join(web, name)), name);
   // Android names resources in lower case, and res/font takes fonts only: the licence ships in assets/fonts.
   const android = path.join(ROOT, 'android', 'app', 'src', 'main');
-  same(path.join(mac, 'Geist.ttf'), path.join(android, 'res', 'font', 'geist.ttf'));
-  same(path.join(mac, 'Geist-Italic.ttf'), path.join(android, 'res', 'font', 'geist_italic.ttf'));
-  same(path.join(mac, 'GeistMono.ttf'), path.join(android, 'res', 'font', 'geist_mono.ttf'));
-  same(path.join(mac, 'OFL.txt'), path.join(android, 'assets', 'fonts', 'OFL.txt'));
+  same(path.join(web, 'Geist.ttf'), path.join(android, 'res', 'font', 'geist.ttf'));
+  same(path.join(web, 'Geist-Italic.ttf'), path.join(android, 'res', 'font', 'geist_italic.ttf'));
+  same(path.join(web, 'GeistMono.ttf'), path.join(android, 'res', 'font', 'geist_mono.ttf'));
+  same(path.join(web, 'OFL.txt'), path.join(android, 'assets', 'fonts', 'OFL.txt'));
 });

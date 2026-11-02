@@ -10,14 +10,8 @@ node_modules/
 *.log
 .claude/settings.local.json
 
-# The Android and Mac apps CI puts into the server image (images.yml)
+# The Android app CI puts into the server image (images.yml)
 /android-app/
-/mac-app/
-
-# The Mac app's build output
-/macos/build/
-/macos/BotDotKit/.build/
-xcuserdata/
 
 # Android app packages, built or downloaded: the releases carry them, not Git
 *.apk
