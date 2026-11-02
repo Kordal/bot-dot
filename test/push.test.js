@@ -112,6 +112,20 @@ test("a bot's plan rings unless its chat is on screen, and Claude's sign-out onc
   assert.equal(take(f, out).length, 1, 'the next sign-out rings again');
 });
 
+test("an External Virtual PC boat.dev can't save rings once per machine, also while the web page is in use, and ends when it saves again (#901)", () => {
+  const f = push.follower({ rung: new Set() });
+  const unsaved = (ids, extra) => ev('boat_unsaved', { machines: ids.map((id) => ({ id, since: null })) }, extra);
+  assert.deepEqual(take(f, unsaved(['bx_aaaaaaaa'], { webActive: true })).map((n) => [n.title, n.body, n.target, n.tag, n.urgency]),
+    [['botdot', "The External Virtual PC can't be saved: what changed on it may be lost.", 'app', 'boat:bx_aaaaaaaa', 'high']]);
+  assert.deepEqual(take(f, unsaved(['bx_aaaaaaaa'])), [], 'once');
+  assert.deepEqual(take(f, unsaved(['bx_aaaaaaaa', 'bx_bbbbbbbb'])).map((n) => n.tag), ['boat:bx_bbbbbbbb']);
+  assert.deepEqual(f.take(unsaved(['bx_bbbbbbbb'])).closed, ['boat:bx_aaaaaaaa']);
+  assert.deepEqual(f.take(unsaved([])).closed, ['boat:bx_bbbbbbbb']);
+  assert.equal(take(f, unsaved(['bx_aaaaaaaa'])).length, 1, 'rings again when it fails again');
+  assert.deepEqual(take(f, ev('boat_unsaved', { machines: [{ id: '../x' }] })), [], 'an id is only an id');
+  assert.deepEqual(take(f, ev('boat_unsaved', {})), [], 'no list, nothing changes');
+});
+
 test('a notification ends when its card is answered or its chat is read in any app (ADR 138)', () => {
   const f = push.follower({ rung: new Set() });
   const job = { botId: 'b1', botName: 'News', jobId: 'j1', jobName: 'Digest', text: 'Wants to run “Digest”' };

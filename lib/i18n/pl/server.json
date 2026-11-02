@@ -219,6 +219,7 @@
   "Someone": "Ktoś",
   "a room": "pokoju",
   "Claude is signed out: bots can't work.": "Claude jest wylogowany: boty nie mogą pracować.",
+  "The External Virtual PC can't be saved: what changed on it may be lost.": "Nie da się zapisać Zewnętrznego wirtualnego PC: to, co się na nim zmieniło, może przepaść.",
   "It is erased for every bot that works on it: {bots}.": "Zostanie wyczyszczony dla każdego bota, który na nim pracuje: {bots}.",
   "Lost: the files in /home/box and /workspace, the browsers' logins, its Tailscale login and every program installed on it. The next computer tool of any bot starts it again, fresh. A bot's old computer of its own is not touched.": "Stracisz: pliki w /home/box i /workspace, loginy przeglądarek, jego login Tailscale i każdy zainstalowany na nim program. Następne narzędzie komputera dowolnego bota uruchomi go od nowa, czysty. Stary własny komputer bota pozostaje nietknięty.",
   "Reset the account's computer?": "Zresetować komputer konta?",

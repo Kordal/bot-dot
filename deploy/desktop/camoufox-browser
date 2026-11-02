@@ -32,6 +32,11 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
+# Camoufox (GTK) asks gvfs nothing: on a boat.dev machine gvfs mounted ~/.gvfs for the browser user, which not even
+# root can read, and boat.dev could no longer save the machine (#812, #901). Camoufox inherits these.
+os.environ["GIO_USE_VFS"] = "local"
+os.environ["GVFS_DISABLE_FUSE"] = "1"
+
 BRIDGE_SOCKET = "/run/botdot-browser/bridge.sock"
 BRIDGE_LOG = "/home/browser/bridge.log"  # as told in lib/computers.js, above startBrowserBridge
 LOG_CAP = 1024 * 1024
