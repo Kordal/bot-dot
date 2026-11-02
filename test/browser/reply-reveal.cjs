@@ -1,9 +1,9 @@
-// Optional browser check of the paced reveal of a reply draft (#861, ADR 042 "The paced reveal"):
+// Optional browser check that a reply draft is drawn as it comes, with no reveal (#870, ADR 042):
 //   NODE_PATH=<directory containing playwright> node test/browser/reply-reveal.cjs
 // It runs in no gate: the repository does not carry Playwright. A running run's stream sends a growing draft every
-// 200 ms, as the server does; the bubble's text grows in many small steps between two drafts, not in one, never
-// shows an open ** or [, keeps its first block in the page while the last one grows, goes at once when a tool call
-// clears it, and is drawn whole as it comes with reduced motion. The run stream is stood in for in the page.
+// 200 ms, as the server does; the bubble shows each draft whole as it comes, never more steps than drafts, never
+// shows an open ** or [, keeps its first block in the page while the last one grows, and goes at once when a tool
+// call clears it. The run stream is stood in for in the page.
 // Scratch data and fake Claude only.
 //   REPLY_REVEAL_SHOTS=<folder>  also save screenshots there
 const assert = require('node:assert/strict');
@@ -79,12 +79,8 @@ function fakeStream(reply) {
         requestAnimationFrame(look);
       }));
       const drafts = Math.ceil(REPLY.length / 60);
-      if (motion === 'reduce') {
-        assert.ok(seen.texts.length <= drafts + 1, `reduced motion: drawn as it comes (${seen.texts.length} steps for ${drafts} drafts)`);
-      } else {
-        assert.ok(seen.texts.length > drafts * 4, `many small steps between two drafts (${seen.texts.length} for ${drafts} drafts)`);
-        assert.ok(seen.sameHead, 'the heading stays in the page while the paragraph grows');
-      }
+      assert.ok(seen.texts.length <= drafts + 1, `${motion}: drawn as it comes (${seen.texts.length} steps for ${drafts} drafts)`);
+      assert.ok(seen.sameHead, 'the heading stays in the page while the paragraph grows');
       assert.match(seen.texts.at(-1), /each night\.$/, 'the whole reply in the end');
       assert.ok(seen.texts.every((x) => !/\*\*|\[|\]\(/.test(x)), `no open mark shown: ${seen.texts.find((x) => /\*\*|\[|\]\(/.test(x))}`);
       if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: path.join(SHOTS, `reveal-${motion}.png`) }); }
@@ -95,7 +91,7 @@ function fakeStream(reply) {
       await context.close();
     }
     assert.deepEqual(errors, []);
-    console.log('ok: a reply draft is revealed at a steady pace');
+    console.log('ok: a reply draft is drawn as it comes');
   } finally {
     await browser?.close();
     await srv.stop();

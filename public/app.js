@@ -917,7 +917,7 @@ Diagrams.watch(document.getElementById('modal'));
 // A reply as it is written (docs/api.md, "The reply draft"; ADR 042): from a server whose `features` name
 // `reply-draft`, a run's stream and a Chief chat's stream send the whole draft so far, and the page draws it in the
 // row of the reply that is being written, the bubble its reply will have, in place. Its end takes it away: the
-// reply is drawn as it always was. The draft is revealed at a steady pace (replyDrafts), and a frame redraws only
+// reply is drawn as it always was. Each draft is drawn whole as it comes (replyDrafts), and a frame redraws only
 // its last block (drawDraftMd).
 const showsDrafts = () => state.features.includes('reply-draft');
 // The draft's bubble, or '' for none. alone: in a stack of its own, as a reply's bubble stands, for a row that has none.
@@ -942,36 +942,15 @@ function drawDraftMd(box, text) {
   }
   box._parts = parts;
 }
-// The pace of the reveal: each new draft is caught up with in about DRAFT_CATCH_UP ms, at least one grapheme a frame.
-// draftRate: the graphemes a millisecond for a backlog; draftStep: the graphemes this frame shows, and what is left over.
-const DRAFT_CATCH_UP = 250;
-const draftRate = (backlog) => Math.max(0, backlog) / DRAFT_CATCH_UP;
-const draftStep = (rate, ms, carry = 0) => {
-  const due = carry + rate * Math.max(0, ms);
-  const n = Math.max(1, Math.floor(due));
-  return [n, Math.max(0, due - n)];
-};
-// The first n graphemes of a text (an emoji or a letter with its accent is one), and how many it has.
-const draftGraphemes = typeof Intl === 'object' && typeof Intl.Segmenter === 'function' ? new Intl.Segmenter() : null;
-function graphemesOf(text, n = Infinity) {
-  let out = '', count = 0;
-  for (const g of draftGraphemes ? draftGraphemes.segment(text) : Array.from(text, (segment) => ({ segment }))) {
-    if (count >= n) break;
-    out += g.segment; count++;
-  }
-  return { text: out, count };
-}
-// The drafts the page holds, by their reply (a run's id, or chief:<chat>): the draft as sent (target) and the part of
-// it shown, kept so that a chat drawn again keeps what it showed (of). Each frame shows more of the target, at the
-// pace above, and draws it where at() says: [row, thread], in the row's .stack when it has one, or nothing when its
-// chat draws it itself (a group's, drawGroupDrafts). A draft that does not go on from what is shown (a tool call
-// cleared it, a held line changed it) is shown at once, and so is every draft with reduced motion. The thread stays
-// at its end when the owner is near it, and is not moved otherwise.
+// The drafts the page holds, by their reply (a run's id, or chief:<chat>): kept so that a chat drawn again keeps
+// its draft, and drawn whole as it comes, at the next frame, where at() says: [row, thread], in the row's .stack when
+// it has one. Without `at` it is only kept: whose chat draws it itself (a group's, drawGroupDrafts). There is no
+// reveal animation (#869): the owner reads what has come, never behind it. The thread stays at its end when the
+// owner is near it, and is not moved otherwise.
 const replyDrafts = (() => {
-  const drafts = new Map(); // key -> { target, shown, rate, carry, at, dirty }
-  const gone = new Map(); // a draft taken away -> where it stood, to clear at the next frame
-  let frame = 0, last = 0;
-  const calm = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const texts = new Map();
+  const where = new Map(); // what waits for the next frame: key -> at
+  let frame = 0;
   const draw = (at, text) => {
     const [row, thread] = at?.() || [];
     if (!row?.isConnected) return;
@@ -986,46 +965,22 @@ const replyDrafts = (() => {
     else if (text) (box || row).insertAdjacentHTML('afterbegin', draftHTML(text, !box));
     if (near && thread) thread.scrollTop = thread.scrollHeight;
   };
-  const tick = (now) => {
+  const tick = () => {
     frame = 0;
-    const ms = last ? Math.min(now - last, 100) : 1000 / 60;
-    last = now;
-    for (const [, at] of gone) draw(at, '');
-    gone.clear();
-    let more = false;
-    for (const d of drafts.values()) {
-      if (d.shown !== d.target) {
-        const [n, carry] = draftStep(d.rate, ms, d.carry);
-        d.shown += graphemesOf(d.target.slice(d.shown.length), n).text;
-        d.carry = d.shown === d.target ? 0 : carry;
-        d.dirty = true;
-      }
-      if (d.dirty) { d.dirty = false; draw(d.at, d.shown); }
-      if (d.shown !== d.target) more = true;
-    }
-    if (more) schedule(); else last = 0;
+    const due = [...where];
+    where.clear();
+    for (const [key, at] of due) draw(at, texts.get(key) || '');
   };
-  const schedule = () => { if (!frame) frame = requestAnimationFrame(tick); };
   return {
-    of: (key) => drafts.get(key)?.shown || '',
-    // Keep `text` as the draft of `key` ('' for none), and reveal it where at() says from the next frame on.
+    of: (key) => texts.get(key) || '',
+    // Keep `text` as the draft of `key` ('' for none), and draw it where at() says at the next frame.
     say(key, text, at) {
-      if (typeof text !== 'string' || !text) {
-        drafts.delete(key);
-        if (at) { gone.set(key, at); schedule(); }
-        return;
-      }
-      gone.delete(key);
-      const d = drafts.get(key) || { target: '', shown: '', rate: 0, carry: 0 };
-      drafts.set(key, d);
-      d.target = text;
-      d.at = at;
-      if (!text.startsWith(d.shown) || calm()) d.shown = text;
-      d.rate = draftRate(graphemesOf(text.slice(d.shown.length)).count);
-      d.dirty = true;
-      schedule();
+      if (typeof text === 'string' && text) texts.set(key, text); else texts.delete(key);
+      if (!at) return;
+      where.set(key, at);
+      if (!frame) frame = requestAnimationFrame(tick);
     },
-    end(key) { drafts.delete(key); gone.delete(key); },
+    end(key) { texts.delete(key); where.delete(key); },
   };
 })();
 

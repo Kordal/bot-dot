@@ -612,15 +612,13 @@ function followGroupDrafts(chat) {
     es.onmessage = (msg) => {
       let ev = null;
       try { ev = JSON.parse(msg.data); } catch { /* not ours */ }
-      if (ev?.type === 'reply_draft') { replyDrafts.say(runId, String(ev.text ?? ''), revealGroupDraft); drawGroupDraftsSoon(); }
+      if (ev?.type === 'reply_draft') { replyDrafts.say(runId, String(ev.text ?? '')); drawGroupDraftsSoon(); }
       if (ev?.type === 'end') es.close();
     };
     es.onerror = () => es.close(); // its end, or the connection lost: the feed and the chat say the rest
   }
   drawGroupDraftsSoon();
 }
-// Each frame of a draft's reveal (replyDrafts) draws the group's drafts again: their rows are the group's to draw.
-const revealGroupDraft = () => { drawGroupDraftsSoon(); };
 const drawGroupDraftsSoon = () => { if (!draftFrame) { draftFrame = true; requestAnimationFrame(() => { draftFrame = false; drawGroupDrafts(); }); } };
 // The draft of a turn: the member's head and name, and the bubble its reply will have.
 function groupDraftHTML(runId, botId) {
