@@ -129,6 +129,7 @@ test("the Chief's reply: answer buttons split off, no Claude session tools, no c
   const { args, system } = chiefRuns().at(-1); // system: what it was told, read from its private file (ADR 014)
   const disallowed = args.slice(args.indexOf('--disallowedTools') + 1);
   assert.ok(disallowed.includes('ListAgents') && disallowed.includes('SendMessage'));
+  assert.ok(disallowed.includes('Monitor'), 'no Bash, so no Monitor (#641)');
   assert.match(system, /\[\[choices: Yes \| No\]\]/);
   assert.match(system, /Never tell the user what a run or a reply costs\./);
   assert.doesNotMatch(system, /unless they ask/, 'not on request either (QW-004)');

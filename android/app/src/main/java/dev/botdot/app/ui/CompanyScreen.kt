@@ -278,7 +278,7 @@ private fun StepBar(at: String, enabled: Boolean, onStep: (String) -> Unit) {
 
 /**
  * The start screen (#800): "New project" over one field for the site or the idea, a clip inside it that adds files
- * and links, shown as chips under it, and Start from scratch (#788) quiet at the bottom. [titled] false: the
+ * and links, shown as chips under it, and Start from scratch (#788) right under them (#849). [titled] false: the
  * project names over it say "New project" already.
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -326,14 +326,14 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
             if (ui.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 ui.sources.forEach { s -> SourceChip(s) { ui.sources.removeAll { it.id == s.id } } }
             }
-        }
-        Spacer(Modifier.weight(1.4f))
-        if (empty) Box(Modifier.fillMaxWidth().navigationBarsPadding(), contentAlignment = Alignment.Center) {
-            WordsButton(tr("Start from scratch"), enabled = !ui.going) {
-                ui.going = true
-                ui.call({ it.startEmptyProject(tr("New project")) }) { ui.going = false; ui.step = null }
+            if (empty) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                WordsButton(tr("Start from scratch"), enabled = !ui.going) {
+                    ui.going = true
+                    ui.call({ it.startEmptyProject(tr("New project")) }) { ui.going = false; ui.step = null }
+                }
             }
         }
+        Spacer(Modifier.weight(1.4f))
     }
 }
 
