@@ -100,8 +100,11 @@ jobs:
           echo "{\"version\":\"$VERSION\"}" > "$RUNNER_TEMP/version.json"
           echo "Building botdot $VERSION for ${{ matrix.name }}"
 
+      # The cache keeps target/, and with it the bundles of an earlier version: only this build's are collected.
       - name: Build
-        run: npx --yes "$TAURI_CLI" build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config "$RUNNER_TEMP/version.json"
+        run: |
+          rm -rf target/${{ matrix.target }}/release/bundle
+          npx --yes "$TAURI_CLI" build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config "$RUNNER_TEMP/version.json"
 
       # Named for the people who download them. The Mac's .app goes as a .tar.gz made here, which keeps its
       # permissions: the updater installs it, and the release workflow signs it.
@@ -112,10 +115,10 @@ jobs:
           BUNDLE="target/${{ matrix.target }}/release/bundle"
           case "${{ matrix.name }}" in
             windows-*)
-              cp "$(ls "$BUNDLE"/nsis/*-setup.exe)" "$OUT/botdot-$VERSION-${{ matrix.name }}-setup.exe"
+              cp "$BUNDLE"/nsis/botdot_"$VERSION"_*-setup.exe "$OUT/botdot-$VERSION-${{ matrix.name }}-setup.exe"
               ;;
             mac-*)
-              cp "$(ls "$BUNDLE"/dmg/*.dmg)" "$OUT/botdot-$VERSION-${{ matrix.name }}.dmg"
+              cp "$BUNDLE"/dmg/botdot_"$VERSION"_*.dmg "$OUT/botdot-$VERSION-${{ matrix.name }}.dmg"
               tar -czf "$OUT/botdot-$VERSION-${{ matrix.name }}.app.tar.gz" -C "$BUNDLE/macos" botdot.app
               ;;
           esac
