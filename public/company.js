@@ -511,8 +511,8 @@ const Company = (() => {
   function drawStart(root) {
     const typed = $('#co-what', root)?.value || '';
     root.innerHTML = `<div class="co-start co-new">
-      <h1>${tr('New project')}</h1>
-      <form class="co-ask" id="co-ask"><button type="button" class="icon-btn co-clip" data-attach aria-label="${tr('Attach')}" title="${tr('Attach')}" aria-haspopup="menu">${ICON.clip}</button><input id="co-what" name="what" autocomplete="off" maxlength="500" placeholder="${tr('Site or idea')}" aria-label="${tr('Site or idea')}" /><button type="submit" class="co-go co-go-icon" aria-label="${tr('Go')}" disabled>${ICON.go}</button><input type="file" multiple hidden id="co-files" /></form>
+      <h1>${tr("You know where. We'll work out how.")}</h1>
+      <form class="co-ask" id="co-ask"><button type="button" class="icon-btn co-clip" data-attach aria-label="${tr('Attach')}" title="${tr('Attach')}" aria-haspopup="menu">${ICON.clip}</button><input id="co-what" name="what" autocomplete="off" maxlength="500" placeholder="${tr('Goal, site or idea')}" aria-label="${tr('Goal, site or idea')}" /><button type="submit" class="co-go co-go-icon" aria-label="${tr('Go')}" disabled>${ICON.go}</button><input type="file" multiple hidden id="co-files" /></form>
       <div id="co-sources">${sourcesHTML(draft.sources, true)}</div>
       ${(state.features || []).includes('project-empty') ? `<button type="button" class="co-text-btn co-empty" data-start-empty>${tr('Start from scratch')}</button>` : ''}
     </div>`;
