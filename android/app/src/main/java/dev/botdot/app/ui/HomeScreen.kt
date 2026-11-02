@@ -127,6 +127,15 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     // The groups: none from a botdot server without them, and then nothing below draws or offers one.
     val groupsNow by store.groups.value.collectAsState()
     val groups = groupsNow.orEmpty()
+    // Each bot in one space (#841): a project's team bots and team chats are drawn in that project, not here; the
+    // search still finds them.
+    val projectList by store.projectList.collectAsState()
+    val companyNow by store.company.value.collectAsState()
+    val featuresNow = store.version.value.collectAsState().value?.features
+    val projects = remember(featuresNow, projectList, companyNow) { dev.botdot.app.data.Spaces.projects(featuresNow, projectList, companyNow?.company) }
+    val homeBots = remember(bots, projects) { bots?.let { dev.botdot.app.data.Spaces.homeBots(it, projects) } }
+    val homeGroups = remember(groupsNow, projects) { dev.botdot.app.data.Spaces.homeGroups(groups, projects) }
+    val spaceOfBot = remember(projects) { dev.botdot.app.data.Spaces.spaceOfBot(projects) }
     val turnLines by store.turnLines.value.collectAsState() // what each member at work in a group said it is doing
     var refreshing by remember { mutableStateOf(false) }
 
@@ -206,7 +215,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val folded by app.settings.foldedGroups.collectAsState(initial = emptySet())
     fun syncLayout() {
         if (dragging != null) return
-        val rows = ListLayout.rows(bots.orEmpty(), groups, folded, shared)
+        val rows = ListLayout.rows(homeBots.orEmpty(), homeGroups, folded, shared)
         pins.clear()
         pins.addAll(rows.pins)
         layout.clear()
@@ -217,11 +226,11 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     suspend fun load() = coroutineScope {
         listOf(store.bots, store.groups, store.chief, store.recent, store.needs, store.dashboard).forEach { launch { it.refresh() } }
     }
-    LaunchedEffect(bots, groupsNow, folded, shared) { syncLayout() }
+    LaunchedEffect(homeBots, homeGroups, folded, shared) { syncLayout() }
     // Worked out once per list of bots, not again for every row that's drawn.
     val byId = remember(bots) { bots.orEmpty().associateBy { it.id } }
     val groupById = remember(groupsNow) { groups.associateBy { ListLayout.groupRow(it.id) } }
-    val categoryBots = remember(bots) { bots.orEmpty().filter { it.pinned == 0 }.groupBy { it.group } }
+    val categoryBots = remember(homeBots) { homeBots.orEmpty().filter { it.pinned == 0 }.groupBy { it.group } }
     // Each bot's last run that said something: its row shows that, and when.
     val recent by store.recent.value.collectAsState()
     val lastRun = remember(recent) { recent.orEmpty().filterNot { it.quiet }.groupBy { it.botId }.mapValues { it.value.first() } }
@@ -323,7 +332,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             AppUpdateBanner(api, server) { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
         }
         BoardCards(dash, bots.orEmpty(), onClick = onDashboard, onEdit = if (dev.botdot.app.data.HomeTiles.shows(server?.features)) ({ choosingHome = true }) else null)
-        if (needs > 0) NeedsRows(waiting, onReview = onNeedsYou, onAnswer = { id, yes ->
+        if (needs > 0) NeedsRows(waiting, projectOf = { spaceOfBot[it] }, onReview = onNeedsYou, onAnswer = { id, yes ->
             scope.launch {
                 runCatching { (api ?: throw ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }
                     .onFailure { android.widget.Toast.makeText(context, it.message ?: tr("Couldn't answer"), android.widget.Toast.LENGTH_LONG).show() }
@@ -333,7 +342,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         RoomsRow(app) { onOpen("rooms") }
     }
     // The keypad, and a phone's sections: the list's own order cut into pages, each bot and group a key that says what its row says.
-    val pages = remember(bots, groupsNow, keypad, sections, shared) { if (keypad || sections) Keypad.pages(bots.orEmpty(), groups, shared) else emptyList() }
+    val pages = remember(homeBots, homeGroups, keypad, sections, shared) { if (keypad || sections) Keypad.pages(homeBots.orEmpty(), homeGroups, shared) else emptyList() }
     // A working key's time moves on once a minute.
     val now by produceState(System.currentTimeMillis()) { while (true) { delay(60_000); value = System.currentTimeMillis() } }
     // The bots a card in Needs you waits for: their keys say Needs you (#397).
@@ -544,7 +553,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                         }
                     }
                 }
-                if (bots != null && list.isEmpty() && groups.isEmpty() && !figures) item {
+                if (bots != null && homeBots.orEmpty().isEmpty() && homeGroups.isEmpty() && !figures) item {
                     Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(Space.s16))
                 }
             }

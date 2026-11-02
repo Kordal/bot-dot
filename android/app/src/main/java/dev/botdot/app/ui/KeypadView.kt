@@ -31,6 +31,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
@@ -269,6 +270,22 @@ private fun QuietKey(look: KeyLook, size: KeySize, modifier: Modifier = Modifier
         }
     }
 }
+
+/**
+ * A team bot's key on a project's page (#841): the same quiet key as Home's, the keypad's size beside the rail
+ * ([wide]) and a phone's otherwise, with the lead's crown over its head ([crown]).
+ */
+@Composable
+internal fun TeamKey(look: KeyLook, crown: Boolean, wide: Boolean, onClick: () -> Unit) {
+    val size = if (wide) WIDE_KEY else PHONE_KEY
+    Box {
+        QuietKey(look, size, onClick = onClick)
+        if (crown) Crown(Modifier.align(Alignment.TopCenter).offset(x = (size.head / 2).dp, y = Space.s4).testTag(LEAD_CROWN))
+    }
+}
+
+/** The tag of the lead's crown on a team key (#841). */
+internal const val LEAD_CROWN = "lead-crown"
 
 /** The tag of a key's status line (KeypadUiTest). */
 internal const val KEY_STATE = "key-state"
