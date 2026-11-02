@@ -9,6 +9,7 @@ const os = require('node:os');
 const path = require('node:path');
 const boatLib = require('../lib/boat');
 const screensLib = require('../lib/computer-screens');
+const { boatShown } = require('./helpers');
 
 const dir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-boat-'));
 const KEY = `boat_${'x'.repeat(16)}`; // no real key
@@ -53,7 +54,8 @@ function fakeBoat({ refuse = false, desktopReadyAfter = 0 } = {}) {
     if (m[2] === 'files') return reply(200, { ok: true, content: box.files.get(u.searchParams.get('path')) || '' });
     if (m[2] === 'commands') {
       if (box.state !== 'ready') return reply(409, { ok: false, code: 'sandbox_not_ready' });
-      return reply(200, { ok: true, exitCode: data.command.includes('false') ? 1 : 0, stdout: `ran: ${data.command}`, stderr: '', timedOut: false });
+      const shown = boatShown(data.command);
+      return reply(200, { ok: true, exitCode: shown.includes('false') ? 1 : 0, stdout: `ran: ${shown}`, stderr: '', timedOut: false });
     }
     return reply(400, { ok: false });
   };
@@ -143,7 +145,7 @@ test("a boat bot's commands and Vault secrets go to boat.dev; its placed files a
   assert.equal((await f.runShell('coder', { command: 'ls' })).stdout, 'ran: ls');
   const login = await f.runWithLogin('coder', { command: 'x', username: 'u', password: 'p4ssw0rd' });
   assert.equal(login.code, 0);
-  assert.match(login.stdout, /timeout -k 5 120 sh -c 'x'/);
+  assert.match(b.calls.filter((c) => c.path.endsWith('/commands')).map((c) => c.body.command).filter((c) => c.includes(' botdot-run ')).at(-1), /exec timeout -k 15 120 python3 -I -c '[\s\S]*' botdot-run --memory \d+ -- sh -c 'x'$/);
   assert.match((await f.placeFile('coder', { path: '/etc/x' })).error, /keeps no file of the Vault/);
   assert.throws(() => f.screenPipe('coder'), /External Virtual PC is watched through its own stream/);
   assert.deepEqual(got, [], "nothing reached the account's computer");
@@ -325,7 +327,8 @@ test('a login reaches the command through a file of its own that goes before the
   assert.equal(Buffer.from(put.body.content, 'base64').toString(), "export BOTDOT_USERNAME='x-access-token'\nexport BOTDOT_PASSWORD='s3cr'\\''et pass'\n");
   const sent = b.calls.filter((c) => c.path.endsWith('/commands')).map((c) => c.body.command);
   assert.ok(sent.every((c) => !c.includes('s3cr')), 'no secret on a command line');
-  assert.ok(sent[0].includes(`. ${put.body.path}; a=$?; rm -f -- ${put.body.path}; [ $a = 0 ] || exit 1; exec timeout -k 5 60 sh -c 'git push'`), 'read, removed, then the command');
+  assert.ok(sent[0].includes(`. ${put.body.path}; a=$?; rm -f -- ${put.body.path}; [ $a = 0 ] || exit 1; exec timeout -k 15 60 `), 'read, removed, then the command');
+  assert.equal(boatShown(sent[0]).slice(-8), 'git push');
   assert.equal(b.calls.find((c) => c.path.endsWith('/commands')).body.timeoutSeconds, 90, "boat.dev's limit leaves room after the command's");
 });
 
@@ -353,7 +356,8 @@ test('an SSH key goes into an ssh-agent of the command and its file before the c
   assert.equal(Buffer.from(put.body.content, 'base64').toString(), 'KEYDATA\n', 'ending in a newline, as ssh-add wants');
   const cmd = b.calls.find((c) => c.path.endsWith('/commands')).body.command;
   assert.ok(!cmd.includes('KEYDATA'));
-  assert.ok(cmd.indexOf(`ssh-add -q ${put.body.path} 2>/dev/null; a=$?; rm -f -- ${put.body.path}`) < cmd.indexOf("timeout -k 5 30 sh -c 'git push'"));
+  assert.ok(cmd.indexOf(`ssh-add -q ${put.body.path} 2>/dev/null; a=$?; rm -f -- ${put.body.path}`) < cmd.indexOf('timeout -k 15 30 python3 -I -c'));
+  assert.match(cmd, / botdot-run --memory \d+ -- sh -c 'git push'; s=\$\?; ssh-agent -k/);
   assert.match(cmd, /ssh-agent -k/, 'the agent ends with the command');
 });
 
@@ -367,7 +371,7 @@ test('a file is there for the command alone and goes when it ends', async (t) =>
   const put = b.calls.find((c) => c.method === 'PUT');
   assert.equal(Buffer.from(put.body.content, 'base64').toString(), 'PEM');
   const cmd = b.calls.find((c) => c.path.endsWith('/commands')).body.command;
-  assert.ok(cmd.includes(`BOTDOT_FILE=${put.body.path}.d/key.pem timeout`));
+  assert.ok(cmd.includes(`BOTDOT_FILE=${put.body.path}.d/key.pem timeout -k 15 120 python3 -I -c`));
   assert.ok(cmd.trimEnd().endsWith(`rm -rf -- ${put.body.path}.d; exit $s`));
   await boat.runWithFile('coder', { command: 'x', fileName: '../etc/passwd', content: '' });
   assert.ok(b.calls.filter((c) => c.path.endsWith('/commands')).some((c) => /\.d\/file timeout/.test(c.body.command)), 'a name that is no file name is "file"');
