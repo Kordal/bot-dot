@@ -304,13 +304,10 @@ async function takeBack(chat, queuedId, button) {
 // Whether the page's chat of that kind is this one (a bot's chat and the Chief's each keep one message box).
 function chatOpenIs(chat) {
   const [kind, id] = chatParts(chat);
-  return kind === 'chief' ? state.chatId === id : $('#view-bot')?.dataset.bot === id || !!globalThis.Dock?.chatOf?.(id);
+  return kind === 'chief' ? state.chatId === id : $('#view-bot')?.dataset.bot === id;
 }
-// A bot's message box: in its chat expanded in the dock (dock.js, #714), else the open view's.
-function botForm(id) {
-  const docked = globalThis.Dock?.chatOf?.(id);
-  return docked ? $('form', docked) : $('#view-bot form');
-}
+// A bot's message box: the open view's.
+const botForm = () => $('#view-bot form');
 
 // ---------- a working bot's opening line ----------
 
@@ -329,8 +326,6 @@ const openingLines = OpeningLine.keeper();
 // replying, at the end, under the messages that already wait, and the line stays theirs.
 function placeStatusLines() {
   placeBotLines($('#bot-thread'), $('#view-bot')?.dataset.bot, arrivals.bot);
-  // The bots' chats expanded in the dock (dock.js, #714), each with its own arrivals.
-  for (const chat of globalThis.Dock?.chats?.() || []) placeBotLines($('.chat-thread', chat), chat.dataset.bot, chat._arrivals ||= arrivalsKeeper());
   const chatId = $('#chat-thread')?.dataset.chat;
   chiefArrives($('#chat-thread')); // a reply that was just drawn there arrives
   const replying = !!chatId && chiefTurns.has(chatId);

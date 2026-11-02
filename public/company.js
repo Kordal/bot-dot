@@ -15,6 +15,7 @@ const Company = (() => {
     go: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
     x: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     fold: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+    search: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
     crown: '<svg class="ct-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>',
     clip: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg>',
@@ -110,7 +111,9 @@ const Company = (() => {
     drawRail();
   }
   // A phone shows the company without the left column: the switch is on top of it.
+  // With projects the title switches spaces instead (#839).
   function phoneSwitch(root) {
+    if (railOn()) return;
     root.insertAdjacentHTML('afterbegin', `<div class="place-switch co-phone-switch" role="tablist" aria-label="${tr('Place')}">${switchHTML(true)}</div>`);
     wireSwitch(root.firstElementChild);
   }
@@ -182,10 +185,54 @@ const Company = (() => {
     const head = $('.side-head');
     if (brand.parentNode !== head) head.prepend(brand);
     if (tools.parentNode !== head) head.appendChild(tools);
+    brand.removeAttribute('title');
+    // Below a wide window, Home's title: the logo with a chevron opens the spaces (#839).
+    if (!$('.brand-chev', brand)) brand.insertAdjacentHTML('beforeend', `<span class="brand-chev">${ICON.down}</span>`);
+    if (narrowSpaces()) {
+      brand.setAttribute('role', 'button');
+      brand.tabIndex = 0;
+      brand.setAttribute('aria-haspopup', 'dialog');
+      brand.setAttribute('aria-label', tr('Spaces'));
+      return;
+    }
     brand.removeAttribute('role');
     brand.removeAttribute('tabindex');
-    brand.removeAttribute('title');
+    brand.removeAttribute('aria-haspopup');
     brand.setAttribute('aria-label', 'botdot');
+  }
+  const narrowSpaces = () => railOn() && !matchMedia(WIDE).matches;
+  // ---------- the spaces sheet below a wide window (#839, ADR 132) ----------
+  // The title's chevron: Home, each project with what waits there, and New project; a sheet from the bottom on a
+  // phone, a menu under the title on a wider screen. The space picked is kept as the rail keeps it.
+  function openSpaces(at) {
+    $('#spaces-sheet')?.remove();
+    const home = place !== 'company';
+    const row = (p) => {
+      const n = asksIn(p);
+      const here = !home && !adding && p.id === state.company?.id;
+      return `<button type="button" class="sp-row${p.archived ? ' old' : ''}${hereAttr(here)}" data-space="${esc(p.id)}"><span class="ct-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(nameOf(p).charAt(0).toUpperCase())}</span><span class="ct-name">${esc(nameOf(p))}</span>${badge(n)}</button>`;
+    };
+    document.body.insertAdjacentHTML('beforeend', `<dialog class="sp-sheet" id="spaces-sheet" aria-label="${tr('Spaces')}">
+      <i class="sp-grip"></i>
+      <button type="button" class="sp-row${hereAttr(home)}" data-space="home"><span class="sp-home-mark">bot<i class="brand-dot"></i></span><span class="ct-name">${tr('Home')}</span></button>
+      ${listed().map(row).join('')}${archivedOnes().map(row).join('')}
+      <button type="button" class="sp-row" data-space=""><span class="sp-add">${ICON.plus}</span><span class="ct-name">${tr('New project')}</span></button>
+    </dialog>`);
+    const d = $('#spaces-sheet');
+    if (!matchMedia(PHONE).matches && at?.getBoundingClientRect) {
+      const r = at.getBoundingClientRect();
+      d.style.left = `${Math.max(8, r.left)}px`;
+      d.style.top = `${r.bottom + 6}px`;
+    }
+    d.addEventListener('close', () => { d.remove(); at?.focus?.(); });
+    d.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-space]');
+      if (!b && e.target !== d) return;
+      d.close();
+      if (b) enter(b.dataset.space || null);
+    });
+    d.showModal();
+    ($('.sp-row.here', d) || $('.sp-row', d)).focus();
   }
   // A space from the rail: Home (id 'home'), a project, or a new one (null).
   function enter(id) {
@@ -205,11 +252,15 @@ const Company = (() => {
     const brand = $('#brand');
     if (!brand || brand.dataset.wired) return;
     brand.dataset.wired = '1';
-    const home = () => { if (brand.closest('#rail')) enter('home'); };
+    // In the rail the logo is Home; below a wide window it is Home's title, and opens the spaces (#839).
+    const home = () => { if (brand.closest('#rail')) enter('home'); else if (narrowSpaces()) openSpaces(brand); };
     brand.addEventListener('click', home);
     brand.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); home(); } });
-    // Search finds bots and chats on Home: from a project it goes there first.
-    $('#search-btn')?.addEventListener('click', () => { if ($('#app').classList.contains('has-rail') && place === 'company' && matchMedia(WIDE).matches) choose('bots'); }, true);
+    // Search finds bots and chats on Home: from a project it goes there first. Below a wide window Settings does too:
+    // the pages it opens stand where Home's list is (#839).
+    const toHome = (wide) => () => { if ($('#app').classList.contains('has-rail') && place === 'company' && (!wide || matchMedia(WIDE).matches)) choose('bots'); };
+    $('#search-btn')?.addEventListener('click', toHome(false), true);
+    $('#more-btn')?.addEventListener('click', () => { if (!matchMedia(WIDE).matches) toHome(false)(); }, true);
     matchMedia(WIDE).addEventListener?.('change', drawRail);
   }
 
@@ -287,13 +338,16 @@ const Company = (() => {
     const open = isOpen('archived', false);
     return `<div class="ct-branch ct-archived"><div class="ct-node">${caret('archived', open, tr('Archived'))}<button type="button" class="co-row" data-fold="archived" aria-expanded="${open}"><span class="ct-name">${tr('Archived')}</span><span class="ct-n">${list.length}</span></button></div>${open ? `<div class="ct-kids" role="group">${list.map((p) => `<button type="button" class="co-row${here && !adding && p.id === state.company?.id ? ' here' : ''}" role="treeitem" data-project="${esc(p.id)}"><span class="ct-av" style="--c:${esc(p.color || '#8e7cff')}">${esc(nameOf(p).charAt(0).toUpperCase())}</span><span class="ct-name">${esc(nameOf(p))}</span></button>`).join('')}</div>` : ''}</div>`;
   }
-  // On a phone the project's name picks another, or a new one: a plain select laid over the name.
+  // A project's name, its space's title (#839): below a wide window its square, the name and a chevron that opens the
+  // spaces; in a wide window the name alone, the rail beside it.
   function pickHTML(name) {
-    if (!many()) return esc(name);
-    const option = (p) => `<option value="${esc(p.id)}"${!adding && p.id === state.company?.id ? ' selected' : ''}>${esc(nameOf(p))}</option>`;
-    const old = archivedOnes();
-    return `<span class="co-pick">${esc(name)}${ICON.down}<select data-pick-project aria-label="${tr('Projects')}">${listed().map(option).join('')}${old.length ? `<optgroup label="${tr('Archived')}">${old.map(option).join('')}</optgroup>` : ''}<option value=""${adding ? ' selected' : ''}>${tr('New project')}</option></select></span>`;
+    if (!many() || !railOn()) return esc(name);
+    const c = !adding && state.company;
+    const sq = c ? `<span class="ct-av" style="--c:${esc(c.color || '#8e7cff')}">${esc(nameOf(c).charAt(0).toUpperCase())}</span>` : '';
+    return `<button type="button" class="co-pick" data-space-pick aria-haspopup="dialog">${sq}<span class="co-pick-name">${esc(name)}</span>${ICON.down}</button>`;
   }
+  // Search and Settings at the top right of a project's page below a wide window (#839): the top bar's own.
+  const toolsHTML = () => `<span class="sp-tools"><button type="button" class="icon-btn" data-sp-tool="search-btn" aria-label="${tr('Search')}" title="${tr('Search')}">${ICON.search}</button><button type="button" class="icon-btn" data-sp-tool="more-btn" aria-label="${tr('Settings')}" title="${tr('Settings')}">${ICON.gear}</button></span>`;
   // The gear beside a project's name: its settings (#701), from a server with `project-settings`.
   // The pieces on a project's board (#780), as lib/company.js keeps them: a project without `board` (made before) has
   // every one. `pieceLabel` is the name a pick and the settings give it.
@@ -305,7 +359,8 @@ const Company = (() => {
   const missing = (c) => ((state.features || []).includes('project-board') && Array.isArray(c?.board) ? PIECES.filter((k) => !c.board.includes(k)) : []);
   const gearHTML = () => ((state.features || []).includes('project-settings') && state.company ? `<button type="button" class="icon-btn co-gear" data-project-settings aria-label="${tr('Project settings')}" title="${tr('Project settings')}">${ICON.gear}</button>` : '');
   function wirePick(root) {
-    $$('[data-pick-project]', root).forEach((sel) => (sel.onchange = () => (sel.value ? show(sel.value) : startNew())));
+    $$('[data-space-pick]', root).forEach((b) => (b.onclick = () => openSpaces(b)));
+    $$('[data-sp-tool]', root).forEach((b) => (b.onclick = () => $(`#${b.dataset.spTool}`)?.click()));
     $$('[data-project-settings]', root).forEach((b) => (b.onclick = openSettings));
     $$('[data-project-more]', root).forEach((b) => (b.onclick = () => state.company && menuAt(b, projectItems(state.company))));
   }
@@ -411,6 +466,7 @@ const Company = (() => {
     const sig = JSON.stringify([c, current, adding, settingsOpen, many() ? projects().map((p) => [p.id, nameOf(p), !!p.archived]) : null, settingsOpen ? state.bots.map((b) => [b.id, b.name, colorOf(b), b.state]) : steps.sig ? steps.sig(c) : null]);
     if (root.dataset.sig === sig && root.firstElementChild) return;
     root.dataset.sig = sig;
+    root.classList.remove('sp-has-field');
     if (settingsOpen) { steps.settings(root, c); phoneSwitch(root); return; }
     if (!c) drawStart(root);
     else if (c.phase === 'running' && steps.home && current !== 'start') steps.home(root, c);
@@ -424,9 +480,10 @@ const Company = (() => {
       if (c.phase !== 'running') $$('.co-steps [data-step]:not([data-step="start"])', root).forEach((li) => (li.onclick = () => go(li.dataset.step)));
     }
     // A phone has no left column: the project's name over the setup picks another (the floor has it in its header).
-    if (many() && !(c?.phase === 'running' && steps.home && current !== 'start') && projects().length) root.insertAdjacentHTML('afterbegin', `<div class="co-pick-line">${pickHTML(c ? nameOf(c) : tr('New project'))}${c ? moreHTML() : ''}</div>`);
+    if (many() && !(c?.phase === 'running' && steps.home && current !== 'start') && projects().length) root.insertAdjacentHTML('afterbegin', `<div class="co-pick-line">${pickHTML(c ? nameOf(c) : tr('New project'))}${c ? moreHTML() : ''}${railOn() ? toolsHTML() : ''}</div>`);
     wirePick(root);
     phoneSwitch(root);
+    root.classList.toggle('sp-has-field', !!$('.sp-field', root)); // the field stands at the page's foot (#839)
   }
   // Where the setup stands: the step its part last said (Company.go), else About.
   let current = null;
@@ -590,5 +647,5 @@ const Company = (() => {
     });
   }
 
-  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
 })();

@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer } = require('../helpers');
+const { goSpace } = require('../space-helpers');
 
 const TEAM = {
   bots: [{ name: 'Homelab Keeper', description: 'Keeps the VMs and backups healthy', prompt: 'Watch the VMs.', owns: ['VM notes'], connects: [], tools: ['WebFetch'], routines: 'Daily 7:00', cron: '0 7 * * *', asksFirst: 'rules', preview: 'Checks 6 VMs and 2 backups', team: 'Ops', computer: true }],
@@ -30,7 +31,7 @@ const TEAM = {
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(`${srv.base}/`);
-      await page.locator('#rail .rail-sq:visible, #place-switch [data-place="company"]:visible').click();
+      await goSpace(page);
       await page.waitForFunction(() => typeof Company !== 'undefined' && !!state.company);
       await page.evaluate(() => Company.go('team'));
       await page.locator('.co-starter li').first().waitFor({ timeout: 20000 });

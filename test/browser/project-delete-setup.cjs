@@ -30,8 +30,8 @@ const { startServer, writeData } = require('../helpers');
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('dialog', (d) => d.accept());
     await page.goto(`${srv.base}/#company`);
-    const side = page.locator('#company-side');
-    await side.locator('[data-project="p2"]').click({ timeout: 20000 });
+    const side = page.locator('#rail'); // the projects' squares (#837)
+    await side.locator('[data-space="p2"]').click({ timeout: 20000 });
 
     // The setup's ⋯: settings, and Delete.
     const more = page.locator('.co-steps-line [data-project-more]');
@@ -42,7 +42,7 @@ const { startServer, writeData } = require('../helpers');
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-setup-menu.png') });
     await page.locator('.ct-menu [data-ct-settings]').click();
     await page.locator('.ps-page .ps-top h1', { hasText: 'HomeKeep' }).waitFor();
-    await side.locator('[data-project="p2"]').click();
+    await side.locator('[data-space="p2"]').click();
     await more.click();
     await page.locator('.ct-menu [data-ct-delete]').click();
     await page.locator('dialog h2', { hasText: 'Delete HomeKeep?' }).waitFor();
@@ -52,22 +52,22 @@ const { startServer, writeData } = require('../helpers');
     await more.click();
     await page.locator('.ct-menu [data-ct-delete]').click();
     await page.locator('dialog [data-confirm-delete]').click();
-    await side.locator('[data-project="p2"]').waitFor({ state: 'detached' });
+    await side.locator('[data-space="p2"]').waitFor({ state: 'detached' });
     assert.deepEqual(await ids(), ['p1', 'p3']);
 
-    // The left column's right-click, on a project not shown.
-    await side.locator('[data-project="p1"]').click();
+    // A square's right-click, on a project not shown.
+    await side.locator('[data-space="p1"]').click();
     await page.locator('.cf-top h1', { hasText: 'Botdot' }).waitFor();
-    await side.locator('[data-project="p3"]').click({ button: 'right' });
+    await side.locator('[data-space="p3"]').click({ button: 'right' });
     const menu = page.locator('.ct-menu');
     assert.deepEqual(await menu.locator('button').allInnerTexts(), ['Project settings', 'Delete project']);
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-row-menu.png') });
     await page.keyboard.press('Escape');
     await menu.waitFor({ state: 'detached' });
-    await side.locator('[data-project="p3"]').click({ button: 'right' });
+    await side.locator('[data-space="p3"]').click({ button: 'right' });
     await menu.locator('[data-ct-delete]').click();
     await page.locator('dialog [data-confirm-delete]').click();
-    await side.locator('[data-project="p3"]').waitFor({ state: 'detached' });
+    await side.locator('[data-space="p3"]').waitFor({ state: 'detached' });
     await page.locator('.cf-top h1', { hasText: 'Botdot' }).waitFor();
     assert.deepEqual(await ids(), ['p1']);
     assert.deepEqual(errors, []);
@@ -77,7 +77,11 @@ const { startServer, writeData } = require('../helpers');
     page = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark' })).newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/#company`);
-    await page.locator('.co-pick select').selectOption({ label: 'A meal planner' }, { timeout: 20000 }).catch(() => {});
+    await page.locator('.cf-top h1, .co-steps').first().waitFor({ timeout: 20000 });
+    if (!(await page.locator('.co-steps').count())) { // another project shown: picked from the title's sheet (#839)
+      await page.locator('[data-space-pick]:visible').click();
+      await page.locator('#spaces-sheet .sp-row', { hasText: 'A meal planner' }).click();
+    }
     await page.locator('.co-steps').waitFor({ timeout: 20000 });
     assert.equal(await page.locator('[data-project-more]:visible').count(), 1);
     if (shots) await page.screenshot({ path: path.join(shots, 'phone-setup.png') });

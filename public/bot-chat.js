@@ -443,12 +443,11 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
 }
 // What was typed in a bot's chat whose place changed, between the open view and the dock (#714): put back once.
 const carried = new Map();
-// The chats of a bot drawn on the page: the open view's, and the one expanded in the dock (dock.js, #714).
-const botChats = (botId) => [$('#view-bot'), ...(globalThis.Dock?.chats?.() || [])].filter((el) => el?.dataset.bot === botId);
-// A bot's chats drawn again: the open view's when it shows the bot, and its chat in the dock.
+// The chat of a bot drawn on the page: the open view's.
+const botChats = (botId) => [$('#view-bot')].filter((el) => el?.dataset.bot === botId);
+// A bot's chat drawn again: the open view's when it shows the bot.
 function redrawBotChat(botId) {
   if (state.view === 'bot' && state.botId === botId) renderBotChat();
-  globalThis.Dock?.drawChat?.(botId);
 }
 
 // Rejects when the task did not go, with nothing added to the chat (wireComposer, sendFrom). key: as sendToChief's.
@@ -474,7 +473,7 @@ async function runBot(botId, text, attachments = [], key = messageKey(), replyTo
     if (replyTo && replyingTo.get(botId)?.runId === replyTo) { replyingTo.delete(botId); drawReplyChip(botId); }
     sentOver(at, key);
     tookRun(botId, took, text, attachments);
-    if (state.view === 'bot' && state.botId === botId) renderBotChat(); else if (globalThis.Dock?.chatOf?.(botId)) Dock.drawChat(botId); else placeStatusLines();
+    if (state.view === 'bot' && state.botId === botId) renderBotChat(); else placeStatusLines();
     const thread = botThread(botId);
     if (thread) thread.scrollTop = thread.scrollHeight;
   } catch (e) { console.error(e); }
@@ -491,11 +490,8 @@ function tookRun(botId, run, text, attachments) {
   setQueued(at, [...queuedIn(at), { id: run.id, text: String(text || '').trim(), attachments: Array.isArray(run.attachments) ? run.attachments : attachments, at: run.queuedAt }]);
 }
 
-// The thread a bot's message goes to: its chat expanded in the dock (dock.js, #714), else the open view's.
-function botThread(botId) {
-  const docked = globalThis.Dock?.chatOf?.(botId);
-  return docked ? $('.chat-thread', docked) : $('#bot-thread');
-}
+// The thread a bot's message goes to: the open view's.
+const botThread = () => $('#bot-thread');
 
 // Every run of the bot that is going, each from its start again, as the chat is drawn again: a message to a busy
 // bot starts beside the run that is going (ADR 062), and each has its draft and files in its own row. The open

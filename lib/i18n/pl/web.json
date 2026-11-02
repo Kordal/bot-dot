@@ -613,6 +613,7 @@
   "New project": "Nowy projekt",
   "Home": "Start",
   "Spaces": "Przestrzenie",
+  "Message the team…": "Napisz do zespołu…",
   "Start from scratch": "Zacznij od zera",
   "Date": "Data",
   "Upload": "Prześlij",
@@ -1645,14 +1646,6 @@
   "Day": "Dzień",
   "Previous month": "Poprzedni miesiąc",
   "Next month": "Następny miesiąc",
-  "Chats": "Czaty",
-  "Taller or lower": "Wyżej lub niżej",
-  "{n} more chats": {
-    "one": "Jeszcze {n} czat",
-    "few": "Jeszcze {n} czaty",
-    "many": "Jeszcze {n} czatów"
-  },
-  "Minimize": "Zwiń",
   "Hide chat": "Ukryj czat",
   "Show chat": "Pokaż czat",
   "Decisions": "Decyzje",

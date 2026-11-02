@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer, makeBot } = require('../helpers');
+const { goSpace } = require('../space-helpers');
 
 const TEAM = { bots: [
   { name: 'Market Scout', description: 'Finds who else does this and what parents complain about', prompt: 'Find competitors.', owns: ['Research notes'], connects: [], routines: 'Mondays 8:00', cron: '0 8 * * 1', asksFirst: 'rules', preview: 'Brief on 12 apps and 40 parent reviews', team: 'Growth' },
@@ -29,7 +30,7 @@ const TEAM = { bots: [
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(`${srv.base}/`);
-      await page.locator('#rail .rail-sq:visible, #place-switch [data-place="company"]:visible').click({ timeout: 20000 });
+      await goSpace(page);
       await page.locator('.co-steps [data-step="team"]').waitFor({ timeout: 20000 });
       await page.locator('.co-steps [data-step="team"]').click();
       await page.locator('.co-card', { hasText: 'Market Scout' }).waitFor({ timeout: 20000 });
