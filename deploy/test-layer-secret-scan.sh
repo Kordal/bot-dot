@@ -49,6 +49,10 @@ github_token="$(printf '%s%s' 'gh' 'p_aB3dE5fG7hJ9kL1mN3pQ5rS7tU9vW1xY3zA5')"
 mkdir -p "$work/leaked/1/opt/botdot" "$work/leaked/1/usr/lib/node_modules/fixture/test" "$work/leaked/2/opt/botdot" "$work/leaked/2/usr/lib/node_modules"
 printf 'AWS_ACCESS_KEY_ID=%s\n' "$aws_key" > "$work/leaked/1/opt/botdot/leak.env"
 printf 'token: %s\n' "$github_token" > "$work/leaked/1/usr/lib/node_modules/fixture/test/token.yml"
+# The blocklist allow rule covers that one file, not its folder: a file beside it is still a finding.
+ubo=opt/camoufox-cache/camoufox/addons/UBO/assets/thirdparties/urlhaus-filter
+mkdir -p "$work/leaked/1/$ubo"
+printf 'token: %s\n' "$github_token" > "$work/leaked/1/$ubo/other.txt"
 printf 'kept\n' > "$work/leaked/2/opt/botdot/kept.txt"
 : > "$work/leaked/2/opt/botdot/.wh.leak.env"
 : > "$work/leaked/2/usr/lib/node_modules/.wh.fixture"
@@ -61,11 +65,14 @@ node "$here/layer-secrets.js" "$work/leaked.json" > "$work/leaked.log" || true
 cat "$work/leaked.log"
 grep -qxF "Secret aws-access-key-id in /opt/botdot/leak.env line 1, added by layer $lowest (COPY leak.env token.yml (fixture lower layer))" "$work/leaked.log"
 grep -qxF "Secret github-pat in /usr/lib/node_modules/fixture/test/token.yml line 1, added by layer $lowest (COPY leak.env token.yml (fixture lower layer))" "$work/leaked.log"
+grep -qxF "Secret github-pat in /$ubo/other.txt line 1, added by layer $lowest (COPY leak.env token.yml (fixture lower layer))" "$work/leaked.log"
 if grep -qF -e "$aws_key" -e "$github_token" "$work/leaked.log"; then echo 'The log shows a secret'; exit 1; fi
 
 mkdir -p "$work/clean/1/opt/botdot"
 printf 'clean fixture\n' > "$work/clean/1/opt/botdot/marker.txt"
+mkdir -p "$work/clean/1/$ubo"
+printf 'token: %s\n' "$github_token" > "$work/clean/1/$ubo/urlhaus-filter-online.txt"
 image clean 'COPY marker.txt (fixture)'
 scan clean
 node "$here/layer-secrets.js" "$work/clean.json"
-printf '%s\n' 'Secrets in a deleted lower layer rejected, named by layer and file; clean fixture accepted.'
+printf '%s\n' 'Secrets in a deleted lower layer rejected, named by layer and file; clean fixture and the allowed blocklist accepted.'
