@@ -5,15 +5,17 @@
 mod address;
 #[cfg(target_os = "macos")]
 mod dialogs;
+mod feed;
 mod handoff;
 mod keep;
+mod notify;
 mod route;
 
 use handoff::Secret;
 use keep::Kept;
 use serde::Serialize;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use tauri::webview::{cookie::Cookie, NewWindowResponse, PageLoadEvent};
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
@@ -31,6 +33,8 @@ struct App {
     windows: AtomicUsize,
     /// A sign-in waiting in the browser.
     waiting: Mutex<Option<(Url, Secret)>>,
+    /// Counts the sessions: the feed of one that is over stops.
+    session: AtomicU64,
 }
 
 impl App {
@@ -45,8 +49,40 @@ fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
 
 fn bring_forward(app: &AppHandle) {
     if let Some(window) = main_window(app) {
+        let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+// A window of the app in front: what would ring shows there already.
+fn in_front(app: &AppHandle) -> bool {
+    app.webview_windows().values().any(|w| w.is_focused().unwrap_or(false) && w.is_visible().unwrap_or(false) && !w.is_minimized().unwrap_or(false))
+}
+
+// The session's feed, for its notifications (ADR 138), until the session is over.
+fn follow(app: &AppHandle, address: &Url, set_cookie: &str) {
+    let session = app.state::<App>().session.fetch_add(1, Ordering::SeqCst) + 1;
+    let (alive, on) = (app.clone(), app.clone());
+    feed::follow(
+        address.clone(),
+        feed::cookie_of(set_cookie).to_string(),
+        move || alive.state::<App>().session.load(Ordering::SeqCst) == session,
+        move |said| match said {
+            feed::Said::Notification(notice) if !in_front(&on) => notify::show(&notice),
+            feed::Said::Notification(_) => {}
+            feed::Said::Closed(tag) => notify::remove(&tag),
+        },
+    );
+}
+
+// A click on a notification: the window comes forward and its page opens the target, as on a push's tap.
+fn open_target(app: &AppHandle, target: &str) {
+    bring_forward(app);
+    let (Some(window), Some(door)) = (main_window(app), app.state::<App>().door()) else { return };
+    if window.url().is_ok_and(|shown| shown.origin() == door.origin()) {
+        let target = serde_json::to_string(target).unwrap_or_default();
+        let _ = window.eval(format!("postMessage({{ type: 'open', target: {target} }}, location.origin)"));
     }
 }
 
@@ -61,7 +97,9 @@ fn enter(app: &AppHandle, address: &Url, set_cookie: &str) -> Option<()> {
     cookie.set_domain(address.host_str()?.to_string());
     window.set_cookie(cookie).ok()?;
     *app.state::<App>().door.lock().unwrap() = Some(address.clone());
-    window.navigate(address.clone()).ok()
+    window.navigate(address.clone()).ok()?;
+    follow(app, address, set_cookie);
+    Some(())
 }
 
 // The session is over: its cookie goes, here and in the window, the windows of its links close, and the app's screen
@@ -71,6 +109,8 @@ fn session_over(app: &AppHandle, door: &Url) {
     let kept = keep::load(&state.file);
     let _ = keep::save(&state.file, &Kept { cookie: None, ..kept });
     *state.door.lock().unwrap() = None;
+    state.session.fetch_add(1, Ordering::SeqCst);
+    notify::remove_all();
     for (label, window) in app.webview_windows() {
         if label != "main" {
             let _ = window.close();
@@ -220,6 +260,12 @@ fn main() {
                 door: Mutex::new(None),
                 windows: AtomicUsize::new(0),
                 waiting: Mutex::new(None),
+                session: AtomicU64::new(0),
+            });
+            let clicks = handle.clone();
+            notify::start(&app.config().identifier, move |target| {
+                let app = clicks.clone();
+                let _ = clicks.run_on_main_thread(move || open_target(&app, &target));
             });
             let builder = WebviewWindowBuilder::new(&handle, "main", WebviewUrl::App("index.html".into())).title("botdot").inner_size(1200.0, 800.0).min_inner_size(420.0, 500.0);
             let window = guarded(&handle, builder).build()?;

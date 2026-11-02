@@ -9,7 +9,7 @@ const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
 const push = require('../lib/push');
-const { startServer, makeBot, waitFor } = require('./helpers');
+const { startServer, makeBot, waitFor, feed } = require('./helpers');
 
 // A browser's side of a subscription: its keys, and how it reads a push.
 function browser(endpoint) {
@@ -112,6 +112,19 @@ test("a bot's plan rings unless its chat is on screen, and Claude's sign-out onc
   assert.equal(take(f, out).length, 1, 'the next sign-out rings again');
 });
 
+test('a notification ends when its card is answered or its chat is read in any app (ADR 138)', () => {
+  const f = push.follower({ rung: new Set() });
+  const job = { botId: 'b1', botName: 'News', jobId: 'j1', jobName: 'Digest', text: 'Wants to run “Digest”' };
+  assert.deepEqual(f.take(ev('approvals', { jobs: [job], tiles: [], memoryChanges: [] })).closed, []);
+  assert.deepEqual(f.take(ev('approvals', { jobs: [], tiles: [], memoryChanges: [] })).closed, ['job:b1/j1']);
+  assert.deepEqual(f.take(ev('unread', { chat: 'bot:b1', unread: 0 })).closed, ['bot:b1']);
+  assert.deepEqual(f.take(ev('group_unread', { chat: 'group:g1', groupId: 'g1', unread: 0 })).closed, ['group:g1']);
+  assert.deepEqual(f.take(ev('unread', { chat: 'bot:b1', unread: 2 })).closed, [], 'still unread');
+  assert.deepEqual(f.take(ev('unread', { chat: 'nothing', unread: 0 })).closed, []);
+  take(f, ev('claude', { loggedIn: false }));
+  assert.deepEqual(f.take(ev('claude', { loggedIn: true })).closed, ['claude']);
+});
+
 // ---------- the keys and the subscriptions ----------
 
 test('the keys are made once and kept privately, a subscription is checked, kept per endpoint and dropped on 404 or 410', async () => {
@@ -176,6 +189,7 @@ after(async () => { await srv?.stop(); service?.server.close(); });
 
 test('the routes are the owner’s alone, and the server says it has them', async () => {
   assert.ok((await srv.api('/version')).data.features.includes('web-push'));
+  assert.ok((await srv.api('/version')).data.features.includes('notification-events'));
   const key = await srv.api('/push/key');
   assert.equal(key.status, 200);
   assert.equal(Buffer.from(key.data.publicKey, 'base64url').length, 65);
@@ -229,4 +243,22 @@ test("a bot's reply reaches the browser that subscribed, opens its chat, and a 4
   assert.equal(stored().length, 1);
   assert.deepEqual((await srv.api('/push/subscriptions', { method: 'DELETE', body: { endpoint: b.sub.endpoint } })).data, { ok: true, removed: true });
   assert.equal(stored().length, 0);
+});
+
+test("the feed says each notification as a push says it, after the event that made it, and its end once the chat is read (ADR 138)", async () => {
+  const live = await feed(srv);
+  try {
+    const bot = await makeBot(srv, { name: 'Scout' });
+    srv.reply('Two **flats** found.');
+    const run = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Look' } });
+    await srv.finished(run.data.runId || run.data.id);
+    const said = await live.wait('notification', (d) => d.target === `bot:${bot.id}`);
+    assert.deepEqual({ title: said.data.title, body: said.data.body, target: said.data.target, tag: said.data.tag }, { title: 'Scout', body: 'Two flats found.', target: `bot:${bot.id}`, tag: `bot:${bot.id}` });
+    assert.equal(said.data.urgency, undefined, 'what a push says, nothing more');
+    const order = live.events.map((e) => e.type);
+    assert.ok(order.indexOf('run_finished') < order.indexOf('notification'), 'after the event that made it');
+    await srv.api('/read', { method: 'POST', body: { app: 'desktop-test', chat: `bot:${bot.id}` } });
+    await live.wait('notification_closed', (d) => d.tag === `bot:${bot.id}`);
+    await srv.api('/read', { method: 'POST', body: { app: 'desktop-test', chat: null } });
+  } finally { live.close(); }
 });

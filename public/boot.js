@@ -86,4 +86,6 @@ document.addEventListener('click', (e) => {
     Push.again(window, api);
     Push.onTap(window, openTarget);
   }
+  // A click on one of the desktop app's notifications (ADR 138): the app posts the target to this window itself.
+  addEventListener('message', (e) => { if (e.source === window && e.origin === location.origin && e.data?.type === 'open') openTarget(e.data.target); });
 })();
