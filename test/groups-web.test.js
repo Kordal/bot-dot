@@ -61,7 +61,7 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     $: (sel, root) => (root ? root.querySelector(sel) : doc[sel] ?? null), $$: (sel, root) => (root ? root.querySelectorAll(sel) : Array.isArray(doc[sel]) ? doc[sel] : []),
     document: { activeElement: null }, gaps: [], scrollToNew() {}, wireChoices() {}, markSearch() {}, setSendBusy() {}, openRun: (id) => said.opened.push(id),
     jumpTo: (row) => { state.jump = null; if (row) said.jumped.push(row.id); return !!row; },
-    EventSource, requestAnimationFrame: (fn) => said.frames.push(fn), draftSource: (t) => t, matchMedia: () => ({ matches: true }),
+    EventSource, requestAnimationFrame: (fn) => said.frames.push(fn), draftSource: (t) => t,
   });
   said.modal = () => element();
   vm.runInContext(`${cut('const botById = ', 'const colorOf = ')}

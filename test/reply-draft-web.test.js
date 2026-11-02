@@ -51,14 +51,12 @@ test('web: a draft cut mid-table, inside a fence or at an unclosed ** or [ never
 
 // ---------- the keeper: in place, once a frame ----------
 
-// The drafts' part of the page, with a frame the test lets go (every 1000/60 ms). calm: reduced motion.
-function drafts(features = ['reply-draft'], { calm = true } = {}) {
+// The drafts' part of the page, with a frame the test lets go.
+function drafts(features = ['reply-draft']) {
   const frames = [];
-  let clock = 1000;
-  const ctx = vm.createContext({ ...words, Intl, state: { features }, md, mdBlocks, mdParts: mdPage.mdParts, draftSource, requestAnimationFrame: (fn) => frames.push(fn), $: (sel, root) => root.querySelector(sel),
-    matchMedia: (q) => ({ matches: calm && q === '(prefers-reduced-motion: reduce)' }) });
-  vm.runInContext(`${cut('// ---------- the reply draft ----------', '// ---------- data ----------')} Object.assign(this, { replyDrafts, showsDrafts, draftHTML, drawDraftMd, draftRate, draftStep, graphemesOf, DRAFT_CATCH_UP });`, ctx);
-  return { ctx, frame: () => frames.splice(0).forEach((fn) => fn(clock += 1000 / 60)), frames };
+  const ctx = vm.createContext({ ...words, state: { features }, md, mdBlocks, mdParts: mdPage.mdParts, draftSource, requestAnimationFrame: (fn) => frames.push(fn), $: (sel, root) => root.querySelector(sel) });
+  vm.runInContext(`${cut('// ---------- the reply draft ----------', '// ---------- data ----------')} Object.assign(this, { replyDrafts, showsDrafts, draftHTML, drawDraftMd });`, ctx);
+  return { ctx, frame: () => frames.splice(0).forEach((fn) => fn(performance.now())), frames };
 }
 // A bot's reply row, which has no stack: what is drawn into it (a stack of the draft's own, its bubble), and how often.
 function row() {
@@ -75,7 +73,7 @@ function row() {
   return r;
 }
 
-test('web: with reduced motion a draft is drawn in its row at the next frame as it comes, grows in place, and goes when it is cleared', () => {
+test('web: a draft is drawn in its row at the next frame as it comes, grows in place, and goes when it is cleared', () => {
   const { ctx, frame, frames } = drafts();
   const r = row();
   const thread = { scrollHeight: 1000, scrollTop: 940, clientHeight: 50 };
@@ -111,27 +109,6 @@ test('web: with reduced motion a draft is drawn in its row at the next frame as 
   assert.equal(ctx.draftHTML('<img src=x onerror=alert(1)>\nx'), '<div class="bubble from-bot draft"><div class="md"><p>&lt;img src=x onerror=alert(1)&gt;<br>x</p></div></div>', 'nothing a bot writes is markup');
 });
 
-// ---------- the paced reveal ----------
-
-test('web: the pace catches up with each draft in about 250 ms, at least one grapheme a frame', () => {
-  const { ctx } = drafts();
-  assert.equal(ctx.DRAFT_CATCH_UP, 250);
-  assert.equal(ctx.draftRate(100), 0.4, '100 graphemes behind: 0.4 a millisecond');
-  assert.equal(ctx.draftRate(0), 0);
-  const frame = 1000 / 60;
-  assert.deepEqual(plain(ctx.draftStep(ctx.draftRate(100), frame)).map((x) => +x.toFixed(3)), [6, 0.667], 'about 6.7 a frame: 6 now, the rest carried');
-  assert.equal(ctx.draftStep(ctx.draftRate(100), frame, 0.667)[0], 7, 'and one more the next');
-  assert.deepEqual(plain(ctx.draftStep(ctx.draftRate(3), frame)), [1, 0], 'a short backlog still moves one a frame');
-  // A whole backlog in about 250 ms: 15 frames of 1/60 s.
-  let shown = 0, carry = 0, frames = 0;
-  const rate = ctx.draftRate(120);
-  while (shown < 120) { const [n, c] = ctx.draftStep(rate, frame, carry); shown += n; carry = c; frames++; }
-  assert.ok(frames >= 14 && frames <= 16, `${frames} frames`);
-  // Graphemes, not code units: an emoji or a letter with its accent is never cut.
-  assert.deepEqual(plain(ctx.graphemesOf('👍🏽 ok', 1)), { text: '👍🏽', count: 1 });
-  assert.equal(ctx.graphemesOf('Zażółć').count, 6);
-});
-
 // A draft's row with a real .md box: its child nodes, as drawDraftMd keeps them.
 function mdRow() {
   const node = (html) => ({ html, remove() { md.nodes.splice(md.nodes.indexOf(this), 1); } });
@@ -150,53 +127,25 @@ function mdRow() {
   return { row: r, md };
 }
 
-test('web: a draft is revealed in many small steps between two drafts, and the run\'s end or a cleared draft stops it at once', () => {
-  const { ctx, frame, frames } = drafts(['reply-draft'], { calm: false });
+test('web: a long draft is drawn whole at the next frame, never revealed bit by bit (#870)', () => {
+  const { ctx, frame, frames } = drafts();
   const { row: r, md } = mdRow();
-  const thread = { scrollHeight: 1000, scrollTop: 950, clientHeight: 50 };
-  const at = () => [r, thread];
+  const at = () => [r, { scrollHeight: 1000, scrollTop: 950, clientHeight: 50 }];
   const first = 'The disk on staging has 41% free, the backups take 212 GB.';
   ctx.replyDrafts.say('run1', first, at);
-  const seen = [];
-  for (let i = 0; i < 30 && frames.length; i++) { frame(); seen.push(ctx.replyDrafts.of('run1')); }
-  assert.ok(seen.length >= 12, `${seen.length} frames, not one jump`);
-  assert.ok(new Set(seen).size >= 12, 'each frame shows more');
-  assert.ok(seen.every((t, i) => first.startsWith(t) && (i === 0 || t.length > seen[i - 1].length)), 'it only grows');
-  assert.equal(seen.at(-1), first, 'and catches up');
-  assert.ok(seen.length <= 17, `within about 250 ms (${seen.length} frames)`);
-  assert.equal(frames.length, 0, 'no frame asked for once it has caught up');
-  assert.match(md.innerHTML, /41% free, the backups take 212 GB\./);
-  // The next draft goes on from what is shown: it grows from there.
+  assert.equal(ctx.replyDrafts.of('run1'), first, 'held whole at once');
+  frame();
+  assert.equal(md.innerHTML, `<p>${first}</p>`, 'drawn whole at the first frame');
+  assert.equal(frames.length, 0, 'and no frame after it');
   ctx.replyDrafts.say('run1', `${first}\n\nNothing else to do.`, at);
   frame();
-  const next = ctx.replyDrafts.of('run1');
-  assert.ok(next.length > first.length && next.length < first.length + 20, 'a few graphemes, not the whole new text');
-  // A draft that does not go on from it (a tool call cleared it, then a new text) is shown at once.
-  ctx.replyDrafts.say('run1', 'Another text.', at);
-  assert.equal(ctx.replyDrafts.of('run1'), 'Another text.');
-  frame();
-  assert.equal(md.innerHTML, '<p>Another text.</p>');
-  // A cleared draft goes at the next frame, whatever was still to show.
-  ctx.replyDrafts.say('run1', 'Another text. And it goes on and on.', at);
+  assert.equal(md.innerHTML, `<p>${first}</p><p>Nothing else to do.</p>`);
+  assert.equal(frames.length, 0);
+  // A cleared draft goes at the next frame.
   ctx.replyDrafts.say('run1', '', at);
-  assert.equal(ctx.replyDrafts.of('run1'), '');
   frame();
-  assert.equal(r.cleared, true, 'its bubble goes at the next frame');
-  // The end: nothing is left to reveal, and no frame draws it again.
-  ctx.replyDrafts.say('run2', 'A reply that is still being revealed.', at);
-  frame();
-  ctx.replyDrafts.end('run2');
-  frames.splice(0);
-  assert.equal(ctx.replyDrafts.of('run2'), '');
-});
-
-test('web: with reduced motion each draft is shown whole as it comes', () => {
-  const { ctx, frame } = drafts(['reply-draft'], { calm: true });
-  const { row: r, md } = mdRow();
-  ctx.replyDrafts.say('run1', 'The disk on staging has 41% free.', () => [r, null]);
-  assert.equal(ctx.replyDrafts.of('run1'), 'The disk on staging has 41% free.');
-  frame();
-  assert.equal(md.innerHTML, '<p>The disk on staging has 41% free.</p>');
+  assert.equal(r.cleared, true);
+  assert.doesNotMatch(cut('const replyDrafts = (() => {', '// ---------- data ----------'), /prefers-reduced-motion|graphemes|Segmenter/, 'no reveal is left');
 });
 
 test('web: a frame draws only the draft\'s last block again: the blocks before it stay in the page', () => {
