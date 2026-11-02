@@ -3,7 +3,7 @@
 // given to $FAKE_OUT/run-<n>.json, once its stdin has ended (arguments, the self tools' env, the system prompt read
 // from its private file and that file's path and mode, the CLAUDE_CODE_ variables of its environment, stdin), then
 // answers with $FAKE_OUT/result.txt (or "Done."), with the refused tools in $FAKE_OUT/denials.json (for which it asks with ask_permission, unless $FAKE_OUT/no-ask exists), or fails with $FAKE_OUT/fail.txt on stderr, or ends with no result line at all while $FAKE_OUT/no-result exists. While $FAKE_OUT/hold exists, a run keeps going until
-// $FAKE_OUT/done-<n> appears, so a test can use its run token meanwhile. A run ends when the process that started it is gone.
+// $FAKE_OUT/done-<n> appears, so a test can use its run token meanwhile. $FAKE_OUT/background: see end(). A run ends when the process that started it is gone.
 // While $FAKE_OUT/linger exists, a run that wrote its result line stays on until the file is gone, as Claude Code takes
 // a moment to exit (#207); $FAKE_OUT/error-result.txt makes the result line an error with that text (is_error), and
 // $FAKE_OUT/error-result-once.txt the next run's only.
@@ -237,6 +237,16 @@ const finish = () => {
   const hooked = replayShell().then(preToolHooks);
   const asked = hooked.then(() => (denials.length && !fs.existsSync(path.join(OUT, 'no-ask')) ? askFor(denials) : undefined));
   const end = () => {
+    // While $FAKE_OUT/background exists, it leaves a command running (Bash run_in_background), as Claude Code 2.1.310+
+    // does when told not to sleep (#641): a first result that only says it waits, then, once the task is told as ended
+    // ($FAKE_OUT/background-ms.txt ms later, default 300), a second turn whose result is the reply.
+    if (has('background') && !end.waited) {
+      end.waited = true;
+      console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'bg1', name: 'Bash', input: { command: 'until test -e ready; do sleep 2; done', run_in_background: true } }] } }));
+      console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'I will reply once it is ready.', session_id: `fake-${n}`, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5 }));
+      setTimeout(() => { console.log(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'bg1', status: 'completed' })); end(); }, Number(has('background-ms.txt') ? fs.readFileSync(path.join(OUT, 'background-ms.txt'), 'utf8') : 300));
+      return;
+    }
     console.log(JSON.stringify(failed === null
       ? { type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5, permission_denials: denials }
       : { type: 'result', subtype: 'success', is_error: true, result: failed, session_id: `fake-${n}`, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5 }));

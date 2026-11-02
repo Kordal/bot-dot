@@ -2502,7 +2502,7 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .co-chip:hover { background: var(--fill); }
 #view-company > .co-new { max-width: 640px; flex: 1; padding-top: 28vh; }
 @media (max-width: 479px) { #view-company > .co-new { padding-top: 16vh; } }
-.co-empty { align-self: center; margin-top: auto; }
+.co-empty { align-self: center; margin-top: calc(-1 * var(--sp-8)); }
 .co-sources { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--sp-8); }
 .co-sources li { display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 32px; max-width: 100%; padding: 0 var(--sp-12); border-radius: var(--r-pill); background: var(--fill); font-size: var(--fs-12); }
 .co-sources li:has(.co-src-x) { padding-right: var(--sp-4); }
