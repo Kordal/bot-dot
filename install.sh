@@ -464,7 +464,7 @@ erase_account() {
 
 # The units the installer writes, the files and folders it keeps in BOT_DOT_DIR, and the packages it may have installed
 # for the accounts (step 1), beside gVisor's apt source.
-UNITS="botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service"
+UNITS="botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service"
 OWN="front-door accounts sockets disks bin update.log requests.log"
 PACKAGES="runsc docker-ce-rootless-extras"
 
@@ -555,6 +555,10 @@ if [ "$MODE" = uninstall ]; then
     if [ -n "$SYSTEMD" ]; then
       systemctl disable --now botdot-accounts.path botdot-load.timer </dev/null >/dev/null 2>&1 || true
       systemctl stop botdot-accounts.service botdot-load.service </dev/null >/dev/null 2>&1 || true
+      if [ -f "$ETC/systemd/system/botdot-local-firewall.service" ]; then
+        systemctl disable --now botdot-local-firewall </dev/null >/dev/null 2>&1 || true
+        iptables -D OUTPUT -j BOTDOT-LOCAL 2>/dev/null || true
+      fi
     elif [ -f "$RUN/requests.pid" ]; then
       pid="$(cat "$RUN/requests.pid")"
       case "$(tr '\0' ' ' < "$PROC/$pid/cmdline" 2>/dev/null || true)" in *"$BIN/install.sh"*) kill "$pid" 2>/dev/null || true ;; esac
@@ -1923,6 +1927,64 @@ elif ! { [ -f "$RUN/requests.pid" ] && kill -0 "$(cat "$RUN/requests.pid")" 2>/d
   nohup sh -c "i=0; while :; do [ -z \"\$(ls -A '$REQUESTS' 2>/dev/null)\" ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --requested; [ \$((i % 20)) != 0 ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --load; i=\$((i + 1)); sleep 3; done" >> "$DIR/requests.log" 2>&1 </dev/null 9>&- &
   echo "$!" > "$RUN/requests.pid"
   warn "This machine has no systemd, so the accounts sign-up links make are made by a loop started now, which doesn't start again after a restart. Run this installer again after one. Its log: $DIR/requests.log"
+fi
+
+# On this computer only, the VM's way out is the computer itself: its gateway is the computer's own localhost, and
+# past that lies the home network (ADR 136, #880). Nothing here may open a new connection to either, a bot's computer
+# least of all, whose traffic leaves as the account's slirp4netns does: through this machine's OUTPUT. Only the VM's
+# DNS, which is on the gateway, stays open. What leaves for the front door's Docker or lands on loopback stays inside.
+if [ "$REACH" = local ]; then
+  RESOLVERS="$(awk '$1 == "nameserver" && $2 !~ /^127\./ && $2 !~ /:/ { print $2 }' /run/systemd/resolve/resolv.conf 2>/dev/null || true)"
+  [ -n "$RESOLVERS" ] || RESOLVERS="$(awk '$1 == "nameserver" && $2 !~ /^127\./ && $2 !~ /:/ { print $2 }' "$ETC/resolv.conf" 2>/dev/null || true)"
+  cat > "$BIN/local-firewall.sh.new" <<SCRIPT
+#!/bin/sh
+# botdot (install.sh): keeps this VM from the computer it runs on and from that computer's network (ADR 136).
+set -e
+iptables -N BOTDOT-LOCAL 2>/dev/null || iptables -F BOTDOT-LOCAL
+iptables -C OUTPUT -j BOTDOT-LOCAL 2>/dev/null || iptables -I OUTPUT -j BOTDOT-LOCAL
+iptables -A BOTDOT-LOCAL -m conntrack ! --ctstate NEW -j RETURN
+for inside in lo docker+ br-+; do iptables -A BOTDOT-LOCAL -o "\$inside" -j RETURN; done
+for dns in $(printf '%s ' $RESOLVERS); do
+  iptables -A BOTDOT-LOCAL -d "\$dns" -p udp --dport 53 -j RETURN
+  iptables -A BOTDOT-LOCAL -d "\$dns" -p tcp --dport 53 -j RETURN
+done
+for private in 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 169.254.0.0/16 100.64.0.0/10 198.18.0.0/15; do
+  iptables -A BOTDOT-LOCAL -d "\$private" -j REJECT
+done
+ip6tables -L -n >/dev/null 2>&1 || exit 0
+ip6tables -N BOTDOT-LOCAL 2>/dev/null || ip6tables -F BOTDOT-LOCAL
+ip6tables -C OUTPUT -j BOTDOT-LOCAL 2>/dev/null || ip6tables -I OUTPUT -j BOTDOT-LOCAL
+ip6tables -A BOTDOT-LOCAL -m conntrack ! --ctstate NEW -j RETURN
+for private in fc00::/7 fe80::/10; do ip6tables -A BOTDOT-LOCAL ! -o lo -d "\$private" -j REJECT; done
+SCRIPT
+  mv "$BIN/local-firewall.sh.new" "$BIN/local-firewall.sh"
+  chmod 700 "$BIN/local-firewall.sh"
+  if [ -n "$SYSTEMD" ]; then
+    cat > "$ETC/systemd/system/botdot-local-firewall.service.new" <<UNIT
+# botdot (install.sh): the VM's rules, in place before anything in it can reach out (ADR 136).
+[Unit]
+Description=botdot: keep this VM from the computer it runs on
+DefaultDependencies=no
+After=local-fs.target
+Wants=network-pre.target
+Before=network-pre.target docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh $BIN/local-firewall.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    mv "$ETC/systemd/system/botdot-local-firewall.service.new" "$ETC/systemd/system/botdot-local-firewall.service"
+    systemctl daemon-reload </dev/null
+    systemctl enable botdot-local-firewall </dev/null >/dev/null 2>&1 || die "systemd didn't enable botdot-local-firewall. See: systemctl status botdot-local-firewall"
+    systemctl restart botdot-local-firewall </dev/null >/dev/null 2>&1 || die "The VM's firewall didn't start. See: systemctl status botdot-local-firewall"
+  else
+    sh "$BIN/local-firewall.sh" || die "The VM's firewall didn't start."
+  fi
+  ok "This VM can't reach the computer it runs on or that computer's network"
 fi
 
 # serve_sites: on a tailnet, Tailscale Serve passes the name's port 8443 to the front door's second port, for bots'

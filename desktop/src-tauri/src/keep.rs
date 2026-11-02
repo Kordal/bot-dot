@@ -23,6 +23,9 @@ pub struct Kept {
     pub last: Option<String>,
     /// "Open at login" was turned on at the first start. After that it is the owner's to change.
     pub login_set_up: bool,
+    /// The port of the botdot on this computer, from the moment its setup starts until it is removed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local: Option<u16>,
 }
 
 // What the file holds: a file from before several addresses has one `address` and its `cookie`.
@@ -42,6 +45,16 @@ impl Kept {
 
     pub fn get(&self, address: &str) -> Option<&Botdot> {
         self.position(address).map(|i| &self.botdots[i])
+    }
+
+    /// The address of the botdot on this computer, as `address::parse` gives it.
+    pub fn local_address(&self) -> Option<String> {
+        self.local.map(|port| format!("http://localhost:{port}/"))
+    }
+
+    /// The botdot on this computer got as far as a session once: its setup needs nothing more.
+    pub fn has_local(&self) -> bool {
+        self.local_address().is_some_and(|address| self.get(&address).is_some())
     }
 
     /// The botdot shown last, or the first one when that one is gone.
@@ -110,6 +123,19 @@ pub fn save(file: &Path, kept: &Kept) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_botdot_on_this_computer_is_set_up_once_it_has_had_a_session() {
+        let mut kept = Kept::default();
+        assert_eq!(kept.local_address(), None);
+        assert!(!kept.has_local());
+        kept.local = Some(4700);
+        assert_eq!(kept.local_address().as_deref(), Some("http://localhost:4700/"));
+        assert!(!kept.has_local(), "its setup stopped before the passkey");
+        kept.signed_in("http://localhost:4700/", "sid=1");
+        kept.session_over("http://localhost:4700/");
+        assert!(kept.has_local());
+    }
 
     const HQ: &str = "https://hq.example.com/";
     const STAGING: &str = "https://staging.example.com/";
