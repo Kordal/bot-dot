@@ -154,68 +154,80 @@ internal fun sitesShown(features: List<String>?) = features?.contains("site-icon
 @Composable
 fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current, copy: Boolean = true) {
     val p = LocalPaper.current
-    val blocks = remember(text) { parseBlocks(text) }
     val sites = LocalSiteIcons.current
-    // Its styled text, made once (and again only when the text, the searched words or the colours change), not on
-    // every redraw of the chat.
-    val terms = SearchMarks.terms
-    val styled = remember(blocks, terms, color, p, paths, sites) {
-        blocks.map { b ->
-            when (b) {
-                is Block.Heading -> listOf(inline(b.text, color, p, paths, sites))
-                is Block.Para -> listOf(inline(b.text, color, p, paths, sites))
-                is Block.Item -> listOf(inline(b.text, color, p, paths, sites))
-                is Block.Quote -> listOf(inline(b.text, color, p, paths, sites))
-                is Block.Table -> b.rows.flatMap { row -> row.map { inline(it, color, p, paths, sites) } }
-                else -> emptyList()
-            }
-        }
-    }
-    val icons = remember(styled) { siteIconsIn(styled.flatten()) }
-    // Shopping results as product cards (Products.kt, #685), from a server that has them; else their code.
     val cards = LocalProductCards.current
-    val products = remember(blocks, cards) { blocks.map { b -> if (cards && b is Block.Code && b.lang == "products") Products.parse(b.text) else null } }
+    val terms = SearchMarks.terms
+    // Each block styled once (and again only when the searched words or the colours change), not on every redraw of
+    // the chat: a reply draft that grows each frame (rememberPacedDraft) restyles only its last block, and the blocks
+    // before it, the same objects as before, are skipped when the chat draws again.
+    val made = remember(terms, color, p, paths, sites, cards) { HashMap<Block, StyledBlock>() }
+    val blocks = remember(text, made) {
+        parseBlocks(text).map { b -> made.getOrPut(b) { styledBlock(b, color, p, paths, sites, cards) } }
+            .also { shown -> made.keys.retainAll(shown.mapTo(HashSet()) { it.block }) }
+    }
     QuotableSelection(modifier) { // selectable, with Quote in its menu inside a chat (QuoteUi.kt)
         Column {
-            blocks.forEachIndexed { i, b ->
-                val st = styled[i]
-                val above = Modifier.padding(top = gapAbove(blocks.getOrNull(i - 1), b))
-                // Lines of text stop at about 62 characters (#726); code, tables and cards keep the width.
-                val prose = above.widthIn(max = Space.answer)
-                when (b) {
-                    is Block.Heading -> Text(st[0], color = color, fontWeight = FontWeight.SemiBold, fontSize = headingSize(b.level), modifier = prose, inlineContent = icons)
-                    is Block.Para -> PathText(st[0], color, paths, prose, icons)
-                    // The indent moves the whole row, so a sub-item's text starts right of its parent's text.
-                    is Block.Item -> Row(prose.padding(start = itemIndent(b.indent))) {
-                        // A task item shows its checkbox in place of the marker; it only says done or not (#267).
-                        if (b.task != null) Icon(if (b.task == "done") Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank, contentDescription = null, tint = p.muted,
-                            modifier = Modifier.padding(top = Space.s4, end = Space.s8).size(18.dp).semantics {
-                                role = Role.Checkbox
-                                toggleableState = if (b.task == "done") ToggleableState.On else ToggleableState.Off
-                            })
-                        else Text(if (b.number != null) "${b.number}." else "•", color = p.muted, style = MaterialTheme.typography.bodyLarge,
-                            maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = markerWidth(b.number != null)).padding(end = Space.s4))
-                        PathText(st[0], color, paths, Modifier, icons)
-                    }
-                    is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
-                        modifier = prose.padding(start = Space.s12), inlineContent = icons)
-                    is Block.Code -> if (products[i] != null) ProductCards(products[i]!!, above) else {
-                        // Copy in its top-right corner (#285), in a column of its own that the code scrolls beside.
-                        Row(above.fillMaxWidth().background(p.sunk, Radius.small)) {
-                            Text(b.text, fontFamily = GeistMono, fontSize = Type.s12, color = color,
-                                modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(Space.s12))
-                            if (copy) copyTextOf(b)?.let { key(i, it) { CopyCode(it) } }
-                        }
-                        webLinkUnder(b, onWeb)?.let { url ->
-                            Text(buildAnnotatedString { withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = p.muted, textDecoration = TextDecoration.Underline)))) { append(tr("Open on web")) } },
-                                fontSize = Type.s14, modifier = Modifier.padding(top = Space.s4))
-                        }
-                    }
-                    is Block.Table -> Box(above) { Table(b.rows, st, color, p, icons) }
-                    Block.Rule -> Box(above.fillMaxWidth().height(1.dp).background(p.line2))
-                }
+            blocks.forEachIndexed { i, b -> key(i) { MarkdownBlock(b, gapAbove(blocks.getOrNull(i - 1)?.block, b.block), color, onWeb, copy, paths) } }
+        }
+    }
+}
+
+/** A block of a reply with its styled text: its text, or its cells for a table, the site icons in them and its cards. */
+internal class StyledBlock(val block: Block, val text: List<AnnotatedString>, val icons: Map<String, InlineTextContent>, val products: List<Product>?)
+
+private fun styledBlock(b: Block, color: Color, p: Paper, paths: PathActions?, sites: Boolean, cards: Boolean): StyledBlock {
+    val text = when (b) {
+        is Block.Heading -> listOf(inline(b.text, color, p, paths, sites))
+        is Block.Para -> listOf(inline(b.text, color, p, paths, sites))
+        is Block.Item -> listOf(inline(b.text, color, p, paths, sites))
+        is Block.Quote -> listOf(inline(b.text, color, p, paths, sites))
+        is Block.Table -> b.rows.flatMap { row -> row.map { inline(it, color, p, paths, sites) } }
+        else -> emptyList()
+    }
+    // Shopping results as product cards (Products.kt, #685), from a server that has them; else their code.
+    val products = if (cards && b is Block.Code && b.lang == "products") Products.parse(b.text) else null
+    return StyledBlock(b, text, siteIconsIn(text), products)
+}
+
+@Composable
+private fun MarkdownBlock(s: StyledBlock, gap: Dp, color: Color, onWeb: String?, copy: Boolean, paths: PathActions?) {
+    val p = LocalPaper.current
+    val st = s.text
+    val icons = s.icons
+    val above = Modifier.padding(top = gap)
+    // Lines of text stop at about 62 characters (#726); code, tables and cards keep the width.
+    val prose = above.widthIn(max = Space.answer)
+    when (val b = s.block) {
+        is Block.Heading -> Text(st[0], color = color, fontWeight = FontWeight.SemiBold, fontSize = headingSize(b.level), modifier = prose, inlineContent = icons)
+        is Block.Para -> PathText(st[0], color, paths, prose, icons)
+        // The indent moves the whole row, so a sub-item's text starts right of its parent's text.
+        is Block.Item -> Row(prose.padding(start = itemIndent(b.indent))) {
+            // A task item shows its checkbox in place of the marker; it only says done or not (#267).
+            if (b.task != null) Icon(if (b.task == "done") Icons.Outlined.CheckBox else Icons.Outlined.CheckBoxOutlineBlank, contentDescription = null, tint = p.muted,
+                modifier = Modifier.padding(top = Space.s4, end = Space.s8).size(18.dp).semantics {
+                    role = Role.Checkbox
+                    toggleableState = if (b.task == "done") ToggleableState.On else ToggleableState.Off
+                })
+            else Text(if (b.number != null) "${b.number}." else "•", color = p.muted, style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1, softWrap = false, modifier = Modifier.widthIn(min = markerWidth(b.number != null)).padding(end = Space.s4))
+            PathText(st[0], color, paths, Modifier, icons)
+        }
+        is Block.Quote -> Text(st[0], style = MaterialTheme.typography.bodyLarge, color = p.muted,
+            modifier = prose.padding(start = Space.s12), inlineContent = icons)
+        is Block.Code -> if (s.products != null) ProductCards(s.products, above) else {
+            // Copy in its top-right corner (#285), in a column of its own that the code scrolls beside.
+            Row(above.fillMaxWidth().background(p.sunk, Radius.small)) {
+                Text(b.text, fontFamily = GeistMono, fontSize = Type.s12, color = color,
+                    modifier = Modifier.weight(1f).horizontalScroll(rememberScrollState()).padding(Space.s12))
+                if (copy) copyTextOf(b)?.let { key(it) { CopyCode(it) } }
+            }
+            webLinkUnder(b, onWeb)?.let { url ->
+                Text(buildAnnotatedString { withLink(LinkAnnotation.Url(url, TextLinkStyles(SpanStyle(color = p.muted, textDecoration = TextDecoration.Underline)))) { append(tr("Open on web")) } },
+                    fontSize = Type.s14, modifier = Modifier.padding(top = Space.s4))
             }
         }
+        is Block.Table -> Box(above) { Table(b.rows, st, color, p, icons) }
+        Block.Rule -> Box(above.fillMaxWidth().height(1.dp).background(p.line2))
     }
 }
 
@@ -341,8 +353,9 @@ private val RULES = setOf("---", "***", "___")
  * shares (the `stream` cases of test/fixtures/markdown-cases.json; draftSource in public/app.js): a code block that is
  * not closed yet is drawn as code, a `mermaid` one is plain code even once closed (its fence loses the word: no
  * "Open on web" under a draft, ADR 041), a table row that is still being written waits, and so does the line of a
- * fence that is still being opened. An unclosed ** or [ needs nothing: it is drawn as the text it is. A `products`
- * fence that is not closed yet waits whole: its cards are drawn once it is (test/fixtures/products-cases.json).
+ * fence that is still being opened. A mark opened on the last line and not closed yet waits with what follows it
+ * ([openMarkAt]), so a reply never flashes its ** as text. A `products` fence that is not closed yet waits whole: its
+ * cards are drawn once it is (test/fixtures/products-cases.json).
  */
 internal fun draftSource(src: String): String {
     var lines = src.replace("\r\n", "\n").replace('\r', '\n').split("\n").toMutableList()
@@ -357,7 +370,51 @@ internal fun draftSource(src: String): String {
         if (Regex("^\\s*`+\\w*$").matches(last)) lines.removeAt(lines.lastIndex)
         if (lines.count { fence.containsMatchIn(it) } % 2 == 1) lines += "```"
     } else if (Regex("^\\s*(\\||`{1,2}$)").containsMatchIn(last)) lines.removeAt(lines.lastIndex) // a row of a table is drawn once its line has ended
+    else if (!fence.containsMatchIn(last)) openMarkAt(last)?.let { lines[lines.lastIndex] = last.substring(0, it) } // a fence that closed its block is no mark
     return lines.joinToString("\n") { it.replace(Regex("^(\\s*```)mermaid$"), "$1") }
+}
+
+/**
+ * Where the last line of a draft has a mark that is opened and not closed yet, by the rules the web page shares
+ * (openMarkAt in public/app.js): a ` run with no run as long after it, a [ with no ] after it, or a [text] with no
+ * (address) after it yet, or a **, __, * or _ that opens (not after a letter or digit, and before something that is not
+ * a space) and is not closed. Inside `code` and a web address nothing is a mark. Null when every mark is closed.
+ */
+internal fun openMarkAt(line: String): Int? {
+    val urls = WEB_URL.findAll(line).associate { it.range.first to it.range.last + 1 }
+    val open = mutableListOf<Pair<String, Int>>() // the opened **, __, * and _, with where each starts
+    var i = 0
+    while (i < line.length) {
+        val c = line[i]
+        urls[i]?.let { i = it; continue }
+        when {
+            c == '`' -> {
+                var n = 1
+                while (i + n < line.length && line[i + n] == '`') n++
+                val close = Regex("(?<!`)`{$n}(?!`)").find(line, i + n) ?: return open.firstOrNull()?.second?.coerceAtMost(i) ?: i
+                i = close.range.last + 1
+            }
+            c == '[' -> {
+                val end = line.indexOf(']', i + 1)
+                if (end < 0 || end == line.length - 1) return open.firstOrNull()?.second ?: i
+                if (line[end + 1] == '(') {
+                    val shut = line.indexOf(')', end + 2)
+                    if (shut < 0) return open.firstOrNull()?.second ?: i
+                    i = shut + 1
+                } else i++
+            }
+            c == '*' || c == '_' -> {
+                val mark = if (line.startsWith("$c$c", i)) "$c$c" else "$c"
+                val after = line.getOrNull(i + mark.length)
+                val before = line.getOrNull(i - 1)
+                if (open.lastOrNull()?.first == mark) open.removeAt(open.lastIndex)
+                else if ((before == null || !before.isLetterOrDigit() && before != c) && after != null && !after.isWhitespace() && after != c) open += mark to i
+                i += mark.length
+            }
+            else -> i++
+        }
+    }
+    return open.firstOrNull()?.second
 }
 
 /**

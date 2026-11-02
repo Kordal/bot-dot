@@ -286,7 +286,7 @@ private fun Message(m: ChiefMessage, activity: List<String>, chips: List<Pair<Ch
         // A reply still being written: the working line under the chat says it ([lineSaysIt]), and only what it
         // did so far stands here, with its draft from a server that sends one (ReplyDraft), growing in the reply's
         // place. Against a botdot from before `message-waits`, its bubble as it was.
-        m.pending && draft.isNotEmpty() -> TheirBubble(chips = chips) { MarkdownText(draftSource(draft), copy = false) }
+        m.pending && draft.isNotEmpty() -> TheirBubble(chips = chips) { MarkdownText(draftSource(rememberPacedDraft(draft)), copy = false) }
         m.pending -> if (lineSaysIt) { if (chips.isNotEmpty()) ActionChips(chips) } else Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Working(activity.lastOrNull()?.let { "$it…" } ?: tr("Thinking…"), activity)
             if (chips.isNotEmpty()) ActionChips(chips)
