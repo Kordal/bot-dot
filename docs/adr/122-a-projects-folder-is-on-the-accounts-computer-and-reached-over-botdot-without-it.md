@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#702](https://github.com/Kordal/bot-dot/issues/702), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
+- **Amended by:** [ADR 135](135-a-projects-folder-follows-its-name.md) (a project's folder follows its name)
 - **Builds on:** [ADR 097](097-a-shared-project-is-a-folder-on-the-accounts-computer.md), [ADR 120](120-an-account-has-several-projects-kept-as-a-list-in-one-file.md)
 
 ## Context
@@ -10,7 +11,7 @@ A project of the Projects place (ADR 120) has teams of bots, but no place for it
 
 ## Decision
 
-- **Every project has one folder, ADR 097's:** an entry of `data/projects.json` with `project`, the project's id. It is named as the project was when the folder was first asked for (a `/`, `\`, `<` or `>` becomes a space; a name taken gets " (2)") and keeps its name when the project is renamed, since a folder is not renamed (ADR 097). Its bots are every bot of the project's teams, read at each call, whichever computer each uses; they change with the teams, not in a bot's Files (`409` `{ state: "linked" }`). An older project gets its folder the first time it is shown.
+- **Every project has one folder, ADR 097's:** an entry of `data/projects.json` with `project`, the project's id. It is named as the project was when the folder was first asked for (a `/`, `\`, `<` or `>` becomes a space; a name taken gets " (2)") and keeps its name when the project is renamed, since a folder is not renamed (ADR 097). Amended by [ADR 135](135-a-projects-folder-follows-its-name.md): it follows the project's name. Its bots are every bot of the project's teams, read at each call, whichever computer each uses; they change with the teams, not in a bot's Files (`409` `{ state: "linked" }`). An older project gets its folder the first time it is shown.
 - **A bridge, not a mirror.** A bot on the account's computer works in the folder with its own tools there. Any other bot of the project gets six tools, `list_project_files`, `read_project_file`, `write_project_file`, `copy_to_project`, `copy_from_project` and `remove_project_file`, which botdot runs on the account's computer as box, with the fixed scripts of `lib/workspace-files.js` (paths relative to the folder, never through a link). The copies carry any file, byte for byte, between the folder and the bot's own workspace.
 - **One seat of botdot's own, `projects`,** makes those calls, and the owner's: never the bot's, whose calls would go to its own machine on boat.dev. Its screen number is never started.
 - **The computer starts for it** when a bot's tool or the owner's Files needs it and it is off, as a bot's first computer tool starts it (ADR 035). ADR 097's rule that nothing starts the computer for a shared project still holds for those the owner makes by hand.
