@@ -50,18 +50,18 @@ internal class DraftPace(private val catchUpNanos: Long = 250_000_000L) {
         /** How many graphemes [s] has from [from] on. */
         fun graphemes(s: String, from: Int): Int {
             if (from >= s.length) return 0
-            val it = BreakIterator.getCharacterInstance().apply { setText(s) }
+            val bi = BreakIterator.getCharacterInstance().apply { setText(s) }
             var n = 0
-            var at = it.following(from)
-            while (at != BreakIterator.DONE) { n++; at = it.next() }
+            var at = bi.following(from)
+            while (at != BreakIterator.DONE) { n++; at = bi.next() }
             return n
         }
 
         /** Where [n] graphemes after [from] in [s] end. */
         fun after(s: String, from: Int, n: Int): Int {
-            val it = BreakIterator.getCharacterInstance().apply { setText(s) }
+            val bi = BreakIterator.getCharacterInstance().apply { setText(s) }
             var at = from
-            repeat(n) { val next = it.following(at); if (next == BreakIterator.DONE) return s.length; at = next }
+            repeat(n) { val next = bi.following(at); if (next == BreakIterator.DONE) return s.length; at = next }
             return at
         }
     }
