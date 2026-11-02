@@ -52,6 +52,8 @@ pub fn label(address: &str) -> String {
         .unwrap_or_else(|| address.to_string())
 }
 
+// What only the local botdot says is read on the Mac alone.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub struct Words {
     pub add: &'static str,
     pub remove: &'static str,
