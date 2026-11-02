@@ -32,7 +32,7 @@ test('a project keeps a day, "none", or nothing as its delivery date', async () 
   const cleared = await srv.api(at('/company', c.id), { method: 'PATCH', body: { deliverBy: '' } });
   assert.equal(cleared.data.deliverBy, '');
   // An empty project (#788) has none set.
-  assert.equal((await srv.api('/company', { method: 'POST', body: { empty: true } })).data.deliverBy, '');
+  assert.equal((await srv.api('/company', { method: 'POST', body: { empty: true, name: 'Shop' } })).data.deliverBy, '');
 });
 
 test('the team proposal, the Chief\'s chips and the project notes read the delivery date', () => {

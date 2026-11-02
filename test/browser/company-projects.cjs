@@ -62,8 +62,14 @@ const { startServer, makeBot, writeData } = require('../helpers');
     // "+", Start from scratch (#788): an empty project at once, on its blank board with New card; no setup, no team.
     await page.locator('#rail [data-rail-new]').click(); // "+": New bot or New project (#853)
     await page.locator('.ct-menu [data-new-project]').click();
+    // It asks the name first (#857); Back returns to the field.
     await page.locator('#view-company [data-start-empty]').click();
-    await page.locator('.cf-top h1', { hasText: 'New project' }).waitFor();
+    await page.locator('#view-company [data-start-back]').click();
+    await page.locator('#view-company [data-start-empty]').click();
+    if (shots) await page.screenshot({ path: path.join(shots, 'wide-name.png') });
+    await page.locator('#co-name input').fill('Garden club');
+    await page.locator('#co-name .co-go').click();
+    await page.locator('.cf-top h1', { hasText: 'Garden club' }).waitFor();
     await page.locator('#view-company .pc-new, #view-company .pc-picks').first().waitFor();
     assert.equal(await page.locator('.co-steps').count(), 0);
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-empty.png') });

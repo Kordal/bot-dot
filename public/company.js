@@ -35,6 +35,8 @@ const Company = (() => {
   let loaded = false;
   // What the start screen holds before Go: the sources picked so far.
   const draft = { sources: [] };
+  // Start from scratch asks the project's name first (#857): its folder is made from it, so it is never "New project (2)".
+  let naming = false;
   // The steps of the setup, then the home. Each later part puts its own drawing here: (root, company) => void.
   const steps = {};
   const STEPS = [['about', () => tr('About')], ['team', () => tr('Team')], ['start', () => tr('Start')]];
@@ -92,6 +94,7 @@ const Company = (() => {
   function startNew() {
     closeSettings(false);
     adding = true;
+    naming = false;
     state.company = null;
     current = null;
     if (state.view === 'company') redraw(); else setView('company');
@@ -509,6 +512,7 @@ const Company = (() => {
   // A new project (#801): one field with a clip for its sources (files, links) inside, the sources as chips under it,
   // and "Start from scratch" right under them (#849).
   function drawStart(root) {
+    if (naming) return drawNaming(root);
     const typed = $('#co-what', root)?.value || '';
     root.innerHTML = `<div class="co-start co-new">
       <h1>${tr("You know where. We'll work out how.")}</h1>
@@ -531,9 +535,39 @@ const Company = (() => {
     ]);
     files.onchange = () => { addFiles([...files.files]); files.value = ''; };
     const empty = $('[data-start-empty]', root);
-    if (empty) empty.onclick = () => made({ empty: true, name: tr('New project') }, empty);
+    if (empty) empty.onclick = () => { naming = true; drawStart(root); };
     wireSources(root);
     if (state.view === 'company' && !typed) input.focus();
+  }
+  // Start from scratch (#857): the project's name, then the empty project with its folder named after it. Back keeps
+  // what was typed on the start screen; a redraw meanwhile keeps the name typed so far.
+  let typedWhat = '';
+  function drawNaming(root) {
+    const had = $('#co-what', root);
+    if (had) typedWhat = had.value;
+    const typed = $('#co-name input', root)?.value || '';
+    root.innerHTML = `<div class="co-start co-new">
+      <h1>${tr('New project')}</h1>
+      <form class="co-ask" id="co-name"><input name="project" autocomplete="off" maxlength="80" placeholder="${tr('Project name')}" aria-label="${tr('Project name')}" /><button type="submit" class="co-go co-go-icon" aria-label="${tr('Go')}" disabled>${ICON.go}</button></form>
+      <button type="button" class="co-text-btn co-empty" data-start-back>${tr('Back')}</button>
+    </div>`;
+    const form = $('#co-name', root);
+    const input = form.querySelector('input');
+    const go = form.querySelector('.co-go');
+    const ready = () => { go.disabled = !input.value.trim(); };
+    input.value = typed;
+    input.oninput = ready;
+    ready();
+    form.onsubmit = (e) => { e.preventDefault(); const name = input.value.trim(); if (name) made({ empty: true, name }, go, () => { naming = false; typedWhat = ''; current = null; }); };
+    const back = () => {
+      naming = false;
+      drawStart(root);
+      const w = $('#co-what', root);
+      if (w) { w.value = typedWhat; w.dispatchEvent(new Event('input')); w.focus(); }
+    };
+    $('[data-start-back]', root).onclick = back;
+    input.onkeydown = (e) => { if (e.key === 'Escape') back(); };
+    if (state.view === 'company') input.focus();
   }
 
   // The sources as chips: a file or a link, removable on the new-project screen.
