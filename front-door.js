@@ -174,7 +174,8 @@ const challenges = new Map();
 const CHALLENGES_PER_CLIENT = 20;
 const CHALLENGES_MAX = 10_000;
 // The native apps sign in on this front door's own page in a browser: the Mac app in a sheet
-// (ASWebAuthenticationSession), the Android app in a Custom Tab, so the browser's password manager answers the passkey.
+// (ASWebAuthenticationSession), the Android app in a Custom Tab, the desktop app in the system browser (ADR 137), so
+// the browser's password manager answers the passkey.
 // The page hands the sign-in back to the app as a code at botdot://signed-in?code=…. The app sends the code with the
 // secret whose SHA-256 the page carried (`handoff`) and gets its session: a code alone, seen by anything else (on
 // Android, another app may claim botdot:// too), signs nobody in.
@@ -184,7 +185,7 @@ const HANDOFF_MS = 2 * 60_000;
 const HANDOFFS_MAX = 1000;
 const HANDOFF_CHALLENGE = /^[A-Za-z0-9_-]{43}$/; // a SHA-256 in base64url
 const APP_CALLBACK = 'botdot://signed-in';
-const HANDOFF_APPS = ['mac', 'android']; // the apps that sign in through the browser
+const HANDOFF_APPS = ['mac', 'android', 'desktop']; // the apps that sign in through the browser
 setInterval(() => {
   for (const map of [challenges, handoffs]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
 }, 60_000).unref();
@@ -462,7 +463,7 @@ function slowedDown(req, res, limit = tries, what = 'failed sign-ins') {
 // ---------- the front door's own routes ----------
 
 // What a page that signs in asks for: { challenge } when it is a native app's browser (the Mac app's sheet, the
-// Android app's Custom Tab), which hands the sign-in back, {} for any other, which gets its session's cookie. Null,
+// Android app's Custom Tab, the desktop app's system browser), which hands the sign-in back, {} for any other, which gets its session's cookie. Null,
 // answered here, for a hand-off that is wrong.
 function handoffOf(body, res) {
   if (body.handoff === undefined) return {};

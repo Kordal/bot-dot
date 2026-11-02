@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "screen",
+  "description": "The app's own screen. No page from a botdot or another site has a capability.",
+  "local": true,
+  "windows": ["main"],
+  "permissions": ["core:event:default", "allow-start", "allow-connect"]
+}

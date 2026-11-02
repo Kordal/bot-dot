@@ -1,0 +1,31 @@
+[package]
+name = "botdot-desktop"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+base64 = "0.22"
+getrandom = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+tauri = { version = "2.12", features = [] }
+tauri-plugin-deep-link = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+tauri-plugin-window-state = "2"
+ureq = { version = "3", features = ["platform-verifier"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSString"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
