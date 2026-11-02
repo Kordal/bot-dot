@@ -3,6 +3,8 @@
 // reply ends, before the turns botdot starts, built from the chat as it is then. It can be taken back. A Chief
 // turn that only waits for a bot's run stops waiting when the owner writes. Against the stand-in for Claude; the
 // Chief's own tools (lib/mcp-server.js) are the real ones. A late result is in test/chief-late.test.js.
+// What a restart cut off carries on in this file (ADR 140): test/helpers.js leaves it off elsewhere.
+process.env.BOT_DOT_RESTART_CARRY_ON = 'on';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

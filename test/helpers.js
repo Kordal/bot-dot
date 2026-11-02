@@ -103,6 +103,9 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
       // How many runs of one bot go at once (ADR 062): a test file of what waits behind a busy bot sets 1 for the
       // whole file, before it starts its server (oneRunAtATime).
       ...(process.env.BOT_DOT_RUNS_MAX ? { BOT_DOT_RUNS_MAX: process.env.BOT_DOT_RUNS_MAX } : {}),
+      // What a restart cut off carries on by itself (ADR 140) only in a test file that sets this to on before it
+      // starts its server: the others count the runs a restart leaves.
+      BOT_DOT_RESTART_CARRY_ON: process.env.BOT_DOT_RESTART_CARRY_ON || 'off',
       ...env,
     },
     stdio: ['ignore', 'pipe', 'pipe'],

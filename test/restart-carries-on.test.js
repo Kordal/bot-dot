@@ -1,6 +1,8 @@
 // What a restart cut off carries on by itself (ADR 140, bots.js carryOnAfterRestart): the owner's request goes on
 // from where it was, told so and handed its run's number; a run that carried on is not carried on a second time;
 // and after botdot was off for longer than an hour nothing is started unasked.
+// What a restart cut off carries on in this file (ADR 140): test/helpers.js leaves it off elsewhere.
+process.env.BOT_DOT_RESTART_CARRY_ON = 'on';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');

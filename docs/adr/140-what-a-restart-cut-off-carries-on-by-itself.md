@@ -17,6 +17,7 @@ An update from the admin page, a restart of the account's container or a crash s
 - **Only when botdot was back within an hour**: the last minute the scheduler of the server before looked at its jobs (`scheduler.json lookedAt`) is at most an hour before this start. After longer, or from data put back from a backup, the owner has moved on, and what they asked then is not done unasked. Nothing is carried on while Claude is signed out for the Chief; a bot's work waits in its queue for the sign-in, as any.
 - **Once.** A run that carried on from a run cut off is not carried on again when a restart cuts it off too, so a server that falls over in the middle of one run does not start it forever.
 - The cut run stays as it was: `interrupted`, with its `problem`, in the chat.
+- **`BOT_DOT_RESTART_CARRY_ON=off` stops it** (the tests of what a restart leaves, which count the runs; `test/helpers.js` sets it unless a test file turns it on).
 
 ## Alternatives
 

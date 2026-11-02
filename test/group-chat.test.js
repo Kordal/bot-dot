@@ -6,6 +6,8 @@
 // would have started.
 // Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
 // once, and at that limit the same holds).
+// What a restart cut off carries on in this file (ADR 140): test/helpers.js leaves it off elsewhere.
+process.env.BOT_DOT_RESTART_CARRY_ON = 'on';
 process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
