@@ -1,0 +1,128 @@
+# The desktop app (ADR 137, #883): its checks and its four builds, on GitHub's own machines and without Docker.
+# Windows x64 and arm64 (NSIS installers) build on windows-latest, Apple silicon and Intel (a .dmg, and the .app the
+# updater installs) on macos-latest. The Rust checks (clippy, unit tests) run on the two builds that run where they
+# are built.
+#
+# When: on a pull request that changes the app or its workflows, and called by desktop-release.yml with the version
+# it releases. Nothing here is signed and no job holds a secret: the release workflow signs what these builds hand
+# it, so a pull request's code never reaches the update key.
+name: Desktop
+
+on:
+  pull_request:
+    paths:
+      - 'desktop/**'
+      - '.github/workflows/desktop.yml'
+      - '.github/workflows/desktop-release.yml'
+  workflow_call:
+    inputs:
+      # The version the builds carry; a pull request builds tauri.conf.json's own.
+      version: { type: string, default: '' }
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TAURI_CLI: '@tauri-apps/cli@2.12.4'
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            runner: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+            check: true
+          - name: windows-arm64
+            runner: windows-latest
+            target: aarch64-pc-windows-msvc
+            bundles: nsis
+            check: false
+          - name: mac-apple-silicon
+            runner: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+            check: true
+          - name: mac-intel
+            runner: macos-latest
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+            check: false
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop/src-tauri
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - name: Rust
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+          rustc --version
+
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            desktop/src-tauri/target
+          key: desktop-${{ matrix.target }}-${{ hashFiles('desktop/src-tauri/Cargo.lock') }}
+          restore-keys: desktop-${{ matrix.target }}-
+
+      - name: Lint
+        if: matrix.check
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Unit tests
+        if: matrix.check
+        run: cargo test --locked
+
+      - name: Version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [ -n "$VERSION" ] || VERSION="$(node -p "require('./tauri.conf.json').version")"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "{\"version\":\"$VERSION\"}" > "$RUNNER_TEMP/version.json"
+          echo "Building botdot $VERSION for ${{ matrix.name }}"
+
+      - name: Build
+        run: npx --yes "$TAURI_CLI" build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config "$RUNNER_TEMP/version.json"
+
+      # Named for the people who download them. The Mac's .app goes as a .tar.gz made here, which keeps its
+      # permissions: the updater installs it, and the release workflow signs it.
+      - name: Collect
+        run: |
+          OUT="$GITHUB_WORKSPACE/out"
+          mkdir -p "$OUT"
+          BUNDLE="target/${{ matrix.target }}/release/bundle"
+          case "${{ matrix.name }}" in
+            windows-*)
+              cp "$(ls "$BUNDLE"/nsis/*-setup.exe)" "$OUT/botdot-$VERSION-${{ matrix.name }}-setup.exe"
+              ;;
+            mac-*)
+              cp "$(ls "$BUNDLE"/dmg/*.dmg)" "$OUT/botdot-$VERSION-${{ matrix.name }}.dmg"
+              tar -czf "$OUT/botdot-$VERSION-${{ matrix.name }}.app.tar.gz" -C "$BUNDLE/macos" botdot.app
+              ;;
+          esac
+          ls -l "$OUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: desktop-${{ matrix.name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: out/
+          if-no-files-found: error

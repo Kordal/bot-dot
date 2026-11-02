@@ -3,7 +3,8 @@
 //! the toasts of the Action Center.
 
 use crate::feed::Notice;
-use std::sync::OnceLock;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Mutex, OnceLock};
 
 #[cfg(target_os = "macos")]
 mod mac;
@@ -20,7 +21,6 @@ mod system {
     pub fn start(_: &str) {}
     pub fn show(_: &crate::feed::Notice) {}
     pub fn remove(_: &str) {}
-    pub fn remove_all() {}
 }
 
 /// A tag as Windows takes it, at most 64 characters: a longer one, as `job:<bot>/<job>` can be, is its hash.
@@ -33,39 +33,57 @@ fn short_tag(tag: &str) -> String {
     Sha256::digest(tag.as_bytes()).iter().take(16).map(|b| format!("{b:02x}")).collect()
 }
 
-type Click = Box<dyn Fn(String) + Send + Sync>;
+type Click = Box<dyn Fn(String, String) + Send + Sync>;
 static CLICKED: OnceLock<Click> = OnceLock::new();
+/// What is shown, by botdot address: the system's ids of its notifications.
+static SHOWN: Mutex<Option<HashMap<String, HashSet<String>>>> = Mutex::new(None);
+
+// Several botdots can have a chat of the same id: the system knows a notification by its address and its tag, and a
+// click hands back its address and its target, each as `<address>\n<what>`.
+fn joined(address: &str, what: &str) -> String {
+    format!("{address}\n{what}")
+}
 
 #[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
-fn clicked(target: String) {
+fn clicked(joined: String) {
+    let Some((address, target)) = joined.split_once('\n') else { return };
     if let Some(on) = CLICKED.get() {
-        on(target);
+        on(address.to_string(), target.to_string());
     }
 }
 
 /// Once, at the start. `id`: the app's identifier, which Windows shows its toasts under. The Mac asks the owner's
-/// permission the first time.
-pub fn start(id: &str, on_click: impl Fn(String) + Send + Sync + 'static) {
+/// permission the first time. `on_click` gets the botdot's address and the target.
+pub fn start(id: &str, on_click: impl Fn(String, String) + Send + Sync + 'static) {
     let _ = CLICKED.set(Box::new(on_click));
     system::start(id);
 }
 
-pub fn show(notice: &Notice) {
-    system::show(notice);
+pub fn show(address: &str, notice: &Notice) {
+    let id = joined(address, &notice.tag);
+    system::show(&Notice { tag: id.clone(), target: joined(address, &notice.target), ..notice.clone() });
+    SHOWN.lock().unwrap().get_or_insert_with(HashMap::new).entry(address.to_string()).or_default().insert(id);
 }
 
-pub fn remove(tag: &str) {
-    system::remove(tag);
+pub fn remove(address: &str, tag: &str) {
+    let id = joined(address, tag);
+    if let Some(ids) = SHOWN.lock().unwrap().get_or_insert_with(HashMap::new).get_mut(address) {
+        ids.remove(&id);
+    }
+    system::remove(&id);
 }
 
-/// The session is over: what it rang goes.
-pub fn remove_all() {
-    system::remove_all();
+/// The session of this botdot is over, or it went: what it rang goes.
+pub fn remove_all_of(address: &str) {
+    let ids = SHOWN.lock().unwrap().get_or_insert_with(HashMap::new).remove(address).unwrap_or_default();
+    for id in ids {
+        system::remove(&id);
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::short_tag;
+    use super::{joined, short_tag};
 
     #[test]
     fn a_tag_windows_takes_stays_and_a_longer_one_is_its_hash() {
@@ -74,5 +92,15 @@ mod tests {
         assert_eq!(short_tag(&long).len(), 32);
         assert_eq!(short_tag(&long), short_tag(&long), "the same tag is the same toast");
         assert_ne!(short_tag(&long), short_tag(&format!("{long}x")));
+    }
+
+    #[test]
+    fn a_click_hands_back_its_botdot_and_its_target() {
+        let got = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let keep = got.clone();
+        let _ = super::CLICKED.set(Box::new(move |a, t| *keep.lock().unwrap() = Some((a, t))));
+        super::clicked(joined("https://botdot.example.com/", "bot:b1"));
+        assert_eq!(got.lock().unwrap().clone(), Some(("https://botdot.example.com/".to_string(), "bot:b1".to_string())));
+        assert_ne!(joined("https://a.example/", "bot:b1"), joined("https://b.example/", "bot:b1"), "the same chat of two botdots is two notifications");
     }
 }

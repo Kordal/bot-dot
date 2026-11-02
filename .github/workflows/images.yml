@@ -37,7 +37,8 @@ concurrency:
 jobs:
   # Whether this run builds: a run by hand always; a nightly one when main changed since this workflow's last
   # successful run, outside the paths below, or a newer android-v* release exists (an android/ change counts only
-  # once it is released: the image carries the released app, not the source).
+  # once it is released: the image carries the released app, not the source). A desktop/ change never counts: the
+  # image carries no desktop app (desktop-release.yml).
   plan:
     runs-on: ubuntu-latest
     outputs:
@@ -57,7 +58,7 @@ jobs:
           [ -n "$LAST" ] || build "No image published yet: building." true
           SHA="$(jq -r .headSha <<< "$LAST")" AT="$(jq -r .createdAt <<< "$LAST")"
           git cat-file -e "$SHA^{commit}" 2>/dev/null || build "The last image's commit $SHA is not on main: building." true
-          CHANGED="$(git diff --name-only "$SHA" HEAD -- . ':!*.md' ':!docs/' ':!design/' ':!macos/' ':!android/')"
+          CHANGED="$(git diff --name-only "$SHA" HEAD -- . ':!*.md' ':!docs/' ':!design/' ':!macos/' ':!android/' ':!desktop/')"
           [ -z "$CHANGED" ] || build "Changed since ${SHA::7}: $(printf '%s ' $CHANGED)" true
           APK="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName,createdAt --jq "[.[] | select(.tagName | startswith(\"android-v\")) | select(.createdAt > \"$AT\")] | length")"
           [ "$APK" = 0 ] || build "A newer Android release: building." true

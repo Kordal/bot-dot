@@ -161,6 +161,8 @@ The installer asks a few questions and ends with your address and a sign-up link
 | --- | --- |
 | A Linux server or VM, one or more accounts | [Install on Linux](docs/install-linux.md): accounts, updates, backups, uninstalling |
 
+**The desktop app** for Windows and Mac shows your botdot in a window of its own and keeps itself up to date: [Windows](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [Windows on ARM](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) · [Mac with Apple silicon](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Mac with Intel](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg). It is not signed yet: on Windows, choose **More info → Run anyway**; on a Mac, open it once, then **System Settings → Privacy & Security → Open Anyway**.
+
 To remove botdot, follow [Uninstall](docs/install-linux.md#uninstall).
 
 ## Development

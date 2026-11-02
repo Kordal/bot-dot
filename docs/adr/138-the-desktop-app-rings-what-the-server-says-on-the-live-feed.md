@@ -11,10 +11,10 @@ The desktop app shows the web page in WKWebView and WebView2, where Web Push doe
 ## Decision
 
 - **The server says each notification on the feed.** What `lib/push.js` sends as a push is also emitted as `notification` (`{ title, body, target, tag }`, the push's own payload), right after the event that made it, and its end as `notification_closed` (`{ tag }`): a card answered or gone, a chat read in any app, Claude signed in again. `notification-events` in `features` says so. The web page and the Android app ignore both.
-- **The app follows the feed with its session,** on a thread of its own for as long as the session lasts, and shows only these two events: it decides nothing about what rings. A notification whose tag is already shown takes its place.
-- **Nothing shows while a window of the app is in front.** The server already leaves out a reply in a chat on screen, and waiting cards while the page is in use (`webActive`).
+- **The app follows the feed of every botdot address it has a session for,** each on a thread of its own for as long as that session lasts, and shows only these two events: it decides nothing about what rings. A notification whose tag is already shown for that address takes its place; the same chat of two botdots is two notifications. A session that ends, or an address removed, takes its notifications with it.
+- **Nothing shows for the botdot in the window while a window of the app is in front.** The server already leaves out a reply in a chat on screen, and waiting cards while the page is in use (`webActive`).
 - **A connection lost for more than a few seconds starts again without `since`.** What rang while the computer slept or was offline does not ring late; the chats show it as new. A short loss goes on where it stopped. The gap is measured on the wall clock: the Mac's monotonic clock stands still in sleep. A read that waits longer than two pings ends the connection, as it is after sleep.
-- **A click brings the window forward and posts `{ type: "open", target }` to its page,** which opens it as a tap on a push does. Only the app posts it: the page still has no way into the app.
+- **A click brings the window forward and posts `{ type: "open", target }` to its page,** which opens it as a tap on a push does. A click on another botdot's notification enters that botdot on the target's page (`#bot/<id>`, `#needs`, as the service worker opens it). Only the app posts it: the page still has no way into the app.
 - **The system's own notifications.** On the Mac the User Notifications framework (`objc2-user-notifications`): the tag is the request's identifier and the target its thread. It needs the installed bundle, so `cargo run` shows none. On Windows the Action Center's toasts (`windows`), under the app's identifier, which the installer's Start menu shortcut carries; a tag longer than Windows takes is shown under its hash.
 
 ## Alternatives
@@ -29,4 +29,3 @@ The desktop app shows the web page in WKWebView and WebView2, where Web Push doe
 - The feed keeps a notification among its last 500 events, which is a few more events than before.
 - A card that came and went while the computer slept rings nowhere on it; it is in Needs you.
 - Windows is written to the toast API without a Windows machine to try it on: it is checked when one is reachable. A click on a toast reaches the app only while it runs.
-- Several addresses (#884) follow one feed each.

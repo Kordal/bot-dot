@@ -62,9 +62,3 @@ pub fn remove(tag: &str) {
     let Some(center) = center() else { return };
     center.removeDeliveredNotificationsWithIdentifiers(&NSArray::from_retained_slice(&[NSString::from_str(tag)]));
 }
-
-pub fn remove_all() {
-    if let Some(center) = center() {
-        center.removeAllDeliveredNotifications();
-    }
-}

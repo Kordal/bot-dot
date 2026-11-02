@@ -43,9 +43,32 @@ pub fn new_window(door: &Url, to: &Url) -> Window {
     }
 }
 
+/// Where a notification's target opens on a page loaded for it, as the service worker opens it (`public/sw.js`).
+pub fn fragment_of(target: &str) -> String {
+    let id_ok = |id: &str| !id.is_empty() && id.len() <= 80 && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
+    match target.split_once(':') {
+        Some((kind @ ("bot" | "chief" | "group"), id)) if id_ok(id) => format!("{kind}/{id}"),
+        Some(("room", id)) if id_ok(id) => format!("rooms/{id}"),
+        _ if target == "needs" => "needs".into(),
+        _ => "chief".into(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_target_opens_where_a_push_opens_it() {
+        assert_eq!(fragment_of("bot:b1"), "bot/b1");
+        assert_eq!(fragment_of("chief:c-2"), "chief/c-2");
+        assert_eq!(fragment_of("group:g.1"), "group/g.1");
+        assert_eq!(fragment_of("room:r1"), "rooms/r1");
+        assert_eq!(fragment_of("needs"), "needs");
+        assert_eq!(fragment_of("app"), "chief");
+        assert_eq!(fragment_of("bot:a/b"), "chief");
+        assert_eq!(fragment_of("bot:"), "chief");
+    }
 
     fn url(text: &str) -> Url {
         Url::parse(text).unwrap()

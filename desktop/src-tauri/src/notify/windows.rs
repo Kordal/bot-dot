@@ -59,11 +59,3 @@ pub fn remove(tag: &str) {
         let _ = history.RemoveGroupedTagWithId(&HSTRING::from(super::short_tag(tag)), &HSTRING::from(GROUP), id);
     }
 }
-
-pub fn remove_all() {
-    let Some(id) = ID.get() else { return };
-    SHOWN.lock().unwrap().take();
-    if let Ok(history) = ToastNotificationManager::History() {
-        let _ = history.RemoveGroupWithId(&HSTRING::from(GROUP), id);
-    }
-}
