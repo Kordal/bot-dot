@@ -421,7 +421,9 @@ internal fun hideOpenMarks(line: String): String {
 
 private val TASK_BOX = Regex("""^\s*(?:[-*•+]|\d{1,9}[.)])\s+\[[ xX]?]?$""")
 private val TICKS = Regex("`+")
-private val MARK_FREE_URL = Regex("""(?U)(?:https?://|(?<![\p{L}\p{N}_@./-])[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/)\S*""")
+// No (?U): Android's ICU regex rejects it and the app would stop on the first chat (#867); its \p{L}, \p{N} and \S
+// are Unicode already.
+private val MARK_FREE_URL = Regex("""(?:https?://|(?<![\p{L}\p{N}_@./-])[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/)\S*""")
 private val WORD_CHAR = Regex("""[\p{L}\p{N}]""")
 private val EMPHASIS = Regex("""\*\*|__|\*|_""")
 private val LINK_BEING_WRITTEN = Regex("""^\[[^\]]*(](?:\([^)]*)?)?$""")
