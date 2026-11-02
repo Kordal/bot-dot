@@ -224,13 +224,16 @@ test('every layer of both images is scanned for secrets before evidence, signing
   assert.equal(jobs.evidence.needs, 'build');
 });
 
+// A Mac runs only the desktop app's builds (ADR 137), never the stopped native Mac app.
 test("the Android release builds on GitHub's machines, and no workflow builds or tests the Mac app (ADR 031)", () => {
   assert.equal(workflow('android.yml').jobs.build['runs-on'], 'ubuntu-latest');
   const tests = workflow('tests.yml').jobs;
   assert.equal(tests.mac, undefined);
   assert.equal(tests.changes.outputs.mac, undefined);
   for (const name of fs.readdirSync(WORKFLOWS)) {
-    assert.doesNotMatch(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'), /make mac-|runs-on: macos/, name);
+    const text = fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
+    assert.doesNotMatch(text, /make mac-|runs-on: macos|xcodebuild|swift (build|test)|working-directory: macos/, name);
+    if (name !== 'desktop.yml') assert.doesNotMatch(text, /\bmacos-(latest|\d)/, name);
   }
 });
 
