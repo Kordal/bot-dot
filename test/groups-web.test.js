@@ -61,7 +61,7 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     $: (sel, root) => (root ? root.querySelector(sel) : doc[sel] ?? null), $$: (sel, root) => (root ? root.querySelectorAll(sel) : Array.isArray(doc[sel]) ? doc[sel] : []),
     document: { activeElement: null }, gaps: [], scrollToNew() {}, wireChoices() {}, markSearch() {}, setSendBusy() {}, openRun: (id) => said.opened.push(id),
     jumpTo: (row) => { state.jump = null; if (row) said.jumped.push(row.id); return !!row; },
-    EventSource, requestAnimationFrame: (fn) => said.frames.push(fn), draftSource: (t) => t,
+    EventSource, requestAnimationFrame: (fn) => said.frames.push(fn), draftSource: (t) => t, matchMedia: () => ({ matches: true }),
   });
   said.modal = () => element();
   vm.runInContext(`${cut('const botById = ', 'const colorOf = ')}
@@ -1366,7 +1366,7 @@ function draftsBox() {
     insertAdjacentHTML(where, html) {
       assert.equal(where, 'beforeend');
       const id = html.match(/data-draft="([^"]+)"/)[1];
-      const r = { html, dataset: { draft: id }, bubble: { innerHTML: html.match(/<div class="bubble from-bot draft">([\s\S]*?)<\/div><\/div><\/div>$/)?.[1] ?? '' } };
+      const r = { html, dataset: { draft: id }, bubble: { innerHTML: html.match(/<div class="bubble from-bot draft">([\s\S]*?)<\/div><\/div><\/div>$/)?.[1] ?? '', querySelector: () => null } };
       r.querySelector = (sel) => (sel === '.draft' ? r.bubble : null);
       r.remove = () => rows.splice(rows.indexOf(r), 1);
       rows.push(r);
