@@ -281,7 +281,8 @@ private fun StepBar(at: String, enabled: Boolean, onStep: (String) -> Unit) {
 /**
  * The start screen (#800, #856): "You know where. We'll work out how." over one field for the site or the idea, a clip inside it that adds files
  * and links, shown as chips under it, and Start from scratch (#788) right under them (#849). [titled] false: the
- * project names over it stand in its place.
+ * project names over it stand in its place. Start from scratch asks the project's name first (#857), so its
+ * folder is made from that name; Back returns to the field with what was typed there.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -292,6 +293,15 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
     var attaching by remember { mutableStateOf(false) }
     var linking by remember { mutableStateOf(false) }
     var link by remember { mutableStateOf("") }
+    var naming by rememberSaveable { mutableStateOf(false) }
+    var name by rememberSaveable { mutableStateOf("") }
+    BackHandler(enabled = naming) { naming = false }
+    fun scratch() {
+        val n = name.trim()
+        if (n.isEmpty() || ui.going) return
+        ui.going = true
+        ui.call({ it.startEmptyProject(n) }) { ok -> ui.going = false; if (ok) { naming = false; name = "" }; ui.step = null }
+    }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> addFiles(ui, context, uris) }
     fun go() {
         val start = what.trim()
@@ -303,35 +313,47 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
     Column(Modifier.fillMaxSize().padding(horizontal = Space.s16, vertical = Space.s16)) {
         Spacer(Modifier.weight(1f))
         Column(Modifier.widthIn(max = Space.answer), verticalArrangement = Arrangement.spacedBy(Space.s24)) {
-            if (titled) Text(tr("You know where. We'll work out how."), color = p.text, fontSize = Type.s32, lineHeight = Type.line40, fontWeight = FontWeight.SemiBold, style = TextStyle(lineBreak = LineBreak.Heading))
-            Field(what, { what = it.take(500) }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
-                placeholder = { Text(tr("Goal, site or idea"), color = p.faint) },
-                leadingIcon = {
-                    Box {
-                        IconButton({ attaching = true }) { Icon(Icons.Outlined.AttachFile, tr("Attach"), tint = p.muted) }
-                        DropdownMenu(expanded = attaching, onDismissRequest = { attaching = false }, modifier = Modifier.background(p.raise2)) {
-                            DropdownMenuItem(text = { Text(tr("Add files")) }, leadingIcon = { Icon(Icons.AutoMirrored.Outlined.InsertDriveFile, null) }, onClick = { attaching = false; pick.launch("*/*") })
-                            DropdownMenuItem(text = { Text(tr("Add a link")) }, leadingIcon = { Icon(Icons.Outlined.Link, null) }, onClick = { attaching = false; linking = true })
+            if (titled && naming) Text(tr("New project"), color = p.text, fontSize = Type.s32, lineHeight = Type.line40, fontWeight = FontWeight.SemiBold)
+            else if (titled) Text(tr("You know where. We'll work out how."), color = p.text, fontSize = Type.s32, lineHeight = Type.line40, fontWeight = FontWeight.SemiBold, style = TextStyle(lineBreak = LineBreak.Heading))
+            if (naming) {
+                val requester = remember { FocusRequester() }
+                LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
+                Field(name, { name = it.take(80) }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
+                    placeholder = { Text(tr("Project name"), color = p.faint) },
+                    trailingIcon = {
+                        if (ui.going) CircularProgressIndicator(color = p.muted, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                        else IconButton(::scratch, enabled = name.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.ArrowForward, tr("Go"), tint = if (name.isNotBlank()) p.text else p.faint) }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { scratch() }),
+                    modifier = Modifier.fillMaxWidth().focusRequester(requester).semanticsLabel(tr("Project name")))
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { WordsButton(tr("Back"), enabled = !ui.going) { naming = false } }
+            } else {
+                Field(what, { what = it.take(500) }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
+                    placeholder = { Text(tr("Goal, site or idea"), color = p.faint) },
+                    leadingIcon = {
+                        Box {
+                            IconButton({ attaching = true }) { Icon(Icons.Outlined.AttachFile, tr("Attach"), tint = p.muted) }
+                            DropdownMenu(expanded = attaching, onDismissRequest = { attaching = false }, modifier = Modifier.background(p.raise2)) {
+                                DropdownMenuItem(text = { Text(tr("Add files")) }, leadingIcon = { Icon(Icons.AutoMirrored.Outlined.InsertDriveFile, null) }, onClick = { attaching = false; pick.launch("*/*") })
+                                DropdownMenuItem(text = { Text(tr("Add a link")) }, leadingIcon = { Icon(Icons.Outlined.Link, null) }, onClick = { attaching = false; linking = true })
+                            }
                         }
-                    }
-                },
-                trailingIcon = {
-                    if (ui.going) CircularProgressIndicator(color = p.muted, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                    else IconButton(::go, enabled = what.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.ArrowForward, tr("Go"), tint = if (what.isNotBlank()) p.text else p.faint) }
-                },
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { go() }),
-                modifier = Modifier.fillMaxWidth().semanticsLabel(tr("Goal, site or idea")))
-            if (linking) AskField(link, { link = it.take(1000) }, label = tr("Add a link"), placeholder = "https://", button = tr("Add"), focus = true) {
-                CompanySetup.link(newId(), link)?.let { if (ui.sources.size < CompanySetup.MAX_SOURCES) ui.sources.add(it) else ui.tell(tr("Add at most 20 sources.")) }
-                link = ""; linking = false
-            }
-            if (ui.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                ui.sources.forEach { s -> SourceChip(s) { ui.sources.removeAll { it.id == s.id } } }
-            }
-            if (empty) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                WordsButton(tr("Start from scratch"), enabled = !ui.going) {
-                    ui.going = true
-                    ui.call({ it.startEmptyProject(tr("New project")) }) { ui.going = false; ui.step = null }
+                    },
+                    trailingIcon = {
+                        if (ui.going) CircularProgressIndicator(color = p.muted, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                        else IconButton(::go, enabled = what.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.ArrowForward, tr("Go"), tint = if (what.isNotBlank()) p.text else p.faint) }
+                    },
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { go() }),
+                    modifier = Modifier.fillMaxWidth().semanticsLabel(tr("Goal, site or idea")))
+                if (linking) AskField(link, { link = it.take(1000) }, label = tr("Add a link"), placeholder = "https://", button = tr("Add"), focus = true) {
+                    CompanySetup.link(newId(), link)?.let { if (ui.sources.size < CompanySetup.MAX_SOURCES) ui.sources.add(it) else ui.tell(tr("Add at most 20 sources.")) }
+                    link = ""; linking = false
+                }
+                if (ui.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                    ui.sources.forEach { s -> SourceChip(s) { ui.sources.removeAll { it.id == s.id } } }
+                }
+                if (empty) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    WordsButton(tr("Start from scratch"), enabled = !ui.going) { naming = true }
                 }
             }
         }

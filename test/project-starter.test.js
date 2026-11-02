@@ -89,7 +89,7 @@ test('the To-do joins the board when Create puts a first item in the plan; nothi
 });
 
 test('Start from scratch still starts empty', async () => {
-  const r = await srv.api('/company', { method: 'POST', body: { empty: true } });
+  const r = await srv.api('/company', { method: 'POST', body: { empty: true, name: 'Garden' } });
   assert.deepEqual(r.data.board, []);
   assert.deepEqual(r.data.objectives, []);
 });
