@@ -426,7 +426,8 @@ function fakeDocker() {
   fs.mkdirSync(bin);
   fs.mkdirSync(out);
   fs.writeFileSync(path.join(bin, 'docker'), `#!/bin/sh\nFAKE_DOCKER_OUT="${out}" exec "${process.execPath}" "${path.join(__dirname, 'fixtures', 'fake-docker.js')}" "$@"\n`, { mode: 0o755 });
-  const calls = () => (fs.existsSync(path.join(out, 'calls.jsonl')) ? fs.readFileSync(path.join(out, 'calls.jsonl'), 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
+  // Only whole lines: a call the fake is still writing (a detached updater's, say) has no newline yet.
+  const calls = () => (fs.existsSync(path.join(out, 'calls.jsonl')) ? fs.readFileSync(path.join(out, 'calls.jsonl'), 'utf8').split('\n').slice(0, -1).filter(Boolean).map((l) => JSON.parse(l)) : []);
   return { bin, calls, answer: (file, text) => (text === null ? fs.rmSync(path.join(out, file), { force: true }) : fs.writeFileSync(path.join(out, file), text)), remove: () => fs.rmSync(dir, { recursive: true, force: true }) };
 }
 
