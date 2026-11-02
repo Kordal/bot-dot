@@ -62,6 +62,24 @@ test("an update runs none of the install's interactive steps: Docker, gVisor, Ca
   assert.match(done.said, /The front door is running/, 'the front door runs the new version');
 });
 
+test('an update of a local install keeps it on localhost with its one account, and prints no line for the app (#882)', (t) => {
+  const first = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_PORT: '5200' } });
+  assert.equal(first.status, 0, `${first.said}\n${first.stderr}`);
+  const before = first.env;
+  const seen = first.system.length;
+  const done = installer(t, { again: first, dotenv: '', args: ['--update'] });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  for (const k of ['BOT_DOT_REACH', 'FRONT_DOOR_ORIGIN', 'FRONT_DOOR_PORT', 'FRONT_DOOR_SITES_ORIGIN', 'FRONT_DOOR_SITES_PORT', 'FRONT_DOOR_ONE_ACCOUNT', 'FRONT_DOOR_SETUP_KEY']) assert.equal(done.env[k], before[k], k);
+  assert.match(done.system.slice(seen), /^curl -fsS -o \/dev\/null -H Host: localhost:5200 http:\/\/127\.0\.0\.1:5200\/api\/version$/m);
+  assert.doesNotMatch(done.system.slice(seen), /^tailscale /m);
+  assert.doesNotMatch(done.said, /BOTDOT_LOCAL|sign-up/);
+  assert.match(done.said, /The front door is running/);
+
+  const broken = installer(t, { dotenv: 'TZ=UTC\nBOT_DOT_REACH=local\nFRONT_DOOR_ORIGIN=http://localhost:5200\nFRONT_DOOR_ADMIN=owner\n', args: ['--update'] });
+  assert.equal(broken.status, 1, 'an origin without the port it names stops the update');
+  assert.match(broken.stderr, /doesn't say how people reach botdot/);
+});
+
 test("the admin's update runs in phases of its own: the front door moves last, and what it replaced goes after it (#195)", (t) => {
   const { first } = withBob(t);
   fs.writeFileSync(path.join(first.dir, 'front-door', 'requests', 'UPDATE'), '');

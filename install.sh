@@ -12,7 +12,8 @@
 #      a read-only GitHub token is asked once only when the registry refuses the pull, as for a private fork or a
 #      mirror); images built on this machine are used as they are
 #   3. asks once how people reach botdot: a public domain, with Caddy for HTTPS, or a tailnet only, with
-#      Tailscale Serve, and the name of the admin's own account
+#      Tailscale Serve, and the name of the admin's own account (a botdot on this computer only, for the desktop app,
+#      is the answer BOT_DOT_REACH=local alone, never asked: below)
 #   4. starts the front door, the one program people reach, in this machine's Docker (BOT_DOT_DIR/front-door)
 #   5. makes the admin's account: a Linux user of its own (botdot-<name>), its own rootless Docker whose every
 #      container runs under gVisor, and its botdot server (BOT_DOT_DIR/accounts/<name>)
@@ -63,6 +64,13 @@
 #
 # Settings you can pass in: BOT_DOT_DIR (default /var/lib/botdot), BOT_DOT_IMAGE, BOT_DOT_COMPUTER_IMAGE, and the
 # answers: BOT_DOT_REACH (public or tailnet), BOT_DOT_DOMAIN and BOT_DOT_ADMIN (the admin's account's name).
+#
+# BOT_DOT_REACH=local is the desktop app's botdot, in a Linux VM of its own on the owner's computer (ADR 136): one
+# account (BOT_DOT_ADMIN, default owner) at http://localhost:<port> (BOT_DOT_PORT, default 4700), and nothing else
+# reaches it: no Caddy, no Tailscale, no admin page, no sign-up link. Its passkey is made with a setup key the
+# installer makes and keeps in .env, which only root reads; the install's last line, for the app, is the one line
+#   BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/<setup key>"}
+# without signUp once the account exists.
 # BOT_DOT_TLS=internal gives Caddy its own certificate authority in place of Let's Encrypt, for a test machine
 # whose domain is not on the internet.
 #
@@ -1050,17 +1058,23 @@ if [ "$MODE" = update ]; then
   ORIGIN="$(get_env "$ENV" FRONT_DOOR_ORIGIN)"
   NAME="${ORIGIN#https://}"
   ADMIN="$(get_env "$ENV" FRONT_DOOR_ADMIN)"
-  { [ "$REACH" = tailnet ] || { [ "$REACH" = public ] && [ -n "$DOMAIN" ]; }; } && [ -n "$NAME" ] && valid_account "$ADMIN" \
+  if [ "$REACH" = local ]; then
+    NAME="${ORIGIN#http://}"
+    DOOR_PORT="$(get_env "$ENV" FRONT_DOOR_PORT)" SITES_PORT="$(get_env "$ENV" FRONT_DOOR_SITES_PORT)"
+    [ "$NAME" = "localhost:$DOOR_PORT" ] && [ -n "$SITES_PORT" ] || NAME=''
+  fi
+  { [ "$REACH" = tailnet ] || [ "$REACH" = local ] || { [ "$REACH" = public ] && [ -n "$DOMAIN" ]; }; } && [ -n "$NAME" ] && valid_account "$ADMIN" \
     || die "$ENV doesn't say how people reach botdot or the admin's name, so the update stopped. Run the installer yourself: sudo sh install.sh"
 fi
 
 if [ "$MODE" = install ]; then
 
-# A passkey belongs to one address, so it is chosen once: a rerun keeps it.
+# A passkey belongs to one address, so it is chosen once: a rerun keeps it. A botdot on this computer only (local) is
+# never offered: only the desktop app, which gives the answer, installs one.
 REACH="$(get_env "$ENV" BOT_DOT_REACH)"
 if [ -z "$REACH" ]; then
   REACH="${BOT_DOT_REACH:-}"
-  while [ "$REACH" != public ] && [ "$REACH" != tailnet ]; do
+  while [ "$REACH" != public ] && [ "$REACH" != tailnet ] && [ "$REACH" != local ]; do
     unanswered "How will people reach botdot?"
     say ""
     say "How will people reach botdot?"
@@ -1085,6 +1099,19 @@ if [ "$REACH" = public ]; then
     [ -n "$DOMAIN" ] || die "No domain, so nothing more was changed."
   done
   NAME="$DOMAIN"
+elif [ "$REACH" = local ]; then
+  # On this computer only (ADR 136): localhost, which a passkey can belong to (127.0.0.1 can't), on the port the
+  # install chose, and bots' interactive pages on the next one, an origin of its own.
+  DOOR_PORT="$(get_env "$ENV" FRONT_DOOR_PORT)"
+  DOOR_PORT="${DOOR_PORT:-${BOT_DOT_PORT:-4700}}"
+  case "$DOOR_PORT" in '' | 0* | *[!0-9]*) die "BOT_DOT_PORT: a port is a number from 1024 to 65534." ;; esac
+  [ "$DOOR_PORT" -ge 1024 ] && [ "$DOOR_PORT" -le 65534 ] || die "BOT_DOT_PORT: a port is a number from 1024 to 65534."
+  SITES_PORT=$((DOOR_PORT + 1))
+  NAME="localhost:$DOOR_PORT"
+  set_env "$ENV" FRONT_DOOR_PORT "$DOOR_PORT"
+  # The setup key that makes the one account's passkey: made once, in .env alone, which only root reads.
+  [ -n "$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)" ] \
+    || set_env "$ENV" FRONT_DOOR_SETUP_KEY "$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n' | head -c 64)"
 else
   if ! command -v tailscale >/dev/null 2>&1; then
     ask "botdot on a tailnet needs Tailscale. Install it now?" y || die "botdot on a tailnet needs Tailscale (https://tailscale.com/download). Install it and run this again."
@@ -1101,13 +1128,16 @@ else
   [ -z "$SAVED" ] || [ "$SAVED" = "https://$NAME" ] || warn "This machine's Tailscale name is now $NAME, not ${SAVED#https://}: passkeys made for the old name no longer sign in."
 fi
 ORIGIN="https://$NAME"
+[ "$REACH" != local ] || ORIGIN="http://$NAME"
 set_env "$ENV" BOT_DOT_REACH "$REACH"
 [ "$REACH" != public ] || set_env "$ENV" BOT_DOT_DOMAIN "$DOMAIN"
 set_env "$ENV" FRONT_DOOR_ORIGIN "$ORIGIN"
 
-# The admin's own account: an ordinary account, made by the install's sign-up link.
+# The admin's own account: an ordinary account, made by the install's sign-up link. On this computer only it is the
+# one account, made with the setup key, and its name is never asked.
 ADMIN="$(get_env "$ENV" FRONT_DOOR_ADMIN)"
 ADMIN="${ADMIN:-${BOT_DOT_ADMIN:-}}"
+[ "$REACH" != local ] || ADMIN="${ADMIN:-owner}"
 if [ -z "$ADMIN" ]; then
   SUGGEST="$(printf '%s' "${SUDO_USER:-}" | tr 'A-Z_.' 'a-z--' | sed 's/[^a-z0-9-]//g; s/^[^a-z]*//' | cut -c1-24)"
   valid_account "$SUGGEST" || SUGGEST=''
@@ -1123,6 +1153,7 @@ if [ -z "$ADMIN" ]; then
 fi
 valid_account "$ADMIN" || die "BOT_DOT_ADMIN: an account's name is $ACCOUNT_RULE."
 set_env "$ENV" FRONT_DOOR_ADMIN "$ADMIN"
+[ "$REACH" != local ] || set_env "$ENV" FRONT_DOOR_ONE_ACCOUNT "$ADMIN"
 fi
 
 # running_accounts: each account whose Docker runs now, one name a line. A stopped (suspended) one gets the new version
@@ -1184,7 +1215,8 @@ set_env "$ENV" COMPOSE_PROJECT_NAME botdot
 [ -z "${FRONT_DOOR_ANDROID_KEYS:-}" ] || set_env "$ENV" FRONT_DOOR_ANDROID_KEYS "$FRONT_DOOR_ANDROID_KEYS"
 # Bots' interactive pages (#399, ADR 072): the same name on port 8443, an origin of its own, which the front door
 # answers on its second port. An update sets it up on an install made before it.
-set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "https://$NAME:$SITES_HTTPS"
+if [ "$REACH" = local ]; then set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "http://localhost:$SITES_PORT"
+else set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "https://$NAME:$SITES_HTTPS"; fi
 set_env "$ENV" FRONT_DOOR_SITES_PORT "$SITES_PORT"
 CADDY_CHANGED=''
 if [ "$REACH" = public ]; then
@@ -1214,6 +1246,9 @@ DOOR_COMPOSE="$D compose --project-directory $DOOR"
 # start_door: the front door (and Caddy) on what .env names, until it answers. An update starts it in its phase
 # front-door, after the accounts.
 start_door() {
+  # A front door that doesn't know one account would make the admin's sign-up link and an admin page on this computer.
+  [ "$REACH" != local ] || grep -q FRONT_DOOR_ONE_ACCOUNT "$DOOR/compose.yaml" \
+    || die "This version of botdot can't run on this computer only: its front door has no one-account mode. Take a newer one."
   $DOOR_COMPOSE up -d --remove-orphans </dev/null >/dev/null 2>&1 || $DOOR_COMPOSE up -d --remove-orphans </dev/null
   [ -z "$CADDY_CHANGED" ] || $DOOR_COMPOSE restart caddy </dev/null >/dev/null 2>&1 || warn "Caddy didn't restart with its new settings. Restart it: cd $DOOR && docker compose restart caddy"
   CADDY_CHANGED=''
@@ -1922,6 +1957,8 @@ if [ "$REACH" = public ]; then
     sleep 1
   done
   [ "$i" -ge 60 ] || ok "Caddy answers on https://$NAME"
+elif [ "$REACH" = local ]; then
+  ok "Reachable on this computer only, at $ORIGIN"
 else
   # What tailscale serve says goes to the screen: why it failed, or the link to enable Serve that it waits on.
   tailscale serve --bg "$DOOR_PORT" </dev/null || die "Tailscale Serve didn't start (its message is above). Fix that and run this installer again."
@@ -1934,6 +1971,17 @@ fi
 
 # ---------------------------------------------------------------------------------------------
 # 7. The admin's sign-up link
+
+# On this computer only (ADR 136): one line for the desktop app, with the setup key's sign-up address until the account
+# exists. The key is nowhere else on the screen.
+if [ "$REACH" = local ]; then
+  say ""
+  bold "Done. botdot is at $ORIGIN"
+  SIGN_UP=''
+  [ -n "$(door_state "$ADMIN")" ] || SIGN_UP=",\"signUp\":\"$ORIGIN/sign-up/$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)\""
+  say "BOTDOT_LOCAL {\"origin\":\"$ORIGIN\"$SIGN_UP}"
+  exit 0
+fi
 
 say ""
 warn "Whoever is root on this machine can reach every account on it: its data, its bots and the logins they hold. Keep root to yourself."
