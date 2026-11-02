@@ -274,7 +274,7 @@ const cases = [
       assert.equal(session.body.admin, false, 'no admin page');
 
       stage.step('install.sh again');
-      const again = machine.install({ BOT_DOT_REACH: 'local' });
+      const again = machine.install({ BOT_DOT_REACH: 'local', BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` });
       assert.deepEqual(lineOf(again), { origin: ORIGIN }, 'once the account is made, no sign-up address');
       assert.equal(local('GET', '/api/version').status, 200, 'the same browser is still signed in: account and passkey kept');
     },
