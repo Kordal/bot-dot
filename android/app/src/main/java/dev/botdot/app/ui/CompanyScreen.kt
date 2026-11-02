@@ -39,7 +39,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.AttachFile
-import androidx.compose.material.icons.outlined.Business
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material3.CircularProgressIndicator
@@ -95,23 +94,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 
-/** "Bots | Company" (#674): which place the list and the screen beside it show, at the top of the list. */
-@Composable
-internal fun PlaceSwitch(company: Boolean, modifier: Modifier = Modifier, fill: Boolean = false, onPick: (Boolean) -> Unit) {
-    val p = LocalPaper.current
-    Row(modifier.clip(Radius.card).border(1.dp, p.line2, Radius.card).padding(Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
-        listOf(false to tr("Bots"), true to tr("Projects")).forEach { (on, label) ->
-            val here = on == company
-            Row((if (fill) Modifier.weight(1f) else Modifier).clip(Radius.small).background(if (here) p.sunk else Color.Transparent).clickable(onClickLabel = label) { if (!here) onPick(on) }
-                .padding(horizontal = Space.s12, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                if (on) Icon(Icons.Outlined.Business, null, tint = if (here) p.text else p.muted, modifier = Modifier.size(16.dp).padding(end = 0.dp))
-                if (on) Spacer(Modifier.size(6.dp))
-                Text(label, color = if (here) p.text else p.muted, fontSize = Type.s14)
-            }
-        }
-    }
-}
-
 /**
  * What one Company screen keeps beside the company itself: where the setup stands, what it waits for from the Chief,
  * and what was picked or typed and is not saved yet. The company is the Store's, kept up to date by the feed.
@@ -147,6 +129,10 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     var apps by mutableStateOf<Set<String>?>(null)
     // The project's settings (#701, #703) over its screen.
     var settingsOpen by mutableStateOf(false)
+    // Spaces (#840): what the project's name switches to, and whether the rail beside the screen does that instead.
+    var spaces by mutableStateOf<SpaceWays?>(null)
+    var railed by mutableStateOf(false)
+    var spaceSheet by mutableStateOf(false)
 
     val api: Api? get() = app.api.value
     val bots get() = app.store.bots.value
@@ -198,18 +184,23 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
 /**
  * The Company place (#674; web: public/company*.js): "What are you working on?" without a company, then the setup's
  * steps About, Team and Start, each in its own file ([AboutStep], [TeamStep]), and once the team is made its home,
- * the office floor ([CompanyHome]). On a phone the switch is on top of it, as the list is not beside it.
+ * the office floor ([CompanyHome]). A project is a space (#840): its name switches spaces ([spaces]) unless the
+ * rail beside it does ([railed]), and without a chat column ([field]) its default chat is a field at the bottom.
  */
 @Composable
-internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = CompanyWays(), onBots: () -> Unit) {
+internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = CompanyWays(), spaces: SpaceWays? = null, railed: Boolean = false, field: Boolean = !railed) {
     val p = LocalPaper.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val ui = remember(app) { CompanyUi(app, scope, context) }
+    ui.spaces = spaces
+    ui.railed = railed
+    if (ui.spaceSheet && spaces?.shown == true) SpaceSheet(spaces) { ui.spaceSheet = false }
     val held by app.store.company.value.collectAsState()
     val error by app.store.company.error.collectAsState()
     LaunchedEffect(Unit) {
-        app.settings.projectNow()?.let { app.store.showProject(it) } // the project this device showed last (#703)
+        // The project this device showed last (#703); with spaces the space picked it already, or "New project" is on.
+        if (spaces == null) app.settings.projectNow()?.let { app.store.showProject(it) }
         app.store.company.refresh()
     }
     val server by app.store.version.value.collectAsState()
@@ -224,11 +215,7 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
         return ProjectSettings(ui, settingsOf, wide, ways)
     }
     Column(Modifier.fillMaxSize().background(p.bg).imePadding()) {
-        if (!wide) Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.s16, end = Space.s12, top = Space.s8, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {
-            Logo()
-            Spacer(Modifier.weight(1f))
-            PlaceSwitch(company = true) { if (!it) onBots() }
-        } else Spacer(Modifier.statusBarsPadding())
+        Spacer(Modifier.statusBarsPadding())
         val c = held?.company
         when {
             held == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -240,7 +227,11 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
                 StartForm(ui, empty = CompanySetup.EMPTY in server?.features.orEmpty(), titled = !(many && list.isNotEmpty()))
             }
             // A running company: its home, the office floor (#675).
-            c.running -> { ui.follow(c); CompanyHome(ui, c, ways) }
+            c.running -> {
+                ui.follow(c)
+                Box(Modifier.weight(1f)) { CompanyHome(ui, c, ways) }
+                if (field) DefaultChatField(app, c, ways)
+            }
             else -> {
                 ui.follow(c)
                 val at = CompanySetup.stepOf(c, ui.step)
@@ -542,3 +533,25 @@ internal fun StepPage(foot: (@Composable () -> Unit)?, content: @Composable () -
 /** The Chief, at work for the setup. */
 @Composable
 internal fun ChiefAtWork() = Box(Modifier.fillMaxWidth().padding(vertical = Space.s24), contentAlignment = Alignment.Center) { BotFigure(CHIEF_COLOR, "working", 56, FigureDef.CHIEF) }
+
+/**
+ * A project's default chat as a field at the bottom (#840, C-5), where no chat column stands beside the project: its
+ * team's chat with the team's faces, else the Chief's (ADR 119). A tap opens it as the floor opens a chat.
+ */
+@Composable
+private fun DefaultChatField(app: BotDotApp, c: Company, ways: CompanyWays) {
+    val groups by app.store.groups.value.collectAsState()
+    val bots by app.store.bots.value.collectAsState()
+    val chief by app.store.chief.value.collectAsState()
+    val server by app.store.version.value.collectAsState()
+    val route = dev.botdot.app.data.Spaces.defaultChat(c, groups.orEmpty(), server?.features)
+    val team = route.removePrefix("group/").takeIf { route.startsWith("group/") }?.let { id -> groups.orEmpty().firstOrNull { it.id == id } }
+    val open = ways.onTeam
+    if (team != null && open != null) {
+        val lead = team.lead ?: c.teams.firstOrNull { it.id == team.team }?.lead
+        SpaceChatField(team.name, team.unread, team.color, onClick = { open(team.id) }) { TeamPicture(dev.botdot.app.data.Groups.teamFaces(team, bots.orEmpty()), lead, 28) }
+    } else {
+        val name = LocalChiefName.current
+        SpaceChatField(name, chief?.unread ?: 0, CHIEF_COLOR, onClick = ways.onChief) { BotFigure(CHIEF_COLOR, if (chief?.busy == true) "working" else "idle", 28, FigureDef.CHIEF) }
+    }
+}

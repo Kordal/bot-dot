@@ -108,10 +108,12 @@ private const val CHIEF = "chief"
  * Needs you and Board; the search shows what it finds in their place. [keys]: the hardware keyboard's presses for it.
  * [sections]: on a phone, the same pages one under the other as sections of keys ([KeypadSections]) under Needs you
  * and the Board, over the Chief's message box; the search shows what it finds in their place.
+ * [spaces] (#840): the title switches spaces while there are projects; [railed]: the rail beside it holds the logo,
+ * search and settings instead ([searchAsk] counts its search presses).
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: String? = null, onBot: (String) -> Unit, onGroup: (String) -> Unit, onChief: () -> Unit, onNew: () -> Unit, onDashboard: () -> Unit, onHit: (ChatHit) -> Unit, onNeedsYou: () -> Unit, onOpen: (String) -> Unit, shows: ListWidth.Shows = ListWidth.Shows.ALL, keypad: Boolean = false, keys: KeyRelay? = null, sections: Boolean = false, onPlace: ((Boolean) -> Unit)? = null) {
+internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: String? = null, onBot: (String) -> Unit, onGroup: (String) -> Unit, onChief: () -> Unit, onNew: () -> Unit, onDashboard: () -> Unit, onHit: (ChatHit) -> Unit, onNeedsYou: () -> Unit, onOpen: (String) -> Unit, shows: ListWidth.Shows = ListWidth.Shows.ALL, keypad: Boolean = false, keys: KeyRelay? = null, sections: Boolean = false, spaces: SpaceWays? = null, railed: Boolean = false, searchAsk: Int = 0) {
     val p = LocalPaper.current
     // A list too narrow for names (beside the chat, dragged there): figures only, a mark for the Board, and no search.
     val figures = shows == ListWidth.Shows.FIGURES
@@ -358,6 +360,10 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     }
     val openKey = { k: Keypad.Key -> when (k) { is Keypad.Key.OfBot -> onBot(k.bot.id); is Keypad.Key.OfGroup -> onGroup(k.group.id) } }
     var askSearch by remember { mutableIntStateOf(0) } // Ctrl+K: into the search box, shown or not
+    // The rail's search (#840): into the search box, as Ctrl+K.
+    LaunchedEffect(searchAsk) { if (searchAsk > 0) { searching = true; askSearch++ } }
+    var spaceSheet by remember { mutableStateOf(false) }
+    if (spaceSheet && spaces?.shown == true) SpaceSheet(spaces) { spaceSheet = false }
     val focusManager = LocalFocusManager.current
     if (keypad) KeypadKeys(keys, pages, keysShown = q.isEmpty(), onKey = openKey,
         // Esc: the Chief's chat again, and out of the message box it was typed in.
@@ -375,14 +381,14 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
             if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = tr("Can't reach botdot") })
             RoundButton(Icons.Filled.Add, tr("New chat"), onClick = onNew)
-            if (onPlace != null && dev.botdot.app.data.CompanySetup.shows(server?.features)) RoundButton(Icons.Outlined.Business, tr("Projects")) { onPlace(active != "company") }
+            if (spaces?.shown == true) RoundButton(Icons.Outlined.Business, tr("Projects")) { spaceSheet = true }
             RoundButton(Icons.Filled.Settings, tr("Settings")) { onOpen("settings") }
             if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback")) { feedbackOpen = true }
         }
         // A list of names: the logo, and the buttons under it, a little smaller, so that all three fit in 140.
         else if (shows == ListWidth.Shows.NAMES) Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.s12, end = Space.s8, top = Space.s8, bottom = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
+                SpaceTitle(spaces, busy = chiefBusy || bots.orEmpty().any { it.running }, onOpen = { spaceSheet = true }, modifier = Modifier.weight(1f, fill = false))
                 if (feedState == Feed.State.Retrying) Box(Modifier.size(8.dp).clip(CircleShape).background(p.warn).semantics { contentDescription = tr("Can't reach botdot") })
             }
             // Four buttons don't fit in one row of 140: Feedback wraps under them there.
@@ -393,9 +399,19 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback"), size = 34.dp) { feedbackOpen = true }
             }
         }
+        // Beside the rail (#840) the logo, search and settings are the rail's: only what is unusual stays on top.
+        else if (railed) {
+            if (feedState == Feed.State.Retrying || feedbackOn) Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.s16, end = Space.s12, top = Space.s8),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                Spacer(Modifier.weight(1f))
+                ConnectionDot(feedState)
+                if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback")) { feedbackOpen = true }
+            } else Spacer(Modifier.statusBarsPadding().padding(top = Space.s8))
+        }
         else Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = Space.s16, end = Space.s12, top = Space.s8, bottom = Space.s8),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-            Logo(busy = chiefBusy || bots.orEmpty().any { it.running })
+            // The logo, or the space's name that switches spaces (#840).
+            SpaceTitle(spaces, busy = chiefBusy || bots.orEmpty().any { it.running }, onOpen = { spaceSheet = true }, modifier = Modifier.weight(1f, fill = false))
             Spacer(Modifier.weight(1f))
             ConnectionDot(feedState)
             RoundButton(Icons.Filled.Search, tr("Search")) { searching = !searching; if (!searching) query = "" }
@@ -404,9 +420,6 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             RoundButton(Icons.Filled.Settings, tr("Settings")) { onOpen("settings") }
             if (feedbackOn) RoundButton(Icons.Filled.FeedbackIcon, tr("Feedback")) { feedbackOpen = true }
         }
-        // "Bots | Company" (#674), from a botdot that has the Company; a list of figures has its building in the column above.
-        val places = onPlace != null && dev.botdot.app.data.CompanySetup.shows(server?.features)
-        if (places && !figures) PlaceSwitch(company = active == "company", Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s4), fill = true) { onPlace?.invoke(it) }
         if ((searching || query.isNotEmpty()) && !figures) SearchField(query, askSearch) { query = it }
         // The keypad, while the search finds nothing to show in its place.
         if (keypad && q.isEmpty()) Column(Modifier.fillMaxSize().navigationBarsPadding()) {

@@ -1265,5 +1265,6 @@
   "Access": "Dostęp",
   "Computer": "Komputer",
   "Login for {need}": "Login do {need}",
-  "SSH key for {need}": "Klucz SSH do {need}"
+  "SSH key for {need}": "Klucz SSH do {need}",
+  "Home": "Start"
 }
