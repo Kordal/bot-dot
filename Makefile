@@ -42,6 +42,20 @@ android-test: android-tools ## Run the Android app's unit tests
 android-lint: android-tools ## Lint the Android app; known problems are in app/lint-baseline.xml
 	cd android && ./gradlew lintDebug --console=plain
 
+# The desktop app (ADR 137). A target whose tool is missing fails saying which one.
+.PHONY: desktop-tools
+desktop-tools:
+	@command -v cargo >/dev/null 2>&1 || { echo "Rust is missing: the desktop targets need cargo (https://rustup.rs)"; exit 1; }
+	@cargo tauri --version >/dev/null 2>&1 || { echo "The Tauri command is missing: cargo install tauri-cli --version '^2' --locked"; exit 1; }
+
+.PHONY: desktop-build
+desktop-build: desktop-tools ## Build the desktop app for this computer
+	cd desktop/src-tauri && cargo tauri build --bundles $(if $(filter Windows_NT,$(OS)),nsis,app)
+
+.PHONY: desktop-test
+desktop-test: desktop-tools ## Run the desktop app's tests
+	cd desktop/src-tauri && cargo test
+
 ifeq ($(origin DEVELOPER_DIR),undefined)
 ifneq ($(wildcard /Applications/Xcode.app/Contents/Developer),)
 ifneq ($(shell xcodebuild -version >/dev/null 2>&1 && echo ok),ok)

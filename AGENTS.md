@@ -4,7 +4,7 @@ Canonical instructions for every agent working in this repository. Nested `AGENT
 
 ## Purpose
 
-botdot gives each person a team of AI bots they run by chat: a Chief of Staff creates, changes and runs the bots, and the web page and the Android app are windows onto that person's account on a self-hosted botdot machine, which holds one or more accounts walled off from each other ([vision](docs/product/vision.md), [ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)). The Mac app is stopped ([ADR 031](docs/adr/031-the-mac-app-is-stopped-again.md)).
+botdot gives each person a team of AI bots they run by chat: a Chief of Staff creates, changes and runs the bots, and the web page and the Android app are windows onto that person's account on a self-hosted botdot machine, which holds one or more accounts walled off from each other ([vision](docs/product/vision.md), [ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)). The desktop app, on Windows and Mac, shows that same web page in a window ([ADR 137](docs/adr/137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md)). The native Mac app is stopped ([ADR 031](docs/adr/031-the-mac-app-is-stopped-again.md)).
 
 ## Product scope
 
@@ -28,13 +28,13 @@ botdot gives each person a team of AI bots they run by chat: a Chief of Staff cr
 
 [Milestone 10](docs/product/milestone10.md): a team in one chat: the owner puts two to six bots in a group, made from a bot's chat or by the Chief of Staff, writes once and every member reads it and answers or passes under its own name, the bots hand the work on by naming each other until it is done or twelve replies have passed, and one Stop ends them all, on the web page and in the Android app.
 
-The Mac app is stopped again since 18 October 2026 ([ADR 031](docs/adr/031-the-mac-app-is-stopped-again.md)): `macos/` stays as it is, and no workflow builds or tests it. New work covers the web page and Android only.
+The native Mac app is stopped again since 18 October 2026 ([ADR 031](docs/adr/031-the-mac-app-is-stopped-again.md)): `macos/` stays as it is until the Tauri Mac app works, and no workflow builds or tests it. New work covers the web page and Android only: the desktop app ([ADR 137](docs/adr/137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md)) shows the web page and gets it without being drawn again.
 
 Implement only the scope of the selected ticket; proposals outside that scope remain follow-up work.
 
 ## Stack
 
-Node.js 22.13 or newer with no dependencies (the botdot server and the web page, plain HTML, CSS and JavaScript); Kotlin with Jetpack Compose (Android); Swift with SwiftUI (the stopped Mac app, ADR 031); Docker (hosting and the bots' computers); micromamba (in the image, to install the bots' tools from conda-forge, [ADR 007](docs/adr/007-installed-tools-are-pinned-lists-placed-by-a-tools-user.md)).
+Node.js 22.13 or newer with no dependencies (the botdot server and the web page, plain HTML, CSS and JavaScript); Kotlin with Jetpack Compose (Android); Swift with SwiftUI (the stopped Mac app, ADR 031); Rust with Tauri 2 (the desktop app, ADR 137); Docker (hosting and the bots' computers); micromamba (in the image, to install the bots' tools from conda-forge, [ADR 007](docs/adr/007-installed-tools-are-pinned-lists-placed-by-a-tools-user.md)).
 
 Introduce another technology only when the active task requires it, with an ADR.
 
@@ -42,7 +42,7 @@ Introduce another technology only when the active task requires it, with an ADR.
 
 One botdot server holds the truth, and each app is a native window onto its API.
 
-- A feature is decided once on the server and drawn twice: the web page and Android get it together ([ADR 0001](docs/adr/0001-native-apps-per-platform.md), [ADR 031](docs/adr/031-the-mac-app-is-stopped-again.md)). The admin page is the one exception: it belongs to the front door and is drawn on the web only ([ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)).
+- A feature is decided once on the server and drawn twice: the web page and Android get it together ([ADR 0001](docs/adr/0001-native-apps-per-platform.md), [ADR 031](docs/adr/031-the-mac-app-is-stopped-again.md)). The desktop app is a window onto the web page, not a third drawing ([ADR 137](docs/adr/137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md)). The admin page is the one exception: it belongs to the front door and is drawn on the web only ([ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)).
 - What must look the same everywhere is data the server hands out, not code written once per app ([ADR 003](docs/adr/003-one-figure-definition-for-all-apps.md)).
 - An app that is older or newer than its server keeps working: it ignores what it doesn't know and asks the server's `features` before using something new.
 
@@ -118,6 +118,7 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 | `public/` | The web page |
 | `android/` | The Android app |
 | `macos/` | The stopped Mac app and its `BotDotKit` package (ADR 031) |
+| `desktop/` | The desktop app for Windows and Mac (ADR 137): the Tauri project in `src-tauri/`, and its one screen in `ui/` |
 | `test/` | The server's and the web page's tests (`npm test`) |
 | `deploy/`, `install.sh`, `compose*.yaml`, `Dockerfile` | Hosting, images and the installer |
 | `chief-skills/` | Skills the Chief of Staff ships with |

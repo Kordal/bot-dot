@@ -1,6 +1,6 @@
 # botdot
 
-A messenger-style app for a team of AI bots, run by a Chief of Staff. Each person has an account on a machine that holds one or more; their account's botdot server holds their bots and data, and the web page and the Android and Mac apps are windows onto it. On Linux, the owner uses the web page; the botdot server and the account's computer still run on Linux.
+A messenger-style app for a team of AI bots, run by a Chief of Staff. Each person has an account on a machine that holds one or more; their account's botdot server holds their bots and data, and the web page and the Android, Mac and desktop apps are windows onto it. On Linux, the owner uses the web page; the botdot server and the account's computer still run on Linux.
 
 ## Language
 

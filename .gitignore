@@ -38,3 +38,7 @@ xcuserdata/
 
 # Marketing site and press kit, kept out of Git
 marketing/
+
+# The desktop app's build output
+/desktop/src-tauri/target/
+/desktop/src-tauri/gen/
