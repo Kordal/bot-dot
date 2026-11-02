@@ -2434,11 +2434,7 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 
 /* ---------- the Company (#669, company.js) ---------- */
 /* "Bots | Company" at the top of the left column; in Company the bots' list, keypad and phone home make way. */
-.place-switch { display: flex; gap: var(--sp-4); margin: 0 var(--sp-16) var(--sp-12) var(--sp-24); padding: var(--sp-4); border: 1px solid var(--line-2); border-radius: var(--r-14); }
-.place-switch.hidden { display: none; }
-.place-switch button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-8); min-height: 36px; border: 0; border-radius: var(--r-8); background: transparent; color: var(--muted); cursor: pointer; }
-.place-switch button[aria-selected="true"] { background: var(--sunk); color: var(--text); }
-.place-switch svg, .company-side svg, .co-start svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.company-side svg, .co-start svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .company-side { display: none; flex-direction: column; gap: var(--sp-4); padding: var(--sp-4) var(--sp-16) var(--sp-12) var(--sp-24); }
 .app.place-company .company-side { display: flex; }
 .app.place-company .keypad, .app.place-company .contacts, .app.place-company .kp-phone { display: none !important; }
@@ -2478,7 +2474,6 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .co-pick-line { display: none; }
 
 #view-company { padding: 0 var(--sp-24) var(--sp-48); overflow-y: auto; }
-.co-phone-switch { display: none; }
 /* A wide window in Company: the left column as in the mockups, the company beside it. */
 @media (min-width: 1001px) {
   .app.place-company .sidebar { flex: none; width: var(--rail-w); background: var(--bg); border-right: 1px solid var(--line); }
@@ -2599,10 +2594,8 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
   .co-preview { flex-wrap: wrap; }
 }
 @media (max-width: 479px) {
-  .place-switch { margin: 0 var(--sp-12) var(--sp-12); }
   .company-side { padding: var(--sp-4) var(--sp-12) var(--sp-12); }
   #view-company { padding: 0 var(--sp-16) var(--sp-32); }
-  #view-company .co-phone-switch { display: flex; margin: var(--sp-12) 0 0; }
   .co-steps-line .co-more { display: none; }
   .co-pick-line { display: block; margin: var(--sp-16) 0 0; font-size: var(--fs-24); font-weight: 600; letter-spacing: -.01em; }
   .co-start { padding-top: 6vh; }
@@ -3081,7 +3074,6 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 @media (min-width: 1001px) {
   .app { --rail-w: 300px; }
   .app:not(.place-company) .side-head { width: calc(var(--rail-w) - 1px); }
-  .app:not(.place-company) .place-switch { align-self: flex-start; width: calc(var(--rail-w) - 1px - var(--sp-16) - var(--sp-24)); }
   .app.place-company .main { --proj-chat-w: max(400px, min(var(--chat-w, clamp(400px, 38vw, 560px)), 100vw - var(--rail-w) - 360px)); }
 }
 
@@ -3218,7 +3210,7 @@ dialog.co-delete .modal-foot { border-top: 0; }
    No switch and no tree: Home's title is the logo with a chevron, a project's is its square, its name and a chevron,
    each opening the spaces sheet. A project's page has Search and Settings at its top right and its default chat as
    the field at the bottom; a chat opened there is full screen, and its Back is the project. */
-.app.has-rail .place-switch, .app.has-rail .company-side { display: none; }
+.app.has-rail .company-side { display: none; }
 /* A project draws its own keys (#838): no left column, at any width. */
 .app.has-rail.place-company .sidebar, .app.has-rail.place-company .side-grip { display: none; }
 .brand-chev { display: none; }

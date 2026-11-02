@@ -25,8 +25,8 @@ import org.robolectric.annotation.Config
 
 /**
  * The spaces on screen (#840): the rail from 840 dp marks the space on screen, shows each project's count and opens a
- * space, "+" starts a project; on a phone the title opens the sheet of spaces; with no projects the title is the logo
- * alone and nothing switches.
+ * space, "+" starts a project; on a phone the title opens the sheet of spaces. Before the first project both are there
+ * with Home and New project (#853); on a botdot without projects the title is the logo alone and nothing switches.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "w1280dp-h800dp")
@@ -50,7 +50,9 @@ class SpaceSwitchUiTest {
         rule.onNodeWithContentDescription("Quotz IT").performClick()
         rule.onNodeWithContentDescription("Quotz IT").assertIsSelected()
         rule.onNodeWithContentDescription("Home").assertIsNotSelected()
-        rule.onNodeWithContentDescription("New project").performClick()
+        rule.onNodeWithContentDescription("New").performClick() // "+": New bot or New project (#853)
+        rule.onNodeWithText("New bot").assertIsDisplayed()
+        rule.onNodeWithText("New project").performClick()
         rule.onNodeWithContentDescription("Search").performClick()
         assertEquals(listOf("p1"), picked)
         assertEquals(1, news)
@@ -70,14 +72,37 @@ class SpaceSwitchUiTest {
         rule.onNodeWithTag(SPACE_SHEET).assertIsDisplayed()
         rule.onNodeWithText("Home").assertIsDisplayed()
         rule.onNodeWithText("My Gym").assertIsDisplayed()
+        rule.onNodeWithText("New bot").assertIsDisplayed()
         rule.onNodeWithText("New project").assertIsDisplayed()
         rule.onNodeWithText("Home").performClick()
         rule.waitForIdle()
         assertEquals(listOf(Spaces.HOME), picked)
     }
 
-    @Test fun withNoProjectsTheTitleIsTheLogoAlone() {
-        rule.setContent { SpaceTitle(SpaceWays(emptyList(), Spaces.HOME, pick = {}, new = {}), busy = false, onOpen = {}) }
+    @Test fun beforeTheFirstProjectTheSpacesStartOne() {
+        var news = 0
+        var bots = 0
+        rule.setContent {
+            var open by remember { mutableStateOf(false) }
+            val ways = SpaceWays(emptyList(), Spaces.HOME, pick = {}, new = { news++ }, on = true, newBot = { bots++ })
+            Row { SpaceRail(ways, busy = false, onSearch = {}, onSettings = {}) }
+            SpaceTitle(ways, busy = false, onOpen = { open = true })
+            if (open) SpaceSheet(ways) { open = false }
+        }
+        rule.onNodeWithTag(SPACE_RAIL).assertIsDisplayed()
+        rule.onNodeWithContentDescription("New").performClick()
+        rule.onNodeWithText("New bot").performClick()
+        rule.onNodeWithTag(SPACE_TITLE).performClick()
+        rule.onNodeWithTag(SPACE_SHEET).assertIsDisplayed()
+        rule.onNodeWithText("Home").assertIsDisplayed()
+        rule.onNodeWithText("New project").performClick()
+        rule.waitForIdle()
+        assertEquals(1, news)
+        assertEquals(1, bots)
+    }
+
+    @Test fun withoutProjectsTheTitleIsTheLogoAlone() {
+        rule.setContent { SpaceTitle(SpaceWays(emptyList(), Spaces.HOME, pick = {}, new = {}, on = false), busy = false, onOpen = {}) }
         rule.onNodeWithContentDescription("botdot").assertIsDisplayed()
         rule.onNodeWithTag(SPACE_TITLE).assertDoesNotExist()
     }

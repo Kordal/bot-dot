@@ -1,5 +1,5 @@
-// The Company (#669, ADR 110; docs/api.md, "The Company"): a place of its own beside the bots, behind the switch
-// "Bots | Company" at the top of the left column, from a server with `company`. The owner says what they are working
+// The Company (#669, ADR 110; docs/api.md, "The Company"): a place of its own beside the bots, a space of the rail
+// (ADR 132), from a server with `company`. The owner says what they are working
 // on (a site, or an idea in one sentence) with its sources (files, links); the setup and the company's home follow
 // (the About, Team and Start steps, the office floor), each drawn by its own part: Company.steps (the Team and Start
 // steps: company-team.js).
@@ -97,41 +97,27 @@ const Company = (() => {
     if (state.view === 'company') redraw(); else setView('company');
   }
 
-  // ---------- the switch and the left column ----------
-  const switchHTML = (on) => `<button type="button" role="tab" data-place="bots" aria-selected="${!on}">${tr('Bots')}</button><button type="button" role="tab" data-place="company" aria-selected="${on}">${ICON.building}${tr('Projects')}</button>`;
-  const wireSwitch = (root) => $$('[data-place]', root).forEach((b) => (b.onclick = () => choose(b.dataset.place)));
-  function drawSwitch() {
-    const sw = $('#place-switch');
-    if (!sw) return;
-    sw.classList.toggle('hidden', !shows());
-    const on = shows() && place === 'company';
-    $('#app').classList.toggle('place-company', on);
-    sw.innerHTML = switchHTML(on);
-    wireSwitch(sw);
+  // ---------- the place on screen ----------
+  // Home is the place 'bots', a project 'company': the page's class follows it, and the rail marks it.
+  function drawPlace() {
+    $('#app').classList.toggle('place-company', shows() && place === 'company');
     drawRail();
   }
-  // A phone shows the company without the left column: the switch is on top of it.
-  // With projects the title switches spaces instead (#839).
-  function phoneSwitch(root) {
-    if (railOn()) return;
-    root.insertAdjacentHTML('afterbegin', `<div class="place-switch co-phone-switch" role="tablist" aria-label="${tr('Place')}">${switchHTML(true)}</div>`);
-    wireSwitch(root.firstElementChild);
-  }
   function choose(p) {
-    // The Projects screen is up, or a chat docked on it (#757): asked before the place changes, as Dock asks the place.
+    // A project is up, or a chat docked on it (#757): asked before the place changes, as Dock asks the place.
     const onProjects = state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked());
     place = p === 'company' ? 'company' : 'bots';
     keep();
-    drawSwitch();
+    drawPlace();
     if (place === 'company') { drawSide(); setView('company'); } else if (onProjects) { setView('chief'); showList(); renderContacts(); }
   }
 
   // ---------- the rail of spaces (#837, ADR 132) ----------
-  // A wide window (from 1001 px) with at least one project: a narrow rail on the left in place of the switch, with
-  // Home (the logo), a square per project with its asks, "+" for a new one, and the top bar's tools at its foot.
-  // With no project there is no rail, and Home is the Bots home as before.
+  // A wide window (from 1001 px) on a server with projects: a narrow rail on the left with Home (the logo), a square
+  // per project with its asks, "+" for a new one, and the top bar's tools at its foot. With no project yet it holds
+  // Home and "+", the way to the first one (#853): there is no "Bots | Projects" switch.
   const WIDE = '(min-width: 1001px)';
-  const railOn = () => shows() && projects().length > 0;
+  const railOn = () => shows();
   // What waits for the owner in a project: its team bots' asks, as its tree row counts them.
   const asksIn = (p) => (p.teams || []).reduce((sum, t) => sum + (t.bots || []).reduce((k, id) => k + (botById(id) ? waits(id) : 0), 0), 0);
   const square = (p, on) => {
@@ -153,14 +139,15 @@ const Company = (() => {
       <div class="rail-sep"></div>
       ${listed().map((p) => square(p, inProject(p))).join('')}
       ${old.length ? `<div class="rail-sep"></div>${old.map((p) => square(p, inProject(p))).join('')}` : ''}
-      <button type="button" class="rail-add${!home && adding ? ' here' : ''}" data-new-project aria-label="${tr('New project')}" title="${tr('New project')}">${ICON.plus}</button>
+      <button type="button" class="rail-add${!home && adding ? ' here' : ''}" data-rail-new aria-haspopup="menu" aria-label="${tr('New')}" title="${tr('New')}">${ICON.plus}</button>
       <div class="rail-foot"></div>`;
     if (rail.dataset.html !== html) {
       // The logo and the tools are moved out first: they are the page's own, with their handlers.
       placeTools(false);
       rail.dataset.html = html;
       rail.innerHTML = html;
-      $('[data-new-project]', rail).onclick = () => enter(null);
+      const add = $('[data-rail-new]', rail);
+      add.onclick = () => { const r = add.getBoundingClientRect(); menuAt({ x: r.right + 8, y: r.top }, newItems()); };
       $$('.rail-sq', rail).forEach((b) => { b.onclick = () => enter(b.dataset.space); b.oncontextmenu = (e) => rowMenu(e, b.dataset.space); });
       placeTools(matchMedia(WIDE).matches);
     }
@@ -216,6 +203,7 @@ const Company = (() => {
       <i class="sp-grip"></i>
       <button type="button" class="sp-row${hereAttr(home)}" data-space="home"><span class="sp-home-mark">bot<i class="brand-dot"></i></span><span class="ct-name">${tr('Home')}</span></button>
       ${listed().map(row).join('')}${archivedOnes().map(row).join('')}
+      <button type="button" class="sp-row" data-new-bot><span class="sp-add">${ICON.plus}</span><span class="ct-name">${tr('New bot')}</span></button>
       <button type="button" class="sp-row" data-space=""><span class="sp-add">${ICON.plus}</span><span class="ct-name">${tr('New project')}</span></button>
     </dialog>`);
     const d = $('#spaces-sheet');
@@ -226,13 +214,28 @@ const Company = (() => {
     }
     d.addEventListener('close', () => { d.remove(); at?.focus?.(); });
     d.addEventListener('click', (e) => {
-      const b = e.target.closest('[data-space]');
+      const b = e.target.closest('[data-space], [data-new-bot]');
       if (!b && e.target !== d) return;
       d.close();
-      if (b) enter(b.dataset.space || null);
+      if (b?.hasAttribute('data-new-bot')) newBot();
+      else if (b) enter(b.dataset.space || null);
     });
     d.showModal();
     ($('.sp-row.here', d) || $('.sp-row', d)).focus();
+  }
+  // "+" (#853): a new bot or a new project. A bot is made by the Chief (CONTEXT.md): Home, a new chat with the Chief,
+  // its message box started for the owner to finish.
+  const newItems = () => [{ label: tr('New bot'), attr: 'data-new-bot', run: newBot }, { label: tr('New project'), attr: 'data-new-project', run: () => enter(null) }];
+  function newBot() {
+    enter('home');
+    state.chatNew = true;
+    showChat(null);
+    const box = $('#view-chief form')?.text;
+    if (!box) return;
+    box.value = tr('A new bot that ');
+    box.dispatchEvent(new Event('input', { bubbles: true }));
+    box.focus();
+    box.setSelectionRange(box.value.length, box.value.length);
   }
   // A space from the rail: Home (id 'home'), a project, or a new one (null).
   function enter(id) {
@@ -242,10 +245,10 @@ const Company = (() => {
       return;
     }
     place = 'company';
-    if (id === null) { keep(); drawSwitch(); return startNew(); }
+    if (id === null) { keep(); drawPlace(); return startNew(); }
     shownId = id; // kept before show, which draws the rail with it
     keep();
-    drawSwitch();
+    drawPlace();
     show(id);
   }
   function wireRail() {
@@ -455,7 +458,7 @@ const Company = (() => {
   function render() {
     const root = $('#view-company');
     if (!root) return;
-    if (place !== 'company') { place = 'company'; keep(); drawSwitch(); } // opened from its address
+    if (place !== 'company') { place = 'company'; keep(); drawPlace(); } // opened from its address
     drawSide();
     if (!loaded) { load().then(() => { if (loaded) render(); }); return; }
     const c = company();
@@ -467,7 +470,7 @@ const Company = (() => {
     if (root.dataset.sig === sig && root.firstElementChild) return;
     root.dataset.sig = sig;
     root.classList.remove('sp-has-field');
-    if (settingsOpen) { steps.settings(root, c); phoneSwitch(root); return; }
+    if (settingsOpen) { steps.settings(root, c); return; }
     if (!c) drawStart(root);
     else if (c.phase === 'running' && steps.home && current !== 'start') steps.home(root, c);
     else {
@@ -479,10 +482,10 @@ const Company = (() => {
       // While setting up, About and Team on the bar open their step; Start is Create's.
       if (c.phase !== 'running') $$('.co-steps [data-step]:not([data-step="start"])', root).forEach((li) => (li.onclick = () => go(li.dataset.step)));
     }
-    // A phone has no left column: the project's name over the setup picks another (the floor has it in its header).
-    if (many() && !(c?.phase === 'running' && steps.home && current !== 'start') && projects().length) root.insertAdjacentHTML('afterbegin', `<div class="co-pick-line">${pickHTML(c ? nameOf(c) : tr('New project'))}${c ? moreHTML() : ''}${railOn() ? toolsHTML() : ''}</div>`);
+    // No left column: the project's name over the setup picks another space (the floor has it in its header), also
+    // over the first project's start, which has none to pick but Home (#853).
+    if (many() && !(c?.phase === 'running' && steps.home && current !== 'start')) root.insertAdjacentHTML('afterbegin', `<div class="co-pick-line">${pickHTML(c ? nameOf(c) : tr('New project'))}${c ? moreHTML() : ''}${railOn() ? toolsHTML() : ''}</div>`);
     wirePick(root);
-    phoneSwitch(root);
     root.classList.toggle('sp-has-field', !!$('.sp-field', root)); // the field stands at the page's foot (#839)
   }
   // Where the setup stands: the step its part last said (Company.go), else About.
@@ -630,7 +633,7 @@ const Company = (() => {
 
   function init() {
     wireRail();
-    drawSwitch();
+    drawPlace();
     // Opened without an address: the page shows the Chief meanwhile (boot.js), and the space remembered once loaded.
     const bare = !location.hash.slice(1);
     if (shows()) load().then(() => {
@@ -641,7 +644,7 @@ const Company = (() => {
         keep();
         if (state.view === 'company') setView('chief'); // opened on the space before it was known to be gone
       }
-      drawSwitch();
+      drawPlace();
       drawSide();
       if (place === 'company' && state.view !== 'company' && bare) setView('company');
     });

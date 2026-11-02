@@ -282,7 +282,6 @@ class MainActivity : ComponentActivity() {
                 var space by rememberSaveable { mutableStateOf(Spaces.HOME) }
                 var newSpace by rememberSaveable { mutableStateOf(false) } // "New project": the start screen, no project yet
                 var searchAsk by rememberSaveable { mutableStateOf(0) }
-                val railed = keypad && spaceList.isNotEmpty()
                 fun goSpace(id: String, keep: Boolean = true) {
                     space = id
                     newSpace = false
@@ -306,7 +305,13 @@ class MainActivity : ComponentActivity() {
                     panelKept = null
                     if (keypad) nav.popBackStack("home", inclusive = false) else if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true }
                 }
-                val spaceWays = SpaceWays(spaceList, if (newSpace) "" else space, pick = { goSpace(it) }, new = { startProject() })
+                // Beside the list, one chat takes the other's place; the Chief's is the one below them all.
+                fun open(to: String) { panelKept = SettingsPanel.chosen(panelKept, room); if (wide) nav.openBeside(to) else nav.navigate(to) { launchSingleTop = true } }
+                // "+" New bot: Home, and a new chat with the Chief, who makes bots, its box started (#853).
+                fun startBot() { goSpace(Spaces.HOME); app.chiefWords = tr("A new bot that "); open("chief/new") }
+                // From a botdot with projects the spaces are there before the first one: it starts from them (#853).
+                val spaceWays = SpaceWays(spaceList, if (newSpace) "" else space, pick = { goSpace(it) }, new = { startProject() }, on = dev.botdot.app.data.CompanySetup.shows(features), newBot = { startBot() })
+                val railed = keypad && spaceWays.shown
                 // A device that was in a project opens in it again, once the projects are read; one that is gone is Home.
                 var placeKept by rememberSaveable { mutableStateOf(false) }
                 LaunchedEffect(features, route, companyHeld) {
@@ -339,8 +344,6 @@ class MainActivity : ComponentActivity() {
                     if (keypad && route == "company") nav.popBackStack("home", inclusive = false)
                     else if (!keypad && route == "home" && (space != Spaces.HOME || newSpace) && placeKept) { if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true } }
                 }
-                // Beside the list, one chat takes the other's place; the Chief's is the one below them all.
-                fun open(to: String) { panelKept = SettingsPanel.chosen(panelKept, room); if (wide) nav.openBeside(to) else nav.navigate(to) { launchSingleTop = true } }
                 @Composable
                 fun Home(modifier: Modifier) {
                     val id = entry?.arguments?.getString("id")

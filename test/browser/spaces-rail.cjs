@@ -2,7 +2,7 @@
 // In a wide window with a project the "Bots | Projects" switch gives way to the rail: Home, the project's square, "+",
 // and the top bar's tools at its foot. Home opens the Chief, the project its team chat, and the chat column stands at
 // the same place in both, at the default width and at one the owner set. The space is remembered, a gone project falls
-// back to Home, and with no project there is no rail. Each bot is in one space (#838). Below 1001 px (#839) the title
+// back to Home, and with no project the rail holds Home and "+" (#853). Each bot is in one space (#838). Below 1001 px (#839) the title
 // opens the spaces sheet and the bottom field the space's chat, full screen, Back the project again. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -35,7 +35,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.equal(await page.locator('#place-switch').isVisible(), false, 'no place switch beside the rail');
     assert.equal(await page.locator('#rail .rail-sq').count(), 1, 'one square per project');
     assert.equal(await page.locator('#rail .rail-sq').textContent(), 'Q', 'the project\'s first letter');
-    for (const sel of ['#rail .rail-home #brand', '#rail [data-new-project]', '#rail .rail-foot #search-btn', '#rail .rail-foot #more-btn']) assert.ok(await page.locator(sel).isVisible(), `${sel} in the rail`);
+    for (const sel of ['#rail .rail-home #brand', '#rail [data-rail-new]', '#rail .rail-foot #search-btn', '#rail .rail-foot #more-btn']) assert.ok(await page.locator(sel).isVisible(), `${sel} in the rail`);
     assert.equal(await page.locator('.side-head').isVisible(), false, 'no top bar left over the keypad');
     assert.equal(await page.locator('#rail .rail-home.here').count(), 1, 'Home is the space on screen');
 
@@ -129,7 +129,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.waitForFunction(() => state.view === 'company');
     await page.locator('.cf-top [data-space-pick]').click();
     const sheet = page.locator('#spaces-sheet');
-    assert.deepEqual(await sheet.locator('.sp-row .ct-name').allInnerTexts(), ['Home', 'Quotz IT', 'New project']);
+    assert.deepEqual(await sheet.locator('.sp-row .ct-name').allInnerTexts(), ['Home', 'Quotz IT', 'New bot', 'New project']);
     if (shots) await page.screenshot({ path: path.join(shots, 'spaces-800-sheet.png') });
     await page.keyboard.press('Escape');
     await sheet.waitFor({ state: 'detached' });
@@ -145,14 +145,44 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('.cf-top h1', { hasText: 'Quotz IT' }).waitFor();
     await page.setViewportSize({ width: 1440, height: 900 });
 
-    // No project: no rail, and Home as before, with the switch.
+    // No project (#853): no switch and no tree anywhere. The rail holds Home and "+", the first project starts there,
+    // and Home stands where it stands with projects; below 1001 px the title's sheet has Home and New project.
     assert.equal((await srv.api('/company', { method: 'DELETE' })).status, 200);
     await page.goto(srv.base);
-    await page.locator('#place-switch:not(.hidden)').waitFor({ timeout: 20000 });
+    await page.locator('#rail [data-rail-new]').waitFor({ timeout: 20000 });
     await page.waitForTimeout(300);
-    assert.equal(await page.locator('#rail').isVisible(), false, 'no rail without projects');
-    assert.ok(await page.locator('.side-head #brand').isVisible(), 'the logo in the top bar');
+    assert.equal(await page.locator('#rail .rail-sq').count(), 0, 'no square without projects');
+    assert.ok(await page.locator('#rail .rail-home #brand').isVisible(), 'Home in the rail');
+    assert.equal(await page.locator('#place-switch').count(), 0, 'no switch');
+    assert.deepEqual(await frame(), def, 'Home as wide as with a project');
     if (shots) await page.screenshot({ path: path.join(shots, 'spaces-none.png') });
+    // "+" is generic: New bot (the Chief's new chat, its box started) or New project.
+    await page.locator('#rail [data-rail-new]').click();
+    assert.deepEqual(await page.locator('.ct-menu [role="menuitem"]').allInnerTexts(), ['New bot', 'New project']);
+    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-none-menu.png') });
+    await page.locator('.ct-menu [data-new-bot]').click();
+    await page.waitForFunction(() => state.view === 'chief' && !state.chatId && document.activeElement === document.querySelector('#view-chief form').text);
+    assert.equal(await page.locator('#view-chief form textarea').inputValue(), 'A new bot that ');
+    await page.locator('#rail [data-rail-new]').click();
+    await page.locator('.ct-menu [data-new-project]').click();
+    await page.locator('#view-company h1', { hasText: 'New project' }).waitFor();
+    assert.equal(await page.locator('#company-side').isVisible(), false, 'no project tree');
+    assert.equal(await page.locator('#rail [data-rail-new].here').count(), 1, 'New project is the space on screen');
+    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-none-new.png') });
+    await page.locator('#rail #brand').click();
+    await page.waitForFunction(() => !document.querySelector('.app.place-company') && state.view === 'chief');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('.side-head .brand-chev').click();
+    assert.deepEqual(await sheet.locator('.sp-row .ct-name').allInnerTexts(), ['Home', 'New bot', 'New project']);
+    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-none-phone-sheet.png') });
+    await sheet.locator('[data-space=""]').click();
+    await page.locator('#view-company #co-what').waitFor();
+    assert.equal(await page.locator('#company-side').isVisible(), false, 'no project tree on a phone');
+    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-none-phone-new.png') });
+    await page.locator('[data-space-pick]').click();
+    await sheet.locator('[data-space="home"]').click();
+    await page.waitForFunction(() => !document.querySelector('.app.place-company'));
 
     assert.deepEqual(errors, []);
     console.log('spaces rail: ok');

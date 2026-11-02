@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer } = require('../helpers');
+const { goSpace } = require('../space-helpers');
 
 const IDEA = {
   name: 'Mealwise',
@@ -34,7 +35,7 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/`);
-    await page.locator('#rail .rail-sq:visible, #place-switch [data-place="company"]:visible').click();
+    await goSpace(page, 'new');
     await page.locator('#co-what').fill('A meal-planning app for busy parents');
     await page.locator('#co-ask .co-go').click();
 

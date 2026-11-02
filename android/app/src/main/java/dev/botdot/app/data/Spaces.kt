@@ -2,8 +2,8 @@ package dev.botdot.app.data
 
 /**
  * Spaces (#836, #840): Home and every open project are spaces of one view, in place of the "Bots | Projects" switch.
- * From 840 dp a rail on the left picks one; on a phone the title does, with a sheet. With no projects there is no
- * rail and no sheet, and Home is the bots' home as before. The space on screen is remembered on the device (the old
+ * From 840 dp a rail on the left picks one; on a phone the title does, with a sheet. With no project yet both are
+ * there with Home and New project (#853); on a botdot without projects neither is, and Home is the bots' home. The space on screen is remembered on the device (the old
  * place's key, Settings.space): `home` or a project's id; a project that is gone falls back to Home.
  */
 object Spaces {
