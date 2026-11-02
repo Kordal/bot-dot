@@ -10,7 +10,8 @@ test('web: Bots from the Projects screen or a chat docked on it opens the Chief'
   assert.match(choose, /else if \(onProjects\) \{ setView\('chief'\); showList\(\); renderContacts\(\); \}/);
 });
 
-test('Android: Bots from the Company, or a chat opened on it, goes back to the Chief', () => {
+test('Android: Home from a project, or a chat opened on it, goes back to the Chief (spaces, #840)', () => {
   const kt = require('fs').readFileSync(require('path').join(__dirname, '..', 'android/app/src/main/java/dev/botdot/app/MainActivity.kt'), 'utf8');
-  assert.match(kt, /else if \(route == "company" \|\| runCatching \{ nav\.getBackStackEntry\("company"\) \}\.isSuccess\) nav\.popBackStack\("home", inclusive = false\)/);
+  const go = kt.match(/fun goSpace\(id: String[\s\S]*?\n                \}/)[0];
+  assert.match(go, /if \(id == Spaces\.HOME\) \{[\s\S]*?if \(keypad \|\| route == "company" \|\| runCatching \{ nav\.getBackStackEntry\("company"\) \}\.isSuccess\) nav\.popBackStack\("home", inclusive = false\)/);
 });
