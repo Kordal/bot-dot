@@ -338,6 +338,9 @@ fn local_ready(app: &AppHandle, installed: local::Installed) {
         let _ = app.emit("local-failed", Vec::<String>::new());
         return;
     };
+    // The port the VM has, should the app have lost it.
+    let _ = state.keep(|kept| kept.local = address.port());
+    refresh_menus(app);
     match installed.sign_up.as_deref().and_then(|page| Url::parse(page).ok()) {
         Some(page) => {
             let secret = Secret::new();
