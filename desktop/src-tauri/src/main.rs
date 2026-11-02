@@ -190,16 +190,16 @@ fn to_screen(app: &AppHandle, adding: bool) {
     }
 }
 
-// The menus again, after the list or "Open at login" changed.
+// The menus again, after the list, "Open at login" or the system's notification setting changed.
 fn refresh_menus(app: &AppHandle) {
-    let login = app.autolaunch().is_enabled().unwrap_or(false);
+    let shown = menu::Shown { login: app.autolaunch().is_enabled().unwrap_or(false), notifications_off: notify::off() };
     let state = app.state::<App>();
     let kept = state.kept.lock().unwrap();
-    if let (Some(tray), Ok(menu)) = (app.tray_by_id("tray"), menu::tray(app, &kept, login)) {
+    if let (Some(tray), Ok(menu)) = (app.tray_by_id("tray"), menu::tray(app, &kept, shown)) {
         let _ = tray.set_menu(Some(menu));
     }
     #[cfg(target_os = "macos")]
-    if let Ok(menu) = menu::app_menu(app, &kept, login) {
+    if let Ok(menu) = menu::app_menu(app, &kept, shown) {
         let _ = app.set_menu(menu);
     }
 }
@@ -233,6 +233,11 @@ fn on_menu(app: &AppHandle, id: &str) {
         Asked::Login => {
             let autolaunch = app.autolaunch();
             let _ = if autolaunch.is_enabled().unwrap_or(false) { autolaunch.disable() } else { autolaunch.enable() };
+        }
+        Asked::Notifications => {
+            if let Some(settings) = notify::settings(&app.config().identifier) {
+                let _ = app.opener().open_url(settings, None::<&str>);
+            }
         }
         Asked::Quit => app.exit(0),
         Asked::Other => return,
@@ -385,6 +390,12 @@ fn main() {
             notify::start(&app.config().identifier, move |address, target| {
                 let app = clicks.clone();
                 let _ = clicks.run_on_main_thread(move || open_target(&app, &address, &target));
+            }, {
+                let menus = handle.clone();
+                move || {
+                    let app = menus.clone();
+                    let _ = menus.run_on_main_thread(move || refresh_menus(&app));
+                }
             });
             follow_feeds(&handle);
             let builder = WebviewWindowBuilder::new(&handle, "main", WebviewUrl::App("index.html".into())).title("botdot").inner_size(1200.0, 800.0).min_inner_size(420.0, 500.0).visible(!hidden);
@@ -392,9 +403,14 @@ fn main() {
             // Closing the window keeps the app in the tray: Quit ends it.
             let hide = window.clone();
             window.on_window_event(move |event| {
-                if let WindowEvent::CloseRequested { api, .. } = event {
-                    api.prevent_close();
-                    let _ = hide.hide();
+                match event {
+                    WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        let _ = hide.hide();
+                    }
+                    // Back from the system's settings, perhaps: is it still off?
+                    WindowEvent::Focused(true) => notify::check(),
+                    _ => {}
                 }
             });
             #[cfg(target_os = "macos")]

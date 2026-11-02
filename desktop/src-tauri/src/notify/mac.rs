@@ -7,8 +7,9 @@ use objc2::rc::Retained;
 use objc2::runtime::{Bool, ProtocolObject};
 use objc2::{define_class, msg_send, AnyThread};
 use objc2_foundation::{NSArray, NSBundle, NSError, NSObject, NSObjectProtocol, NSString};
+use std::ptr::NonNull;
 use objc2_user_notifications::{
-    UNAuthorizationOptions, UNMutableNotificationContent, UNNotificationRequest, UNNotificationResponse, UNNotificationSound, UNUserNotificationCenter,
+    UNAuthorizationOptions, UNAuthorizationStatus, UNMutableNotificationContent, UNNotificationSettings, UNNotificationRequest, UNNotificationResponse, UNNotificationSound, UNUserNotificationCenter,
     UNUserNotificationCenterDelegate,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -43,8 +44,27 @@ pub fn start(_: &str) {
     let clicks: Retained<Clicks> = unsafe { msg_send![super(Clicks::alloc().set_ivars(())), init] };
     center.setDelegate(Some(ProtocolObject::from_ref(&*clicks)));
     std::mem::forget(clicks); // the centre holds its delegate weakly, and the app needs it as long as it runs
-    let asked = block2::RcBlock::new(|_: Bool, _: *mut NSError| {});
+    // Asked once: the Mac shows its question the first time, and answers at once after that.
+    let asked = block2::RcBlock::new(|granted: Bool, error: *mut NSError| {
+        if !granted.as_bool() {
+            let why = unsafe { error.as_ref() }.map(|e| e.localizedDescription().to_string()).unwrap_or_default();
+            eprintln!("[notifications] not allowed {why}");
+        }
+        check();
+    });
     center.requestAuthorizationWithOptions_completionHandler(UNAuthorizationOptions::Alert | UNAuthorizationOptions::Sound, &asked);
+}
+
+pub fn check() {
+    let Some(center) = center() else { return };
+    let found = block2::RcBlock::new(|settings: NonNull<UNNotificationSettings>| {
+        super::turned_off(unsafe { settings.as_ref() }.authorizationStatus() == UNAuthorizationStatus::Denied);
+    });
+    center.getNotificationSettingsWithCompletionHandler(&found);
+}
+
+pub fn settings(id: &str) -> Option<String> {
+    Some(format!("x-apple.systempreferences:com.apple.Notifications-Settings.extension?id={id}"))
 }
 
 pub fn show(notice: &Notice) {
