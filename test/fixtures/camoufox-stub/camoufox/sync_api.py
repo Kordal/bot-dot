@@ -61,6 +61,8 @@ class Body:
 
 TYPED = []
 LAUNCHES = []
+CONTEXTS = []  # each browser's context: closing its pages closes the window
+FAIL = {"goto": False, "exit": False}  # a page that does not load, and a browser that raises as it closes (#875)
 
 
 class Keyboard:
@@ -87,6 +89,8 @@ class Page:
         return True if arg is None else "ok"
 
     def goto(self, url, **kwargs):
+        if FAIL["goto"]:
+            raise TimeoutError("Timeout 30000ms exceeded.")
         self.url = url
 
     def title(self):
@@ -129,7 +133,10 @@ class Camoufox:
         LAUNCHES.append(kwargs)
 
     def __enter__(self):
-        return Context()
+        CONTEXTS.append(Context())
+        return CONTEXTS[-1]
 
     def __exit__(self, *exc):
+        if FAIL["exit"]:
+            raise RuntimeError("Target page, context or browser has been closed")
         return False
