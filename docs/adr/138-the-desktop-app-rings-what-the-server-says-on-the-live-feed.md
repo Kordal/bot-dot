@@ -17,6 +17,8 @@ The desktop app shows the web page in WKWebView and WebView2, where Web Push doe
 - **A click brings the window forward and posts `{ type: "open", target }` to its page,** which opens it as a tap on a push does. A click on another botdot's notification enters that botdot on the target's page (`#bot/<id>`, `#needs`, as the service worker opens it). Only the app posts it: the page still has no way into the app.
 - **The system's own notifications.** On the Mac the User Notifications framework (`objc2-user-notifications`): the tag is the request's identifier and the target its thread. It needs the installed bundle, so `cargo run` shows none. On Windows the Action Center's toasts (`windows`), under the app's identifier, which the installer's Start menu shortcut carries; a tag longer than Windows takes is shown under its hash.
 
+- **Notifications turned off in the system show in the app's menu** (#899). The Mac asks its question once; a question left unanswered (an update restarted the app under it) is a refusal from then on, without asking again. While the system has them off, the tray's and the menu bar's menu has "Turn on notifications…", which opens the system's settings for the app; the app asks again when its window comes to the front.
+
 ## Alternatives
 
 - **The rules again in Rust, from the feed's own events,** as the Android app does. A third copy of rules that change with almost every milestone.

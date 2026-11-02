@@ -10,6 +10,7 @@ pub const REMOVE: &str = "remove";
 pub const UPDATE_LOCAL: &str = "update-local";
 pub const REMOVE_LOCAL: &str = "remove-local";
 pub const LOGIN: &str = "login";
+pub const NOTIFICATIONS: &str = "notifications";
 pub const QUIT: &str = "quit";
 const SHOW: &str = "show:";
 
@@ -22,6 +23,7 @@ pub enum Asked {
     UpdateLocal,
     RemoveLocal,
     Login,
+    Notifications,
     Quit,
     Other,
 }
@@ -33,6 +35,7 @@ pub fn asked(id: &str) -> Asked {
         UPDATE_LOCAL => Asked::UpdateLocal,
         REMOVE_LOCAL => Asked::RemoveLocal,
         LOGIN => Asked::Login,
+        NOTIFICATIONS => Asked::Notifications,
         QUIT => Asked::Quit,
         _ => id.strip_prefix(SHOW).map_or(Asked::Other, |address| Asked::Show(address.to_string())),
     }
@@ -59,6 +62,7 @@ pub struct Words {
     pub updating: &'static str,
     pub not_done: &'static str,
     pub login: &'static str,
+    pub notifications: &'static str,
     pub quit: &'static str,
 }
 
@@ -72,6 +76,7 @@ const EN: Words = Words {
     updating: "botdot is updating. It comes back in a few minutes.",
     not_done: "That didn't work. Try again.",
     login: "Open at login",
+    notifications: "Turn on notifications…",
     quit: "Quit botdot",
 };
 const PL: Words = Words {
@@ -84,6 +89,7 @@ const PL: Words = Words {
     updating: "botdot się aktualizuje. Wróci za kilka minut.",
     not_done: "To się nie udało. Spróbuj jeszcze raz.",
     login: "Otwieraj po zalogowaniu",
+    notifications: "Włącz powiadomienia…",
     quit: "Zakończ botdota",
 };
 
@@ -94,8 +100,17 @@ pub fn words() -> &'static Words {
     }
 }
 
-// The botdots, Add, Remove (the one shown), Open at login. `quit` adds Quit, which the Mac's app menu has of its own.
-fn items(app: &AppHandle, kept: &Kept, login: bool, quit: bool) -> tauri::Result<Vec<MenuItemKind<Wry>>> {
+/// What the menus show besides the botdots.
+#[derive(Clone, Copy)]
+pub struct Shown {
+    pub login: bool,
+    /// The system has the app's notifications turned off: the menu offers its settings.
+    pub notifications_off: bool,
+}
+
+// The botdots, Add, Remove (the one shown), Turn on notifications while they are off, Open at login. `quit` adds Quit,
+// which the Mac's app menu has of its own.
+fn items(app: &AppHandle, kept: &Kept, shown: Shown, quit: bool) -> tauri::Result<Vec<MenuItemKind<Wry>>> {
     let words = words();
     let current = kept.current().map(|b| b.address.clone());
     let mut items: Vec<MenuItemKind<Wry>> = Vec::new();
@@ -118,7 +133,10 @@ fn items(app: &AppHandle, kept: &Kept, login: bool, quit: bool) -> tauri::Result
         items.push(MenuItemKind::MenuItem(MenuItem::with_id(app, REMOVE_LOCAL, words.remove_local, true, None::<&str>)?));
     }
     items.push(MenuItemKind::Predefined(PredefinedMenuItem::separator(app)?));
-    items.push(MenuItemKind::Check(CheckMenuItem::with_id(app, LOGIN, words.login, true, login, None::<&str>)?));
+    if shown.notifications_off {
+        items.push(MenuItemKind::MenuItem(MenuItem::with_id(app, NOTIFICATIONS, words.notifications, true, None::<&str>)?));
+    }
+    items.push(MenuItemKind::Check(CheckMenuItem::with_id(app, LOGIN, words.login, true, shown.login, None::<&str>)?));
     if quit {
         items.push(MenuItemKind::Predefined(PredefinedMenuItem::separator(app)?));
         items.push(MenuItemKind::MenuItem(MenuItem::with_id(app, QUIT, words.quit, true, None::<&str>)?));
@@ -130,18 +148,18 @@ fn refs(items: &[MenuItemKind<Wry>]) -> Vec<&dyn IsMenuItem<Wry>> {
     items.iter().map(|item| item as &dyn IsMenuItem<Wry>).collect()
 }
 
-pub fn tray(app: &AppHandle, kept: &Kept, login: bool) -> tauri::Result<Menu<Wry>> {
-    let items = items(app, kept, login, true)?;
+pub fn tray(app: &AppHandle, kept: &Kept, shown: Shown) -> tauri::Result<Menu<Wry>> {
+    let items = items(app, kept, shown, true)?;
     Menu::with_items(app, &refs(&items))
 }
 
 /// The Mac's own menu, with the botdots in the app's menu under About.
 #[cfg(target_os = "macos")]
-pub fn app_menu(app: &AppHandle, kept: &Kept, login: bool) -> tauri::Result<Menu<Wry>> {
+pub fn app_menu(app: &AppHandle, kept: &Kept, shown: Shown) -> tauri::Result<Menu<Wry>> {
     let menu = Menu::default(app)?;
     if let Some(first) = menu.items()?.first().and_then(|item| item.as_submenu().cloned()) {
         let mut items = vec![MenuItemKind::Predefined(PredefinedMenuItem::separator(app)?)];
-        items.extend(self::items(app, kept, login, false)?);
+        items.extend(self::items(app, kept, shown, false)?);
         first.insert_items(&refs(&items), 1)?;
     }
     Ok(menu)
@@ -167,6 +185,7 @@ mod tests {
         assert_eq!(asked(UPDATE_LOCAL), Asked::UpdateLocal);
         assert_eq!(asked(REMOVE_LOCAL), Asked::RemoveLocal);
         assert_eq!(asked(LOGIN), Asked::Login);
+        assert_eq!(asked(NOTIFICATIONS), Asked::Notifications);
         assert_eq!(asked(QUIT), Asked::Quit);
         assert_eq!(asked("about"), Asked::Other);
     }

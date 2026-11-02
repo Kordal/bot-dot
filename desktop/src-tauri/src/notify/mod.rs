@@ -4,6 +4,7 @@
 
 use crate::feed::Notice;
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 #[cfg(target_os = "macos")]
@@ -19,6 +20,10 @@ use self::windows as system;
 #[cfg(not(any(target_os = "macos", windows)))]
 mod system {
     pub fn start(_: &str) {}
+    pub fn check() {}
+    pub fn settings(_: &str) -> Option<String> {
+        None
+    }
     pub fn show(_: &crate::feed::Notice) {}
     pub fn remove(_: &str) {}
 }
@@ -52,11 +57,42 @@ fn clicked(joined: String) {
     }
 }
 
+static OFF: AtomicBool = AtomicBool::new(false);
+static CHANGED: OnceLock<Box<dyn Fn() + Send + Sync>> = OnceLock::new();
+
+// What the system says of the app's notifications. A permission that was never answered can be lost for good: the
+// Mac then refuses without asking again, and only its Settings turn them back on.
+#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+fn turned_off(off: bool) {
+    if OFF.swap(off, Ordering::SeqCst) != off {
+        if let Some(changed) = CHANGED.get() {
+            changed();
+        }
+    }
+}
+
 /// Once, at the start. `id`: the app's identifier, which Windows shows its toasts under. The Mac asks the owner's
-/// permission the first time. `on_click` gets the botdot's address and the target.
-pub fn start(id: &str, on_click: impl Fn(String, String) + Send + Sync + 'static) {
+/// permission the first time. `on_click` gets the botdot's address and the target; `on_change` is told when the
+/// notifications are turned on or off in the system's settings, as `check` finds.
+pub fn start(id: &str, on_click: impl Fn(String, String) + Send + Sync + 'static, on_change: impl Fn() + Send + Sync + 'static) {
     let _ = CLICKED.set(Box::new(on_click));
+    let _ = CHANGED.set(Box::new(on_change));
     system::start(id);
+}
+
+/// Whether the system has the app's notifications turned off, as last found.
+pub fn off() -> bool {
+    OFF.load(Ordering::SeqCst)
+}
+
+/// Asks the system again: the owner may have changed its settings meanwhile.
+pub fn check() {
+    system::check();
+}
+
+/// The system's settings of the app's notifications, to open.
+pub fn settings(id: &str) -> Option<String> {
+    system::settings(id)
 }
 
 pub fn show(address: &str, notice: &Notice) {

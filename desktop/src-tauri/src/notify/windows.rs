@@ -8,7 +8,7 @@ use std::sync::{Mutex, OnceLock};
 use windows::core::{HSTRING, PCWSTR};
 use windows::Data::Xml::Dom::XmlDocument;
 use windows::Foundation::TypedEventHandler;
-use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
+use windows::UI::Notifications::{NotificationSetting, ToastNotification, ToastNotificationManager};
 
 const GROUP: &str = "botdot";
 static ID: OnceLock<HSTRING> = OnceLock::new();
@@ -24,6 +24,18 @@ pub fn start(id: &str) {
         let _ = windows::Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID(PCWSTR(id.as_ptr()));
     }
     let _ = ID.set(id);
+    check();
+}
+
+pub fn check() {
+    let Some(id) = ID.get() else { return };
+    if let Ok(setting) = ToastNotificationManager::CreateToastNotifierWithId(id).and_then(|n| n.Setting()) {
+        super::turned_off(setting != NotificationSetting::Enabled);
+    }
+}
+
+pub fn settings(_: &str) -> Option<String> {
+    Some("ms-settings:notifications".into())
 }
 
 fn toast(notice: &Notice) -> windows::core::Result<ToastNotification> {
