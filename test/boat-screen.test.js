@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const boatLib = require('../lib/boat');
+const { boatShown } = require('./helpers');
 const screensLib = require('../lib/computer-screens');
 const { rpcClient } = require('./memory-helpers');
 
@@ -309,7 +310,9 @@ test("a program started on the screen runs detached on the machine's display", a
   const { b, boat } = machine({ kit: boatLib.KIT_VERSION });
   await boat.startProgram('coder', "camoufox-browser 'https://example.com'");
   const [box] = b.machines.values();
-  assert.deepEqual(box.programs, ["cd /home/user && exec env DISPLAY=:0 sh -c 'camoufox-browser '\\''https://example.com'\\'''"]);
+  assert.equal(box.programs.length, 1);
+  assert.match(box.programs[0], /^cd \/home\/user && exec env DISPLAY=:0 python3 -I -c '[\s\S]*' botdot-run --keep --memory 4800000000 -- sh -c /, 'under botdot-run, at 60% of its 8 GB, with no run');
+  assert.equal(boatShown(box.programs[0]), "cd /home/user && exec env DISPLAY=:0 camoufox-browser 'https://example.com'");
 });
 
 test("a boat bot's screen calls go to its machine and never to the account's computer, also when boat.dev refuses", async (t) => {

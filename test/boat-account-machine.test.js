@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const boatLib = require('../lib/boat');
+const { boatShown } = require('./helpers');
 const moveLib = require('../lib/computer-move');
 const asks = require('../lib/asks');
 
@@ -35,10 +36,10 @@ function fakeBoat() {
     if (m[2] === 'stop') { box.state = 'archived'; return reply(202, { ok: true }); }
     if (m[2] === 'resume') { box.state = 'ready'; return reply(202, { ok: true }); }
     if (m[2] === 'files') return reply(200, { ok: true, content: '' });
-    if (m[2] === 'commands') return reply(200, { ok: true, exitCode: 0, stdout: data.command.includes('stat -c %s') ? '42\n' : `ran: ${data.command}`, stderr: '', timedOut: false });
+    if (m[2] === 'commands') return reply(200, { ok: true, exitCode: 0, stdout: data.command.includes('stat -c %s') ? '42\n' : `ran: ${boatShown(data.command)}`, stderr: '', timedOut: false });
     return reply(400, { ok: false });
   };
-  const commandsOn = (id) => calls.filter((c) => c.path === `/sandboxes/${id}/commands`).map((c) => c.body.command);
+  const commandsOn = (id) => calls.filter((c) => c.path === `/sandboxes/${id}/commands`).map((c) => boatShown(c.body.command));
   return { fetch, calls, machines, commandsOn };
 }
 const keyed = (t) => { boatLib.setKey(KEY); t.after(() => boatLib.setKey(null)); };

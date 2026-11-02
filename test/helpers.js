@@ -448,4 +448,10 @@ const REAPED = ['/usr/bin/python3', '-I', '-c', require('fs').readFileSync(requi
 const IN_OWN_FOLDER = '[ -z "$BOTDOT_GIT" ] || [ "$(cat "$GIT_CONFIG_SYSTEM" 2>/dev/null)" = "$BOTDOT_GIT" ] || { mkdir -p "${GIT_CONFIG_SYSTEM%/*}" && printf \'%s\n\' "$BOTDOT_GIT" > "$GIT_CONFIG_SYSTEM.$$" && mv -f "$GIT_CONFIG_SYSTEM.$$" "$GIT_CONFIG_SYSTEM"; } 2>/dev/null; unset BOTDOT_GIT; '
   + 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"';
 
-module.exports = { REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
+// A bot's command on the External Virtual PC as botdot sends it (lib/boat.js reaped, ADR 133), shown as the command
+// alone: what comes before botdot-run, then the bot's own command, unquoted. Anything else is shown as it is.
+function boatShown(command) {
+  const m = /^(?:r=[A-Za-z0-9_-]+; )?([\s\S]*?)(?:exec )?(?:timeout -k 15 \d+ )?python3 -I -c '(?:[^']|'\\'')*' botdot-run [^']*?-- \S+ -c '((?:[^']|'\\'')*)'([\s\S]*)$/.exec(command);
+  return m ? `${m[1]}${m[2].replace(/'\\''/g, "'")}${m[3]}` : command;
+}
+module.exports = { boatShown, REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
