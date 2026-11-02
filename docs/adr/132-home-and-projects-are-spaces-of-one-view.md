@@ -10,8 +10,8 @@ Bots and Projects are two places behind the switch "Bots | Projects" ([ADR 110](
 ## Decision
 
 - **Home and every project are spaces of one view.** This replaces ADR 110's "a place, not a mode of the list". Home is what Bots showed; a project is what Projects showed for it.
-- **A wide window (from 1001 px on the web) with at least one project has a rail of spaces on the left, 76 px wide,** in place of the switch: Home (the logo), one square per project in its colour with its first letter and the number of its team bots' asks, archived projects dimmed after them, "+" for a new project, and the top bar's search, admin, feedback and Settings buttons at its foot. The space on screen has a short bar at the rail's left edge.
-- **With no project there is no rail,** and Home is the Bots home as it was, switch included: that is how the first project is started.
+- **A wide window (from 1001 px on the web) on a botdot with projects has a rail of spaces on the left, 76 px wide,** in place of the switch: Home (the logo), one square per project in its colour with its first letter and the number of its team bots' asks, archived projects dimmed after them, "+" for a new project, and the top bar's search, admin, feedback and Settings buttons at its foot. The space on screen has a short bar at the rail's left edge.
+- **There is no switch, with or without projects** ([#853](https://github.com/Kordal/bot-dot/issues/853), 2026-11-02). With no project yet the rail holds Home and "+", and below 1001 px the title's sheet holds Home and New project: that is how the first project is started. Until #853 the switch and the old project tree stayed for this case, and the owner saw the old view again.
 - **The chat column stands at the same place in every space:** the owner's width or the default, at most the window less 560 px. Home opens on the Chief's chat, a project on its team chat (the Chief's while it has none, ADR 119). Between #837 and #838 a project kept its tree beside the rail.
 - **The space is remembered per device** in `botdot.place`: `home` or a project's id. The old values `bots` and `company` are still read. A remembered project that is gone opens Home, and so does deleting the project on screen.
 - **Search finds bots and chats on Home:** pressed in a project, it goes to Home first.
@@ -27,7 +27,7 @@ Bots and Projects are two places behind the switch "Bots | Projects" ([ADR 110](
 
 - **A: Home's keypad with a section per project.** Smallest change, but a long scroll with several projects, and a project's board would open somewhere else.
 - **B: One tree in a 300 px column for everything.** Loses the keypad's keys for a list, and takes four times the rail's width from the board.
-- **A rail also with no project.** Rejected: one square for Home alone is a control that does nothing, and the owner asked for today's home when there is nothing to switch between.
+- **No rail with no project, the switch kept to start the first one.** Built first, then dropped in #853: it brought back the old view (the switch, the project tree beside the New project screen) and squeezed Home's keypad into the switch's 300 px column. The rail with Home and "+" keeps Home where it stands once a project exists.
 
 ## Consequences
 

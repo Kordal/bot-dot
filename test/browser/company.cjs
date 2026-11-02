@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer } = require('../helpers');
+const { goSpace } = require('../space-helpers');
 
 (async () => {
   const shots = process.argv[2] || null;
@@ -18,9 +19,7 @@ const { startServer } = require('../helpers');
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(`${srv.base}/`);
-      const sw = page.locator('#rail .rail-sq:visible, #place-switch [data-place="company"]:visible');
-      await sw.waitFor({ timeout: 20000 });
-      await sw.click();
+      await goSpace(page, 'new'); // no project yet: the rail's "+", or New project in the title's sheet (#853)
       await page.locator('#view-company h1', { hasText: 'New project' }).waitFor();
       assert.equal(await page.locator('[data-example]').count(), 0, 'no examples (#801)');
       assert.equal(await page.locator('#company-side [data-project]').count(), 0, 'no project yet');
@@ -41,7 +40,7 @@ const { startServer } = require('../helpers');
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-about.png`) });
         await page.reload();
         await page.locator('.co-steps li.on', { hasText: 'About' }).waitFor({ timeout: 20000 });
-        await page.locator('#rail .brand:visible, #place-switch [data-place="bots"]:visible').click();
+        await goSpace(page, 'home');
         assert.equal(await page.locator('#company-side').isVisible(), false);
         await srv.api('/company', { method: 'DELETE' });
       }

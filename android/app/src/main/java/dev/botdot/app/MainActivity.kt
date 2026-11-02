@@ -282,7 +282,6 @@ class MainActivity : ComponentActivity() {
                 var space by rememberSaveable { mutableStateOf(Spaces.HOME) }
                 var newSpace by rememberSaveable { mutableStateOf(false) } // "New project": the start screen, no project yet
                 var searchAsk by rememberSaveable { mutableStateOf(0) }
-                val railed = keypad && spaceList.isNotEmpty()
                 fun goSpace(id: String, keep: Boolean = true) {
                     space = id
                     newSpace = false
@@ -306,7 +305,9 @@ class MainActivity : ComponentActivity() {
                     panelKept = null
                     if (keypad) nav.popBackStack("home", inclusive = false) else if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true }
                 }
-                val spaceWays = SpaceWays(spaceList, if (newSpace) "" else space, pick = { goSpace(it) }, new = { startProject() })
+                // From a botdot with projects the spaces are there before the first one: it starts from them (#853).
+                val spaceWays = SpaceWays(spaceList, if (newSpace) "" else space, pick = { goSpace(it) }, new = { startProject() }, on = dev.botdot.app.data.CompanySetup.shows(features))
+                val railed = keypad && spaceWays.shown
                 // A device that was in a project opens in it again, once the projects are read; one that is gone is Home.
                 var placeKept by rememberSaveable { mutableStateOf(false) }
                 LaunchedEffect(features, route, companyHeld) {

@@ -47,11 +47,12 @@ import dev.botdot.app.data.tr
 
 /**
  * The spaces (#836, #840) as the screens draw them: [list] the projects with their counts, [current] the space on
- * screen ([Spaces.HOME] or a project's id). [pick] opens a space, [new] starts a project with today's setup. Empty
- * [list]: no rail, no sheet, and the title is the logo alone.
+ * screen ([Spaces.HOME] or a project's id). [pick] opens a space, [new] starts a project with today's setup. [on]: the
+ * botdot has projects (`company`); then the rail and the sheet are there with an empty [list] too, with Home and New
+ * project, the way to the first one (#853). Off: no rail, no sheet, and the title is the logo alone.
  */
-internal class SpaceWays(val list: List<Spaces.Space>, val current: String, val pick: (String) -> Unit, val new: () -> Unit) {
-    val shown: Boolean get() = list.isNotEmpty()
+internal class SpaceWays(val list: List<Spaces.Space>, val current: String, val pick: (String) -> Unit, val new: () -> Unit, val on: Boolean = list.isNotEmpty()) {
+    val shown: Boolean get() = on
     val project: Spaces.Space? get() = list.firstOrNull { it.id == current }
 }
 
@@ -80,7 +81,7 @@ internal fun SpaceCount(n: Int, modifier: Modifier = Modifier) {
 
 /**
  * A phone's title (C-4, C-5): the logo on Home, a project's square and name in a project, with a chevron that opens
- * the sheet of spaces. Without projects: the logo alone, as before.
+ * the sheet of spaces. On a botdot without projects: the logo alone.
  */
 @Composable
 internal fun SpaceTitle(ways: SpaceWays?, busy: Boolean, onOpen: () -> Unit, modifier: Modifier = Modifier) {
@@ -135,8 +136,8 @@ private fun SheetRow(here: Boolean, label: String, count: Int = 0, onClick: () -
 
 /**
  * The rail from 840 dp (C-1, C-2): Home (the logo), one square per project with its count, "+" for a new project,
- * then search and settings at the bottom. A short bar at its left edge marks the space on screen. Shown only while
- * there are projects.
+ * then search and settings at the bottom. A short bar at its left edge marks the space on screen. Shown on a botdot
+ * with projects, also before the first one (#853).
  */
 @Composable
 internal fun SpaceRail(ways: SpaceWays, busy: Boolean, onSearch: () -> Unit, onSettings: () -> Unit) {
