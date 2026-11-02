@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -61,14 +62,21 @@ internal fun ProjectTitle(ui: CompanyUi, c: Company?, ways: CompanyWays, modifie
     val many = ManyProjects.many(features)
     var open by remember { mutableStateOf(false) }
     val name = c?.let(ManyProjects::nameOf) ?: tr("New project")
+    // Spaces (#840): beside the rail the name only says where the owner is; on a phone it opens the sheet of spaces,
+    // with the project's square before it. The tree stays for a screen drawn without spaces.
+    val spaces = ui.spaces?.takeIf { it.shown }
+    val switches = if (spaces != null) !ui.railed else many
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(1f, fill = false)) {
-            Row(Modifier.clip(Radius.small).clickable(enabled = many, onClickLabel = tr("Projects")) { open = true }.padding(vertical = Space.s4),
+            Row(Modifier.clip(Radius.small).clickable(enabled = switches, onClickLabel = tr("Projects")) { if (spaces != null) ui.spaceSheet = true else open = true }.padding(vertical = Space.s4)
+                .then(if (spaces != null) Modifier.testTag(SPACE_TITLE) else Modifier),
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(name, color = p.text, fontSize = Type.s24, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (many) Icon(Icons.Outlined.ExpandMore, null, tint = p.muted, modifier = Modifier.padding(start = Space.s4).size(22.dp))
+                if (spaces != null && !ui.railed && c != null) SpaceSquare(name, c.color ?: ManyProjects.DEFAULT_COLOR, 28.dp)
+                Text(name, color = p.text, fontSize = Type.s24, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = if (spaces != null && !ui.railed && c != null) Space.s8 else 0.dp).weight(1f, fill = false))
+                if (switches) Icon(Icons.Outlined.ExpandMore, null, tint = p.muted, modifier = Modifier.padding(start = Space.s4).size(22.dp))
             }
-            if (many) DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.background(p.panel).widthIn(min = 260.dp, max = 360.dp)) {
+            if (many && spaces == null) DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.background(p.panel).widthIn(min = 260.dp, max = 360.dp)) {
                 ProjectTree(ui, c?.id, ways) { open = false }
             }
         }

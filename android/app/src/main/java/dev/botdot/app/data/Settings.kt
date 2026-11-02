@@ -30,9 +30,11 @@ class Settings(private val context: Context) {
     suspend fun listWidthNow(): Int? = context.store.data.first()[LIST_WIDTH]
     suspend fun setListWidth(dp: Int?) = context.store.edit { if (dp == null) it.remove(LIST_WIDTH) else it[LIST_WIDTH] = dp }
 
-    private val PLACE = stringPreferencesKey("place") // "Bots | Company" (#674): "company", or none for the bots
-    suspend fun companyNow(): Boolean = context.store.data.first()[PLACE] == "company"
-    suspend fun setCompany(on: Boolean) = context.store.edit { if (on) it[PLACE] = "company" else it.remove(PLACE) }
+    // The space on screen (#840, Spaces): a project's id, or none for Home; "company" from before spaces (the
+    // switch was on Projects) is read by Spaces.remembered.
+    private val PLACE = stringPreferencesKey("place")
+    suspend fun spaceNow(): String? = context.store.data.first()[PLACE]
+    suspend fun setSpace(id: String) = context.store.edit { if (id == Spaces.HOME) it.remove(PLACE) else it[PLACE] = id }
 
     private val PROJECT = stringPreferencesKey("project") // the project shown (#703), of the botdot this device is on
     private val TREE = stringSetPreferencesKey("project_tree") // the tree's nodes turned from how they start: "<key>=1" folded, "=0" open

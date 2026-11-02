@@ -38,6 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import android.view.KeyEvent
 import dev.botdot.app.ui.CompanyScreen
+import dev.botdot.app.ui.CompanyWays
+import dev.botdot.app.ui.SpaceRail
+import dev.botdot.app.ui.SpaceWays
+import dev.botdot.app.data.Spaces
 import dev.botdot.app.ui.HomePanes
 import dev.botdot.app.ui.KeyRelay
 import dev.botdot.app.ui.Keypad
@@ -262,21 +266,78 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                // "Bots | Company" (#674), kept on this device: the Company opens beside the list (on a phone, in its place),
-                // and the bots go back to the Chief's chat.
-                fun place(company: Boolean) {
-                    scope.launch { app.settings.setCompany(company) }
-                    if (company) { panelKept = null; if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true } }
-                    // From the Company, or a chat opened on it (#757): back to the Chief's chat.
-                    else if (route == "company" || runCatching { nav.getBackStackEntry("company") }.isSuccess) nav.popBackStack("home", inclusive = false)
-                }
-                // A device that was on the Company opens on it again, once the botdot says it has one.
+                // Spaces (#836, #840), in place of "Bots | Projects": Home and each open project. From 840 dp the rail picks
+                // one and the project's page takes the keypad's place, its default chat beside it; on a phone and beside
+                // the list the title picks one and the project opens as the Projects screen did. Kept on this device.
                 val features = app.store.version.value.collectAsState().value?.features
+                val projectList by app.store.projectList.collectAsState()
+                val companyHeld by app.store.company.value.collectAsState() // also what reads the projects in
+                val waitingNow by app.store.waiting.collectAsState(initial = emptyList())
+                val botsNow by app.store.bots.value.collectAsState()
+                val groupsNow by app.store.groups.value.collectAsState()
+                val chiefNow by app.store.chief.value.collectAsState()
+                val projects = Spaces.projects(features, projectList, companyHeld?.company)
+                val projectIds = projects.map { it.id }
+                val spaceList = remember(projects, botsNow, waitingNow) { Spaces.list(projects, botsNow.orEmpty(), waitingNow) }
+                var space by rememberSaveable { mutableStateOf(Spaces.HOME) }
+                var newSpace by rememberSaveable { mutableStateOf(false) } // "New project": the start screen, no project yet
+                var searchAsk by rememberSaveable { mutableStateOf(0) }
+                val railed = keypad && spaceList.isNotEmpty()
+                fun goSpace(id: String, keep: Boolean = true) {
+                    space = id
+                    newSpace = false
+                    panelKept = null
+                    if (keep) scope.launch { app.settings.setSpace(id) }
+                    if (id == Spaces.HOME) {
+                        // Back to the Chief's chat, from the project or a chat opened on it (#757).
+                        if (keypad || route == "company" || runCatching { nav.getBackStackEntry("company") }.isSuccess) nav.popBackStack("home", inclusive = false)
+                        return
+                    }
+                    app.store.showProject(id)
+                    scope.launch { app.settings.setProject(id) }
+                    if (keypad) {
+                        val to = Spaces.defaultChat(projects.firstOrNull { it.id == id }, groupsNow.orEmpty(), features)
+                        if (to == Spaces.CHIEF) nav.popBackStack("home", inclusive = false) else nav.openBeside(to)
+                    } else if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true }
+                }
+                fun startProject() {
+                    app.store.newProject()
+                    newSpace = true
+                    panelKept = null
+                    if (keypad) nav.popBackStack("home", inclusive = false) else if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true }
+                }
+                val spaceWays = SpaceWays(spaceList, if (newSpace) "" else space, pick = { goSpace(it) }, new = { startProject() })
+                // A device that was in a project opens in it again, once the projects are read; one that is gone is Home.
                 var placeKept by rememberSaveable { mutableStateOf(false) }
-                LaunchedEffect(features, route) {
+                LaunchedEffect(features, route, companyHeld) {
                     if (placeKept || route != "home" || !dev.botdot.app.data.CompanySetup.shows(features)) return@LaunchedEffect
+                    val saved = app.settings.spaceNow()
+                    if (saved == null) { placeKept = true; return@LaunchedEffect }
+                    if (companyHeld == null) return@LaunchedEffect // not read yet
                     placeKept = true
-                    if (app.settings.companyNow()) place(true)
+                    val id = Spaces.remembered(saved, projectIds, app.settings.projectNow())
+                    if (id != saved) app.settings.setSpace(id)
+                    if (id != Spaces.HOME) goSpace(id, keep = false)
+                }
+                // The project on screen was deleted or archived: Home.
+                LaunchedEffect(projectIds, companyHeld) {
+                    if (companyHeld != null && !newSpace && Spaces.still(space, projectIds) != space) goSpace(Spaces.HOME)
+                }
+                // A project just made from "New project" is the space.
+                LaunchedEffect(companyHeld) {
+                    val made = companyHeld?.company?.id
+                    if (newSpace && made != null && made in projectIds) { newSpace = false; space = made; app.settings.setSpace(made) }
+                }
+                // Back from the project on a phone, or beside the list: Home again.
+                var lastRoute by remember { mutableStateOf<String?>(null) }
+                LaunchedEffect(route) {
+                    if (!keypad && lastRoute == "company" && route == "home" && (space != Spaces.HOME || newSpace)) { space = Spaces.HOME; newSpace = false; app.settings.setSpace(Spaces.HOME) }
+                    lastRoute = route
+                }
+                // The window grew past 840 dp with the project open beside the list: it moves left of the chat.
+                LaunchedEffect(keypad, route) {
+                    if (keypad && route == "company") nav.popBackStack("home", inclusive = false)
+                    else if (!keypad && route == "home" && (space != Spaces.HOME || newSpace) && placeKept) { if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true } }
                 }
                 // Beside the list, one chat takes the other's place; the Chief's is the one below them all.
                 fun open(to: String) { panelKept = SettingsPanel.chosen(panelKept, room); if (wide) nav.openBeside(to) else nav.navigate(to) { launchSingleTop = true } }
@@ -310,8 +371,26 @@ class MainActivity : ComponentActivity() {
                         keys = keys.takeIf { keypad },
                         // A phone: the pages as sections of keys, and each chat full screen.
                         sections = home == Keypad.Home.PHONE,
-                        onPlace = { company -> place(company) },
+                        spaces = spaceWays,
+                        railed = railed,
+                        searchAsk = searchAsk,
                     )
+                }
+                // A project's page left of the chat (from 840 dp): its chats open in the chat beside it.
+                @Composable
+                fun ProjectPane(modifier: Modifier) {
+                    Box(modifier) {
+                        CompanyScreen(app, wide = true, ways = CompanyWays(
+                            onBot = { open("bot/$it") },
+                            onBotSay = { bot, words -> app.botWords = bot to words; open("bot/$bot") },
+                            onChief = { panelKept = SettingsPanel.chosen(panelKept, room); nav.popBackStack("home", inclusive = false) },
+                            onNeeds = { open("needs") },
+                            onChiefSay = { app.chiefWords = it; open("chief/new") },
+                            onTeam = { open("group/$it") },
+                            onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
+                            onGoalChat = { open("chief/$it") },
+                        ), spaces = spaceWays, railed = railed, field = false)
+                    }
                 }
 
                 // The name the owner gave the Chief (ChiefName), for every screen that shows it.
@@ -321,8 +400,11 @@ class MainActivity : ComponentActivity() {
                 // The first-run question for that name, once the phone is in (not while it connects or signs in).
                 if (route != null && route != "connect" && route != "sign-in" && route != "paused") ChiefNameQuestion(app)
                 Row(Modifier.fillMaxSize().background(p.bg).then(if (wide) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {
+                // The rail of spaces (#840), from 840 dp while there are projects.
+                if (railed) SpaceRail(spaceWays, busy = chiefNow?.busy == true || botsNow.orEmpty().any { it.running },
+                    onSearch = { if (space != Spaces.HOME || newSpace) goSpace(Spaces.HOME); searchAsk++ }, onSettings = { open("settings") })
                 HomePanes(home, width.value.toInt(), listShown,
-                    keypad = { m -> Home(m) },
+                    keypad = { m -> if (keypad && (space != Spaces.HOME || newSpace)) ProjectPane(m) else Home(m) },
                     list = {
                         Home(Modifier.width(listWidth.dp).fillMaxHeight())
                         // What is kept is the width the list ended at, not how far the finger went past its limits.
@@ -405,7 +487,7 @@ class MainActivity : ComponentActivity() {
                                 onTeam = { dock(ProjectChats.Open(ProjectChats.TEAM, it)) },
                                 onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
                                 onGoalChat = { dock(ProjectChats.Open(ProjectChats.CHIEF, it)) },
-                            ), onBots = { place(false) })
+                            ), spaces = spaceWays)
                             ProjectChatSheet(ProjectChats.of(docked), dockHeight, onHeight = { dockHeight = it }) { o ->
                                 androidx.compose.runtime.key(o.key) {
                                     if (o.kind == ProjectChats.CHIEF) ChiefScreen(app, o.id, emptyList(), "", onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) },
