@@ -50,6 +50,7 @@ function drawAway() {
   const out = signedOut.on && !away.shown; // "Can't reach botdot" wins: nobody knows then what Claude is
   $('#signed-out')?.classList.toggle('hidden', !out);
   $$('.claude-line').forEach((el) => el.classList.toggle('hidden', !out));
+  $('.side-head')?.classList.toggle('noted', away.shown || out); // the top bar stays for it beside the rail (#837)
 }
 // Claude is signed out, as the feed says it (hello.claude, the `claude` event): no bot can work. One line stands
 // where "Can't reach botdot" stands, with the way to sign in, until Claude is signed in again.

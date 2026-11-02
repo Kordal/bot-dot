@@ -34,7 +34,7 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/`);
-    await page.locator('#place-switch [data-place="company"]').click();
+    await page.locator('#rail .rail-sq:visible, #place-switch [data-place="company"]:visible').click();
     await page.locator('#co-what').fill('A meal-planning app for busy parents');
     await page.locator('#co-ask .co-go').click();
 

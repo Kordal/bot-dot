@@ -103,11 +103,11 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         // A bot's chat docked on the Projects screen, then Bots: the Chief's chat, not the Projects screen (#757).
         await page.locator(`.cf-room[data-cf-team="t2"] [data-cf-bot="${id('Billing Helper')}"]`).click();
         await page.waitForFunction(() => document.querySelector('#app')?.classList.contains('docked'));
-        await page.locator('.place-switch [data-place="bots"]').first().click();
+        await page.locator('#rail .brand:visible, .place-switch [data-place="bots"]:visible').first().click();
         await page.waitForFunction(() => state.view === 'chief');
         assert.equal(await page.evaluate(() => document.querySelector('#app').classList.contains('docked')), false, 'no chat docked');
         assert.equal(await page.locator('#view-company').isVisible(), false, 'the Projects screen is gone');
-        await page.locator('.place-switch [data-place="company"]').first().click();
+        await page.locator('#rail .rail-sq:visible, .place-switch [data-place="company"]:visible').first().click();
         // Back on Projects the team's chat opens beside the board (#825): hidden again, the board has the width.
         await page.locator('[data-dock-hide]:visible').click();
         await page.waitForFunction(() => state.view === 'company');
