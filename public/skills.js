@@ -146,7 +146,7 @@ function skillPickHTML(p) {
       <span class="muted">${trn(p.skills.length, '{n} skill found', '{n} skills found')}</span>
       <span><button type="button" class="btn ghost" data-pick="all">${tr('Select all')}</button><button type="button" class="btn ghost" data-pick="none">${tr('Deselect all')}</button></span>
     </div>
-    <div class="skill-pick">${p.skills.map(row).join('')}</div>
+    <div class="skill-pick-list">${p.skills.map(row).join('')}</div>
     ${p.skills.some((k) => k.exists) ? `<label class="skill-pick-over"><input type="checkbox" name="overwrite"> ${tr('Replace the ones I have')}</label>` : ''}
     ${p.skills.some((k) => k.scripts.length) ? `<div class="skill-warn">⚠︎ ${tr('Some include scripts a bot may run. Only import skills from people you trust.')}</div>` : ''}`;
 }
