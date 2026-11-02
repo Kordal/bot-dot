@@ -1,7 +1,6 @@
 // One update for every account, a backup per account (#473, ADR 028). On a machine of several accounts the admin
 // updates botdot for all of them at once, on the admin page (test/front-door-update.test.js): an account's own
-// botdot server has no update of its own, and its page shows none. The Mac's botdot (one account, BOT_DOT_PLATFORM
-// mac) keeps its update. A backup holds the account it was made in alone, is named with it, and restores into it.
+// botdot server has no update of its own, and its page shows none. A backup holds the account it was made in alone, is named with it, and restores into it.
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -27,12 +26,6 @@ test('an account\'s botdot has no update of its own: the admin updates every acc
   const apply = await s.api('/updates/apply', { method: 'POST', body: {} });
   assert.equal(apply.status, 403);
   assert.match(apply.data.error, /admin updates botdot for every account at once/);
-});
-
-test('the Mac\'s botdot keeps its update', async () => {
-  const s = await start({ account: 'ann', env: { BOT_DOT_PLATFORM: 'mac' } });
-  assert.ok((await s.api('/version')).data.features.includes('updates'));
-  assert.notEqual((await s.api('/updates')).data.byAdmin, true);
 });
 
 test('the web page has no update of botdot', () => {

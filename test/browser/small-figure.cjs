@@ -6,7 +6,7 @@
 //   FIGURE_DIR=<folder>    the scratch folder for the server's data (default: a fresh temporary one)
 //   FIGURE_SHOTS=<folder>  also save screenshots there
 //   FIGURE_KEEP=1          make the bots, chats and waiting things, print the server's address and keep it
-//                          running (no browser): for looking at the same data in the Android and Mac apps
+//                          running (no browser): for looking at the same data in the Android app
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

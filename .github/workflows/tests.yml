@@ -1,5 +1,4 @@
 # Web/server and Android checks. Publishing workflows call this first, so a failed check blocks publication.
-# The Mac app is stopped and has no checks (ADR 031).
 #
 # Where they run: every job on GitHub's own throwaway machines, whoever opened the pull request (#528). The
 # repository is public, so a fork's pull request may change this file: test/workflows.test.js fails when any

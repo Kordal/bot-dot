@@ -9,8 +9,7 @@
 # vulnerabilities, and a secret scan of every layer, which also finds a file that a later layer deleted (it is gone
 # from the image's filesystem but still in the layer anyone with the image can download, #534).
 # The app image also carries the newest Android app (from the latest android-v* release), which the phone
-# updates from. It carries no Mac app: the Mac app is stopped (ADR 031), so a Mac asking botdot for an
-# update hears that there is none.
+# updates from.
 #
 # When (#512): once a night, and when the owner runs it by hand (Actions → Images → Run workflow, on main). A
 # merge to main publishes nothing. The nightly run builds only when main changed outside the docs since the last
@@ -58,7 +57,7 @@ jobs:
           [ -n "$LAST" ] || build "No image published yet: building." true
           SHA="$(jq -r .headSha <<< "$LAST")" AT="$(jq -r .createdAt <<< "$LAST")"
           git cat-file -e "$SHA^{commit}" 2>/dev/null || build "The last image's commit $SHA is not on main: building." true
-          CHANGED="$(git diff --name-only "$SHA" HEAD -- . ':!*.md' ':!docs/' ':!design/' ':!macos/' ':!android/' ':!desktop/')"
+          CHANGED="$(git diff --name-only "$SHA" HEAD -- . ':!*.md' ':!docs/' ':!design/' ':!android/' ':!desktop/')"
           [ -z "$CHANGED" ] || build "Changed since ${SHA::7}: $(printf '%s ' $CHANGED)" true
           APK="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases --limit 1000 --json tagName,createdAt --jq "[.[] | select(.tagName | startswith(\"android-v\")) | select(.createdAt > \"$AT\")] | length")"
           [ "$APK" = 0 ] || build "A newer Android release: building." true

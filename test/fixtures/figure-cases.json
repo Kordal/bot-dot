@@ -1,5 +1,5 @@
 {
-  "about": "Definitions every renderer must take alike (ADR 003): the web page (test/figure.test.js), Android (FigureTest.kt) and the Mac (FigureTests.swift) each put a case's state into lib/figure.json as the state \"extra\" and read it. accepted: the definition is used; moves: the state then has a movement. Written as text, not built in code, so that 0.0 and 1e0 reach each reader as they stand.",
+  "about": "Definitions every renderer must take alike (ADR 003): the web page (test/figure.test.js) and Android (FigureTest.kt) each put a case's state into lib/figure.json as the state \"extra\" and read it. accepted: the definition is used; moves: the state then has a movement. Written as text, not built in code, so that 0.0 and 1e0 reach each reader as they stand.",
   "cases": [
     { "what": "a movement given as false is no movement", "state": { "eyes": [], "pupils": [], "move": false }, "accepted": true, "moves": false },
     { "what": "a movement given as 0 is no movement", "state": { "eyes": [], "pupils": [], "move": 0 }, "accepted": true, "moves": false },

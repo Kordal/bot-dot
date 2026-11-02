@@ -1,6 +1,6 @@
 # ADR-031: The Mac app is stopped again
 
-- **Status:** Accepted (2026-10-18, the owner's decision); partly superseded by [ADR 137](137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md) (2026-11-02): the Mac comes back as a window onto the web page, and `macos/` stays until that works
+- **Status:** Superseded by [ADR 142](142-the-mac-apps-code-is-removed.md) (2026-11-03): `macos/` is removed; accepted 2026-10-18, the owner's decision; partly superseded by [ADR 137](137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md) (2026-11-02): the Mac comes back as a window onto the web page
 - **Owning task:** [#7](https://github.com/Kordal/bot-dot/issues/7)
 
 ## Context

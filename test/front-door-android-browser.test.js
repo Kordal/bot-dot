@@ -1,7 +1,7 @@
 // The front door and the Android app's sign-in in the browser: the app opens the front door's own sign-in page in a
 // Custom Tab, so the browser and the password manager the person uses there (Proton Pass, Bitwarden, Google's) answer
 // the passkey for the site itself. The page hands the sign-in back to the app as a one-time code at
-// botdot://signed-in?code=…, the way the Mac app's sheet does (#469), and only the app holding the secret whose
+// botdot://signed-in?code=… (#469), and only the app holding the secret whose
 // SHA-256 the page carried turns it into its session. Another app on the phone may claim botdot:// and see the code;
 // without the secret it signs nobody in. No FRONT_DOOR_ANDROID_KEYS and no assetlinks.json take part.
 const { test, before, after } = require('node:test');

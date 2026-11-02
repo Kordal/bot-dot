@@ -153,16 +153,13 @@ test('--clean runs the same cleanup without update.applied and prints the four n
   assert.deepEqual(events().at(-1), { actor: 'owner', action: 'update.cleaned', ...FAILED });
 });
 
-test('on a Mac-hosted botdot the cleanup does nothing and writes no event', async t => {
-  // The server knows its platform, and so does the helper: either one is enough.
-  for (const [answer, extra] of [[() => CLEANED, { BOT_DOT_PLATFORM: 'mac' }], [() => null, {}]]) {
-    const { cli, events, asked } = await server(t, answer);
-    const cleaned = await cli('--clean', extra);
-    assert.equal(cleaned.status, 0, cleaned.stderr);
-    assert.deepEqual(JSON.parse(cleaned.stdout), { removed: 0, skipped: 0, failed: 0, bytes: 0 });
-    assert.deepEqual(events(), []);
-    assert.equal(asked.length, extra.BOT_DOT_PLATFORM ? 0 : 1);
-  }
+test('a helper outside Docker cleans nothing, and no event is written', async t => {
+  const { cli, events, asked } = await server(t, () => null);
+  const cleaned = await cli('--clean', {});
+  assert.equal(cleaned.status, 0, cleaned.stderr);
+  assert.deepEqual(JSON.parse(cleaned.stdout), { removed: 0, skipped: 0, failed: 0, bytes: 0 });
+  assert.deepEqual(events(), []);
+  assert.equal(asked.length, 1);
 });
 
 test('--clean refuses to run as anyone but the server, and without its data folder', async t => {

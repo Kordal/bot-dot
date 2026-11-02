@@ -1,6 +1,6 @@
 {
   "about": [
-    "The Mention rules (CONTEXT.md, issue #83), as cases every app's matcher must pass: lib/mentions.js, web, Android, Mac.",
+    "The Mention rules (CONTEXT.md, issue #83), as cases every app's matcher must pass: lib/mentions.js, web, Android.",
     "maxRows: the most suggestion rows shown at once.",
     "shortNames: [name, short name] pairs. Words are joined, each capitalised; only letters, digits, '_' and '-' are kept.",
     "worlds: the bots (the Chief included, as id 'chief'), their jobs and picked skills, and the skill library; account: the Claude account's skills, which '/' also runs (after the library's, minus names the library has) unless the bot's disabledSkills names them (#236). A bot with useSkills false has no skills.",
