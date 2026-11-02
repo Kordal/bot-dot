@@ -49,6 +49,7 @@ import dev.botdot.app.ui.openBeside
 import dev.botdot.app.ui.LocalListToggle
 import dev.botdot.app.ui.ListGrip
 import dev.botdot.app.ui.ListWidth
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -232,7 +233,9 @@ class MainActivity : ComponentActivity() {
                 // The settings panel (a bot's settings, its jobs, the Chief's settings, a group's) belongs to the chat on screen.
                 // With room it stands right of that chat, which stays in use; without, it covers the chat.
                 var panelKept by rememberSaveable(stateSaver = SettingsPanel.Saver) { mutableStateOf<Panel?>(null) }
-                val chat = SettingsPanel.chatOf(route, entry?.arguments?.getString("id"), wide)
+                // The chat open in the sheet over a project's page, while the sheet is up: its panel is that chat's.
+                var dockedChat by remember { mutableStateOf<String?>(null) }
+                val chat = SettingsPanel.chatOf(route, entry?.arguments?.getString("id"), wide, dockedChat)
                 // The list's width, which the owner drags (ListGrip); kept on this device.
                 var listWanted by rememberSaveable { mutableStateOf<Int?>(null) }
                 LaunchedEffect(Unit) { listWanted = app.settings.listWidthNow() }
@@ -480,6 +483,9 @@ class MainActivity : ComponentActivity() {
                         var dockHeight by rememberSaveable { mutableStateOf(ProjectChats.Height.CLOSED) }
                         fun dock(o: ProjectChats.Open) { docked = o.key; dockHeight = ProjectChats.Height.HALF }
                         fun undock(then: () -> Unit = {}) { dockHeight = ProjectChats.Height.CLOSED; then() }
+                        val dockedNow = docked.takeIf { dockHeight != ProjectChats.Height.CLOSED }
+                        SideEffect { dockedChat = dockedNow }
+                        DisposableEffect(Unit) { onDispose { dockedChat = null } }
                         Box(Modifier.fillMaxSize()) {
                             CompanyScreen(app, wide = wide, ways = dev.botdot.app.ui.CompanyWays(
                                 onBot = { dock(ProjectChats.Open(ProjectChats.BOT, it)) },
@@ -497,7 +503,7 @@ class MainActivity : ComponentActivity() {
                                         onNeeds = { undock { nav.navigate("needs") } }, onBot = { dock(ProjectChats.Open(ProjectChats.BOT, it)) }, onScreen = { undock { nav.navigate("screen/$it") } },
                                         onSkills = { undock { nav.navigate("skills") } }, onSignIn = { undock { nav.navigate("settings") { launchSingleTop = true } } },
                                         onFiles = { undock { nav.navigate("files/${UploadedFiles.CHIEF}") } }) { undock() }
-                                    else if (o.kind == ProjectChats.TEAM) GroupChatScreen(app, o.id, onSettings = {}, onNeeds = { undock { nav.navigate("needs") } },
+                                    else if (o.kind == ProjectChats.TEAM) GroupChatScreen(app, o.id, onSettings = { panelKept = SettingsPanel.toggle(panelKept, groupKey(o.id)) }, onNeeds = { undock { nav.navigate("needs") } },
                                         onSignIn = { undock { nav.navigate("settings") { launchSingleTop = true } } }) { undock() }
                                     else {
                                         // Words the floor started for this bot (a standup's Reply).

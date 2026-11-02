@@ -29,6 +29,13 @@ class SettingsPanelTest {
         assertNull(SettingsPanel.chatOf(null, null, wide = true))
     }
 
+    @Test fun onAProjectsPageTheChatIsTheOneInTheSheet() {
+        assertEquals("group:g7", SettingsPanel.chatOf("company", null, wide = false, docked = "team:g7")) // a team's chat opens its group's panel
+        assertEquals("coder", SettingsPanel.chatOf("company", null, wide = false, docked = "bot:coder"))
+        assertEquals("chief", SettingsPanel.chatOf("company", null, wide = true, docked = "chief:latest"))
+        assertNull(SettingsPanel.chatOf("company", null, wide = true)) // the sheet is down
+    }
+
     @Test fun theFigureAndNameOpenAndCloseIt() {
         assertEquals(Panel("b1"), SettingsPanel.toggle(null, "b1"))
         assertNull(SettingsPanel.toggle(Panel("b1"), "b1"))

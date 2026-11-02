@@ -231,7 +231,7 @@ test("web: the group's title opens its panel, and the panel is the group's own",
   assert.equal(Panel.page('group', 'jobs'), 'groupsettings', 'only a bot has jobs');
   assert.deepEqual(next('bot', 'settings', { view: 'group' }), ['group', 'settings'], 'another chat keeps the panel open');
   assert.deepEqual(next('group', 'settings', { gone: true }), ['chief', null], 'a deleted group leaves to the Chief');
-  assert.match(src, /\$\('#group-settings'\)\.onclick = \(\) => \{ if \(!groupById\(state\.groupId\)\?\.team\) setPanel\('toggle'\); \};/); // a team's chat has no panel (#697)
+  assert.match(src, /\$\('#group-settings'\)\.onclick = \(\) => setPanel\('toggle'\);/); // a team's chat opens its panel too
   assert.match(app, /if \(GROUP_NAMES\.includes\(v\) && sub\) state\.groupId = sub;/);
   assert.match(app, /if \(panelPage\(\) === 'groupsettings'\) renderGroupSettings\(\);/);
 });
@@ -275,6 +275,20 @@ test('web: the panel has the name, the members each with a way to take it out, "
   p.state.groups[0].members = ['coder'];
   await p.ctx.changeGroup(p.state.groups[0], { members: [] });
   assert.deepEqual(p.said.toasts, [['A group has at least two bots. Add another, or delete the group.', true]]);
+});
+
+test("web: a team's chat opens the same panel: its members and notes, with nothing that renames it, changes its members or deletes it (#697)", async () => {
+  const p = page();
+  Object.assign(p.state.groups[0], { team: 't1', lead: 'coder', color: '#3b82f6' });
+  const { parts } = panelPage(p);
+  p.ctx.renderGroupSettings();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(parts['#gs-name'].disabled, true, 'its name follows its team');
+  assert.doesNotMatch(parts['#gs-members'].innerHTML, /data-take-out/);
+  assert.match(parts['#gs-members'].innerHTML, /Coder/);
+  assert.equal(parts['#gs-add'].classList.contains('hidden'), true);
+  assert.equal(parts['#gs-delete'].classList.contains('hidden'), true);
+  assert.deepEqual(p.said.calls, [['GET', '/group-chats/g1/notes']], 'its notes are read as any group\'s');
 });
 
 test('web: the panel shows the group\'s notes, decisions first, each changed where it stands, removed by ✕, and added by Enter (ADR 139)', async () => {

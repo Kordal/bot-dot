@@ -7,6 +7,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.saveable.Saver
+import dev.botdot.app.data.ProjectChats
+import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.tr
 
 /**
@@ -28,9 +30,19 @@ object SettingsPanel {
     /** Is there room for the panel beside the chat? [width]: the window's; [listShown]: the list stands beside the chat, [list] wide, and its line with it. */
     fun room(width: Int, listShown: Boolean, list: Int = ListWidth.STANDARD) = width - (if (listShown) list + ListWidth.LINE else 0) >= ROOM
 
-    /** The chat a route shows, null for a screen that is no chat. On a wide screen "home" is the Chief's chat; on a phone, the list. */
-    fun chatOf(route: String?, id: String?, wide: Boolean): String? = when {
+    /**
+     * The chat a route shows, null for a screen that is no chat. On a wide screen "home" is the Chief's chat; on a phone,
+     * the list. On a project's page it is the chat open in the sheet over it ([docked], a [ProjectChats.Open.key]).
+     */
+    fun chatOf(route: String?, id: String?, wide: Boolean, docked: String? = null): String? = when {
         route == null -> null
+        route == "company" -> ProjectChats.of(docked)?.let { o ->
+            when (o.kind) {
+                ProjectChats.BOT -> o.id
+                ProjectChats.TEAM -> groupKey(o.id)
+                else -> CHIEF
+            }
+        }
         route.startsWith("chief") -> CHIEF
         route == "home" -> CHIEF.takeIf { wide }
         route.startsWith("bot/") -> id

@@ -393,11 +393,11 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
             snackbarHost = { SnackbarHost(snack) },
             topBar = {
                 // A team's chat (#697, #705) follows its team in Projects: its faces in a row, the lead first, how many
-                // work, its colour on top, and no panel to rename it or change its members.
+                // work, its colour on top. Its name opens its panel, as a group's does: its members and its notes.
                 if (group?.team != null) Column {
                     Box(Modifier.fillMaxWidth().height(3.dp).background(parseColor(group.color, p.muted)))
                     val (n, at) = Groups.teamCount(group, bots)
-                    ChatBar(null, "idle", group.name, onName = {}, onBack = onBack, nameLabel = group.name, picture = { TeamPicture(Groups.teamFaces(group, bots), group.lead, 26) })
+                    ChatBar(null, "idle", group.name, onName = onSettings, onBack = onBack, nameLabel = group.name, picture = { TeamPicture(Groups.teamFaces(group, bots), group.lead, 26) })
                     // Under its name: how many bots, and how many work now.
                     Text(teamLine(n, at), color = p.muted, fontSize = Type.s12, maxLines = 1, modifier = Modifier.padding(start = 72.dp).offset(y = (-Space.s8)))
                 }
