@@ -485,7 +485,7 @@ private fun GroupDraft(text: String, bot: Bot?, name: String, color: String?) {
         Spacer(Modifier.size(6.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Text(name, color = parseColor(color, p.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
-            TheirBubble { MarkdownText(draftSource(text), copy = false) }
+            TheirBubble { MarkdownText(draftSource(rememberPacedDraft(text)), copy = false) }
         }
     }
 }
