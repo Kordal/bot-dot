@@ -251,7 +251,7 @@ internal val HOME_TILES: String get() = tr("Tiles on home")
  * rows, then how many more.
  */
 @Composable
-internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, onReview: () -> Unit, onAnswer: (String, Boolean) -> Unit) {
+internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, projectOf: (String) -> dev.botdot.app.data.Spaces.Space? = { null }, onReview: () -> Unit, onAnswer: (String, Boolean) -> Unit) {
     val p = LocalPaper.current
     val shape = Radius.card
     val chief = chiefNamed()
@@ -266,6 +266,8 @@ internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, onReview: () 
             Box(Modifier.size(6.dp).clip(CircleShape).background(p.warn)) // what was the tinted frame (#723)
             Spacer(Modifier.size(Space.s8))
             Text(w.text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            // An ask from a project's bot, on Home (#841): that project's small square.
+            w.bot?.let(projectOf)?.let { s -> Box(Modifier.padding(start = Space.s8).semantics { contentDescription = s.name }) { SpaceSquare(s.name, s.color, 18.dp) } }
             w.permission?.let { id ->
                 Spacer(Modifier.size(6.dp))
                 Text(tr("No"), color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.clip(Radius.card).clickable { onAnswer(id, false) }.padding(horizontal = Space.s12, vertical = Space.s8))

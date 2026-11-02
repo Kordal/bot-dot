@@ -61,4 +61,26 @@ object Spaces {
     }
 
     const val CHIEF = "chief/latest"
+
+    // ---------- each bot in one space (#841) ----------
+
+    /** The bots in a team of one of [projects]: they are drawn in that project, not on Home. */
+    fun teamBots(projects: List<Company>): Set<String> = projects.flatMap { c -> c.teams.flatMap { it.bots } }.toSet()
+
+    /** Home's bots: all but those in a project's team. One that leaves its team is back in its own category. */
+    fun homeBots(bots: List<Bot>, projects: List<Company>): List<Bot> = teamBots(projects).let { t -> bots.filter { it.id !in t } }
+
+    /** Home's groups: all but the team chats of [projects]' teams. */
+    fun homeGroups(groups: List<Group>, projects: List<Company>): List<Group> {
+        val teams = projects.flatMap { c -> c.teams.map { it.id } }.toSet()
+        return groups.filter { it.team == null || it.team !in teams }
+    }
+
+    /** The project each team bot is in, as the rail draws it: Home's Needs you marks a project's ask with its square. */
+    fun spaceOfBot(projects: List<Company>): Map<String, Space> = buildMap {
+        for (c in projects) { val s = Space(c.id, ManyProjects.nameOf(c), c.color ?: ManyProjects.DEFAULT_COLOR, 0); for (t in c.teams) for (b in t.bots) putIfAbsent(b, s) }
+    }
+
+    /** A project's Needs you: what waits about one of its team bots. Home lists all of it. */
+    fun needsIn(project: Company, waiting: List<Waiting>): List<Waiting> = teamBots(listOf(project)).let { t -> waiting.filter { it.bot != null && it.bot in t } }
 }

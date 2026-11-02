@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -94,14 +96,12 @@ internal class CompanyWays(
 private val GOLD = Color(0xFFE8B44A)
 
 /**
- * The Company's home on Android (#675; web: public/company-home.js): the office floor in one column, as the phone's
- * "Big teams" mockup has it. The header (its name, "Day N of 90") and the days 30, 60 and 90 on a line; the check-in
- * that waits; the objectives as the owner picked under "Show as" ([Goals], #690; on an older server the whiteboard in
- * the floor); the floor (a room per team with the lead's crown and the team's count, desks for those that work or ask,
- * a bench for the idle ones, then the Chief's glass office, the bots in no team, the bot the Chief suggests, New team,
- * the Calendar tile); then the To-do panel ([TodoPanel]: the week's plan, the standup,
- * what waits, the project's items, Add a task, the decisions). A
- * room opens its team as a sheet, with Make lead. The rules of who sits where are [CompanyFloor]'s.
+ * A project's page on Android (#675, #841; web: public/company-home.js), the same order as Home's: the header (its
+ * name, "Day N of 90"), the project's own Needs you, its board (the days 30, 60 and 90, the check-in that waits, the
+ * objectives as the owner picked under "Show as" ([Goals], #690), the cards, the bot the Chief suggests, New team,
+ * the Calendar tile, the To-do panel ([TodoPanel])), then one row of keys per team ([TeamKeys]). The team's name
+ * opens its chat, held it opens the team as a sheet, with Make lead; a key opens its bot's chat. The Chief has no
+ * key here: it is Home's.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,7 +110,6 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     val bots = ui.bots.collectAsState().value.orEmpty()
     val waiting by ui.app.store.waiting.collectAsState(initial = emptyList())
     val lines by ui.app.store.lines.lines.collectAsState()
-    val chief by ui.app.store.chief.value.collectAsState()
     val server by ui.app.store.version.value.collectAsState()
     val features = server?.features.orEmpty()
     val info = remember(bots, waiting) {
@@ -121,7 +120,6 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             working = { id -> byId[id]?.running == true },
         )
     }
-    val floor = remember(c, bots, info) { CompanyFloor.floor(c, bots, info) }
     // Each team's chat (#697): its name opens it, on a botdot that has them.
     val groups by ui.app.store.groups.value.collectAsState()
     val teamChat: (String) -> (() -> Unit)? = { id ->
@@ -142,6 +140,14 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             c.day?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(start = Space.s12).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
+        // What waits in this project only (#841): its team bots' asks, answered here as on Home.
+        val here = remember(c, waiting) { dev.botdot.app.data.Spaces.needsIn(c, waiting) }
+        if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onAnswer = { id, yes ->
+            ui.scope.launch {
+                runCatching { (ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }.onFailure { ui.tell(it.message ?: tr("Couldn't answer")) }
+                ui.app.store.needs.refresh()
+            }
+        })
         // The owner's arrangement (#784): every tile where it was put, on a canvas scaled to the screen.
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
@@ -155,8 +161,6 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                     } })
                 }
                 if (on("teams")) {
-                    floor.rooms.forEach { r -> add(Tile("room:${r.team.id}") { m -> Box(m) { TeamRoom(r, here = teamOpen == r.team.id, line = { lineOf(it) }, onBot = ways.onBot, onChat = teamChat(r.team.id)) { teamOpen = r.team.id } } }) }
-                    add(Tile("chief") { m -> Box(m) { ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief) } })
                     c.suggestion?.let { sg -> add(Tile("suggest") { m -> Box(m) { SuggestedCard(ui, c, sg) } }) }
                     add(Tile("new-team") { m -> Box(m) { NewTeam(ui, c) } })
                 }
@@ -182,8 +186,6 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             // The cards made by Claude, at the top of the floor (#776).
             if (dev.botdot.app.data.ProjectCards.shows(features, c)) ProjectCardsRow(ui, c, dev.botdot.app.data.ProjectBoard.missing(features, c))
             if (on("teams")) {
-                floor.rooms.forEach { r -> TeamRoom(r, here = teamOpen == r.team.id, line = { lineOf(it) }, onBot = ways.onBot, onChat = teamChat(r.team.id)) { teamOpen = r.team.id } }
-                ChiefOffice(busy = chief?.busy == true, line = lines.entries.firstOrNull { it.key.startsWith("chief") }?.value.takeIf { chief?.busy == true }, onClick = ways.onChief)
                 c.suggestion?.let { SuggestedCard(ui, c, it) }
                 NewTeam(ui, c)
             }
@@ -192,8 +194,10 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         if (on("todo")) TodoPanel(ui, c, bots, waiting, ways, features)
         }
         }
+        // Its teams' keys (#841), in place of the floor's rooms and desks.
+        TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot) { teamOpen = it }
     }
-    val team = teamOpen?.takeIf { on("teams") }?.let { id -> c.teams.firstOrNull { it.id == id } }
+    val team = teamOpen?.let { id -> c.teams.firstOrNull { it.id == id } }
     if (team != null) ModalBottomSheet(onDismissRequest = { teamOpen = null }, containerColor = p.panel) {
         TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
     }
@@ -353,83 +357,6 @@ private fun Kpi(o: Objective, modifier: Modifier) {
     }
 }
 
-/** The Chief of Staff in a small glass office: its desk, its line while it replies. */
-@Composable
-private fun ChiefOffice(busy: Boolean, line: String?, onClick: () -> Unit) {
-    val p = LocalPaper.current
-    val glass = Color(0xFF378ADD)
-    val chief = chiefNamed()
-    val shape = Radius.card
-    Box(Modifier.fillMaxWidth().clip(shape).background(glass.copy(alpha = 0.08f)).border(1.dp, glass.copy(alpha = 0.45f), shape).clickable(onClickLabel = chief.name, onClick = onClick).padding(vertical = Space.s12),
-        contentAlignment = Alignment.Center) {
-        DeskFigure(chief.color, if (busy) "working" else "idle", chief.outfit, on = busy, lead = false, crown = false, over = if (busy) OpeningLine.status(line, working = true) else null, name = chief.name)
-    }
-}
-
-/** A team's room: its name and size, the lead at the head with the crown and the team's count, desks, the bench. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TeamRoom(r: CompanyFloor.Room, here: Boolean, line: (Bot) -> String, onBot: (String) -> Unit, onChat: (() -> Unit)?, onOpen: () -> Unit) {
-    val p = LocalPaper.current
-    val color = parseColor(r.team.color, p.muted)
-    val shape = Radius.card
-    Column(Modifier.fillMaxWidth().clip(shape).background(p.bg).border(1.dp, if (here) color.copy(alpha = 0.7f) else p.line2, shape).clickable(onClickLabel = r.team.name, onClick = onOpen).padding(Space.s12),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Dot(r.team.color)
-            // The team's name opens its chat (#697, #705).
-            Text(r.team.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                textDecoration = if (onChat != null) TextDecoration.Underline else null,
-                modifier = Modifier.padding(start = Space.s4).weight(1f, fill = false).clip(Radius.small)
-                    .then(if (onChat != null) Modifier.clickable(onClickLabel = tr("Team chat"), onClick = onChat) else Modifier).padding(horizontal = Space.s4, vertical = 2.dp))
-            Text(r.size.toString(), color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(start = Space.s8))
-        }
-        Desk(r.lead.bot, r.lead.seat, count = r.count, line = line(r.lead.bot), lead = true, crown = !r.solo) { onBot(r.lead.bot.id) }
-        if (r.desks.isNotEmpty()) FlowRowCentered { r.desks.forEach { s -> Desk(s.bot, s.seat, line = line(s.bot)) { onBot(s.bot.id) } } }
-        if (r.bench.isNotEmpty()) FlowRow(Modifier.clip(Radius.pill).background(p.sunk).padding(horizontal = Space.s8, vertical = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
-            r.bench.forEach { s ->
-                Box(Modifier.clip(CircleShape).clickable(onClickLabel = s.bot.name) { onBot(s.bot.id) }.semantics { contentDescription = "${s.bot.name}, ${line(s.bot)}" }) {
-                    BotFigure(s.bot.color, s.bot.state, 28, s.bot.outfit)
-                }
-            }
-        }
-    }
-}
-
-/** A bot's desk: what is over it (the team's count, "!" while it asks, its line while it works), its table lit while it works or asks, its head and name. */
-@Composable
-private fun Desk(b: Bot, seat: CompanyFloor.Seat, count: Int = 0, line: String, lead: Boolean = false, crown: Boolean = false, onClick: () -> Unit) {
-    val over = when {
-        count > 0 -> count.toString()
-        seat == CompanyFloor.Seat.ASKS -> "!"
-        b.running -> line.ifBlank { "…" }
-        else -> null
-    }
-    Box(Modifier.clip(Radius.card).clickable(onClickLabel = b.name, onClick = onClick).semantics { contentDescription = "${b.name}, $line" }) {
-        DeskFigure(b.color, b.state, b.outfit, on = seat != CompanyFloor.Seat.IDLE, lead = lead, crown = crown, over = over, strong = count > 0 || seat == CompanyFloor.Seat.ASKS, name = b.name)
-    }
-}
-
-@Composable
-private fun DeskFigure(color: String?, state: String, outfit: kotlinx.serialization.json.JsonElement?, on: Boolean, lead: Boolean, crown: Boolean, over: String?, strong: Boolean = false, name: String) {
-    val p = LocalPaper.current
-    val c = parseColor(color, p.muted)
-    val table: Dp = if (lead) 104.dp else 76.dp
-    val head = if (lead) 44 else 36
-    Column(Modifier.width(table + 16.dp).padding(vertical = Space.s4), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.height(26.dp), contentAlignment = Alignment.BottomCenter) { if (over != null) Bubble(over, strong) }
-        Box(Modifier.padding(top = Space.s4).width(table).height(if (lead) 30.dp else 26.dp).clip(Radius.small).background(p.sunk).border(1.dp, p.line2, Radius.small),
-            contentAlignment = Alignment.TopCenter) {
-            Box(Modifier.padding(top = Space.s8).width(table * 0.55f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(if (on) c else p.line2))
-        }
-        Box(Modifier.offset(y = (-10).dp)) {
-            BotFigure(color, state, head, outfit)
-            if (crown) Crown(Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-4).dp))
-        }
-        Text(name, color = if (on) p.text else p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.offset(y = (-6).dp))
-    }
-}
-
 /** The lead's crown: the web page's shape, in gold. */
 @Composable
 internal fun Crown(modifier: Modifier = Modifier) {
@@ -445,22 +372,8 @@ internal fun Crown(modifier: Modifier = Modifier) {
     }
 }
 
-/** What is over a desk: a count or "!" in white, or a working line in a quiet pill. */
-@Composable
-private fun Bubble(text: String, strong: Boolean = false) {
-    val p = LocalPaper.current
-    Text(text, color = if (strong) p.inkText else p.muted, fontSize = Type.s12, fontWeight = if (strong) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.widthIn(max = 150.dp).clip(Radius.pill).background(if (strong) p.ink else p.sunk).border(1.dp, if (strong) p.ink else p.line2, Radius.pill)
-            .padding(horizontal = Space.s8, vertical = Space.s4))
-}
-
 @Composable
 internal fun Dot(color: String?) = Box(Modifier.size(8.dp).clip(CircleShape).background(parseColor(color, LocalPaper.current.muted)))
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun FlowRowCentered(content: @Composable () -> Unit) =
-    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s4, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(Space.s4)) { content() }
 
 /** The bot the Chief suggests: a dashed card in the colour of the team it would join, Add and dismiss. */
 @Composable
@@ -574,6 +487,40 @@ private fun Reports(ui: CompanyUi, team: CompanyTeam, bots: List<Bot>) {
         Column(Modifier.weight(1f).padding(start = if (by != null) Space.s12 else 0.dp)) {
             Text(r.text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20)
             Text(shortTime(r.at), color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4))
+        }
+    }
+}
+
+/** The tag of a team's row of keys (#841). */
+internal const val TEAM_KEYS = "team-keys"
+
+/**
+ * One row per team (#841, C-2, C-5): the team's name with its faces as a chip, which opens the team chat ([chatOf];
+ * held, or with no chat, the team's sheet: [onTeam]), then its bots as keys, the lead first with the crown. A key
+ * opens that bot's chat. A team with none of its bots left is not shown.
+ */
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, chatOf: (String) -> (() -> Unit)?, onBot: (String) -> Unit, onTeam: (String) -> Unit) {
+    val p = LocalPaper.current
+    for (branch in dev.botdot.app.data.ManyProjects.branches(c, bots)) {
+        val t = branch.team
+        val chat = chatOf(t.id)
+        Column(Modifier.fillMaxWidth().testTag(TEAM_KEYS), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            Row(Modifier.clip(Radius.pill).background(p.sunk)
+                .combinedClickable(onClickLabel = if (chat != null) tr("Team chat") else t.name, onLongClickLabel = t.name, onLongClick = { onTeam(t.id) }, onClick = { chat?.invoke() ?: onTeam(t.id) })
+                .padding(start = Space.s8, end = Space.s12, top = Space.s4, bottom = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                TeamPicture(branch.bots.take(3), null, 22)
+                Text(t.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8))
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                branch.bots.forEach { b ->
+                    val asks = info.asks(b.id) > 0
+                    val look = KeyLook(b.name, line(b), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = asks,
+                        status = Keypad.status(b.running, needs = asks, unread = b.unread, runs = b.runningCount))
+                    TeamKey(look, crown = b.id == t.lead && branch.bots.size > 1, wide = wide) { onBot(b.id) }
+                }
+            }
         }
     }
 }
