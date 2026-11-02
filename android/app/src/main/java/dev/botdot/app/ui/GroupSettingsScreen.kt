@@ -1,6 +1,8 @@
 package dev.botdot.app.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,6 +18,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,8 +50,13 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.GROUP_MAX
 import dev.botdot.app.data.Group
+import dev.botdot.app.data.GroupNote
+import dev.botdot.app.data.GroupNotes
+import dev.botdot.app.data.str
 import dev.botdot.app.data.Groups
 import dev.botdot.app.data.tr
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -60,7 +69,7 @@ internal fun groupName(typed: String): String = typed.replace(SPACES, " ").trim(
 
 /**
  * A group's settings, opened from its chat's title: its name, its members each with a way to take it out, "Add a
- * bot", and "Delete this group", which says that it deletes no bot. Every change saves by itself, and what the
+ * bot", its notes (ADR 139), and "Delete this group", which says that it deletes no bot. Every change saves by itself, and what the
  * botdot server refuses is said in its words.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,6 +81,7 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
     fun tell(msg: String) { scope.launch { snack.showSnackbar(msg) } }
     val groupsNow by app.store.groups.value.collectAsState()
     val botsNow by app.store.bots.value.collectAsState()
+    val versionNow by app.store.version.value.collectAsState()
     val bots = botsNow.orEmpty()
     val group = groupsNow?.firstOrNull { it.id == groupId }
     var adding by remember { mutableStateOf(false) }
@@ -134,6 +144,7 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                 // Nothing to add: the group is full, or every bot is in it.
                 if (Groups.addable(g, bots).isNotEmpty()) SecondaryButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
             }
+            if (versionNow?.features?.contains(GroupNotes.FEATURE) == true) GroupNotesSection(app, g.id, ::tell)
             SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete this group"), color = p.err) }
         }
     }
@@ -163,4 +174,80 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
         },
         dismissButton = { TextButton(onClick = { askDelete = false }) { Text(tr("Keep"), color = p.text) } },
     )
+}
+
+/**
+ * A group's notes (ADR 139): what was settled in its chat, which every member's turn reads above the chat. Each
+ * row is its kind, which a tap changes, its line, which a tap opens to change, and ✕. The last row adds one. Read
+ * again when the feed says they changed.
+ */
+@Composable
+private fun GroupNotesSection(app: BotDotApp, groupId: String, tell: (String) -> Unit) {
+    val p = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    var notes by remember(groupId) { mutableStateOf<List<GroupNote>>(emptyList()) }
+    var editing by remember { mutableStateOf<GroupNote?>(null) }
+    fun call(block: suspend (dev.botdot.app.data.Api) -> List<GroupNote>) = scope.launch {
+        runCatching { block(app.api.value ?: error(tr("Not connected to botdot"))) }.onSuccess { notes = it }.onError { tell(it.message ?: tr("Couldn't save")) }
+    }
+    LaunchedEffect(groupId) {
+        app.api.filterNotNull().first()
+        runCatching { app.api.value?.groupNotes(groupId) }.getOrNull()?.let { notes = it }
+        app.feed.events.collect { ev ->
+            if (ev.type == "group_notes" && ev.data.str("groupId") == groupId) runCatching { app.api.value?.groupNotes(groupId) }.getOrNull()?.let { notes = it }
+        }
+    }
+    Section(tr("Notes")) {
+        notes.forEach { n ->
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                NoteKind(n.kind) { k -> if (k != n.kind) call { it.changeGroupNote(groupId, n.id, kind = k) } }
+                Text(n.text, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).clickable { editing = n }.padding(vertical = Space.s8))
+                IconButton(onClick = { call { it.removeGroupNote(groupId, n.id) } }) {
+                    Icon(Icons.Filled.Close, contentDescription = tr("Remove"), tint = p.muted, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+        var kind by remember { mutableStateOf("decision") }
+        var text by remember { mutableStateOf("") }
+        val focus = LocalFocusManager.current
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            NoteKind(kind) { kind = it }
+            Field(text, { text = it.take(GroupNotes.TEXT_MAX) }, placeholder = { Text(tr("Add a note")) }, singleLine = true, modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = {
+                    val t = GroupNotes.clean(text)
+                    if (t.isNotEmpty()) { call { it.addGroupNote(groupId, kind, t) }; text = "" }
+                    focus.clearFocus()
+                }))
+        }
+    }
+    editing?.let { n ->
+        var text by remember(n.id) { mutableStateOf(n.text) }
+        AlertDialog(
+            onDismissRequest = { editing = null },
+            title = { Text(GroupNotes.kindWord(n.kind)) },
+            text = { Field(text, { text = it.take(GroupNotes.TEXT_MAX) }, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = {
+                TextButton(onClick = {
+                    editing = null
+                    val t = GroupNotes.clean(text)
+                    if (t.isEmpty()) call { it.removeGroupNote(groupId, n.id) } else if (t != n.text) call { it.changeGroupNote(groupId, n.id, text = t) }
+                }) { Text(tr("Save"), color = p.text) }
+            },
+            dismissButton = { TextButton(onClick = { editing = null }) { Text(tr("Cancel"), color = p.text) } },
+        )
+    }
+}
+
+/** A note's kind, which a tap opens to choose another. */
+@Composable
+private fun NoteKind(kind: String, onPick: (String) -> Unit) {
+    val p = LocalPaper.current
+    var open by remember { mutableStateOf(false) }
+    Box {
+        TextButton(onClick = { open = true }) { Text(GroupNotes.kindWord(kind), color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1) }
+        DropdownMenu(open, { open = false }, containerColor = p.panel) {
+            GroupNotes.KINDS.forEach { k -> DropdownMenuItem({ Text(GroupNotes.kindWord(k), color = p.text) }, { open = false; onPick(k) }) }
+        }
+    }
 }

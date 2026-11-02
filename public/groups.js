@@ -227,6 +227,10 @@ function renderGroupSettings() {
           <div class="bs-group" id="gs-members"></div>
           <button type="button" class="bs-row bs-link" id="gs-add"><b>${tr('Add a bot')}</b><span class="bs-chev" aria-hidden="true">›</span></button>
         </div>
+        <div class="set-list notes-list" aria-label="${esc(tr('Notes'))}">
+          <div class="bs-group" id="gs-notes"></div>
+          <div class="bs-row note-row">${noteKindSelect('decision', 'gs-note-kind')}<input type="text" id="gs-note-text" maxlength="${NOTE_MAX}" autocomplete="off" placeholder="${esc(tr('Add a note'))}" aria-label="${esc(tr('Add a note'))}"></div>
+        </div>
         <div class="set-list"><button type="button" class="bs-row bs-link bs-danger" id="gs-delete"><b>${tr('Delete this group')}</b></button></div>
       </div>`;
     const name = $('#gs-name', root);
@@ -251,6 +255,16 @@ function renderGroupSettings() {
         done: async (picked) => { await api(`/group-chats/${encodeURIComponent(now.id)}`, { method: 'PUT', body: { members: [...now.members, ...picked] } }); await refresh(); },
       });
     };
+    const add = $('#gs-note-text', root);
+    add.onkeydown = async (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const text = add.value.replace(/\s+/g, ' ').trim();
+      const id = root.dataset.group;
+      if (!text || !id) return;
+      try { const d = await api(`/group-chats/${encodeURIComponent(id)}/notes`, { method: 'POST', body: { kind: $('#gs-note-kind', root).value, text } }); add.value = ''; takeGroupNotes(id, d.items); } catch (err) { toast(err.message, true); }
+    };
+    loadGroupNotes(g.id);
     $('#gs-delete', root).onclick = async () => {
       const now = groupById(root.dataset.group);
       if (!now || !confirm(tr('Delete the group {name}?\n\nIts chat is erased. No bot is deleted: each keeps its own chat.', { name: now.name }))) return;
@@ -279,6 +293,56 @@ function renderGroupSettings() {
   $('#gs-add', root).classList.toggle('hidden', !!g.team || g.members.length >= GROUP_MAX || !state.bots.some((b) => !g.members.includes(b.id)));
   $('#gs-delete', root).classList.toggle('hidden', !!g.team);
   name.disabled = !!g.team;
+}
+
+// ---------- a group's notes (ADR 139) ----------
+
+// What was settled in the group's chat, which every member's turn reads above the chat: in its panel, under its
+// members. Each note is its kind and its line, changed where it stands (saved as the box is left) and removed by ✕.
+// A note the owner wrote or changed stays as they wrote it; the others botdot and the members keep.
+const NOTE_MAX = 240;
+const NOTE_KINDS = ['decision', 'open', 'fact'];
+const noteKindWord = (k) => ({ decision: tr('Decision'), open: tr('To do'), fact: tr('Fact') })[k] || k;
+const noteKindSelect = (kind, id = '') => `<select class="note-kind"${id ? ` id="${id}"` : ''} aria-label="${esc(tr('Kind'))}">${NOTE_KINDS.map((k) => `<option value="${k}"${k === kind ? ' selected' : ''}>${esc(noteKindWord(k))}</option>`).join('')}</select>`;
+let groupNotes = { id: null, items: [] };
+const noteOrder = (items) => NOTE_KINDS.flatMap((k) => items.filter((i) => i.kind === k).sort((a, b) => String(a.at).localeCompare(String(b.at))));
+async function loadGroupNotes(id) {
+  try { takeGroupNotes(id, (await api(`/group-chats/${encodeURIComponent(id)}/notes`)).items); } catch { /* the panel shows what it had */ }
+}
+function takeGroupNotes(id, items) {
+  groupNotes = { id, items: Array.isArray(items) ? items : [] };
+  drawGroupNotes();
+}
+function drawGroupNotes() {
+  const root = $('#view-groupsettings');
+  const box = root && $('#gs-notes', root);
+  if (!box || root.dataset.group !== groupNotes.id) return;
+  if (box.contains?.(document.activeElement)) return; // not under the cursor: it is drawn again as the box is left
+  const id = groupNotes.id;
+  const save = async (noteId, body) => {
+    try { takeGroupNotes(id, (await api(`/group-chats/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`, { method: body ? 'PUT' : 'DELETE', body })).items); } catch (e) { toast(e.message, true); loadGroupNotes(id); }
+  };
+  box.innerHTML = noteOrder(groupNotes.items).map((n) => `
+    <div class="bs-row note-row" data-note="${esc(n.id)}">${noteKindSelect(n.kind)}<textarea rows="1" maxlength="${NOTE_MAX}" aria-label="${esc(noteKindWord(n.kind))}">${esc(n.text)}</textarea>
+      <button type="button" class="icon-btn sm" data-note-off title="${esc(tr('Remove'))}" aria-label="${esc(tr('Remove'))}">✕</button></div>`).join('');
+  $$('[data-note]', box).forEach((row) => {
+    const noteId = row.dataset.note;
+    const was = groupNotes.items.find((n) => n.id === noteId);
+    // A note is one line, shown whole: its box grows with it, and Enter ends it.
+    const input = $('textarea', row);
+    const fit = () => { if (input.style) { input.style.height = 'auto'; input.style.height = `${input.scrollHeight}px`; } };
+    fit();
+    input.oninput = fit;
+    input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } };
+    input.onchange = () => {
+      const text = input.value.replace(/\s+/g, ' ').trim();
+      if (!text) save(noteId, null);
+      else if (text !== was?.text) save(noteId, { text });
+    };
+    input.onblur = () => setTimeout(drawGroupNotes, 0);
+    $('select', row).onchange = (e) => save(noteId, { kind: e.target.value });
+    $('[data-note-off]', row).onclick = () => save(noteId, null);
+  });
 }
 
 // ---------- a group's chat ----------
@@ -810,6 +874,8 @@ function followGroups(es) {
   on('group_message_gone', (d) => {
     if (open(d.groupId)?.items.delete(d.id)) redrawGroup(d.groupId);
   });
+  // Its notes changed (ADR 139): the panel that shows them reads them again.
+  on('group_notes', (d) => { if (groupNotes.id === d.groupId) loadGroupNotes(d.groupId); });
   // The group's open question, and its stopped line.
   on('group_asks', (d) => {
     const g = groupById(d.groupId);
