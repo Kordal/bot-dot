@@ -140,7 +140,9 @@ function drawContacts() {
   // The rows are the keypad's pages (keypad.js): the pinned bots and groups right below the Chief, in the order you
   // gave them; the rest by category.
   const row = (x) => (x.members ? groupContactHTML(x) : contact(x));
-  const pages = Keypad.pages(matching, chats);
+  // Home's bots and chats (#838); a search finds every one.
+  const home = q ? null : homeKeys();
+  const pages = Keypad.pages(home ? matching.filter((b) => home.bots.includes(b)) : matching, home ? chats.filter((g) => home.groups.includes(g)) : chats);
   top.push(...(pages.find((p) => p.kind === 'pinned')?.keys || []).map(row));
   items.push(...top);
   if (!q && typeof roomsRowHTML === 'function') items.push(roomsRowHTML()); // shared rooms, when they are on (rooms.js)
@@ -192,7 +194,11 @@ function drawContacts() {
 // The Chief's row and its key (Esc): the chat with new replies, else the one its preview shows.
 const openChief = () => openChiefChat((state.chats.find((c) => Unread.count(c)) || state.chats[0])?.id || null);
 
-const keypadPages = () => Keypad.pages(state.bots, state.groups);
+// The projects, from a server with `company` (company.js loads them): each bot is in one space (#838), so Home's
+// keys and list leave out the projects' team bots and team chats (Keypad.home).
+const spaceProjects = () => ((state.features || []).includes('company') ? state.projects || (state.company ? [state.company] : []) : []);
+const homeKeys = () => Keypad.home(state.bots, state.groups, spaceProjects());
+const keypadPages = () => { const h = homeKeys(); return Keypad.pages(h.bots, h.groups); };
 // A page's name as shown: Other's in the page's language, a category's as the owner wrote it.
 const pageName = (p) => (p.kind === 'other' ? tr('Other') : p.name);
 // A category's page folds as the list's category does (#171), with the list's folded names: folding it in one folds it
@@ -397,34 +403,47 @@ function drawKeypadNeeds(items, open, waits = items) {
     ? `<button type="button" class="kp-no" data-kp-no="${i}">${tr('No')}</button><button type="button" class="kp-allow" data-kp-yes="${i}">${tr('Allow')}</button>`
     : `<button type="button" class="kp-allow" data-kp-open="${i}">${tr('Review')}</button>`);
   const more = items.length - shown.length;
-  const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></span>${acts(x, i)}</div>`).join('')
+  // An ask from a project's bot carries that project's small square on Home (#838).
+  const of = Keypad.projectOf(spaceProjects());
+  const square = (x) => { const p = of.get(x.bot?.id); return p ? `<span class="kp-proj" style="--c:${esc(p.color || '#8e7cff')}" title="${esc(p.name || p.start || '')}">${esc((p.name || p.start || '?').charAt(0).toUpperCase())}</span>` : ''; };
+  const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></span>${square(x)}${acts(x, i)}</div>`).join('')
     + (more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : '');
   for (const id of ['#kp-needs', '#kp-phone-needs']) {
     const el = $(id);
     if (!el) continue;
     el.classList.toggle('hidden', !items.length);
     el.innerHTML = html;
-    $$('[data-kp-yes]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpYes)], true, b)));
-    $$('[data-kp-no]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpNo)], false, b)));
-    $$('[data-kp-open]', el).forEach((b) => (b.onclick = () => open(shown[Number(b.dataset.kpOpen)])));
-    $$('[data-kp-more]', el).forEach((b) => (b.onclick = () => setView('needs')));
+    wireNeedRows(el, shown, open);
   }
   const waiting = needsBots(waits);
   if ([...waiting].join() !== [...keysWaiting].join()) { keysWaiting = waiting; renderContacts(); }
 }
-// Digits, Esc and Ctrl+K (Keypad.press), while the keypad is shown and no dialog is open.
+// A Needs you row's buttons (drawKeypadNeeds, and a project's own Needs you in company-home.js): No and Allow
+// answer it, Review opens it, "+N more" opens the Needs you page.
+function wireNeedRows(el, shown, open) {
+  $$('[data-kp-yes]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpYes)], true, b)));
+  $$('[data-kp-no]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpNo)], false, b)));
+  $$('[data-kp-open]', el).forEach((b) => (b.onclick = () => open(shown[Number(b.dataset.kpOpen)])));
+  $$('[data-kp-more]', el).forEach((b) => (b.onclick = () => setView('needs')));
+}
+// Digits, Esc and Ctrl+K (Keypad.press), while the keypad or a project's page (#838) is shown and no dialog is open.
+// On a project's page the digits open its keys in reading order, Esc the Chief in its chat column, and Ctrl+K the
+// search on Home.
 function onKeypadKey(e) {
-  if (e.defaultPrevented || e.isComposing || $('#modal')?.open || !keypadShown()) return;
+  if (e.defaultPrevented || e.isComposing || $('#modal')?.open) return;
+  const project = typeof Company !== 'undefined' && Company.spaceKeys ? Company.spaceKeys() : null;
+  if (!project && !keypadShown()) return;
   const t = e.target;
   const inField = !!(t?.isContentEditable || t?.matches?.('input, textarea, select'));
-  const pages = keypadPages();
-  const digits = keypadDigits(pages, keypadKeys(pages));
+  let digits;
+  if (project) digits = new Map(project.slice(0, 9).map((x, i) => [i + 1, x]));
+  else { const pages = keypadPages(); digits = keypadDigits(pages, keypadKeys(pages)); }
   const act = Keypad.press({ key: e.key, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey, shift: e.shiftKey, inField }, { digits });
   if (!act || (act.action === 'chief' && state.view === 'chief')) return;
   e.preventDefault();
   if (act.action === 'open') openKey(digits.get(act.digit));
-  else if (act.action === 'chief') openChief();
-  else if (act.action === 'search') openSearch();
+  else if (act.action === 'chief') (project && typeof Dock !== 'undefined' ? Dock.openChief() : openChief());
+  else if (act.action === 'search') { if (project) Company.enter('home'); openSearch(); }
 }
 
 // ---------- the search field: an icon in the top bar (#635) ----------

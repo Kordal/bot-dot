@@ -3215,8 +3215,8 @@ dialog.co-delete .modal-foot { border-top: 0; }
 @media (min-width: 1001px) {
   .app.has-rail .rail { position: relative; z-index: 2; flex: none; width: 76px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-12); padding: var(--sp-16) 0; background: var(--bg); border-right: 1px solid var(--line); overflow-y: auto; scrollbar-width: none; }
   .app.has-rail .place-switch { display: none; }
-  /* A project keeps its tree beside the rail until each space draws its own keys (#838). */
-  .app.has-rail.place-company .company-side { padding-top: var(--sp-16); }
+  /* A project draws its own keys (#838): no tree beside the rail. */
+  .app.has-rail.place-company .sidebar { display: none; }
   .app.has-rail:not(.place-company) .side-head { width: auto; }
   /* The top bar keeps only what stands in it for a while: a notice, or the open search field. */
   .app.has-rail .sidebar:not(.search-open):not(.searching) .side-head:not(.noted) { display: none; }
@@ -3225,7 +3225,7 @@ dialog.co-delete .modal-foot { border-top: 0; }
   .app.has-rail .keypad { padding-top: var(--sp-24); }
   /* The chat column is as wide on Home as in a project: the same edge, nothing moves on a change of space. */
   .app.has-rail:not(.place-company) .main { max-width: calc(100vw - 560px); }
-  .app.has-rail.place-company .main { --proj-chat-w: max(400px, min(var(--chat-w, clamp(400px, 38vw, 560px)), 100vw - 560px, 100vw - 76px - var(--rail-w) - 360px)); }
+  .app.has-rail.place-company .main { --proj-chat-w: max(400px, min(var(--chat-w, clamp(400px, 38vw, 560px)), 100vw - 560px)); }
 }
 .rail > * { position: relative; flex: none; }
 .rail-home, .rail-sq, .rail-add { width: 44px; height: 44px; border-radius: var(--r-14); display: grid; place-items: center; }
@@ -3249,3 +3249,27 @@ dialog.co-delete .modal-foot { border-top: 0; }
 @media (min-width: 1001px) {
   .app.has-rail.place-company #chat-row .away-line:not(.hidden), .app.has-rail.place-company #chat-row .claude-line:not(.hidden) { display: block; }
 }
+
+/* ---------- a space's page (#838, company-home.js teamsHTML; ADR 132) ----------
+   A project's own Needs you under its header, and under its board one row per team: the team's name with its stacked
+   faces (its chat), ⋯ (the team beside the board), then its bots' keys with a crown on the lead. On Home an ask from a
+   project's bot carries the project's small square. */
+.kp-proj { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: var(--r-8); background: var(--c); color: #fff; font-size: var(--fs-12); font-weight: 600; }
+.sp-needs { margin-bottom: var(--sp-16); }
+.sp-teams { display: flex; flex-direction: column; gap: var(--sp-16); margin-top: var(--sp-24); }
+.sp-team-head { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-8); }
+.sp-chip { display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 40px; padding: var(--sp-4) var(--sp-12) var(--sp-4) var(--sp-8); border: 0; border-radius: var(--r-14); background: var(--raise-2); color: var(--text); font: inherit; font-size: var(--fs-14); font-weight: 600; cursor: pointer; }
+.sp-chip:hover { background: var(--fill); }
+.sp-chip.here { box-shadow: inset 0 0 0 1px var(--text); }
+.sp-faces { display: inline-flex; }
+.sp-faces > i { display: inline-flex; }
+.sp-faces > i + i { margin-left: calc(var(--sp-8) * -1); }
+.sp-faces .avatar { width: 24px; height: 24px; }
+.sp-more { opacity: .6; }
+.sp-more:hover, .sp-more.here { opacity: 1; }
+.sp-more svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.sp-keys { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.sp-keys .key .cf-crown { position: absolute; top: -10px; left: 50%; width: 14px; height: 14px; transform: translateX(-50%); fill: #f5c542; stroke: none; }
+.sp-new { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 36px; padding: 0 var(--sp-12); border: 1px dashed var(--line-2); border-radius: var(--r-14); background: transparent; color: var(--muted); font: inherit; font-size: var(--fs-14); cursor: pointer; }
+.sp-new:hover { color: var(--text); background: var(--sunk); }
+.sp-new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }

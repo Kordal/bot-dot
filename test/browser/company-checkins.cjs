@@ -60,7 +60,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         assert.equal((await srv.api('/company')).data.company.plan.approved, true);
 
         await page.locator('[data-cf-suggest-add]').click();
-        await page.locator('.cf-room[data-cf-team="t1"] [title^="Support Desk"]').waitFor();
+        await page.locator('.sp-keys [title^="Support Desk"]').waitFor();
         assert.equal(await page.locator('.cf-suggest').count(), 0);
         if (shots) await page.screenshot({ path: path.join(shots, `${name}-after.png`), fullPage: true });
 

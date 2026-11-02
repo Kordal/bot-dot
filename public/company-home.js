@@ -1,4 +1,6 @@
-// The Company's home (#672, ADR 110): a running company drawn as an office floor, with its rules in company-floor.js.
+// The Company's home (#672, ADR 110): a running project's page. Since #838 (ADR 132) its teams are rows of keys under
+// the board, in place of the office floor's desks, and its own Needs you stands under the header; the Chief is reached
+// from Home or with Esc. What follows tells of the floor as it was: its rooms and desks are gone.
 // The header: its name and "Day N of 90". The floor: the Chief of Staff in a small glass office, one room per team and
 // a dashed "New team" (the account's bots in no team stay in Bots, #816). The panel beside it is the To-do (#692: what
 // waits for the owner and the project's to-do, filtered All, You, Bots or Done, and Add a task with who it is for, its day and how it
@@ -39,32 +41,7 @@
   }
   // A bot's line: what it does now while it works, its question while it asks, else its state in a word.
   const lineOf = (b) => question(b) || (b.running ? liveLine(b) || tr('Working') : keyStatus(b).text);
-  // What the Chief does now, while it replies: its working line in one of its chats.
-  const chiefLine = () => (state.chiefBusy ? [...chiefTurns.values()].find(Boolean) || tr('Working') : '');
 
-  // ---------- the floor ----------
-  const bubble = (text, kind = '') => `<span class="cf-bubble${kind ? ` ${kind}` : ''}">${esc(text)}</span>`;
-  // A desk: the monitor lit in the bot's colour while it works or asks, the head under it, the name. lead: the bigger desk.
-  function deskHTML(b, { lead = false, crown = false, count = 0 } = {}) {
-    const on = b.seat !== 'idle';
-    const over = count ? bubble(String(count), 'count') : b.seat === 'asks' ? bubble('!', 'asks') : b.running ? bubble(liveLine(b) || '…', liveLine(b) ? 'line' : 'dot') : '';
-    return `<button type="button" class="cf-desk${lead ? ' lead' : ''}${on ? ' on' : ''}" style="--c:${esc(b.color)}" data-cf-bot="${esc(b.id)}" title="${esc(`${b.name} · ${lineOf(b)}`)}">
-      <span class="cf-over">${over}</span>
-      <span class="cf-table"><i></i></span>
-      <span class="cf-head">${botFigure(b.color, b.state, lead ? 'lg' : '', b.outfit)}${crown ? CROWN : ''}</span>
-      <span class="cf-name">${esc(b.name)}</span>
-    </button>`;
-  }
-  function roomHTML(r) {
-    const { team } = r;
-    const bench = r.bench.length ? `<div class="cf-bench">${r.bench.map((b) => `<button type="button" class="cf-sit" data-cf-bot="${esc(b.id)}" title="${esc(`${b.name} · ${lineOf(b)}`)}">${botFigure(b.color, b.state, 'sm', b.outfit)}</button>`).join('')}</div>` : '';
-    return `<section class="cf-room${r.wide ? ' wide' : ''}${teamOpen === team.id ? ' here' : ''}" style="--c:${esc(team.color)}" data-cf-team="${esc(team.id)}" tabindex="0" aria-label="${esc(team.name)}">
-      <div class="cf-room-head"><i class="cf-dot"></i><button type="button" class="cf-team-name" data-cf-team-chat="${esc(team.id)}">${esc(team.name)}</button><span class="cf-n">${1 + r.desks.length + r.bench.length}</span></div>
-      <div class="cf-lead">${deskHTML(r.lead, { lead: true, crown: !r.solo, count: r.count })}</div>
-      ${r.desks.length ? `<div class="cf-desks">${r.desks.map((b) => deskHTML(b)).join('')}</div>` : ''}
-      ${bench}
-    </section>`;
-  }
   // ---------- the objectives (#690): each as its display shows it ----------
   const DISPLAYS = [['pace', () => tr('Pace chart')], ['bar', () => tr('Bar')], ['status', () => tr('Status')]];
   const PACE = { ahead: () => tr('Ahead'), on: () => tr('On track'), behind: () => tr('Behind') };
@@ -278,14 +255,51 @@
   function floorHTML(c, f) {
     const cards = window.ProjectCards ? ProjectCards.html(c) : '';
     const calendar = Company.onBoard(c, 'calendar') && c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : '';
-    // The board without its team floor (#780): the cards and whatever else the owner put on it.
-    if (!Company.onBoard(c, 'teams')) return `<div class="cf-floor bare">${cards}${calendar}</div>`;
-    const line = chiefLine();
-    const chief = `<button type="button" class="cf-chief" data-cf-chief><span class="cf-over">${line ? bubble(line, 'line') : ''}</span><span class="cf-table"><i></i></span><span class="cf-head">${chiefFigure()}</span><span class="cf-name">${esc(chiefTitle())}</span></button>`;
-    const rooms = f.rooms.length ? `<div class="cf-rooms">${f.rooms.map(roomHTML).join('')}</div>` : '';
-    // The cards made by Claude (#775, project-cards.js) in a row of their own at the top, so the rooms never move.
-    return `<div class="cf-floor${rooms ? '' : ' bare'}">${cards}${rooms}<div class="cf-side">${chief}${c.suggestion ? suggestionHTML(c, c.suggestion) : ''}<button type="button" class="cf-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>${calendar}</div>`;
+    // The teams are rows of keys under the board (#838, teamsHTML); the bot the Chief suggests stays on it.
+    return `<div class="cf-floor bare">${cards}${c.suggestion ? `<div class="cf-side">${suggestionHTML(c, c.suggestion)}</div>` : ''}${calendar}</div>`;
   }
+
+  // ---------- the teams (#838, ADR 132): a row each under the board, in place of the floor's desks ----------
+  // The team's name with its stacked faces opens the team chat; its bots are keys, the lead first with a crown; ⋯ opens
+  // the team beside the board (its lead, its report). The key or name whose chat is in the column is highlighted.
+  const leadFirst = (t) => { const ids = t.bots.filter((id) => botById(id)); return ids.includes(t.lead) ? [t.lead, ...ids.filter((id) => id !== t.lead)] : ids; };
+  // The keys of a project's page in reading order: 1-9 open them (list.js, onKeypadKey).
+  const keysOf = (c) => (c?.teams || []).flatMap((t) => leadFirst(t).map(botById));
+  const MORE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>';
+  function teamsHTML(c) {
+    const docked = typeof Dock !== 'undefined' && Dock.docked();
+    const keys = keysOf(c);
+    const keyHTML = (b, lead) => {
+      const st = keyStatus(b);
+      const on = docked && state.view === 'bot' && state.botId === b.id;
+      const d = keys.indexOf(b) + 1;
+      return `<button type="button" class="key${on ? ' active' : ''}" data-cf-bot="${esc(b.id)}" title="${esc(d <= 9 ? `${b.name} · ${d}` : b.name)}"${d <= 9 ? ` aria-keyshortcuts="${d}"` : ''}><span class="key-head">${botFigure(b.color, b.state, '', b.outfit)}${lead ? CROWN : ''}</span><span class="name">${esc(b.name)}</span>${keyState(st, st.kind === 'working' ? liveLine(b) : '')}</button>`;
+    };
+    const rows = (c.teams || []).map((t) => {
+      const ids = leadFirst(t);
+      if (!ids.length) return '';
+      const g = (state.groups || []).find((x) => x.team === t.id);
+      const on = docked && state.view === 'group' && g && state.groupId === g.id;
+      const faces = ids.slice(0, 3).map((id) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit)}</i>`; }).join('');
+      return `<section class="sp-team" style="--c:${esc(t.color || '#8e7cff')}">
+        <div class="sp-team-head"><button type="button" class="sp-chip${on ? ' here' : ''}"${on ? ' aria-current="true"' : ''} data-cf-team-chat="${esc(t.id)}"><span class="sp-faces">${faces}</span><span>${esc(t.name)}</span></button><button type="button" class="icon-btn sp-more${teamOpen === t.id ? ' here' : ''}" data-cf-team="${esc(t.id)}" aria-label="${esc(t.name)}" title="${esc(t.name)}">${MORE}</button></div>
+        <div class="sp-keys">${ids.map((id) => keyHTML(botById(id), id === t.lead && ids.length > 1)).join('')}</div>
+      </section>`;
+    }).join('');
+    return `<div class="sp-teams">${rows}<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
+  }
+  // A project's own Needs you (#838): only the asks of its bots, as rows like Home's.
+  function needsHTML(c, items) {
+    if (!items.length) return '';
+    const shown = items.slice(0, 3);
+    const head = (x) => (x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure());
+    const acts = (x, i) => (answersInline(x)
+      ? `<button type="button" class="kp-no" data-kp-no="${i}">${tr('No')}</button><button type="button" class="kp-allow" data-kp-yes="${i}">${tr('Allow')}</button>`
+      : `<button type="button" class="kp-allow" data-kp-open="${i}">${tr('Review')}</button>`);
+    const more = items.length - shown.length;
+    return `<div class="kp-needs sp-needs" role="group" aria-label="${tr('Needs you')}">${shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></span>${acts(x, i)}</div>`).join('')}${more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : ''}</div>`;
+  }
+  const projectNeeds = (c) => Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c]);
 
   // ---------- the panel: the To-do (#692), or a team ----------
   // The To-do's filter (All, You, Bots, Done) and what the Add field will give the new item: who it is for (null:
@@ -390,7 +404,7 @@
     if (window.BoardView?.busy()) return; // a tile is dragged: drawn again once it is dropped
     const known = info();
     const f = { ...CompanyFloor.floor(c, state.bots, known), info: known };
-    const team = teamOpen && Company.onBoard(c, 'teams') && c.teams.find((t) => t.id === teamOpen);
+    const team = teamOpen && c.teams.find((t) => t.id === teamOpen);
     if (!team) teamOpen = null;
     // The pieces the owner put on the board (#780); a project made before has them all.
     const days = c.day && Company.onBoard(c, 'days');
@@ -399,10 +413,12 @@
     const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what', ...(window.ProjectCards?.FIELDS || [])].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
       <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}</header>
+      ${needsHTML(c, projectNeeds(c))}
       ${days ? lineHTML(c) : ''}
       ${days && c.checkin ? checkinHTML(c.checkin) : ''}
       ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
       <div class="cf-main${panel ? '' : ' solo'}">${floorHTML(c, f)}${panel ? `<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside>` : ''}</div>
+      ${teamsHTML(c)}
     </div>`;
     window.BoardView?.apply(root, c); // the tiles where the owner put them (#783, board-canvas-view.js)
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
@@ -414,13 +430,11 @@
     $$('[data-cf-bot]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); setView('bot', b.dataset.cfBot); }));
     // The team's name opens its chat, docked in the bottom row (#697).
     $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openTeamChat(b.dataset.cfTeamChat); }));
-    $$('[data-cf-team]', root).forEach((r) => {
-      r.onclick = () => openTeam(r.dataset.cfTeam);
-      r.onkeydown = (e) => { if (e.target === r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTeam(r.dataset.cfTeam); } };
-    });
-    // Not there while the team floor is off the board (#780).
-    $('[data-cf-chief]', root)?.addEventListener('click', () => Dock.openChief()); // docked on this screen (#819)
+    $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => openTeam(b.dataset.cfTeam)));
     $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));
+    const asks = projectNeeds(c).slice(0, 3);
+    const box = $('.sp-needs', root);
+    if (box) wireNeedRows(box, asks, openNeed);
     window.ProjectCards?.wire(root); // the cards made by Claude (#775)
     Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));
@@ -584,6 +598,8 @@
   Company.steps.home = home;
   // What waits for the owner of one bot, as its desk counts it: the tree of projects shows it too (#689).
   Company.asksOf = (id) => info().asks(id);
+  // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
+  Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [Company.calendar?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, chiefLine(), state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key)];
+  Company.steps.sig = () => [Company.calendar?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
 })();

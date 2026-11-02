@@ -1,8 +1,8 @@
 // Optional browser check of a project's chat column (#825): node test/browser/project-chat.cjs [shots dir]
 // A wide window shows a project's board and, on its right, one chat as a fixed column, as wide as the bot view's chat
 // (#828: 38vw from 400 to 560 px).
-// Entering the project opens its team's chat; a bot's row in the tree, a desk on the floor, the team's name and the
-// Chief's row each put their chat in the column, and the tree highlights the row on screen. Hide gives the board the
+// Entering the project opens its team's chat; a bot's key, the team's name (#838) and Esc (the Chief) each put their
+// chat in the column, and the key or name on screen is highlighted. 1-9 open the page's keys. Hide gives the board the
 // whole width, kept over a reload; Show brings the chat back. No row of docked chats. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -34,7 +34,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('.cf-top h1', { hasText: 'Quotz IT' }).waitFor({ timeout: 20000 });
     const row = page.locator('#chat-row');
     const width = async () => Math.round((await row.boundingBox()).width);
-    const here = () => page.$$eval('#company-side .here[aria-current]', (els) => els.map((el) => el.dataset.treeBot || el.dataset.treeTeam || (el.matches('[data-open-chief]') ? 'chief' : '')));
+    const here = () => page.$$eval('.sp-teams .sp-chip.here, .sp-teams .key.active', (els) => els.map((el) => el.dataset.cfBot || el.dataset.cfTeamChat));
 
     // Entering the project: its team's chat, in the column on the right, the board beside it.
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
@@ -48,8 +48,11 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.deepEqual(await here(), [team.id]);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-team.png') });
 
-    // A bot's row in the tree: its chat in the column, its row highlighted.
-    await page.locator(`#company-side [data-tree-bot="${a.id}"]`).click();
+    // A bot's key: its chat in the column, its key highlighted, with a crown on the lead.
+    assert.equal(await page.locator(`.sp-keys [data-cf-bot="${a.id}"] .cf-crown`).count(), 1, 'the lead\'s crown');
+    assert.equal(await page.locator('#company-side').isVisible(), false, 'no tree beside the rail');
+    assert.equal(await page.locator('.cf-desk, .cf-room, .cf-chief').count(), 0, 'no floor desks');
+    await page.locator(`.sp-keys [data-cf-bot="${a.id}"]`).click();
     await page.locator('#view-bot #bot-name', { hasText: 'Ops Watchkeeper' }).waitFor();
     assert.equal(await width(), 547);
     assert.deepEqual(await here(), [a.id]);
@@ -58,19 +61,21 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.waitForFunction((bot) => state.runs.some((r) => r.botId === bot && r.prompt === 'hello'), a.id);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-bot.png') });
 
-    // A desk on the floor.
-    await page.locator(`[data-cf-bot="${b.id}"]`).first().click();
+    // 2: the page's second key.
+    await page.locator('#view-bot textarea').blur();
+    await page.keyboard.press('2');
     await page.locator('#view-bot #bot-name', { hasText: 'Release Planner' }).waitFor();
     assert.deepEqual(await here(), [b.id]);
-    // The team's name in the tree.
-    await page.locator(`#company-side [data-tree-team="${team.id}"]`).click();
+    // The team's name.
+    await page.locator(`.sp-chip[data-cf-team-chat="${team.id}"]`).click();
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
-    // The Chief's row.
-    await page.locator('#company-side [data-open-chief]').click();
+    assert.deepEqual(await here(), [team.id]);
+    // Esc: the Chief, in the column.
+    await page.keyboard.press('Escape');
     await page.waitForFunction(() => state.view === 'chief');
     assert.ok(await page.locator('#view-company').isVisible(), 'the board stays beside the Chief');
     assert.equal(await width(), 547);
-    assert.deepEqual(await here(), ['chief']);
+    assert.deepEqual(await here(), []);
 
     // Hide: the board takes the whole width, and stays so over a reload; Show brings the team's chat back.
     await page.locator('#view-chief [data-dock-hide]').click();
@@ -88,9 +93,9 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
     assert.ok(!(await page.locator('#project-chat-show').isVisible()));
 
-    // A narrower window: 38vw, less what the board's 360 and the rail's 76 need (#837).
+    // A narrower window: 38vw.
     await page.setViewportSize({ width: 1180, height: 820 });
-    await page.waitForFunction(() => Math.round(document.querySelector('#chat-row').getBoundingClientRect().width) === 444);
+    await page.waitForFunction(() => Math.round(document.querySelector('#chat-row').getBoundingClientRect().width) === 448);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-narrow.png') });
     // A bot's settings cover the chat in the column, not squeeze it.
     await page.locator(`[data-cf-bot="${a.id}"]`).first().click();
@@ -98,7 +103,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('#view-bot .chat-title, #view-bot #bot-name').first().click();
     await page.locator('#panel:not(.hidden)').waitFor();
     assert.ok(!(await page.locator('#view-bot').isVisible()), 'the settings take the chat\'s place');
-    assert.equal(await width(), 444);
+    assert.equal(await width(), 448);
 
     assert.deepEqual(errors, []);
     console.log('project chat column: ok');

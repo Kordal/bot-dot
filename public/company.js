@@ -297,7 +297,8 @@ const Company = (() => {
   // The gear beside a project's name: its settings (#701), from a server with `project-settings`.
   // The pieces on a project's board (#780), as lib/company.js keeps them: a project without `board` (made before) has
   // every one. `pieceLabel` is the name a pick and the settings give it.
-  const PIECES = ['days', 'goals', 'teams', 'calendar', 'todo'];
+  // The teams are no piece on the web since #838: each team is a row of keys under the board, always (ADR 132).
+  const PIECES = ['days', 'goals', 'calendar', 'todo'];
   const onBoard = (c, k) => !Array.isArray(c?.board) || c.board.includes(k);
   const pieceLabel = (k) => ({ days: tr('90 days'), goals: tr('Goals'), teams: tr('Teams'), calendar: tr('Calendar'), todo: tr('To-do') })[k];
   // The pieces the owner can add: the ones not on it, from a server that has them.
@@ -567,6 +568,9 @@ const Company = (() => {
     if (state.view === 'company') render();
   }
 
+  // A running project's page is up, beside its chat or alone, outside a phone (#838): its keys answer 1-9.
+  const onProjectPage = () => shows() && place === 'company' && !adding && !settingsOpen && state.company?.phase === 'running' && !matchMedia(PHONE).matches && (state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked()));
+
   function init() {
     wireRail();
     drawSwitch();
@@ -586,5 +590,5 @@ const Company = (() => {
     });
   }
 
-  return { init, render, redraw, drawSide, drawRail, enter, railOn, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
 })();

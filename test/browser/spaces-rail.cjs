@@ -2,7 +2,7 @@
 // In a wide window with a project the "Bots | Projects" switch gives way to the rail: Home, the project's square, "+",
 // and the top bar's tools at its foot. Home opens the Chief, the project its team chat, and the chat column stands at
 // the same place in both, at the default width and at one the owner set. The space is remembered, a gone project falls
-// back to Home, and with no project there is no rail. Scratch data only.
+// back to Home, and with no project there is no rail. Each bot is in one space (#838). Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -85,6 +85,22 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.goto(`${srv.base}/#company`);
     await page.reload();
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor({ timeout: 20000 });
+
+    // Each bot in one space (#838): the team's bot and its chat are the project's keys, not Home's.
+    await page.locator('#rail #brand').click();
+    await page.waitForFunction(() => !document.querySelector('.app.place-company'));
+    const homeKeys = await page.locator('#kp-keys .key .name').allInnerTexts();
+    assert.deepEqual(homeKeys, ['Chief of Staff', 'Recipe Finder'], 'Home: the Chief and the bot in no team');
+    await page.locator('#rail .rail-sq').click();
+    await page.locator('.sp-keys .key .name', { hasText: 'Ops Watchkeeper' }).waitFor();
+    assert.equal(await page.locator('.sp-chip', { hasText: 'Quotz IT team' }).count(), 1, 'the team\'s name');
+    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-keys-project.png') });
+    const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', hasTouch: true, isMobile: true })).newPage();
+    phone.on('pageerror', (e) => errors.push(e.message));
+    await phone.goto(`${srv.base}/#company`);
+    await phone.locator('.sp-keys .key .name', { hasText: 'Ops Watchkeeper' }).waitFor({ timeout: 20000 });
+    if (shots) await phone.screenshot({ path: path.join(shots, 'spaces-keys-phone-project.png'), fullPage: true });
+    await phone.close();
 
     // Narrower windows keep the switch.
     await page.setViewportSize({ width: 900, height: 800 });

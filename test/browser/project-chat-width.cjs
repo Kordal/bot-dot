@@ -56,13 +56,13 @@ const { startServer, makeBot, writeData } = require('../helpers');
     for (let i = 0; i < 5; i += 1) await page.keyboard.press('ArrowRight');
     assert.equal((await widths()).chat, 400, 'the chat keeps 400');
 
-    // Dragged far left: the board keeps 360.
+    // Dragged far left: the chat stops at 900, as on Home, and the board keeps the rest (#838: no tree beside the rail).
     const g2 = await box('#chat-row');
     await page.mouse.move(g2.x, g2.y + 200);
     await page.mouse.down();
     await page.mouse.move(100, g2.y + 200, { steps: 4 });
     await page.mouse.up();
-    assert.equal((await widths()).board, 360, 'the board keeps 360');
+    assert.deepEqual(await widths(), { board: 1512 - 76 - 900, chat: 900 }, 'the chat\'s widest');
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-wide.png') });
 
     // Back to 440; it holds over a reload and in Bots.

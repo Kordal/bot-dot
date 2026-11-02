@@ -12,10 +12,13 @@ Bots and Projects are two places behind the switch "Bots | Projects" ([ADR 110](
 - **Home and every project are spaces of one view.** This replaces ADR 110's "a place, not a mode of the list". Home is what Bots showed; a project is what Projects showed for it.
 - **A wide window (from 1001 px on the web) with at least one project has a rail of spaces on the left, 76 px wide,** in place of the switch: Home (the logo), one square per project in its colour with its first letter and the number of its team bots' asks, archived projects dimmed after them, "+" for a new project, and the top bar's search, admin, feedback and Settings buttons at its foot. The space on screen has a short bar at the rail's left edge.
 - **With no project there is no rail,** and Home is the Bots home as it was, switch included: that is how the first project is started.
-- **The chat column stands at the same place in every space:** the owner's width or the default, at most the window less 560 px. Home opens on the Chief's chat, a project on its team chat (the Chief's while it has none, ADR 119). Until each space draws its own keys (#838), a project keeps its tree beside the rail and its board keeps 360 px, so below about 1180 px its column can be a little narrower than Home's.
+- **The chat column stands at the same place in every space:** the owner's width or the default, at most the window less 560 px. Home opens on the Chief's chat, a project on its team chat (the Chief's while it has none, ADR 119). Between #837 and #838 a project kept its tree beside the rail.
 - **The space is remembered per device** in `botdot.place`: `home` or a project's id. The old values `bots` and `company` are still read. A remembered project that is gone opens Home, and so does deleting the project on screen.
 - **Search finds bots and chats on Home:** pressed in a project, it goes to Home first.
-- **Narrower windows and phones keep the switch** until their own ticket ([#839](https://github.com/Kordal/bot-dot/issues/839)). What each space draws is [#838](https://github.com/Kordal/bot-dot/issues/838).
+- **Narrower windows and phones keep the switch** until their own ticket ([#839](https://github.com/Kordal/bot-dot/issues/839)).
+- **Each bot is in one space** ([#838](https://github.com/Kordal/bot-dot/issues/838), 2026-11-02). Home's keys and list leave out every bot in a project's team and every team's chat (`Keypad.home`); a bot that leaves its team is Home's again, in its own category. A search still finds every bot.
+- **A project's page is its header, its own Needs you (only its bots' asks, `Keypad.asksOf`), its board, then one row per team:** the team's name with its stacked faces opens the team chat, ⋯ opens the team beside the board (its lead, its report), then its bots' keys, the lead first with a crown. The key or name whose chat is in the column is highlighted. These rows replace the floor's rooms, desks and Chief desk and the wide page's tree; the Chief is reached from Home or with Esc, and 1-9 open the page's keys in reading order. On Home an ask from a project's bot carries that project's small square.
+- **The teams are no board piece on the web:** they are always drawn as rows, so a project's settings and the new-card picks no longer offer Teams.
 - **No server change.** Which project a bot is in comes from the projects' teams the apps already load; each ask names its bot.
 
 ## Alternatives
@@ -29,3 +32,4 @@ Bots and Projects are two places behind the switch "Bots | Projects" ([ADR 110](
 - The top bar of a wide window with projects is gone: its notices ("Can't reach botdot", "Claude is signed out") stand over the keypad on Home and above the message box in a project.
 - The logo is a button there (Home), and its dot still pulses while the Chief or a bot works.
 - Android draws the same spaces on its own ([#840](https://github.com/Kordal/bot-dot/issues/840)).
+- With no tree beside the rail, a project's chat column is as wide as Home's at every width again.

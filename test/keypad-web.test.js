@@ -718,3 +718,24 @@ test('web: a key\'s status words are muted and its colour is in the dot; only Ne
   assert.equal(words('needs', 'font-weight'), '600');
   assert.deepEqual(['working', 'needs', 'unread', 'done', 'failed'].map(dot), ['var(--ok)', 'var(--warn)', 'var(--mention)', 'var(--ok)', 'var(--err)'], 'the state\'s colour in its dot');
 });
+
+// ---------- spaces (#838) ----------
+
+test('web: Home\'s keys leave out a project\'s team bots and its team chat; Needs you marks a project\'s ask with its square', () => {
+  const team = { ...EVENING, id: 'g2', name: 'Lights team', members: ['lights', 'news'], team: 't1', category: '' };
+  const p = page({ groups: [EVENING, team], features: ['groups', 'company'] });
+  p.state.projects = [{ id: 'p1', name: 'Quotz IT', color: '#1d9e75', teams: [{ id: 't1', bots: ['lights'], lead: 'lights' }] }];
+  p.ctx.drawKeypad();
+  assert.deepEqual(pageKeysOf(p.keys(), 1), ['2 News Watcher', '3 Evening'], 'Home Lights and its team chat are the project\'s');
+  p.ctx.drawKeypadNeeds([ASK('a1'), { key: 'job:j1', kind: 'job', bot: NEWS, color: NEWS.color, line: 'Feeds' }], () => {});
+  const html = p.doc['#kp-needs'].innerHTML;
+  assert.match(html, /Home Lights[\s\S]*?<span class="kp-proj" style="--c:#1d9e75" title="Quotz IT">Q<\/span><button type="button" class="kp-no"/, 'the project\'s square before its buttons');
+  assert.equal((html.match(/kp-proj/g) || []).length, 1, 'none on an ask of a Home bot');
+});
+
+test('web: without the company feature every bot stays on Home', () => {
+  const p = page();
+  p.state.projects = [{ id: 'p1', name: 'Quotz IT', teams: [{ id: 't1', bots: ['lights'], lead: 'lights' }] }];
+  p.ctx.drawKeypad();
+  assert.deepEqual(pageKeysOf(p.keys(), 1), ['2 News Watcher', '3 Home Lights', '4 Evening']);
+});
