@@ -591,7 +591,7 @@ function renderGroupChat() {
     root.innerHTML = `
       <div class="chat-head${g.team ? ' team-head' : ''}"${g.team && /^#[0-9a-f]{6}$/i.test(g.color || '') ? ` style="--team:${g.color}"` : ''}>
         ${BACK_BTN}
-        <button class="chat-title" id="group-settings" title="${g.team ? '' : esc(tr('Its name and its members'))}">
+        <button class="chat-title" id="group-settings" title="${esc(tr('Its name and its members'))}">
           <div id="group-pic"></div>
           <div class="grow"><h2 id="group-name"></h2><div class="sub" id="group-sub"></div></div>
         </button>
@@ -600,8 +600,8 @@ function renderGroupChat() {
       <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-drafts"></div><div class="g-tail"></div></div>
       ${composerHTML(tr('Message {name}', { name: g.name }))}`;
     wireComposer($('form', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
-    // A team's chat follows its team in Projects: it has no panel of its own to rename it or change its members.
-    $('#group-settings').onclick = () => { if (!groupById(state.groupId)?.team) setPanel('toggle'); };
+    // A team's chat opens its panel too: its members and its notes. Its name and members follow its team in Projects.
+    $('#group-settings').onclick = () => setPanel('toggle');
     if (groupChat?.id !== g.id) loadGroupChat(g.id);
   }
   const pic = $('#group-pic');

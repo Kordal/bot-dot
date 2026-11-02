@@ -70,7 +70,8 @@ internal fun groupName(typed: String): String = typed.replace(SPACES, " ").trim(
 /**
  * A group's settings, opened from its chat's title: its name, its members each with a way to take it out, "Add a
  * bot", its notes (ADR 139), and "Delete this group", which says that it deletes no bot. Every change saves by itself, and what the
- * botdot server refuses is said in its words.
+ * botdot server refuses is said in its words. A team's chat (#697) follows its team in Projects: its panel shows its
+ * faces, its members and its notes, and nothing that renames it, changes its members or deletes it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -103,49 +104,27 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
     ) { pad ->
         val g = group ?: return@Scaffold
         val members = Groups.members(g, bots)
+        val team = g.team != null
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { GroupPicture(members, 72) }
-            // The name saves when the keyboard's Done is tapped or the box is left. An emptied box takes the old one back.
-            var name by remember(g.id) { mutableStateOf(g.name) }
-            var focused by remember { mutableStateOf(false) }
-            LaunchedEffect(g.name) { if (!focused) name = g.name } // renamed elsewhere; not under the cursor
-            val focus = LocalFocusManager.current
-            fun saveName() {
-                val to = groupName(name)
-                if (to.isEmpty()) name = g.name else if (to != g.name) change(g, buildJsonObject { put("name", to) })
-            }
-            // The panel was closed with the cursor still in the box: the name typed is saved all the same, by the app,
-            // which outlives the panel. A group deleted meanwhile is not in the list, and nothing is sent.
-            DisposableEffect(g.id) {
-                onDispose {
-                    val to = groupName(name)
-                    val now = app.store.groups.value.value?.firstOrNull { it.id == g.id }?.name
-                    if (to.isNotEmpty() && now != null && to != now) app.scope.launch {
-                        runCatching { app.api.value?.updateGroup(g.id, buildJsonObject { put("name", to) }) }
-                        app.store.groups.refresh()
-                    }
-                }
-            }
-            Field(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
-                modifier = Modifier.fillMaxWidth().onFocusChanged { if (focused && !it.isFocused) saveName(); focused = it.isFocused })
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { if (team) TeamPicture(Groups.teamFaces(g, bots), g.lead, 56) else GroupPicture(members, 72) }
+            if (!team) GroupName(app, g, ::change)
             Section(tr("Members")) {
-                if (members.isEmpty()) Hint(tr("Its bots are all gone. Add one, or delete the group."))
+                if (members.isEmpty() && !team) Hint(tr("Its bots are all gone. Add one, or delete the group."))
                 members.forEach { b ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         BotFigure(b.color, b.state, 32, b.outfit)
                         Spacer(Modifier.size(10.dp))
                         Text(b.name, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { change(g, app.api.value?.membersOf(g.members - b.id) ?: return@IconButton) }) {
+                        if (!team) IconButton(onClick = { change(g, app.api.value?.membersOf(g.members - b.id) ?: return@IconButton) }) {
                             Icon(Icons.Filled.Close, contentDescription = tr("Take {name} out of the group", "name" to b.name), tint = p.muted, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
-                // Nothing to add: the group is full, or every bot is in it.
-                if (Groups.addable(g, bots).isNotEmpty()) SecondaryButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
+                // Nothing to add: the group is full, or every bot is in it. A team's members follow its team.
+                if (!team && Groups.addable(g, bots).isNotEmpty()) SecondaryButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
             }
             if (versionNow?.features?.contains(GroupNotes.FEATURE) == true) GroupNotesSection(app, g.id, ::tell)
-            SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete this group"), color = p.err) }
+            if (!team) SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete this group"), color = p.err) }
         }
     }
 
@@ -174,6 +153,35 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
         },
         dismissButton = { TextButton(onClick = { askDelete = false }) { Text(tr("Keep"), color = p.text) } },
     )
+}
+
+/** A group's name, which saves when the keyboard's Done is tapped or the box is left. */
+@Composable
+private fun GroupName(app: BotDotApp, g: Group, change: (Group, JsonObject) -> Any) {
+    // An emptied box takes the old one back.
+    var name by remember(g.id) { mutableStateOf(g.name) }
+    var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(g.name) { if (!focused) name = g.name } // renamed elsewhere; not under the cursor
+    val focus = LocalFocusManager.current
+    fun saveName() {
+        val to = groupName(name)
+        if (to.isEmpty()) name = g.name else if (to != g.name) change(g, buildJsonObject { put("name", to) })
+    }
+    // The panel was closed with the cursor still in the box: the name typed is saved all the same, by the app,
+    // which outlives the panel. A group deleted meanwhile is not in the list, and nothing is sent.
+    DisposableEffect(g.id) {
+        onDispose {
+            val to = groupName(name)
+            val now = app.store.groups.value.value?.firstOrNull { it.id == g.id }?.name
+            if (to.isNotEmpty() && now != null && to != now) app.scope.launch {
+                runCatching { app.api.value?.updateGroup(g.id, buildJsonObject { put("name", to) }) }
+                app.store.groups.refresh()
+            }
+        }
+    }
+    Field(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { focus.clearFocus() }),
+        modifier = Modifier.fillMaxWidth().onFocusChanged { if (focused && !it.isFocused) saveName(); focused = it.isFocused })
 }
 
 /**
