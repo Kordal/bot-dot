@@ -33,7 +33,7 @@ form.addEventListener('submit', async (event) => {
 
 listen('sign-in-failed', () => { said.textContent = words.failed; });
 
-invoke('start').then((start) => {
+invoke('start', { adding: new URLSearchParams(location.search).has('add') }).then((start) => {
   if (start.entering) return;
   address.value = start.address || '';
   if (start.error) said.textContent = words[start.error];
