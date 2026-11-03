@@ -682,12 +682,10 @@ async function signInRoutes(req, res, p) {
   return signedIn(req, res, 201, name, body.app, handoff);
 }
 
-// How many more accounts this machine takes (#912): { room, max, accounts, full }. room: default shares that still fit
-// its measured RAM and disk, null while nothing is measured; full: a sign-up link makes no account now.
+// How many more accounts this machine takes (#912): { room, max, accounts, full }. room: accounts that still fit its
+// measured RAM and disk (lib/front-door/capacity.js), null while nothing is measured; full: a sign-up link makes no account now.
 function capacityNow() {
-  const list = doors.listAccounts();
-  const room = capacity.room({ machine: load.machine(), accounts: list.map((a) => ({ share: a.share, use: load.account(a.name) })), defaultShare: doors.defaultShare() });
-  const c = { room, max: doors.maxAccounts(), accounts: list.length };
+  const c = { room: capacity.room(load.machine()), max: doors.maxAccounts(), accounts: doors.accountCount() };
   return { ...c, full: capacity.full(c) };
 }
 const FULL = 'This machine is full. Your link still works: try it again later.';

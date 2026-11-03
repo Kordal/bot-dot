@@ -1,5 +1,5 @@
-// How many more accounts the machine takes, and a maximum (#912): room follows the machine's RAM and disk, as root's
-// step measured them (FRONT_DOOR_LOAD), against every account's share; a sign-up link on a full machine makes no
+// How many more accounts the machine takes, and a maximum (#912): room is what a new account takes against the RAM and
+// disk the machine has free, as root's step measured them (FRONT_DOOR_LOAD); a sign-up link on a full machine makes no
 // account and stays open; the admin's install link always works; the maximum and each refused sign-up are in the
 // audit log.
 const { test, before, after } = require('node:test');
@@ -12,7 +12,6 @@ const { startFrontDoor, standIn } = require('./front-door-helpers');
 const capacity = require('../lib/front-door/capacity');
 
 const GB = 2 ** 30;
-const SHARE = { cpu: 2, ram: 4, disk: 20 };
 let door, load;
 const stands = {};
 const browsers = {};
@@ -45,8 +44,8 @@ async function trySignUp(d, name, link) {
   return { b, options, done: await b.post(p, { name, credential: key.register(options.data.publicKey) }) };
 }
 // The machine as root's step measured it now, in GB.
-const machine = (dir, { ram, disk, diskUsed }) => fs.writeFileSync(path.join(dir, 'machine.json'),
-  JSON.stringify({ at: new Date().toISOString(), cpus: 8, load: 0.5, ramTotal: ram * GB, ramUsed: GB, diskTotal: disk * GB, diskUsed: diskUsed * GB }));
+const machine = (dir, { ram, ramUsed, disk, diskUsed }) => fs.writeFileSync(path.join(dir, 'machine.json'),
+  JSON.stringify({ at: new Date().toISOString(), cpus: 8, load: 0.5, ramTotal: ram * GB, ramUsed: ramUsed * GB, diskTotal: disk * GB, diskUsed: diskUsed * GB }));
 const capacityNow = async () => {
   const r = await browsers.ann.get('/admin/capacity');
   assert.equal(r.status, 200, r.text);
@@ -54,26 +53,19 @@ const capacityNow = async () => {
 };
 const audit = async (action) => (await browsers.ann.get(`/admin/audit?action=${action}`)).data.entries;
 
-test('room is the default shares that fit the RAM and disk left after every share, and unknown without a measurement', () => {
-  const def = { ram: 5, disk: 30 };
-  const m = { ramTotal: 32 * GB, diskTotal: 200 * GB, diskUsed: 20 * GB };
-  const two = [{ share: def }, { share: def }];
-  // RAM: 32 - 10 = 22 GB, 4 shares of 5; disk: 200 - 20 - 60 = 120 GB, 4 shares of 30.
-  assert.equal(capacity.room({ machine: m, accounts: two, defaultShare: def }), 4);
-  // An account's own share counts as it is: RAM 32 - 17 = 15 GB, 3 shares.
-  assert.equal(capacity.room({ machine: m, accounts: [{ share: def }, { share: { ram: 12, disk: 30 } }], defaultShare: def }), 3);
-  // A bigger default share fits fewer times: RAM 22 / 10 = 2.
-  assert.equal(capacity.room({ machine: m, accounts: two, defaultShare: { ram: 10, disk: 30 } }), 2);
-  // Disk: what an account's own disk holds already is in the machine's use and in its share, and is counted once.
-  const disky = { ramTotal: 64 * GB, diskTotal: 100 * GB, diskUsed: 30 * GB };
-  assert.equal(capacity.room({ machine: disky, accounts: two, defaultShare: def }), 0, '100 - 30 - 60 = 10 GB, no share of 30');
-  const measured = two.map((a) => ({ ...a, use: { diskSize: 30 * GB, diskUsed: 10 * GB } }));
-  assert.equal(capacity.room({ machine: disky, accounts: measured, defaultShare: def }), 1, '100 - 10 - 60 = 30 GB');
-  // A machine with more given than it has has no room, never less.
-  assert.equal(capacity.room({ machine: { ...m, ramTotal: 4 * GB }, accounts: two, defaultShare: def }), 0);
+test('room is the new accounts that fit the RAM and disk free now, and unknown without a measurement', () => {
+  const m = { ramTotal: 32 * GB, ramUsed: 8 * GB, diskTotal: 200 * GB, diskUsed: 120 * GB };
+  // RAM: 24 GB free, 8 accounts of 3 GB; disk: 80 GB free, 8 accounts of 10 GB.
+  assert.equal(capacity.room(m), 8);
+  // The tighter of the two.
+  assert.equal(capacity.room({ ...m, ramUsed: 27 * GB }), 1, '5 GB of RAM free');
+  assert.equal(capacity.room({ ...m, diskUsed: 175 * GB }), 2, '25 GB of disk free');
+  assert.equal(capacity.room({ ...m, diskUsed: 195 * GB }), 0, 'less than 10 GB of disk free');
+  // Never less than none.
+  assert.equal(capacity.room({ ...m, ramUsed: 40 * GB }), 0);
   // Nothing measured: unknown.
-  assert.equal(capacity.room({ machine: null, accounts: two, defaultShare: def }), null);
-  assert.equal(capacity.room({ machine: { ramTotal: 32 * GB }, accounts: two, defaultShare: def }), null);
+  assert.equal(capacity.room(null), null);
+  assert.equal(capacity.room({ ramTotal: 32 * GB, diskTotal: 200 * GB }), null);
   // Full: no room, or the maximum reached; unknown room refuses nothing.
   assert.equal(capacity.full({ room: 0, max: null, accounts: 1 }), true);
   assert.equal(capacity.full({ room: null, max: null, accounts: 9 }), false);
@@ -89,25 +81,17 @@ test('with no load measured, room is unknown and a sign-up link makes an account
   assert.equal((await capacityNow()).accounts, 2);
 });
 
-test('room follows the RAM and disk, the default share and an account with its own', async () => {
-  assert.equal((await browsers.ann.post('/admin/share', SHARE)).status, 200);
-  // RAM 16 - 8 = 8 GB, 2 shares of 4; disk 100 - 10 - 40 = 50 GB, 2 shares of 20.
-  machine(load, { ram: 16, disk: 100, diskUsed: 10 });
-  assert.deepEqual(await capacityNow(), { room: 2, max: null, accounts: 2, full: false });
-  // The disk is the tighter: 70 - 10 - 40 = 20 GB, one share.
-  machine(load, { ram: 16, disk: 70, diskUsed: 10 });
+test('room follows the RAM and disk the machine has free', async () => {
+  machine(load, { ram: 16, ramUsed: 4, disk: 100, diskUsed: 60 });
+  assert.deepEqual(await capacityNow(), { room: 4, max: null, accounts: 2, full: false });
+  machine(load, { ram: 16, ramUsed: 4, disk: 100, diskUsed: 85 });
   assert.equal((await capacityNow()).room, 1);
-  // bob's own share takes the rest of the RAM.
-  machine(load, { ram: 16, disk: 100, diskUsed: 10 });
-  assert.equal((await browsers.ann.post('/admin/accounts/bob/share', { cpu: 2, ram: 12, disk: 20 })).status, 200);
+  machine(load, { ram: 16, ramUsed: 14, disk: 100, diskUsed: 60 });
   assert.deepEqual(await capacityNow(), { room: 0, max: null, accounts: 2, full: true });
-  assert.equal((await browsers.ann.post('/admin/accounts/bob/share', { default: true })).status, 200);
-  assert.equal((await capacityNow()).room, 2);
 });
 
 test('a sign-up link on a full machine makes no account, says so, stays open, and works once there is room', async () => {
-  machine(load, { ram: 16, disk: 100, diskUsed: 10 });
-  assert.equal((await browsers.ann.post('/admin/accounts/bob/share', { cpu: 2, ram: 12, disk: 20 })).status, 200);
+  machine(load, { ram: 16, ramUsed: 4, disk: 100, diskUsed: 95 });
   const { url } = (await browsers.ann.post('/admin/links', {})).data;
   const page = await door.browser().get(pathOf(url));
   assert.equal(page.status, 409);
@@ -128,7 +112,7 @@ test('a sign-up link on a full machine makes no account, says so, stays open, an
   assert.equal(refused[0].actor, 'front-door');
   assert.equal(refused[0].detail, 'no room on the machine');
   // Room again: the same link makes the account.
-  assert.equal((await browsers.ann.post('/admin/accounts/bob/share', { default: true })).status, 200);
+  machine(load, { ram: 16, ramUsed: 4, disk: 100, diskUsed: 60 });
   stands.cat = await standIn(door, 'cat', { answer: () => [200, { account: 'cat' }] });
   await signUp(door, 'cat', url);
   assert.equal((await capacityNow()).accounts, 3);
@@ -173,7 +157,7 @@ test("the admin page draws the room and the maximum under Sign-ups", async () =>
 
 test("the admin's install link works on a full machine", async () => {
   const full = tmp('fd-load-');
-  machine(full, { ram: 1, disk: 10, diskUsed: 9 });
+  machine(full, { ram: 4, ramUsed: 3, disk: 10, diskUsed: 9 });
   const d = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'eve', FRONT_DOOR_LOAD: full } });
   const stand = await standIn(d, 'eve', { answer: () => [200, { account: 'eve' }] });
   try {
