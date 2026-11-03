@@ -46,4 +46,15 @@ class MailDraftTest {
         assertEquals("Not sent", MailCard.state(kept.draft!!))
         assertEquals(listOf("Send now"), MailCard.actions(kept.draft!!))
     }
+
+    @Test fun theFilesTheMailCarries() {
+        val (card, plain) = messages("""
+            {"role":"chief","text":"","draft":{"to":"a@b.example","subject":"CRS","text":"Beste,","state":"draft","attachments":[{"name":"Scan.pdf","file":"uploads/123-ab-Scan.pdf","size":5800000},{"name":"chart.png","file":"r9/chart.png"},{"name":"made-by-bot.pdf"}]}},
+            {"role":"chief","text":"","draft":{"to":"a@b.example","subject":"Hi","text":"x","state":"draft"}}""")
+        val files = card.draft!!.attachments
+        assertEquals(listOf("Scan.pdf", "chart.png", "made-by-bot.pdf"), files.map { it.name })
+        assertEquals(listOf(MailCard.Opens.OWN, MailCard.Opens.RUN, MailCard.Opens.NONE), files.map { MailCard.opens(it) })
+        assertEquals(5800000L, files[0].size)
+        assertTrue(plain.draft!!.attachments.isEmpty())
+    }
 }
