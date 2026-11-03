@@ -51,6 +51,7 @@ const limits = require('./lib/front-door/limits');
 const pages = require('./lib/front-door/pages');
 const calls = require('./lib/front-door/calls');
 const loadFiles = require('./lib/front-door/load');
+const capacity = require('./lib/front-door/capacity');
 const whatsNew = require('./lib/whats-new');
 const roomStore = require('./lib/front-door/rooms');
 const roomTurns = require('./lib/front-door/room-turns');
@@ -634,6 +635,11 @@ async function signInRoutes(req, res, p) {
   }
   // The admin's sign-in link: a new passkey for an account that exists.
   const signIn = !!link.signIn;
+  // A full machine makes no account (#912): the link stays open for later, and the admin's install link always works.
+  if (!signIn && !ONE_ACCOUNT && link.for !== ADMIN) {
+    const c = capacityNow();
+    if (c.full) return refusedFull(req, res, token, link, c);
+  }
   if (req.method === 'GET' && !options) return html(res, 200, signIn ? pages.newPasskey({ name: link.for }) : pages.signUp({ name: link.for }));
   if (req.method !== 'POST') return false;
   const body = await readJson(req);
@@ -674,6 +680,31 @@ async function signInRoutes(req, res, p) {
   audited('account-made', { actor: 'front-door', account: name, detail: 'from a sign-up link' });
   askForAccount(name);
   return signedIn(req, res, 201, name, body.app, handoff);
+}
+
+// How many more accounts this machine takes (#912): { room, max, accounts, full }. room: accounts that still fit its
+// measured RAM and disk (lib/front-door/capacity.js), null while nothing is measured; full: a sign-up link makes no account now.
+function capacityNow() {
+  const c = { room: capacity.room(load.machine()), max: doors.maxAccounts(), accounts: doors.accountCount() };
+  return { ...c, full: capacity.full(c) };
+}
+const FULL = 'This machine is full. Your link still works: try it again later.';
+// A sign-up a full machine refused, kept in the audit log once an hour for each link: a page opened again and again
+// writes one entry.
+const refusedAt = new Map(); // the link's token's SHA-256 → when it was last kept
+function refusedFull(req, res, token, link, c) {
+  const id = crypto.createHash('sha256').update(token).digest('hex');
+  const now = Date.now();
+  for (const [k, t] of refusedAt) if (now - t > 3600_000) refusedAt.delete(k);
+  if (!refusedAt.has(id)) {
+    refusedAt.set(id, now);
+    const why = c.room === 0 ? 'no room on the machine' : `the maximum of ${c.max} account${c.max === 1 ? '' : 's'}`;
+    console.log(`[front door] a sign-up link made no account: ${why}`);
+    audited('sign-up-refused', { actor: 'front-door', account: link.for, detail: why });
+  }
+  if (req.method === 'GET') return html(res, 409, pages.full());
+  req.resume();
+  return send(res, 409, { error: FULL, full: true });
 }
 
 // ---------- shared rooms ----------
@@ -1043,6 +1074,15 @@ async function adminRoutes(req, res, p, account) {
     try { name = decodeURIComponent(p.slice('/admin/usage/'.length)); } catch { /* not a name */ }
     const one = usage && usage.account(name, doors.listAccounts());
     return one ? send(res, 200, one) : send(res, 404, { error: 'No such account.' });
+  }
+  // How many more accounts fit, and the admin's maximum (#912).
+  if (p === '/admin/capacity' && req.method === 'GET') return send(res, 200, capacityNow());
+  if (p === '/admin/capacity' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const max = doors.setMaxAccounts(body.max);
+    console.log(`[front door] the admin set the maximum of accounts: ${max === null ? 'none' : max}`);
+    audited('max-accounts', { detail: max === null ? 'none' : `${max} account${max === 1 ? '' : 's'}` });
+    return send(res, 200, capacityNow());
   }
   if (p === '/admin/share' && req.method === 'GET') return send(res, 200, { share: doors.defaultShare(), machine: load.machine() });
   if (p === '/admin/share' && req.method === 'POST') {
