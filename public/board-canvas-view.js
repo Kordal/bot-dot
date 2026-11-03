@@ -125,6 +125,7 @@
       if (!r) continue;
       Object.assign(t.style, { left: `${r[0]}px`, top: `${r[1]}px`, width: `${r[2]}px`, height: `${r[3]}px` });
     }
+    window.ProjectCards?.fit(canvas);
   }
 
   // The tile a press at `target` picks up, and its element on the canvas or in the flow; none in a field or the title.

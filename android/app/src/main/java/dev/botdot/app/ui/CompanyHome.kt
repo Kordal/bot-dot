@@ -158,7 +158,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }) } }) }
                 if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots().forEach { s ->
                     add(Tile(cards.tileOf(s)) { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-                        CardSlot(cards, s, Modifier.fillMaxWidth().weight(1f, fill = false))
+                        // A card fills its tile, its list as many lines as it holds; the ask keeps its picks under it.
+                        CardSlot(cards, s, Modifier.fillMaxWidth().weight(1f, fill = s is dev.botdot.app.data.ProjectCards.Slot.Card), canvas = true)
                         if (s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null) CardPicks(cards, dev.botdot.app.data.ProjectBoard.missing(features, c))
                     } })
                 }

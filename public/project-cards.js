@@ -35,14 +35,17 @@
     const hi = Math.max(...list.map((b) => b.value), 1);
     return `<div class="pc-bars">${list.map((b, i) => `<span class="pc-bar${i === list.length - 1 ? ' last' : ''}"><i style="height:${Math.max(4, Math.round((b.value / hi) * 100))}%"></i><small>${esc(b.label)}</small></span>`).join('')}</div>`;
   }
+  // The row of cards shows the first FLOW items or rows; a card on an arranged board as many as its height holds (fit).
+  const FLOW = { list: 5, rows: 6 };
+  const more = (i, n) => (i >= n ? ' class="pc-more"' : '');
   function list(items) {
-    return `<ul class="pc-list">${items.map((x) => {
+    return `<ul class="pc-list pc-fit">${items.map((x, i) => {
       const inner = `${x.ref ? `<span class="pc-ref">${esc(x.ref)}</span>` : ''}<span class="pc-text">${esc(x.text)}</span>${x.tag ? `<span class="kit-pill ${x.level ? kitLevel(x.level) : 'info'}">${esc(x.tag)}</span>` : ''}`;
-      return `<li>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${inner}</a>` : inner}</li>`;
+      return `<li${more(i, FLOW.list)}>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${inner}</a>` : inner}</li>`;
     }).join('')}</ul>`;
   }
   function table(rows) {
-    return `<table class="pc-table"><tbody>${rows.map((r) => `<tr><td>${esc(r.label)}</td><td class="num">${esc(r.value)}</td><td class="num pc-sub${tone(r.tone)}">${r.change ? esc(r.change) : ''}</td></tr>`).join('')}</tbody></table>`;
+    return `<table class="pc-table"><tbody class="pc-fit">${rows.map((r, i) => `<tr${more(i, FLOW.rows)}><td>${esc(r.label)}</td><td class="num">${esc(r.value)}</td><td class="num pc-sub${tone(r.tone)}">${r.change ? esc(r.change) : ''}</td></tr>`).join('')}</tbody></table>`;
   }
   function bodyHTML(b) {
     const big = `<div class="pc-big"><b>${esc(b.value)}</b>${b.sub ? `<span class="pc-sub${tone(b.tone)}">${esc(b.sub)}</span>` : ''}</div>`;
@@ -182,7 +185,18 @@
     if (menu) document.addEventListener('click', () => { if (menu) { menu = null; Company.redraw(); } }, { once: true });
   }
 
+  // A card on an arranged board (board-canvas-view.js) shows as many whole items or rows as its height holds, one at
+  // least: resized taller, it shows more of what it read.
+  function fit(root) {
+    for (const card of $$('.pc-card', root)) {
+      const rows = $$('.pc-fit > *', card);
+      if (!rows.length) continue;
+      for (const r of rows) r.style.display = '';
+      for (let n = rows.length - 1; n > 0 && card.scrollHeight > card.clientHeight; n--) rows[n].style.display = 'none';
+    }
+  }
+
   // The fields the floor keeps when it is drawn again.
   const FIELDS = ['#pc-ask input', '#pc-other input'];
-  window.ProjectCards = { html, wire, FIELDS };
+  window.ProjectCards = { html, wire, fit, FIELDS, FLOW };
 })();

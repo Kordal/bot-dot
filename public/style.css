@@ -2185,6 +2185,8 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pc-table td { padding: var(--sp-4) 0; border-top: 1px solid var(--line); }
 .pc-table tr:first-child td { border-top: 0; }
 .pc-table .num { text-align: right; padding-left: var(--sp-12); white-space: nowrap; }
+/* The row of cards shows a list's first items; on an arranged board a card shows as many as it holds (ProjectCards.fit). */
+.pc-row .pc-more { display: none; }
 .pc-failed { color: var(--err); font-size: var(--fs-14); }
 .pc-failed.quiet { color: var(--faint); font-size: var(--fs-12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc-login { align-self: flex-start; margin-top: var(--sp-12); } /* a card that needs a login of the project (#804) */

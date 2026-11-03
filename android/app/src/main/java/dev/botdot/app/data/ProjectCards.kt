@@ -73,6 +73,13 @@ object ProjectCards {
     /** A project has at most this many cards. */
     const val MAX = 12
 
+    /** The row of cards shows a list card's first 5 items and a table's first 6 rows; an arranged board as many as fit. */
+    const val FLOW_LIST = 5
+    const val FLOW_ROWS = 6
+
+    /** How many of a card's [n] lines are measured: all on an arranged board ([fit]), else the first [flow]. */
+    fun shownLines(n: Int, flow: Int, fit: Boolean): Int = if (fit) n else minOf(n, flow)
+
     fun shows(features: Collection<String>?, c: Company): Boolean = features != null && FEATURE in features && c.running
 
     /** One place in the cards row: a card, its questions, the ask field (a new card's, or a card's Change), or New card. */
