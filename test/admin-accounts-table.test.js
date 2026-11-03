@@ -1,6 +1,6 @@
 // The admin page's accounts (#910): a table to search by part of a name, sort by name, joined, last seen, CPU, RAM and
 // disk, and filter by state, all three together. A row opens what the card had (#725): the share and the update in
-// words, and every action (Change share, Update now, Suspend or Resume, New sign-in link, Delete), on the same routes;
+// words, and every action (Change share, Update now, Suspend or Resume, Sign out everywhere, New sign-in link, Delete), on the same routes;
 // Delete is plain there and red only in its own box. The marks stay in the row: Disk full, near its RAM, long
 // commands. The admin page's own script (ADMIN_SCRIPT) runs against a small stand-in DOM.
 const { test } = require('node:test');
@@ -72,17 +72,18 @@ const ACCOUNTS = [
 ];
 
 // The script's account half (helpers, shares and the table), with fetch answering from `ACCOUNTS`.
-async function page() {
+async function page({ confirm = () => true, location = { assign() {} } } = {}) {
   const d = dom();
   const calls = [];
   const fetch = async (path, opts) => {
     calls.push([opts.method, path]);
-    const body = path === '/admin/accounts' ? { accounts: ACCOUNTS } : path.endsWith('/sign-in-link') ? { url: 'https://x/l' } : path === '/admin/links' ? { links: [] } : {};
+    const body = path === '/admin/accounts' ? { accounts: ACCOUNTS } : path.endsWith('/sign-in-link') ? { url: 'https://x/l' } : path === '/admin/links' ? { links: [] }
+      : path === '/admin/accounts/ann/sign-out' ? { ok: true, ended: 2, signIn: '/sign-in' } : path.endsWith('/sign-out') ? { ok: true, ended: 3 } : {};
     return { ok: true, json: async () => body };
   };
   const src = pages.ADMIN_SCRIPT;
   const part = src.slice(src.indexOf('  const said'), src.indexOf('  const what = (l)'));
-  const ctx = vm.createContext({ document: d.document, fetch, Date, Math, Number, Object, JSON, String, Error, setInterval() {}, confirm: () => true });
+  const ctx = vm.createContext({ document: d.document, fetch, Date, Math, Number, Object, JSON, String, Error, setInterval() {}, confirm, location });
   vm.runInContext(`${part}\n async function showLinks() {}\n Object.assign(this, { showAccounts, ago });`, ctx);
   await ctx.showAccounts();
   const byId = (id) => d.document.getElementById(id);
@@ -144,9 +145,35 @@ test('admin page: typing part of a name narrows the table, the state filter too,
   assert.equal(byId('account-none').hidden, true);
 });
 
+test('admin page: Sign out everywhere ends the sessions and says so; on the admin\'s own account it asks first, then signs in again', async () => {
+  const asked = [];
+  let yes = false;
+  const went = [];
+  const { open, buttons, fire, calls, tick } = await page({ confirm: (q) => { asked.push(q); return yes; }, location: { assign: (to) => went.push(to) } });
+  let box = open('bob');
+  calls.length = 0;
+  fire(buttons(box).find((b) => b.textContent === 'Sign out everywhere'), 'click');
+  await tick();
+  assert.deepEqual(calls, [['POST', '/admin/accounts/bob/sign-out']]);
+  assert.equal(asked.length, 0, "another account's: not asked");
+  assert.ok(buttons(box).some((b) => b.textContent === 'Signed out everywhere'));
+  assert.deepEqual(went, []);
+  box = open('ann');
+  calls.length = 0;
+  fire(buttons(box).find((b) => b.textContent === 'Sign out everywhere'), 'click');
+  await tick();
+  assert.equal(asked.length, 1);
+  assert.deepEqual(calls, [], 'no to the question: nothing ends');
+  yes = true;
+  fire(buttons(box).find((b) => b.textContent === 'Sign out everywhere'), 'click');
+  await tick();
+  assert.deepEqual(calls, [['POST', '/admin/accounts/ann/sign-out']]);
+  assert.deepEqual(went, ['/sign-in']);
+});
+
 test('admin page: a row opens every action of today; each does it on the same route; Delete is red only in its box', async () => {
   const { open, buttons, fire, calls, tick, row, byId } = await page();
-  for (const [name, acts] of [['ann', ['Change share', 'New sign-in link']], ['bob', ['Change share', 'Update now', 'Suspend', 'New sign-in link', 'Delete']], ['cat', ['Change share', 'Resume', 'New sign-in link', 'Delete']]]) {
+  for (const [name, acts] of [['ann', ['Change share', 'Sign out everywhere', 'New sign-in link']], ['bob', ['Change share', 'Update now', 'Suspend', 'Sign out everywhere', 'New sign-in link', 'Delete']], ['cat', ['Change share', 'Resume', 'Sign out everywhere', 'New sign-in link', 'Delete']]]) {
     const box = open(name);
     assert.equal(row(name).getAttribute('aria-expanded'), 'true');
     assert.deepEqual(buttons(box).map((b) => b.textContent), acts, name);
@@ -154,7 +181,7 @@ test('admin page: a row opens every action of today; each does it on the same ro
     fire(row(name), 'click');
     assert.equal(byId('account-rows').querySelector('.account'), null, 'the row again closes it');
   }
-  for (const [name, text, path] of [['bob', 'Suspend', '/admin/accounts/bob/suspend'], ['bob', 'Update now', '/admin/accounts/bob/update'], ['cat', 'Resume', '/admin/accounts/cat/resume'], ['ann', 'New sign-in link', '/admin/accounts/ann/sign-in-link']]) {
+  for (const [name, text, path] of [['bob', 'Suspend', '/admin/accounts/bob/suspend'], ['bob', 'Update now', '/admin/accounts/bob/update'], ['cat', 'Resume', '/admin/accounts/cat/resume'], ['cat', 'Sign out everywhere', '/admin/accounts/cat/sign-out'], ['ann', 'New sign-in link', '/admin/accounts/ann/sign-in-link']]) {
     const box = open(name);
     calls.length = 0;
     fire(buttons(box).find((b) => b.textContent === text), 'click');

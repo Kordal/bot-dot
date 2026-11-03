@@ -1207,7 +1207,7 @@ async function adminRoutes(req, res, p, account) {
     const q = new URL(req.url, 'http://x').searchParams;
     return send(res, 200, audit.list({ account: q.get('account') || undefined, action: q.get('action') || undefined, before: q.get('before') || undefined, limit: Number(q.get('limit')) || undefined }));
   }
-  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update)$/);
+  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update|sign-out)$/);
   if (a && req.method === 'POST') return accountAction(req, res, a[1], a[2]);
   return send(res, 404, { error: 'Not found' });
 }
@@ -1253,7 +1253,7 @@ const utc = (t) => `${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} 
 // A share in an audit entry's words: "2 CPUs · 5 GB RAM · 30 GB disk".
 const shareText = (s) => `${s.cpu} CPU${s.cpu === 1 ? '' : 's'} · ${s.ram} GB RAM · ${s.disk} GB disk`;
 
-// The admin suspends, resumes or deletes an account, or makes a sign-in link for it. The admin's own account is
+// The admin suspends, resumes or deletes an account, makes a sign-in link for it or signs it out everywhere. The admin's own account is
 // neither suspended nor deleted here: nobody would be left to resume it, nor to reach the admin page.
 async function accountAction(req, res, name, action) {
   const body = await readJson(req);
@@ -1282,6 +1282,15 @@ async function accountAction(req, res, name, action) {
     console.log(`[front door] the admin made a sign-in link for the account ${name} (${link.id.slice(0, 12)})`);
     audited('sign-in-link', { account: name, detail: `until ${utc(link.expires)}` });
     return send(res, 201, { url, link });
+  }
+  // "Sign out everywhere" (#914): every session of the account, in every app, ends; the passkeys stay. On the admin's
+  // own account the admin is signed out too (the page asks first).
+  if (action === 'sign-out') {
+    const ended = doors.endAccountSessions(name);
+    console.log(`[front door] the admin signed the account ${name} out everywhere (${ended} session${ended === 1 ? '' : 's'})`);
+    audited('sign-out', { account: name, detail: `${ended} session${ended === 1 ? '' : 's'}` });
+    const self = name === ADMIN;
+    return send(res, 200, { ok: true, ended, ...(self ? { signIn: '/sign-in' } : {}) }, self ? { 'Set-Cookie': sessionCookie(null) } : {});
   }
   if (action === 'delete') {
     if (body.name !== name) return send(res, 400, { error: `Type the account's name, ${name}, to delete it.` });
