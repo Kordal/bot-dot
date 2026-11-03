@@ -195,8 +195,8 @@ test('a change to a group is an event of its own, and nothing an app from before
 });
 
 test('the groups survive a restart', async () => {
-  const was = await groups();
   await srv.api('/read', { method: 'POST', body: { chat: `group:${dev.id}`, app: 'phone-1' } });
+  const was = await groups(); // with its read position (`readAt`), which the restart keeps
   const readAt = readData(srv.data, 'read-positions.json').chats[`group:${dev.id}`];
   srv = await restartServer(srv);
   assert.deepEqual(await groups(), was);

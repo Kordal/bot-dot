@@ -71,11 +71,12 @@ object Unread {
     fun rowFrom(places: List<Int>, first: Int?): Int = if (first == null) -1 else places.indexOfFirst { it >= first }
 
     /** The bots with what the server now says about one bot's chat (the feed's `unread`); the same list when nothing changed. */
-    fun set(bots: List<Bot>, botId: String, unread: Int, firstUnread: String?): List<Bot> {
+    fun set(bots: List<Bot>, botId: String, unread: Int, firstUnread: String?, readAt: String? = null): List<Bot> {
         val n = unread.coerceAtLeast(0)
         val first = firstUnread.takeIf { n > 0 }
-        if (bots.none { it.id == botId && (it.unread != n || it.firstUnread != first) }) return bots
-        return bots.map { if (it.id == botId) it.copy(unread = n, firstUnread = first) else it }
+        val at = { b: Bot -> readAt?.takeIf { it.isNotEmpty() } ?: b.readAt }
+        if (bots.none { it.id == botId && (it.unread != n || it.firstUnread != first || it.readAt != at(it)) }) return bots
+        return bots.map { if (it.id == botId) it.copy(unread = n, firstUnread = first, readAt = at(it)) else it }
     }
 
     /** An id this app makes up for itself at its start, so the server can tell two apps on one chat apart. */

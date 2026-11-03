@@ -58,6 +58,7 @@ data class Group(
     val order: Int = 0,
     val unread: Int = 0,
     val firstUnread: String? = null,
+    val readAt: String? = null, // how far the owner has read it: a last reply from before says Idle on its key, not Done
     @SerialName("last") val lastValue: JsonElement? = null,
     @SerialName("working") val workingValue: JsonElement? = null,
     @SerialName("asks") val asksValue: JsonElement? = null,
@@ -396,11 +397,12 @@ object Groups {
     fun addable(g: Group, bots: List<Bot>): List<Bot> = if (g.members.size >= GROUP_MAX) emptyList() else bots.filter { it.id !in g.members }
 
     /** The groups with what the server now says of one group's new replies (`group_unread`); the same list when nothing changed. */
-    fun setUnread(groups: List<Group>, groupId: String, unread: Int, firstUnread: String?): List<Group> {
+    fun setUnread(groups: List<Group>, groupId: String, unread: Int, firstUnread: String?, readAt: String? = null): List<Group> {
         val n = unread.coerceAtLeast(0)
         val first = firstUnread.takeIf { n > 0 }
-        if (groups.none { it.id == groupId && (it.unread != n || it.firstUnread != first) }) return groups
-        return groups.map { if (it.id == groupId) it.copy(unread = n, firstUnread = first) else it }
+        val at = { g: Group -> readAt?.takeIf { it.isNotEmpty() } ?: g.readAt }
+        if (groups.none { it.id == groupId && (it.unread != n || it.firstUnread != first || it.readAt != at(it)) }) return groups
+        return groups.map { if (it.id == groupId) it.copy(unread = n, firstUnread = first, readAt = at(it)) else it }
     }
 
     /**
@@ -425,7 +427,7 @@ object Groups {
             }
             "group_asks" -> { g -> g.copy(asksValue = d["asks"].takeIf { it is JsonObject }) }
             "group_limit" -> { g -> g.copy(limitValue = d["limit"].takeIf { it is JsonObject }) }
-            "group_unread" -> return setUnread(groups, id, (d["unread"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull ?: 0, d["firstUnread"].textOrNull())
+            "group_unread" -> return setUnread(groups, id, (d["unread"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull ?: 0, d["firstUnread"].textOrNull(), d["readAt"].textOrNull())
             else -> return groups
         }
         return groups.map { if (it.id == id) change(it) else it }

@@ -278,7 +278,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
                 when {
                     chat.startsWith("bot:") -> {
                         // At once, and again from botdot: a list that was being fetched meanwhile may be from before this.
-                        bots.update { Unread.set(it, chat.removePrefix("bot:"), n, ev.data.str("firstUnread").ifEmpty { null }) }
+                        bots.update { Unread.set(it, chat.removePrefix("bot:"), n, ev.data.str("firstUnread").ifEmpty { null }, ev.data.str("readAt").ifEmpty { null }) }
                         bots.changed()
                     }
                     chat.startsWith("chief:") -> chief.changed() // the Chief's place in the list shows the server's sum
