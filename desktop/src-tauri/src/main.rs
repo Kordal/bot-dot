@@ -398,11 +398,16 @@ fn remove_local(app: &AppHandle) {
                     }
                 });
                 follow_feeds(&app);
+                // The screen and the menus on the main thread, as after any menu's click, and first: on Windows the
+                // window came back black when they waited here behind the cookies.
+                let main = app.clone();
+                let _ = app.run_on_main_thread(move || {
+                    to_screen(&main, false);
+                    refresh_menus(&main);
+                });
                 if let Some(url) = address.as_deref().and_then(address::parse) {
                     forget_cookies(&app, &url);
                 }
-                to_screen(&app, false);
-                refresh_menus(&app);
             });
         }
     });
