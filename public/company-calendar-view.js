@@ -38,7 +38,7 @@
   const head = (id) => (id === 'chief' ? chiefFigure('sm') : id && id !== 'you' && botById(id) ? botFigure(colorOf(botById(id)), 'idle', 'sm', outfitOf(botById(id))) : you);
   // Who an item belongs to: who added an event, whom a to-do is for, the bot of a job; a check-in is the project's.
   const whoOf = (x) => (x.kind === 'event' ? head(x.by) : x.kind === 'job' ? head(x.bot) : x.kind === 'todo' ? head(x.bot || 'you') : `<span class="cf-you sm">${FLAG}</span>`);
-  const titleOf = (x) => (x.kind === 'checkin' ? tr('Day {n} check-in', { n: x.n }) : x.title);
+  const titleOf = (x) => (x.kind === 'checkin' ? (x.monthly ? tr('Monthly review') : tr('Day {n} check-in', { n: x.n })) : x.title);
   // The colour of its chip in the month: the bot's, else the project's accent.
   const colorOfItem = (x) => { const id = x.kind === 'event' ? x.by : x.bot; return id && botById(id) ? colorOf(botById(id)) : x.kind === 'checkin' ? '#f5c542' : '#8e7cff'; };
   const short = (day, opts) => new Date(`${day}T12:00:00Z`).toLocaleDateString(I18n.locale, { ...opts, timeZone: 'UTC' });

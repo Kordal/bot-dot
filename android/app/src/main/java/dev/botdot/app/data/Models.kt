@@ -354,7 +354,7 @@ data class TakenBack(val text: String, val attachments: List<Attachment>) {
 @Serializable
 data class Attachment(
     val name: String,
-    val file: String,
+    val file: String = "", // "" for a file named only: a mail draft's file the chat has none of
     val size: Long = 0,
     val readable: String? = null,
 )
@@ -540,6 +540,7 @@ data class MailDraft(
     val sentAt: String? = null, val earlier: Boolean = false,
     val botId: String? = null, val runId: String? = null, val bot: String? = null,
     val unsaved: Boolean = false, // a look's draft (#422): in no mailbox until Send now
+    val attachments: List<Attachment> = emptyList(), // the files the mail carries; a file of the chat has its `file`
 )
 
 @Serializable

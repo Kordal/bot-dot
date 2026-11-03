@@ -78,7 +78,7 @@ private fun colorOf(x: CalendarItem, bots: List<Bot>): String {
     return bots.firstOrNull { it.id == id }?.color ?: if (x.kind == "checkin") CHECKIN_COLOR else PROJECT_COLOR
 }
 
-private fun titleOf(x: CalendarItem): String = if (x.kind == "checkin") tr("Day {n} check-in", "n" to (x.n ?: 0)) else x.title
+private fun titleOf(x: CalendarItem): String = if (x.kind == "checkin") (if (x.monthly) tr("Monthly review") else tr("Day {n} check-in", "n" to (x.n ?: 0))) else x.title
 
 private fun short(d: LocalDate, pattern: String): String = d.format(DateTimeFormatter.ofPattern(pattern, I18n.locale))
 

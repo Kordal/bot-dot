@@ -61,7 +61,12 @@ const DocViewer = (() => {
     copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11 M7 10l5 5 5-5 M5 20h14"/></svg>',
   };
-  const downloadHTML = (c, primary = false) => (c.view?.downloadable === false ? '' : `<a class="btn sm${primary ? ' primary' : ''}" href="/api${esc(c.src)}" ${/\.pdf$/i.test(c.name) ? 'target="_blank" rel="noopener"' : `download="${esc(c.view?.interactive ? c.view.name : c.name)}"`}>${ICON.down}${tr('Download')}</a>`);
+  // A PDF is drawn by the browser's own viewer in a frame, from its raw address (Content-Disposition inline, no
+  // sandbox: lib/routes/files.js), which streams it, so a large scan doesn't hold up the page. Where the browser has
+  // no viewer (a phone's), its Download opens it in a tab, which hands it to the phone.
+  const pdfShown = () => globalThis.navigator?.pdfViewerEnabled !== false;
+  const isPdf = (v) => v?.type === 'application/pdf' && v.downloadable !== false && !v.interactive && pdfShown();
+  const downloadHTML = (c, primary = false) => (c.view?.downloadable === false ? '' : `<a class="btn sm${primary ? ' primary' : ''}" href="/api${esc(c.src)}" ${/\.pdf$/i.test(c.name) && !isPdf(c.view) ? 'target="_blank" rel="noopener"' : `download="${esc(c.view?.interactive ? c.view.name : c.name)}"`}>${ICON.down}${tr('Download')}</a>`);
   const stateHTML = (title, text, acts) => `<div class="dv-state"><h3>${esc(title)}</h3><p class="muted">${esc(text)}</p><div class="dv-acts">${acts}</div></div>`;
 
   function headHTML(c) {
@@ -122,6 +127,7 @@ const DocViewer = (() => {
     if (v.downloadable === false) return `${headHTML(c)}<div class="dv-body">${stateHTML(tr('Too large to bring out of the computer'), tr('Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.'), `<button type="button" class="btn sm" data-dv="close">${tr('Back to the chat')}</button>`)}</div>`;
     // A bot's interactive page (#399): its frame on the sandbox's own address.
     if (v.interactive && c.page) return `${headHTML(c)}${Pages.siteBarHTML(c, downloadHTML(c))}<div class="dv-body dv-site-body">${Pages.siteBodyHTML(c, downloadHTML(c, true))}</div>`;
+    if (isPdf(v)) return `${headHTML(c)}${barHTML(c)}<div class="dv-body dv-frame-body"><iframe class="dv-pdf" src="/api${esc(c.src)}" title="${esc(c.name)}"></iframe></div>`;
     if (v.kind === 'none') return `${headHTML(c)}<div class="dv-body">${stateHTML(tr('No preview for this kind of file'), tr('The app shows Markdown, text, code, CSV and pictures. Open this one on your device.'), downloadHTML(c, true))}</div>`;
     const cut = v.truncated ? `<div class="dv-cut"><b>${tr('Too large to show whole.')}</b> ${tr('Showing its start (up to 1 MB or 1,000 lines).')} ${v.downloadable === false ? '' : tr('Download it to see everything.')}</div>` : '';
     return `${headHTML(c)}${barHTML(c)}${cut}<div class="dv-body">${bodyHTML(c)}</div>`;
@@ -144,10 +150,12 @@ const DocViewer = (() => {
 
   // An interactive page in full screen or back (#399): everything but its frame is drawn again, so the page keeps
   // what the owner did in it; an address that ran out is signed anew, which loads it again.
+  // A PDF keeps its frame the same way, and with it the page it is on.
   function around(c) {
     const el = box();
     const i = c.view.interactive;
-    if (!el || !$('iframe.dv-site', el) || (i.expires && Date.parse(i.expires) < Date.now())) return load(c, true);
+    if (!i) { if (!el || !$('iframe.dv-pdf', el)) return draw(); }
+    else if (!el || !$('iframe.dv-site', el) || (i.expires && Date.parse(i.expires) < Date.now())) return load(c, true);
     const t = document.createElement('div');
     t.innerHTML = html(c);
     const fresh = [...t.children];
@@ -155,7 +163,7 @@ const DocViewer = (() => {
     if (fresh.length !== old.length) return draw();
     el.classList.toggle('full', !!c.full);
     $('#chat-row')?.classList.toggle('viewer-full', !!c.full);
-    old.forEach((n, j) => { if (!n.classList.contains('dv-site-body')) n.replaceWith(fresh[j]); });
+    old.forEach((n, j) => { if (!n.classList.contains('dv-site-body') && !n.classList.contains('dv-frame-body')) n.replaceWith(fresh[j]); });
   }
 
   // An interactive page's live values (#399): the values of the tiles it reads, handed to its frame when it has loaded
@@ -253,7 +261,7 @@ const DocViewer = (() => {
   async function act(btn) {
     const what = btn.dataset.dv;
     if (what === 'close') return close();
-    if (what === 'full') { cur.full = !cur.full; return cur.view?.interactive ? around(cur) : draw(); }
+    if (what === 'full') { cur.full = !cur.full; return cur.view?.interactive || isPdf(cur.view) ? around(cur) : draw(); }
     if (what === 'mode') { cur.mode = btn.dataset.mode; return draw(); }
     // A page with blocks copies what it shows, its blocks as text and tables; its Source, the Markdown.
     if (what === 'copy') { if (await copyText((cur.mode === 'rendered' && cur.view?.plain) || cur.view?.text || '')) toast(tr('Copied')); return; }
@@ -326,7 +334,7 @@ const DocViewer = (() => {
     });
   }
 
-  return { open, close, html, csvRows, tableOf, wire, pageChanged, tileChanged, now: () => cur };
+  return { open, close, html, csvRows, tableOf, isPdf, wire, pageChanged, tileChanged, now: () => cur };
 })();
 
 if (typeof document !== 'undefined' && document.addEventListener) DocViewer.wire(document);
