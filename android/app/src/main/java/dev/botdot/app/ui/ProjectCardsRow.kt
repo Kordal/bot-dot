@@ -68,6 +68,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Placeable
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.CardBody
@@ -140,9 +143,9 @@ internal fun rememberCards(ui: CompanyUi, c: Company): CardsState {
     return st
 }
 
-/** One card, the ask field, the questions or New card, in [m]. */
+/** One card, the ask field, the questions or New card, in [m]; [canvas]: on an arranged board, a card's list fits its height. */
 @Composable
-internal fun CardSlot(st: CardsState, s: ProjectCards.Slot, m: Modifier) {
+internal fun CardSlot(st: CardsState, s: ProjectCards.Slot, m: Modifier, canvas: Boolean = false) {
     when (s) {
         is ProjectCards.Slot.New -> NewCardTile(m) { st.refused = null; st.open = ProjectCards.NEW }
         is ProjectCards.Slot.Ask -> AskCard(m, s.card, st.refused ?: s.card?.name.orEmpty(), onClose = { st.open = null }) { text ->
@@ -153,7 +156,7 @@ internal fun CardSlot(st: CardsState, s: ProjectCards.Slot, m: Modifier) {
         is ProjectCards.Slot.Questions -> QuestionsCard(m, s.card,
             onAnswer = { text -> st.send({ it.answerCard(s.card.id, text) }) },
             onClose = { st.leave(st.closing, s.card.id) { it.cancelCard(s.card.id) } })
-        is ProjectCards.Slot.Card -> BoardCard(m, s.card, fresh = s.card.id in st.fresh,
+        is ProjectCards.Slot.Card -> BoardCard(m, s.card, fresh = s.card.id in st.fresh, canvas = canvas,
             onRefresh = { st.send({ it.refreshCard(s.card.id) }) },
             onChange = { st.refused = null; st.open = s.card.id },
             onRemove = { st.leave(st.removing, s.card.id) { it.removeCard(s.card.id) } },
@@ -324,7 +327,7 @@ private fun CardIcon(icon: ImageVector, label: String, onClick: () -> Unit) {
 
 /** A card: its title, refresh and the menu; then what it shows, or while it is built for the first time its shimmer, line and bar. */
 @Composable
-private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, onRefresh: () -> Unit, onChange: () -> Unit, onRemove: () -> Unit, onLogin: (() -> Unit)? = null) {
+private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, canvas: Boolean = false, onRefresh: () -> Unit, onChange: () -> Unit, onRemove: () -> Unit, onLogin: (() -> Unit)? = null) {
     val p = LocalPaper.current
     var menu by remember(k.id) { mutableStateOf(false) }
     Column(modifier.heightIn(min = 148.dp).cardBox(p, if (fresh) p.ok else null).padding(start = Space.s16, end = Space.s8, top = Space.s8, bottom = Space.s16),
@@ -346,7 +349,7 @@ private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, onRefr
             val body = k.body
             if (k.building && body == null) Building(k)
             else {
-                if (body != null) Body(body)
+                if (body != null) Body(body, canvas)
                 // A card that needs one of the owner's servers no login of the project reaches (#804): which, and Add login.
                 val said = if (onLogin != null) tr("No login for {host}", "host" to k.needsLogin.orEmpty()) else k.error ?: tr("Could not build it")
                 if (k.failed) Text(said, color = if (body != null) p.faint else p.err, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -385,9 +388,9 @@ private fun toneColor(tone: String?): Color {
     return when (tone) { "ok" -> p.okText; "bad" -> p.err; "muted" -> p.faint; else -> p.okText }
 }
 
-/** What a card shows: the big number and its line, then its spark, bars, list or table. */
+/** What a card shows: the big number and its line, then its spark, bars, list or table ([canvas]: as many lines as fit). */
 @Composable
-private fun Body(b: CardBody) {
+private fun Body(b: CardBody, canvas: Boolean = false) {
     val p = LocalPaper.current
     Row(verticalAlignment = Alignment.Bottom) {
         Text(b.value, color = p.text, fontSize = Type.s32, fontWeight = FontWeight.SemiBold, lineHeight = Type.line40, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
@@ -396,15 +399,39 @@ private fun Body(b: CardBody) {
     when (b.show) {
         "spark" -> KitSpark(b.points, if (b.tone == "bad") p.err else p.ok, Modifier.fillMaxWidth().height(44.dp))
         "bars" -> Bars(b)
-        "list" -> Column { b.list.forEach { Box(Modifier.fillMaxWidth().height(1.dp).background(p.line)); ListLine(it) } }
-        "table" -> Column { b.rows.forEach { r ->
+        "list" -> FitRows(canvas, ProjectCards.FLOW_LIST) { b.list.forEach { Column { Box(Modifier.fillMaxWidth().height(1.dp).background(p.line)); ListLine(it) } } }
+        "table" -> FitRows(canvas, ProjectCards.FLOW_ROWS) { b.rows.forEach { r -> Column {
             Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
             Row(Modifier.fillMaxWidth().padding(vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                 Text(r.label, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 Text(r.value, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, fontFamily = GeistMono, modifier = Modifier.padding(start = Space.s12))
                 Text(r.change.orEmpty(), color = toneColor(r.tone ?: "muted"), fontSize = Type.s12, fontFamily = GeistMono, textAlign = TextAlign.End, modifier = Modifier.width(56.dp))
             }
-        } }
+        } } }
+    }
+}
+
+/**
+ * A card's lines one under another: in the row of cards the first [flow]; on an arranged board ([fit]) as many whole
+ * lines as the card's height holds, one at least, so a card resized taller shows more of what it read.
+ */
+@Composable
+private fun FitRows(fit: Boolean, flow: Int, content: @Composable () -> Unit) {
+    Layout(content) { ms, c ->
+        val free = c.copy(minHeight = 0, maxHeight = Constraints.Infinity)
+        val shown = mutableListOf<Placeable>()
+        var h = 0
+        for (m in ms.take(ProjectCards.shownLines(ms.size, flow, fit))) {
+            val line = m.measure(free)
+            if (fit && c.hasBoundedHeight && shown.isNotEmpty() && h + line.height > c.maxHeight) break
+            shown += line
+            h += line.height
+        }
+        val w = if (c.hasBoundedWidth) c.maxWidth else shown.maxOfOrNull { it.width } ?: 0
+        layout(w, h.coerceIn(c.minHeight, c.maxHeight)) {
+            var y = 0
+            shown.forEach { it.placeRelative(0, y); y += it.height }
+        }
     }
 }
 

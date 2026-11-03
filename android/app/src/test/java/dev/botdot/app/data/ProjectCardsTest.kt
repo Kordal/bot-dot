@@ -121,6 +121,13 @@ class ProjectCardsTest {
         assertEquals(6, ProjectCards.lines(ProjectCards.slots(twelve, null)).size)
     }
 
+    @Test fun theRowShowsAListsFirstLinesAndAnArrangedBoardAllThatFit() {
+        assertEquals(5, ProjectCards.shownLines(15, ProjectCards.FLOW_LIST, fit = false))
+        assertEquals(6, ProjectCards.shownLines(12, ProjectCards.FLOW_ROWS, fit = false))
+        assertEquals(3, ProjectCards.shownLines(3, ProjectCards.FLOW_LIST, fit = false))
+        assertEquals(15, ProjectCards.shownLines(15, ProjectCards.FLOW_LIST, fit = true))
+    }
+
     @Test fun aHalfCardLeftAloneKeepsItsHalf() {
         val half = ProjectCards.Slot.Card(ProjectCard(id = "a", body = CardBody(show = "number", value = "1")))
         val wide = ProjectCards.Slot.Card(ProjectCard(id = "b", body = CardBody(show = "table", value = "1")))

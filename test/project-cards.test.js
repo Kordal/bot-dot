@@ -42,6 +42,10 @@ test('a built card is checked: its value, sub and data are plain text and number
   assert.deepEqual(cards.cardOf('```card\n{"title":"Calls","show":"bars","value":"14","bars":[{"label":"Monday","value":3},{"label":"T","value":"x"}]}\n```').body.bars, [{ label: 'Monday', value: 3 }].map((b) => ({ ...b, label: 'Monday'.slice(0, 6) })));
   assert.deepEqual(cards.cardOf('```card\n{"show":"table","value":"$12","rows":[{"label":"Globex","value":"$12","change":"+$2","tone":"bad"},{"label":"No value"}]}\n```').body.rows, [{ label: 'Globex', value: '$12', change: '+$2', tone: 'bad' }]);
   assert.equal(cards.cardOf('```card\n{"show":"weird","value":"5"}\n```').body.show, 'number');
+  // Up to 15 items and 12 rows, so a card resized taller on the board shows more of what it read.
+  const many = (n, f) => JSON.stringify(Array.from({ length: n }, (_, i) => f(i)));
+  assert.equal(cards.cardOf(`\`\`\`card\n{"show":"list","value":"40","list":${many(40, (i) => ({ text: `Item ${i}` }))}}\n\`\`\``).body.list.length, 15);
+  assert.equal(cards.cardOf(`\`\`\`card\n{"show":"table","value":"40","rows":${many(40, (i) => ({ label: `Row ${i}`, value: i }))}}\n\`\`\``).body.rows.length, 12);
 });
 
 test("a run's live line comes from its tool calls: a search, a page's host, an app", () => {
