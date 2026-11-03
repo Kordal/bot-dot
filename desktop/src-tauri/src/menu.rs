@@ -52,8 +52,8 @@ pub fn label(address: &str) -> String {
         .unwrap_or_else(|| address.to_string())
 }
 
-// What only the local botdot says is read on the Mac alone.
-#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+// What only the local botdot says is read on the Mac and on Windows alone, and its restart on Windows alone.
+#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
 pub struct Words {
     pub add: &'static str,
     pub remove: &'static str,
@@ -63,20 +63,36 @@ pub struct Words {
     pub cancel: &'static str,
     pub updating: &'static str,
     pub not_done: &'static str,
+    pub restart_asks: &'static str,
+    pub restart: &'static str,
+    pub later: &'static str,
     pub login: &'static str,
     pub notifications: &'static str,
     pub quit: &'static str,
 }
 
+// The botdot on this computer, named as the computer is.
+#[cfg(not(windows))]
+const LOCAL_EN: [&str; 3] = ["Update botdot on this Mac", "Remove botdot on this Mac…", "This deletes the botdot on this Mac for good: its bots, chats, memory, Vault and logins."];
+#[cfg(windows)]
+const LOCAL_EN: [&str; 3] = ["Update botdot on this PC", "Remove botdot on this PC…", "This deletes the botdot on this PC for good: its bots, chats, memory, Vault and logins."];
+#[cfg(not(windows))]
+const LOCAL_PL: [&str; 3] = ["Zaktualizuj botdota na tym Macu", "Usuń botdota z tego Maca…", "To na zawsze usuwa botdota z tego Maca: jego boty, czaty, pamięć, Sejf i logowania."];
+#[cfg(windows)]
+const LOCAL_PL: [&str; 3] = ["Zaktualizuj botdota na tym komputerze", "Usuń botdota z tego komputera…", "To na zawsze usuwa botdota z tego komputera: jego boty, czaty, pamięć, Sejf i logowania."];
+
 const EN: Words = Words {
     add: "Add botdot…",
     remove: "Remove",
-    update_local: "Update botdot on this Mac",
-    remove_local: "Remove botdot on this Mac…",
-    remove_local_asks: "This deletes the botdot on this Mac for good: its bots, chats, memory, Vault and logins.",
+    update_local: LOCAL_EN[0],
+    remove_local: LOCAL_EN[1],
+    remove_local_asks: LOCAL_EN[2],
     cancel: "Cancel",
     updating: "botdot is updating. It comes back in a few minutes.",
     not_done: "That didn't work. Try again.",
+    restart_asks: "Windows restarts to finish installing WSL. botdot carries on after the restart.",
+    restart: "Restart now",
+    later: "Later",
     login: "Open at login",
     notifications: "Turn on notifications…",
     quit: "Quit botdot",
@@ -84,12 +100,15 @@ const EN: Words = Words {
 const PL: Words = Words {
     add: "Dodaj botdota…",
     remove: "Usuń",
-    update_local: "Zaktualizuj botdota na tym Macu",
-    remove_local: "Usuń botdota z tego Maca…",
-    remove_local_asks: "To na zawsze usuwa botdota z tego Maca: jego boty, czaty, pamięć, Sejf i logowania.",
+    update_local: LOCAL_PL[0],
+    remove_local: LOCAL_PL[1],
+    remove_local_asks: LOCAL_PL[2],
     cancel: "Anuluj",
     updating: "botdot się aktualizuje. Wróci za kilka minut.",
     not_done: "To się nie udało. Spróbuj jeszcze raz.",
+    restart_asks: "Windows uruchomi się ponownie, żeby dokończyć instalację WSL. Botdot dokończy konfigurację po restarcie.",
+    restart: "Uruchom ponownie",
+    later: "Później",
     login: "Otwieraj po zalogowaniu",
     notifications: "Włącz powiadomienia…",
     quit: "Zakończ botdota",
