@@ -1,0 +1,68 @@
+# Releases everything in one click (Actions → Build all → Run workflow, on main): the Android app (android.yml), then
+# the server images that carry it (images.yml), and beside them the desktop app (desktop-release.yml).
+#
+# It starts each one as its own run, exactly as a run by hand would, and follows it: each keeps its own version
+# (its run number), its tests before publishing, and its own page in Actions. A run of Android by hand starts the
+# image build itself once the app is released, so this follows that run; when Android fails, the images are still
+# built, with the last released app. This run fails when any of the three does, and its summary links each.
+# Cancelling this run leaves the runs it started going: cancel those in Actions.
+name: Build all
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write # to start the release workflows and follow their runs
+
+concurrency:
+  group: build-all
+  cancel-in-progress: false
+
+jobs:
+  android:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Android
+        run: deploy/build-all.sh wait "$(deploy/build-all.sh start android.yml)" Android
+
+  # Waits for Android: the image carries the newest released app.
+  images:
+    needs: android
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ANDROID: ${{ needs.android.result }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Images
+        run: |
+          if [ "$ANDROID" = success ]; then
+            # The Android run started this build when it published.
+            SINCE="$(gh run view "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --json createdAt --jq .createdAt)"
+            for _ in $(seq 15); do
+              ID="$(deploy/build-all.sh find images.yml "$SINCE")"
+              [ -z "$ID" ] || break
+              sleep 20
+            done
+          fi
+          [ -n "${ID:-}" ] || ID="$(deploy/build-all.sh start images.yml)"
+          deploy/build-all.sh wait "$ID" Images
+
+  desktop:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Desktop
+        run: deploy/build-all.sh wait "$(deploy/build-all.sh start desktop-release.yml)" Desktop
