@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.botdot.app.data.Attachment
 import dev.botdot.app.data.ChiefAction
 import dev.botdot.app.data.MailDraft
 import dev.botdot.app.data.tr
@@ -59,6 +60,14 @@ object MailCard {
         d.earlier || d.state == "sent" -> emptyList()
         d.state == "kept" -> listOf(SEND)
         else -> listOf(SEND, KEEP)
+    }
+
+    /** How a file the mail carries opens: as the owner's upload in this chat, as a bot's file, or not at all (a name alone). */
+    enum class Opens { OWN, RUN, NONE }
+    fun opens(f: Attachment) = when {
+        f.file.isBlank() -> Opens.NONE
+        f.file.startsWith("uploads/") -> Opens.OWN
+        else -> Opens.RUN
     }
 
     /** A chip of the run that wrote the draft: the card's footer takes its place. */
@@ -103,6 +112,7 @@ fun MailDraftCard(d: MailDraft, bot: String?, screen: Boolean, onBot: () -> Unit
                 Text(if (sent) tr("Sent {time}", "time" to shortTime(d.sentAt)).trimEnd() else MailCard.state(d), color = if (sent) p.okText else p.muted, fontSize = Type.s12)
             }
             if (textShown && d.text.isNotBlank()) Text(d.text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20, modifier = Modifier.holdToCopy(d.text).padding(start = Space.s16, end = Space.s16, top = Space.s12, bottom = Space.s4))
+            if ((textShown || d.text.isBlank()) && d.attachments.isNotEmpty()) MailFiles(d.attachments)
             if (actions.isNotEmpty() && !used) FlowRow(Modifier.padding(start = Space.s16, end = Space.s16, top = Space.s12, bottom = Space.s16), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 actions.forEachIndexed { i, c ->
                     val pick = { scope.launch { if (onPick(c, keys[i])) used = true }; Unit }
@@ -120,5 +130,24 @@ fun MailDraftCard(d: MailDraft, bot: String?, screen: Boolean, onBot: () -> Unit
         }
         if (!textShown && d.text.isNotBlank()) Text(tr("Show the text"), color = p.muted, fontSize = Type.s12,
             modifier = Modifier.clickable(role = Role.Button) { textShown = true }.heightIn(min = 44.dp).padding(start = Space.s16, top = Space.s12, bottom = Space.s12))
+    }
+}
+
+/** The files the mail carries, as chips: the owner's upload opens as in their message, a bot's file as under its reply. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MailFiles(files: List<Attachment>) {
+    val own = LocalOwnFiles.current
+    val run = rememberRunFileOpener()
+    FlowRow(Modifier.padding(start = Space.s16, end = Space.s16, top = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+        files.forEach { f ->
+            val open: (() -> Unit)? = when (MailCard.opens(f)) {
+                MailCard.Opens.OWN -> own?.invoke(f)?.let { src -> { DocViewer.open = DocViewer.Request(src, f.name) } }
+                MailCard.Opens.RUN -> ({ if (run.opening == null) run.open(f) })
+                MailCard.Opens.NONE -> null
+            }
+            val chip = @Composable { FileChip(f.name, note = if (run.opening == f.file && f.file.isNotBlank()) tr("opening…") else null, onCard = true) }
+            if (open != null) Box(Modifier.clip(Radius.pill).clickable(role = Role.Button, onClick = open)) { chip() } else chip()
+        }
     }
 }
