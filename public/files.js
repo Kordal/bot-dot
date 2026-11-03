@@ -279,6 +279,7 @@ const Files = (() => {
     else if (p?.view) {
       const v = p.view;
       if (v.kind === 'image') body = `<img class="fx-pv-img" src="/api${esc(at(c, 'file', e.path, e.place || c.place))}" alt="${esc(e.name)}">`;
+      else if (typeof DocViewer !== 'undefined' && DocViewer.isPdf(v)) body = `<iframe class="fx-pv-pdf" src="/api${esc(at(c, 'file', e.path, e.place || c.place))}" title="${esc(e.name)}"></iframe>`;
       else if (v.kind === 'markdown') body = `<article class="md">${typeof md === 'function' ? md(v.text || '') : esc(v.text || '')}</article>`;
       else if (v.kind === 'csv' && typeof DocViewer !== 'undefined') {
         const t = DocViewer.tableOf(v.text || '', /\.tsv$/i.test(e.name) ? '\t' : ',');
