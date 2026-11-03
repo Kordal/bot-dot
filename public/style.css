@@ -2047,6 +2047,8 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pg-older span { flex: 1 1 220px; }
 .dv-body.dv-site-body { display: flex; padding: 0; overflow: hidden; }
 .dv-site { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); color-scheme: dark; }
+.dv-body.dv-frame-body { display: flex; padding: 0; overflow: hidden; }
+.dv-pdf { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); }
 .pg-version { display: flex; align-items: center; gap: var(--sp-8); padding: var(--sp-8) 0; border-top: 1px solid var(--line); }
 .pg-version .pg-text { flex: 1; }
 .pg-version.on b { color: var(--ok-text); }
@@ -2388,6 +2390,7 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .fx-pv-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fx-pv-body { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-16) var(--sp-16); }
 .fx-pv-img { max-width: 100%; border-radius: var(--r-8); }
+.fx-pv-pdf { display: block; width: 100%; height: 100%; min-height: 360px; border: 0; border-radius: var(--r-8); background: var(--bg); }
 .fx-pv-text { white-space: pre-wrap; word-break: break-word; margin: 0; color: var(--muted); }
 .fx-pv-table table { border-collapse: collapse; font-size: var(--fs-12); }
 .fx-pv-table th, .fx-pv-table td { border-bottom: 1px solid var(--line); padding: var(--sp-4) var(--sp-8); text-align: left; white-space: nowrap; }
