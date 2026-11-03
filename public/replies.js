@@ -144,8 +144,10 @@ function setUnread(chat, now) {
     return;
   }
   const bot = kind === 'bot' ? botById(id) : kind === 'group' ? groupById(id) : null; // a group has one count and one line, as a bot has
-  if (!bot || (Unread.count(bot) === Unread.count(now) && bot.firstUnread === now.firstUnread)) return;
-  Object.assign(bot, { unread: Unread.count(now), firstUnread: now.firstUnread ?? null });
+  if (!bot) return;
+  const readAt = typeof now.readAt === 'string' ? now.readAt : bot.readAt; // where it is read up to: a seen run's key says Idle
+  if ((Unread.count(bot) === Unread.count(now) && bot.firstUnread === now.firstUnread && bot.readAt === readAt)) return;
+  Object.assign(bot, { unread: Unread.count(now), firstUnread: now.firstUnread ?? null, ...(readAt ? { readAt } : {}) });
   renderContacts();
 }
 addEventListener('focus', syncRead);

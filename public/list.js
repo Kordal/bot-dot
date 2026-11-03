@@ -235,12 +235,12 @@ let keysWaiting = new Set();
 function keyStatus(x) {
   if (x.members) {
     const cls = groupLine(x).cls;
-    return Keypad.status({ running: cls === 'working', needs: cls === 'asks', unread: Unread.count(x), last: x.last?.status ?? null });
+    return Keypad.status({ running: cls === 'working', needs: cls === 'asks', unread: Unread.count(x), last: x.last?.status ?? null, seen: Keypad.seen(x.readAt, x.last?.at) });
   }
   const r = state.runs.find((y) => y.botId === x.id);
   const running = !!x.running || r?.status === 'running';
   const runs = x.runningCount ?? state.runs.filter((y) => y.botId === x.id && y.status === 'running').length; // a server without it: the list's
-  return Keypad.status({ running, runs, needs: keyAsks(x) || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null });
+  return Keypad.status({ running, runs, needs: keyAsks(x) || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null, seen: Keypad.seen(x.readAt, r?.endedAt) });
 }
 // A key's state as one line under its name (#664): a coloured dot and the status's words: green while it works, where
 // the words are what it does now (its opening line, or which member of a group works and on what), amber while it needs

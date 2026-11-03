@@ -89,7 +89,9 @@ test('restore into a fresh install brings everything back', async () => {
   const audit = fs.readFileSync(path.join(b.data, 'audit.log'), 'utf8').trim().split('\n').map(JSON.parse);
   assert.ok(audit.some((entry) => entry.action === 'backup.restored' && entry.actor === 'owner'), 'the restore preserves the installation audit trail');
   assert.ok((await b.api('/bots')).data.some((x) => x.id === bot.id && x.name === 'Home Keeper'));
-  assert.deepEqual((await b.api('/group-chats')).data, [group], 'the group came along, with its members and its place');
+  // Not its read position: a chat never read is read up to when this install began.
+  const unplaced = ({ readAt, ...g }) => g;
+  assert.deepEqual((await b.api('/group-chats')).data.map(unplaced), [unplaced(group)], 'the group came along, with its members and its place');
   assert.equal(JSON.parse(fs.readFileSync(path.join(b.data, 'read-positions.json'), 'utf8')).chats[`group:${group.id}`], JSON.parse(fs.readFileSync(path.join(a.data, 'read-positions.json'), 'utf8')).chats[`group:${group.id}`]);
   assert.match(JSON.stringify((await b.api('/memory/search?q=Pixel')).data), /Pixel/);
   assert.match(fs.readFileSync(path.join(b.data, 'workspaces', bot.id, 'uploads', 'list.md'), 'utf8'), /milk/);
