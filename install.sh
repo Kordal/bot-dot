@@ -1011,6 +1011,7 @@ hand_images() {
       if [ -n "$($A ps -aq --filter label=botdot.computer=account </dev/null 2>/dev/null || true)" ]; then
         ok "The bots' computer keeps its image; its Update or reset takes the newest"
       else
+        say "Downloading the bots' computer (about 7 GB the first time)…"
         pull "$COMPUTER_IMAGE" "$A" && ok "Bots' computer image is up to date" || warn "Couldn't download the bots' computer now; botdot tries again when a bot needs it."
       fi ;;
     load)
