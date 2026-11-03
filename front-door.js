@@ -59,6 +59,7 @@ const groupRouterLib = require('./lib/group-router');
 const boatStore = require('./lib/front-door/boat');
 const boatLib = require('./lib/boat');
 const usageStore = require('./lib/front-door/usage');
+const auditStore = require('./lib/front-door/audit');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -167,6 +168,19 @@ const PAUSED = 'Your account is paused by the admin.';
 
 const tries = limits.create(); // failed sign-ins and sign-up links
 const callTries = limits.create(); // calls with a wrong key, or none, or to an account that doesn't exist
+
+// The audit log (#911, ADR 141): what the admin did on the admin page, and the front door's security events, for the
+// admin page alone. None on a machine of one account, which has no admin page. Never a key, a session, a link or a
+// passkey in an entry: each detail below is written here, from what the front door knows, never from a request.
+const audit = ONE_ACCOUNT ? null : auditStore.open(DATA);
+function audited(action, { account, detail, actor = ADMIN } = {}) {
+  if (!audit) return;
+  try { audit.record({ actor: actor || 'front-door', action, account, detail }); } catch (e) { console.error(`[front door] couldn't keep an audit entry (${action}): ${e.message}`); }
+}
+// A failed try counted against a client; the one after which it waits is kept in the audit log.
+function failedTry(limit, client, what) {
+  if (limit.failed(client) === limits.FREE) audited('slowed-down', { actor: 'front-door', detail: `${client} · after failed ${what}` });
+}
 // The challenges given out and not yet answered: challenge → { kind: 'create' | 'get', client, until, token?, name?,
 // userId? }. Asking for one needs no sign-in, so each client holds at most CHALLENGES_PER_CLIENT and all of them at
 // most CHALLENGES_MAX: past that, the oldest goes.
@@ -525,7 +539,7 @@ async function signInRoutes(req, res, p) {
       try { count = webauthn.verifyAssertion(credential, key, { rpId: RP_ID, origin: ORIGINS, challenge: waiting.challenge }); } catch { count = null; }
     }
     if (count === null) {
-      tries.failed(clientOf(req));
+      failedTry(tries, clientOf(req), 'sign-ins');
       return send(res, 401, { error: "That passkey didn't sign you in." });
     }
     tries.succeeded(clientOf(req));
@@ -538,7 +552,7 @@ async function signInRoutes(req, res, p) {
     const { code, verifier } = await readJson(req);
     const waiting = takeHandoff(code, verifier);
     if (!waiting) {
-      tries.failed(clientOf(req));
+      failedTry(tries, clientOf(req), 'sign-ins');
       return send(res, 401, { error: "That sign-in didn't come from this app. Sign in again." });
     }
     tries.succeeded(clientOf(req));
@@ -614,7 +628,7 @@ async function signInRoutes(req, res, p) {
   if (slowedDown(req, res)) return;
   const link = signUpLink(token);
   if (!link) {
-    tries.failed(clientOf(req));
+    failedTry(tries, clientOf(req), 'sign-up links');
     if (req.method === 'GET') return html(res, 410, pages.ended());
     return send(res, 410, { error: 'This sign-up link was used or has ended.' });
   }
@@ -653,9 +667,11 @@ async function signInRoutes(req, res, p) {
   tries.succeeded(clientOf(req));
   if (signIn) {
     console.log(`[front door] the account ${name} has a new passkey, from the admin's sign-in link; its other sessions ended`);
+    audited('passkey-added', { actor: 'front-door', account: name, detail: "from the admin's sign-in link" });
     return signedIn(req, res, 201, name, body.app, handoff);
   }
   console.log(`[front door] account ${name} was made ${ONE_ACCOUNT ? 'with the setup key' : 'from a sign-up link'}`);
+  audited('account-made', { actor: 'front-door', account: name, detail: 'from a sign-up link' });
   askForAccount(name);
   return signedIn(req, res, 201, name, body.app, handoff);
 }
@@ -932,12 +948,14 @@ async function adminRoutes(req, res, p, account) {
     await readJson(req);
     const { url, expires, link } = doors.newSignUpLink({ origin: ORIGIN.origin });
     console.log(`[front door] the admin made a sign-up link (${link.id.slice(0, 12)}, until ${new Date(expires).toISOString()})`);
+    audited('link-made', { detail: `until ${utc(expires)}` });
     return send(res, 201, { url, link });
   }
   const m = p.match(/^\/admin\/links\/([0-9a-f]{64})\/revoke$/);
   if (m && req.method === 'POST') {
     const link = doors.revokeLink(m[1]);
     console.log(`[front door] the admin revoked a sign-up link (${link.id.slice(0, 12)})`);
+    audited('link-revoked', { detail: `made ${utc(link.created)}` });
     return send(res, 200, { ok: true, link });
   }
   if (p === '/admin/update' && req.method === 'GET') return send(res, 200, updateStatus());
@@ -945,6 +963,7 @@ async function adminRoutes(req, res, p, account) {
   if (p === '/admin/update/days' && req.method === 'POST') {
     const days = doors.setUpdateDays(((await readJson(req)) || {}).days);
     console.log(`[front door] the admin set the update deadline: ${days} days`);
+    audited('update-days', { detail: `${days} days` });
     switchPastDeadline();
     return send(res, 200, updateStatus());
   }
@@ -952,6 +971,7 @@ async function adminRoutes(req, res, p, account) {
     await readJson(req);
     if (!askForUpdate()) return send(res, 409, { error: "This machine can't be updated from here. Run its installer again." });
     console.log('[front door] the admin asked to update botdot: the front door and every account');
+    audited('update', { detail: 'the front door and every account' });
     return send(res, 202, updateStatus());
   }
   // Shared rooms (ADR 060): the admin's switch for the machine, off until turned on. Off, no room is served and no
@@ -960,6 +980,7 @@ async function adminRoutes(req, res, p, account) {
   if (p === '/admin/rooms' && req.method === 'POST') {
     const on = rooms.setOn(((await readJson(req)) || {}).on);
     console.log(`[front door] the admin turned shared rooms ${on ? 'on' : 'off'}`);
+    audited('rooms', { detail: on ? 'on' : 'off' });
     if (!on) { for (const r of roomsAll()) turns.stop(r.id); closeRoomStreams(); }
     return send(res, 200, { on });
   }
@@ -977,6 +998,7 @@ async function adminRoutes(req, res, p, account) {
     let shown;
     try { shown = groupRouter.set(body.router, key || undefined, typeof body.wakeGate === 'boolean' ? body.wakeGate : undefined, body.replaysPerHour); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
     console.log(`[front door] the admin chose ${shown.router === 'jev' ? 'Jev' : 'Haiku'} as the decision model; the wake gate is ${shown.wakeGate ? 'on' : 'off'}; ${shown.replaysPerHour} replays an hour`);
+    audited('decision-model', { detail: `${shown.router === 'jev' ? 'Jev' : 'Haiku'}${key && shown.router === 'jev' ? ', a new key' : ''} · wake gate ${shown.wakeGate ? 'on' : 'off'}` });
     handRouter();
     return send(res, 200, shown);
   }
@@ -987,6 +1009,7 @@ async function adminRoutes(req, res, p, account) {
     let shown;
     try { shown = groupRouter.setReplays(((await readJson(req)) || {}).replaysPerHour); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
     console.log(`[front door] the admin set ${shown.replaysPerHour} replays an hour`);
+    audited('replays', { detail: `${shown.replaysPerHour} an hour` });
     handRouter();
     return send(res, 200, shown);
   }
@@ -1004,6 +1027,7 @@ async function adminRoutes(req, res, p, account) {
     }
     const shown = boat.set(key);
     console.log(`[front door] the admin ${key ? 'set' : 'removed'} the boat.dev key`);
+    audited(key ? 'boat-key-set' : 'boat-key-removed');
     handBoat(true);
     return send(res, 200, shown);
   }
@@ -1024,6 +1048,7 @@ async function adminRoutes(req, res, p, account) {
   if (p === '/admin/share' && req.method === 'POST') {
     const accounts = doors.setDefaultShare(await readJson(req));
     console.log(`[front door] the admin set the default share: ${JSON.stringify(doors.defaultShare())}`);
+    audited('default-share', { detail: shareText(doors.defaultShare()) });
     for (const name of accounts) askMachine(name);
     return send(res, 200, { ok: true, share: doors.defaultShare() });
   }
@@ -1042,6 +1067,11 @@ async function adminRoutes(req, res, p, account) {
     await readJson(req);
     if (f[2] === 'delete') { doors.deleteFeedback(f[1]); return send(res, 200, { ok: true }); }
     return send(res, 200, { ok: true, report: doors.feedbackDone(f[1]) });
+  }
+  // The audit log (#911, ADR 141), newest first: ?account=, ?action= and ?before= (an entry's `at`) to page.
+  if (p === '/admin/audit' && req.method === 'GET') {
+    const q = new URL(req.url, 'http://x').searchParams;
+    return send(res, 200, audit.list({ account: q.get('account') || undefined, action: q.get('action') || undefined, before: q.get('before') || undefined, limit: Number(q.get('limit')) || undefined }));
   }
   const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update)$/);
   if (a && req.method === 'POST') return accountAction(req, res, a[1], a[2]);
@@ -1084,6 +1114,11 @@ async function listAccounts() {
   }));
 }
 
+// A time in an audit entry's words: "2026-11-10 04:00 UTC".
+const utc = (t) => `${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+// A share in an audit entry's words: "2 CPUs · 5 GB RAM · 30 GB disk".
+const shareText = (s) => `${s.cpu} CPU${s.cpu === 1 ? '' : 's'} · ${s.ram} GB RAM · ${s.disk} GB disk`;
+
 // The admin suspends, resumes or deletes an account, or makes a sign-in link for it. The admin's own account is
 // neither suspended nor deleted here: nobody would be left to resume it, nor to reach the admin page.
 async function accountAction(req, res, name, action) {
@@ -1096,6 +1131,7 @@ async function accountAction(req, res, name, action) {
   if (action === 'share') {
     const share = doors.setAccountShare(name, body.default === true ? null : body);
     console.log(`[front door] the admin set the share of the account ${name}: ${JSON.stringify(share)}`);
+    audited('share', { account: name, detail: body.default === true ? `the default, ${shareText(share)}` : shareText(share) });
     askMachine(name);
     return send(res, 200, { ok: true, share });
   }
@@ -1104,11 +1140,13 @@ async function accountAction(req, res, name, action) {
     if (!choosesUpdates(name) || !ownUpdate(name).canUpdate) return send(res, 409, { error: `The account ${name} has no new version to switch to.` });
     askSwitch(name);
     console.log(`[front door] the admin asked to switch the account ${name} to the new version now`);
+    audited('update-now', { account: name });
     return send(res, 202, { ok: true, update: ownUpdate(name) });
   }
   if (action === 'sign-in-link') {
     const { url, link } = doors.newSignInLink({ origin: ORIGIN.origin, account: name });
     console.log(`[front door] the admin made a sign-in link for the account ${name} (${link.id.slice(0, 12)})`);
+    audited('sign-in-link', { account: name, detail: `until ${utc(link.expires)}` });
     return send(res, 201, { url, link });
   }
   if (action === 'delete') {
@@ -1117,11 +1155,13 @@ async function accountAction(req, res, name, action) {
     roomsWithout(name);
     usage?.forget(name);
     console.log(`[front door] the admin deleted the account ${name}; the machine erases it`);
+    audited('delete', { account: name });
     askMachine(name);
     return send(res, 200, { ok: true });
   }
   doors.setSuspended(name, action === 'suspend');
   console.log(`[front door] the admin ${action === 'suspend' ? 'suspended' : 'resumed'} the account ${name}`);
+  audited(action, { account: name });
   askMachine(name);
   return send(res, 200, { ok: true });
 }
@@ -1172,13 +1212,13 @@ function takeCall(req, res, call) {
   if (slowedDown(req, res, callTries, 'calls with a wrong key')) return;
   const client = clientOf(req);
   if (!doors.accountExists(call.account)) {
-    callTries.failed(client);
+    failedTry(callTries, client, 'calls');
     req.resume();
     return send(res, 401, { error: 'Wrong key.' });
   }
   // A suspended account's botdot server isn't running: said as for any that isn't, to a sender who may be anyone.
   if (doors.isSuspended(call.account)) { req.resume(); return send(res, 502, { error: CALL_NOT_RUNNING }); }
-  const answered = (status) => { if (status === 401) callTries.failed(client); };
+  const answered = (status) => { if (status === 401) failedTry(callTries, client, 'calls'); };
   pass(req, res, call.account, { path: call.path, headers: calls.callHeaders(req, call.account, client), answered, notRunning: CALL_NOT_RUNNING });
 }
 
